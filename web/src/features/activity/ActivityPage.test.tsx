@@ -173,6 +173,30 @@ describe("Activity", () => {
     expect(sheet).toHaveTextContent("2 to delete");
   });
 
+  it("says why Dockwell rolled a change back, where a person reads the rollback", async () => {
+    const user = userEvent.setup();
+    const said =
+      "web runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again.";
+    const watch = feed<WatchEventsResponse>();
+    watch.push(
+      snapshot([
+        changeEvent(
+          moved(shop, {
+            id: "chg_back",
+            summary: "Roll back Deploy web",
+            rollback: true,
+            reverts: "chg_shop",
+            because: said,
+          }),
+        ),
+      ]),
+    );
+    renderActivity(watch);
+    await user.click(await screen.findByText("Roll back Deploy web"));
+    const why = await screen.findByText(/Dockwell made this change because of what failed/);
+    expect(why.closest(".plan-because")).toHaveTextContent(said);
+  });
+
   it("leads from a change to a secret, and from a reveal, to the variables and secrets", async () => {
     const user = userEvent.setup();
     const watch = feed<WatchEventsResponse>();

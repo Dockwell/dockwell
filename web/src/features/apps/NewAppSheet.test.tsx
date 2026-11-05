@@ -166,6 +166,41 @@ describe("New app, from an image", () => {
     });
   });
 
+  it("leaves what a failed check said, and what to do about it, as the server says it", async () => {
+    const user = userEvent.setup();
+    const said =
+      "nginx runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again.";
+    const failed = moved(planned(), {
+      state: ChangeState.FAILED,
+      error: said,
+      steps: [
+        create(StepProgressSchema, {
+          serverId: "srv_1",
+          resourceId: "svc_nginx",
+          state: StepState.FAILED,
+          message: said,
+          reason: "unhealthy",
+        }),
+      ],
+    });
+    const { sheet } = await openImage(
+      api({
+        changes: {
+          proposeChange: () => ({ change: failed }),
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    await user.type(within(sheet).getByLabelText("Image"), "nginx:sick");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    const plan = await screen.findByRole("dialog", { name: "Couldn't create nginx" });
+    const notice = within(plan).getByRole("alert");
+    expect(notice).toHaveTextContent("answered 503 Service Unavailable");
+    expect(notice).toHaveTextContent("Fix what it answers, or the check, then try again.");
+    expect(notice).not.toHaveTextContent("Check the image and its variables");
+  });
+
   it("says what to check in what this form has, and lets you leave from the failure", async () => {
     const user = userEvent.setup();
     const failed = moved(planned(), {

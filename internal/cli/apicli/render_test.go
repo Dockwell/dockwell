@@ -13,6 +13,8 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"google.golang.org/protobuf/proto"
+
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
@@ -211,6 +213,10 @@ func TestChangeViewSaysHowTheRollbackWent(t *testing.T) {
 		}},
 	}
 	first := &dockwellv1.Plan{Summary: &dockwellv1.PlanSummary{Create: 2}}
+	rolling := proto.Clone(deploy).(*dockwellv1.Plan)
+	rolling.Servers = []*dockwellv1.ServerPlan{{Steps: []*dockwellv1.PlanStep{{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Rollout: &dockwellv1.RolloutPlan{Rolling: true},
+	}}}}
 	const (
 		applied  = dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED
 		applying = dockwellv1.RollbackState_ROLLBACK_STATE_APPLYING
@@ -225,6 +231,8 @@ func TestChangeViewSaysHowTheRollbackWent(t *testing.T) {
 		not  string
 	}{
 		{"put back", deploy, &dockwellv1.RollbackStatus{State: applied, Steps: 1, Restored: []string{"web"}}, []string{"Dockwell put back what ran before, in chg_2, and it runs again. It was down while that happened."}, ""},
+		{"it rolled, and what ran never stopped", deploy, &dockwellv1.RollbackStatus{State: applied, Steps: 1}, []string{"What ran never stopped. Dockwell removed what this made, in chg_2."}, "was down"},
+		{"it rolled, and something had to be made again", rolling, &dockwellv1.RollbackStatus{State: applied, Steps: 1, Restored: []string{"web"}}, []string{"Dockwell put back what ran before, in chg_2."}, "was down"},
 		{"put back around what runs", deploy, &dockwellv1.RollbackStatus{State: applied, Steps: 1, Restored: []string{"data"}}, []string{"Dockwell put back what was there before, in chg_2."}, "runs again"},
 		{"put back, and nothing runs", rule, &dockwellv1.RollbackStatus{State: applied, Steps: 1, Restored: []string{"http"}}, []string{"Dockwell put back what was there before, in chg_2."}, "runs again"},
 		{"nothing to put back", deploy, &dockwellv1.RollbackStatus{State: applied}, []string{"It stopped before it changed anything on the servers, so what was there before still is (chg_2)."}, "put back"},
@@ -837,5 +845,20 @@ func TestAPlanSaysAReloadCostsEverySite(t *testing.T) {
 				t.Errorf("it says, want it said %t:\n%s", tc.want, buf.String())
 			}
 		})
+	}
+}
+
+// The CLI says what a check said on a failed deploy and on its rollback, as it was said.
+func TestAChangeSaysWhatACheckSaid(t *testing.T) {
+	const said = "app runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again."
+	var failed strings.Builder
+	ChangeView(&failed, &dockwellv1.Change{Id: "chg_1", State: dockwellv1.ChangeState_CHANGE_STATE_FAILED, Error: said, Plan: &dockwellv1.Plan{}}, time.Now())
+	if !strings.Contains(failed.String(), "It failed: "+said+"\n") {
+		t.Errorf("a failed deploy reads:\n%s", failed.String())
+	}
+	var back strings.Builder
+	ChangeView(&back, &dockwellv1.Change{Id: "chg_2", State: dockwellv1.ChangeState_CHANGE_STATE_APPLIED, Reverts: "chg_1", Rollback: true, Because: said, Plan: &dockwellv1.Plan{}}, time.Now())
+	if !strings.Contains(back.String(), "Dockwell made this change because of what failed: "+said+"\n") {
+		t.Errorf("its rollback reads:\n%s", back.String())
 	}
 }

@@ -2053,6 +2053,47 @@ describe("an app's overview", () => {
     expect(rows[1]).toHaveTextContent("Server path");
   });
 
+  it("leaves what a failed check said, and what to do about it, as the server says it, in Deploy", async () => {
+    const user = userEvent.setup();
+    const said =
+      "web runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again.";
+    const failed = moved(webPlanned(), {
+      state: ChangeState.FAILED,
+      error: said,
+      steps: [
+        create(StepProgressSchema, {
+          serverId: "srv_1",
+          resourceId: "res_web",
+          state: StepState.FAILED,
+          message: said,
+          reason: "unhealthy",
+        }),
+      ],
+    });
+    const web = anApp("web", "nginx:1.27");
+    renderAt(
+      "/apps/svc_web",
+      api([web], {
+        services: {
+          listServices: () => ({ services: [web] }),
+          listServiceRevisions: () => ({ revisions }),
+          deployService: () => ({ change: failed }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const form = await screen.findByRole("dialog", { name: "Deploy web" });
+    const field = within(form).getByLabelText("Image");
+    await user.clear(field);
+    await user.type(field, "ghcr.io/acme/web:sick");
+    await user.click(within(form).getByRole("button", { name: "Review plan" }));
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't replace web" });
+    const notice = within(sheet).getByRole("alert");
+    expect(notice).toHaveTextContent("answered 503 Service Unavailable");
+    expect(notice).toHaveTextContent("Fix what it answers, or the check, then try again.");
+    expect(notice).not.toHaveTextContent("Check the image and tag");
+  });
+
   it("says what to check in what the Deploy form has, and lets you leave from there", async () => {
     const user = userEvent.setup();
     const failed = moved(webPlanned(), {
@@ -2097,18 +2138,58 @@ describe("an app's overview", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("leaves what a failed check said, and what to do about it, as the server says it, in Add a port", async () => {
+    const user = userEvent.setup();
+    const said =
+      "web runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again.";
+    const failed = moved(webPlanned(), {
+      state: ChangeState.FAILED,
+      error: said,
+      steps: [
+        create(StepProgressSchema, {
+          serverId: "srv_1",
+          resourceId: "res_web",
+          state: StepState.FAILED,
+          message: said,
+          reason: "unhealthy",
+        }),
+      ],
+    });
+    const alone = anApp("alone", "nginx:1.27", { ports: [] });
+    renderAt(
+      "/apps/svc_alone",
+      api([alone], {
+        services: {
+          listServices: () => ({ services: [alone] }),
+          listServiceRevisions: () => ({ revisions }),
+          addServicePort: () => ({ change: failed }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a port" }));
+    const form = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    await user.type(within(form).getByLabelText(/On the server/), "8080");
+    await user.type(within(form).getByLabelText(/In the app/), "80");
+    await user.click(within(form).getByRole("button", { name: "Review plan" }));
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't replace web" });
+    const notice = within(sheet).getByRole("alert");
+    expect(notice).toHaveTextContent("answered 503 Service Unavailable");
+    expect(notice).toHaveTextContent("Fix what it answers, or the check, then try again.");
+    expect(notice).not.toHaveTextContent("Check the port in the app");
+  });
+
   it("says what to check in what the Add a port form has", async () => {
     const user = userEvent.setup();
     const failed = moved(webPlanned(), {
       state: ChangeState.FAILED,
-      error: "web runs, but fails its health check. Check what the check runs, then try again.",
+      error: "web stopped right after it started, with exit code 1. Check its command and variables, then try again.",
       steps: [
         create(StepProgressSchema, {
           serverId: "srv_1",
           resourceId: "res_web",
           state: StepState.FAILED,
           message: "x",
-          reason: "unhealthy",
+          reason: "exits",
         }),
       ],
     });

@@ -2062,7 +2062,7 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 // is planned from its last known state, like an offline one. What it
 // records as its plan is the plan that runs. So a rollback is never left
 // planned: it is on record applying, or not at all.
-func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit, cause error) (*committed, error) {
+func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit, because string) (*committed, error) {
 	items, err := e.items(ctx, edits, true)
 	if err != nil {
 		return nil, err
@@ -2078,7 +2078,7 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 		e.letGo(ctx, c.ID)
 		return nil, err
 	}
-	r, err := e.commitOwned(ctx, c, items, system, true, cause.Error())
+	r, err := e.commitOwned(ctx, c, items, system, true, because)
 	if err != nil {
 		e.letGo(ctx, c.ID)
 	}
@@ -2954,7 +2954,8 @@ func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, caus
 		return ferr
 	}
 	askedToRun(c, edits)
-	r, err := e.rollBack(ctx, c, edits, cause)
+	// Why, in the words a person read on the deploy: the chain stays on its step.
+	r, err := e.rollBack(ctx, c, edits, plain)
 	if err != nil {
 		ferr.RollbackErr = err
 		e.published(c.ID, store.ChangeFailed)

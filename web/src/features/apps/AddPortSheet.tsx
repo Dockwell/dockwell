@@ -86,8 +86,9 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
       retryLabel: t`Edit and try again`,
       onDone: onClose,
       fix: (reason) =>
-        // A port is all that moved, and its numbers are all this form has.
-        reason === "exits" || reason === "unhealthy" ? t`Check the port in the app, then try again.` : undefined,
+        // A port is all that moved, and its numbers are all this form has. A check that fails says
+        // what it answered, and what to do about that, which is the server's.
+        reason === "exits" ? t`Check the port in the app, then try again.` : undefined,
       onClose: (after) => {
         // Cancelling comes back here, with what you typed, as failing does, saying why
         // at the field. Anything else is under way or over.

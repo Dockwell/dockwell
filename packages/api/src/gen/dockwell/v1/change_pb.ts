@@ -1005,8 +1005,9 @@ export type Change = Message<"dockwell.v1.Change"> & {
 
   /**
    * Why Dockwell made this change, when it made it on its own: for a rollback,
-   * what failed in the change it rolls back, with the health check's own
-   * output where a health check failed.
+   * what failed in the change it rolls back, in the plain words of that change's
+   * error, with what the health check said where a health check failed: short,
+   * cleaned and masked.
    *
    * @generated from field: string because = 19;
    */

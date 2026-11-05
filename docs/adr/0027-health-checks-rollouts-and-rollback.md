@@ -190,7 +190,7 @@ The plan says so, in the form "web is stopped, so this starts it", with no downt
 
 A check that fails, or anything else that fails a step, fails the change and commits a rollback to the last revision that was deployed, on its own:
 
-- **History stays honest.** The deploy stays failed, on record with its error. The rollback is a change of its own, with a revision that puts the old spec back, and says why in `Change.because`, with the check's own words: "web-3 runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable". Both are on the timeline.
+- **History stays honest.** The deploy stays failed, on record with its error. The rollback is a change of its own, with a revision that puts the old spec back, and says why in `Change.because`, in the words the deploy's error has: "web runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again". The chain, with its IDs, stays on the failed step's details. Both are on the timeline.
 - **What ran never stopped,** in a rolling step: the rollback's `Run` finds it matches and removes only what failed. A stop-first deploy's rollback starts the old version again, with the data its image keeps where it was. There are two exceptions, where what ran can't be what the spec now asks for, so a rollback makes a new container, rolling where it can. A rollback pinned to a digest, as a moving tag's is, names an image what ran doesn't read as. And rolling back a rotation gives the secret a new revision with the old value (ADR 0022), so what ran doesn't read as that either, though it holds the same value.
 - **It never touches data.** A rollback changes no volume and no server path, and what the new version wrote there stays. Each plan that replaces a service says so, in one note, `volumes_stay`, as code that has been rolled back can meet data migrated forward, which is for a person to know. The control plane reads it from the spec, what the image keeps comes from the server, and a restart, which has nothing to roll back, says nothing of it.
 - **No loop.** A rollback isn't rolled back in turn. Nothing proposes one on its own again, and `Resume` only finishes what's applying.
@@ -217,6 +217,13 @@ The plan sheet shows no steps for one server (ADR 0028), so how a step rolls is 
 - A restart never says it rolls back, here or in the row that says what a plan rolls back to, as it has no revision to go back to.
 
 The CLI says the same from the same fields.
+
+**A check that fails says what it said,** on the failed deploy, on its step and on its rollback, in the CLI and the panel, as that is the one fact a person needs, and the container may be gone by the time they read it:
+- The agent's own check says what it answered, in its own words: "app runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again". Nothing of the container's is in that: the status is the number's own name, as a check reads neither the body nor the reason sent with it. Where a connection failed, it says what to look at instead.
+- A command check quotes what it printed, cleaned and masked as any check's output is: `the command exited with 1: "the database refuses connections: •••"`.
+- **A form's own fix doesn't replace it.** A form says what to check in what it has where an app exits, but what a check answered says more than that.
+- **That isn't a container's output in the record.** Its logs stay out of it (ADR 0028). What a check said is at most 240 characters on one line, with what the spec set masked ([the threat model](../security/health-checks.md)), and the same people can read it on the app's health.
+- **A rollback Dockwell made says why first** in the panel, as nobody asked for it.
 
 ### Replicas are left out
 

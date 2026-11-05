@@ -65,7 +65,7 @@ import { useServices } from "../apps/useServices";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
-import { FailureNotice, MachineWords } from "./FailureNotice";
+import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
 import { type Notice, needsConfirming, useAsides, useRisks, useWarnings } from "./notices";
@@ -940,6 +940,8 @@ function PlanBody({
           <MachineWords>{refusal(failure, plan)}</MachineWords>
         </Callout>
       ) : null}
+      {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
+      {change?.because ? <BecauseNotice because={change.because} /> : null}
       {/* What it reaches stays said while it runs and once it has, so nothing moves as it lands. */}
       {phase === "review" || phase === "applying" || phase === "arrived" ? (
         <TopNotice risks={risks} warnings={warnings} offline={phase === "review" ? offline : []} phase={phase} />

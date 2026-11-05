@@ -420,9 +420,12 @@ export function factAndRest(message: string): [string, string] {
   const text = message.trim().replace(/^(the|a|an|another|this|there|can't)\b/, (word) => {
     return word.charAt(0).toUpperCase() + word.slice(1);
   });
-  const end = /[.!?](\s+|$)|。/.exec(text);
-  if (!end) return [text, ""];
-  const fact = text.slice(0, end.index);
-  const rest = text.slice(end.index + end[0].length).trim();
-  return [fact, rest];
+  // What a health check's command printed comes in quotes, and its full stops aren't the server's.
+  let quoted = false;
+  for (const mark of text.matchAll(/\\.|"|[.!?](\s+|$)|。/g)) {
+    if (mark[0] === '"') quoted = !quoted;
+    if (quoted || mark[0] === '"' || mark[0].startsWith("\\")) continue;
+    return [text.slice(0, mark.index), text.slice(mark.index + mark[0].length).trim()];
+  }
+  return [text, ""];
 }

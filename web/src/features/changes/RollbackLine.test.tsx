@@ -12,6 +12,7 @@ import {
   RollbackState,
   type RollbackStatus,
   RollbackStatusSchema,
+  RolloutPlanSchema,
   ServiceService,
   StepProgressSchema,
   StepState,
@@ -88,6 +89,25 @@ afterEach(async () => {
 });
 
 describe("what a failed change says of its rollback", () => {
+  it("says what ran never stopped, where the deploy rolled and only what it made had to go", async () => {
+    const sheet = await inTheSheet(aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: [] }));
+    expect(sheet).toHaveTextContent("web stays on nginx:1.27");
+    expect(sheet).toHaveTextContent("It never stopped. Dockwell removed what this made after it failed.");
+    expect(sheet).not.toHaveTextContent("was down");
+    expect(sheet).not.toHaveTextContent("runs nginx:1.27 again");
+  });
+
+  it("doesn't say it was down where the deploy rolled, though what ran had to be made again", async () => {
+    const rolled = aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: ["web"] });
+    const step = rolled.plan?.servers[0]?.steps[0];
+    if (!step?.resource) throw new Error("webPlanned has no step");
+    step.resource.kind = "service";
+    step.rollout = create(RolloutPlanSchema, { rolling: true });
+    const sheet = await inTheSheet(rolled);
+    expect(sheet).toHaveTextContent("Dockwell put it back after this failed.");
+    expect(sheet).not.toHaveTextContent("was down");
+  });
+
   it("says the old version runs again, and that it was down, once a deploy that broke it is put back", async () => {
     const sheet = await inTheSheet(aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: ["web"] }));
     expect(sheet).toHaveTextContent("web runs nginx:1.27 again");

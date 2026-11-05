@@ -45,7 +45,7 @@ A check is the one thing a spec can make the agent do on the network, and what i
 
 ### Someone with the read scope
 
-- **Read a check's last output.** They can, and it's why that output is short and masked, where a log needs a grant of its own.
+- **Read a check's last output.** They can, on the app's health, and on a deploy that failed its check and on the rollback that followed, for as long as those changes are on record. It's why that output is short and masked, where a log needs a grant of its own.
 
 ## Where a claim of health can be wrong
 

@@ -562,7 +562,10 @@ func (e *Engine) rollbackOf(c *store.Change) (*Rollback, error) {
 	var plan struct {
 		Servers []struct {
 			Server, Name, Unplanned string
-			Steps                   []struct{ Ref struct{ Name string } }
+			Steps                   []struct {
+				Ref     struct{ Name string }
+				Rollout *resource.RolloutPlan
+			}
 		}
 	}
 	if err := json.Unmarshal(c.Plan, &plan); err != nil {
@@ -574,6 +577,11 @@ func (e *Engine) rollbackOf(c *store.Change) (*Rollback, error) {
 		names[plan.Servers[i].Server] = plan.Servers[i].Name
 		r.Steps += len(plan.Servers[i].Steps)
 		for _, step := range plan.Servers[i].Steps {
+			// A rolling deploy that failed leaves what ran serving, and the step only takes
+			// away what failed, so it has put nothing back.
+			if step.Rollout.AlreadyRuns() {
+				continue
+			}
 			if !slices.Contains(r.Restored, step.Ref.Name) {
 				r.Restored = append(r.Restored, step.Ref.Name)
 			}

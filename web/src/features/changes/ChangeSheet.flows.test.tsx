@@ -977,6 +977,57 @@ describe("a change that failed", () => {
     expect(notice).not.toHaveTextContent("Check its command and variables");
   });
 
+  it("says what a failed check answered, with what to do, on the deploy", async () => {
+    show(
+      failing({
+        error:
+          "web runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again.",
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't deploy nginx:1.28" });
+    const notice = within(sheet).getByRole("alert");
+    expect(notice).toHaveTextContent(
+      "web runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable",
+    );
+    expect(notice).toHaveTextContent("Fix what it answers, or the check, then try again.");
+    expect(within(notice).getByText("/healthz").tagName).toBe("CODE");
+  });
+
+  it("quotes what a command printed, masked, without reading its full stops as the server's", async () => {
+    show(
+      failing({
+        error:
+          'web runs, but fails its health check: the command exited with 1: "the database refuses connections. Its address: •••". Fix what it reports, or the check, then try again.',
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't deploy nginx:1.28" });
+    const notice = within(sheet).getByRole("alert");
+    expect(notice).toHaveTextContent('"the database refuses connections. Its address: •••"');
+    expect(notice).toHaveTextContent("Fix what it reports, or the check, then try again.");
+  });
+
+  it("says why first, on a rollback Dockwell made", async () => {
+    const said =
+      "web runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again.";
+    show(moved(aDeploy(), { state: ChangeState.APPLIED, reverts: "chg_failed", rollback: true, because: said }));
+    const sheet = await screen.findByRole("dialog");
+    const why = await waitFor(() => {
+      const found = sheet.querySelector(".plan-because");
+      if (!found) throw new Error("no reason yet");
+      return found as HTMLElement;
+    });
+    expect(why).toHaveTextContent("Dockwell made this change because of what failed");
+    expect(why).toHaveTextContent(said);
+    expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(why);
+  });
+
+  it("says nothing of why on a change someone made", async () => {
+    show(moved(aDeploy(), { state: ChangeState.APPLIED }));
+    const sheet = await screen.findByRole("dialog");
+    await waitFor(() => expect(sheet.querySelector(".plan-body")).not.toBeNull());
+    expect(sheet.querySelector(".plan-because")).toBeNull();
+  });
+
   it("leaves the server's words when the form has nothing better", async () => {
     show(failing(), { fix: () => undefined });
     const sheet = await screen.findByRole("dialog", { name: "Couldn't deploy nginx:1.28" });

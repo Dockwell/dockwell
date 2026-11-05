@@ -1324,15 +1324,20 @@ kept=$app
 kept_id=$(docker inspect --format '{{.Id}}' "$kept") || fail "docker inspect $kept failed"
 count=$(changes_count) || fail "changes list failed"
 if said=$(deploy_app never 3 2>&1); then fail "the CLI says a deploy that never turned healthy went through: $said"; fi
-grep -q 503 <<<"$said" || fail "the CLI should say what the check answered, a 503, and says: $said"
+check_said="app runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again."
+grep -qF "$check_said" <<<"$said" || fail "the CLI should say what the check answered, as '$check_said', and says: $said"
 back=$(rolled_back)
 one_app "after the rollback" slow
 [[ "$(docker inspect --format '{{.Id}}' "$app")" == "$kept_id" ]] || fail "the rollback replaced what ran, $kept, with $app, and should have left it alone"
 jq -e '.state == "CHANGE_STATE_APPLIED"' <<<"$back" >/dev/null || fail "the rollback should have applied, and is: $back"
-jq -e '.because | contains("503")' <<<"$back" >/dev/null || fail "the rollback should say why, with what the check answered, a 503, and says: $back"
+jq -e --arg said "$check_said" '.because == $said' <<<"$back" >/dev/null || fail "the rollback should say why, as '$check_said', and says: $back"
+said=$(dw changes get "$(jq -r .id <<<"$back")" 2>&1) || fail "changes get failed: $said"
+grep -qF "Dockwell made this change because of what failed: $check_said" <<<"$said" || fail "the CLI's rollback should say why, as '$check_said', and says: $said"
 failed=$(dw changes list --json | jq -c '.changes[1]')
-jq -e --arg back "$(jq -r .id <<<"$back")" '.state == "CHANGE_STATE_FAILED" and .rolledBackBy == $back and (.error | length > 0)' <<<"$failed" >/dev/null ||
-  fail "the failed deploy should stay on record as failed and rolled back, and is: $failed"
+jq -e --arg back "$(jq -r .id <<<"$back")" --arg said "$check_said" '.state == "CHANGE_STATE_FAILED" and .rolledBackBy == $back and .error == $said' <<<"$failed" >/dev/null ||
+  fail "the failed deploy should stay on record as failed and rolled back, saying '$check_said', and is: $failed"
+said=$(dw changes get "$(jq -r .id <<<"$failed")" 2>&1) || fail "changes get failed: $said"
+grep -qF "It failed: $check_said" <<<"$said" || fail "the CLI's failed deploy should say '$check_said', and says: $said"
 dw compose export >"$rollout_dir/after-rollback.yaml" || fail "compose export failed"
 grep -q 'dockwell-e2e-app:slow' "$rollout_dir/after-rollback.yaml" || fail "the spec isn't back on the image that ran: $(cat "$rollout_dir/after-rollback.yaml")"
 [[ "$(drifted)" == "$drift_before" ]] || fail "drift after a rollback: $(dw drift list --json), and before the rollouts it was $drift_before"
@@ -1351,7 +1356,7 @@ if deploy_app never 4 --app-env "E2E_DATABASE=$database" "${docker_check[@]}" >/
 back=$(rolled_back)
 one_app "after a command check's rollback" slow
 [[ "$(docker inspect --format '{{.Id}}' "$app")" == "$kept_id" ]] || fail "the rollback from a command check replaced what ran, $kept, with $app"
-jq -e --arg said "$never_says: •••" '(.summary | startswith("Roll back")) and (.because | contains($said))' <<<"$back" >/dev/null ||
+jq -e --arg said "\"$never_says: •••\". Fix what it reports, or the check, then try again." '(.summary | startswith("Roll back")) and (.because | startswith("app runs, but fails its health check: the command exited with")) and (.because | endswith($said))' <<<"$back" >/dev/null ||
   fail "the rollback should quote what the command printed, '$never_says: •••', and says: $back"
 jq -e --arg value "$database" '.because | contains($value) | not' <<<"$back" >/dev/null ||
   fail "the rollback's reason shows a value from what the spec set: $back"

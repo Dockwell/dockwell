@@ -75,8 +75,9 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
       retryLabel: t`Edit and try again`,
       onDone: onClose,
       fix: (reason) => {
-        // This form has an image and nothing else, so that is what there is to check here.
-        if (reason === "exits" || reason === "unhealthy" || reason === "command") {
+        // This form has an image and nothing else, so that is what there is to check here. A
+        // check that fails says what it answered, and what to do about that, which is the server's.
+        if (reason === "exits" || reason === "command") {
           return t`Check the image and tag, then deploy again.`;
         }
         return reason === "port" ? t`Stop what uses it on this server, then deploy again.` : undefined;

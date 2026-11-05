@@ -248,6 +248,36 @@ func TestRecoveringWhatWontStayUpFails(t *testing.T) {
 	}
 }
 
+// Through the API, a failed deploy and its rollback each say what the check said, with
+// what to do, and a person's way to read it needs nothing else.
+func TestAFailedCheckSaysWhatItSaidThroughTheAPI(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	b.e.Registry["ghcr.io/acme/shop:sick"] = dockertest.Image{
+		Unhealthy: true, CheckSays: "the database refuses connections",
+		Config: docker.Config{Cmd: []string{"app"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "check"}}},
+	}
+	_, web := runLatest(t, b)
+	const said = `web runs, but fails its health check: the command exited with 1: "the database refuses connections". Fix what it reports, or the check, then try again.`
+	got := applied(t, b.c, b.deploy(t, web.GetId(), "ghcr.io/acme/shop:sick"))
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetError() != said {
+		t.Fatalf("the deploy ended %v, saying %q, want %q", got.GetState(), got.GetError(), said)
+	}
+	step := got.GetSteps()[0]
+	if step.GetMessage() != said || step.GetReason() != "unhealthy" {
+		t.Errorf("its step says %q, as %q", step.GetMessage(), step.GetReason())
+	}
+	if got.GetRolledBackBy() == "" {
+		t.Fatal("nothing rolled it back")
+	}
+	back, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if because := back.Msg.GetChange().GetBecause(); because != said {
+		t.Errorf("the rollback says it is because %q, want %q", because, said)
+	}
+}
+
 // Nothing newer doesn't make it healthy: a step that reads done says it is.
 func TestAPullWithNothingNewerStillVerifies(t *testing.T) {
 	b := newBench(t, store.SQLite)

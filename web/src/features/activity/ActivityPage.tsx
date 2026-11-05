@@ -42,7 +42,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { FailureNotice } from "../changes/FailureNotice";
+import { BecauseNotice, FailureNotice } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
 import { canUndo, diffResources, failedStep, foldPlumbing, shortFingerprint, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
@@ -720,6 +720,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
               </>
             ) : null}
           </dl>
+          {change?.because ? <BecauseNotice because={change.because} /> : null}
           {change?.state === ChangeState.FAILED ? (
             <RollbackLine change={change} subject={rollbackSubject(full.data?.change?.plan ?? change.plan)} />
           ) : null}

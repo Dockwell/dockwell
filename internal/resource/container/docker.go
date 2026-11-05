@@ -1452,7 +1452,7 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 						passedAt = now
 					}
 				} else {
-					last = r.Output
+					last = health.Clean(r.Output, health.SpecEnv(c.Config.Env, c.Config.Labels))
 					passes, passedAt, holdingSince = 0, time.Time{}, time.Time{}
 					// Failures count only once the start period is over, and one for
 					// each interval, though the agent looks again sooner, so a
@@ -1462,7 +1462,7 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 						lastCounted = now
 					}
 					if failures >= check.RetriesOr() {
-						return resource.PlainlyBecause(resource.ReasonUnhealthy, t.Service+" runs, but fails its health check. Check what it answers, then try again.",
+						return resource.PlainlyBecause(resource.ReasonUnhealthy, t.Service+" runs, but fails its health check: "+health.WithFix(last),
 							fmt.Errorf("%s runs, but fails its health check: %s", name, last))
 					}
 				}
@@ -1474,12 +1474,12 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 			}
 			passes = needPasses // Docker's own check runs at its own pace, and says if that changes
 		case s.Health != nil && s.Health.Status == "unhealthy":
-			said := ""
 			if r, ok := health.FromDocker(s.Health, health.SpecEnv(c.Config.Env, c.Config.Labels)); ok {
-				said = ": " + r.Output
+				return resource.PlainlyBecause(resource.ReasonUnhealthy, t.Service+" runs, but fails its health check: "+health.WithFix(r.Output),
+					fmt.Errorf("%s runs, but fails its health check: %s", name, r.Output))
 			}
 			return resource.PlainlyBecause(resource.ReasonUnhealthy, t.Service+" runs, but fails its health check. Check the command its health check runs, then try again.",
-				fmt.Errorf("%s runs, but fails its health check%s", name, said))
+				fmt.Errorf("%s runs, but fails its health check", name))
 		case s.Health != nil:
 			passes, passedAt, holdingSince = 0, time.Time{}, time.Time{}
 			if r, ok := health.FromDocker(s.Health, health.SpecEnv(c.Config.Env, c.Config.Labels)); ok {
@@ -1525,10 +1525,18 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 	}
 	switch cause := context.Cause(ctx); {
 	case errors.Is(cause, errWaited):
-		return resource.PlainlyBecause(resource.ReasonUnhealthy, fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting. Check the command its health check runs and how long the app takes to start, then try again.", t.Service, human.Duration(wait)),
+		plain := fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting. Check the command its health check runs and how long the app takes to start, then try again.", t.Service, human.Duration(wait))
+		if last != "" {
+			plain = fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting: %s If it only takes longer than that to start, give its check a start period.", t.Service, human.Duration(wait), health.WithFix(last))
+		}
+		return resource.PlainlyBecause(resource.ReasonUnhealthy, plain,
 			fmt.Errorf("%s didn't pass its health check within %s%s", name, human.Duration(wait), said))
 	case errors.Is(cause, context.DeadlineExceeded):
-		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s passed its health check, so Dockwell stopped waiting. A long pull may have used it up, so try again.", t.Service),
+		lastSaid := ""
+		if last != "" {
+			lastSaid = " Its check last said: " + last + "."
+		}
+		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s passed its health check, so Dockwell stopped waiting.%s A long pull may have used it up, so try again.", t.Service, lastSaid),
 			fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w%s. "+
 				"See how it is with docker inspect --format '{{json .State.Health}}' %s", name, cause, said, name))
 	default:

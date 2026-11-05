@@ -483,6 +483,10 @@ func rollbackWords(c *dockwellv1.Change) string {
 			return fmt.Sprintf("It stopped before it changed anything on the servers, so what was there before still is (%s).", id)
 		case first:
 			return fmt.Sprintf("Dockwell cleared away what it had made, in %s.", id)
+		case len(s.GetRestored()) == 0:
+			return fmt.Sprintf("What ran never stopped. Dockwell removed what this made, in %s.", id)
+		case restoresWhatRuns(c.GetPlan(), s.GetRestored()) && rolled(c.GetPlan()):
+			return fmt.Sprintf("Dockwell put back what ran before, in %s.", id)
 		case restoresWhatRuns(c.GetPlan(), s.GetRestored()):
 			return fmt.Sprintf("Dockwell put back what ran before, in %s, and it runs again. It was down while that happened.", id)
 		}
@@ -533,6 +537,24 @@ func restoresWhatRuns(p *dockwellv1.Plan, restored []string) bool {
 		}
 	}
 	return false
+}
+
+// rolled says what a plan set out to do rolls, so what ran goes on serving until the
+// new one is healthy.
+func rolled(p *dockwellv1.Plan) bool {
+	any := false
+	for _, server := range p.GetServers() {
+		for _, st := range server.GetSteps() {
+			if kind := st.GetResource().GetKind(); kind != "service" && kind != "container" {
+				continue
+			}
+			if !st.GetRollout().GetRolling() || startsStopped(st) {
+				return false
+			}
+			any = true
+		}
+	}
+	return any
 }
 
 // untilWord says how long is left: "within 7 days", "within 3 hours",

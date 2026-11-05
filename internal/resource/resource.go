@@ -320,6 +320,12 @@ type DroppedMount struct {
 	EmptyVolume bool `json:",omitempty"`
 }
 
+// AlreadyRuns says what the step wants already serves, so nothing stops for it, and
+// nothing starts: as when rolling back a new container that failed its check.
+func (r *RolloutPlan) AlreadyRuns() bool {
+	return r != nil && r.Rolling && r.HealthyWithin == 0
+}
+
 // TwoWriters reports a step that lets two containers write to one place, as
 // a spec chose, for as long as it takes. Two writers can corrupt a database, so
 // it is for a person to approve, as a plan that destroys data is.

@@ -2689,8 +2689,9 @@ type Change struct {
 	// is no rollback.
 	RollbackStatus *RollbackStatus `protobuf:"bytes,18,opt,name=rollback_status,json=rollbackStatus,proto3" json:"rollback_status,omitempty"`
 	// Why Dockwell made this change, when it made it on its own: for a rollback,
-	// what failed in the change it rolls back, with the health check's own
-	// output where a health check failed.
+	// what failed in the change it rolls back, in the plain words of that change's
+	// error, with what the health check said where a health check failed: short,
+	// cleaned and masked.
 	Because string `protobuf:"bytes,19,opt,name=because,proto3" json:"because,omitempty"`
 	// True for a restart, which makes no revision.
 	Restart       bool `protobuf:"varint,20,opt,name=restart,proto3" json:"restart,omitempty"`

@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -197,9 +199,9 @@ func TestAFailingCheckRollsADeployBack(t *testing.T) {
 			t.Errorf("the deploy is %s", failed.State)
 		}
 		// In plain words, which send nobody to a container the rollback takes away.
-		// What the check said is in the rollback's reason, below.
-		if !strings.Contains(failed.Error, "fails its health check") || strings.Contains(failed.Error, "docker inspect") {
-			t.Errorf("the deploy's error is %s", failed.Error)
+		const said = `web runs, but fails its health check: the command exited with 1: "curl: (22) The requested URL returned error: 503". Fix what it reports, or the check, then try again.`
+		if failed.Error != said {
+			t.Errorf("the deploy's error is %q, want %q", failed.Error, said)
 		}
 		back, err := r.engine.Change(t.Context(), ferr.Rollback)
 		if err != nil {
@@ -208,8 +210,17 @@ func TestAFailingCheckRollsADeployBack(t *testing.T) {
 		if back.State != store.ChangeApplied || !IsRollback(back.Change) || back.Reverts != p.Change {
 			t.Errorf("the rollback is %+v", back.Change)
 		}
-		if !strings.Contains(back.Plan.Because, "The requested URL returned error: 503") || back.Brief.Because != back.Plan.Because {
-			t.Errorf("the rollback says it is because %q, in brief %q", back.Plan.Because, back.Brief.Because)
+		if back.Plan.Because != said || back.Brief.Because != said {
+			t.Errorf("the rollback says it is because %q, in brief %q, want %q", back.Plan.Because, back.Brief.Because, said)
+		}
+		// What ran never stopped: the rollback's step only takes away what failed, so a
+		// person isn't told it was down.
+		rolled, err := r.engine.Change(t.Context(), p.Change)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st := rolled.Rollback; st == nil || st.Steps != 1 || len(st.Restored) != 0 {
+			t.Errorf("the rollback's status is %+v, and should say it put nothing back", st)
 		}
 		list, err := r.engine.Changes(t.Context(), store.ChangePage{}, 10)
 		if err != nil {
@@ -272,6 +283,14 @@ func TestAStopFirstDeployRollsBackWithItsData(t *testing.T) {
 		}
 		if !saysDataStays(back.Plan, "/data") {
 			t.Errorf("the rollback's plan doesn't say the data stays: %+v", back.Plan.Notes)
+		}
+		// What ran had stopped, so this one did put it back, and it was down meanwhile.
+		stopped, err := r.engine.Change(t.Context(), p.Change)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st := stopped.Rollback; st == nil || !slices.Contains(st.Restored, "web") {
+			t.Errorf("the rollback's status is %+v, and should say it put web back", st)
 		}
 	})
 }
@@ -1141,6 +1160,86 @@ func TestWhatStartsAContainerStoppedByHand(t *testing.T) {
 				t.Errorf("it can't stay up, and the change reads %s", stored(t, r.db, p.Change).State)
 			}
 		})
+	})
+}
+
+// What a check said is the one fact a person needs, so a failed deploy and its rollback
+// both say it, in the same words, each with what to do. It's short, cleaned and masked,
+// and the chain with its IDs stays behind Details.
+func TestAFailedCheckSaysWhatItSaidOnTheDeployAndItsRollback(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		const refused = "GET /healthz on port 8080 was refused: nothing listens on that port on the container's address. Check the port, and that the app listens on every address in its container, not only on localhost"
+		for name, tc := range map[string]struct {
+			output string
+			want   string
+		}{
+			"an answer": {
+				output: "GET /healthz on port 8080 answered 503 Service Unavailable",
+				want:   "web runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again.",
+			},
+			"a refusal, which says what to look at": {
+				output: refused,
+				want:   "web runs, but fails its health check: " + refused + ", then try again.",
+			},
+			"what the spec set, in a path": {
+				output: "GET /healthz?token=topsecret1 on port 8080 answered 500 Internal Server Error",
+				want:   "web runs, but fails its health check: GET /healthz?token=••• on port 8080 answered 500 Internal Server Error. Fix what it answers, or the check, then try again.",
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				r := setupRolling(t, b)
+				edit := func(image string) Edit {
+					ed := r.edit(image)
+					app := ed.Spec.(*resourcev1.Service).GetApp()
+					app.Env = map[string]string{"TOKEN": "topsecret1"}
+					app.Healthcheck = &resourcev1.Healthcheck{
+						Http: &resourcev1.HttpCheck{Port: 8080, Path: "/healthz"}, Interval: "1s", Timeout: "1s", Retries: 1,
+					}
+					return ed
+				}
+				var kept atomic.Value
+				r.runtime.Probe = func(_ context.Context, _ *health.Check, address string) (health.Result, error) {
+					if at, _ := kept.Load().(string); at == "" || at == address {
+						return health.Result{Passed: true}, nil
+					}
+					return health.Result{Output: tc.output}, nil
+				}
+				apply(t, r.engine, propose(t, r.engine, "Run web", edit("good:1")))
+				kept.Store(health.Address(r.newest().NetworkSettings.Networks))
+
+				p := propose(t, r.engine, "Deploy the next one", edit("good:2"))
+				var failed *FailedError
+				if err := r.engine.Apply(t.Context(), p.Change); !errors.As(err, &failed) || failed.Rollback == "" {
+					t.Fatalf("applying = %v, want it to roll back", err)
+				}
+				if got := stored(t, r.db, p.Change).Error; got != tc.want {
+					t.Errorf("the deploy's error is %q, want %q", got, tc.want)
+				}
+				progress, err := decodeProgress(stored(t, r.db, p.Change).Progress)
+				if err != nil {
+					t.Fatal(err)
+				}
+				st := &progress.Steps[0]
+				if st.Message != tc.want || st.Reason != resource.ReasonUnhealthy {
+					t.Errorf("its step says %q, as %q, want %q", st.Message, st.Reason, tc.want)
+				}
+				if !strings.Contains(st.Detail, r.project) {
+					t.Errorf("the chain behind it is %q, and should name what it was", st.Detail)
+				}
+				back, err := r.engine.Change(t.Context(), failed.Rollback)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if back.Plan.Because != tc.want || back.Brief.Because != tc.want {
+					t.Errorf("the rollback says it is because %q, in brief %q, want %q", back.Plan.Because, back.Brief.Because, tc.want)
+				}
+				for what, words := range map[string]string{"the deploy": stored(t, r.db, p.Change).Error, "its step": st.Message, "the chain": st.Detail, "the rollback": back.Plan.Because} {
+					if strings.Contains(words, "topsecret1") {
+						t.Errorf("%s holds what the spec set: %s", what, words)
+					}
+				}
+			})
+		}
 	})
 }
 

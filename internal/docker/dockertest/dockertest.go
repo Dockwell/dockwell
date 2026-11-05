@@ -38,6 +38,9 @@ import (
 // Image is an image the fake can pull.
 type Image struct {
 	Config docker.Config
+	// Address is where a running container of it says it is, in place of an address on
+	// its network, so a test can answer a real check from there.
+	Address string
 	// Volumes are paths the image declares, which get anonymous volumes.
 	Volumes []string
 	// Exits makes a container of it stop right after it starts, with
@@ -851,7 +854,7 @@ func proto(port string) string {
 func (e *Engine) attach(c *container) {
 	for name, ep := range c.NetworkSettings.Networks {
 		if ep != nil && c.State.Running {
-			ep.IPAddress = e.addressOn(name, ep)
+			ep.IPAddress = cmp.Or(c.img.Address, e.addressOn(name, ep))
 		}
 		if n := e.networks[name]; n != nil {
 			if n.Containers == nil {

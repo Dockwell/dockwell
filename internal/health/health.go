@@ -362,11 +362,31 @@ func FromDocker(h *docker.Health, env []string) (Result, bool) {
 	}
 	last := h.Log[len(h.Log)-1]
 	out := Clean(last.Output, env)
-	if out == "" {
-		out = "the command printed nothing"
-	}
-	if last.ExitCode != 0 {
-		out = "the command exited with " + strconv.Itoa(last.ExitCode) + ": " + out
+	switch {
+	case last.ExitCode != 0 && out == "":
+		out = commandWords + "exited with " + strconv.Itoa(last.ExitCode) + " and printed nothing"
+	case last.ExitCode != 0:
+		// In quotes, as these are the container's words, and not Dockwell's.
+		out = commandWords + "exited with " + strconv.Itoa(last.ExitCode) + ": " + strconv.Quote(out)
+	case out == "":
+		out = commandWords + "printed nothing"
 	}
 	return Result{Passed: last.ExitCode == 0, Output: out, At: last.End}, true
+}
+
+// commandWords starts what a command check's result says of the command.
+const commandWords = "the command "
+
+// WithFix ends what a check said with what to do about it, for what a person reads.
+// A failed check's words are the one fact they need: short, cleaned and masked, and
+// not a container's logs. What the agent's own check says may say what to look at
+// already, and what a command printed is quoted, so its full stops aren't Dockwell's.
+func WithFix(said string) string {
+	switch {
+	case strings.HasPrefix(said, commandWords):
+		return said + ". Fix what it reports, or the check, then try again."
+	case strings.Contains(said, ". "):
+		return said + ", then try again."
+	}
+	return said + ". Fix what it answers, or the check, then try again."
 }

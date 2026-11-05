@@ -2174,6 +2174,10 @@ msgstr "Dockwell keeps trying."
 msgid "Dockwell made a rollback of this, and can't say yet how it went."
 msgstr "Dockwell made a rollback of this, and can't say yet how it went."
 
+#: src/features/changes/FailureNotice.tsx
+msgid "Dockwell made this change because of what failed"
+msgstr "Dockwell made this change because of what failed"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Dockwell made this change to roll back a failed one."
 msgstr "Dockwell made this change to roll back a failed one."
@@ -2837,6 +2841,9 @@ msgstr "It may be reached at more than this says. Nothing has changed."
 #: src/features/logs/LogsPage.tsx
 msgid "It may have been deleted. Dockwell has no logs under this address."
 msgstr "It may have been deleted. Dockwell has no logs under this address."
+#: src/features/changes/RollbackLine.tsx
+msgid "It never stopped. Dockwell removed what this made after it failed."
+msgstr "It never stopped. Dockwell removed what this made after it failed."
 
 #: src/features/changes/notices.tsx
 msgid "It reaches what the server reaches, past Docker's network and the firewall."

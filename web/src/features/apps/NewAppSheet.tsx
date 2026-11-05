@@ -256,7 +256,8 @@ export function NewAppSheet({
       fix: (reason) => {
         // A Compose file has a command to check, which is what the server says. This form hasn't.
         if (source === "compose") return undefined;
-        if (reason === "exits" || reason === "unhealthy") return t`Check the image and its variables, then try again.`;
+        // A check that fails says what it answered, and what to do about that, which is the server's.
+        if (reason === "exits") return t`Check the image and its variables, then try again.`;
         return reason === "command" ? t`Check the image and tag, then try again.` : undefined;
       },
       ...(open === "app" && label ? { doneLabel: t`Open ${label}` } : {}),

@@ -272,13 +272,14 @@ func TestAFailedDeployShowsAsRolledBack(t *testing.T) {
 		if after := onlyService(t, s); after.GetRolledBackChangeId() != deployed.Msg.GetChange().GetId() || after.GetSpec().GetApp().GetImage() != "ghcr.io/acme/shop:1.4" {
 			t.Errorf("after the rollback the service is %v", after)
 		}
-		// The API says how it went, and what it put back, for a panel and a CLI that won't guess.
+		// The API says how it went, and what it put back, for a panel and a CLI that won't guess:
+		// nothing, as this one rolled, so what ran never stopped.
 		read, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: deployed.Msg.GetChange().GetId()}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		status := read.Msg.GetChange().GetRollbackStatus()
-		if status.GetId() != got.GetRolledBackBy() || status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED || !slices.Contains(status.GetRestored(), "shop") {
+		if status.GetId() != got.GetRolledBackBy() || status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED || status.GetSteps() != 1 || len(status.GetRestored()) != 0 {
 			t.Errorf("the rollback's status is %v", status)
 		}
 		list, err := s.ListServiceRevisions(t.Context(), connect.NewRequest(&dockwellv1.ListServiceRevisionsRequest{Id: info.GetId()}))

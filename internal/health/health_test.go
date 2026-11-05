@@ -246,12 +246,32 @@ func TestWhatDockersCheckSaid(t *testing.T) {
 	if !ok || r.Passed || !r.At.Equal(at) {
 		t.Fatalf("the last run = %+v, %t", r, ok)
 	}
-	if want := "the command exited with 22: curl: (22) The requested URL returned error: 503 token=•••"; r.Output != want {
+	if want := `the command exited with 22: "curl: (22) The requested URL returned error: 503 token=•••"`; r.Output != want {
 		t.Errorf("it says %q, want %q", r.Output, want)
 	}
 	r, _ = FromDocker(&docker.Health{Log: []docker.HealthRun{{ExitCode: 1}}}, nil)
-	if r.Output != "the command exited with 1: the command printed nothing" {
+	if r.Output != "the command exited with 1 and printed nothing" {
 		t.Errorf("a silent command says %q", r.Output)
+	}
+	r, _ = FromDocker(&docker.Health{Log: []docker.HealthRun{{ExitCode: 1, Output: `it said "no"`}}}, nil)
+	if want := `the command exited with 1: "it said \"no\""`; r.Output != want {
+		t.Errorf("what it printed reads %q, want its own quotes kept apart, as %q", r.Output, want)
+	}
+}
+
+// What a check said goes in what a person reads, with what to do about it. Only one
+// that says what to look at already has its own words for that.
+func TestWhatACheckSaidEndsWithWhatToDo(t *testing.T) {
+	for said, want := range map[string]string{
+		"GET /healthz on port 8080 answered 503 Service Unavailable":                                               "GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again.",
+		"GET /a.b on port 8080 answered 500 Internal Server Error":                                                 "GET /a.b on port 8080 answered 500 Internal Server Error. Fix what it answers, or the check, then try again.",
+		"GET / on port 80 got no answer within 5 s. Check that port 80 is the app's, and that the app isn't stuck": "GET / on port 80 got no answer within 5 s. Check that port 80 is the app's, and that the app isn't stuck, then try again.",
+		`the command exited with 1: "no. Not yet: •••"`:                                                            `the command exited with 1: "no. Not yet: •••". Fix what it reports, or the check, then try again.`,
+		"the command exited with 1 and printed nothing":                                                            "the command exited with 1 and printed nothing. Fix what it reports, or the check, then try again.",
+	} {
+		if got := WithFix(said); got != want {
+			t.Errorf("%q ends %q, want %q", said, got, want)
+		}
 	}
 }
 

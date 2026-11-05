@@ -28,6 +28,9 @@ import (
 const env = "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M"
 
 // images are what the fake registry has, as Docker Hub's images look.
+// sickSays is what the check of the image sick:1 prints.
+const sickSays = "curl: (22) The requested URL returned error: 500. It says so"
+
 func images(e *dockertest.Engine) {
 	e.Registry["nginx:1.27"] = dockertest.Image{Size: 48 << 20, Config: docker.Config{
 		Cmd: []string{"nginx", "-g", "daemon off;"}, Entrypoint: []string{"/docker-entrypoint.sh"},
@@ -42,7 +45,7 @@ func images(e *dockertest.Engine) {
 	}}
 	e.Registry["crash:1"] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"false"}}}
 	e.Registry["busybox:1.37"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
-	e.Registry["sick:1"] = dockertest.Image{Unhealthy: true, Config: docker.Config{
+	e.Registry["sick:1"] = dockertest.Image{Unhealthy: true, CheckSays: sickSays, Config: docker.Config{
 		Cmd: []string{"sleep", "inf"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "false"}},
 	}}
 	e.Registry["slow:1"] = dockertest.Image{Starting: true, Config: docker.Config{
@@ -411,7 +414,7 @@ func TestFailuresReadPlainly(t *testing.T) {
 		{"ghost", &resourcev1.Container{Image: "ghost:1"}, "ghost:1 can't be pulled. The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again."},
 		{"tagged", &resourcev1.Container{Image: "ghost:nosuchtag"}, "ghost:nosuchtag isn't on its registry, so it can't be pulled. The tag may be wrong. Check the name and tag, then try again."},
 		{"crash", &resourcev1.Container{Image: "crash:1"}, "crash stopped right after it started, with exit code 1. Check its command and variables, then try again."},
-		{"sick", &resourcev1.Container{Image: "sick:1"}, "sick runs, but fails its health check. Check the command its health check runs, then try again."},
+		{"sick", &resourcev1.Container{Image: "sick:1"}, `sick runs, but fails its health check: the command exited with 1: "` + sickSays + `". Fix what it reports, or the check, then try again.`},
 		{"second", &resourcev1.Container{Image: "nginx:1.27", Ports: port(8080)}, "Port 8080 is already in use on this server. Choose another port, or stop what uses it, then try again."},
 		{"mounted", &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/readonly/uploads"}, Target: "/u"}}}, "mounted can't mount /readonly/uploads (read-only file system). Check the path on this server, then try again."},
 	} {
