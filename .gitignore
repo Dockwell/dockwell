@@ -20,3 +20,4 @@ coverage/
 
 # PNGs of the mocks, written by `make mock-snapshots`. Never committed.
 /packages/mockview/snapshots/
+/coverage.out
