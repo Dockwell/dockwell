@@ -256,6 +256,11 @@ func checkDeploy(what string, svc map[string]any) error {
 	if err := check(what+"'s deploy", deploy, deployKeys); err != nil {
 		return err
 	}
+	if u, ok := deploy["update_config"].(map[string]any); ok {
+		if err := check(what+"'s deploy.update_config", u, updateKeys); err != nil {
+			return err
+		}
+	}
 	resources, ok := deploy["resources"].(map[string]any)
 	if !ok {
 		return nil

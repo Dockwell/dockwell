@@ -143,9 +143,9 @@ paths:
                  this change has failed, may wait for a server, and may fail too, so read
                  rollback_status for how it went.
 
-                 A plan that destroys data or may cut off access needs the fingerprint
-                 of the plan you reviewed, and a signed-in session: no API token may
-                 apply one.
+                 A plan that destroys data, may cut off access, or lets two containers
+                 write to one place needs the fingerprint of the plan you reviewed, and a
+                 signed-in session: no API token may apply one.
             operationId: ChangeService_ApplyChange
             parameters:
                 - name: id
@@ -581,6 +581,7 @@ paths:
                             - EVENT_KIND_CHANGE
                             - EVENT_KIND_SERVER
                             - EVENT_KIND_ACCESS
+                            - EVENT_KIND_HEALTH
                         type: string
                         format: enum
                 - name: serverId
@@ -629,6 +630,60 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListEventsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/health:
+        get:
+            tags:
+                - HealthService
+            description: |-
+                ListHealth returns how each service that exists now is, in every
+                 environment or one, a page at a time.
+            operationId: HealthService_ListHealth
+            parameters:
+                - name: project
+                  in: query
+                  description: |-
+                    The project of the environment, by name or ID, when environment is a name
+                     and there are several projects.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    Only the services of this environment, by name or ID. Empty means every
+                     environment.
+                  schema:
+                    type: string
+                - name: service
+                  in: query
+                  description: Only this service, by name, with its environment, or by ID alone.
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  description: 'How many services to return: 200 when unset, and at most 1000.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Pass the same
+                     filters with it.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListHealthResponse'
                 default:
                     description: Default error response
                     content:
@@ -1208,6 +1263,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeployServiceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/services/{id}:restart:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                RestartService plans restarting a service on every server it runs on: as
+                 a deploy does, a new container takes over once it is healthy, where the
+                 service can have two at once, and otherwise the old one stops first, and
+                 the plan says for how long. It is a change, with a plan to apply or
+                 discard. It makes no revision, as the spec stays as it is, so it has
+                 nothing to undo, and a restart that fails leaves the revision where it was.
+            operationId: ChangeService_RestartService
+            parameters:
+                - name: id
+                  in: path
+                  description: The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RestartServiceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RestartServiceResponse'
                 default:
                     description: Default error response
                     content:
@@ -1966,8 +2059,8 @@ components:
                     type: string
                     description: |-
                         The fingerprint of the plan you reviewed. When set, the change applies
-                         only if its plan has it. A plan that destroys data or may cut off
-                         access needs it.
+                         only if its plan has it. A plan that destroys data, may cut off access,
+                         or lets two containers write to one place needs it.
             description: ApplyChangeRequest names a planned change to apply.
         ApplyChangeResponse:
             type: object
@@ -2277,6 +2370,15 @@ components:
                          what ran before is back. It moves on after this change has failed, so
                          read it afresh, or follow the rollback with WatchChange. Unset when there
                          is no rollback.
+                because:
+                    type: string
+                    description: |-
+                        Why Dockwell made this change, when it made it on its own: for a rollback,
+                         what failed in the change it rolls back, with the health check's own
+                         output where a health check failed.
+                restart:
+                    type: boolean
+                    description: True for a restart, which makes no revision.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.
@@ -2509,6 +2611,19 @@ components:
                     description: |-
                         Runs no entrypoint, not even the image's, as Compose's "entrypoint: []"
                          does: the command runs on its own. Takes no entrypoint beside it.
+                stopGracePeriod:
+                    type: string
+                    description: |-
+                        How long the container has to stop before Docker kills it, in whole
+                         seconds, such as "30s", as Compose's stop_grace_period. Empty takes
+                         Docker's default of 10 s.
+                rollout:
+                    allOf:
+                        - $ref: '#/components/schemas/Rollout'
+                    description: |-
+                        How a deploy replaces a service's running container. A container on its
+                         own takes none: it is stopped, then made again. See
+                         docs/adr/0027-health-checks-rollouts-and-rollback.md.
                 externalNetworks:
                     type: array
                     items:
@@ -2864,6 +2979,21 @@ components:
                         $ref: '#/components/schemas/FieldChange'
                     description: What differs, from the latest revision to what the server has.
             description: Drift is a resource on a server that doesn't match its latest revision.
+        DroppedMount:
+            type: object
+            properties:
+                source:
+                    type: string
+                    description: The volume or server path.
+                target:
+                    type: string
+                    description: Where the container sees it, such as "/data".
+                emptyVolume:
+                    type: boolean
+                    description: |-
+                        True when the new image declares a volume there, so an empty one takes its
+                         place.
+            description: DroppedMount is something the old container mounts and the new one won't.
         Edit:
             type: object
             properties:
@@ -2968,6 +3098,7 @@ components:
                         - EVENT_KIND_CHANGE
                         - EVENT_KIND_SERVER
                         - EVENT_KIND_ACCESS
+                        - EVENT_KIND_HEALTH
                     type: string
                     description: What sort of event it is.
                     format: enum
@@ -3015,7 +3146,62 @@ components:
                          or was removed, the API token or passkey made or removed, the person a
                          sign-in link is for, or the secret revealed. Unset when there is
                          nothing more to name.
+                health:
+                    allOf:
+                        - $ref: '#/components/schemas/EventHealth'
+                    description: |-
+                        How a service's health changed, for a health event. Its subject is the
+                         service.
             description: Event is one thing that happened.
+        EventHealth:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                state:
+                    enum:
+                        - HEALTH_STATE_UNSPECIFIED
+                        - HEALTH_STATE_UNKNOWN
+                        - HEALTH_STATE_NO_CHECK
+                        - HEALTH_STATE_STARTING
+                        - HEALTH_STATE_HEALTHY
+                        - HEALTH_STATE_UNHEALTHY
+                        - HEALTH_STATE_NOT_RUNNING
+                    type: string
+                    description: How it is now.
+                    format: enum
+                previous:
+                    enum:
+                        - HEALTH_STATE_UNSPECIFIED
+                        - HEALTH_STATE_UNKNOWN
+                        - HEALTH_STATE_NO_CHECK
+                        - HEALTH_STATE_STARTING
+                        - HEALTH_STATE_HEALTHY
+                        - HEALTH_STATE_UNHEALTHY
+                        - HEALTH_STATE_NOT_RUNNING
+                    type: string
+                    description: How it was as the timeline last told of it.
+                    format: enum
+                output:
+                    type: string
+                    description: |-
+                        What the last check said, in one short line, with the values of the
+                         container's environment masked.
+                flips:
+                    type: integer
+                    description: |-
+                        How many other times the state changed since the last event of this
+                         service on this server.
+                    format: int32
+            description: |-
+                EventHealth is how a service's health changed on a server, as far as the
+                 timeline tells of it: when it turned unhealthy or stopped running, and when
+                 it came back. A state that lasts under 30 s isn't told, and at most one event
+                 is, for a service on a server, every 5 minutes: flips counts what came between.
         EventSubject:
             type: object
             properties:
@@ -3308,6 +3494,27 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        HealthResult:
+            type: object
+            properties:
+                passed:
+                    type: boolean
+                    description: True when it passed.
+                output:
+                    type: string
+                    description: |-
+                        What it said, in one short line: such as "GET /healthz on port 8080
+                         answered 503 Service Unavailable", or what a command printed, cut short,
+                         with the values of the container's environment masked.
+                time:
+                    type: string
+                    description: When it finished, on the server's clock.
+                    format: date-time
+                took:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long it took, where the agent ran it.
+            description: HealthResult is one check's result.
         Healthcheck:
             type: object
             properties:
@@ -3316,27 +3523,46 @@ components:
                     items:
                         type: string
                     description: |-
-                        The check, as Docker takes it: ["CMD", "curl", "-f", "http://localhost"],
+                        A command, as Docker takes it: ["CMD", "curl", "-f", "http://localhost"],
                          ["CMD-SHELL", "curl -f http://localhost || exit 1"], or ["NONE"] to turn
                          off the image's check.
                 interval:
                     type: string
-                    description: How often it runs, such as "30s". Empty takes Docker's default.
+                    description: |-
+                        How often it runs, such as "30s". Empty takes Docker's default for a
+                         command, 30 s, and 10 s for http and tcp. At least 1 s for http and tcp.
                 timeout:
                     type: string
-                    description: How long one check may take, such as "5s". Empty takes Docker's default.
+                    description: |-
+                        How long one check may take, such as "5s". Empty takes Docker's default
+                         for a command, 30 s, and 5 s for http and tcp. At most 1 min for http and
+                         tcp.
                 startPeriod:
                     type: string
                     description: |-
                         How long the container has to start before failures count, such as
-                         "1m". Empty takes Docker's default.
+                         "1m". Empty takes none.
                 retries:
                     type: integer
-                    description: How many failures in a row make it unhealthy. 0 takes Docker's default.
+                    description: How many failures in a row make it unhealthy. 0 takes 3.
                     format: uint32
+                http:
+                    allOf:
+                        - $ref: '#/components/schemas/HttpCheck'
+                    description: |-
+                        A GET the agent sends to the container, on its own network address. Any
+                         status from 200 to 399 passes. It works on an image with no shell or curl
+                         in it, and turns the image's own check off.
+                tcp:
+                    allOf:
+                        - $ref: '#/components/schemas/TcpCheck'
+                    description: |-
+                        A connection the agent makes to the container, on its own network address.
+                         It passes once the port takes it, and turns the image's own check off.
             description: |-
-                Healthcheck is a command Docker runs in the container to check it is
-                 healthy.
+                Healthcheck says how to check a container is healthy: a command Docker runs
+                 in the container, or a request the server's agent makes to it. Give one of
+                 test, http and tcp.
         HostAccess:
             type: object
             properties:
@@ -3412,6 +3638,24 @@ components:
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.
+        HttpCheck:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    description: The port the app listens on inside its container, such as 8080.
+                    format: uint32
+                path:
+                    type: string
+                    description: The path to ask for, such as "/healthz". Empty asks for "/".
+                host:
+                    type: string
+                    description: |-
+                        The Host header to send, for an app that refuses one it doesn't know, such
+                         as "app.example.com". Empty sends the container's address.
+            description: |-
+                HttpCheck is a GET the agent sends to a container. It can name nothing but
+                 the container: it says a port and a path, and the address is Docker's.
         ImportComposeRequest:
             type: object
             properties:
@@ -3574,6 +3818,67 @@ components:
                         True when the proxy isn't the version this server's Dockwell pins. It may
                          be missing security fixes, and moves on the server's next route change.
             description: IngressStatus is where a server's ingress stands, on a server with routes.
+        InstanceHealth:
+            type: object
+            properties:
+                project:
+                    type: string
+                    description: Its Compose project, its environment's ID in lowercase.
+                service:
+                    type: string
+                    description: Its service's name.
+                number:
+                    type: integer
+                    description: Its number, as Compose's container-number label has it.
+                    format: int32
+                container:
+                    type: string
+                    description: Its name in Docker, such as "env_01kat…-web-3".
+                state:
+                    enum:
+                        - HEALTH_STATE_UNSPECIFIED
+                        - HEALTH_STATE_UNKNOWN
+                        - HEALTH_STATE_NO_CHECK
+                        - HEALTH_STATE_STARTING
+                        - HEALTH_STATE_HEALTHY
+                        - HEALTH_STATE_UNHEALTHY
+                        - HEALTH_STATE_NOT_RUNNING
+                    type: string
+                    description: How it is.
+                    format: enum
+                check:
+                    enum:
+                        - HEALTH_CHECK_KIND_UNSPECIFIED
+                        - HEALTH_CHECK_KIND_NONE
+                        - HEALTH_CHECK_KIND_COMMAND
+                        - HEALTH_CHECK_KIND_HTTP
+                        - HEALTH_CHECK_KIND_TCP
+                    type: string
+                    description: What checks it.
+                    format: enum
+                last:
+                    allOf:
+                        - $ref: '#/components/schemas/HealthResult'
+                    description: The last check's result. Unset when no check has finished yet.
+                failing:
+                    type: integer
+                    description: How many checks in a row have failed.
+                    format: int32
+                since:
+                    type: string
+                    description: When it came to this state, on the server's clock.
+                    format: date-time
+                confirmedAt:
+                    type: string
+                    description: |-
+                        When this state was last known to hold, on the server's clock: the last check
+                         the agent made, or the last time it read what Docker says.
+                    format: date-time
+                goodFor:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How old that may be and the state still stand. Past it, nobody can say.
+            description: InstanceHealth is how one container of a service is.
         Intent:
             type: object
             properties:
@@ -3655,6 +3960,18 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListEventsResponse is a page of events.
+        ListHealthResponse:
+            type: object
+            properties:
+                services:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServiceHealth'
+                    description: The services, oldest first.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+            description: ListHealthResponse is a page of services' health.
         ListLogSourcesResponse:
             type: object
             properties:
@@ -4070,8 +4387,9 @@ components:
                 destructive:
                     type: boolean
                     description: |-
-                        True when a step destroys data or may cut off access. Applying it needs
-                         the fingerprint and a signed-in session.
+                        True when a step destroys data, may cut off access, or lets two
+                         containers write to one place. Applying it needs the fingerprint and a
+                         signed-in session.
                 hostAccess:
                     type: boolean
                     description: |-
@@ -4180,6 +4498,7 @@ components:
                         - STEP_EFFECT_NONE
                         - STEP_EFFECT_RESTART
                         - STEP_EFFECT_RECREATE
+                        - STEP_EFFECT_ROLL
                     type: string
                     description: What it does to what the resource serves.
                     format: enum
@@ -4274,6 +4593,16 @@ components:
                         True when the digest its spec pins isn't on the server, and its registry
                          won't give it, so applying it could only fail. A registry that doesn't answer
                          says nothing of it, so this stays false.
+                rollout:
+                    allOf:
+                        - $ref: '#/components/schemas/RolloutPlan'
+                    description: |-
+                        How the step replaces a running service. Unset for a step that replaces
+                         nothing, or that was planned without its server, as for an offline one,
+                         which can't tell.
+                restart:
+                    type: string
+                    description: Names the restart this step carries out, when it is one.
                 unencrypted:
                     type: boolean
                     description: |-
@@ -4584,6 +4913,34 @@ components:
             description: |-
                 Resources is what a container may use of its server. Docker changes these on
                  a running container, except to lift one: that recreates it.
+        RestartServiceRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+                project:
+                    type: string
+                    description: |-
+                        The project of the environment, by name or ID, when id is a name and there
+                         are several projects.
+                environment:
+                    type: string
+                    description: |-
+                        The environment, by name or ID, when id is a name and there are several
+                         environments.
+                summary:
+                    type: string
+                    description: What the restart is for, for the timeline. Empty says what it restarts.
+            description: RestartServiceRequest names a service to restart.
+        RestartServiceResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: RestartServiceResponse carries the planned restart.
         RevealSecretRequest:
             type: object
             properties:
@@ -4734,6 +5091,141 @@ components:
             description: |-
                 RollbackStatus is how the rollback of a failed change is going, for
                  whoever has to say what runs now.
+        Rollout:
+            type: object
+            properties:
+                order:
+                    enum:
+                        - ROLLOUT_ORDER_UNSPECIFIED
+                        - ROLLOUT_ORDER_START_FIRST
+                        - ROLLOUT_ORDER_STOP_FIRST
+                    type: string
+                    description: |-
+                        Which comes first, the new container or stopping the old one. Unset takes
+                         the safest there is for what the service publishes and mounts: the new one
+                         first, unless both would publish one server port, or a volume, a server
+                         path or the data its image keeps would be written to by two containers at
+                         once.
+                    format: enum
+                drain:
+                    type: string
+                    description: |-
+                        How long what is in flight to the old container has to finish once no new
+                         request goes to it, such as "1m". Empty takes 30 s. What outlasts it, such
+                         as a long-lived WebSocket, ends with the container.
+            description: Rollout says how a deploy replaces a service's running container.
+        RolloutPlan:
+            type: object
+            properties:
+                rolling:
+                    type: boolean
+                    description: |-
+                        True when a new container takes over once it is healthy, so nothing stops:
+                         downtime is unset. False when the old one stops first, so there is
+                         downtime, and never two at once.
+                ports:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Server ports both would publish, which two containers can't, such as
+                         "8080/tcp".
+                volumes:
+                    type: array
+                    items:
+                        type: string
+                    description: Volumes both would mount and one of them write to.
+                paths:
+                    type: array
+                    items:
+                        type: string
+                    description: Server paths both would mount and one of them write to.
+                imageData:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Where in the container its image keeps data, in a volume that moves to the
+                         new container.
+                chosen:
+                    type: boolean
+                    description: |-
+                        True when the service's rollout.order chose this, rather than the rest of
+                         this message. With rolling, it means two containers may write to what the
+                         lists above name, for as long as the step takes.
+                drain:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        The most what is in flight gets to finish once no new request goes to the
+                         old container. What outlasts it ends with the container.
+                healthyWithin:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        The most the new container gets to be healthy before the change fails and
+                         Dockwell rolls it back, while the old one goes on serving.
+                others:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Containers of the service the step also removes, as a rollout that stopped
+                         partway or docker compose up --scale left them.
+                stopGrace:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        The most an old container gets to stop, once what it had in flight is
+                         done, before Docker kills it.
+                cantTell:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What it mounts whose real place on the server the agent can't read, such as
+                         a volume on another driver, so it can't say two containers wouldn't write
+                         to the same place, and the old one stops first.
+                editedRoutes:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Routes someone edited by hand that send to the service. Dockwell leaves them
+                         as they are, so the new container has to keep the old one's address, and the
+                         old one stops first.
+                earlyNetworks:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Networks of the service. Docker answers the service's name there with every
+                         running container that has it, so while a new one starts, other services
+                         can reach it by name beside the old one, before it has passed its check.
+                earlyNames:
+                    type: array
+                    items:
+                        type: string
+                    description: The other names it answers to on those networks.
+                hostNetwork:
+                    type: boolean
+                    description: |-
+                        True when the old container or the new one is on the server's own network,
+                         where each listens on the server's ports, so the old one stops first.
+                dropped:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DroppedMount'
+                    description: |-
+                        What the old container mounts and the new one doesn't. It stays on the
+                         server, and the service no longer sees it.
+                soak:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long a new container must stay healthy before anything moves to it or
+                         the old one goes.
+            description: RolloutPlan is how a step replaces a running service, and why.
         Route:
             type: object
             properties:
@@ -4927,6 +5419,50 @@ components:
                         Where its ingress stands, as it last said. Unset for a server with no
                          routes, as nothing on it wants the public ports.
             description: Server is one machine running the agent.
+        ServerHealth:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                state:
+                    enum:
+                        - HEALTH_STATE_UNSPECIFIED
+                        - HEALTH_STATE_UNKNOWN
+                        - HEALTH_STATE_NO_CHECK
+                        - HEALTH_STATE_STARTING
+                        - HEALTH_STATE_HEALTHY
+                        - HEALTH_STATE_UNHEALTHY
+                        - HEALTH_STATE_NOT_RUNNING
+                    type: string
+                    description: |-
+                        How it is there. While a container takes over from another, it is how the
+                         better of the two is, as that one serves.
+                    format: enum
+                stale:
+                    type: boolean
+                    description: |-
+                        True when the server's agent isn't connected, or what it said is too old to
+                         stand, so state is HEALTH_STATE_UNKNOWN, and instances are what it last said.
+                since:
+                    type: string
+                    description: Since when it has been in this state, as far as this control plane knows.
+                    format: date-time
+                instances:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/InstanceHealth'
+                    description: 'Each container of the service there: one, or two while a deploy rolls.'
+                scannedAt:
+                    type: string
+                    description: |-
+                        When its agent last read the list of containers from Docker, on the server's
+                         clock. Unset until it has.
+                    format: date-time
+            description: ServerHealth is how a service is on one server.
         ServerInventory:
             type: object
             properties:
@@ -5139,8 +5675,8 @@ components:
             description: |-
                 Service is anything that runs in an environment, placed on servers: for
                  now an app from an image, run as one container on each server it is
-                 placed on, with the labels Docker Compose gives a service's container,
-                 so docker compose sees it. A Compose file becomes services, volumes and
+                 placed on, and two while a deploy rolls, with the labels Docker Compose
+                 gives a service's container, so docker compose sees it. A Compose file becomes services, volumes and
                  networks. Websites, databases, catalog apps and jobs come later. Where it
                  runs isn't part of the spec: each revision is deployed on its servers.
 
@@ -5181,6 +5717,36 @@ components:
                          what a moving tag such as :latest really was stays known. Empty until it has
                          run, and for an image no registry knows.
             description: ServiceDeployment is one revision of a service placed on one server.
+        ServiceHealth:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: Its kind, its environment's ID, and its name.
+                state:
+                    enum:
+                        - HEALTH_STATE_UNSPECIFIED
+                        - HEALTH_STATE_UNKNOWN
+                        - HEALTH_STATE_NO_CHECK
+                        - HEALTH_STATE_STARTING
+                        - HEALTH_STATE_HEALTHY
+                        - HEALTH_STATE_UNHEALTHY
+                        - HEALTH_STATE_NOT_RUNNING
+                    type: string
+                    description: |-
+                        How it is as a whole: the worst of its servers. Show "Healthy" only for
+                         HEALTH_STATE_HEALTHY.
+                    format: enum
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerHealth'
+                    description: Each server it is placed on.
+            description: ServiceHealth is how one service is, on every server it is placed on.
         ServiceInfo:
             type: object
             properties:
@@ -5536,6 +6102,14 @@ components:
                          done already.
                     format: enum
             description: StepProgress is one step of an applying change, and how it is going.
+        TcpCheck:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    description: The port the app listens on inside its container, such as 5432.
+                    format: uint32
+            description: TcpCheck is a connection the agent makes to a container.
         Token:
             type: object
             properties:
@@ -5803,6 +6377,16 @@ tags:
          WatchEvents streams, so it has no REST path. A REST client polls GET
          /v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the
          same credentials.
+    - name: HealthService
+      description: |-
+        HealthService says how services are, as far as anything checked, from what
+         each server's agent last said. It never claims health nobody checked: a
+         service with no check is HEALTH_STATE_NO_CHECK, and a server whose agent
+         isn't connected is HEALTH_STATE_UNKNOWN, with what it last said marked stale.
+         See docs/adr/0027-health-checks-rollouts-and-rollback.md.
+
+         Reading it needs the read scope alone, as what a check printed is cut short
+         and has what the container's environment holds masked. It isn't a log.
     - name: LogService
       description: |-
         LogService reads what a service's containers print: live, or from what

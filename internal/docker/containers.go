@@ -29,6 +29,13 @@ type Config struct {
 	Healthcheck  *Healthcheck        `json:"Healthcheck,omitempty"`
 	// Tty is whether it has a terminal, which makes its log plain lines.
 	Tty bool `json:"Tty,omitempty"`
+	// Volumes are the paths its image declares with VOLUME, as an image's reads.
+	// Docker makes an empty volume at each that nothing else is mounted at.
+	Volumes map[string]struct{} `json:"Volumes,omitempty"`
+	// StopTimeout is how many seconds the container has to stop before the
+	// engine kills it, when asked to stop it without saying. Nil takes the
+	// engine's 10.
+	StopTimeout *int `json:"StopTimeout,omitempty"`
 }
 
 // Healthcheck is a container's health check. Durations are in
@@ -111,6 +118,9 @@ type EndpointSettings struct {
 	// subnet. The engine gives the container that address each time it
 	// starts, or fails to start it.
 	IPAMConfig *EndpointIPAM `json:"IPAMConfig,omitempty"`
+	// IPAddress is the address it has there while it runs, as the engine
+	// reports it. The engine takes no such thing in a request.
+	IPAddress string `json:"IPAddress,omitempty"`
 }
 
 // EndpointIPAM is the address a container asks for on a network.
@@ -168,16 +178,25 @@ type State struct {
 	Error      string  `json:"Error"`
 	Health     *Health `json:"Health,omitempty"`
 	// StartedAt and FinishedAt are zero until it first starts and stops.
-	StartedAt  time.Time `json:"StartedAt"`
-	FinishedAt time.Time `json:"FinishedAt"`
+	StartedAt  time.Time `json:"StartedAt,omitzero"`
+	FinishedAt time.Time `json:"FinishedAt,omitzero"`
 }
 
 // Health is a container's health check status: "starting", "healthy" or
-// "unhealthy". Its log, which may echo what the check printed, is left
-// out.
+// "unhealthy". Its log holds what the last few checks printed, which may
+// hold secrets, so nothing passes it on without internal/health's Clean.
 type Health struct {
-	Status        string `json:"Status"`
-	FailingStreak int    `json:"FailingStreak"`
+	Status        string      `json:"Status"`
+	FailingStreak int         `json:"FailingStreak"`
+	Log           []HealthRun `json:"Log,omitempty"`
+}
+
+// HealthRun is one run of a container's health check, as the engine keeps
+// its last five.
+type HealthRun struct {
+	End      time.Time `json:"End"`
+	ExitCode int       `json:"ExitCode"`
+	Output   string    `json:"Output"`
 }
 
 // InspectContainer returns a container by its full ID; a missing one is
@@ -246,8 +265,18 @@ type ContainerSummary struct {
 	// Ports are the ports it publishes, and those it only exposes. Only a port
 	// it has bound on the server now has a PublicPort, so a stopped one holds none.
 	Ports []SummaryPort `json:"Ports"`
-	// State is where it stands: created, running, restarting, exited…
+	// State is created, running, restarting, exited, paused or dead.
 	State string `json:"State"`
+	// Status says it for people, with its health check's state, such as "Up
+	// 3 minutes (healthy)".
+	Status string `json:"Status"`
+	// NetworkSettings says where it is on each network, as of this list.
+	NetworkSettings SummaryNetworks `json:"NetworkSettings"`
+}
+
+// SummaryNetworks is a container's networks as the engine lists them.
+type SummaryNetworks struct {
+	Networks map[string]*EndpointSettings `json:"Networks"`
 }
 
 // SummaryPort is a container's port as the engine lists it. PublicPort is
@@ -359,6 +388,16 @@ func (c *Client) ConnectEndpoint(ctx context.Context, network, container string,
 		Container      string           `json:"Container"`
 		EndpointConfig EndpointSettings `json:"EndpointConfig"`
 	}{container, ep}, nil)
+}
+
+// Number is a container's number among its service's, as Compose's label has
+// it, or 0 for one with no such label.
+func (c *ContainerSummary) Number() int {
+	n, err := strconv.Atoi(c.Labels[LabelNumber])
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // DisconnectNetwork takes a container off a network; it keeps running.

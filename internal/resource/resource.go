@@ -103,6 +103,7 @@ const (
 	EffectNone     Effect = iota // nothing stops
 	EffectRestart                // the process restarts in place
 	EffectRecreate               // it is removed and made again
+	EffectRoll                   // a new one takes over once it is healthy, with nothing stopped
 )
 
 // Warning flags a step that may hurt in a way the action alone doesn't
@@ -181,6 +182,14 @@ type Decision struct {
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
 	Returning []string `json:",omitempty"`
+	// Rollout is how the step replaces a running service, and why. Nil for a
+	// step that replaces nothing, or one planned without its server, which
+	// can't tell, so its Downtime is the most it could be.
+	Rollout *RolloutPlan `json:",omitempty"`
+	// Restart names the restart this step carries out: its change. A restart
+	// changes no spec, so the driver marks what it makes with this, and a
+	// step that finds it done has nothing to do.
+	Restart string `json:",omitempty"`
 	// Unencrypted is true when the step has a route serve plain HTTP that didn't,
 	// as TLS ends before its server, so its traffic reaches the server
 	// unencrypted. It never stops a plan and needs no person, so it isn't a
@@ -259,6 +268,74 @@ type ServerPortCheck struct {
 	Listening string `json:",omitempty"`
 	// Nothing is true when the server said nothing listens there yet.
 	Nothing bool `json:",omitempty"`
+}
+
+// RolloutPlan is how a step replaces a running service. A plan's fingerprint
+// covers it.
+type RolloutPlan struct {
+	// Rolling is true when a new container takes over once it is healthy, so
+	// nothing stops. False, the old one stops first.
+	Rolling bool
+	// What stops it rolling, or what two containers share if it rolls anyway:
+	// server ports both would publish, volumes and server paths both would
+	// mount and one write to, and where the image keeps data that moves over.
+	Ports, Volumes, Paths, ImageData []string `json:",omitempty"`
+	// Chosen is true when the spec's order asked for this.
+	Chosen bool `json:",omitempty"`
+	// Drain is the most what is in flight gets to finish.
+	Drain time.Duration `json:",omitempty"`
+	// StopGrace is the most an old container gets to stop, once drained.
+	StopGrace time.Duration `json:",omitempty"`
+	// HealthyWithin is the most the new container gets to be healthy.
+	HealthyWithin time.Duration `json:",omitempty"`
+	// Others are the other containers of the service the step removes, as a
+	// rollout that stopped partway or docker compose up --scale left them.
+	Others []string `json:",omitempty"`
+	// CantTell are mounts whose real place the agent can't read, so it can't say
+	// two containers wouldn't write to one place.
+	CantTell []string `json:",omitempty"`
+	// EditedRoutes are routes edited by hand that send to the service, which
+	// Dockwell leaves as they are, so the new container keeps the old one's
+	// address.
+	EditedRoutes []string `json:",omitempty"`
+	// EarlyNetworks are the service's networks, where other services can reach a
+	// new container by name before it has passed its check, and EarlyNames the
+	// other names it answers to there.
+	EarlyNetworks, EarlyNames []string `json:",omitempty"`
+	// HostNetwork is true when the old container or the new one is on the server's
+	// own network, so the two can't run at once.
+	HostNetwork bool `json:",omitempty"`
+	// Dropped is what the old container mounts and the new one won't.
+	Dropped []DroppedMount `json:",omitempty"`
+	// Soak is how long a new container must stay healthy before anything moves
+	// to it.
+	Soak time.Duration `json:",omitempty"`
+}
+
+// DroppedMount is something the old container mounts and the new one won't.
+type DroppedMount struct {
+	Source, Target string
+	// EmptyVolume says the new image declares a volume there, so an empty one
+	// takes its place.
+	EmptyVolume bool `json:",omitempty"`
+}
+
+// TwoWriters reports a step that lets two containers write to one place, as
+// a spec chose, for as long as it takes. Two writers can corrupt a database, so
+// it is for a person to approve, as a plan that destroys data is.
+func (r *RolloutPlan) TwoWriters() bool {
+	return r != nil && r.Rolling && r.Chosen
+}
+
+// Budget is the most a step may take beyond its pull and its own work: how
+// long it may wait on a health check, on what is in flight, and on old
+// containers to stop. An agent's call for the step gets this much more time.
+func (d Decision) Budget() time.Duration {
+	b := max(d.Downtime, d.UntilHealthy)
+	if r := d.Rollout; r != nil {
+		b += r.HealthyWithin + r.Soak + r.Drain + r.StopGrace
+	}
+	return b
 }
 
 // IngressChange is what happens to the proxy that holds a server's public
@@ -859,6 +936,24 @@ func (r *Registry) Answers(ref Ref, spec proto.Message) []Answer {
 	}
 	if c, ok := r.types[ref.Kind].(Answerer); ok {
 		return c.Answers(ref, spec)
+	}
+	return nil
+}
+
+// DataKeeper is a kind whose specs name data that outlives what runs, so a plan can
+// say what a rollback leaves as it is.
+type DataKeeper interface {
+	// KeptData names the volumes and server paths a spec writes to.
+	KeptData(spec proto.Message) []string
+}
+
+// KeptData names what spec writes to, if its kind is a DataKeeper.
+func (r *Registry) KeptData(ref Ref, spec proto.Message) []string {
+	if spec == nil {
+		return nil
+	}
+	if k, ok := r.types[ref.Kind].(DataKeeper); ok {
+		return k.KeptData(spec)
 	}
 	return nil
 }

@@ -301,8 +301,12 @@ func (c *Caddy) withRoutes(config []byte, edit func([]json.RawMessage) []json.Ra
 	if len(servers[serverName]) == 0 {
 		return config, nil
 	}
-	err := c.editServers(servers, func(routes []json.RawMessage) ([]json.RawMessage, error) { return edit(routes), nil })
+	// Caddy starts from this, so it needs a generation of its own to be told by.
+	generation, err := c.newGeneration()
 	if err != nil {
+		return nil, err
+	}
+	if err := c.editServers(servers, func(routes []json.RawMessage) ([]json.RawMessage, error) { return edit(routes), nil }, generation); err != nil {
 		return nil, err
 	}
 	if app["servers"], err = json.Marshal(servers); err != nil {

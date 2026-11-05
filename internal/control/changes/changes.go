@@ -34,6 +34,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
@@ -258,7 +259,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			"plan_changed")
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
-			fmt.Errorf("%s destroys data or may cut off access to a server, so no API token may apply it. %s", r.ID, signIn),
+			fmt.Errorf("%s destroys data, may cut off access to a server, or lets two containers write to one place, so no API token may apply it. %s", r.ID, signIn),
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.HostAccess() && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
@@ -266,7 +267,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
-			fmt.Errorf("%s destroys data or may cut off access to a server, and applying it can't bring everything back. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, r.Fingerprint),
+			fmt.Errorf("%s destroys data, may cut off access to a server, or lets two containers write to one place, and undo may not bring everything back. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, r.Fingerprint),
 			"needs_confirmation")
 	case r.State == store.ChangePlanned && r.Plan.HostAccess() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
@@ -411,6 +412,50 @@ func (h *Handler) DiscardChange(ctx context.Context, req *connect.Request[dockwe
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.DiscardChangeResponse{Change: c}), nil
+}
+
+// RestartService plans restarting a service.
+func (h *Handler) RestartService(ctx context.Context, req *connect.Request[dockwellv1.RestartServiceRequest]) (*connect.Response[dockwellv1.RestartServiceResponse], error) {
+	who, _, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m := req.Msg
+	if m.GetId() == "" {
+		return nil, authapi.Invalid(errors.New("name the service to restart, by its ID or its name, such as web"))
+	}
+	var ref resource.Ref
+	if strings.HasPrefix(m.GetId(), id.Service+"_") {
+		err = h.db.View(ctx, func(tx *store.Tx) error {
+			r, err := tx.GetResourceByID(ctx, m.GetId())
+			if errors.Is(err, store.ErrNotFound) || err == nil && (r.Spec == nil || r.Kind != string(service.Kind)) {
+				return fault.New(scope.ErrNotFound, "there's no service %s. Check its ID, or list the resources to find it", m.GetId())
+			}
+			if err != nil {
+				return err
+			}
+			ref = resource.Ref{Kind: service.Kind, Scope: r.Scope, Name: r.Name}
+			return nil
+		})
+		if err != nil {
+			return nil, h.rpcError(ctx, err)
+		}
+	} else {
+		_, e, err := h.Environment(ctx, m.GetProject(), m.GetEnvironment())
+		if err != nil {
+			return nil, err
+		}
+		ref = resource.Ref{Kind: service.Kind, Scope: e.ID, Name: m.GetId()}
+	}
+	plan, err := h.engine.Restart(ctx, ref, who, strings.TrimSpace(m.GetSummary()))
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	c, err := h.change(ctx, plan.Change)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.RestartServiceResponse{Change: c}), nil
 }
 
 // ListDrift checks servers for drift.
@@ -771,7 +816,7 @@ func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1
 		Id: r.ID, Summary: r.Summary, State: states[r.State], ProposedBy: actor(r.Actor), ProposedVia: Surfaces[r.ProposedVia],
 		CreateTime: timestamppb.New(r.CreatedAt), Plan: planProto(r), Reverts: r.Reverts,
 		Rollback: revision.IsRollback(r.Change), AppliedBy: actor(r.AppliedBy), AppliedVia: Surfaces[r.AppliedVia],
-		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy, RollbackStatus: rollbackProto(r.Rollback),
+		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy, RollbackStatus: rollbackProto(r.Rollback), Because: r.Brief.Because, Restart: r.Brief.Restart,
 	}
 	if !r.AppliedAt.IsZero() {
 		c.ApplyTime = timestamppb.New(r.AppliedAt)

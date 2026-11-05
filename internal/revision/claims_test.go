@@ -99,7 +99,7 @@ func setupRoutes(t *testing.T, b store.Backend, ids ...string) (e *Engine, prod,
 			engine := dockertest.New(t)
 			engine.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
 			client, kept := engine.Client(), &volume.Kept{}
-			containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Deleted: kept}}
+			containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Deleted: kept}}
 			ing := &memIngress{routes: map[resource.Ref]*resourcev1.Route{}}
 			ingresses[id] = ing
 			agents[id] = resource.Local{Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},

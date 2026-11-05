@@ -1,6 +1,6 @@
 # 0021. The Docker driver, with Compose's names and labels
 
-- Status: Accepted
+- Status: Accepted. [0027](0027-health-checks-rollouts-and-rollback.md) changes how a service is replaced: two containers while a deploy rolls, and one at rest under the next number, rather than always the first. Everything else here stands, a service scaled by hand not being drift included.
 - Date: 2026-11-04
 
 ## Context

@@ -157,3 +157,104 @@ func testTheTimelinePagesForward(t *testing.T, b store.Backend) {
 		t.Errorf("the discarded changes are %+v, want chg_dropped at when it was discarded", discarded)
 	}
 }
+
+// A health event belongs to the service it is about, its environment and project,
+// and to its server: what a page about any of them shows.
+func TestHealthEventsFollowAResource(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		at := time.UnixMilli(1_000_000)
+		revise(t, db, func(tx *store.RevisionTx) error {
+			if err := tx.CreateChange(ctx, store.Change{
+				ID: "chg_1", Summary: "s", Actor: "user:usr_1", State: store.ChangePlanned, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: at,
+				Items: []store.ChangeItem{{Kind: "project", Scope: "org_1", Name: "shop", Spec: []byte{1}}},
+			}); err != nil {
+				return err
+			}
+			for _, r := range []store.NewRevision{
+				{Kind: "project", Scope: "org_1", Name: "shop", ID: "prj_1", Spec: []byte{1}, At: at, Change: "chg_1"},
+				{Kind: "environment", Scope: "prj_1", Name: "production", ID: "env_1", Spec: []byte{1}, At: at, Change: "chg_1", Position: 1},
+				{Kind: "service", Scope: "env_1", Name: "web", ID: "svc_1", Spec: []byte{1}, At: at, Change: "chg_1", Position: 2},
+				{Kind: "service", Scope: "env_1", Name: "api", ID: "svc_2", Spec: []byte{1}, At: at, Change: "chg_1", Position: 3},
+			} {
+				if _, err := tx.AddRevision(ctx, r); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		const action = "service.health"
+		err := db.Update(ctx, func(tx *store.Tx) error {
+			for i, e := range []store.Event{
+				{ID: "evt_1", Action: action, Subject: "svc_1", Target: "srv_A", Detail: "first"},
+				{ID: "evt_2", Action: action, Subject: "svc_1", Target: "srv_B", Detail: "on another server"},
+				{ID: "evt_3", Action: action, Subject: "svc_2", Target: "srv_A", Detail: "of another service"},
+				{ID: "evt_4", Action: action, Subject: "svc_1", Target: "srv_A", Detail: "latest"},
+				{ID: "evt_5", Action: "server.renew", Subject: "srv_A", Target: "srv_A"},
+			} {
+				e.At, e.Actor = at.Add(time.Duration(i)*time.Second), "dockwell"
+				if err := tx.RecordEvent(ctx, e); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := func(f store.TimelineFilter) []string {
+			t.Helper()
+			var out []string
+			if err := db.View(ctx, func(tx *store.Tx) error {
+				places, err := tx.TimelinePlaces(ctx, store.TimelineQuery{Filter: f})
+				for _, p := range places {
+					out = append(out, p.ID)
+				}
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			slices.Sort(out)
+			return out
+		}
+		all := []string{action, "server.renew"}
+		for name, tc := range map[string]struct {
+			f    store.TimelineFilter
+			want []string
+		}{
+			"a service": {store.TimelineFilter{Actions: all, ResourceActions: []string{action}, ResourceID: "svc_1"}, []string{"evt_1", "evt_2", "evt_4"}},
+			"its environment": {
+				store.TimelineFilter{Actions: all, ResourceActions: []string{action}, ResourceID: "env_1"},
+				[]string{"evt_1", "evt_2", "evt_3", "evt_4"},
+			},
+			"its project": {
+				store.TimelineFilter{Actions: all, ResourceActions: []string{action}, ResourceID: "prj_1"},
+				[]string{"evt_1", "evt_2", "evt_3", "evt_4"},
+			},
+			"a server": {store.TimelineFilter{Actions: all, ServerID: "srv_A"}, []string{"evt_1", "evt_3", "evt_4", "evt_5"}},
+			"both": {
+				store.TimelineFilter{Actions: all, ResourceActions: []string{action}, ResourceID: "svc_1", ServerID: "srv_B"},
+				[]string{"evt_2"},
+			},
+			"a resource keeps nothing else": {store.TimelineFilter{Actions: []string{"server.renew"}, ResourceActions: []string{action}, ResourceID: "svc_1"}, nil},
+		} {
+			if got := ids(tc.f); !slices.Equal(got, tc.want) {
+				t.Errorf("for %s the timeline has %v, want %v", name, got, tc.want)
+			}
+		}
+
+		if err := db.View(ctx, func(tx *store.Tx) error {
+			e, found, err := tx.LatestEvent(ctx, action, "svc_1", "srv_A")
+			if err != nil || !found || e.Detail != "latest" {
+				t.Errorf("the latest event = %+v, %t, %v", e, found, err)
+			}
+			if _, found, err := tx.LatestEvent(ctx, action, "svc_9", "srv_A"); err != nil || found {
+				t.Errorf("an event of nothing = %t, %v", found, err)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+}

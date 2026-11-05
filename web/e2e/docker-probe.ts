@@ -80,6 +80,11 @@ export function dockerProbe(socket: string) {
 
 export type DockerProbe = ReturnType<typeof dockerProbe>;
 
+/** Stops a container, as someone at the server would by hand. */
+export async function dockerStop(socket: string, id: string): Promise<void> {
+  await call(socket, "POST", `/containers/${id}/stop`);
+}
+
 /** What a run's Dockwell makes on Docker, by the ID or name Docker removes it by. */
 export interface DockerMade {
   containers: string[];

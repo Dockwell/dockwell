@@ -278,10 +278,10 @@ func TestRealShapes(t *testing.T) {
 func TestStillRefused(t *testing.T) {
 	const web = "services:\n  web:\n    image: nginx:1.27\n"
 	for name, c := range map[string]struct{ file, want string }{
-		"replicas":                  {web + "    deploy: {replicas: 2}\n", "the service web's deploy uses `replicas`"},
+		"replicas":                  {web + "    deploy: {replicas: 2}\n", "the service web asks for 2 replicas"},
 		"restart_policy":            {web + "    deploy: {restart_policy: {condition: any}}\n", "the service web's deploy uses `restart_policy`"},
 		"placement":                 {web + "    deploy: {placement: {}}\n", "the service web's deploy uses `placement`"},
-		"update_config":             {web + "    deploy: {update_config: {}}\n", "the service web's deploy uses `update_config`"},
+		"update_config":             {web + "    deploy: {update_config: {monitor: 5s}}\n", "the service web's deploy.update_config uses `monitor`"},
 		"a limit of pids":           {web + "    deploy: {resources: {limits: {pids: 100}}}\n", "the service web's deploy.resources.limits uses `pids`"},
 		"a device reserved":         {web + "    deploy: {resources: {reservations: {devices: [{driver: nvidia}]}}}\n", "the service web's deploy.resources.reservations uses the server's devices"},
 		"other resources":           {web + "    deploy: {resources: {nope: {}}}\n", "the service web's deploy.resources uses `nope`"},

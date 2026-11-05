@@ -71,7 +71,7 @@ Dockwell is designed for the solo operator first and grows into team and fleet n
 Every feature is judged against these nine rules; a feature that breaks one needs an explicit exception in this doc.
 
 1. **One model, every surface.** A website, an app-store install, a Git-deployed service and a cron job are the same kind of object. The UI, API, CLI, Git config and MCP server are views of that one model — anything doable in one is doable in all.
-2. **Every change is a revision.** Clicks, CLI calls and pushes all produce a versioned revision with a diff. Changes are previewed (plan), applied, and reversible in one action — including Nginx configs, firewall rules and env vars.
+2. **Every change is a revision.** Clicks, CLI calls and pushes all produce a versioned revision with a diff. Changes are previewed (plan), applied, and reversible in one action — including Nginx configs, firewall rules and env vars. A restart is the one exception: it changes no spec, so it is a change with a plan and no revision, and there is nothing to undo ([ADR 0027](../adr/0027-health-checks-rollouts-and-rollback.md)).
 3. **Paywall the organization, never the machine.** Operating your own servers — any number of them — is free: multi-node, backups, monitoring, alerts, previews, basic roles.
 4. **Start as a panel, grow into a platform.** A single-server user never sees clusters, pools or policies until they add a second node or a teammate. No migration between tiers.
 5. **The control plane is optional at runtime.** If it goes down, nodes keep serving and reconcile to their last known desired state. It is never in the request path.

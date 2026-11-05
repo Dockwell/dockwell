@@ -23,6 +23,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -37,6 +38,9 @@ type Target struct {
 	Name string
 	// Project and Service are its Compose project and service.
 	Project, Service string
+	// Number is the container's number among its service's, as a rollout gives
+	// it to the one it makes. Zero means the first.
+	Number int
 	// Scoped means the spec's volumes and networks are its environment's,
 	// which Docker names <project>_<name>, as Compose names a project's
 	// own, and that containers on its networks reach it by its service's
@@ -63,11 +67,12 @@ type Runtime interface {
 	// Inspect returns the container's spec as Docker has it, or nil if
 	// there is no such container.
 	Inspect(ctx context.Context, t Target) (*resourcev1.Container, error)
-	// Run creates and starts a container, replacing the one with the name.
-	// restore says the plan expected it to mount again the data its image
-	// kept, which the server keeps for 7 days after a deletion: if that is
-	// gone, Run fails rather than make the container with it empty.
-	Run(ctx context.Context, t Target, spec *resourcev1.Container, restore bool) error
+	// Run makes what runs at t match spec, as dec says: replacing a service
+	// with no gap where it can, and otherwise stopping it first. dec.Restores
+	// says the plan expected it to mount again the data its image kept, which
+	// the server keeps for 7 days after a deletion: if that is gone, Run fails
+	// rather than make the container with it empty.
+	Run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error
 	// Update changes what Docker can change on a running container: its restart
 	// policy, and its limits.
 	Update(ctx context.Context, t Target, spec *resourcev1.Container) error
@@ -82,20 +87,21 @@ type Runtime interface {
 // as docker stop gives it.
 const StopTimeout = 10 * time.Second
 
+// recreateStart is how long a recreated container takes to start.
+const recreateStart = 2 * time.Second
+
 // DefaultRecreateDowntime is how long a recreated container is down at
 // most: the old one has up to StopTimeout to stop, up to LogCatchUp goes on
-// keeping its last lines, and the new one starts in about two seconds. The
-// new one is made, and its image pulled, before the old one stops, so neither
-// counts.
-const DefaultRecreateDowntime = StopTimeout + LogCatchUp + 2*time.Second
+// keeping its last lines, and the new one starts in about two seconds. The new
+// one is made, and its image pulled, before the old one stops, so neither counts.
+const DefaultRecreateDowntime = StopTimeout + LogCatchUp + recreateStart
 
 // Driver manages containers.
 type Driver struct {
 	Runtime Runtime
 	// RecreateDowntime is how long a recreated container is down: stopping
-	// the old one and starting the new. Zero means
-	// DefaultRecreateDowntime. Rolling deploys with two replicas avoid it;
-	// they come with #28.
+	// the old one and starting the new. Zero takes the old one's own time to
+	// stop, as its spec says, or DefaultRecreateDowntime.
 	RecreateDowntime time.Duration
 }
 
@@ -147,6 +153,9 @@ func (*Driver) Validate(spec proto.Message) error {
 	}
 	if err := checkOnItsOwn(c); err != nil {
 		return err
+	}
+	if c.GetRollout() != nil {
+		return errors.New("a container on its own has one name, so it is stopped and made again, and rollout settings mean nothing for it. Leave rollout out, or run it as a service")
 	}
 	return checkOwnNames(c)
 }
@@ -270,6 +279,12 @@ func Validate(c *resourcev1.Container) error {
 	if err := validatePrivileges(c); err != nil {
 		return err
 	}
+	if err := validateStopGrace(c); err != nil {
+		return err
+	}
+	if err := validateRollout(c); err != nil {
+		return err
+	}
 	return validateHealthcheck(c)
 }
 
@@ -278,6 +293,53 @@ func Validate(c *resourcev1.Container) error {
 func validateRestart(c *resourcev1.Container) error {
 	if c.GetRestartRetries() > 0 && c.GetRestart() != resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE {
 		return fmt.Errorf("only on-failure restarts a set number of times, and this container's policy is %s. Use on-failure, or leave restart_retries out", restartNames[c.GetRestart()])
+	}
+	return nil
+}
+
+// maxStopGrace is the longest a container may ask to be given to stop. A step
+// waits that long, and Stop holds a change up for no more than a minute anyway.
+const maxStopGrace = time.Hour
+
+// validateStopGrace takes a container's time to stop in whole seconds, as Docker
+// keeps it, rounded up.
+func validateStopGrace(c *resourcev1.Container) error {
+	s := c.GetStopGracePeriod()
+	if s == "" {
+		return nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 || d > maxStopGrace {
+		return fmt.Errorf("%q isn't a time for a container to stop in: give one from 1s to 1h, such as 30s", s)
+	}
+	if rem := d % time.Second; rem != 0 {
+		d += time.Second - rem
+	}
+	c.StopGracePeriod = d.String()
+	return nil
+}
+
+// maxDrain is the longest a deploy may wait on what is in flight.
+const maxDrain = time.Hour
+
+func validateRollout(c *resourcev1.Container) error {
+	r := c.GetRollout()
+	if r == nil {
+		return nil
+	}
+	if s := r.GetDrain(); s != "" {
+		d, err := time.ParseDuration(s)
+		if err != nil || d <= 0 || d > maxDrain {
+			return fmt.Errorf("%q isn't a time to let what is in flight finish: give one from 1s to 1h, such as 1m", s)
+		}
+		r.Drain = d.String()
+	}
+	if r.GetOrder() == resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST && c.GetHostNetwork() {
+		return errors.New("a service on the server's own network can't start a new container before the old one stops, as both would listen on its ports. Leave the order out, or set it to stop-first")
+	}
+	if r.GetOrder() == resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST && len(c.GetPorts()) > 0 {
+		return fmt.Errorf("a service that publishes port %d can't start a new container before the old one stops, as two can't publish one port. Send a domain to it with a route instead, or leave order out",
+			c.GetPorts()[0].GetHostPort())
 	}
 	return nil
 }
@@ -447,8 +509,18 @@ func validateHealthcheck(c *resourcev1.Container) error {
 	}
 	test := hc.GetTest()
 	switch {
+	case hc.GetHttp() != nil && hc.GetTcp() != nil, hc.GetHttp() != nil && len(test) > 0, hc.GetTcp() != nil && len(test) > 0:
+		return errors.New("a health check is one of test, http and tcp. Keep the one you want")
+	case hc.GetHttp() != nil:
+		if err := validateHTTPCheck(hc.GetHttp()); err != nil {
+			return err
+		}
+	case hc.GetTcp() != nil:
+		if err := validateCheckPort(hc.GetTcp().GetPort()); err != nil {
+			return err
+		}
 	case len(test) == 0:
-		return errors.New("a health check needs a test, such as [\"CMD-SHELL\", \"curl -f http://localhost/ || exit 1\"], or [\"NONE\"] to turn off the image's")
+		return errors.New("a health check needs a test, such as [\"CMD-SHELL\", \"curl -f http://localhost/ || exit 1\"], http, tcp, or [\"NONE\"] to turn off the image's")
 	case test[0] == "NONE":
 		if len(test) > 1 || hc.GetInterval() != "" || hc.GetTimeout() != "" || hc.GetStartPeriod() != "" || hc.GetRetries() != 0 {
 			return errors.New("a health check of [\"NONE\"] turns the image's off, so it takes nothing else")
@@ -469,8 +541,54 @@ func validateHealthcheck(c *resourcev1.Container) error {
 		}
 		*f = d.String()
 	}
+	if AgentCheck(hc) == nil {
+		return nil
+	}
+	// The agent makes these, with few workers, so they have limits of their own.
+	if d, _ := time.ParseDuration(hc.GetInterval()); hc.GetInterval() != "" && d < health.MinInterval {
+		return fmt.Errorf("a health check's interval is %s, and the agent checks at most once every %s. Give a longer one", d, health.MinInterval)
+	}
+	if d, _ := time.ParseDuration(hc.GetTimeout()); d > health.MaxTimeout {
+		return fmt.Errorf("a health check's timeout is %s, and the agent waits at most %s. Give a shorter one", d, health.MaxTimeout)
+	}
+	if hc.GetRetries() > maxRetries {
+		return fmt.Errorf("a health check allows %d failures in a row, and Dockwell takes up to %d. Give fewer, and a start period for an app that takes a while to start", hc.GetRetries(), maxRetries)
+	}
 	return nil
 }
+
+const maxRetries = 100
+
+func validateCheckPort(p uint32) error {
+	if p == 0 || p > 65535 {
+		return fmt.Errorf("a health check needs the port the app listens on inside its container, from 1 to 65535, such as 8080, not %d", p)
+	}
+	return nil
+}
+
+// validateHTTPCheck keeps what goes on the wire to what it says: a path and a
+// host that can't start another line of the request, or name anywhere else.
+func validateHTTPCheck(h *resourcev1.HttpCheck) error {
+	if err := validateCheckPort(h.GetPort()); err != nil {
+		return err
+	}
+	if p := h.GetPath(); p != "" {
+		switch {
+		case !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//"):
+			return fmt.Errorf("the health check's path %q is a path in the container's app, so it starts with one /, such as /healthz", p)
+		case len(p) > maxCheckPath, strings.ContainsAny(p, " #"), strings.IndexFunc(p, unicode.IsControl) >= 0:
+			return fmt.Errorf("the health check's path %q can't go in a request: use up to %d characters, with no spaces, control characters or #", p, maxCheckPath)
+		}
+	}
+	if host := h.GetHost(); host != "" && !checkHostRE.MatchString(host) {
+		return fmt.Errorf("the health check's host %q isn't one to send: give a name and, if you need one, a port, such as app.example.com", host)
+	}
+	return nil
+}
+
+const maxCheckPath = 1024
+
+var checkHostRE = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?(:[0-9]{1,5})?$`)
 
 // Observe asks Docker.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
@@ -503,6 +621,10 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 	downtime := d.RecreateDowntime
 	if downtime == 0 {
 		downtime = DefaultRecreateDowntime
+		// It is the old one that takes this long to stop.
+		if g, err := time.ParseDuration(actual.(*resourcev1.Container).GetStopGracePeriod()); err == nil && g > 0 {
+			downtime = g + recreateStart
+		}
 	}
 	dec := resource.Decision{Action: resource.ActionReplace, Effect: resource.EffectRecreate, Downtime: downtime}
 	if b := HealthBound(desired.(*resourcev1.Container).GetHealthcheck(), nil); b > 0 {
@@ -544,10 +666,13 @@ const DefaultHealthWait = 5 * time.Minute
 // starts, at most, by its health check: its start period, then as many
 // failed checks as its retries, which is when Docker calls it unhealthy.
 // Docker waits an interval after each check ends, and a check may take its
-// timeout. It is no longer than DefaultHealthWait, after which Verify stops
+// timeout. It is no longer than MaxHealthWait, after which Verify stops
 // waiting. What the spec's check leaves out takes the image's, then
 // Docker's defaults. Zero for a container without a check.
 func HealthBound(spec *resourcev1.Healthcheck, img *docker.Healthcheck) time.Duration {
+	if c := AgentCheck(spec); c != nil {
+		return min(c.Bound(), MaxHealthWait)
+	}
 	var hc docker.Healthcheck
 	if img != nil {
 		hc = *img
@@ -576,7 +701,8 @@ func HealthBound(spec *resourcev1.Healthcheck, img *docker.Healthcheck) time.Dur
 	if retries <= 0 {
 		retries = defaultRetries
 	}
-	return min(hc.StartPeriod+time.Duration(retries)*(interval+timeout), DefaultHealthWait)
+	bound := hc.StartPeriod + time.Duration(retries)*(interval+timeout)
+	return min(bound, MaxHealthWait)
 }
 
 // judge is a Runtime that knows its server, as Docker does: whose
@@ -614,6 +740,25 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	return d.ApplyAt(ctx, HostTarget(step.Ref), step, desired)
 }
 
+// settler is a Runtime that knows what a rollout left, as Docker does.
+type settler interface {
+	Left(ctx context.Context, t Target, desired *resourcev1.Container, restart string) (resource.Decision, bool, error)
+}
+
+// SettleAt says what is left of the container at t that reads back as desired:
+// what a rollout that stopped partway left, or a restart it hasn't had. A runtime
+// that can't tell has only a restart to do.
+func (d *Driver) SettleAt(ctx context.Context, t Target, desired *resourcev1.Container, restart string) (resource.Decision, bool, error) {
+	if s, ok := d.Runtime.(settler); ok {
+		return s.Left(ctx, t, desired, restart)
+	}
+	if restart == "" {
+		return resource.Decision{}, false, nil
+	}
+	dec, err := d.Plan(desired, desired, nil)
+	return dec, err == nil, err
+}
+
 // ApplyAt carries out step on the container at t.
 func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desired proto.Message) error {
 	switch step.Action {
@@ -646,7 +791,7 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 				return d.Runtime.Update(ctx, t, spec)
 			}
 		}
-		return d.Runtime.Run(ctx, t, spec, step.Restores)
+		return d.Runtime.Run(ctx, t, spec, step.Decision)
 	case resource.ActionUpdate:
 		return d.Runtime.Update(ctx, t, desired.(*resourcev1.Container))
 	case resource.ActionDelete:

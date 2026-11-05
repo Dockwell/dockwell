@@ -85,7 +85,7 @@ func TestPlanView(t *testing.T) {
 		"      May cut off remote access to hz-1, such as SSH.\n" +
 		"\n" +
 		"1 to create · 0 to change · 1 to replace · 0 to delete\n" +
-		"It destroys data or may cut off access, which undo may not bring back.\n" +
+		"It destroys data, may cut off access, or lets two containers write to one place, which undo may not bring back.\n" +
 		"It reaches more of a server, or what isn't its own yet, which a person approves:\n" +
 		"  service web: the server path /srv/app/config (read-only)\n" +
 		"  volume media: the nfs mount 10.0.0.2:/media (read-write)\n" +
@@ -386,7 +386,7 @@ func TestWhatNeedsAPersonSaysWhatItIs(t *testing.T) {
 		{"a takeover", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN), "takes a domain another environment held"},
 		{"the panel", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN), "moves the panel's domain behind Caddy"},
 		{"a server path", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH), "gives a container more access to its server"},
-		{"destructive", &dockwellv1.Plan{Destructive: true}, "destroys data or may cut off access"},
+		{"destructive", &dockwellv1.Plan{Destructive: true}, "destroys data, may cut off access, or lets two containers write to one place"},
 		{"both", access(dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN), "gives a container more access to its server and takes a domain another environment held"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -687,6 +687,69 @@ func TestARoutesPlanSaysWhoItAnswers(t *testing.T) {
 	}
 }
 
+// What a plan says of how a step replaces a service: what it risks, and what follows
+// if it fails, which isn't the same for a restart, as it has nothing to roll back.
+func TestRolloutWordsSayWhatFollows(t *testing.T) {
+	soak, within := durationpb.New(5*time.Second), durationpb.New(90*time.Second)
+	for name, tc := range map[string]struct {
+		plan    *dockwellv1.RolloutPlan
+		restart bool
+		stopped bool
+		want    []string
+		not     []string
+	}{
+		"a deploy that rolls": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, Soak: soak, HealthyWithin: within},
+			want: []string{"has stayed so for 5 s", "Dockwell rolls this back"},
+		},
+		"a restart that rolls": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, Soak: soak, HealthyWithin: within}, restart: true,
+			want: []string{"the new one goes, and what runs stays"}, not: []string{"rolls this back"},
+		},
+		"what someone stopped": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, Soak: soak, HealthyWithin: within, Others: []string{"web-1"}, EarlyNetworks: []string{"back"}}, stopped: true,
+			want: []string{"It has to stay healthy for 5 s", "Dockwell rolls this back"}, not: []string{"goes on serving", "in flight", "beside the old one"},
+		},
+		"a restart of what someone stopped": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, Soak: soak, HealthyWithin: within}, stopped: true, restart: true,
+			want: []string{"what was stopped stays stopped"}, not: []string{"what runs", "rolls this back"},
+		},
+		"a restart that stops first": {
+			plan: &dockwellv1.RolloutPlan{ImageData: []string{"/data"}}, restart: true, want: []string{"a restart has nothing to go back to"},
+		},
+		"what it can't read":     {plan: &dockwellv1.RolloutPlan{CantTell: []string{"nfs-share"}}, want: []string{"can't read where nfs-share really lands"}},
+		"a route edited by hand": {plan: &dockwellv1.RolloutPlan{EditedRoutes: []string{"www"}}, want: []string{"The route www was edited by hand", "keep the old one's address"}},
+		"two writers, as chosen": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, Chosen: true, ImageData: []string{"/data"}, HealthyWithin: within},
+			want: []string{"two containers may write to /data", "a person approves"},
+		},
+		"other services, early": {plan: &dockwellv1.RolloutPlan{Rolling: true, HealthyWithin: within, EarlyNetworks: []string{"back"}}, want: []string{"On back, other services can reach the new container by its service's name before"}},
+		"other services, early, by other names": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, HealthyWithin: within, EarlyNetworks: []string{"back", "edge"}, EarlyNames: []string{"db"}},
+			want: []string{"On back, edge, other services can reach the new container by its service's name and by db before"},
+		},
+		"the server's own network": {plan: &dockwellv1.RolloutPlan{HostNetwork: true}, want: []string{"listens on the server's ports itself, so two can't run at once, and the old one stops first"}},
+		"a volume dropped": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, HealthyWithin: within, Dropped: []*dockwellv1.DroppedMount{{Source: "cache-data", Target: "/data", EmptyVolume: true}, {Source: "/srv/x", Target: "/x"}}},
+			want: []string{"cache-data stops being what the service sees at /data, and its image puts an empty volume there", "/srv/x stops being what the service sees at /x."},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			said := strings.Join(rolloutWords(tc.plan, tc.restart, tc.stopped), " ")
+			for _, w := range tc.want {
+				if !strings.Contains(said, w) {
+					t.Errorf("it says %q, want %q", said, w)
+				}
+			}
+			for _, w := range tc.not {
+				if strings.Contains(said, w) {
+					t.Errorf("it says %q, and shouldn't say %q", said, w)
+				}
+			}
+		})
+	}
+}
+
 // Taking a domain off HTTPS says what stops, and that's a person's to approve.
 func TestAPlanSaysWhatTakingADomainOffHTTPSDoes(t *testing.T) {
 	got := reachWords([]*dockwellv1.HostAccess{{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF, Path: "live.example.com"}}, "hz-1")
@@ -739,5 +802,36 @@ func TestARouteGoingSaysWhatAVisitorFinds(t *testing.T) {
 	}
 	if got := goesWords(nil); got != "" {
 		t.Errorf("no route going says %q", got)
+	}
+}
+
+// Changing a route reloads the proxy, and what that costs reaches every site on the
+// server, so a plan says so. A step that starts or stops the proxy doesn't reload it,
+// and a rollout, which moves traffic with no reload, isn't a route's step.
+func TestAPlanSaysAReloadCostsEverySite(t *testing.T) {
+	route := func(action dockwellv1.PlanAction, change dockwellv1.IngressChange) *dockwellv1.PlanStep {
+		return &dockwellv1.PlanStep{
+			Resource: &dockwellv1.ResourceRef{Kind: "route", Name: "www"}, Action: action,
+			Ingress: &dockwellv1.IngressEffect{Change: change, Proxy: "Caddy"},
+		}
+	}
+	for name, tc := range map[string]struct {
+		step *dockwellv1.PlanStep
+		want bool
+	}{
+		"a route that changes": {route(dockwellv1.PlanAction_PLAN_ACTION_UPDATE, dockwellv1.IngressChange_INGRESS_CHANGE_UNSPECIFIED), true},
+		"a route added":        {&dockwellv1.PlanStep{Resource: &dockwellv1.ResourceRef{Kind: "route", Name: "www"}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE}, true},
+		"the first route":      {route(dockwellv1.PlanAction_PLAN_ACTION_CREATE, dockwellv1.IngressChange_INGRESS_CHANGE_STARTS), false},
+		"the last route":       {route(dockwellv1.PlanAction_PLAN_ACTION_DELETE, dockwellv1.IngressChange_INGRESS_CHANGE_STOPS), false},
+		"a route as it is":     {route(dockwellv1.PlanAction_PLAN_ACTION_NONE, dockwellv1.IngressChange_INGRESS_CHANGE_UNSPECIFIED), false},
+		"a service":            {&dockwellv1.PlanStep{Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			PlanView(&buf, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{tc.step}}}})
+			if got := strings.Contains(buf.String(), "This reloads the proxy on hz-1"); got != tc.want {
+				t.Errorf("it says, want it said %t:\n%s", tc.want, buf.String())
+			}
+		})
 	}
 }

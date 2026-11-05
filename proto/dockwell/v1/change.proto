@@ -30,6 +30,10 @@ service ChangeService {
     help: "A change is a set of edits to managed state, with the plan that carries them out. You propose edits and get a plan back; applying it writes immutable revisions and runs its steps on the servers; undoing it makes a new plan that puts things back. A change applies only as it was planned, and a plan never shows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and docs/adr/0017-the-change-api-and-the-agent-stream.md."
   };
   option (dockwell.v1.nouns) = {
+    name: "services"
+    help: "A service is anything that runs in an environment, placed on servers. RestartService plans a restart, which is a change with a plan: it records no revision, as a restart changes no spec, and nothing to undo.\n\nSee docs/adr/0027-health-checks-rollouts-and-rollback.md."
+  };
+  option (dockwell.v1.nouns) = {
     name: "drift"
     help: "Drift is a difference between what a server has and the latest revision of a resource it should have, as when someone changed it by hand. ListDrift asks each connected server's agent, and changes nothing. RevertDrift plans putting the revision back, and AdoptDrift plans keeping what the server has as a new revision: each is a change, with a plan to apply."
   };
@@ -82,9 +86,9 @@ service ChangeService {
   // this change has failed, may wait for a server, and may fail too, so read
   // rollback_status for how it went.
   //
-  // A plan that destroys data or may cut off access needs the fingerprint
-  // of the plan you reviewed, and a signed-in session: no API token may
-  // apply one.
+  // A plan that destroys data, may cut off access, or lets two containers
+  // write to one place needs the fingerprint of the plan you reviewed, and a
+  // signed-in session: no API token may apply one.
   rpc ApplyChange(ApplyChangeRequest) returns (ApplyChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (google.api.http) = {
@@ -120,6 +124,20 @@ service ChangeService {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (google.api.http) = {
       post: "/v1/changes/{id}:discard"
+      body: "*"
+    };
+  }
+
+  // RestartService plans restarting a service on every server it runs on: as
+  // a deploy does, a new container takes over once it is healthy, where the
+  // service can have two at once, and otherwise the old one stops first, and
+  // the plan says for how long. It is a change, with a plan to apply or
+  // discard. It makes no revision, as the spec stays as it is, so it has
+  // nothing to undo, and a restart that fails leaves the revision where it was.
+  rpc RestartService(RestartServiceRequest) returns (RestartServiceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/services/{id}:restart"
       body: "*"
     };
   }
@@ -266,8 +284,8 @@ message ApplyChangeRequest {
   // The change's ID.
   string id = 1;
   // The fingerprint of the plan you reviewed. When set, the change applies
-  // only if its plan has it. A plan that destroys data or may cut off
-  // access needs it.
+  // only if its plan has it. A plan that destroys data, may cut off access,
+  // or lets two containers write to one place needs it.
   string fingerprint = 2;
 }
 
@@ -326,6 +344,26 @@ message DiscardChangeRequest {
 // DiscardChangeResponse carries the discarded change.
 message DiscardChangeResponse {
   // The change, discarded.
+  Change change = 1;
+}
+
+// RestartServiceRequest names a service to restart.
+message RestartServiceRequest {
+  // The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+  string id = 1;
+  // The project of the environment, by name or ID, when id is a name and there
+  // are several projects.
+  string project = 2;
+  // The environment, by name or ID, when id is a name and there are several
+  // environments.
+  string environment = 3;
+  // What the restart is for, for the timeline. Empty says what it restarts.
+  string summary = 4;
+}
+
+// RestartServiceResponse carries the planned restart.
+message RestartServiceResponse {
+  // The change, planned, with its plan.
   Change change = 1;
 }
 
@@ -453,6 +491,12 @@ message Change {
   // read it afresh, or follow the rollback with WatchChange. Unset when there
   // is no rollback.
   RollbackStatus rollback_status = 18;
+  // Why Dockwell made this change, when it made it on its own: for a rollback,
+  // what failed in the change it rolls back, with the health check's own
+  // output where a health check failed.
+  string because = 19;
+  // True for a restart, which makes no revision.
+  bool restart = 20;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for
@@ -574,8 +618,9 @@ message Plan {
   repeated ServerPlan servers = 4;
   // How long the change can be undone once it is applied.
   google.protobuf.Duration undo_window = 5;
-  // True when a step destroys data or may cut off access. Applying it needs
-  // the fingerprint and a signed-in session.
+  // True when a step destroys data, may cut off access, or lets two
+  // containers write to one place. Applying it needs the fingerprint and a
+  // signed-in session.
   bool destructive = 6;
   // True when the change adds to, or changes, what a container can reach
   // on its server (host_access), which a person approves: applying it needs
@@ -875,6 +920,12 @@ message PlanStep {
   // won't give it, so applying it could only fail. A registry that doesn't answer
   // says nothing of it, so this stays false.
   bool image_gone = 18;
+  // How the step replaces a running service. Unset for a step that replaces
+  // nothing, or that was planned without its server, as for an offline one,
+  // which can't tell.
+  RolloutPlan rollout = 23;
+  // Names the restart this step carries out, when it is one.
+  string restart = 24;
   // True when the step has a route serve plain HTTP that didn't, as TLS ends
   // before this server, so its traffic reaches the server unencrypted. That is
   // fine on a tunnel or a private network, and not on the open internet. It
@@ -954,6 +1005,74 @@ message ServerPortCheck {
   // True when the server said nothing listens there yet, so the route answers 502
   // until something does. False, with listening empty, when it couldn't say.
   bool nothing_listening = 3;
+}
+
+// RolloutPlan is how a step replaces a running service, and why.
+message RolloutPlan {
+  // True when a new container takes over once it is healthy, so nothing stops:
+  // downtime is unset. False when the old one stops first, so there is
+  // downtime, and never two at once.
+  bool rolling = 1;
+  // Server ports both would publish, which two containers can't, such as
+  // "8080/tcp".
+  repeated string ports = 2;
+  // Volumes both would mount and one of them write to.
+  repeated string volumes = 3;
+  // Server paths both would mount and one of them write to.
+  repeated string paths = 4;
+  // Where in the container its image keeps data, in a volume that moves to the
+  // new container.
+  repeated string image_data = 5;
+  // True when the service's rollout.order chose this, rather than the rest of
+  // this message. With rolling, it means two containers may write to what the
+  // lists above name, for as long as the step takes.
+  bool chosen = 6;
+  // The most what is in flight gets to finish once no new request goes to the
+  // old container. What outlasts it ends with the container.
+  google.protobuf.Duration drain = 7;
+  // The most the new container gets to be healthy before the change fails and
+  // Dockwell rolls it back, while the old one goes on serving.
+  google.protobuf.Duration healthy_within = 8;
+  // Containers of the service the step also removes, as a rollout that stopped
+  // partway or docker compose up --scale left them.
+  repeated string others = 10;
+  // The most an old container gets to stop, once what it had in flight is
+  // done, before Docker kills it.
+  google.protobuf.Duration stop_grace = 11;
+  // What it mounts whose real place on the server the agent can't read, such as
+  // a volume on another driver, so it can't say two containers wouldn't write
+  // to the same place, and the old one stops first.
+  repeated string cant_tell = 12;
+  // Routes someone edited by hand that send to the service. Dockwell leaves them
+  // as they are, so the new container has to keep the old one's address, and the
+  // old one stops first.
+  repeated string edited_routes = 13;
+  // Networks of the service. Docker answers the service's name there with every
+  // running container that has it, so while a new one starts, other services
+  // can reach it by name beside the old one, before it has passed its check.
+  repeated string early_networks = 14;
+  // The other names it answers to on those networks.
+  repeated string early_names = 17;
+  // True when the old container or the new one is on the server's own network,
+  // where each listens on the server's ports, so the old one stops first.
+  bool host_network = 18;
+  // What the old container mounts and the new one doesn't. It stays on the
+  // server, and the service no longer sees it.
+  repeated DroppedMount dropped = 15;
+  // How long a new container must stay healthy before anything moves to it or
+  // the old one goes.
+  google.protobuf.Duration soak = 16;
+}
+
+// DroppedMount is something the old container mounts and the new one won't.
+message DroppedMount {
+  // The volume or server path.
+  string source = 1;
+  // Where the container sees it, such as "/data".
+  string target = 2;
+  // True when the new image declares a volume there, so an empty one takes its
+  // place.
+  bool empty_volume = 3;
 }
 
 // IngressEffect is what a step does to the proxy that holds a server's public
@@ -1046,6 +1165,8 @@ enum StepEffect {
   STEP_EFFECT_RESTART = 2;
   // It is removed and made again.
   STEP_EFFECT_RECREATE = 3;
+  // A new one takes over once it is healthy, with nothing stopped.
+  STEP_EFFECT_ROLL = 4;
 }
 
 // PlanWarning flags a step that may hurt in a way its action doesn't say.

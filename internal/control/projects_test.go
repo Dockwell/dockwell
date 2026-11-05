@@ -105,8 +105,8 @@ func TestEachComposeFileGetsItsOwnProject(t *testing.T) {
 		}
 
 		// Side by side on Docker, each on its own network, as under docker compose.
-		one := e.Container(docker.Project(defaultEnv) + "-db-1")
-		two := e.Container(docker.Project(gitEnv) + "-db-1")
+		one := e.Serving(docker.Project(defaultEnv) + "-db-1")
+		two := e.Serving(docker.Project(gitEnv) + "-db-1")
 		if one == nil || two == nil || one.Config.Image == two.Config.Image {
 			t.Fatalf("Docker has %v", e.Containers())
 		}
@@ -429,7 +429,7 @@ func TestAddingAPortKeepsTheRest(t *testing.T) {
 			t.Error("the plan carries a secret")
 		}
 		applied(t, c, change)
-		ct := e.Container(docker.Project(info.GetResource().GetScope()) + "-shop-1")
+		ct := e.Serving(docker.Project(info.GetResource().GetScope()) + "-shop-1")
 		if ct == nil || !hasEnv(ct.Config.Env, "API_KEY="+secret) {
 			t.Fatalf("adding a port lost the secret: %+v", ct)
 		}

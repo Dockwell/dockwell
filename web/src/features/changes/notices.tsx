@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type HostAccess, HostAccessKind, type Plan, PlanWarning } from "@dockwell/api";
+import { type HostAccess, HostAccessKind, IntentKind, type Plan, PlanWarning } from "@dockwell/api";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
-import { asGoodAsRoot, changing, factAndRest, onlyIfNewer, shownName } from "./plan";
-import { plain, useChangeWords } from "./words";
+import { useTimeWords } from "../../lib/time";
+import { asGoodAsRoot, changing, factAndRest, onlyIfNewer, reloadsProxy, shownName, startsStopped } from "./plan";
+import { plain, type RolloutLine, useChangeWords } from "./words";
 
 /** One thing to know about a plan before applying it. */
 export interface Notice {
@@ -60,6 +61,29 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.VOLUME_MOUNT]: 5,
   [HostAccessKind.SERVER_PATH]: 6,
 };
+
+/**
+ * What a plan says of how its steps replace what runs, each thing once, as servers
+ * mostly agree. A plan of several services says which it means.
+ */
+function useRolloutLines(plan: Plan | undefined): (RolloutLine & { key: string })[] {
+  const { t } = useLingui();
+  const words = useChangeWords();
+  const time = useTimeWords();
+  const steps = (plan?.servers ?? []).flatMap((s) => s.steps).filter((step) => step.rollout);
+  const several = new Set(steps.map((step) => step.resourceId)).size > 1;
+  const out = new Map<string, RolloutLine & { key: string }>();
+  for (const step of steps) {
+    const name = step.resource?.name ?? step.resourceId;
+    for (const line of words.rollout(step.rollout, time.span, step.restart !== "", startsStopped(step))) {
+      const text = several && !line.lead ? t`${name}: ${line.text}` : line.text;
+      const lead = several && line.lead ? t`${name}: ${line.lead}` : line.lead;
+      const key = `rollout-${lead ?? ""}-${text}`;
+      if (!out.has(key)) out.set(key, { ...line, text, lead, key });
+    }
+  }
+  return [...out.values()];
+}
 
 /** What a plan lets a resource reach on its server, in words, worst first, with what is as good as root apart. */
 function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } {
@@ -281,6 +305,16 @@ export function useRisks(plan: Plan | undefined): Notice[] {
           detail: t`Undo may not bring it back. Back it up first if you need it.`,
         });
       }
+      // Only a person can say whether this data can take it, so it needs one.
+      const rollout = step.rollout;
+      if (rollout?.rolling && rollout.chosen) {
+        const shared = [...rollout.volumes, ...rollout.paths, ...rollout.imageData, ...rollout.cantTell].join(", ");
+        out.push({
+          key: `writers-${key}`,
+          title: t`Two containers may write to ${shared}`,
+          detail: t`${name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it.`,
+        });
+      }
       if (step.warnings.includes(PlanWarning.MAY_LOCK_OUT)) {
         out.push({
           key: `lock-${key}`,
@@ -294,7 +328,7 @@ export function useRisks(plan: Plan | undefined): Notice[] {
   if (out.length === 0 && plan.destructive) {
     out.push({
       key: "destructive",
-      title: t`This plan destroys data or may cut off access`,
+      title: t`This plan destroys data, may cut off access, or lets two containers write to one place`,
       detail: t`Undo may not bring everything back.`,
     });
   }
@@ -312,7 +346,11 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
   const { t } = useLingui();
   const words = useChangeWords();
   const { rest } = useReaches(plan);
-  const notes = (plan?.notes ?? []).map((note, i): Notice => {
+  const rollouts = useRolloutLines(plan);
+  // Going back is when this is news. Any other plan says it among what it means.
+  const rollingBack = plan?.intent?.kind === IntentKind.ROLL_BACK;
+  const worthWarning = (plan?.notes ?? []).filter((note) => note.reason !== "volumes_stay" || rollingBack);
+  const notes = worthWarning.map((note, i): Notice => {
     const key = `note-${i}`;
     const name = note.resource?.name ?? "";
     switch (note.reason) {
@@ -375,7 +413,16 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
   );
   // These say what a pull does, which is no warning: there is nothing to weigh.
   const quiet = new Set(["pulls_again", "leaves_pin", "starts_stopped"]);
-  return [...rest, ...routes, ...notes.filter((_, i) => !quiet.has(plan?.notes[i]?.reason ?? ""))];
+  const fromRollouts = rollouts
+    .filter((line) => line.warn)
+    .map(
+      (line): Notice => ({
+        key: line.key,
+        title: line.lead ?? line.text,
+        detail: line.lead ? `${line.text}.` : undefined,
+      }),
+    );
+  return [...rest, ...fromRollouts, ...routes, ...notes.filter((_, i) => !quiet.has(worthWarning[i]?.reason ?? ""))];
 }
 
 /**
@@ -385,6 +432,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
 export function useAsides(plan: Plan | undefined): Notice[] {
   const { t } = useLingui();
   const words = useChangeWords();
+  const rollouts = useRolloutLines(plan);
   const out: Notice[] = [];
   // Nothing to warn of: it says only that this may come to nothing.
   const image = plan?.intent?.image ?? "";
@@ -410,6 +458,22 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         : t`Pulls ${image} again, and replaces ${name} whatever that finds, as more than its image differs.`,
     });
   }
+  // After what says it starts or pulls, as these go on from that.
+  for (const line of rollouts) {
+    if (!line.warn) out.push({ key: line.key, title: `${line.text}.`, notice: line.notice });
+  }
+  // A rollback says this as a warning, as that is when it is news.
+  if (plan?.intent?.kind !== IntentKind.ROLL_BACK) {
+    for (const [i, note] of (plan?.notes ?? []).entries()) {
+      if (note.reason !== "volumes_stay") continue;
+      const name = note.resource?.name ?? "";
+      const names = note.names.join(", ");
+      out.push({
+        key: `stays-${i}`,
+        title: t`If ${name} is rolled back, ${names} stays as it is: what the new version writes there isn't undone.`,
+      });
+    }
+  }
   for (const server of plan?.servers ?? []) {
     for (const step of server.steps) {
       const name = step.resource?.name ?? step.resourceId;
@@ -423,6 +487,7 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         out.push({ key: `answers-${key}-${line}`, title: line, notice: true });
       }
       if (step.goes) out.push({ key: `goes-${key}`, title: words.goes(step.goes), notice: true });
+      if (reloadsProxy(step)) out.push({ key: `reload-${key}`, title: `${words.reload(server.serverName)}.` });
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
       if (step.hidesLogs) {
         out.push({

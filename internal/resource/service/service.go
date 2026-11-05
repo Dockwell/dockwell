@@ -17,6 +17,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -139,6 +140,17 @@ func (*Driver) Answers(ref resource.Ref, spec proto.Message) []resource.Answer {
 	return container.Answers(ref.Name, spec.(*resourcev1.Service).GetApp())
 }
 
+// KeptData names the volumes and server paths a service writes to.
+func (*Driver) KeptData(spec proto.Message) []string {
+	var out []string
+	for _, m := range spec.(*resourcev1.Service).GetApp().GetMounts() {
+		if !m.GetReadOnly() {
+			out = append(out, cmp.Or(m.GetVolume(), m.GetHostPath()))
+		}
+	}
+	return out
+}
+
 // Target is where a service runs on a server: in its environment's
 // Compose project, as that project's service of the same name, in a
 // container named as Compose names a service's first, such as
@@ -239,7 +251,7 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 // Judge judges the step as the container driver does for the app, with
 // what its server has.
 func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
-	return d.Containers.JudgeAt(ctx, Target(ref), app(actual), app(desired), inner(changes))
+	return d.Containers.JudgeAt(ctx, Target(ref), app(actual), planned(desired), inner(changes))
 }
 
 // CheckPlan refuses a port something else on the server holds, or another service
@@ -305,6 +317,20 @@ func app(m proto.Message) proto.Message {
 	return m.(*resourcev1.Service).GetApp()
 }
 
+// planned is the container a service runs as, as a plan knows it: with the label
+// that says what it uses, and none of their values, as only a step's call brings
+// them.
+func planned(m proto.Message) proto.Message {
+	if m == nil {
+		return nil
+	}
+	svc := m.(*resourcev1.Service)
+	if svc.GetApp() == nil {
+		return svc.GetApp()
+	}
+	return binding.App(svc, svc.GetApp().GetEnv())
+}
+
 // inner are changes to a service as changes to its app.
 func inner(changes []resource.Change) []resource.Change {
 	out := make([]resource.Change, len(changes))
@@ -335,6 +361,12 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 // Verify checks the service's container is healthy.
 func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {
 	return d.Containers.VerifyAt(ctx, Target(ref))
+}
+
+// Settle says what is left of a service that reads back as its spec: what a
+// rollout that stopped partway left, or a restart it hasn't had.
+func (d *Driver) Settle(ctx context.Context, ref resource.Ref, desired proto.Message, restart string) (resource.Decision, bool, error) {
+	return d.Containers.SettleAt(ctx, Target(ref), planned(desired).(*resourcev1.Container), restart)
 }
 
 // Ready says why services can't run now, as their containers can't.

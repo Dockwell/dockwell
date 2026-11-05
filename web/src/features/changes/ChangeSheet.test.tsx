@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { type Timestamp, timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { DurationSchema, type Timestamp, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
@@ -10,24 +10,30 @@ import {
   ChangeState,
   DomainCheckSchema,
   DomainCheckState,
+  DroppedMountSchema,
   FieldChangeSchema,
   FieldOp,
   HostAccessKind,
   HostAccessSchema,
   IngressChange,
   IngressEffectSchema,
+  IntentKind,
+  IntentSchema,
   PlanAction,
   PlanNoteSchema,
   PlannedResourceSchema,
   PlanStepSchema,
   PlanSummarySchema,
   type PortMappingSchema,
+  ResourceRefSchema,
+  RolloutPlanSchema,
   RouteAnswersSchema,
   RouteGoesSchema,
   RouteReach,
   ServerPlanSchema,
   ServerPortCheckSchema,
   type ServiceInfoSchema,
+  StepEffect,
   StepProgressSchema,
   StepState,
   VisitorsFind,
@@ -178,7 +184,9 @@ describe("the plan sheet", () => {
 
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
-    expect(within(sheet).getByRole("alert")).toHaveTextContent("This plan destroys data or may cut off access");
+    expect(within(sheet).getByRole("alert")).toHaveTextContent(
+      "This plan destroys data, may cut off access, or lets two containers write to one place",
+    );
     expect(apply).toBeDisabled();
     const field = within(sheet).getByLabelText("Type a1b2c3d4 to apply it");
     await user.type(field, "a1b2c3d5");
@@ -447,6 +455,164 @@ describe("the plan sheet", () => {
     );
   });
 
+  it("says how a step rolls, what a drain ends, and that rolling back leaves the data", async () => {
+    const rolling = webPlanned();
+    const step = rolling.plan?.servers[0]?.steps[0];
+    if (!step || !rolling.plan) throw new Error("webPlanned has no step");
+    step.effect = StepEffect.ROLL;
+    step.downtime = undefined;
+    const server = rolling.plan.servers[0];
+    if (server) server.downtime = undefined;
+    step.changes = [];
+    step.rollout = create(RolloutPlanSchema, {
+      rolling: true,
+      drain: create(DurationSchema, { seconds: 30n }),
+      healthyWithin: create(DurationSchema, { seconds: 90n }),
+      soak: create(DurationSchema, { seconds: 5n }),
+      others: ["env_01abc-web-1"],
+      earlyNetworks: ["back"],
+      earlyNames: ["db"],
+      dropped: [create(DroppedMountSchema, { source: "cache-data", target: "/data", emptyVolume: true })],
+    });
+    rolling.plan.notes = [
+      create(PlanNoteSchema, {
+        reason: "volumes_stay",
+        names: ["uploads"],
+        resource: create(ResourceRefSchema, { kind: "service", name: "web" }),
+      }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: rolling }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    expect(sheet).toHaveTextContent("rolling, with nothing stopped");
+    expect(sheet).toHaveTextContent("A new container takes over once it has been healthy for");
+    expect(sheet).toHaveTextContent("Dockwell rolls this back");
+    expect(sheet).toHaveTextContent("What is in flight gets up to");
+    expect(sheet).toHaveTextContent("ends with the old container");
+    expect(sheet).toHaveTextContent(
+      "On back, other services can reach the new container by its service's name and by db",
+    );
+    // A mount that goes is worth weighing, so it's a warning, and the only one here.
+    const warned = within(sheet)
+      .getByText(/cache-data stops being/)
+      .closest(".dw-callout") as HTMLElement;
+    expect(warned).toHaveClass("dw-tone-warning");
+    expect(warned).toHaveTextContent("Its image puts an empty volume there");
+    // Data that stays is said once, and quietly on a plan that isn't going back.
+    expect(sheet).toHaveTextContent("If web is rolled back, uploads stays as it is");
+    expect(warned).not.toHaveTextContent("uploads");
+    // One old container is what any replace removes, and its name has an ID in it.
+    expect(sheet).not.toHaveTextContent("env_01abc");
+    await expectAccessible(document.body);
+  });
+
+  it("says why a step has to stop first, with its downtime", async () => {
+    const stopping = webPlanned();
+    const step = stopping.plan?.servers[0]?.steps[0];
+    if (!step || !stopping.plan) throw new Error("webPlanned has no step");
+    step.effect = StepEffect.RECREATE;
+    step.downtime = create(DurationSchema, { seconds: 40n });
+    const server = stopping.plan.servers[0];
+    if (server) server.downtime = create(DurationSchema, { seconds: 40n });
+    step.rollout = create(RolloutPlanSchema, {
+      ports: ["8080/tcp"],
+      volumes: ["data"],
+      paths: ["/srv/a"],
+      imageData: ["/var/lib/x"],
+      cantTell: ["nfs-share"],
+      editedRoutes: ["www"],
+      hostNetwork: true,
+    });
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: stopping }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    expect(sheet).toHaveTextContent("about 40 s down");
+    expect(sheet).toHaveTextContent("Two containers can't publish 8080/tcp at once");
+    expect(sheet).toHaveTextContent("A container on the server's own network listens on the server's ports itself");
+    expect(sheet).toHaveTextContent("Two containers mustn't write to the volume data at once");
+    expect(sheet).toHaveTextContent("Two containers mustn't write to the server path /srv/a at once");
+    expect(sheet).toHaveTextContent("Its image keeps data at /var/lib/x");
+    expect(sheet).toHaveTextContent("Dockwell can't read where nfs-share really lands");
+    expect(sheet).toHaveTextContent("The route www was edited by hand");
+    expect(sheet).not.toHaveTextContent("takes over once it has been healthy");
+  });
+
+  it("makes two writers on shared data the plan's first risk", async () => {
+    const chosen = webPlanned();
+    const step = chosen.plan?.servers[0]?.steps[0];
+    if (!step || !chosen.plan) throw new Error("webPlanned has no step");
+    chosen.plan.destructive = true;
+    step.rollout = create(RolloutPlanSchema, { rolling: true, chosen: true, volumes: ["data"] });
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: chosen }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    const risk = within(sheet).getByRole("alert");
+    expect(risk).toHaveTextContent("Two containers may write to data");
+    expect(risk).toHaveTextContent("which can corrupt a database");
+  });
+
+  it("doesn't tell of a rollback a restart doesn't have", async () => {
+    const restart = webPlanned();
+    const step = restart.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.restart = "chg_1";
+    step.downtime = undefined;
+    step.rollout = create(RolloutPlanSchema, {
+      rolling: true,
+      soak: create(DurationSchema, { seconds: 5n }),
+      healthyWithin: create(DurationSchema, { seconds: 90n }),
+    });
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: restart }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    expect(sheet).toHaveTextContent("the new one goes, and what runs stays");
+    expect(sheet).not.toHaveTextContent("Dockwell rolls this back");
+    expect(sheet).not.toHaveTextContent("Rolls back to");
+    expect(sheet).not.toHaveTextContent("rolls back to what it runs now");
+  });
+
+  it("warns that a restart which stops first has nothing to go back to", async () => {
+    const restart = webPlanned();
+    const step = restart.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.restart = "chg_1";
+    step.rollout = create(RolloutPlanSchema, { imageData: ["/var/lib/x"] });
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: restart }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    const warned = within(sheet)
+      .getByText(/The old container stops first/)
+      .closest(".dw-callout") as HTMLElement;
+    expect(warned).toHaveClass("dw-tone-warning");
+    expect(warned).toHaveTextContent("a restart has nothing to go back to");
+  });
+
+  it("says a stopped app starts, and what changing a route costs the other sites", async () => {
+    const stopped = webPlanned();
+    if (!stopped.plan) throw new Error("webPlanned has no plan");
+    stopped.plan.notes = [
+      create(PlanNoteSchema, {
+        reason: "starts_stopped",
+        message: "web is stopped, so this starts it",
+        resource: create(ResourceRefSchema, { kind: "service", name: "web" }),
+      }),
+    ];
+    const step = stopped.plan.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.resource = create(ResourceRefSchema, { kind: "route", name: "www" });
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: stopped }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    expect(sheet).toHaveTextContent("web is stopped, so this starts it.");
+    expect(sheet).toHaveTextContent("This reloads the proxy on hz-1");
+  });
+
   it("says what stopping the ingress leaves behind, and names the domain a plan takes", async () => {
     const routed = webPlanned();
     const plan = routed.plan;
@@ -510,6 +676,7 @@ describe("the plan sheet", () => {
   it("leads with what a plan says about itself, and says it in its own words", async () => {
     const noted = webPlanned();
     if (noted.plan) {
+      noted.plan.intent = create(IntentSchema, { kind: IntentKind.ROLL_BACK, resourceId: "svc_web" });
       noted.plan.notes = [
         create(PlanNoteSchema, {
           reason: "volumes_stay",

@@ -22,6 +22,8 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/collect"
@@ -61,6 +63,21 @@ type Config struct {
 	Domains DomainReporter
 	// Logs reads what this server's containers print. Nil reads none.
 	Logs LogReader
+	// Health says how this server's services are, which the agent tells the
+	// control plane as its stream opens, when a state changes, and every so
+	// often while checks run. Nil says nothing.
+	Health HealthReporter
+}
+
+// HealthReporter says how a server's services are (ADR 0027).
+type HealthReporter interface {
+	// Report is each container of a service, sorted, as of ScannedAt.
+	Report() []*dockwellv1.InstanceHealth
+	// ScannedAt is when it last read what the server runs: the zero time until it
+	// has, when it has nothing to say.
+	ScannedAt() time.Time
+	// Changed signals when Report has something new to say.
+	Changed() <-chan struct{}
 }
 
 // DomainReporter says where a server's routes' domains stand (ADR 0024).
@@ -431,12 +448,34 @@ func session(ctx context.Context, cfg Config) (err error) {
 			return err
 		}
 	}
+	var healthChanged <-chan struct{}
+	sendHealth := func() error { return nil }
+	if cfg.Health != nil {
+		healthChanged = cfg.Health.Changed()
+		sendHealth = func() error {
+			instances := cfg.Health.Report()
+			scanned := cfg.Health.ScannedAt()
+			if scanned.IsZero() {
+				return nil // what it hasn't read isn't that nothing runs
+			}
+			return send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Health{Health: &agentv1.Health{
+				Instances: instances, ScannedAt: timestamppb.New(scanned), ReportedAt: timestamppb.Now(),
+			}}})
+		}
+		if err := sendHealth(); err != nil {
+			return err
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-domainsChanged:
 			if err := sendDomains(); err != nil {
+				return err
+			}
+		case <-healthChanged:
+			if err := sendHealth(); err != nil {
 				return err
 			}
 		case <-recheck.C:

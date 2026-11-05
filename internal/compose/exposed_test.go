@@ -76,6 +76,7 @@ func fieldRows() []fieldRow {
 		serviceRow("privileged", "    privileged: ${V}\n", "true", "true"),
 		// A size or a count, which goes in no spec, as Dockwell sets a log's rotation itself.
 		serviceRow("logging", "    logging: {driver: json-file, options: {max-size: \"${V}\"}}\n", "64m", ""),
+		serviceRow("stop_grace_period", "    stop_grace_period: ${V}\n", "45s", "45s"),
 		serviceRow("healthcheck.interval", "    healthcheck: {test: [CMD, run], interval: \"${V}\"}\n", "45s", "45s"),
 		serviceRow("healthcheck.timeout", "    healthcheck: {test: [CMD, run], timeout: \"${V}\"}\n", "45s", "45s"),
 		serviceRow("healthcheck.start_period", "    healthcheck: {test: [CMD, run], start_period: \"${V}\"}\n", "45s", "45s"),

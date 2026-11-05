@@ -4,6 +4,8 @@ package container
 
 import (
 	"context"
+	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,14 +23,22 @@ type fakeIngress struct {
 	held    map[uint32]bool
 	asked   []ingress.Instance
 	routed  bool
+	// What a rollout did, in order, and what Reachable answers.
+	added, drained, removed []ingress.Instance
+	unreachable             error
 }
 
+// Endpoint gives each instance an address of its own, counting up from address.
 func (f *fakeIngress) Endpoint(_ context.Context, i ingress.Instance) (string, docker.EndpointSettings, bool, error) {
 	f.asked = append(f.asked, i)
 	if f.address == "" {
 		return "", docker.EndpointSettings{}, false, nil
 	}
-	return docker.IngressNetwork, docker.EndpointSettings{IPAMConfig: &docker.EndpointIPAM{IPv4Address: f.address}}, true, nil
+	a := netip.MustParseAddr(f.address)
+	for range i.Number - 1 {
+		a = a.Next()
+	}
+	return docker.IngressNetwork, docker.EndpointSettings{IPAMConfig: &docker.EndpointIPAM{IPv4Address: a.String()}}, true, nil
 }
 
 func (f *fakeIngress) PublicPort(_ context.Context, port uint32, _ bool) (bool, error) {
@@ -39,49 +49,84 @@ func (f *fakeIngress) RoutedAfter(context.Context, ingress.Instance, []resource.
 	return f.routed, nil
 }
 
+func (f *fakeIngress) AddUpstream(_ context.Context, i ingress.Instance) error {
+	f.added = append(f.added, i)
+	return nil
+}
+
+func (f *fakeIngress) Move(_ context.Context, to ingress.Instance, _ []ingress.Instance) error {
+	f.added = append(f.added, to)
+	return nil
+}
+
+func (f *fakeIngress) Drain(_ context.Context, i ingress.Instance) error {
+	f.drained = append(f.drained, i)
+	return nil
+}
+
+func (f *fakeIngress) RemoveUpstream(_ context.Context, i ingress.Instance) error {
+	f.removed = append(f.removed, i)
+	return nil
+}
+
+func (*fakeIngress) Routing(context.Context, ingress.Service) (ingress.Routing, error) {
+	return ingress.Routing{Routed: true}, nil
+}
+
+func (f *fakeIngress) Reachable(context.Context, ingress.Instance) error { return f.unreachable }
+
+func (f *fakeIngress) Hold(ingress.Service) func() { return func() {} }
+
 func withIngress(t *testing.T, ing *fakeIngress) (*Docker, *dockertest.Engine) {
 	t.Helper()
 	e := dockertest.New(t)
 	e.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
 	e.AddNetwork(docker.Network{Name: docker.IngressNetwork, Driver: "bridge", Internal: true, IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "172.30.0.0/16"}}}})
-	return &Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Ingress: ing}, e
+	return &Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Ingress: ing}, e
 }
 
 var svc = Target{Name: "env_x-web-1", Project: "env_x", Service: "web", Scoped: true}
 
-// A replaced container serves its routes as the old one did: it takes the
-// instance's address, which stays the same.
-func TestAReplacedServiceKeepsItsIngressAddress(t *testing.T) {
+// A new instance joins the ingress network at an address of its own, and takes
+// over from the old one only once it is healthy.
+func TestARollingReplaceMovesTrafficOnceHealthy(t *testing.T) {
 	ing := &fakeIngress{address: "172.30.0.2"}
 	d, e := withIngress(t, ing)
 	spec := &resourcev1.Container{Image: "nginx:1.27", Env: map[string]string{"A": "1"}}
-	if err := d.Run(t.Context(), svc, spec, false); err != nil {
+	if err := d.Run(t.Context(), svc, spec, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
-	first := e.Container(svc.Name)
+	first := e.Container("env_x-web-1")
 	spec.Env["A"] = "2"
-	if err := d.Run(t.Context(), svc, spec, false); err != nil {
+	if err := d.Run(t.Context(), svc, spec, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
-	second := e.Container(svc.Name)
-	if first.ID == second.ID {
-		t.Fatal("the container wasn't replaced")
+	second := e.Container("env_x-web-2")
+	if second == nil || first.ID == second.ID {
+		t.Fatalf("the service has %v, want a new container of number 2", e.Instances("env_x", "web"))
+	}
+	if e.Container("env_x-web-1") != nil {
+		t.Errorf("the old container is still there: %v", e.Instances("env_x", "web"))
 	}
 	ep := second.NetworkSettings.Networks[docker.IngressNetwork]
-	if ep == nil || ep.IPAMConfig == nil || ep.IPAMConfig.IPv4Address != "172.30.0.2" {
+	if ep == nil || ep.IPAMConfig == nil || ep.IPAMConfig.IPv4Address != "172.30.0.3" {
 		t.Errorf("the new container is on the network as %+v", ep)
 	}
 	if !second.State.Running {
 		t.Errorf("the new container isn't running: %+v", second.State)
 	}
-	if got := ing.asked[0]; got != (ingress.Instance{Project: "env_x", Service: "web", Number: 1}) {
+	old, next := ingress.Instance{Project: "env_x", Service: "web", Number: 1}, ingress.Instance{Project: "env_x", Service: "web", Number: 2}
+	if got := ing.asked; len(got) != 2 || got[0] != old || got[1] != next {
 		t.Errorf("asked for %+v", got)
+	}
+	if !slices.Contains(ing.added, next) || !slices.Equal(ing.drained, []ingress.Instance{old}) || !slices.Equal(ing.removed, []ingress.Instance{old}) {
+		t.Errorf("added %v, drained %v, removed %v", ing.added, ing.drained, ing.removed)
 	}
 }
 
 func TestAServiceWithNoRoutesDoesntJoin(t *testing.T) {
 	d, e := withIngress(t, &fakeIngress{})
-	if err := d.Run(t.Context(), svc, &resourcev1.Container{Image: "nginx:1.27"}, false); err != nil {
+	if err := d.Run(t.Context(), svc, &resourcev1.Container{Image: "nginx:1.27"}, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, on := e.Container(svc.Name).NetworkSettings.Networks[docker.IngressNetwork]; on {
@@ -93,7 +138,7 @@ func TestAContainerOnItsOwnDoesntAskToJoin(t *testing.T) {
 	ing := &fakeIngress{address: "172.30.0.2"}
 	d, e := withIngress(t, ing)
 	own := Target{Name: "web", Project: "srv_x", Service: "web"}
-	if err := d.Run(t.Context(), own, &resourcev1.Container{Image: "nginx:1.27"}, false); err != nil {
+	if err := d.Run(t.Context(), own, &resourcev1.Container{Image: "nginx:1.27"}, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(ing.asked) != 0 {
@@ -147,7 +192,7 @@ func TestAServiceCantPublishWhatTheIngressHolds(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "holds port 443") {
 		t.Errorf("CheckHost = %v, want it refused, naming the port", err)
 	}
-	if err := d.Run(t.Context(), svc, refused, false); err == nil {
+	if err := d.Run(t.Context(), svc, refused, resource.Decision{}); err == nil {
 		t.Error("Run took a port the ingress holds")
 	}
 	if err := d.CheckHost(t.Context(), svc, &resourcev1.Container{Image: "nginx:1.27", Ports: []*resourcev1.PortMapping{{HostPort: 8080, ContainerPort: 80}}}); err != nil {
@@ -193,7 +238,7 @@ func TestAServiceWithARouteCantGoOntoTheServersNetwork(t *testing.T) {
 func TestAServiceOnTheServersNetworkDoesntJoinTheIngress(t *testing.T) {
 	ing := &fakeIngress{address: "172.30.0.2"}
 	d, e := withIngress(t, ing)
-	if err := d.Run(t.Context(), svc, &resourcev1.Container{Image: "nginx:1.27", HostNetwork: true}, false); err != nil {
+	if err := d.Run(t.Context(), svc, &resourcev1.Container{Image: "nginx:1.27", HostNetwork: true}, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
 	c := e.Container(svc.Name)

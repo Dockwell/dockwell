@@ -75,8 +75,14 @@ func takeResources(dict map[string]any) (map[string]*resourcev1.Resources, []Not
 		if cpus != "" || memory != "" || reserve != "" {
 			out[name] = &resourcev1.Resources{Cpus: cpus, Memory: memory, MemoryReservation: reserve}
 		}
-		for _, k := range []string{"deploy", "cpus", "mem_limit", "mem_reservation"} {
+		for _, k := range []string{"cpus", "mem_limit", "mem_reservation"} {
 			delete(svc, k)
+		}
+		// Only the limits come out: how a service is replaced stays for compose-go.
+		deploy, _ := svc["deploy"].(map[string]any)
+		delete(deploy, "resources")
+		if len(deploy) == 0 {
+			delete(svc, "deploy")
 		}
 	}
 	return out, notices, nil

@@ -432,6 +432,9 @@ func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
 	if words := rollbackWords(c); words != "" {
 		fmt.Fprintln(w, words)
 	}
+	if c.GetBecause() != "" {
+		fmt.Fprintf(w, "Dockwell made this change because of what failed: %s\n", sentence(c.GetBecause()))
+	}
 	if c.GetUndoneBy() != "" {
 		fmt.Fprintf(w, "%s undid it.\n", c.GetUndoneBy())
 	}
@@ -641,6 +644,8 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			switch st.GetEffect() {
 			case dockwellv1.StepEffect_STEP_EFFECT_RESTART:
 				details = append(details, "restarts")
+			case dockwellv1.StepEffect_STEP_EFFECT_ROLL:
+				details = append(details, "rolling, with nothing stopped")
 			case dockwellv1.StepEffect_STEP_EFFECT_RECREATE:
 				if !ifNewer {
 					details = append(details, "recreated")
@@ -680,8 +685,14 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if st.GetHealthUnknown() {
 				fmt.Fprintln(tw, "      Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy.")
 			}
+			for _, line := range rolloutWords(st.GetRollout(), st.GetRestart() != "", startsStopped(st)) {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			for _, line := range ingressWords(st.GetIngress(), s.GetServerName()) {
 				fmt.Fprintln(tw, "      "+line)
+			}
+			if reloads(st) {
+				fmt.Fprintf(tw, "      This reloads the proxy on %s, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not.\n", s.GetServerName())
 			}
 			if line := returningWords(st.GetReturningContainers(), s.GetServerName()); line != "" {
 				fmt.Fprintln(tw, "      "+line)
@@ -711,7 +722,7 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 	}
 	fmt.Fprintln(w, planCounts(p))
 	if p.GetDestructive() {
-		fmt.Fprintln(w, "It destroys data or may cut off access, which undo may not bring back.")
+		fmt.Fprintln(w, "It destroys data, may cut off access, or lets two containers write to one place, which undo may not bring back.")
 	}
 	if p.GetHostAccess() {
 		fmt.Fprintln(w, "It reaches more of a server, or what isn't its own yet, which a person approves:")
@@ -734,6 +745,89 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 }
 
 // ingressWords says what a step does to its server's ingress.
+// startsStopped says a step starts what's there and isn't running, so nothing serves
+// while it does.
+func startsStopped(st *dockwellv1.PlanStep) bool {
+	return slices.ContainsFunc(st.GetChanges(), func(c *dockwellv1.FieldChange) bool { return c.GetPath() == "state" && c.GetTo() == "running" })
+}
+
+func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
+	if r == nil {
+		return nil
+	}
+	var out []string
+	say := func(format string, args ...any) { out = append(out, fmt.Sprintf(format, args...)) }
+	shared := slices.Concat(r.GetVolumes(), r.GetPaths(), r.GetImageData())
+	if r.GetRolling() {
+		if d := r.GetHealthyWithin().AsDuration(); stopped {
+			// Nothing runs, so nothing goes on serving, and nothing is in flight.
+			if restart {
+				say("It has to stay healthy for %s. If it isn't healthy within %s, the new one goes, and what was stopped stays stopped.", human.Duration(r.GetSoak().AsDuration()), human.Duration(d))
+			} else {
+				say("It has to stay healthy for %s. If it isn't healthy within %s, Dockwell rolls this back.", human.Duration(r.GetSoak().AsDuration()), human.Duration(d))
+			}
+		} else if d > 0 {
+			soak := ""
+			if s := r.GetSoak().AsDuration(); s > 0 {
+				soak = " and has stayed so for " + human.Duration(s)
+			}
+			if restart {
+				say("A new container takes over once it is healthy%s, and what runs goes on serving until then. If it isn't healthy within %s, the new one goes, and what runs stays.", soak, human.Duration(d))
+			} else {
+				say("A new container takes over once it is healthy%s, and what runs goes on serving until then. If it isn't healthy within %s, Dockwell rolls this back.", soak, human.Duration(d))
+			}
+		} else {
+			say("What this step wants already runs, so nothing stops for it.")
+		}
+		if r.GetChosen() && len(shared)+len(r.GetCantTell()) > 0 {
+			say("Its rollout order says to start first, so two containers may write to %s for as long as this takes. Two writers can corrupt a database, so a person approves this.", strings.Join(slices.Concat(shared, r.GetCantTell()), ", "))
+		}
+		if len(r.GetOthers()) > 0 && !stopped {
+			say("What is in flight gets up to %s to finish. What outlasts that, such as a long WebSocket, ends with the old container.", human.Duration(r.GetDrain().AsDuration()))
+		}
+		if n := r.GetEarlyNetworks(); len(n) > 0 && !stopped {
+			name := "its service's name"
+			if a := r.GetEarlyNames(); len(a) > 0 {
+				name += " and by " + strings.Join(a, ", ")
+			}
+			say("On %s, other services can reach the new container by %s before it has passed its check, beside the old one, as Docker can't add a name to a container later.", strings.Join(n, ", "), name)
+		}
+	} else {
+		if p := r.GetPorts(); len(p) > 0 {
+			say("Two containers can't publish %s at once, so the old one stops first.", strings.Join(p, ", "))
+		}
+		if r.GetHostNetwork() {
+			say("A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first.")
+		}
+		if len(shared) > 0 {
+			say("Two containers mustn't write to %s at once, so the old one stops first. If the app can, set its rollout order to start first.", strings.Join(shared, ", "))
+		}
+		if c := r.GetCantTell(); len(c) > 0 {
+			say("Dockwell can't read where %s really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first.", strings.Join(c, ", "))
+		}
+		if e := r.GetEditedRoutes(); len(e) > 0 {
+			say("The route %s was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll.", strings.Join(e, ", "))
+		}
+		if len(r.GetPorts()) == 0 && len(shared) == 0 && len(r.GetCantTell()) == 0 && len(r.GetEditedRoutes()) == 0 && r.GetChosen() {
+			say("Its rollout order says to stop first, so there are never two.")
+		}
+		if restart {
+			say("The old container stops first, so if the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to.")
+		}
+	}
+	for _, m := range r.GetDropped() {
+		if m.GetEmptyVolume() {
+			say("%s stops being what the service sees at %s, and its image puts an empty volume there. %s stays on the server, as it was.", m.GetSource(), m.GetTarget(), m.GetSource())
+		} else {
+			say("%s stops being what the service sees at %s. %s stays on the server, as it was.", m.GetSource(), m.GetTarget(), m.GetSource())
+		}
+	}
+	if o := r.GetOthers(); len(o) > 0 {
+		say("Removes %s.", strings.Join(o, ", "))
+	}
+	return out
+}
+
 func ingressWords(e *dockwellv1.IngressEffect, server string) []string {
 	if e == nil {
 		return nil
@@ -823,6 +917,20 @@ func answersWords(a *dockwellv1.RouteAnswers, port *dockwellv1.ServerPortCheck, 
 		out = append(out, fmt.Sprintf("Nothing listens on port %d yet, so this answers 502 until something does.", port.GetPort()))
 	}
 	return out
+}
+
+// reloads says a step changes a route on a proxy that stays up, which reloads it. A
+// rollout doesn't: it moves traffic with no reload (ADR 0027).
+func reloads(st *dockwellv1.PlanStep) bool {
+	if st.GetResource().GetKind() != "route" || st.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_NONE {
+		return false
+	}
+	switch st.GetIngress().GetChange() {
+	case dockwellv1.IngressChange_INGRESS_CHANGE_STARTS, dockwellv1.IngressChange_INGRESS_CHANGE_STOPS, dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS:
+		return false
+	default:
+		return true
+	}
 }
 
 // reachWords says what a step reaches that a person approves. A domain isn't

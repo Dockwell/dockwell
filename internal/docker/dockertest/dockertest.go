@@ -46,6 +46,8 @@ type Image struct {
 	// Unhealthy makes its health check fail, and Starting keeps it
 	// starting, neither passing nor failing yet.
 	Unhealthy, Starting bool
+	// CheckSays is what a failing health check prints.
+	CheckSays string
 	// Size is what pulling it downloads, in bytes.
 	Size int64
 	// Digest is what its registry calls it. Without one it has one of its own, so
@@ -85,6 +87,8 @@ type Engine struct {
 	// LoggingDriver is what /info says keeps containers' logs: json-file
 	// unless set.
 	LoggingDriver string
+	// nextHost is how many addresses it has given out.
+	nextHost int
 
 	srv *httptest.Server
 
@@ -390,6 +394,12 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			return
 		}
 		cfg := img.Config
+		if len(img.Volumes) > 0 {
+			cfg.Volumes = map[string]struct{}{}
+			for _, v := range img.Volumes {
+				cfg.Volumes[v] = struct{}{}
+			}
+		}
 		writeJSON(w, http.StatusOK, docker.Image{ID: img.id, Config: &cfg, RepoDigests: []string{img.repo + "@" + img.digest}})
 	default:
 		fail(w, http.StatusNotFound, "page not found")
@@ -562,8 +572,8 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 				}
 			}
 		}
-		now := time.Now().UTC()
-		c.State = docker.State{Status: "running", Running: true, StartedAt: now}
+		e.clock++
+		c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC()}
 		c.log.start()
 		c.log.write(docker.Stdout, c.img.Prints...)
 		if c.img.Exits {
@@ -571,10 +581,10 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			c.log.end()
 		}
 		if hc := c.Config.Healthcheck; hc != nil && len(hc.Test) > 0 && hc.Test[0] != "NONE" && c.State.Running {
-			c.State.Health = &docker.Health{Status: "healthy"}
+			c.State.Health = &docker.Health{Status: "healthy", Log: []docker.HealthRun{{End: c.State.StartedAt, Output: "ok\n"}}}
 			switch {
 			case c.img.Unhealthy:
-				c.State.Health = &docker.Health{Status: "unhealthy", FailingStreak: 3}
+				c.State.Health = &docker.Health{Status: "unhealthy", FailingStreak: 3, Log: []docker.HealthRun{{End: c.State.StartedAt, ExitCode: 1, Output: c.img.CheckSays + "\n"}}}
 			case c.img.Starting:
 				c.State.Health = &docker.Health{Status: "starting"}
 			}
@@ -715,11 +725,30 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if c.matches(f) {
-			out = append(out, docker.ContainerSummary{ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Ports: summaryPorts(c), State: c.State.Status})
+			out = append(out, docker.ContainerSummary{
+				ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Ports: summaryPorts(c),
+				State: c.State.Status, Status: statusLine(c), NetworkSettings: docker.SummaryNetworks{Networks: c.NetworkSettings.Networks},
+			})
 		}
 	}
 	slices.SortFunc(out, func(a, b docker.ContainerSummary) int { return int(b.Created - a.Created) })
 	writeJSON(w, http.StatusOK, out)
+}
+
+// statusLine says how a container is, as a list has it for people, with its
+// health check's state as the engine words it.
+func statusLine(c *container) string {
+	switch {
+	case c.State.Restarting:
+		return "Restarting (1) 2 seconds ago"
+	case !c.State.Running:
+		return fmt.Sprintf("Exited (%d) 2 seconds ago", c.State.ExitCode)
+	case c.State.Health == nil:
+		return "Up 3 minutes"
+	case c.State.Health.Status == "starting":
+		return "Up 3 seconds (health: starting)"
+	}
+	return "Up 3 minutes (" + c.State.Health.Status + ")"
 }
 
 // summaryPorts are the ports a running container publishes, as a list has them:
@@ -820,7 +849,10 @@ func proto(port string) string {
 
 // attach and detach keep each network's list of running containers.
 func (e *Engine) attach(c *container) {
-	for name := range c.NetworkSettings.Networks {
+	for name, ep := range c.NetworkSettings.Networks {
+		if ep != nil && c.State.Running {
+			ep.IPAddress = e.addressOn(name, ep)
+		}
 		if n := e.networks[name]; n != nil {
 			if n.Containers == nil {
 				n.Containers = map[string]struct {
@@ -838,6 +870,36 @@ func (e *Engine) detach(c *container) {
 	for _, n := range e.networks {
 		delete(n.Containers, c.ID)
 	}
+	for _, ep := range c.NetworkSettings.Networks {
+		if ep != nil {
+			ep.IPAddress = ""
+		}
+	}
+}
+
+// addressOn is the address a running container gets on a network: the one it
+// asked for, or the next free one, as the engine gives out.
+func (e *Engine) addressOn(name string, ep *docker.EndpointSettings) string {
+	if a := ep.IPAMConfig; a != nil && a.IPv4Address != "" {
+		return a.IPv4Address
+	}
+	if ep.IPAddress != "" {
+		return ep.IPAddress
+	}
+	e.nextHost++
+	subnet := "172.17.0.0/16"
+	if n := e.networks[name]; n != nil && len(n.IPAM.Config) > 0 && n.IPAM.Config[0].Subnet != "" {
+		subnet = n.IPAM.Config[0].Subnet
+	}
+	prefix, err := netip.ParsePrefix(subnet)
+	if err != nil {
+		return ""
+	}
+	a := prefix.Addr().Next()
+	for range e.nextHost {
+		a = a.Next()
+	}
+	return a.String()
 }
 
 func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
@@ -1352,6 +1414,63 @@ func (e *Engine) Container(name string) *docker.Container {
 	return &out
 }
 
+// Serving is what reads as the service whose first container has this name: its
+// newest, as a rollout moves a service up its numbers. A name no service's first
+// container has is just that container's.
+func (e *Engine) Serving(first string) *docker.Container {
+	e.mu.Lock()
+	var project, service string
+	for _, c := range e.containers {
+		l := c.Config.Labels
+		if l[docker.LabelService] != "" && docker.InstanceName(l[docker.LabelProject], l[docker.LabelService], 1) == first {
+			project, service = l[docker.LabelProject], l[docker.LabelService]
+			break
+		}
+	}
+	e.mu.Unlock()
+	if service == "" {
+		return e.Container(first)
+	}
+	return e.Newest(project, service)
+}
+
+// Newest returns the container of a service with the highest number, as the
+// engine reports it, or nil.
+func (e *Engine) Newest(project, service string) *docker.Container {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var best *container
+	bestNumber := -1
+	for _, c := range e.containers {
+		if c.Config.Labels[docker.LabelProject] != project || c.Config.Labels[docker.LabelService] != service {
+			continue
+		}
+		n, _ := strconv.Atoi(c.Config.Labels[docker.LabelNumber])
+		if n > bestNumber {
+			best, bestNumber = c, n
+		}
+	}
+	if best == nil {
+		return nil
+	}
+	out := best.Container
+	return &out
+}
+
+// Instances lists the names of a service's containers, sorted.
+func (e *Engine) Instances(project, service string) []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []string
+	for _, c := range e.containers {
+		if c.Config.Labels[docker.LabelProject] == project && c.Config.Labels[docker.LabelService] == service {
+			out = append(out, strings.TrimPrefix(c.Name, "/"))
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // byNameOrID finds a container by its exact name or full ID, for tests.
 func (e *Engine) byNameOrID(key string) *container {
 	if c, ok := e.containers[key]; ok {
@@ -1382,6 +1501,35 @@ func (e *Engine) Edit(name string, edit func(*docker.Container)) {
 	}
 }
 
+// SetHealth moves a container's health check on, as its next run would, with
+// what it printed.
+func (e *Engine) SetHealth(name, status, output string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	c := e.byNameOrID(name)
+	if c == nil {
+		return
+	}
+	run := docker.HealthRun{End: time.Now(), Output: output}
+	h := &docker.Health{Status: status}
+	if status == "unhealthy" {
+		run.ExitCode, h.FailingStreak = 1, 3
+	}
+	h.Log = []docker.HealthRun{run}
+	c.State.Health = h
+}
+
+// SetRestarting makes a container keep restarting, as an exiting one with a
+// restart policy does.
+func (e *Engine) SetRestarting(name string, exitCode int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil {
+		c.State = docker.State{Status: "restarting", Restarting: true, ExitCode: exitCode}
+		c.RestartCount++
+	}
+}
+
 // Stop stops a container behind Dockwell's back.
 func (e *Engine) Stop(name string) {
 	e.mu.Lock()
@@ -1390,6 +1538,39 @@ func (e *Engine) Stop(name string) {
 		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
 		c.log.end()
 		e.detach(c)
+	}
+}
+
+// Reboot is the server, or Docker, starting again: what ran comes back as its
+// restart policy says, with a new start time, and what was stopped, or only
+// made, stays as it is.
+func (e *Engine) Reboot() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, c := range e.containers {
+		policy := c.HostConfig.RestartPolicy.Name
+		back := policy == "always" || c.State.Running && policy != "" && policy != "no" && policy != "on-failure"
+		if !back {
+			if c.State.Running {
+				c.State = docker.State{Status: "exited", ExitCode: 255}
+				e.detach(c)
+			}
+			continue
+		}
+		e.clock++
+		health := c.State.Health
+		c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC(), Health: health}
+		e.attach(c)
+	}
+}
+
+// Remove removes a container behind Dockwell's back.
+func (e *Engine) Remove(name string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil {
+		e.detach(c)
+		delete(e.containers, c.ID)
 	}
 }
 

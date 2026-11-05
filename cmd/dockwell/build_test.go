@@ -42,6 +42,8 @@ var agentPackages = []string{
 	"internal/datadir",
 	"internal/delivery", // opens the values of a step's variables and secrets, sealed to the stream
 	"internal/docker",   // the Docker Engine's API, for the Docker driver (ADR 0021)
+	"internal/fault",    // what stops a rollout partway in a test, and kinds of error (ADR 0027)
+	"internal/health",   // checking containers, and watching them after a deploy (ADR 0027)
 	"internal/human",
 	"internal/id",
 	"internal/ingress", // what runs a server's routes on a proxy (ADR 0024)

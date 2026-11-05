@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -31,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
@@ -702,6 +704,75 @@ func (r *reporter) set(list ...*dockwellv1.DomainStatus) {
 	r.changed <- struct{}{}
 }
 
+// healthReporter says how a server's services are.
+type healthReporter struct {
+	mu      sync.Mutex
+	list    []*dockwellv1.InstanceHealth
+	changed chan struct{}
+	scanned time.Time
+}
+
+func (r *healthReporter) Report() []*dockwellv1.InstanceHealth {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.list
+}
+
+func (r *healthReporter) Changed() <-chan struct{} { return r.changed }
+
+func (r *healthReporter) ScannedAt() time.Time { return r.scanned }
+
+func (r *healthReporter) set(list ...*dockwellv1.InstanceHealth) {
+	r.mu.Lock()
+	r.list = list
+	r.mu.Unlock()
+	r.changed <- struct{}{}
+}
+
+// How a server's services are reaches the control plane as the stream opens and
+// as it changes, whoever listens, and stays, marked as such, once the agent has
+// gone.
+func TestAnAgentReportsHowItsServicesAre(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	healthy, unhealthy := dockwellv1.HealthState_HEALTH_STATE_HEALTHY, dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY
+	r := &healthReporter{changed: make(chan struct{}, 1), scanned: time.Now(), list: []*dockwellv1.InstanceHealth{{Project: "env_x", Service: "web", Number: 1, State: healthy}}}
+	var heard atomic.Int64
+	s.agents.OnHealth(func(string, []*dockwellv1.InstanceHealth) { heard.Add(1) })
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Health: r,
+		})
+		close(done)
+	}()
+	waitForAgent(t, s.agents, id.ServerID, true)
+	state := func() dockwellv1.HealthState {
+		got, _ := s.agents.Health(id.ServerID)
+		if len(got.Instances) != 1 {
+			return dockwellv1.HealthState_HEALTH_STATE_UNSPECIFIED
+		}
+		return got.Instances[0].GetState()
+	}
+	waitUntil(t, "the first report came", func() bool { return state() == healthy })
+	r.set(&dockwellv1.InstanceHealth{Project: "env_x", Service: "web", Number: 1, State: unhealthy})
+	waitUntil(t, "the change came", func() bool { return state() == unhealthy })
+	if heard.Load() < 2 {
+		t.Errorf("what hears them heard %d", heard.Load())
+	}
+	cancel()
+	<-done
+	waitUntil(t, "the agent read as gone", func() bool {
+		_, connected := s.agents.Health(id.ServerID)
+		return !connected
+	})
+	if state() != unhealthy {
+		t.Errorf("with the agent gone, it reads %s, want what it last said", state())
+	}
+}
+
 // Where a route's certificate stands reaches the control plane as the stream
 // opens and as it changes, and stays once the agent has gone.
 func TestAnAgentReportsItsDomains(t *testing.T) {
@@ -777,7 +848,7 @@ func TestDockerKindsWaitForDocker(t *testing.T) {
 	id := s.enrollLocal(t)
 	sock := filepath.Join(t.TempDir(), "docker.sock")
 	client := docker.New(sock)
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond}}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1}}
 	drivers := resource.NewRegistry(&containers, &service.Driver{Containers: containers}, &firewall.Driver{Backend: firewall.NewFake()})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
@@ -1007,5 +1078,56 @@ func TestAnAgentCantPutASecretInAPlanAtAWholeMessage(t *testing.T) {
 		if s := steps[0].Changes[1]; s.Sensitive || s.To != "DB" {
 			t.Errorf("%s: the change at %s = %+v, want it shown", c.ref.Kind, c.shown, s)
 		}
+	}
+}
+
+// What an agent says reaches a timeline and a terminal, so an agent that has been
+// taken over can't put what it likes there, or send more than its monitor would.
+func TestWhatAnAgentReportsIsMadeFitToShow(t *testing.T) {
+	a := agentapi.NewAgents(resource.NewRegistry(), slog.New(slog.DiscardHandler))
+	var heard []*dockwellv1.InstanceHealth
+	a.OnHealth(func(_ string, i []*dockwellv1.InstanceHealth) { heard = i })
+	said := func(list ...*dockwellv1.InstanceHealth) *agentv1.Health {
+		return &agentv1.Health{Instances: list, ScannedAt: timestamppb.Now(), ReportedAt: timestamppb.Now()}
+	}
+	a.ReportHealth("srv_A", said(&dockwellv1.InstanceHealth{
+		Project: "env_x", Service: "web", Container: "web-1\x1b[2J", State: dockwellv1.HealthState(99),
+		Last: &dockwellv1.HealthResult{Output: "fine\x1b]0;owned\x07\n\u202e" + strings.Repeat("x", 1000) + " https://me:hunter2@db/"},
+	}, nil))
+	got, _ := a.Health("srv_A")
+	if len(got.Instances) != 1 {
+		t.Fatalf("it keeps %d", len(got.Instances))
+	}
+	i := got.Instances[0]
+	if i.GetState() != dockwellv1.HealthState_HEALTH_STATE_UNKNOWN {
+		t.Errorf("a state nobody has a name for reads %s", i.GetState())
+	}
+	if strings.ContainsAny(i.GetContainer(), "\x1b") {
+		t.Errorf("the container's name is kept as %q", i.GetContainer())
+	}
+	output := i.GetLast().GetOutput()
+	if strings.ContainsAny(output, "\x1b\x07\n\u202e") || strings.Contains(output, "hunter2") || len(output) > health.MaxOutput+len("…") {
+		t.Errorf("the output is kept as %q", output)
+	}
+	if len(heard) != 1 || heard[0] != i {
+		t.Errorf("what hears it heard %v", heard)
+	}
+	many := make([]*dockwellv1.InstanceHealth, health.MaxInstances+5)
+	for n := range many {
+		many[n] = &dockwellv1.InstanceHealth{Project: "env_x", Service: "web"}
+	}
+	a.ReportHealth("srv_A", said(many...))
+	if got, _ := a.Health("srv_A"); len(got.Instances) != health.MaxInstances {
+		t.Errorf("it keeps %d, want at most %d", len(got.Instances), health.MaxInstances)
+	}
+	// Having read and found nothing running is not having said nothing.
+	a.ReportHealth("srv_A", said())
+	if got, _ := a.Health("srv_A"); !got.Said {
+		t.Error("a report of nothing reads as no report")
+	}
+	heard = nil
+	a.ReportHealth("srv_B", &agentv1.Health{})
+	if got, _ := a.Health("srv_B"); got.Said || heard != nil {
+		t.Errorf("an agent that hasn't read Docker has said %+v", got)
 	}
 }

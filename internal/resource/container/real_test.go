@@ -107,7 +107,7 @@ func TestReferencesOnRealDocker(t *testing.T) {
 func TestReferences(t *testing.T) {
 	e := dockertest.New(t)
 	e.Registry["nginx:1.27-alpine"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
-	references(t, &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond}, dockertest.Scope(t))
+	references(t, &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1}, dockertest.Scope(t))
 }
 
 func references(t *testing.T, rt *container.Docker, scope string) {

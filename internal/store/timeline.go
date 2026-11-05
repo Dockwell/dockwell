@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -23,9 +24,12 @@ type TimelineFilter struct {
 	// audit events whose subject it is.
 	ServerID string
 	// ResourceID keeps the changes to the resource or to what lives in
-	// it, its environments and their services for a project, and no audit
-	// events.
+	// it, its environments and their services for a project, and of the audit
+	// events only those with ResourceActions about it or what lives in it.
 	ResourceID string
+	// ResourceActions are the Actions a ResourceID keeps, where an event's
+	// subject is a resource, as when a service's health changes.
+	ResourceActions []string
 	// Actor keeps what one actor did, as the store names actors, such as
 	// "user:usr_…". A change counts for whoever proposed it and whoever
 	// applied it.
@@ -180,10 +184,19 @@ func (t *Tx) TimelinePlaces(ctx context.Context, q TimelineQuery) ([]TimelinePla
 				JOIN audit_events e ON e.subject = c.id AND e.action = 'change.discarded' WHERE `+where(w))
 		}
 	}
-	if len(f.Actions) > 0 && f.ResourceID == "" && len(q.ChangeIDs) == 0 {
-		w := []string{"action IN (" + marks(len(f.Actions)) + ")"}
-		for _, a := range f.Actions {
+	actions := f.Actions
+	if f.ResourceID != "" {
+		actions = slices.DeleteFunc(slices.Clone(f.Actions), func(a string) bool { return !slices.Contains(f.ResourceActions, a) })
+	}
+	if len(actions) > 0 && len(q.ChangeIDs) == 0 {
+		w := []string{"action IN (" + marks(len(actions)) + ")"}
+		for _, a := range actions {
 			args = append(args, a)
+		}
+		if f.ResourceID != "" {
+			w = append(w, `(subject = ? OR subject IN (SELECT id FROM resources WHERE scope = ?)
+				OR subject IN (SELECT id FROM resources WHERE scope IN (SELECT id FROM resources WHERE scope = ?)))`)
+			args = append(args, f.ResourceID, f.ResourceID, f.ResourceID)
 		}
 		if f.ServerID != "" {
 			w = append(w, "target = ?")

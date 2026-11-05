@@ -730,7 +730,7 @@ func testDriftThroughTheAPI(t *testing.T, backend store.Backend) {
 	changed := func(image string) {
 		got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"})
 		got.Image = image
-		_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got, false)
+		_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got, resource.Decision{})
 	}
 	changed("nginx:hand-edit")
 	d := listDrift().GetDrift()
@@ -805,7 +805,7 @@ func testSecretsNeverLeaveTheAPI(t *testing.T, backend store.Backend) {
 
 	got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"})
 	got.Env["API_KEY"] = "s3cret-by-hand"
-	_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got, false)
+	_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got, resource.Decision{})
 	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{ServerId: hz1.id.ServerID}))
 	if err != nil || len(drift.Msg.GetDrift()) != 1 {
 		t.Fatalf("ListDrift = %v, %v", drift, err)
@@ -1070,7 +1070,7 @@ func testDriftReportsEachServerItCantCheck(t *testing.T, backend store.Backend) 
 	hz2.connect(t, f)
 	got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"})
 	got.Image = "nginx:hand-edit"
-	_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got, false)
+	_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got, resource.Decision{})
 
 	res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
 	if err != nil {

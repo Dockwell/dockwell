@@ -99,7 +99,7 @@ func (l Lookup) read(objectID string) read {
 		if p, err := l.tx.GetPasskey(l.ctx, objectID); err == nil {
 			name = p.Name
 		}
-	case id.Secret, id.Variable:
+	case id.Secret, id.Variable, id.Service:
 		if r, err := l.tx.GetResourceByID(l.ctx, objectID); err == nil {
 			name, scope = r.Name, r.Scope
 		}

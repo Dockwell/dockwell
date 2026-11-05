@@ -7,6 +7,7 @@ import {
   FieldOp,
   type HostAccess,
   HostAccessKind,
+  IngressChange,
   type Intent,
   IntentKind,
   type Plan,
@@ -36,6 +37,18 @@ const ACTIONS: Readonly<Record<Exclude<PlanAction, PlanAction.NONE>, DiffAction>
   [PlanAction.REPLACE]: "replace",
   [PlanAction.DELETE]: "destroy",
 };
+
+/** A step that starts what's there and isn't running, so nothing serves while it does. */
+export function startsStopped(step: PlanStep): boolean {
+  return step.changes.some((c) => c.path === "state" && c.to === "running");
+}
+
+/** A step that changes a route on a proxy that stays up, which reloads it. A rollout doesn't. */
+export function reloadsProxy(step: PlanStep): boolean {
+  if (step.resource?.kind !== "route" || step.action === PlanAction.NONE) return false;
+  const change = step.ingress?.change;
+  return change !== IngressChange.STARTS && change !== IngressChange.STOPS && change !== IngressChange.RESTARTS;
+}
 
 /**
  * The kind PlanDiff draws a resource of the API's kind as; one it doesn't know

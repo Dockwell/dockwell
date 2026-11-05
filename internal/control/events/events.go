@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -55,6 +56,7 @@ const gather = 100 * time.Millisecond
 // and the install's own setup.
 var (
 	serverActions = []string{"server.join", "server.renew", "server.revoke"}
+	healthActions = []string{health.Action}
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
 		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
@@ -446,6 +448,11 @@ func (h *Handler) render(ctx context.Context, tx *store.Tx, names *actors.Names,
 
 func changeEvent(at time.Time, r *revision.Record, look actors.Lookup) *dockwellv1.Event {
 	c := changes.Proto(r, look.Actor)
+	// Where it sits on the timeline is when it began, as what is under way has to
+	// stay put. What it says is when it failed, if it has.
+	if ended := r.EndedAt(); ended.After(at) {
+		at = ended
+	}
 	e := &dockwellv1.Event{
 		Id: r.ID, Kind: dockwellv1.EventKind_EVENT_KIND_CHANGE, Action: "change." + r.State, Time: timestamppb.New(at),
 		Actor: c.GetProposedBy(), Surface: c.GetProposedVia(), Change: c,
@@ -465,6 +472,17 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if strings.HasPrefix(a.Action, "server.") {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
+	}
+	if a.Action == health.Action {
+		// The one kind of event whose detail leaves the store: it holds what
+		// internal/control/health wrote, and nothing else writes this action.
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_HEALTH
+		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject)}
+		e.Health = &dockwellv1.EventHealth{ServerId: a.Target, ServerName: look.Name(a.Target)}
+		if told, ok := health.ReadTold(a.Detail); ok {
+			e.Health.State, e.Health.Previous, e.Health.Output, e.Health.Flips = told.State, told.Previous, told.Output, told.Flips
+		}
+		return e
 	}
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
@@ -490,6 +508,10 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_ACCESS] {
 		f.Actions = append(f.Actions, accessActions...)
 	}
+	if every || want[dockwellv1.EventKind_EVENT_KIND_HEALTH] {
+		f.Actions = append(f.Actions, healthActions...)
+	}
+	f.ResourceActions = healthActions
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {

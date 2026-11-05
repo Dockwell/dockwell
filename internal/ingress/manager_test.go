@@ -40,7 +40,11 @@ type fakeProxy struct {
 	onStart  func()
 	certs    map[string]CertState
 	inFlight map[string]int
-	retries  int
+	// inFlightErr is what InFlight fails with.
+	inFlightErr error
+	// reads is what InFlight says next, a read at a time, ahead of inFlight.
+	reads   []int
+	retries int
 	// recovered and recoverErr are what Recover says.
 	recovered  bool
 	recoverErr error
@@ -48,6 +52,8 @@ type fakeProxy struct {
 	closed bool
 	// plainOnly is what it last started with.
 	plainOnly bool
+	// reloads counts PutRoutes, each one change however many routes it changes.
+	reloads int
 }
 
 func (p *fakeProxy) Name() string { return "Caddy" }
@@ -114,6 +120,18 @@ func (p *fakeProxy) PutRoute(_ context.Context, r Route) error {
 }
 
 // DeleteRoute works with the proxy down, as a real one edits its last config.
+func (p *fakeProxy) PutRoutes(ctx context.Context, list []Route) error {
+	p.mu.Lock()
+	p.reloads++
+	p.mu.Unlock()
+	for i := range list {
+		if err := p.PutRoute(ctx, list[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (p *fakeProxy) DeleteRoute(_ context.Context, id string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -148,6 +166,14 @@ func (p *fakeProxy) SetPanel(_ context.Context, panel *PanelSite) error {
 func (p *fakeProxy) InFlight(_ context.Context, up string) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.inFlightErr != nil {
+		return 0, p.inFlightErr
+	}
+	if len(p.reads) > 0 {
+		n := p.reads[0]
+		p.reads = p.reads[1:]
+		return n, nil
+	}
 	return p.inFlight[up], nil
 }
 
@@ -1073,6 +1099,173 @@ func TestARolloutSwapsAnInstanceWithoutAPlan(t *testing.T) {
 	}
 }
 
+// One reload of the proxy moves a service's routes, as each costs what its old
+// socket's queue holds.
+func TestAMoveIsOneCall(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	s.apply(t, "api", spec("www.example.com", "/api", "web", 9090))
+	project := docker.Project(envID)
+	old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+	before := s.proxy.reloads
+	if err := s.Move(t.Context(), next, []Instance{old}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.proxy.reloads - before; got != 1 {
+		t.Errorf("moving two routes took %d reloads", got)
+	}
+	nextAddr := s.table.Addresses[next.String()]
+	routes, _ := s.proxy.Routes(t.Context())
+	for _, r := range routes {
+		if len(r.Upstreams) != 1 || !strings.HasPrefix(r.Upstreams[0], nextAddr+":") {
+			t.Errorf("%s sends to %v, want %s alone", r.ID, r.Upstreams, nextAddr)
+		}
+	}
+	// Once it is done, doing it again reloads nothing: a rollout going on after a
+	// crash finds its work done.
+	before = s.proxy.reloads
+	if err := s.Move(t.Context(), next, []Instance{old}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.proxy.reloads - before; got != 0 {
+		t.Errorf("moving them again took %d reloads", got)
+	}
+}
+
+// An address isn't used again until the rest of the subnet has been: a config a
+// reload left behind can still send to it, for as long as a connection stays on
+// it, and that must find nothing, not another service with this one's cookies.
+func TestAnAddressIsntUsedAgainSoon(t *testing.T) {
+	s := newSetup(t)
+	s.service("api")
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	project := docker.Project(envID)
+	seen := map[string]bool{s.table.Addresses[Instance{Project: project, Service: "web", Number: 1}.String()]: true}
+	for n := 2; n < 20; n++ {
+		old, next := Instance{Project: project, Service: "web", Number: n - 1}, Instance{Project: project, Service: "web", Number: n}
+		if err := s.Move(t.Context(), next, []Instance{old}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.RemoveUpstream(t.Context(), old); err != nil {
+			t.Fatal(err)
+		}
+		a := s.table.Addresses[next.String()]
+		if seen[a] {
+			t.Fatalf("instance %d took %s again, after %d others", n, a, len(seen))
+		}
+		seen[a] = true
+	}
+}
+
+func TestGivingAddressesGoesRoundTheSubnet(t *testing.T) {
+	dir := t.TempDir()
+	tb := &table{Subnet: "10.9.0.0/29", Addresses: map[string]string{}, loaded: true}
+	i := func(n int) Instance { return Instance{Project: "p", Service: "s", Number: n} }
+	want := []string{"10.9.0.2", "10.9.0.3", "10.9.0.4", "10.9.0.5", "10.9.0.6"}
+	for k, w := range want {
+		a, err := tb.give(dir, i(k), "10.9.0.1", nil)
+		if err != nil || a != w {
+			t.Fatalf("instance %d got %s, %v, want %s", k, a, err, w)
+		}
+	}
+	if _, err := tb.give(dir, i(9), "10.9.0.1", nil); err == nil || !strings.Contains(err.Error(), "no address left") {
+		t.Errorf("with the subnet full, = %v", err)
+	}
+	if err := tb.free(dir, i(1)); err != nil {
+		t.Fatal(err)
+	}
+	if a, err := tb.give(dir, i(10), "10.9.0.1", nil); err != nil || a != "10.9.0.3" {
+		t.Errorf("round the subnet it got %s, %v, want the one freed", a, err)
+	}
+	// It survives the agent, as the table does.
+	fresh := &table{}
+	if err := fresh.load(dir); err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Last != "10.9.0.3" {
+		t.Errorf("the table read back with Last %q", fresh.Last)
+	}
+}
+
+// A route on a service whose containers have moved on from number 1 finds the one
+// that runs, by its labels.
+func TestAFirstRouteFindsTheServicesNumber(t *testing.T) {
+	s := newSetup(t)
+	project := docker.Project(envID)
+	s.engine.Remove(docker.InstanceName(project, "web", 1))
+	s.engine.AddContainer(docker.Container{Name: "/" + docker.InstanceName(project, "web", 7), Config: docker.Config{Labels: map[string]string{
+		docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "7", docker.LabelOneoff: "False",
+	}}})
+	s.engine.AddContainer(docker.Container{Name: "/" + project + "-web-run-1", Config: docker.Config{Labels: map[string]string{
+		docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "1", docker.LabelOneoff: "True",
+	}}})
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	if _, ok := s.table.Addresses[Instance{Project: project, Service: "web", Number: 7}.String()]; !ok {
+		t.Errorf("the table has %v, want number 7", s.table.Addresses)
+	}
+	if ep := s.engine.Container(docker.InstanceName(project, "web", 7)).NetworkSettings.Networks[docker.IngressNetwork]; ep == nil {
+		t.Error("the container didn't join the network")
+	}
+}
+
+// A route's edit in the middle of a rollout goes on sending to what serves: the
+// new instance's address on the table means nothing until it has passed.
+func TestARouteEditDuringARolloutSendsToWhatServes(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	project := docker.Project(envID)
+	serving := s.table.Addresses[Instance{Project: project, Service: "web", Number: 1}.String()]
+	if _, _, ok, err := s.Endpoint(t.Context(), Instance{Project: project, Service: "web", Number: 2}); err != nil || !ok {
+		t.Fatalf("Endpoint = %v, %v", ok, err)
+	}
+	s.apply(t, "api", spec("www.example.com", "/api", "web", 9090))
+	routes, _ := s.proxy.Routes(t.Context())
+	for _, r := range routes {
+		if len(r.Upstreams) != 1 || !strings.HasPrefix(r.Upstreams[0], serving+":") {
+			t.Errorf("%s sends to %v, want %s alone", r.ID, r.Upstreams, serving)
+		}
+	}
+}
+
+// Reconcile forgets what a rollout that stopped partway left on the table, unless
+// a rollout is under way, or it is all the service has.
+func TestReconcileSettlesWhatARolloutLeft(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	project := docker.Project(envID)
+	old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+	s.engine.AddContainer(docker.Container{Name: "/" + next.ContainerName(), Config: docker.Config{Labels: map[string]string{
+		docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "2", docker.LabelOneoff: "False",
+	}}})
+	if err := s.Move(t.Context(), next, []Instance{old}); err != nil {
+		t.Fatal(err)
+	}
+	s.engine.Remove(old.ContainerName())
+
+	release := s.Hold(old.service())
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.table.Addresses[old.String()]; !ok {
+		t.Error("Reconcile touched a service a rollout holds")
+	}
+	release()
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.table.Addresses[old.String()]; ok {
+		t.Error("Reconcile left what a rollout left on the table")
+	}
+	// All the service has stays, however it stands: a route needs an upstream.
+	s.engine.Remove(next.ContainerName())
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.table.Addresses[next.String()]; !ok {
+		t.Error("Reconcile took a service's last address")
+	}
+}
+
 // A rollout's new instance has an address before it has traffic, and a route
 // changing on the same server meanwhile mustn't take it away.
 func TestARouteChangeLeavesARolloutsInstanceAlone(t *testing.T) {
@@ -1385,7 +1578,7 @@ func TestAnAddressCaddyDialsIsNeverGiven(t *testing.T) {
 	s.service("api")
 	s.apply(t, "a", spec("a.example.com", "", "web", 80))
 	dialled, _, _ := splitUpstream(s.proxy.routes[0].Upstreams[0])
-	s.table.Addresses = map[string]string{}
+	s.table.Addresses, s.table.Last = map[string]string{}, ""
 	s.apply(t, "b", spec("b.example.com", "", "api", 80))
 	if got := s.table.Addresses[Instance{Project: docker.Project(envID), Service: "api", Number: 1}.String()]; got == dialled {
 		t.Errorf("api was given %s, which a.example.com's route dials", got)
@@ -2152,5 +2345,88 @@ func TestAReconcileDoesntMoveAKeeperWithTheImageHere(t *testing.T) {
 	}
 	if k := s.engine.Container(KeeperName); k == nil || k.ID != before.ID || k.Config.Image != oldImage {
 		t.Errorf("a reconcile moved the keeper to %+v", k)
+	}
+}
+
+// A request the old config took just before the reload may not be counted yet, so
+// one clear read says nothing.
+func TestADrainWaitsForTwoClearReads(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	project := docker.Project(envID)
+	old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+	if err := s.AddUpstream(t.Context(), next); err != nil {
+		t.Fatal(err)
+	}
+	s.proxy.reads = []int{0, 3, 0, 0, 7}
+	if err := s.Drain(t.Context(), old); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(s.proxy.reads, []int{7}) {
+		t.Errorf("reads left after the drain = %v, want it to end on the second clear read in a row", s.proxy.reads)
+	}
+}
+
+// What a rollout has to know of a service's routes: whether it has any, and which
+// were edited by hand, which aren't Dockwell's to move.
+func TestRoutingSaysWhatARolloutHasToKnow(t *testing.T) {
+	s := newSetup(t)
+	web := Service{Project: docker.Project(envID), Name: "web"}
+	if got, err := s.Routing(t.Context(), web); err != nil || got.Routed || len(got.Edited) != 0 {
+		t.Errorf("with no route, it says %+v, %v", got, err)
+	}
+	s.service("api")
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	s.apply(t, "other", spec("other.example.com", "", "api", 8080))
+	if got, err := s.Routing(t.Context(), web); err != nil || !got.Routed || len(got.Edited) != 0 {
+		t.Errorf("with a route, it says %+v, %v", got, err)
+	}
+	// Edited, and still dialing it.
+	s.proxy.mu.Lock()
+	for i := range s.proxy.routes {
+		if strings.HasSuffix(s.proxy.routes[i].ID, ".www") {
+			s.proxy.routes[i].Edited = true
+		}
+	}
+	s.proxy.mu.Unlock()
+	if got, err := s.Routing(t.Context(), web); err != nil || got.Routed || !slices.Equal(got.Edited, []string{"www"}) {
+		t.Errorf("with its route edited, it says %+v, %v", got, err)
+	}
+	// Edited so that it doesn't say what it dials: it could be anything in the project.
+	s.proxy.mu.Lock()
+	for i := range s.proxy.routes {
+		if strings.HasSuffix(s.proxy.routes[i].ID, ".www") {
+			s.proxy.routes[i].Upstreams = nil
+		}
+	}
+	s.proxy.mu.Unlock()
+	if got, err := s.Routing(t.Context(), web); err != nil || !slices.Equal(got.Edited, []string{"www"}) {
+		t.Errorf("with its route unreadable, it says %+v, %v", got, err)
+	}
+	// Another's route, edited, isn't this one's business if it says where it goes.
+	api := Service{Project: docker.Project(envID), Name: "api"}
+	if got, err := s.Routing(t.Context(), api); err != nil || !got.Routed {
+		t.Errorf("api, its route as it was, says %+v, %v", got, err)
+	}
+}
+
+// What a drain can't read, it can't call clear, so it gets all of its time.
+func TestADrainThatCantReadWhatIsInFlightWaitsItsTime(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	project := docker.Project(envID)
+	old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+	if err := s.AddUpstream(t.Context(), next); err != nil {
+		t.Fatal(err)
+	}
+	s.proxy.inFlightErr = errors.New("can't read the server's connections")
+	ctx, cancel := context.WithTimeout(t.Context(), 3*drainPoll)
+	defer cancel()
+	begun := time.Now()
+	if err := s.Drain(ctx, old); err != nil {
+		t.Errorf("Drain = %v", err)
+	}
+	if took := time.Since(begun); took < 2*drainPoll {
+		t.Errorf("it called that clear after %s", took)
 	}
 }

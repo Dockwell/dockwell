@@ -54,6 +54,14 @@ message Container {
   // Runs no entrypoint, not even the image's, as Compose's "entrypoint: []"
   // does: the command runs on its own. Takes no entrypoint beside it.
   bool no_entrypoint = 13;
+  // How long the container has to stop before Docker kills it, in whole
+  // seconds, such as "30s", as Compose's stop_grace_period. Empty takes
+  // Docker's default of 10 s.
+  string stop_grace_period = 14;
+  // How a deploy replaces a service's running container. A container on its
+  // own takes none: it is stopped, then made again. See
+  // docs/adr/0027-health-checks-rollouts-and-rollback.md.
+  Rollout rollout = 15;
   // Networks a service joins that Dockwell didn't make, by their names in
   // Docker, such as "1panel-network". Each must be on the server already:
   // Dockwell never makes, changes or deletes one. Whatever else is on it can
@@ -101,6 +109,33 @@ message Resources {
   string memory_reservation = 3;
 }
 
+// Rollout says how a deploy replaces a service's running container.
+message Rollout {
+  // Which comes first, the new container or stopping the old one. Unset takes
+  // the safest there is for what the service publishes and mounts: the new one
+  // first, unless both would publish one server port, or a volume, a server
+  // path or the data its image keeps would be written to by two containers at
+  // once.
+  RolloutOrder order = 1;
+  // How long what is in flight to the old container has to finish once no new
+  // request goes to it, such as "1m". Empty takes 30 s. What outlasts it, such
+  // as a long-lived WebSocket, ends with the container.
+  string drain = 2;
+}
+
+// RolloutOrder is which comes first in a deploy.
+enum RolloutOrder {
+  // The safest there is for what the service publishes and mounts.
+  ROLLOUT_ORDER_UNSPECIFIED = 0;
+  // The new container first, so nothing stops. On a service that mounts
+  // something read-write, this says the app can have two containers writing
+  // to it at once for as long as a deploy takes. It can't publish a port.
+  ROLLOUT_ORDER_START_FIRST = 1;
+  // The old container stops first, so there is downtime, and never two at
+  // once, as for a worker that must run alone.
+  ROLLOUT_ORDER_STOP_FIRST = 2;
+}
+
 // Mount puts a volume, or a directory on the server, into a container.
 message Mount {
   // What is mounted: one of the two.
@@ -132,22 +167,51 @@ enum Relabel {
   RELABEL_PRIVATE = 2;
 }
 
-// Healthcheck is a command Docker runs in the container to check it is
-// healthy.
+// Healthcheck says how to check a container is healthy: a command Docker runs
+// in the container, or a request the server's agent makes to it. Give one of
+// test, http and tcp.
 message Healthcheck {
-  // The check, as Docker takes it: ["CMD", "curl", "-f", "http://localhost"],
+  // A command, as Docker takes it: ["CMD", "curl", "-f", "http://localhost"],
   // ["CMD-SHELL", "curl -f http://localhost || exit 1"], or ["NONE"] to turn
   // off the image's check.
   repeated string test = 1;
-  // How often it runs, such as "30s". Empty takes Docker's default.
+  // How often it runs, such as "30s". Empty takes Docker's default for a
+  // command, 30 s, and 10 s for http and tcp. At least 1 s for http and tcp.
   string interval = 2;
-  // How long one check may take, such as "5s". Empty takes Docker's default.
+  // How long one check may take, such as "5s". Empty takes Docker's default
+  // for a command, 30 s, and 5 s for http and tcp. At most 1 min for http and
+  // tcp.
   string timeout = 3;
   // How long the container has to start before failures count, such as
-  // "1m". Empty takes Docker's default.
+  // "1m". Empty takes none.
   string start_period = 4;
-  // How many failures in a row make it unhealthy. 0 takes Docker's default.
+  // How many failures in a row make it unhealthy. 0 takes 3.
   uint32 retries = 5;
+  // A GET the agent sends to the container, on its own network address. Any
+  // status from 200 to 399 passes. It works on an image with no shell or curl
+  // in it, and turns the image's own check off.
+  HttpCheck http = 6;
+  // A connection the agent makes to the container, on its own network address.
+  // It passes once the port takes it, and turns the image's own check off.
+  TcpCheck tcp = 7;
+}
+
+// HttpCheck is a GET the agent sends to a container. It can name nothing but
+// the container: it says a port and a path, and the address is Docker's.
+message HttpCheck {
+  // The port the app listens on inside its container, such as 8080.
+  uint32 port = 1;
+  // The path to ask for, such as "/healthz". Empty asks for "/".
+  string path = 2;
+  // The Host header to send, for an app that refuses one it doesn't know, such
+  // as "app.example.com". Empty sends the container's address.
+  string host = 3;
+}
+
+// TcpCheck is a connection the agent makes to a container.
+message TcpCheck {
+  // The port the app listens on inside its container, such as 5432.
+  uint32 port = 1;
 }
 
 // PortMapping publishes a container port on the server.
@@ -232,8 +296,8 @@ message Environment {
 
 // Service is anything that runs in an environment, placed on servers: for
 // now an app from an image, run as one container on each server it is
-// placed on, with the labels Docker Compose gives a service's container,
-// so docker compose sees it. A Compose file becomes services, volumes and
+// placed on, and two while a deploy rolls, with the labels Docker Compose
+// gives a service's container, so docker compose sees it. A Compose file becomes services, volumes and
 // networks. Websites, databases, catalog apps and jobs come later. Where it
 // runs isn't part of the spec: each revision is deployed on its servers.
 //

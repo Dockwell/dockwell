@@ -404,7 +404,7 @@ func newProgress(plan *Plan, items []item) Progress {
 			st := &sp.Steps[j]
 			p.Steps = append(p.Steps, StepProgress{
 				Server: sp.Server, ResourceID: ids[st.Ref], Ref: st.Ref, Action: st.Action, State: StepQueued,
-				Message: message(StepQueued, st.Action, st.Ref, sp.Name),
+				Message: stepMessage(StepQueued, st, sp.Name),
 			})
 		}
 	}
@@ -469,6 +469,24 @@ func message(state StepState, action resource.Action, ref resource.Ref, server s
 		// A failed step's message is its error.
 	}
 	return ""
+}
+
+// stepMessage is message for a step, in its own words where it restarts a
+// resource, rather than replacing it for a new spec.
+func stepMessage(state StepState, st *resource.Step, server string) string {
+	if st.Restart != "" {
+		what := fmt.Sprintf("%s %s on %s", st.Ref.Kind, st.Ref.Name, server)
+		switch state {
+		case StepQueued:
+			return "Waiting to restart " + what
+		case StepRunning:
+			return "Restarting " + what
+		case StepDone:
+			return "Restarted " + what
+		case StepFailed, StepSkipped, StepWaiting:
+		}
+	}
+	return message(state, st.Action, st.Ref, server)
 }
 
 // DecodePlan reads a plan as the store keeps it.
@@ -600,19 +618,25 @@ func (e *Engine) rollbackOf(c *store.Change) (*Rollback, error) {
 	return r, nil
 }
 
-// Brief is a plan in brief: its fingerprint, its counts, and whether it is
-// destructive or gives host access.
+// Brief is a plan in brief: its fingerprint, its counts, whether it is
+// destructive or gives host access, why Dockwell made it, if it did, and
+// whether it is a restart.
 type Brief struct {
 	Fingerprint string
 	Counts      Counts
 	Destructive bool
 	HostAccess  bool
 	Intent      *Intent // what it is for, when the method that proposed it knows
+	Because     string
+	Restart     bool
 }
 
 // Brief sums up the plan.
 func (p *Plan) Brief() Brief {
-	return Brief{Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive(), HostAccess: p.HostAccess(), Intent: p.Intent}
+	return Brief{
+		Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive(), HostAccess: p.HostAccess(), Intent: p.Intent, Because: p.Because,
+		Restart: slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Restart }),
+	}
 }
 
 // brief reads a stored plan in brief, leaving out the rest: its field
@@ -621,9 +645,11 @@ func brief(b []byte) (Brief, error) {
 	var stored struct {
 		Fingerprint string
 		Intent      *Intent
+		Because     string
 		Resources   []struct {
 			Action     resource.Action
 			HostAccess []resource.Access
+			Restart    bool
 		}
 		Servers []struct {
 			Steps []struct {
@@ -635,9 +661,9 @@ func brief(b []byte) (Brief, error) {
 	if err := json.Unmarshal(b, &stored); err != nil {
 		return Brief{}, fmt.Errorf("can't read a stored plan: %w", err)
 	}
-	p := Plan{Fingerprint: stored.Fingerprint, Intent: stored.Intent, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
+	p := Plan{Fingerprint: stored.Fingerprint, Intent: stored.Intent, Because: stored.Because, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
 	for i := range stored.Resources {
-		p.Resources[i].Action, p.Resources[i].HostAccess = stored.Resources[i].Action, stored.Resources[i].HostAccess
+		p.Resources[i].Action, p.Resources[i].HostAccess, p.Resources[i].Restart = stored.Resources[i].Action, stored.Resources[i].HostAccess, stored.Resources[i].Restart
 	}
 	for i := range stored.Servers {
 		for _, st := range stored.Servers[i].Steps {
@@ -645,6 +671,23 @@ func brief(b []byte) (Brief, error) {
 		}
 	}
 	return p.Brief(), nil
+}
+
+// EndedAt is when a change that failed did, from its steps: the time it began
+// applying is all the change itself keeps, which a long deploy takes well away from
+// when it failed. The zero time for a change that hasn't failed, or a change whose
+// steps don't say.
+func (r *Record) EndedAt() time.Time {
+	if r.State != store.ChangeFailed {
+		return time.Time{}
+	}
+	var ended time.Time
+	for i := range r.Progress.Steps {
+		if f := r.Progress.Steps[i].Finished; f.After(ended) {
+			ended = f
+		}
+	}
+	return ended
 }
 
 // UndoDeadline is until when an applied change can be undone; zero for

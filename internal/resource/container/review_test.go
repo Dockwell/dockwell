@@ -84,7 +84,7 @@ func TestAContainerDockwellDidntMakeIsLeftAlone(t *testing.T) {
 func keptDrivers(e *dockertest.Engine, now *time.Time) (*resource.Registry, *volume.Docker) {
 	clock := func() time.Time { return *now }
 	kept := &volume.Kept{Now: clock}
-	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, HealthWait: time.Second, Deleted: kept}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, HealthWait: time.Second, Deleted: kept}
 	c := container.Driver{Runtime: rt}
 	vols := &volume.Docker{Client: e.Client(), Kept: kept, Now: clock}
 	return resource.NewRegistry(&c, &service.Driver{Containers: c}, &volume.Driver{Runtime: vols}), vols

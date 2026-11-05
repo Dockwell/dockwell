@@ -122,6 +122,10 @@ var fileShape = sync.OnceValue(func() *shape {
 				"limits":       amounts,
 				"reservations": amounts,
 			}},
+			"replicas": number("replicas: 1"),
+			"update_config": object("update_config: {order: stop-first}", map[string]*shape{
+				"order": str("order: stop-first"), "parallelism": number("parallelism: 1"), "failure_action": str("failure_action: rollback"),
+			}),
 		}},
 		"user":        str(`user: "1000"`),
 		"working_dir": str("working_dir: /app"),
@@ -140,6 +144,8 @@ var fileShape = sync.OnceValue(func() *shape {
 		"logging": object("logging: {driver: json-file, options: {max-size: 10m}}", map[string]*shape{
 			"driver": str("driver: json-file"), "options": options,
 		}),
+		"expose":            {kinds: aList, item: shaped(aString|aNumber, `expose: ["8080"]`), example: `expose: ["8080"]`},
+		"stop_grace_period": str("stop_grace_period: 30s"),
 	})
 	volume := &shape{kinds: aMapping | nothing, example: "data: {driver: local}", fields: map[string]*shape{
 		"driver": str("driver: local"), "driver_opts": options, "labels": listOrMapping("labels: {backup: daily}"),

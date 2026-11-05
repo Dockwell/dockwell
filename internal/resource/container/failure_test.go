@@ -163,7 +163,7 @@ func TestAPullCutShortReadsAsTimeRunningOut(t *testing.T) {
 	d := &Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond}
 	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 	defer cancel()
-	err := d.Run(ctx, Target{Name: "env_01-web-1", Project: "env_01", Service: "web", Scoped: true}, &resourcev1.Container{Image: "big:1"}, false)
+	err := d.Run(ctx, Target{Name: "env_01-web-1", Project: "env_01", Service: "web", Scoped: true}, &resourcev1.Container{Image: "big:1"}, resource.Decision{})
 	plain, _ := resource.Explain(err)
 	if plain != "The step's time ran out before web started, so Dockwell stopped waiting. A long pull may have used it up, so try again." {
 		t.Errorf("reads %q", plain)

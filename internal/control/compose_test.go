@@ -66,7 +66,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	e.Registry["alpine:latest"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
 	client := e.Client()
 	archive := &agentlogs.Archive{Dir: t.TempDir(), Client: client, Logger: slog.New(slog.DiscardHandler), Free: func(string) (uint64, error) { return 1 << 40, nil }}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}}}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}}}
 	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client}}
 	if more != nil {
 		drivers = append(drivers, more()...)
@@ -461,14 +461,14 @@ func testAnExportImportsAgainKeepingVariablesAndSecrets(t *testing.T, backend st
 		t.Errorf("a new image plans %v, want the image alone", rs)
 	}
 	apply(t, c, bump)
-	web = e.Container(project + "-web-1")
+	web = e.Newest(project, "web")
 	if web.Config.Image != "ghcr.io/acme/shop:1.5" || !slices.Contains(web.Config.Env, "DATABASE_PASSWORD=s3cret-pw-1") {
 		t.Errorf("after the bump, web runs %s with %v", web.Config.Image, web.Config.Env)
 	}
 
 	// So a rotation still reaches it, and the next export says so.
 	rotated := apply(t, c, propose(t, c, "Rotate the password", secretSpec("DB_PASSWORD", "s3cret-pw-2")))
-	if web = e.Container(project + "-web-1"); !slices.Contains(web.Config.Env, "DATABASE_PASSWORD=s3cret-pw-2") {
+	if web = e.Newest(project, "web"); !slices.Contains(web.Config.Env, "DATABASE_PASSWORD=s3cret-pw-2") {
 		t.Errorf("after the rotation, web runs with %v", web.Config.Env)
 	}
 	file = export().GetCompose()

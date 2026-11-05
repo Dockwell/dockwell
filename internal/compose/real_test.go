@@ -3,6 +3,7 @@
 package compose_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -240,16 +242,42 @@ networks:
 	if err := l.Apply(t.Context(), steps[0], spec); err != nil {
 		t.Fatal(err)
 	}
-	first, _ := client.ContainerNamed(t.Context(), project+"-cache-1")
+	// Dropping the named volume leaves nothing shared, so that rolled, and the
+	// container has moved on from its first number: find it by its labels.
+	current := func() *docker.Container {
+		t.Helper()
+		list, err := client.ListContainers(t.Context(), dockertest.ComposeFilters(project, "cache"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != 1 {
+			t.Fatalf("cache has %d containers, want 1: %+v", len(list), list)
+		}
+		c, err := client.InspectContainer(t.Context(), list[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	first := current()
 	spec.GetApp().Env = map[string]string{"REDIS_ARGS": "--save 60 1"}
 	steps, _ = l.Plan(t.Context(), []resource.Desired{{Ref: cache, Spec: spec}})
 	if steps[0].Action != resource.ActionReplace {
 		t.Fatalf("changing cache's environment = %s, want a replace", steps[0].Action)
 	}
+	if r := steps[0].Rollout; r == nil || r.Rolling || !slices.Equal(r.ImageData, []string{"/data"}) {
+		t.Errorf("replacing what keeps data where its image says should stop first, and say why: %+v", r)
+	}
 	if err := l.Apply(t.Context(), steps[0], spec); err != nil {
 		t.Fatal(err)
 	}
-	second, _ := client.ContainerNamed(t.Context(), project+"-cache-1")
+	second := current()
+	if second.ID == first.ID {
+		t.Error("changing cache's environment didn't replace its container")
+	}
+	if second.Name != first.Name {
+		t.Errorf("a stop-first replace moved cache from %s to %s; want it to keep its number", first.Name, second.Name)
+	}
 	anon := func(c *docker.Container) []string {
 		var out []string
 		for _, m := range c.Mounts {
@@ -277,6 +305,145 @@ networks:
 	}
 	if _, err := client.InspectVolume(t.Context(), project+"_cache-data"); err != nil {
 		t.Errorf("the deleted volume is gone at once: %v", err)
+	}
+}
+
+// A rolling replace leaves names and numbers docker compose reads, what docker
+// compose then does is read back in turn: its ps, a plain up, its --scale and its
+// one-offs. So the next rollout goes on from wherever that left it.
+func TestRolloutsAndDockerComposeOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Fatal("docker isn't on the PATH, so docker compose can't check what Dockwell made")
+	}
+	scope := dockertest.Scope(t)
+	project := docker.Project(scope)
+	dockertest.Cleanup(t, client, project)
+	containers := container.Driver{Runtime: &container.Docker{Client: client}}
+	reg := resource.NewRegistry(&service.Driver{Containers: containers}, &network.Driver{Client: client})
+	l := resource.Local{Drivers: reg}
+	web := resource.Ref{Kind: service.Kind, Scope: scope, Name: "web"}
+	stack, err := compose.Parse(t.Context(), []byte(`
+services:
+  web:
+    image: nginx:1.27-alpine
+    environment: {GREETING: hello}
+`), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Its default network comes first, as a service can't join one that isn't there.
+	for _, n := range stack.Networks {
+		ref := resource.Ref{Kind: network.Kind, Scope: scope, Name: n.Name}
+		if err := reg.Validate(ref.Kind, n.Spec); err != nil {
+			t.Fatal(err)
+		}
+		steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: n.Spec}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := l.Apply(t.Context(), steps[0], n.Spec); err != nil {
+			t.Fatalf("%s: %v", ref, err)
+		}
+	}
+	spec := stack.Services[0].Spec
+	deploy := func() resource.Step {
+		t.Helper()
+		if err := reg.Validate(service.Kind, spec); err != nil {
+			t.Fatal(err)
+		}
+		steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := l.Apply(t.Context(), steps[0], spec); err != nil {
+			t.Fatal(err)
+		}
+		return steps[0]
+	}
+	// What docker compose lists, by name.
+	listed := func() []string {
+		t.Helper()
+		out := strings.Fields(composeCLI(t, nil, "-p", project, "ps", "--format", "{{.Name}}"))
+		slices.Sort(out)
+		return out
+	}
+	name := func(n int) string { return docker.InstanceName(project, "web", n) }
+	deploy()
+	if got := listed(); !slices.Equal(got, []string{name(1)}) {
+		t.Fatalf("docker compose lists %v after the first deploy", got)
+	}
+	spec.GetApp().Env["GREETING"] = "hi"
+	if step := deploy(); step.Rollout == nil || !step.Rollout.Rolling {
+		t.Fatalf("the deploy didn't roll: %+v", step)
+	}
+	if got := listed(); !slices.Equal(got, []string{name(2)}) {
+		t.Fatalf("docker compose lists %v after a rolling replace, want %s", got, name(2))
+	}
+
+	// A plain up, from the export, takes what's there for its one container, whatever
+	// its number. It may recreate it, and then keeps the number.
+	out, err := compose.Export(project, stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "compose.yaml")
+	if err := os.WriteFile(path, out.File, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{"GREETING": "hi"}
+	composeCLI(t, env, "-f", path, "up", "--detach")
+	if got := listed(); !slices.Equal(got, []string{name(2)}) {
+		t.Fatalf("after a plain docker compose up, it lists %v, want %s", got, name(2))
+	}
+
+	// The next rollout goes on from there, by the next number.
+	spec.GetApp().Env["GREETING"] = "hello again"
+	deploy()
+	if got := listed(); !slices.Equal(got, []string{name(3)}) {
+		t.Fatalf("after the rollout that follows, it lists %v, want %s", got, name(3))
+	}
+
+	// A one-off isn't one of the service's, and takes no number from it.
+	composeCLI(t, map[string]string{"GREETING": "hello again"}, "-f", path, "run", "--detach", "--no-deps", "--name", project+"-job", "web", "sleep", "300")
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = exec.CommandContext(ctx, "docker", "rm", "--force", project+"-job").Run()
+	})
+	// --scale makes one more, by the next number. It's there to see, in the plan, and
+	// it goes with the next step.
+	composeCLI(t, map[string]string{"GREETING": "hello again"}, "-f", path, "up", "--detach", "--no-recreate", "--scale", "web=2")
+	if got := listed(); len(got) < 2 || !slices.Contains(got, name(3)) {
+		t.Fatalf("after docker compose up --scale web=2, it lists %v", got)
+	}
+	spec.GetApp().Env["GREETING"] = "once more"
+	step := deploy()
+	if step.Rollout == nil || len(step.Rollout.Others) == 0 {
+		t.Errorf("the plan should name the container scaled by hand, and is %+v", step.Rollout)
+	}
+	all, err := client.ListContainers(t.Context(), map[string][]string{"label": {docker.LabelProject + "=" + project, docker.LabelService + "=web"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left []string
+	for _, c := range all {
+		if c.Labels[docker.LabelOneoff] != "True" {
+			left = append(left, strings.TrimPrefix(c.Names[0], "/"))
+		}
+	}
+	if len(left) != 1 || left[0] == name(3) {
+		t.Errorf("after the rollout, the service has %v, want one new container", left)
+	}
+	if _, err := client.ContainerNamed(t.Context(), project+"-job"); err != nil {
+		t.Errorf("the rollout took the one-off: %v", err)
+	}
+	steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if steps[0].Action != resource.ActionNone {
+		t.Errorf("after all that, the plan is %s: %+v, with the one-off still there", steps[0].Action, steps[0].Changes)
 	}
 }
 

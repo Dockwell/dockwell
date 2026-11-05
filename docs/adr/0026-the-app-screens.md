@@ -90,7 +90,7 @@ What it leaves open:
 - A column shows only when the API has its data. Replica counts come with #28, domains with #27, and metrics when a service has any. New app offers image and Compose, as Git and catalog sources arrive in phase 2.
 - **New app asks for an image.** The name comes from it unless you say otherwise. Ports, variables and volumes wait behind a button each.
 - **New app asks a Compose file for a name,** filled in from its `name:`, and optional only while the default project has no apps. It says when that name is here already, so the plan updates it. What a re-import would remove says how many, and lists them only when asked, on a control that could delete them all.
-- **Restart isn't here.** Nothing plans one: a restart changes no spec, so it would be a new kind of step for the driver and the agent. It should come with rollouts, rather than as a change that writes a revision and does nothing.
+- **Restart isn't on these screens yet.** It came with #28 (`RestartService`, ADR 0027), with a plan and no revision, and `dockwell services restart` calls it. The panel has no button for it yet.
 
 ### Refusals at their field
 

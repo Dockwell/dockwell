@@ -46,6 +46,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/domains"
 	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/resources"
@@ -222,6 +223,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler) (http.Hand
 		rest = append(rest, vanguard.NewService(path, h))
 		services = append(services, strings.Trim(path, "/"))
 		guardREST = logs.GuardREST
+		handle(dockwellv1connect.NewHealthServiceHandler(health.New(cfg.Store, cfg.Agents, cfg.Logger), opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {

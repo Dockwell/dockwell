@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	controlhealth "github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/https"
@@ -264,6 +265,10 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		}
 	}
 	agents.OnConnect(func(string) { resume() })
+	// Tells the timeline when a service turns unhealthy or comes back, for as
+	// long as the control plane runs, and it stops with it.
+	recorder := &controlhealth.Recorder{DB: db, Logger: logger}
+	agents.OnHealth(recorder.Heard)
 
 	srv, err := control.New(control.Config{
 		Logger:        logger,
@@ -300,6 +305,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		cancel()
 		stopAgent()
 	})
+	wg.Go(func() { recorder.Run(ctx) })
 	var panel *ingress.Panel
 	if f.domain != "" {
 		panel = &ingress.Panel{Domain: f.domain}

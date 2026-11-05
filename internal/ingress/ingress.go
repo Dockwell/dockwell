@@ -52,6 +52,9 @@ type Proxy interface {
 	Routes(ctx context.Context) ([]Route, error)
 	// PutRoute adds a route, or changes the one with its ID.
 	PutRoute(ctx context.Context, r Route) error
+	// PutRoutes changes several routes as one change. One that changes only which
+	// single upstream a route dials reloads nothing, and works with the proxy down.
+	PutRoutes(ctx context.Context, routes []Route) error
 	// DeleteRoute removes a route, if it has it. It works with the proxy down,
 	// and doesn't start it: removing a route must always work, and starting it
 	// may be just what another proxy on its ports stops.
@@ -69,8 +72,9 @@ type Proxy interface {
 	// it isn't already. It serves panel.Cert until it has its own certificate
 	// for the domain, and drops that then.
 	SetPanel(ctx context.Context, panel *PanelSite) error
-	// InFlight says how many requests an upstream has now, across its configs
-	// old and new.
+	// InFlight says how many connections the proxy has open to an upstream, which
+	// is above zero for as long as a request is on its way there, and for no longer
+	// than a moment past that, in any config old or new.
 	InFlight(ctx context.Context, upstream string) (int, error)
 	// Certificates says where each domain's certificate stands. It works with
 	// the proxy down.
@@ -190,6 +194,11 @@ type Manager struct {
 	// wakes has Watch read again now, once wakesOnce has made it.
 	wakes     chan struct{}
 	wakesOnce sync.Once
+	// rollouts counts the rollouts moving each service's instances, which Reconcile
+	// leaves alone. It has a lock of its own, as asking takes no time and has no
+	// context to give up with.
+	rolloutsMu sync.Mutex
+	rollouts   map[Service]int
 }
 
 var _ Upstreams = (*Manager)(nil)
@@ -626,12 +635,12 @@ func (m *Manager) checkServersNetwork(ctx context.Context, desired []resource.De
 		s := serviceOf(d.Ref, spec)
 		on, inPlan := planned[s]
 		if !inPlan {
-			c, err := m.Client.ContainerNamed(ctx, Instance{Project: s.Project, Service: s.Name, Number: 1}.ContainerName())
+			c, err := m.newestOf(ctx, s)
 			switch {
-			case docker.IsNotFound(err):
-				continue
 			case err != nil:
 				return err
+			case c == nil:
+				continue
 			}
 			on = c.HostConfig.NetworkMode == hostNetworkMode
 		}
@@ -1284,6 +1293,11 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		return err
 	}
 	if err := m.attachAll(ctx); err != nil {
+		return err
+	}
+	// Ahead of opening the routes, so none opens on an address a rollout that
+	// stopped partway left behind.
+	if err := m.settle(ctx); err != nil {
 		return err
 	}
 	// Each instance is back at its own address, so a route may dial it again.

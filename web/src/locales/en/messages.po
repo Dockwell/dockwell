@@ -473,6 +473,12 @@ msgstr "{name}, {status}"
 msgid "{name}, {status}, CPU {cpu}%"
 msgstr "{name}, {status}, CPU {cpu}%"
 
+#. placeholder {0}: line.lead
+#. placeholder {0}: line.text
+#: src/features/changes/notices.tsx
+msgid "{name}: {0}"
+msgstr "{name}: {0}"
+
 #: src/features/changes/notices.tsx
 msgid "{name}'s {where} holds the value of {variable}"
 msgstr "{name}'s {where} holds the value of {variable}"
@@ -480,6 +486,8 @@ msgstr "{name}'s {where} holds the value of {variable}"
 #: src/features/changes/notices.tsx
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
+msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
+msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 
 #: src/features/changes/words.ts
 msgid "{networks, plural, one {a network} other {# networks}}"
@@ -626,6 +634,13 @@ msgstr "{source} started {revision}, in container {container}"
 #: src/features/logs/LogFoot.tsx
 msgid "{speed} lines/s"
 msgstr "{speed} lines/s"
+#: src/features/changes/words.ts
+msgid "{source} stays on the server, as it was"
+msgstr "{source} stays on the server, as it was"
+
+#: src/features/changes/words.ts
+msgid "{source} stops being what the service sees at {target}"
+msgstr "{source} stops being what the service sees at {target}"
 
 #. placeholder {0}: steps.length
 #: src/features/changes/ChangeSheet.tsx
@@ -852,10 +867,21 @@ msgstr "A claim link works only until someone claims the install. Sign in instea
 #: src/features/logs/LogsPage.tsx
 msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 msgstr "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
+#: src/features/changes/words.ts
+msgid "A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first"
+msgstr "A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
+
+#: src/features/changes/words.ts
+msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
+msgstr "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
+
+#: src/features/changes/words.ts
+msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
+msgstr "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 
 #: src/features/changes/notices.tsx
 msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't."
@@ -1986,16 +2012,6 @@ msgstr "Deploy your first app"
 msgid "Deployed"
 msgstr "Deployed"
 
-#: src/features/apps/words.ts
-msgctxt "An app whose servers the fleet hasn't said anything about yet"
-msgid "Deployed"
-msgstr "Deployed"
-
-#: src/features/apps/revision.ts
-msgctxt "What a revision did, before the image it deployed"
-msgid "Deployed"
-msgstr "Deployed"
-
 #: src/features/apps/revision.ts
 msgid "deployed {ago}"
 msgstr "deployed {ago}"
@@ -2108,6 +2124,10 @@ msgstr "Dockwell {short}: control plane status"
 #: src/features/system/StatusPage.tsx
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
+
+#: src/features/changes/words.ts
+msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
+msgstr "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell can't tell whether <0>{next}</0> started"
@@ -2628,6 +2648,14 @@ msgstr "https:// addresses get an error, and browsers that saw HSTS from it refu
 msgid "I saved them"
 msgstr "I saved them"
 
+#: src/features/changes/notices.tsx
+msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
+msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
+
+#: src/features/changes/words.ts
+msgid "If the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to"
+msgstr "If the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
 msgstr "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
@@ -2719,6 +2747,10 @@ msgid "Issuing"
 msgstr "Issuing"
 
 #: src/features/changes/words.ts
+msgid "It also removes {extra} more containers of this service, which a rollout that stopped partway or docker compose up --scale left"
+msgstr "It also removes {extra} more containers of this service, which a rollout that stopped partway or docker compose up --scale left"
+
+#: src/features/changes/words.ts
 msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
 msgstr "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
 
@@ -2761,6 +2793,14 @@ msgstr "It can't tell what is running there until then. Check that the server an
 #: src/features/changes/notices.tsx
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "It has the Linux capability <0>{path}</0>, which is the same as root."
+
+#: src/features/changes/words.ts
+msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
+msgstr "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
+
+#: src/features/changes/words.ts
+msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
+msgstr "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
@@ -2877,6 +2917,17 @@ msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this
 #: src/features/logs/LogsPage.tsx
 msgid "Its logs show here once they can be read."
 msgstr "Its logs show here once they can be read."
+#: src/features/changes/words.ts
+msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgstr "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
+
+#: src/features/changes/words.ts
+msgid "Its image puts an empty volume there. {source} stays on the server, as it was"
+msgstr "Its image puts an empty volume there. {source} stays on the server, as it was"
+
+#: src/features/changes/words.ts
+msgid "Its rollout order says to stop first, so there are never two"
+msgstr "Its rollout order says to stop first, so there are never two"
 
 #: src/features/changes/notices.tsx
 msgid "its server"
@@ -3004,12 +3055,6 @@ msgid "Listening there now: {listening}"
 msgstr "Listening there now: {listening}"
 
 #: src/features/logs/LogsPage.tsx
-msgid "Live"
-msgstr "Live"
-
-#: src/features/apps/revision.ts
-#: src/features/apps/words.ts
-msgctxt "An app whose latest revision is deployed"
 msgid "Live"
 msgstr "Live"
 
@@ -3238,11 +3283,6 @@ msgstr "Networks"
 
 #: src/features/apps/words.ts
 #: src/features/servers/ServerPanels.tsx
-msgid "Never"
-msgstr "Never"
-
-#: src/features/auth/TokensPanel.tsx
-msgctxt "token expiry"
 msgid "Never"
 msgstr "Never"
 
@@ -3524,6 +3564,14 @@ msgstr "Offline"
 #: src/features/auth/TotpPanel.tsx
 msgid "On"
 msgstr "On"
+
+#: src/features/changes/words.ts
+msgid "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
+msgstr "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
+
+#: src/features/changes/words.ts
+msgid "On {networks}, other services can reach the new container by its service's name before it has passed its check, beside the old one, as Docker can't add a name to a container later"
+msgstr "On {networks}, other services can reach the new container by its service's name before it has passed its check, beside the old one, as Docker can't add a name to a container later"
 
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -4434,6 +4482,14 @@ msgstr "Rolling back failed {when}"
 msgid "Rolling back to {revision}"
 msgstr "Rolling back to {revision}"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "rolling, with nothing stopped"
+msgstr "rolling, with nothing stopped"
+
+#: src/features/changes/words.ts
+msgid "Rolling, with nothing stopped"
+msgstr "Rolling, with nothing stopped"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "Rollout"
 msgstr "Rollout"
@@ -4931,11 +4987,6 @@ msgstr "Synced"
 msgid "System"
 msgstr "System"
 
-#: src/features/shell/MorePage.tsx
-msgctxt "theme"
-msgid "System"
-msgstr "System"
-
 #: src/features/changes/PlanSteps.tsx
 msgid "Takes away {stopping}"
 msgstr "Takes away {stopping}"
@@ -5148,6 +5199,10 @@ msgstr "the network {path}, which is on the server already, where it answers to 
 msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 
+#: src/features/changes/words.ts
+msgid "The old container stops first"
+msgstr "The old container stops first"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "The old value stays in this variable's history"
 msgstr "The old value stays in this variable's history"
@@ -5211,6 +5266,9 @@ msgstr "The search stopped after 30 s, at {at}. Read older lines with <0>dockwel
 #: src/features/logs/LogFoot.tsx
 msgid "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
 msgstr "The search stopped at the newest 1,000,000 lines of a container, at {at}. Read older lines with <0>dockwell logs read</0>."
+#: src/features/changes/words.ts
+msgid "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
+msgstr "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "the server filter"
@@ -5392,12 +5450,16 @@ msgid "This path crosses the open internet unencrypted, between Cloudflare and t
 msgstr "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 
 #: src/features/changes/notices.tsx
-msgid "This plan destroys data or may cut off access"
-msgstr "This plan destroys data or may cut off access"
+msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
+msgstr "This plan destroys data, may cut off access, or lets two containers write to one place"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
 msgstr "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
+
+#: src/features/changes/words.ts
+msgid "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
+msgstr "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
@@ -5560,6 +5622,22 @@ msgstr "Turned off codes from an authenticator app"
 #: src/features/activity/describe.ts
 msgid "Turned on codes from an authenticator app"
 msgstr "Turned on codes from an authenticator app"
+
+#: src/features/changes/words.ts
+msgid "Two containers can't publish {ports} at once, so the old one stops first"
+msgstr "Two containers can't publish {ports} at once, so the old one stops first"
+
+#: src/features/changes/notices.tsx
+msgid "Two containers may write to {shared}"
+msgstr "Two containers may write to {shared}"
+
+#: src/features/changes/words.ts
+msgid "Two containers mustn't write to the server path {paths} at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgstr "Two containers mustn't write to the server path {paths} at once, so the old one stops first. If the app can, set its rollout order to start first"
+
+#: src/features/changes/words.ts
+msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgstr "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Type <0>{confirmWith}</0> to apply it"
@@ -5901,6 +5979,10 @@ msgstr "What connects to this server"
 msgid "What happens next"
 msgstr "What happens next"
 
+#: src/features/changes/words.ts
+msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
+msgstr "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "What it set out to do"
 msgstr "What it set out to do"
@@ -5945,6 +6027,10 @@ msgstr "What the services in {envName} use, by name. Changing a value restarts e
 #: src/features/apps/NewAppSheet.tsx
 msgid "What this file makes"
 msgstr "What this file makes"
+
+#: src/features/changes/words.ts
+msgid "What this step wants already runs, so nothing stops for it"
+msgstr "What this step wants already runs, so nothing stops for it"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "What to export"

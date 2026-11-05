@@ -726,7 +726,8 @@ func TestAnUpstreamDrainsOnRealCaddy(t *testing.T) {
 	if got := <-done; got != "slow done" {
 		t.Errorf("the request in flight ended with %q", got)
 	}
-	for range 50 {
+	// Caddy keeps a connection with nothing on it for upstreamIdle.
+	for range 200 {
 		n, err := c.InFlight(t.Context(), old)
 		if err != nil {
 			t.Fatal(err)

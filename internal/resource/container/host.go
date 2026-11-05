@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/netip"
 	"os"
 	"path"
@@ -251,6 +252,9 @@ func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Conta
 	if err := d.checkRouted(ctx, t, spec); err != nil {
 		return err
 	}
+	if err := d.checkReach(ctx, t, spec); err != nil {
+		return err
+	}
 	if err := d.checkCPUs(ctx, t, spec); err != nil {
 		return err
 	}
@@ -371,6 +375,57 @@ func (d *Driver) LeadsAt(ctx context.Context, t Target, c *resourcev1.Container)
 		return l.Leads(ctx, t, c)
 	}
 	return nil, nil
+}
+
+// checkReach refuses a check the agent can't make, at plan time, rather than as
+// a deploy that fails and rolls back. The agent reaches a container at the address
+// Docker reports, which the server itself can do on a bridge network and not
+// otherwise: rootless Docker keeps its networks in a namespace of its own, and a
+// server can't reach a macvlan or ipvlan container of its own, or an overlay's.
+// A container on several networks may be checked on any of them, so one such
+// network is enough to refuse. A command check runs inside the container, and has
+// none of this. A network the same change is still to make isn't there to ask,
+// and there the check's own failure says what is wrong.
+func (d *Docker) checkReach(ctx context.Context, t Target, spec *resourcev1.Container) error {
+	check := spec.GetHealthcheck()
+	var kind string
+	switch {
+	case check.GetHttp() != nil:
+		kind = "An HTTP check"
+	case check.GetTcp() != nil:
+		kind = "A TCP check"
+	default:
+		return nil
+	}
+	info, err := d.Client.Info(ctx)
+	if err != nil {
+		return err
+	}
+	if info.Rootless() {
+		return fmt.Errorf("this server's Docker runs rootless, so the agent can't reach a container's address. %s can't run here. Use a command check, which Docker runs inside the container", kind)
+	}
+	// A network the server has is its own name in Docker, and checkExternalNetworks
+	// refuses one that isn't there.
+	names := map[string]string{}
+	for _, name := range spec.GetNetworks() {
+		names[name] = t.DockerName(name)
+	}
+	for _, name := range spec.GetExternalNetworks() {
+		names[name] = name
+	}
+	for _, name := range slices.Sorted(maps.Keys(names)) {
+		n, err := d.Client.NetworkNamed(ctx, names[name])
+		switch {
+		case docker.IsNotFound(err):
+			continue
+		case err != nil:
+			return err
+		}
+		if n.Driver != "bridge" && n.Driver != "" {
+			return fmt.Errorf("the network %s uses the %s driver, so the agent can't reach a container's address on it. %s can't run here. Use a command check, which Docker runs inside the container", name, n.Driver, kind)
+		}
+	}
+	return nil
 }
 
 // hostChecker is a Runtime that checks a spec on its server, as Docker

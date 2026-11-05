@@ -11,8 +11,10 @@ import (
 	"maps"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -692,6 +694,9 @@ func (s *setup) onServersNetwork(name string) {
 		Name:       "/" + docker.Project(envID) + "-" + name + "-1",
 		State:      docker.State{Running: true, Status: "running"},
 		HostConfig: docker.HostConfig{NetworkMode: "host"},
+		Config: docker.Config{Labels: map[string]string{
+			docker.LabelProject: docker.Project(envID), docker.LabelService: name, docker.LabelNumber: "1", docker.LabelOneoff: "False",
+		}},
 	})
 }
 
@@ -746,9 +751,8 @@ func TestAPlanCantSayWhatAServiceIsOnWithoutDocker(t *testing.T) {
 	ref := routeRef("www")
 	gone := errors.New("docker has gone")
 	s.engine.Intercept(func(r *http.Request) error {
-		// Only the look at the route's own container, by its name or in a list by
-		// its name, so nothing else can be why.
-		if u := r.URL.String(); strings.Contains(u, "-web-1") || strings.Contains(u, "--1") {
+		// Only the look for the route's own service, so nothing else can be why.
+		if u, err := url.QueryUnescape(r.URL.String()); err == nil && strings.Contains(u, docker.LabelService+"=web") {
 			return gone
 		}
 		return nil
@@ -866,4 +870,127 @@ func TestARouteChangingHasItsDomainReadAtOnce(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Errorf("Domains = %v, and it should have read the new route within seconds, not at the next minute", s.Domains())
+}
+
+// A rollout moves a service up its numbers, so what a plan asks of a service is
+// whichever container of it is newest, however far along it is.
+func TestARouteToAServiceOnTheServersNetworkFindsItsNumber(t *testing.T) {
+	add := func(s *setup, number int, mode string) {
+		s.engine.AddContainer(docker.Container{
+			Name:       "/" + Instance{Project: docker.Project(envID), Service: "edge", Number: number}.ContainerName(),
+			State:      docker.State{Running: true, Status: "running"},
+			HostConfig: docker.HostConfig{NetworkMode: mode},
+			Config: docker.Config{Labels: map[string]string{
+				docker.LabelProject: docker.Project(envID), docker.LabelService: "edge", docker.LabelNumber: strconv.Itoa(number), docker.LabelOneoff: "False",
+			}},
+		})
+	}
+	ref := routeRef("www")
+	desired := []resource.Desired{{Ref: ref, Spec: spec("app.example.com", "", "edge", 80)}}
+	s := newSetup(t)
+	add(s, 3, "host")
+	if err := s.Check(t.Context(), ref, desired); err == nil || !strings.Contains(err.Error(), "runs on the server's own network") {
+		t.Errorf("a service on it at number 3 = %v", err)
+	}
+	s = newSetup(t)
+	add(s, 3, "host")
+	add(s, 4, "bridge")
+	if err := s.Check(t.Context(), ref, desired); err != nil {
+		t.Errorf("a service that has rolled off it = %v", err)
+	}
+}
+
+// A rollout changes what a route dials, and nothing else of it: a route with no
+// certificate stays on plain HTTP, and who it answers doesn't widen. Nor does what
+// holds a service while it rolls, or what settles it after.
+func TestARouteKeepsWhatItAsksThroughAMoveAndAHold(t *testing.T) {
+	for name, route := range map[string]*resourcev1.Route{
+		"no certificate, this server alone": {Domain: "app.example.com", Service: "web", Port: 8080, Tls: TLSOff},
+		"no certificate, through a proxy":   {Domain: "app.example.com", Service: "web", Port: 8080, Tls: TLSOff, TrustedProxies: []string{"10.0.0.0/8"}},
+		"no certificate, to anyone":         {Domain: "app.example.com", Service: "web", Port: 8080, Tls: TLSOff, PlainForAnyone: true},
+		"a certificate, through a proxy":    {Domain: "app.example.com", Service: "web", Port: 8080, TrustedProxies: []string{"10.0.0.0/8"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newSetup(t)
+			s.apply(t, "www", route)
+			project := docker.Project(envID)
+			old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+			s.engine.AddContainer(docker.Container{Name: "/" + next.ContainerName(), State: docker.State{Running: true, Status: "running"}, Config: docker.Config{Labels: map[string]string{
+				docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "2", docker.LabelOneoff: "False",
+			}}})
+			read := func() Route {
+				t.Helper()
+				routes, err := s.proxy.Routes(t.Context())
+				if err != nil || len(routes) != 1 {
+					t.Fatalf("Routes = %+v, %v", routes, err)
+				}
+				return routes[0]
+			}
+			before := read()
+			if before.Plain != (route.GetTls() == TLSOff) || before.PlainForAnyone != route.GetPlainForAnyone() || !slices.Equal(before.TrustedProxies, route.GetTrustedProxies()) {
+				t.Fatalf("it reads %+v before anything moves", before)
+			}
+			same := func(when string, wantDial string) {
+				t.Helper()
+				now := read()
+				if len(now.Upstreams) != 1 || !strings.HasPrefix(now.Upstreams[0], wantDial+":") {
+					t.Errorf("%s, it dials %v, want %s", when, now.Upstreams, wantDial)
+				}
+				now.Upstreams = before.Upstreams
+				if !reflect.DeepEqual(now, before) {
+					t.Errorf("%s, it reads %+v, want %+v but for what it dials", when, now, before)
+				}
+			}
+			if err := s.Move(t.Context(), next, []Instance{old}); err != nil {
+				t.Fatal(err)
+			}
+			dial := s.table.Addresses[next.String()]
+			same("after the move", dial)
+			s.engine.Remove(old.ContainerName())
+			release := s.Hold(old.service())
+			if err := s.Reconcile(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			same("reconciled while it is held", dial)
+			release()
+			if err := s.Reconcile(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			same("reconciled after", dial)
+		})
+	}
+}
+
+// A route to a port on the server belongs to no service: what moves a service leaves
+// it alone, and a drain doesn't wait on it, even if the port is one the service
+// publishes.
+func TestARouteToAPortOnTheServerIsntAService(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	s.apply(t, "port", hostPortSpec(9090))
+	routes := func() map[string][]string {
+		t.Helper()
+		all, err := s.proxy.Routes(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string][]string{}
+		for _, r := range all {
+			out[r.ID] = r.Upstreams
+		}
+		return out
+	}
+	id := RouteID(routeRef("port"))
+	before := routes()[id]
+	if len(before) != 1 {
+		t.Fatalf("it dials %v", before)
+	}
+	project := docker.Project(envID)
+	old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+	if err := s.Move(t.Context(), next, []Instance{old}); err != nil {
+		t.Fatal(err)
+	}
+	if got := routes()[id]; !slices.Equal(got, before) {
+		t.Errorf("moving a service moved a route to a port on the server: %v to %v", before, got)
+	}
 }

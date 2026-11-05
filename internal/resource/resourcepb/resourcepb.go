@@ -74,6 +74,7 @@ var effects = map[resource.Effect]dockwellv1.StepEffect{
 	resource.EffectNone:     dockwellv1.StepEffect_STEP_EFFECT_NONE,
 	resource.EffectRestart:  dockwellv1.StepEffect_STEP_EFFECT_RESTART,
 	resource.EffectRecreate: dockwellv1.StepEffect_STEP_EFFECT_RECREATE,
+	resource.EffectRoll:     dockwellv1.StepEffect_STEP_EFFECT_ROLL,
 }
 
 var warnings = map[resource.Warning]dockwellv1.PlanWarning{
@@ -147,6 +148,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.ServerPort = &dockwellv1.ServerPortCheck{Port: c.Port, Listening: c.Listening, NothingListening: c.Nothing}
 	}
 	p.HidesLogs = s.HidesLogs
+	p.Rollout, p.Restart = rollout(s.Rollout), s.Restart
 	if g := s.Goes; g != nil {
 		p.Goes = &dockwellv1.RouteGoes{Where: g.Where, Domain: g.Domain, Find: visitorsFind[g.Find]}
 	}
@@ -159,6 +161,54 @@ var visitorsFind = map[resource.VisitorsFind]dockwellv1.VisitorsFind{
 	resource.VisitorsTLSError: dockwellv1.VisitorsFind_VISITORS_FIND_TLS_ERROR,
 	resource.VisitorsNotFound: dockwellv1.VisitorsFind_VISITORS_FIND_NOT_FOUND,
 	resource.VisitorsRest:     dockwellv1.VisitorsFind_VISITORS_FIND_REST,
+}
+
+// rollout converts how a step replaces a running service; nil stays nil.
+func rollout(r *resource.RolloutPlan) *dockwellv1.RolloutPlan {
+	if r == nil {
+		return nil
+	}
+	return &dockwellv1.RolloutPlan{
+		Rolling: r.Rolling, Ports: r.Ports, Volumes: r.Volumes, Paths: r.Paths, ImageData: r.ImageData, Chosen: r.Chosen,
+		Drain: Duration(r.Drain), HealthyWithin: Duration(r.HealthyWithin), StopGrace: Duration(r.StopGrace), Soak: Duration(r.Soak),
+		Others: r.Others, CantTell: r.CantTell, EditedRoutes: r.EditedRoutes, EarlyNetworks: r.EarlyNetworks, EarlyNames: r.EarlyNames, HostNetwork: r.HostNetwork,
+		Dropped: dropped(r.Dropped),
+	}
+}
+
+func dropped(list []resource.DroppedMount) []*dockwellv1.DroppedMount {
+	out := make([]*dockwellv1.DroppedMount, 0, len(list))
+	for _, m := range list {
+		out = append(out, &dockwellv1.DroppedMount{Source: m.Source, Target: m.Target, EmptyVolume: m.EmptyVolume})
+	}
+	return out
+}
+
+func fromDropped(list []*dockwellv1.DroppedMount) []resource.DroppedMount {
+	var out []resource.DroppedMount
+	for _, m := range list {
+		out = append(out, resource.DroppedMount{Source: m.GetSource(), Target: m.GetTarget(), EmptyVolume: m.GetEmptyVolume()})
+	}
+	return out
+}
+
+// fromRollout reads how a step replaces a running service; nil stays nil.
+func fromRollout(r *dockwellv1.RolloutPlan) *resource.RolloutPlan {
+	if r == nil {
+		return nil
+	}
+	d := func(v *durationpb.Duration) time.Duration {
+		if v == nil {
+			return 0
+		}
+		return max(v.AsDuration(), 0)
+	}
+	return &resource.RolloutPlan{
+		Rolling: r.GetRolling(), Ports: r.GetPorts(), Volumes: r.GetVolumes(), Paths: r.GetPaths(), ImageData: r.GetImageData(), Chosen: r.GetChosen(),
+		Drain: d(r.GetDrain()), HealthyWithin: d(r.GetHealthyWithin()), StopGrace: d(r.GetStopGrace()), Soak: d(r.GetSoak()),
+		Others: r.GetOthers(), CantTell: r.GetCantTell(), EditedRoutes: r.GetEditedRoutes(), EarlyNetworks: r.GetEarlyNetworks(), EarlyNames: r.GetEarlyNames(), HostNetwork: r.GetHostNetwork(),
+		Dropped: fromDropped(r.GetDropped()),
+	}
 }
 
 var ingressChanges = map[resource.IngressChange]dockwellv1.IngressChange{
@@ -306,6 +356,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		find, _ := from(visitorsFind, g.GetFind())
 		s.Goes = &resource.RouteGoes{Where: g.GetWhere(), Domain: g.GetDomain(), Find: find}
 	}
+	s.Rollout, s.Restart = fromRollout(p.GetRollout()), p.GetRestart()
 	return s, nil
 }
 

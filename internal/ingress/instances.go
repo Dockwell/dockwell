@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
@@ -62,8 +64,32 @@ type Upstreams interface {
 	// ends with the container. A service's last upstream can't be drained, as
 	// a route needs one.
 	Drain(ctx context.Context, instance Instance) error
+	// Move sends new requests to an instance in place of others, on every route
+	// that serves its service, with no reload of the proxy: what is in flight to
+	// the others goes on. Drain waits for that.
+	Move(ctx context.Context, to Instance, from []Instance) error
 	// RemoveUpstream forgets the instance and frees its address.
 	RemoveUpstream(ctx context.Context, instance Instance) error
+	// Reachable says why a new instance can't take a route's traffic yet: a
+	// port a route of its service sends to that doesn't take a connection on
+	// its address. It answers nil for a service with no routes.
+	Reachable(ctx context.Context, instance Instance) error
+	// Hold keeps Reconcile off a service while a rollout moves its instances,
+	// until release is called. An address a rollout reserved has no container
+	// yet, which Reconcile would otherwise take for what a crash left.
+	Hold(service Service) (release func())
+	// Routing says what a rollout has to know of a service's routes before it
+	// decides how to replace it.
+	Routing(ctx context.Context, service Service) (Routing, error)
+}
+
+// Routing is what a rollout has to know of a service's routes.
+type Routing struct {
+	// Routed says a route sends to the service.
+	Routed bool
+	// Edited names routes edited by hand that send to it, or could: Dockwell
+	// leaves those as they are, so they go on dialing what they dial.
+	Edited []string
 }
 
 // addressesFile is the table of instances' addresses.
@@ -83,6 +109,12 @@ type table struct {
 	// route's ID. That port is all the proxy knows, and the service is part of what
 	// the route says, so without this it would read as drift for as long as it ran.
 	Owners map[string]string `json:"owners,omitempty"`
+	// Last is the address given out last. Giving out goes on from here, round
+	// the subnet, so an address isn't used again until all the others have been.
+	// A config a reload left behind can still send to an address, for as long as
+	// a connection stays on it, and that must find nothing rather than another
+	// service's container, with this one's cookies (ADR 0027).
+	Last string `json:"last,omitempty"`
 }
 
 func (t *table) load(dir string) error {
@@ -184,10 +216,12 @@ func (t *table) instancesOf(s Service) []Instance {
 	return out
 }
 
-// give records an address for an instance, the lowest free one past the
-// gateway, and returns it. busy are addresses that aren't to be given, whatever
-// the table says: what the proxy still dials above all, as an address it dials
-// goes to whichever container has it.
+// give records an address for an instance, the next free one past the last it
+// gave, round the subnet, and returns it. So an address isn't given again until
+// the subnet has gone round, and a config or a connection that outlives a rollout
+// finds nothing there rather than another app. busy are addresses that aren't to
+// be given, whatever the table says: what the proxy still dials above all, as an
+// address it dials goes to whichever container has it.
 func (t *table) give(dir string, i Instance, gateway string, busy []string) (string, error) {
 	if a, ok := t.Addresses[i.String()]; ok {
 		return a, nil
@@ -205,17 +239,45 @@ func (t *table) give(dir string, i Instance, gateway string, busy []string) (str
 	}
 	// The network's own address isn't a host's, nor is the one Docker keeps
 	// for its gateway when it has none on record.
-	for a := prefix.Addr().Next().Next(); prefix.Contains(a); a = a.Next() {
-		if !used[a.String()] && prefix.Contains(a.Next()) {
-			t.Addresses[i.String()] = a.String()
-			if err := t.save(dir); err != nil {
-				delete(t.Addresses, i.String())
-				return "", err
-			}
-			return a.String(), nil
-		}
+	first := prefix.Addr().Next().Next()
+	start := first
+	if last, err := netip.ParseAddr(t.Last); err == nil && prefix.Contains(last) && prefix.Contains(last.Next()) && last.Compare(first) >= 0 {
+		start = last.Next()
 	}
-	return "", fmt.Errorf("the ingress network's subnet %s has no address left, so %s can't join it. Remove some routes", t.Subnet, i)
+	take := func(from, to netip.Addr) (string, bool) {
+		for a := from; prefix.Contains(a) && a.Compare(to) < 0; a = a.Next() {
+			if !used[a.String()] && prefix.Contains(a.Next()) {
+				return a.String(), true
+			}
+		}
+		return "", false
+	}
+	a, ok := take(start, lastOf(prefix))
+	if !ok {
+		a, ok = take(first, start)
+	}
+	if !ok {
+		return "", fmt.Errorf("the ingress network's subnet %s has no address left, so %s can't join it. Remove some routes", t.Subnet, i)
+	}
+	lastBefore := t.Last
+	t.Addresses[i.String()], t.Last = a, a
+	if err := t.save(dir); err != nil {
+		delete(t.Addresses, i.String())
+		t.Last = lastBefore
+		return "", err
+	}
+	return a, nil
+}
+
+// lastOf is the top address of a subnet, its broadcast address, which take stops
+// short of.
+func lastOf(p netip.Prefix) netip.Addr {
+	b := p.Masked().Addr().As4()
+	bits := p.Bits()
+	for i := bits; i < 32; i++ {
+		b[i/8] |= 1 << (7 - i%8)
+	}
+	return netip.AddrFrom4(b)
 }
 
 // give gives an instance an address, one the proxy doesn't dial for anyone: the
@@ -608,12 +670,59 @@ func (m *Manager) removeNetwork(ctx context.Context) error {
 	return m.table.save(m.Dir)
 }
 
-// reserveAll gives a service's instances their addresses, its first if it has
-// none, and puts each on the network.
+// serving are the instances a route of a service should send to: those its
+// other routes send to, or, on its first, the oldest of its containers that
+// runs. A new instance of a rollout has an address before it is healthy, so
+// having an address isn't enough: it joins with AddUpstream, once it is.
+func (m *Manager) serving(ctx context.Context, s Service) ([]Instance, error) {
+	routes, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[Instance]bool{}
+	var out []Instance
+	for k := range routes {
+		r := &routes[k]
+		if r.Edited {
+			continue
+		}
+		for _, up := range r.Upstreams {
+			if i, known := m.instanceOf(up); known && i.service() == s && !seen[i] {
+				seen[i] = true
+				out = append(out, i)
+			}
+		}
+	}
+	if len(out) > 0 {
+		slices.SortFunc(out, func(a, b Instance) int { return a.Number - b.Number })
+		return out, nil
+	}
+	list, err := m.Client.ListContainers(ctx, map[string][]string{
+		"label": {docker.LabelProject + "=" + s.Project, docker.LabelService + "=" + s.Name},
+	})
+	if err != nil {
+		return nil, err
+	}
+	number, running := 0, false
+	for k := range list {
+		c := &list[k]
+		if c.Labels[docker.LabelOneoff] == "True" {
+			continue
+		}
+		n, up := c.Number(), c.State == "running"
+		if number == 0 || up && !running || up == running && n < number {
+			number, running = n, up
+		}
+	}
+	return []Instance{{Project: s.Project, Service: s.Name, Number: max(number, 1)}}, nil
+}
+
+// reserveAll gives the instances a route of a service sends to their addresses,
+// and puts each on the network.
 func (m *Manager) reserveAll(ctx context.Context, s Service) ([]Instance, error) {
-	instances := m.table.instancesOf(s)
-	if len(instances) == 0 {
-		instances = []Instance{{Project: s.Project, Service: s.Name, Number: 1}}
+	instances, err := m.serving(ctx, s)
+	if err != nil {
+		return nil, err
 	}
 	for _, i := range instances {
 		if _, err := m.give(ctx, i); err != nil {
@@ -698,6 +807,172 @@ func (m *Manager) attachAll(ctx context.Context) error {
 	return nil
 }
 
+// settle takes off the table, and out of the routes, each instance whose
+// container is gone while another of its service's isn't, as a rollout that
+// stopped between removing a container and forgetting it leaves one. A service's
+// last instance stays on the table however it stands: a route needs an upstream,
+// and that is where the container comes back. It leaves a service a rollout
+// holds alone.
+func (m *Manager) settle(ctx context.Context) error {
+	there := map[Instance]bool{}
+	byService := map[Service][]Instance{}
+	for _, key := range slices.Sorted(maps.Keys(m.table.Addresses)) {
+		i, ok := parseInstance(key)
+		if !ok || m.held(i.service()) {
+			continue
+		}
+		// By its labels, as what a rollout is stopping or swapping in has another
+		// name for now, and is there all the same.
+		list, err := m.Client.ListContainers(ctx, map[string][]string{"label": {
+			docker.LabelProject + "=" + i.Project, docker.LabelService + "=" + i.Service, docker.LabelNumber + "=" + strconv.Itoa(i.Number),
+		}})
+		if err != nil {
+			return err
+		}
+		there[i] = slices.ContainsFunc(list, func(c docker.ContainerSummary) bool { return c.Labels[docker.LabelOneoff] != "True" })
+		byService[i.service()] = append(byService[i.service()], i)
+	}
+	var failed error
+	for _, s := range slices.SortedFunc(maps.Keys(byService), func(a, b Service) int { return strings.Compare(a.Project+"/"+a.Name, b.Project+"/"+b.Name) }) {
+		instances := byService[s]
+		if !slices.ContainsFunc(instances, func(i Instance) bool { return there[i] }) {
+			continue
+		}
+		for _, i := range instances {
+			if there[i] {
+				continue
+			}
+			m.logger().InfoContext(ctx, "forgetting an instance whose container is gone, as a rollout that stopped partway leaves one", slog.String("instance", i.String()))
+			a := m.table.Addresses[i.String()]
+			err := m.editUpstreams(ctx, s, func(r *Route, port uint32) {
+				up := a + ":" + strconv.Itoa(int(port))
+				r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool { return u == up })
+			})
+			if err == nil {
+				err = m.table.free(m.Dir, i)
+			}
+			failed = errors.Join(failed, err)
+		}
+	}
+	return failed
+}
+
+// Hold keeps Reconcile off a service while a rollout moves its instances.
+func (m *Manager) Hold(s Service) (release func()) {
+	m.rolloutsMu.Lock()
+	defer m.rolloutsMu.Unlock()
+	if m.rollouts == nil {
+		m.rollouts = map[Service]int{}
+	}
+	m.rollouts[s]++
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			m.rolloutsMu.Lock()
+			defer m.rolloutsMu.Unlock()
+			m.rollouts[s]--
+			if m.rollouts[s] <= 0 {
+				delete(m.rollouts, s)
+			}
+		})
+	}
+}
+
+// Routing says what a rollout has to know of a service's routes. A route edited by
+// hand isn't moved, and it may not say what it dials at all, so one in the service's
+// project that doesn't read as sending elsewhere counts as this service's.
+func (m *Manager) Routing(ctx context.Context, s Service) (Routing, error) {
+	if err := m.mu.lock(ctx); err != nil {
+		return Routing{}, err
+	}
+	defer m.mu.unlock()
+	if err := m.table.load(m.Dir); err != nil {
+		return Routing{}, err
+	}
+	if len(m.table.instancesOf(s)) == 0 {
+		return Routing{}, nil
+	}
+	routes, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return Routing{}, err
+	}
+	var out Routing
+	prefix := "dockwell." + s.Project + "."
+	for k := range routes {
+		r := &routes[k]
+		ours, readable := false, false
+		for _, up := range r.Upstreams {
+			host, _, err := splitUpstream(up)
+			if err != nil {
+				continue
+			}
+			readable = true
+			if i, known := m.table.instanceAt(host); known && i.service() == s {
+				ours = true
+			}
+		}
+		switch {
+		case r.Edited && (ours || !readable && strings.HasPrefix(r.ID, prefix)):
+			out.Edited = append(out.Edited, strings.TrimPrefix(r.ID, prefix))
+		case ours:
+			out.Routed = true
+		}
+	}
+	slices.Sort(out.Edited)
+	return out, nil
+}
+
+// held reports a rollout moving a service's instances.
+func (m *Manager) held(s Service) bool {
+	m.rolloutsMu.Lock()
+	defer m.rolloutsMu.Unlock()
+	return m.rollouts[s] > 0
+}
+
+// reachWait bounds one try at a route's port on a new instance.
+const reachWait = time.Second
+
+// Reachable says why a new instance can't take a route's traffic yet: a port a
+// route of its service sends to that doesn't take a connection. A service with
+// no routes has none, and neither does an instance with no address. A rollout
+// asks this of a service with no health check, as otherwise "it runs" would be
+// all it knew, and the first request would find an app still starting.
+func (m *Manager) Reachable(ctx context.Context, i Instance) error {
+	if err := m.mu.lock(ctx); err != nil {
+		return err
+	}
+	if err := m.table.load(m.Dir); err != nil {
+		m.mu.unlock()
+		return err
+	}
+	a, ok := m.table.Addresses[i.String()]
+	var routes []Route
+	var err error
+	if ok {
+		routes, err = m.routesOf(ctx, i.service())
+	}
+	m.mu.unlock()
+	if err != nil {
+		return err
+	}
+	seen := map[uint32]bool{}
+	for k := range routes {
+		_, port, err := splitUpstream(routes[k].Upstreams[0])
+		if err != nil || seen[port] {
+			continue
+		}
+		seen[port] = true
+		dial, cancel := context.WithTimeout(ctx, reachWait)
+		conn, err := (&net.Dialer{}).DialContext(dial, "tcp", net.JoinHostPort(a, strconv.Itoa(int(port))))
+		cancel()
+		if err != nil {
+			return fmt.Errorf("nothing takes a connection on port %d, which a route for %s sends to. Check the route's port, and that the app listens on every address in its container, not only on localhost", port, i.Service)
+		}
+		_ = conn.Close()
+	}
+	return nil
+}
+
 // dialsOf are a route's upstreams: its service's instances' addresses and its
 // port.
 func (m *Manager) dialsOf(instances []Instance, port uint32) []string {
@@ -768,33 +1043,54 @@ func (m *Manager) releaseUnused(ctx context.Context) error {
 	return failed
 }
 
-// routesOf are the routes that send to a service, as the proxy has them, with
-// the port each sends to.
-func (m *Manager) routesOf(ctx context.Context, s Service) ([]Route, uint32, error) {
+// newestOf is the container of a service with the highest number, which is what
+// reads as the service, or nil for none: a rollout moves a service up its numbers.
+func (m *Manager) newestOf(ctx context.Context, s Service) (*docker.Container, error) {
+	list, err := m.Client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProject + "=" + s.Project, docker.LabelService + "=" + s.Name}})
+	if err != nil {
+		return nil, err
+	}
+	id, highest := "", -1
+	for i := range list {
+		n, err := strconv.Atoi(list[i].Labels[docker.LabelNumber])
+		if err == nil && n > highest && list[i].Labels[docker.LabelOneoff] != "True" {
+			id, highest = list[i].ID, n
+		}
+	}
+	if id == "" {
+		return nil, nil
+	}
+	c, err := m.Client.InspectContainer(ctx, id)
+	if docker.IsNotFound(err) {
+		return nil, nil
+	}
+	return c, err
+}
+
+// routesOf are the routes that send to a service, as the proxy has them.
+func (m *Manager) routesOf(ctx context.Context, s Service) ([]Route, error) {
 	routes, err := m.Proxy.Routes(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	var out []Route
-	var port uint32
 	for k := range routes {
 		r := &routes[k]
 		if r.Edited {
 			continue
 		}
 		for _, up := range r.Upstreams {
-			host, p, err := splitUpstream(up)
+			host, _, err := splitUpstream(up)
 			if err != nil {
 				continue
 			}
 			if i, known := m.table.instanceAt(host); known && i.service() == s {
 				out = append(out, *r)
-				port = p
 				break
 			}
 		}
 	}
-	return out, port, nil
+	return out, nil
 }
 
 // Endpoint says how a new container of an instance joins the ingress network.
@@ -837,6 +1133,11 @@ func (m *Manager) AddUpstream(ctx context.Context, i Instance) error {
 	if err != nil {
 		return err
 	}
+	// A route may have come to the service while the instance was starting, so
+	// it may not be on the network yet. It joins while it runs, with no gap.
+	if err := m.attach(ctx, i); err != nil {
+		return err
+	}
 	return m.editUpstreams(ctx, i.service(), func(r *Route, port uint32) {
 		up := a + ":" + strconv.Itoa(int(port))
 		if !slices.Contains(r.Upstreams, up) {
@@ -845,28 +1146,83 @@ func (m *Manager) AddUpstream(ctx context.Context, i Instance) error {
 	})
 }
 
-// editUpstreams changes each route of a service, as one reload for each.
-func (m *Manager) editUpstreams(ctx context.Context, s Service, edit func(r *Route, port uint32)) error {
-	routes, _, err := m.routesOf(ctx, s)
+// Move sends new requests to an instance in place of others. A route that sends
+// to one upstream dials through a file, so this reloads nothing, and no other site
+// on the server pays for it, or needs the proxy to be running (ADR 0027).
+func (m *Manager) Move(ctx context.Context, to Instance, from []Instance) error {
+	if err := m.mu.lock(ctx); err != nil {
+		return err
+	}
+	defer m.mu.unlock()
+	if err := m.table.load(m.Dir); err != nil {
+		return err
+	}
+	if len(m.table.instancesOf(to.service())) == 0 {
+		return nil
+	}
+	a, err := m.give(ctx, to)
 	if err != nil {
 		return err
 	}
+	// A route may have come to the service while the instance was starting, so
+	// it may not be on the network yet. It joins while it runs, with no gap.
+	if err := m.attach(ctx, to); err != nil {
+		return err
+	}
+	var gone []string
+	for _, i := range from {
+		if old, ok := m.table.Addresses[i.String()]; ok && i != to {
+			gone = append(gone, old)
+		}
+	}
+	return m.editUpstreams(ctx, to.service(), func(r *Route, port uint32) {
+		r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool {
+			host, _, err := splitUpstream(u)
+			return err == nil && slices.Contains(gone, host)
+		})
+		up := a + ":" + strconv.Itoa(int(port))
+		if !slices.Contains(r.Upstreams, up) {
+			r.Upstreams = append(r.Upstreams, up)
+		}
+	})
+}
+
+// editUpstreams changes each route of a service, in one call to the proxy. One the
+// edit leaves as it was isn't sent again, so a rollout that finds its work done, as
+// on going on after a crash, does nothing.
+func (m *Manager) editUpstreams(ctx context.Context, s Service, edit func(r *Route, port uint32)) error {
+	routes, err := m.routesOf(ctx, s)
+	if err != nil {
+		return err
+	}
+	var changed []Route
 	for k := range routes {
 		r := &routes[k]
 		_, port, err := splitUpstream(r.Upstreams[0])
 		if err != nil {
 			return err
 		}
+		before := slices.Clone(r.Upstreams)
 		edit(r, port)
-		if err := m.Proxy.PutRoute(ctx, *r); err != nil {
-			return fmt.Errorf("%s refused the route for %s: %w", m.Proxy.Name(), s.Name, err)
+		if !slices.Equal(before, r.Upstreams) {
+			changed = append(changed, *r)
 		}
+	}
+	if len(changed) == 0 {
+		return nil
+	}
+	if err := m.Proxy.PutRoutes(ctx, changed); err != nil {
+		return fmt.Errorf("%s refused the routes for %s: %w", m.Proxy.Name(), s.Name, err)
 	}
 	return nil
 }
 
-// drainPoll is how often Drain looks at what is in flight.
-const drainPoll = 250 * time.Millisecond
+// How Drain looks at what is in flight: this often, until it reads nothing this
+// many times in a row.
+const (
+	drainPoll  = 250 * time.Millisecond
+	drainClear = 2
+)
 
 // Drain stops sending new requests to the instance, and waits until those in
 // flight finish.
@@ -898,7 +1254,17 @@ func (m *Manager) Drain(ctx context.Context, i Instance) error {
 	}
 	t := time.NewTicker(drainPoll)
 	defer t.Stop()
+	// A request the old config took just before the reload may not be counted
+	// yet, so nothing in flight counts only when it is read twice, a poll
+	// apart, once the reload is done.
+	clearReads := 0
 	for {
+		select {
+		case <-ctx.Done():
+			m.logger().InfoContext(ctx, "stopped waiting for requests in flight to an instance going away", slog.String("instance", i.String()))
+			return nil
+		case <-t.C:
+		}
 		total := 0
 		for _, up := range ups {
 			n, err := m.Proxy.InFlight(ctx, up)
@@ -906,18 +1272,19 @@ func (m *Manager) Drain(ctx context.Context, i Instance) error {
 				if ctx.Err() != nil {
 					return nil
 				}
-				return err
+				// It can't say it's clear, so it has what it was given to finish.
+				m.logger().WarnContext(ctx, "can't read what is in flight to an instance going away, so it gets all of its time to finish", slog.String("instance", i.String()), slog.String("error", err.Error()))
+				n = 1
 			}
 			total += n
 		}
-		if total == 0 {
-			return nil
+		if total > 0 {
+			clearReads = 0
+			continue
 		}
-		select {
-		case <-ctx.Done():
-			m.logger().InfoContext(ctx, "stopped waiting for requests in flight to an instance going away", slog.String("instance", i.String()), slog.Int("in_flight", total))
+		clearReads++
+		if clearReads >= drainClear {
 			return nil
-		case <-t.C:
 		}
 	}
 }
