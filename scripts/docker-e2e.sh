@@ -261,15 +261,21 @@ grep -q 'nginx\|start' <<<"$logs" || fail "logs read printed no line of nginx's:
 listing=$(dw logs sources web) || fail "logs sources failed"
 grep -q "Running" <<<"$listing" || fail "logs sources doesn't list web's container as running: $listing"
 follow_log=$(mktemp)
-# The binary itself, not the shell function dw: a function in the background is a
-# subshell, which an interrupt doesn't reach the binary through.
-"$bin" logs follow web --tail 1 >"$follow_log" 2>&1 &
+# Not through the shell function dw: a function in the background is a subshell,
+# which an interrupt doesn't reach the binary through. Nor by interrupting sudo,
+# which doesn't pass on a signal from its own process group, as a script's is. So
+# it says its own process ID as its first line, and keeps that ID as it becomes
+# the binary, and the interrupt goes straight to that.
+"${as_dockwell[@]}" env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text bash -c 'echo "$$"; exec "$@"' follow \
+  "$bin" logs follow web --tail 1 >"$follow_log" 2>&1 &
 follower=$!
 # A request nginx logs, which reaches a follower within a second or two.
 for _ in $(seq 50); do
-  [[ -s "$follow_log" ]] && break
+  (($(wc -l <"$follow_log") >= 2)) && break
   sleep 0.1
 done
+follower_pid=$(head -n 1 "$follow_log" | tr -d '\r')
+[[ "$follower_pid" =~ ^[0-9]+$ ]] || fail "dockwell logs follow didn't start: $(cat "$follow_log")"
 curl -fsS "http://127.0.0.1:$web_port/e2e-follows-this" >/dev/null 2>&1 || true
 curl -fsS "http://127.0.0.1:$web_port/" >/dev/null
 for _ in $(seq 50); do
@@ -277,13 +283,15 @@ for _ in $(seq 50); do
   sleep 0.1
 done
 grep -q 'e2e-follows-this' "$follow_log" || fail "dockwell logs follow didn't print a line within 5 s: $(cat "$follow_log")"
-kill -INT "$follower"
+priv kill -INT "$follower_pid" || fail "can't interrupt dockwell logs follow: $(cat "$follow_log")"
+# By /proc rather than kill -0, which can't tell a process that has gone from one
+# this user may not signal, and would read sudo's as having stopped.
 for _ in $(seq 100); do
-  kill -0 "$follower" 2>/dev/null || break
+  [[ -d "/proc/$follower" ]] || break
   sleep 0.1
 done
-if kill -0 "$follower" 2>/dev/null; then
-  kill -KILL "$follower"
+if [[ -d "/proc/$follower" ]]; then
+  priv kill -KILL "$follower_pid" || true
   fail "dockwell logs follow didn't stop within 10 s of an interrupt: $(cat "$follow_log")"
 fi
 code=0

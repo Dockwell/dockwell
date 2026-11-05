@@ -501,10 +501,15 @@ async function main() {
     fail("no source is kept as failed");
   if (!dockwell("logs", "read", "web", "--revision", failedRevision).includes("giving up after 3 tries"))
     fail("the failed deploy's kept log doesn't read back");
-  // A background job of a script, as docker-e2e runs it, starts with SIGINT ignored.
+  // A background job of a script, as docker-e2e runs it, starts with SIGINT ignored, and goes
+  // on saying its own process ID as it becomes the binary, for an interrupt that doesn't go through sudo.
+  const followLog = join(data, "follow.log");
   const interrupted = execFileSync(
     "bash",
-    ["-c", `"${bin}" logs follow web --tail 1 >/dev/null 2>&1 & p=$!; sleep 1; kill -INT $p; wait $p; echo $?`],
+    [
+      "-c",
+      `bash -c 'echo "$$"; exec "$@"' follow "${bin}" logs follow web --tail 1 >"${followLog}" 2>&1 & p=$!; sleep 1; said=$(head -n 1 "${followLog}"); [[ "$said" == "$p" ]] || echo "said $said, is $p"; kill -INT "$said"; wait $p; echo $?`,
+    ],
     { encoding: "utf8", env: env(), timeout: 20_000 },
   ).trim();
   if (interrupted !== "0")
