@@ -280,16 +280,23 @@ func TestPortsAddedTogetherAreNeverLost(t *testing.T) {
 	b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
 	web := b.service(t, "shop", "web")
 	port := uint32(10000)
-	stale := 0
+	stale, proposed := 0, 0
 	for range 30 {
 		port += 2
 		first, err := b.s.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: web.GetId(), HostPort: port, ContainerPort: 80}))
 		if err != nil {
 			t.Fatal(err)
 		}
+		applying := make(chan struct{})
 		var wg sync.WaitGroup
-		wg.Go(func() { applied(t, b.c, first.Msg.GetChange()) })
+		wg.Go(func() {
+			defer close(applying)
+			applied(t, b.c, first.Msg.GetChange())
+		})
+		// While it applies, as a plan made after that can't lose what it added.
+	proposing:
 		for range 40 {
+			proposed++
 			second, err := b.s.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: web.GetId(), HostPort: port + 1, ContainerPort: 80}))
 			if reasonOf(err) == "plan_stale" {
 				stale++
@@ -309,10 +316,15 @@ func TestPortsAddedTogetherAreNeverLost(t *testing.T) {
 			if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: second.Msg.GetChange().GetId()})); err != nil {
 				t.Fatal(err)
 			}
+			select {
+			case <-applying:
+				break proposing
+			default:
+			}
 		}
 		wg.Wait()
 	}
-	t.Logf("%d plans were refused as stale", stale)
+	t.Logf("of %d plans made as others applied, %d were refused as stale", proposed, stale)
 }
 
 // To the API and CLI an update of what runs used to read as a new app, and a
