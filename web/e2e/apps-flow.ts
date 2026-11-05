@@ -274,6 +274,29 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   if (fits.callout.wraps !== "anywhere") fail(`a callout's image wraps as ${fits.callout.wraps}`);
   if (!fits.callout.stacked) fail("at 360 px a callout's actions don't sit under its text");
   await shoot(page, "apps-phone");
+
+  step("apps: a domain behind a tunnel is one switch away, and fits the narrowest phone");
+  await page.getByRole("button", { name: "Add a domain" }).first().click();
+  const addDomain = page.getByRole("dialog", { name: /^Add a domain to / });
+  await addDomain.getByLabel("Domain").fill("app.example.com");
+  await addDomain.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
+  await addDomain.getByLabel("What's in front").fill("cloudflare");
+  await addDomain.getByText("Point its DNS at your tunnel or proxy.").waitFor();
+  const widens = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  if (widens) fail("at 360 px the domain form widens the page");
+  await shoot(page, "apps-domain-tunnel");
+  // The server takes what the form asks, and the plan says what that means.
+  await addDomain.getByRole("button", { name: /Review plan/ }).click();
+  const tunnelPlan = page.getByRole("dialog", { name: "Review plan" });
+  await tunnelPlan.waitFor({ timeout: 30_000 });
+  await tunnelPlan.getByText(/reaches .+ unencrypted, as TLS ends before it/).waitFor();
+  await shoot(page, "apps-domain-tunnel-plan");
+  await tunnelPlan.getByRole("button", { name: "Cancel" }).click();
+  // Cancelling comes back to what was typed.
+  await addDomain.waitFor();
+  if ((await addDomain.getByLabel("What's in front").inputValue()) !== "cloudflare")
+    fail("cancelling the plan lost what's in front");
+  await addDomain.getByRole("button", { name: "Cancel" }).click();
   // A long file's refusal is still on screen, above the sheet's footer.
   await page.goto(`${origin}/apps/new?source=compose`);
   const longFile = Array.from({ length: 40 }, (_, i) => `  svc${i}:\n    image: ${FIRST}`).join("\n");

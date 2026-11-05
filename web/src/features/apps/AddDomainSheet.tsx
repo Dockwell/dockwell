@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { type Change, ChangeService, ChangeState, DomainService, type ServiceInfo } from "@dockwell/api";
-import { Button, Callout, cx, Icon, PHONE_QUERY, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
+import { Button, Callout, cx, Icon, PHONE_QUERY, Sheet, Switch, TextField, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -11,14 +11,16 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { appOf, environmentOf, nameOf, tidyMessage } from "./app";
-import { routeName } from "./domains";
+import { proxyList, routeName } from "./domains";
 import { validPort } from "./form";
 
 /**
  * Sends a domain to this app: a domain and the port it listens on, then the plan,
  * which says what a server's first route does to its ports 80 and 443. How the
- * domain gets its certificate is the server's to work out; a route that takes none,
- * as behind a tunnel (#85), is a choice that belongs below the port.
+ * domain gets its certificate is the server's to work out, unless a tunnel or a
+ * proxy in front handles HTTPS, when there's none to get, and the route answers
+ * only what's in front. An app on the server's own network can't be sent to by name,
+ * so the route goes to its port on the server. The plan says what each of those means.
  */
 export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onClose: () => void }) {
   const { t } = useLingui();
@@ -29,9 +31,14 @@ export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onC
   const name = nameOf(service);
   const environment = environmentOf(service);
   const known = useQuery(DomainService.method.listDomains, { environment });
-  const published = appOf(service)?.ports[0]?.containerPort;
+  const app = appOf(service);
+  const onServer = app?.hostNetwork ?? false;
+  const published = app?.ports[0]?.containerPort;
   const [domain, setDomain] = useState("");
   const [port, setPort] = useState(published ? String(published) : "80");
+  const [noCertificate, setNoCertificate] = useState(false);
+  const [proxies, setProxies] = useState("");
+  const [proxiesError, setProxiesError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [domainError, setDomainError] = useState<string>();
   const [portError, setPortError] = useState<string>();
@@ -56,6 +63,7 @@ export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onC
     const portOk = validPort(port);
     setDomainError(domainOk ? undefined : t`Name the domain, such as app.example.com.`);
     setPortError(portOk ? undefined : t`Use a port from 1 to 65535.`);
+    setProxiesError(undefined);
     setFailure(undefined);
     if (!domainOk || !portOk) return;
     setBusy(true);
@@ -67,14 +75,25 @@ export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onC
           edits: [
             {
               resource: { kind: "route", scope: environment, name: routeName(wanted, known.data?.domains) },
-              spec: { kind: { case: "route", value: { domain: wanted, service: name, port: Number(port) } } },
+              spec: {
+                kind: {
+                  case: "route",
+                  value: {
+                    domain: wanted,
+                    ...(onServer ? { hostPort: Number(port) } : { service: name, port: Number(port) }),
+                    ...(noCertificate ? { tls: "off", trustedProxies: proxyList(proxies) } : {}),
+                  },
+                },
+              },
             },
           ],
         })
       ).change;
     } catch (err) {
-      if (reasonOf(err) === "invalid") setDomainError(tidyMessage(sentence(err)));
-      else setFailure(tidyMessage(sentence(err)));
+      const said = tidyMessage(sentence(err));
+      if (reasonOf(err) !== "invalid") setFailure(said);
+      else if (noCertificate && /trusted prox/i.test(said)) setProxiesError(said);
+      else setDomainError(said);
       setBusy(false);
       return;
     }
@@ -101,7 +120,11 @@ export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onC
       open={!hidden}
       initialFocusRef={field}
       title={t`Add a domain to ${name}`}
-      subtitle={t`People reach the app at this name, over HTTPS`}
+      subtitle={
+        noCertificate
+          ? t`People reach the app at this name, through what's in front of this server`
+          : t`People reach the app at this name, over HTTPS`
+      }
       onClose={onClose}
       className={cx("app-sheet", phone && "is-phone")}
       footer={
@@ -144,24 +167,54 @@ export function AddDomainSheet({ service, onClose }: { service: ServiceInfo; onC
           spellCheck={false}
           value={domain}
           error={domainError}
-          hint={t`Point its DNS at this server, before or after. Its certificate comes by itself once it does.`}
+          hint={
+            noCertificate
+              ? t`Point its DNS at your tunnel or proxy.`
+              : t`Point its DNS at this server, before or after. Its certificate comes by itself once it does.`
+          }
           onChange={(event) => {
             setDomain(event.target.value);
             setDomainError(undefined);
           }}
         />
         <TextField
-          label={t`In the app`}
+          label={onServer ? t`On the server` : t`In the app`}
           mono
           inputMode="numeric"
           value={port}
           error={portError}
-          hint={t`What the app listens on, such as 80.`}
+          hint={
+            onServer
+              ? t`It's on the server's own network, so what it listens on there, such as 8080.`
+              : t`What the app listens on, such as 80.`
+          }
           onChange={(event) => {
             setPort(event.target.value);
             setPortError(undefined);
           }}
         />
+        <Switch
+          label={t`A tunnel or a proxy in front handles HTTPS`}
+          description={t`This server takes no certificate, and traffic reaches it unencrypted. That's fine on a tunnel or a private network, and not on the open internet.`}
+          checked={noCertificate}
+          onChange={setNoCertificate}
+        />
+        {noCertificate ? (
+          <TextField
+            label={t`What's in front`}
+            mono
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            value={proxies}
+            error={proxiesError}
+            hint={t`Leave this empty for a tunnel on the server's own network. Otherwise what connects to this server: an address or a range, such as a bridge network's 172.17.0.0/16, or cloudflare for Cloudflare's proxy. Separate several with commas.`}
+            onChange={(event) => {
+              setProxies(event.target.value);
+              setProxiesError(undefined);
+            }}
+          />
+        ) : null}
       </form>
     </Sheet>
   );

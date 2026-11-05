@@ -41,7 +41,7 @@ import {
   unreached,
   valuesOf,
 } from "./app";
-import { lookOf, routeName } from "./domains";
+import { lookOf, proxyList, routeName } from "./domains";
 
 const online: ServerSummary = { id: SERVER, name: "hz-1", connection: Connection.CONNECTED, address: "49.12.33.7" };
 const offline: ServerSummary = { ...online, connection: Connection.UNREACHABLE };
@@ -335,7 +335,7 @@ describe("a route's name", () => {
     expect(routeName("app.example.com")).toBe("app-example-com");
     expect(routeName("1.example.com")).toBe("example-com");
     const long = `${"a".repeat(60)}.example.com`;
-    expect(routeName(long)).toBe("a".repeat(60) + "-ex");
+    expect(routeName(long)).toBe(`${"a".repeat(60)}-ex`);
     expect(routeName(long).length).toBeLessThanOrEqual(63);
   });
 
@@ -368,6 +368,31 @@ describe("where a domain stands", () => {
       state: "failed",
       message: "no DNS",
     });
+  });
+
+  it("serves with no certificate behind a tunnel, as there's none to wait for", () => {
+    expect(lookOf(on({ state: CertificateState.NONE }))).toEqual({
+      state: "serving",
+      message: "",
+      noCertificate: true,
+    });
+    expect(lookOf(on({ state: CertificateState.ISSUED })).noCertificate).toBeUndefined();
+    // One server still getting its certificate is still pending.
+    expect(lookOf(on({ state: CertificateState.NONE }, { state: CertificateState.PENDING, message: "soon" }))).toEqual({
+      state: "pending",
+      message: "soon",
+    });
+  });
+
+  it("reads the proxies a person wrote", () => {
+    expect(proxyList("")).toEqual([]);
+    expect(proxyList("  ")).toEqual([]);
+    expect(proxyList("cloudflare")).toEqual(["cloudflare"]);
+    expect(proxyList("203.0.113.0/24, 198.51.100.7\n  2001:db8::1 ,")).toEqual([
+      "203.0.113.0/24",
+      "198.51.100.7",
+      "2001:db8::1",
+    ]);
   });
 
   it("isn't serving before a server has said so", () => {

@@ -873,6 +873,10 @@ msgstr "a server"
 msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "A tunnel or a proxy in front handles HTTPS"
+msgstr "A tunnel or a proxy in front handles HTTPS"
+
 #: src/features/apps/AppEnvironment.tsx
 msgid "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
 msgstr "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
@@ -2749,6 +2753,10 @@ msgstr "It wrote more than the server keeps of one container, so not all of its 
 msgid "It's live with HTTPS"
 msgstr "It's live with HTTPS"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "It's on the server's own network, so what it listens on there, such as 8080."
+msgstr "It's on the server's own network, so what it listens on there, such as 8080."
+
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
 msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
@@ -2854,6 +2862,10 @@ msgstr "Last 24 h"
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "Last heartbeat"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Leave this empty for a tunnel on the server's own network. Otherwise what connects to this server: an address or a range, such as a bridge network's 172.17.0.0/16, or cloudflare for Cloudflare's proxy. Separate several with commas."
+msgstr "Leave this empty for a tunnel on the server's own network. Otherwise what connects to this server: an address or a range, such as a bridge network's 172.17.0.0/16, or cloudflare for Cloudflare's proxy. Separate several with commas."
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
@@ -3400,6 +3412,7 @@ msgstr "Offline"
 msgid "On"
 msgstr "On"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 msgid "On the server"
@@ -3633,6 +3646,10 @@ msgstr "People outside the server reach the app through this port"
 msgid "People reach the app at this name, over HTTPS"
 msgstr "People reach the app at this name, over HTTPS"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "People reach the app at this name, through what's in front of this server"
+msgstr "People reach the app at this name, through what's in front of this server"
+
 #: src/features/changes/words.ts
 msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 msgstr "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
@@ -3666,6 +3683,10 @@ msgstr "Platform"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
 msgstr "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Point its DNS at your tunnel or proxy."
+msgstr "Point its DNS at your tunnel or proxy."
 
 #: src/features/changes/fields.tsx
 msgid "port"
@@ -5216,6 +5237,9 @@ msgstr "This server"
 #: src/features/logs/LogFoot.tsx
 msgid "this server shares what it carries live between everyone reading it."
 msgstr "this server shares what it carries live between everyone reading it."
+#: src/features/apps/AddDomainSheet.tsx
+msgid "This server takes no certificate, and traffic reaches it unencrypted. That's fine on a tunnel or a private network, and not on the open internet."
+msgstr "This server takes no certificate, and traffic reaches it unencrypted. That's fine on a tunnel or a private network, and not on the open internet."
 
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -5248,6 +5272,9 @@ msgstr "Time"
 #: src/features/logs/LogsPage.tsx
 msgid "Time range"
 msgstr "Time range"
+#: src/features/apps/AppOverview.tsx
+msgid "TLS ends before this server"
+msgstr "TLS ends before this server"
 
 #: src/app/Providers.tsx
 msgid "to"
@@ -5749,6 +5776,10 @@ msgstr "What you see may be out of date. {0}"
 #: src/features/auth/AuthGate.tsx
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "What's in front"
+msgstr "What's in front"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx

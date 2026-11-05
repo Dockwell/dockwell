@@ -165,15 +165,6 @@
 }
 
 /* A domain's state can run to a sentence, which wraps under it. */
-.app-reach-domain .app-reach-to {
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-.app-reach-domain.is-failed .app-reach-to {
-  color: var(--critical);
-}
-
 .app-env-value,
 .app-env-name {
   overflow-wrap: anywhere;
@@ -603,6 +594,15 @@
 .app-reach-to {
   font-size: 12px;
   white-space: nowrap;
+}
+
+.app-reach-domain .app-reach-to {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.app-reach-domain.is-failed .app-reach-to {
+  color: var(--critical);
 }
 
 .app-reach-open {

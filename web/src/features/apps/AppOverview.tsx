@@ -403,7 +403,13 @@ function DomainRow({ domain }: { domain: Domain }) {
       <Icon name="globe" size={16} />
       <code className="app-reach-at">{name}</code>
       <span className="app-reach-to">
-        {look.state === "serving" ? <Trans>HTTPS</Trans> : look.message || <Trans>Getting its certificate</Trans>}
+        {look.noCertificate ? (
+          <Trans>TLS ends before this server</Trans>
+        ) : look.state === "serving" ? (
+          <Trans>HTTPS</Trans>
+        ) : (
+          look.message || <Trans>Getting its certificate</Trans>
+        )}
       </span>
       {look.state === "serving" ? (
         <a className="app-reach-open" href={domain.url} target="_blank" rel="noreferrer" aria-label={t`Open ${name}`}>

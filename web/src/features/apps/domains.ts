@@ -33,11 +33,21 @@ export function routeName(domain: string, existing: readonly Domain[] = []): str
   }
 }
 
+/**
+ * The proxies a person wrote, one for each address or range, or cloudflare. The
+ * server says what it won't take, as only it has the rules.
+ */
+export function proxyList(written: string): string[] {
+  return written.split(/[\s,]+/).filter((proxy) => proxy !== "");
+}
+
 /** Where a domain stands, as far as someone reaching it goes. */
 export interface DomainLook {
   state: "serving" | "pending" | "failed";
   /** What to say of it, from the server, when it isn't serving. */
   message: string;
+  /** It serves with no certificate here, as TLS ends before this server. */
+  noCertificate?: boolean;
 }
 
 /** The worst of what a domain's servers say, as it needs them all. */
@@ -49,11 +59,16 @@ export function lookOf(domain: Domain): DomainLook {
     const certificate = server.status?.certificate;
     if (certificate?.state === CertificateState.FAILED) return { state: "failed", message: certificate.message };
   }
-  const pending = domain.servers
-    .map((server) => server.status?.certificate)
-    .find((certificate) => certificate?.state !== CertificateState.ISSUED);
+  // No certificate is asked for behind a tunnel, so there's none to wait for.
+  const certificates = domain.servers.map((server) => server.status?.certificate);
+  const pending = certificates.find(
+    (certificate) => certificate?.state !== CertificateState.ISSUED && certificate?.state !== CertificateState.NONE,
+  );
   if (domain.servers.length === 0 || pending !== undefined || domain.servers.some((s) => !s.status?.certificate)) {
     return { state: "pending", message: pending?.message ?? "" };
+  }
+  if (certificates.some((certificate) => certificate?.state === CertificateState.NONE)) {
+    return { state: "serving", message: "", noCertificate: true };
   }
   return { state: "serving", message: "" };
 }
