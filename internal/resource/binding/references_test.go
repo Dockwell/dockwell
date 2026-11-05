@@ -159,6 +159,7 @@ func TestNamedAsText(t *testing.T) {
 		"a script after --":               {&resourcev1.Container{Command: []string{"sh", "-c", "--", "run ${PW}"}}, nil},
 		"busybox's shell":                 {&resourcev1.Container{Command: []string{"busybox", "sh", "-c", "run ${PW}"}}, nil},
 		"no -c before --":                 {&resourcev1.Container{Command: []string{"sh", "--", "/run.sh", "${PW}"}}, map[string][]string{"command": {"PW"}}},
+		"no -c before -":                  {&resourcev1.Container{Command: []string{"sh", "-", "${PW}"}}, map[string][]string{"command": {"PW"}}},
 		"+c":                              {&resourcev1.Container{Command: []string{"sh", "+c", "run ${PW}"}}, map[string][]string{"command": {"PW"}}},
 		"a test that runs a shell":        {&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "sh", "-c", "redis-cli -a ${PW} ping"}}}, nil},
 		"a test's shell's argument": {
