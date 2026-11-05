@@ -19,11 +19,28 @@ Three things in [ADR 0024](0024-the-caddy-ingress-driver.md) were written for a 
 - **A second lock.** Such a route's matcher also says `protocol: http`, which is what marks it when it reads back, and it can't answer over TLS whatever else changes.
 - **One ETag covers both servers.** A change now goes through `/config/apps/http/servers` as one `PATCH`, so moving a route from one to the other is one reload, and a change made between reading and writing is still caught.
 - **A name with no route gets a 404 there,** from a last route with no matcher, since Caddy would otherwise answer an empty 200, which reads as a site that works. It goes after Caddy's redirects, so a domain with a certificate still redirects.
-- **What closes routes covers them.** Every route answers 503 when the ingress network's subnet is taken (ADR 0024). The route that says so has no matcher, on `dockwell`. On `dockwell_http` it matches these domains alone, as the panel's domain and domains with certificates must go on redirecting.
-- **A domain is served one way or the other.** All of a domain's routes take the same setting, and a plan that would mix them is refused, as its plain HTTP would answer for some paths and redirect for others, and its certificate would have no one state. A plan changes them together; its steps change them one by one, so only the plan's check holds this.
+- **What closes routes covers them.** Every route answers 503 when the ingress network's subnet is taken (ADR 0024). The route that says so has no matcher, on `dockwell`. On `dockwell_http` it matches what these routes match, as the panel's domain and domains with certificates must go on redirecting, and someone a route doesn't answer must see no difference.
+- **A domain is served one way or the other.** All of a domain's routes take the same setting. It's a claim the engine holds, as for a domain's one environment: it sees every route and the whole of a change, when it's proposed and again as it applies, so a plan made while the server was offline can't get past it, and a change can turn them together though its steps go one by one.
 - **The domain's certificate reads `none`,** with the message "None: TLS ends before this server", not pending or failed. It asks nothing of DNS, which points at what's in front, so the agent reads none, says nothing of it in a plan, and doesn't watch it as waiting.
 - **It doesn't count against the limits on what waits for a certificate,** as it asks the authority for nothing.
-- **The API's `url` says `http://`,** which is what this server serves and always answers. It can't tell what's in front, and on a private network there may be nothing to answer HTTPS.
+- **The API's `url` says `http://`,** which is what this server serves. It can't tell what's in front, and on a private network there may be nothing to answer HTTPS.
+
+### A route with no certificate doesn't answer the whole internet
+
+Caddy holds port 80 on every address. On a server with a public address and no firewall, `curl -H 'Host: admin.example.com' http://SERVER_IP/` would go around a tunnel, and any Access policy or WAF in it. So who a route answers is decided by the peer on the connection, with Caddy's `remote_ip` matcher, on the route itself. That avoids the bind conflict a loopback listener would have beside `:80`.
+
+| The route | It answers |
+| --- | --- |
+| Names `trusted_proxies`, with `cloudflare` or addresses and ranges | Those peers alone |
+| Names none | This server's own loopback, `127.0.0.0/8` and `::1` |
+| Says `plain_for_anyone` | Anyone who can reach the port. A person approves it, and the plan says so in amber |
+
+- **Anyone else gets what a name with no route gets,** the same 404, so they can't tell the route is there.
+- **A blanket rule for private addresses would let a whole LAN in,** as real servers sit on private addresses, so there's none. A container on a bridge names the bridge's range in `trusted_proxies`, which a person approves, and the install guide says how. That one is also believed, as what's on that bridge is what's in front.
+- **It's on the route, with no listener of its own.** HTTP-01 for other routes on the same port goes first, as Caddy handles a challenge before any route (`Server.ServeHTTP`), and a test holds that against Pebble.
+- **A route with a certificate has no such limit.** It answers over HTTPS with its own certificate, whatever it believes, as it always has.
+
+A route behind a tunnel on the server's own network works with nothing named, and every visitor reads as `127.0.0.1` until it names one.
 
 ### The plan says so, and it isn't an alarm
 
@@ -31,7 +48,15 @@ Three things in [ADR 0024](0024-the-caddy-ingress-driver.md) were written for a 
 
 > Traffic for this route reaches hz-1 unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it.
 
-The panel shows it in amber, not red. It isn't a `PlanWarning`, which makes a plan destructive, so only a person could apply it. Turning a certificate off needs no person: a token can already deploy any image to the service and read its traffic. It's worked out from the specs, so a plan made for an offline server says it too.
+The panel shows it in amber, not red. It isn't a `PlanWarning`, which makes a plan destructive. `PlanStep.answers` says who it answers, also in amber:
+
+> It answers only what runs on hz-1 itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets.
+
+It's all worked out from the specs, so a plan made for an offline server says it too.
+
+### Taking a live domain off HTTPS needs a person
+
+`https://live.example.com` starts failing, plain `http://` answers 200, and a browser that saw HSTS refuses it until that runs out. So a route with `tls: off` on a domain any route served with a certificate within the undo window is host access, of the new kind `https_off`, and the plan says what stops. The engine reads the route's history as it does for a takeover, so a delete and a new route, in one change or two, is the same as an edit. A domain that has only been plain is a token's to serve, as it can already deploy any image to the service, and to go on editing, once a person has said so.
 
 ### The panel's own domain can't be served this way
 
@@ -41,19 +66,19 @@ Its passkeys and cookies need HTTPS. `route.Validate` already refuses a route on
 
 A tunnel needs nothing on 443. So a server whose routes all take no certificate binds port 80 alone, and can run beside whatever holds 443.
 
-- **`dockwell` stays in the config with no listeners.** Caddy takes a server with `listen: []`, binds nothing for it, and applies no automatic HTTPS, as no port differs from the HTTP one. So it makes no ACME account either. Every change sets `listen` from the routes on it, in the same reload.
+- **`dockwell` stays in the config with no listeners.** Caddy takes a server with `listen: []`, binds nothing for it, and applies no automatic HTTPS, as no port differs from the HTTP one. So it makes no ACME account either. Every change sets `listen` from the routes on it, in the same reload, and only a route that names a host counts.
 - **The first route starts Caddy on 80 alone,** from a bootstrap that says so. Its plan says `starts`, with `80/tcp`.
 - **A route that wants a certificate takes the rest while Caddy runs,** which is a reload: nothing stops. `INGRESS_CHANGE_TAKES_PORTS` says so, the plan checks they're free and refuses by name if not, and the step checks again before anything changes. The last such route going is `INGRESS_CHANGE_FREES_PORTS`.
 - **A service can publish what the ingress doesn't hold.** The rule from ADR 0024 follows what's held. One on 443 stops a later route with a certificate, by name.
 
-A tunnel's own container can reach Caddy, which is on the server's own network, listening on every address:
+What's on the other side of a tunnel can reach Caddy, which is on the server's own network, listening on every address. Cloudflare's docs give `docker run` with a token and a service URL such as `http://localhost:80`, and say nothing of how a container reaches its host, so this much is Docker's:
 
-| `cloudflared` runs | Its service URL | What Caddy sees it as | Note |
+| A container runs | It dials | What Caddy sees it as | Note |
 | --- | --- | --- | --- |
-| With `--network host` | `http://localhost:80` | `127.0.0.1` | Host access, for a person to approve, as any container on that network is |
-| On a bridge, with `--add-host host.docker.internal:host-gateway` | `http://host.docker.internal:80` | Its address on the bridge | A firewall such as ufw treats this as incoming, so it needs to allow it |
+| With `--network host` | `http://127.0.0.1:80` | `127.0.0.1` | Host access, for a person to approve, as any container on that network is. `localhost` may reach `::1`, which a route naming `127.0.0.1` doesn't answer |
+| On a bridge, with `--add-host host.docker.internal:host-gateway` | `http://host.docker.internal:80` | Its address on the bridge | Needs the bridge's range named. A firewall such as ufw treats this as incoming, so it needs to allow it |
 
-The Docker job runs both. A service on an `internal` environment network has no way to the server.
+The Docker job proves each of these with a container that does what `cloudflared` would, not `cloudflared` itself, which needs Cloudflare's account. A service on an `internal` environment network has no way to the server.
 
 ### What a failed certificate says
 
@@ -61,23 +86,34 @@ The Docker job runs both. A service on an `internal` environment network has no 
 
 ### Which proxy to believe
 
-ADR 0024 overwrites `X-Forwarded-For` and strips what else a client might claim. Behind a tunnel, Caddy's peer is the tunnel, so every client reads as that. A route's `trusted_proxies` names who to believe, each an address, a range, or `cloudflare` for Cloudflare's published ranges.
+ADR 0024 overwrites `X-Forwarded-For` and strips what else a client might claim. Behind a tunnel, Caddy's peer is the tunnel, so every client reads as that. A route's `trusted_proxies` names who to believe, each an address, a range, or `cloudflare` for Cloudflare's published ranges. It's in the route's spec, so it has a plan, a history and an undo like the rest of a route.
 
-- **Per route, in its spec,** so it has a plan, a history and an undo like the rest of a route. A setting per server would be a new kind of resource for one list.
-- **Caddy decides this per server,** for a request before it matches a route. So `dockwell` and `dockwell_http` each trust what any route names, and what a route reads comes from its headers: a route that names a proxy sets `X-Real-IP` and `X-Forwarded-For` from `{http.vars.client_ip}`, and one that doesn't overwrites those, `X-Forwarded-Proto` and `X-Forwarded-Host` from the connection, so what another route names doesn't reach it. A route that names one proxy also believes what another route names; a plan says who, and a person approved each.
-- **Read from the right.** `trusted_proxies_strict` is on: Caddy's default takes the leftmost address, which is whatever the client sent, through any proxy that appends to the header as Cloudflare does. Strict takes the first from the right that isn't a trusted proxy. So a service reads one address in each, the client's, and what a client wrote further left doesn't reach it to be read.
-- **A proxy's scheme comes through.** Through a proxy it trusts, Caddy keeps `X-Forwarded-Proto`, so an app knows its visitors came over HTTPS. One that sees `http` may redirect them for ever.
-- **What's still stripped** stays stripped, `CF-Connecting-IP` among them, even from a proxy it trusts: Caddy can't remove a header for one peer and keep it for another. A service reads `X-Real-IP` or `X-Forwarded-For`.
-- **The preset is a list in the agent's source,** as Caddy's module for it is a third-party build. A range Cloudflare adds later isn't believed until a release has it, which fails safe: a service reads Cloudflare's address, not a forged one. Caddy's config holds the ranges, so a new list reads as drift on a route that names the preset, and reverting applies it.
+**Belief is per route.** Caddy decides what it trusts per server, before it matches a route, so `dockwell` and `dockwell_http` each trust what any route names. A route then decides for itself: its first handler is a subroute that sets two request variables, with a matcher on the peer, and its `reverse_proxy` writes its headers from those.
 
-**What a token can do.** Believing a proxy makes what it says of a client reach services as true, and apps use that for allowlists and limits. So naming one is host access, of the new kind `trusted_proxy`, and a token gets `needs_session`, for a preset too, and for each one a change adds. Removing one needs no person, and undoing that does. A list wider than `/8`, or any spelling of everything such as `::ffff:0:0/96`, is refused for everyone, in Validate: it isn't naming a proxy, and a person who approves it has made client addresses forgeable for nothing.
+- From a peer the route didn't name, the client is the peer, and the scheme is what the connection came over, whatever another route on the server names.
+- From a peer it named, the client is `{http.vars.client_ip}`, which Caddy finds in `X-Forwarded-For` from the right, as `trusted_proxies_strict` has it. Its default takes the leftmost, which is whatever the client sent, through any proxy that appends to the header, as Cloudflare does.
+- **What Caddy can't do per route:** that walk from the right skips an address any route on the server names, not only this one's. So a visitor whose own address is in another route's proxy range gets past it, to whatever it wrote further left. The range has to be someone's proxy and the visitor has to come from it, so this is narrow, and the plan names who else is believed only by naming what's on the route itself: read the threat model before naming a wide range beside other people's routes.
+- Headers a client might claim are stripped, and `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-For` and `X-Real-IP` are written by Caddy. A visitor's `X-Forwarded-Host` passes through a proxy as anything else does, and an app builds a password reset link from it, so it's the `Host` this request came with. `https` from a named peer is taken at its word, so an app knows its visitors came over HTTPS, and nothing else is. `X-Forwarded-Port`, `X-Forwarded-Server`, `X-Forwarded-Ssl`, `X-Forwarded-Scheme`, `X-Url-Scheme`, `Front-End-Https`, `X-Original-Host` and `X-Host` don't reach a service at all.
+
+**The `cloudflare` preset reads Cloudflare's header, not X-Forwarded-For.** Its ranges are shared by every Cloudflare customer. [Cloudflare's docs](https://developers.cloudflare.com/fundamentals/reference/http-headers/) (last updated 28 October 2026) say a cross-zone Worker's request carries `CF-Connecting-IP: 2a06:98c0:3600::103`, that an `X-Forwarded-For` already on a request is appended to, and that an origin should read `CF-Connecting-IP` instead. That address is in the preset, so reading `X-Forwarded-For` from the right would skip it, and land on what the Worker's author wrote. That the Worker's value survives is inferred, not tested, as nothing here sends anything to Cloudflare, and it's the same route either way: reading the documented header is right whether or not it does.
+
+- **Only from a peer in those ranges is the header read,** and those ranges aren't among what the server trusts, so nothing else walks past them, whatever else is named. No other peer can forge it through this route, or through another.
+- **A named range inside Cloudflare's is refused,** with the preset named, as it would walk past the same address.
+- **What this address is good for:** it's what Cloudflare says connected to it, which is good for logs and rate limits. It isn't proof of who a request is from. A cross-zone Worker reads as `2a06:98c0:3600::103`, which all of them share. A Worker in your own zone can set it to anything. And a Worker's request to a domain that isn't on Cloudflare, as a DNS-only record is, carries whatever it likes, so name the preset only for a domain Cloudflare proxies. A firewall can't tell any of this apart, as it's all from Cloudflare's ranges, and [Authenticated Origin Pulls](https://developers.cloudflare.com/ssl/origin-configuration/authenticated-origin-pull/) (last updated 14 August 2026) doesn't apply in Flexible mode, and its global certificate only says it came through Cloudflare. Don't allowlist on it.
+- **The list is in the agent's source,** as Caddy's module for it is a third-party build. A range Cloudflare adds later isn't believed or answered until a release has it, which fails safe. `.github/workflows/cloudflare-ranges.yml` compares it nightly with what Cloudflare publishes, and opens an issue when they differ. Caddy's config holds the ranges, so a new list reads as drift on a route that names the preset, and reverting applies it.
+
+A route naming `127.0.0.1` behind a tunnel reads `X-Forwarded-For`. Cloudflare appends what connected to it, so that's the rightmost, and it isn't walked past, as Cloudflare's ranges aren't named. So a Worker through a tunnel reads as its own address, and the same goes for what it's good for.
+
+**What a token can do.** Believing a proxy makes what it says of a client reach services as true, and apps use that for allowlists and limits. On a plain route it also says who gets an answer. So naming one is host access, of the new kind `trusted_proxy`, and a token gets `needs_session`, for a preset too, and for each one a change adds. Removing one needs no person, and undoing that does. A range that can't be one proxy is refused for everyone, in Validate: wider than `/8` on a private network, `/12` on the internet, or `/28` in IPv6, or any spelling of everything such as `::ffff:0:0/96`. Cloudflare's own widest are `/13` and `/29`.
 
 ### A route can reach a port on the server itself
 
 For something that isn't a container, such as a process on the host, or a container someone else runs on a loopback port. `host_port` stands in for `service` and `port`.
 
-- **Host access, of the new kind `server_port`,** under ADR 0021's gate, with the port in the plan. It reaches past containers, to whatever listens there. Another port is another approval.
-- **Dockwell's own ports are refused,** on plan and on apply: the panel's, the agent listener's, and those it holds its public site on, which the control plane tells its agent. So are the proxy's own, which would dial itself. Reaching the panel's loopback listener from the network is exactly what ADR 0011 refuses. A server that joined has no such listeners.
+- **Host access, of the new kind `server_port`,** under ADR 0021's gate, with the port in the plan. It reaches past containers, to whatever listens there. What a person approves is the port at a domain and path, over HTTPS or plain HTTP: a person who approved it behind Access on one name hasn't approved it on another, so any of those changing is another approval, and so is another port or another server.
+- **The plan says what that lets happen,** in `PlanStep.answers` and `PlanStep.server_port`: who can now reach the port, that what's there sees every caller as `127.0.0.1`, which an app that trusts localhost will believe, and what listens there, from what the agent can read, or that nothing does yet.
+- **Docker's API, on 2375 and 2376, is refused by name for everyone,** as it's root with no legitimate route. Anything else is a person's to read and decide: a database on 5432 is a bad idea the plan names, and may be meant.
+- **Dockwell's own ports are refused,** on plan and on apply: the panel's, the agent listener's, and those it holds its public site on, which the control plane tells its agent. So are the proxy's own, which would dial itself. Reaching the panel's loopback listener from the network is exactly what ADR 0011 refuses. A server that joined has no such listeners. A listener moved onto a routed port later is logged, once, as nothing's exposed: the panel's listener refuses a public `Host`.
 - **Caddy dials `127.0.0.1:<port>`,** from the server's own network. Nothing a token sends becomes config: the port is a number, and the address comes from the agent.
 - **It reads back as itself, so it isn't drift.** A dial the table doesn't know still reads as drift, and so does anything beside it.
 - **It needs no network.** Routes to the server's own ports alone don't make the ingress network or its keeper.
@@ -95,16 +131,18 @@ DNS-01 through Cloudflare gives one, and it is [#94](https://github.com/Dockwell
 ## Consequences
 
 - **What's between whatever ends TLS and this server is unencrypted.** The plan says so. On a tunnel that's the loopback or a bridge; on a proxy over the internet, as with Cloudflare's Flexible mode, it's anyone on the way.
-- **Port 80 answers on every address.** A route with `tls: off` is reachable by whoever can reach that port, whatever is in front, so a server with a public address needs its firewall to let only its proxy in.
+- **A rollout's own routes must keep to this.** [#93](https://github.com/Dockwell/dockwell/pull/93)'s route that says `Connection: close` of an old config has no host, so it doesn't make HTTPS listen. It belongs on both servers. Whichever lands second handles that, and tests a route with no certificate through a rolling deploy.
+- **Caddy's config grows with each route that names a proxy,** by a handler with up to four steps. `make budgets` doesn't measure Caddy, so the pull request says what it reads at the limit of routes.
 - **`Proxy.Start` takes whether to start on the plain port alone.** `ingress.Upstreams` doesn't change, and a route's upstreams move through a rollout the same way whichever server it's on.
 - **A panel on a domain, on a server with no open ports, still can't get a certificate,** and is reached through the SSH tunnel.
 - **Names no public CA issues for are still refused,** though a route with `tls: off` doesn't ask one. It can be lifted without changing what a route means.
-- **Memory:** nothing here moves an idle agent, as `make budgets` shows in the pull request.
+- **Port 80 is still needed.** A server whose other proxy holds it can't serve a route this way until that proxy stops. A tunnel straight to a published port needs no route at all, and the install guide says so.
 - **The threat model** is in [docs/security/ingress.md](../security/ingress.md), and [docs/install.md](../install.md#behind-cloudflare-tunnel-or-another-proxy) says how to set this up.
 
 ## Tests
 
-- **Rules:** each refusal on its own (`route_test.go`, `tunnel_test.go`).
-- **The gate,** through the API with a real token, on both stores (`TestARoutesReachNeedsAPerson`): a port and a proxy each need a person, the same again doesn't, less doesn't and its undo does, and everything is refused to everyone.
-- **`DOCKWELL_TEST_CADDY`:** plain HTTP with no redirect and no certificate, nothing bound on 443, both kinds beside each other, a route moved between them in one reload, a WebSocket through those reloads, closing them, removing one with Caddy down, a hand edit, the panel's rules beside them, and what a service reads through a proxy it trusts, one it doesn't and a route that names none, right to left.
-- **`make docker-e2e`:** a route on real Docker with no ACME order made and its state `none`, `cloudflared`'s two ways to reach Caddy, a port on the server with a token refused and a person applying it, 443 taken and freed, and Dockwell's own port refused.
+- **Rules:** each refusal on its own (`route_test.go`, `tunnel_test.go`), and a domain's two ways and going off HTTPS on both stores (`claims_test.go`).
+- **The gate,** through the API with a real token, on both stores (`TestARoutesReachNeedsAPerson`): a port, where it answers, a proxy and anyone each need a person, the same again doesn't, less doesn't and its undo does, deleting and undoing or going through a service gets nowhere, and everything is refused to everyone.
+- **`DOCKWELL_TEST_CADDY`:** plain HTTP with no redirect and no certificate, nothing bound on 443, both kinds beside each other, a route moved between them in one reload, a WebSocket through those reloads, closing them, removing one with Caddy down, a hand edit of each thing that decides who it answers and what it believes, the panel's rules beside them, who a route answers from a loopback peer and an address of the machine's own, and what a service reads from a proxy it named, one another route named, and the preset, with the peer standing in for Cloudflare's edge, as no test can come from its addresses.
+- **`DOCKWELL_TEST_PEBBLE`:** HTTP-01 for one route past another's reach and the 404.
+- **`make docker-e2e`:** a route on real Docker with no ACME order made and its state `none`, a stranger at the server's own address getting a 404, a container on the host network and one on a bridge, with and without the bridge's range named, a port on the server with a token refused and a person applying it, plain HTTP for anyone, a live domain's refusal to go off HTTPS for a token, 443 taken and freed, and Dockwell's and Docker's own ports refused.

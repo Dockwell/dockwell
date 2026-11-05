@@ -83,6 +83,8 @@ The service sets `GOMEMLIMIT=200MiB`, a soft limit on the memory the Go runtime 
 
 Dockwell binds nothing on ports 80 and 443 until a server gets its first route, so it can run beside another proxy, such as 1Panel's OpenResty. To reach a service through that proxy, publish its port on loopback and point the proxy at it. A route on such a server is refused when it is planned, naming what holds the ports, and nothing changes. A server whose routes all [take no certificate](#behind-cloudflare-tunnel-or-another-proxy) holds port 80 alone, so it runs beside whatever holds 443.
 
+If that proxy holds both 80 and 443, as 1Panel's OpenResty does, a route of any kind is refused on port 80 until it stops. If what you want is a tunnel beside it, you don't need a route: publish the service's port on loopback, and point the tunnel straight at that, such as `http://127.0.0.1:8081`. You get no route's plan or domain state for it. Move onto Dockwell's ingress, below, when you can stop the other proxy.
+
 ## Move a server onto Dockwell's ingress
 
 When you are ready to stop the other proxy, what it serves stops answering until you add a route for each site, so do this when you can afford that, and start with one that matters least.
@@ -146,15 +148,17 @@ A route's certificate needs the internet to reach the server on 80 or 443. A ser
 dockwell routes create www --domain app.example.com --service myapp --port 8080 --tls off --yes
 ```
 
-Caddy then serves that domain over plain HTTP on port 80, asks for no certificate, and doesn't redirect it to HTTPS, which would loop behind a tunnel. The plan says its traffic reaches this server unencrypted, which is fine on a tunnel or a private network, and not on the open internet. Its certificate reads "none". While no route on the server takes a certificate, Caddy holds port 80 and nothing else. All of a domain's routes take the same setting, so to change one, change them together in one change. The panel's own domain can't be served this way, as its passkeys and cookies need HTTPS: reach it through the SSH tunnel.
+Caddy then serves that domain over plain HTTP on port 80, asks for no certificate, and doesn't redirect it to HTTPS, which would loop behind a tunnel. The plan says its traffic reaches this server unencrypted, which is fine on a tunnel or a private network, and not on the open internet. Its certificate reads "none". While no route on the server takes a certificate, Caddy holds port 80 and nothing else. All of a domain's routes take the same setting, so to change one, change them together in one change. A domain that has had a certificate needs a person to take it off, in the panel, as `https://` stops answering, and browsers that saw HSTS refuse plain HTTP until that runs out. The panel's own domain can't be served this way, as its passkeys and cookies need HTTPS: reach it through the SSH tunnel.
+
+**It doesn't answer the whole internet.** Port 80 is open on every address, so someone who finds the server's address could otherwise send `Host: app.example.com` straight to it, around whatever you have in the tunnel or the proxy. So such a route answers only the proxies it names in `--trusted-proxies`, by the address on the connection, or with none, this server's own loopback. Anyone else gets what a name with no route gets, a 404, so they can't tell it's there. For a site on a private network, or a load balancer whose addresses you don't know, `--plain-for-anyone` answers anyone who can reach the port, and a person approves it, in the panel.
 
 A real certificate with no open port, over DNS-01, is [#94](https://github.com/Dockwell/dockwell/issues/94).
 
 ### Run Cloudflare Tunnel
 
-This follows [Cloudflare's guide](https://developers.cloudflare.com/tunnel/get-started/), which covers making the tunnel and its token. `cloudflared` connects out to Cloudflare on port 7844, so nothing on the server needs opening.
+This follows [Cloudflare's guide](https://developers.cloudflare.com/tunnel/get-started/), which covers making the tunnel and its token. `cloudflared` connects out to Cloudflare on port 7844, so nothing on the server needs opening for it, and with what's above, a route behind it doesn't answer anyone who comes straight to the server.
 
-**1. Run `cloudflared` on the server's own network,** where it reaches Caddy on `localhost`. Through Dockwell, that's a container a person approves in the panel, as it isn't kept to a bridge. `--env TUNNEL_TOKEN` alone takes the value from your shell, which keeps it out of your history:
+**1. Run `cloudflared` on the server's own network,** where it reaches Caddy on loopback. Through Dockwell, that's a container a person approves in the panel, as it isn't kept to a bridge. `--env TUNNEL_TOKEN` alone takes the value from your shell, which keeps it out of your history:
 
 ```sh
 read -rs TUNNEL_TOKEN; export TUNNEL_TOKEN
@@ -163,25 +167,27 @@ dockwell containers create cloudflared --image cloudflare/cloudflared:latest --n
   --command tunnel --command=--no-autoupdate --command run --yes
 ```
 
-**2. In Cloudflare, add a published application to the tunnel,** with your domain as its hostname and `http://localhost:80` as its service. Dockwell's routes go by the hostname, which Cloudflare passes on.
+**2. In Cloudflare, add a published application to the tunnel,** with your domain as its hostname and `http://127.0.0.1:80` as its service. Dockwell's routes go by the hostname, which Cloudflare passes on. Write `http://`: with `https://`, nothing here serves TLS for that name, so the tunnel fails with `tls: internal error`, or a refused connection on a server with no route on a certificate. Write `127.0.0.1`, as `localhost` may reach `::1`, which a route naming `127.0.0.1` doesn't answer. Cloudflare gives up on a response after [125 s](https://developers.cloudflare.com/fundamentals/reference/connection-limits/) with a 524, whatever this server does, so a slow request needs to be something else.
 
-**3. Say which proxy to believe.** Caddy's peer is now `cloudflared`, so every visitor reads as `127.0.0.1`, and your app reads `X-Forwarded-Proto: http`, which can have an app that insists on HTTPS redirect for ever. Naming the tunnel fixes both, and a person approves it, as whoever it names can say any visitor is anyone:
+**3. Say which proxy to believe.** A route that names none works already, and answers `cloudflared` alone, as it's on this server. But every visitor reads as `127.0.0.1`, and your app reads `X-Forwarded-Proto: http`, which can have an app that insists on HTTPS redirect for ever. Naming the tunnel fixes both, and a person approves it, as whoever it names can say any visitor is anyone:
 
 ```sh
 dockwell routes update www --domain app.example.com --service myapp --port 8080 --tls off --trusted-proxies 127.0.0.1 --yes
 ```
 
-Your app then reads the visitor's address in `X-Real-IP` and `X-Forwarded-For`, and `https` in `X-Forwarded-Proto`. It's read from the right, so what a visitor sends in that header themselves doesn't count. `CF-Connecting-IP` is stripped, whoever sends it: read `X-Real-IP` instead. With `127.0.0.1` named, anything else on the server can say the same over loopback.
+Your app then reads the visitor's address in `X-Real-IP` and `X-Forwarded-For`, and `https` in `X-Forwarded-Proto`. It's read from the right, so what a visitor sends in that header themselves doesn't count. `CF-Connecting-IP` is stripped, whoever sends it: read `X-Real-IP` instead. With `127.0.0.1` named, anything else on the server can say the same over loopback. Treat this as what Cloudflare says connected to it, which is good for logs and rate limits, and not for deciding who someone is: a Worker on someone else's Cloudflare zone reads as `2a06:98c0:3600::103`, [as Cloudflare's docs say](https://developers.cloudflare.com/fundamentals/reference/http-headers/), which all of them share.
 
-**If it runs on a bridge instead,** started with `docker run --add-host host.docker.internal:host-gateway`, its service is `http://host.docker.internal:80`. A firewall such as ufw treats that as incoming, so allow it: `ufw allow in on docker0 to any port 80`. Name the bridge's subnet as the proxy, such as `172.17.0.0/16`, and keep other containers off that network, as they could say the same. A service on a network of its environment can do this too, by the address of that network's gateway, if the network isn't `internal`.
+**If it runs on a bridge instead,** started with `docker run --add-host host.docker.internal:host-gateway`, its service is `http://host.docker.internal:80`, and the route must name the bridge's range, which `docker network inspect bridge --format '{{(index .IPAM.Config 0).Subnet}}'` prints, such as `--trusted-proxies 172.17.0.0/16`. Without that, it's someone else, and gets a 404. A firewall such as ufw treats it as incoming, so allow it: `ufw allow in on docker0 to any port 80`. Keep other containers off that network, as they could say the same. A service on a network of its environment can do this too, with that network's range and the address of its gateway, if the network isn't `internal`.
 
 ### Cloudflare's proxy, or another in front
 
 Cloudflare's proxy needs its SSL/TLS encryption mode set to Flexible, as this server answers only over HTTP, and any other would fail. [Cloudflare says](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/flexible/) not to use that mode for anything with logins or personal data, and the plan's warning is about this: between Cloudflare and your server is the open internet, unencrypted. Prefer a tunnel. Or, with port 80 or 443 reachable, use an ordinary route with a certificate and Full (strict).
 
-Name its ranges with `--trusted-proxies cloudflare`, which is [the list Cloudflare publishes](https://www.cloudflare.com/ips/) as a release of Dockwell has it. Port 80 answers on every address, so have your firewall let only those in, or anyone can go around Cloudflare to your server. Those ranges are shared by all of Cloudflare's customers, so this believes anything sent through its network.
+Name its ranges with `--trusted-proxies cloudflare`, which is [the list Cloudflare publishes](https://www.cloudflare.com/ips/) as a release of Dockwell has it. The route then answers those ranges alone, and your app reads the address from Cloudflare's `CF-Connecting-IP`, as Cloudflare recommends for an origin.
 
-Any other proxy that ends TLS works the same way: `--tls off`, and its address in `--trusted-proxies`. A range wider than `/8` isn't taken, as it wouldn't be naming a proxy.
+Don't rely on that address for more than logs and rate limits. Those ranges are shared by all of Cloudflare's customers, so anyone with an account can reach your server through them, and your firewall can't tell them apart. [Authenticated Origin Pulls](https://developers.cloudflare.com/ssl/origin-configuration/authenticated-origin-pull/) doesn't apply in Flexible mode. A Worker on another zone reads as `2a06:98c0:3600::103`, a Worker in your own zone can set the address to anything, and one sending to a domain that isn't on Cloudflare can too, so name the preset only for a domain Cloudflare proxies.
+
+Any other proxy that ends TLS works the same way: `--tls off`, and its address in `--trusted-proxies`, and the route answers that alone. A public range wider than `/12`, or `/28` in IPv6, or a private one wider than `/8`, isn't taken, as it wouldn't be naming a proxy.
 
 ## Upgrade
 

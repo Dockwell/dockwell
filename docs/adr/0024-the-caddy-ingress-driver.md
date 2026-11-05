@@ -96,6 +96,7 @@ message Route {
   string tls = 5;     // "off" when TLS ends before this server (ADR 0030)
   repeated string trusted_proxies = 6; // whose word to take on a client (ADR 0030)
   uint32 host_port = 7; // a port on the server, in place of service and port (ADR 0030)
+  bool plain_for_anyone = 8; // tls off, and answers anyone who reaches port 80 (ADR 0030)
 }
 ```
 
