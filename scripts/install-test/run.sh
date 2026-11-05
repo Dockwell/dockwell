@@ -349,7 +349,7 @@ step "Refuse to go back to an older release, and say what it costs"
 before=$(pid)
 if run_install good --version "$OLD"; then die "v$OLD was installed over v$NEW with no --downgrade"; fi
 said "v$OLD is older than v$NEW, which is installed here, so nothing was installed."
-said "reads, plans and applies nothing on this server that names one until it is updated again"
+said "An older control plane doesn't start on a database a newer one has moved on"
 said "run this again with --downgrade"
 version_is "$NEW"
 [ "$(pid)" = "$before" ] || die "refusing an older release restarted the service"

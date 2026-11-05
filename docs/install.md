@@ -234,7 +234,7 @@ To delete your data too, run `rm -rf /var/lib/dockwell`. Do it after removing th
 | --- | --- | --- |
 | `--join <ticket>` | `DOCKWELL_JOIN` | Join a control plane with a ticket from `dockwell token create`, and run only the agent |
 | `--version <version>` | `DOCKWELL_VERSION` | Install that release, such as `0.1.0`, instead of the latest |
-| `--downgrade` | `DOCKWELL_DOWNGRADE=1` | Install a release older than the one installed, which it otherwise refuses, as an older agent can lack what the control plane relies on |
+| `--downgrade` | `DOCKWELL_DOWNGRADE=1` | Install a release older than the one installed, or over a build whose version it can't read, which it otherwise refuses. On a control server an older control plane doesn't start on a database a newer one has moved on, and on a server that joined, an older agent can lack what the control plane relies on |
 | `--mirror <url>` | `DOCKWELL_MIRROR` | Download Dockwell from a [mirror](#install-through-a-mirror) of its GitHub releases, and check it without reaching Sigstore |
 | `--cosign-mirror <url>` | `DOCKWELL_COSIGN_MIRROR` | Download cosign from a mirror of its GitHub releases |
 | `--uninstall` | | Remove Dockwell, and keep your workloads and data |
