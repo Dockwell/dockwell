@@ -1101,6 +1101,55 @@ func testDriftReportsEachServerItCantCheck(t *testing.T, backend store.Backend) 
 	}
 }
 
+// A row Dockwell won't read costs the server that runs it, not the fleet: a build
+// from main between the Docker driver and sealing could leave one, and the last check
+// of #70 had drift fail for every server on it, with "try again". What reads the row
+// says which it is and what to do.
+func TestARowItWontReadCostsOneServersDrift(t *testing.T) {
+	storetest.Each(t, testARowItWontReadCostsOneServersDrift)
+}
+
+func testARowItWontReadCostsOneServersDrift(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	hz1 := f.addServer(t, true)
+	hz2 := f.addNamedServer(t, "hz-2", true)
+	c := changeClient(b, b.origin)
+	on := func(server string) *dockwellv1.Edit {
+		e := webEdit("nginx:1.27", nil)
+		e.Resource.Scope = server
+		return e
+	}
+	apply(t, c, propose(t, c, "Run web on both", on("hz-1"), on("hz-2")))
+	got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"})
+	got.Image = "nginx:hand-edit"
+	_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got, resource.Decision{})
+
+	spec, drop := `x'0a0a'`, `DROP TRIGGER revisions_never_change`
+	if backend == store.Postgres {
+		spec, drop = `'\x0a0a'`, drop+` ON revisions`
+	}
+	storetest.Exec(t, f.db, drop)
+	storetest.Exec(t, f.db, `UPDATE revisions SET spec = `+spec+` WHERE resource_id IN (SELECT id FROM resources WHERE scope = '`+hz2.id.ServerID+`' AND kind = 'container')`)
+
+	const fix = "Restore the database from a backup. On a development install, start again with an empty data directory"
+	res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil {
+		t.Fatalf("ListDrift with a row it won't read on one server = %v, want the others' drift", err)
+	}
+	if d := res.Msg.GetDrift(); len(d) != 1 || d[0].GetServerId() != hz1.id.ServerID {
+		t.Errorf("drift = %v, want web on hz-1", d)
+	}
+	u := res.Msg.GetUncheckedServers()
+	if len(u) != 1 || u[0].GetServerName() != "hz-2" || u[0].GetReason() != "spec_unreadable" || !strings.Contains(u[0].GetMessage(), fix) {
+		t.Errorf("unchecked servers = %v, want hz-2, saying what to do", u)
+	}
+	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Change web", Edits: []*dockwellv1.Edit{on("hz-2")}}))
+	if err == nil || !strings.Contains(err.Error(), fix) || connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("planning from that row = %v, want it refused, saying what to do", err)
+	}
+}
+
 // Once there are two projects, an edit names an environment's project
 // beside it, by name; while there is one, it needn't.
 func TestAnEditNamesAnEnvironmentsProject(t *testing.T) {

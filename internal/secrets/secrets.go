@@ -58,6 +58,14 @@ var ErrOpen = errors.New("can't open a sealed spec")
 // It isn't read, as nothing says it is what Dockwell stored.
 var ErrUnsealed = errors.New("the stored spec isn't sealed, as every spec of its kind is")
 
+// unsealed says which stored spec isn't sealed, and what to do. No release wrote
+// one: only a build from main between the Docker driver and sealing did, or someone
+// with the database.
+func unsealed(at store.SpecAt) error {
+	return fmt.Errorf("%s %s: %w, so it was written outside Dockwell or by a development build from before it sealed them, and Dockwell won't read it. "+
+		"Restore the database from a backup. On a development install, start again with an empty data directory", at.Kind, at.ResourceID, ErrUnsealed)
+}
+
 // Keeper seals and opens specs, with the keys in the store.
 //
 // It keeps no key-encryption key in memory beyond the transaction that
@@ -220,7 +228,7 @@ func (k *Keeper) Seal(ctx context.Context, tx *store.Tx, at store.SpecAt, encode
 func (k *Keeper) Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error) {
 	if !Sealed(stored) {
 		if k.sealedKind(resource.Kind(at.Kind)) {
-			return nil, fmt.Errorf("%s %s: %w, so it was written outside Dockwell or by a version before it sealed them", at.Kind, at.ResourceID, ErrUnsealed)
+			return nil, unsealed(at)
 		}
 		return stored, nil
 	}
@@ -284,7 +292,7 @@ func (k *Keeper) OpenAll(ctx context.Context, tx *store.Tx, specs []store.Stored
 	for i, s := range specs {
 		if !Sealed(s.Spec) {
 			if k.sealedKind(resource.Kind(s.At.Kind)) {
-				return nil, fmt.Errorf("%s %s: %w, so it was written outside Dockwell or by a version before it sealed them", s.At.Kind, s.At.ResourceID, ErrUnsealed)
+				return nil, unsealed(s.At)
 			}
 			out[i] = s.Spec
 			continue

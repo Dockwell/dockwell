@@ -37,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
+	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -933,6 +934,8 @@ var codes = []struct {
 	{resource.ErrLost, connect.CodeUnavailable, "server_offline"},
 	{resource.ErrNotConnected, connect.CodeUnavailable, "server_offline"},
 	{resource.ErrNoDriver, connect.CodeFailedPrecondition, "no_driver"},
+	{secrets.ErrUnsealed, connect.CodeFailedPrecondition, "spec_unreadable"},
+	{secrets.ErrOpen, connect.CodeFailedPrecondition, "spec_unreadable"},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {
@@ -982,6 +985,8 @@ func serverReason(err error) (string, bool) {
 		return "no_driver", true
 	case errors.Is(err, resource.ErrAgentTooOld):
 		return "agent_outdated", true
+	case errors.Is(err, secrets.ErrUnsealed), errors.Is(err, secrets.ErrOpen):
+		return "spec_unreadable", true // one row of what it runs, not the whole store
 	case errors.As(err, &agent) && errors.Is(err, context.DeadlineExceeded):
 		return "agent_timeout", true
 	case errors.As(err, &agent):
