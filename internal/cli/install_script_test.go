@@ -394,6 +394,7 @@ func TestTheInstallScriptDoesntGoBackOnItsOwn(t *testing.T) {
 		{installed: "0.3.0-rc.1", version: "0.3.0"},
 		{installed: "0.3.0+linux", version: "0.3.0"},
 		{installed: "0.3.0", version: "0.3.0+linux"},
+		{installed: "0.3.0-rc.1+linux", version: "0.3.0-rc.1"},
 		{installed: "0.10.0", version: "0.9.0", refused: true, says: "v0.9.0 is older than v0.10.0"},
 		{installed: "devel", version: "0.3.0", refused: true, says: "The dockwell installed here says its version is devel, so this script can't tell whether v0.3.0 is older, and nothing was installed."},
 		{installed: "devel", version: "0.3.0", control: true, refused: true, says: "To install v0.3.0 anyway, run this again with --downgrade."},

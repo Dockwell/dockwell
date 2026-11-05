@@ -232,19 +232,15 @@ func NamedAsText(c *resourcev1.Container, known func(string) bool) map[string][]
 // spelledName is ${NAME}, as a word that doesn't name values can spell it.
 var spelledName = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
-// shells are what reads a script with -c, by the name of their program. busybox
-// runs one by the name after it.
-var shells = []string{"sh", "bash", "ash", "dash", "zsh", "ksh", "mksh", "busybox"}
+// shells are what reads a script with -c, by the name of their program, as in
+// busybox sh.
+var shells = []string{"sh", "bash", "ash", "dash", "zsh", "ksh", "mksh"}
 
 // shellScript is where in argv a shell's script is, the word it reads with -c, or
 // -1 when no shell reads one.
 func shellScript(argv []string) int {
-	for i := 0; i < len(argv); i++ {
-		name := path.Base(argv[i])
-		if name == "busybox" && i+1 < len(argv) {
-			i, name = i+1, argv[i+1]
-		}
-		if !slices.Contains(shells, name) {
+	for i, word := range argv {
+		if !slices.Contains(shells, path.Base(word)) {
 			continue
 		}
 		if script := scriptAfter(argv, i+1); script >= 0 {
