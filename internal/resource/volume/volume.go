@@ -100,6 +100,9 @@ func (*Driver) Validate(spec proto.Message) error {
 	if v.Driver == "" {
 		v.Driver = "local"
 	}
+	if err := container.CheckDriver(v.GetDriver()); err != nil {
+		return err
+	}
 	for k := range v.GetLabels() {
 		if docker.IsOwnLabel(k) {
 			return fmt.Errorf("the label %s is Dockwell's own, and Docker Compose's; choose a key that doesn't start with %s or %s", k, docker.ComposePrefix, docker.OwnPrefix)

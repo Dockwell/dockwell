@@ -71,3 +71,17 @@ func TestAStepCarriesItsIngressEffect(t *testing.T) {
 		t.Error("a step with an ingress change this build doesn't know was read")
 	}
 }
+
+// Every kind of access a plan can hold has a name in the API, or a person would
+// approve what a surface can't say.
+func TestEveryAccessKindHasAName(t *testing.T) {
+	for k := resource.AccessPath; k <= resource.AccessPrivileged; k++ {
+		got := HostAccess([]resource.Access{{Kind: k}})
+		if got[0].GetKind() == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_UNSPECIFIED {
+			t.Errorf("the kind of access %d has no name in the API", k)
+		}
+	}
+	if got := HostAccess([]resource.Access{{Kind: resource.AccessPrivileged, SameAsRoot: true}}); !got[0].GetSameAsRoot() {
+		t.Error("what is the same as root doesn't say so in the API")
+	}
+}

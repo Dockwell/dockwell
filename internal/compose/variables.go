@@ -19,18 +19,20 @@ import (
 // is used, is refused rather than left blank, at every level. A default
 // that isn't used needs nothing. compose-go's own substitution leaves a
 // variable blank inside a default, and after one in the same string.
-func interpolate(raw map[string]any, variables map[string]string) (map[string]any, error) {
-	in := &interpolator{variables: variables, missing: map[string]bool{}}
+//
+// It also says where a variable's value lands in plain sight (Exposed).
+func interpolate(raw map[string]any, variables map[string]string) (map[string]any, *exposure, error) {
+	in := &interpolator{variables: variables, missing: map[string]bool{}, exposure: &exposure{}}
 	out, err := in.walk(place{owner: fileOwner}, raw)
 	if len(in.missing) > 0 {
 		names := slices.Sorted(maps.Keys(in.missing))
-		return nil, invalid("the Compose file uses %s, with no value. Give it one in variables, or a default in the file, such as ${%s:-value}",
+		return nil, nil, invalid("the Compose file uses %s, with no value. Give it one in variables, or a default in the file, such as ${%s:-value}",
 			strings.Join(names, ", "), names[0])
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return out.(map[string]any), nil
+	return out.(map[string]any), in.exposure, nil
 }
 
 // checkVariables refuses more variables than Dockwell takes, before they cost
@@ -71,6 +73,19 @@ type interpolator struct {
 	expanded int
 	// depth counts the variables being read inside each other.
 	depth int
+	// exposure notes where a value lands in plain sight, or nil not to.
+	exposure *exposure
+	// naming says what is being read is the name of an entry.
+	naming bool
+}
+
+// landed notes that name's value, which is value, lands at at. Nothing lands of a
+// variable with nothing in it.
+func (in *interpolator) landed(at place, name, value string) string {
+	if in.exposure != nil && value != "" {
+		in.exposure.note(at, name, in.naming)
+	}
+	return value
 }
 
 // spend counts n bytes against MaxExpansion.
@@ -85,6 +100,16 @@ func (in *interpolator) spend(at place, n int) error {
 func (in *interpolator) walk(at place, v any) (any, error) {
 	switch v := v.(type) {
 	case string:
+		// A list's entry can write its name from a variable, and only a value is
+		// hidden. A mapping's keys are never read for variables.
+		if in.exposure != nil && strings.HasPrefix(at.owner, "the service ") && strings.HasPrefix(at.path, "environment[") {
+			in.naming = true
+			_, err := in.substitute(at, nameOfEntry(v))
+			in.naming = false
+			if err != nil {
+				return nil, err
+			}
+		}
 		return in.substitute(at, v)
 	case map[string]any:
 		out := make(map[string]any, len(v))
@@ -155,7 +180,7 @@ func (in *interpolator) substitute(at place, s string) (string, error) {
 			for j < len(s) && nameRest(s[j]) {
 				j++
 			}
-			v := in.value(s[i+1 : j])
+			v := in.landed(at, s[i+1:j], in.value(s[i+1:j]))
 			if err := in.spend(at, len(v)); err != nil {
 				return "", err
 			}
@@ -198,10 +223,10 @@ func (in *interpolator) braced(at place, whole string) (string, error) {
 	tail := rest[len(op):]
 	switch op {
 	case "":
-		return in.value(name), nil
+		return in.landed(at, name, in.value(name)), nil
 	case ":-", "-":
 		if nonEmpty || set && op == "-" {
-			return value, nil
+			return in.landed(at, name, value), nil
 		}
 		return in.substitute(at, tail)
 	case ":+", "+":
@@ -211,7 +236,7 @@ func (in *interpolator) braced(at place, whole string) (string, error) {
 		return value, nil
 	case ":?", "?":
 		if nonEmpty || set && op == "?" {
-			return value, nil
+			return in.landed(at, name, value), nil
 		}
 		why, err := in.substitute(at, tail)
 		if err != nil {

@@ -77,6 +77,11 @@ var fileShape = sync.OnceValue(func() *shape {
 	boolean := func(example string) *shape { return shaped(aBool|aString, example) }
 	number := func(example string) *shape { return shaped(aNumber|aString, example) }
 
+	const deployExample = `deploy: {resources: {limits: {cpus: "0.5", memory: 512M}}}`
+	amounts := &shape{kinds: aMapping | nothing, example: deployExample, fields: map[string]*shape{
+		"cpus": number(`cpus: "0.5"`), "memory": number("memory: 512M"),
+	}}
+
 	service := object("{image: nginx:1.27}", map[string]*shape{
 		"image":       str("image: nginx:1.27"),
 		"command":     command(`command: ["serve", "--port", "8080"]`),
@@ -99,11 +104,27 @@ var fileShape = sync.OnceValue(func() *shape {
 		}},
 		"networks": {
 			kinds: aList | aMapping, item: str("networks: [back]"), example: "networks: [back]",
-			value: shaped(aMapping|nothing, "networks: {back: {}}"),
+			value: &shape{kinds: aMapping | nothing, example: "networks: {back: {aliases: [db]}}", fields: map[string]*shape{
+				"aliases": {kinds: aList, item: str("aliases: [db]"), example: "aliases: [db]"},
+			}},
 		},
-		"network_mode": str("network_mode: bridge"),
-		"user":         str(`user: "1000"`),
-		"working_dir":  str("working_dir: /app"),
+		"network_mode":    str("network_mode: host"),
+		"container_name":  str("container_name: db"),
+		"cpus":            number("cpus: 0.5"),
+		"mem_limit":       number("mem_limit: 512M"),
+		"mem_reservation": number("mem_reservation: 256M"),
+		"cap_add":         {kinds: aList, item: str("cap_add: [NET_ADMIN]"), example: "cap_add: [NET_ADMIN]"},
+		"cap_drop":        {kinds: aList, item: str("cap_drop: [ALL]"), example: "cap_drop: [ALL]"},
+		"group_add":       {kinds: aList, item: shaped(aString|aNumber, `group_add: ["999"]`), example: `group_add: ["999"]`},
+		"privileged":      boolean("privileged: true"),
+		"deploy": {kinds: aMapping | nothing, example: deployExample, fields: map[string]*shape{
+			"resources": {kinds: aMapping | nothing, example: deployExample, fields: map[string]*shape{
+				"limits":       amounts,
+				"reservations": amounts,
+			}},
+		}},
+		"user":        str(`user: "1000"`),
+		"working_dir": str("working_dir: /app"),
 		"healthcheck": object(`healthcheck: {test: ["CMD", "curl", "-f", "http://localhost"]}`, map[string]*shape{
 			"test":     {kinds: aString | aList, item: str(`test: ["CMD", "pg_isready"]`), example: `test: ["CMD", "pg_isready"]`},
 			"interval": str("interval: 30s"), "timeout": str("timeout: 5s"), "start_period": str("start_period: 1m"),
@@ -122,7 +143,8 @@ var fileShape = sync.OnceValue(func() *shape {
 	}}
 	network := &shape{kinds: aMapping | nothing, example: "back: {internal: true}", fields: map[string]*shape{
 		"driver": str("driver: bridge"), "driver_opts": options, "internal": boolean("internal: true"),
-		"labels": listOrMapping("labels: {team: web}"),
+		"labels": listOrMapping("labels: {team: web}"), "name": str("name: edge"),
+		"external": {kinds: aBool | aString | aMapping, example: "external: true", fields: map[string]*shape{"name": str("name: edge")}},
 	}}
 	named := func(what string, entry *shape, example string) *shape {
 		return &shape{

@@ -320,3 +320,47 @@ func TestARoutesPlanSaysWhatComesBackAfterAReboot(t *testing.T) {
 		}
 	}
 }
+
+// Every kind of access the API can name has words in the CLI, or a person would
+// approve what it can't say.
+func TestEveryAccessKindHasWords(t *testing.T) {
+	values := dockwellv1.HostAccessKind(0).Descriptor().Values()
+	for i := range values.Len() {
+		kind := dockwellv1.HostAccessKind(values.Get(i).Number())
+		if kind == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_UNSPECIFIED {
+			continue
+		}
+		if got := accessWords([]*dockwellv1.HostAccess{{Kind: kind, Path: "x"}})[0]; strings.HasPrefix(got, "access(") {
+			t.Errorf("%s has no words in the CLI: %s", kind, got)
+		}
+	}
+}
+
+// A value anyone can read is the most a note can say, short of stopping anyone, so
+// it stands out from one that isn't.
+func TestPlanViewWarnsOfAValueInPlainSight(t *testing.T) {
+	var buf bytes.Buffer
+	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{
+		{Reason: "exposed_variable", Message: "REDIS_PASSWORD from your .env is in redis's command"},
+		{Reason: "exposed_more", Message: "The file writes more variables in plain sight"},
+		{Reason: "no_build", Message: "web has build beside image"},
+	}})
+	for _, want := range []string{
+		"Warning: REDIS_PASSWORD from your .env is in redis's command.\n",
+		"Warning: The file writes more variables in plain sight.\n",
+		"Note: web has build beside image.\n",
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("PlanView doesn't say %q:\n%s", want, buf.String())
+		}
+	}
+}
+
+// What a plan says beside its steps, the CLI says too.
+func TestPlanViewSaysNotes(t *testing.T) {
+	var buf bytes.Buffer
+	PlanView(&buf, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: "no_build", Message: "web has build beside image, and Dockwell builds nothing."}}})
+	if !strings.Contains(buf.String(), "Note: web has build beside image, and Dockwell builds nothing.\n") {
+		t.Errorf("PlanView =\n%s", buf.String())
+	}
+}

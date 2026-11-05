@@ -93,15 +93,25 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 // the request's field that takes a choice the edits leave out, from the
 // edit's field, such as "edits[0].project", which is empty for a choice
 // of servers.
-func (h *Handler) Propose(ctx context.Context, summary string, edits []*dockwellv1.Edit, field func(choice *scope.ChoiceError, edit string) string) (*dockwellv1.Change, error) {
+func (h *Handler) Propose(ctx context.Context, summary string, edits []*dockwellv1.Edit, field func(choice *scope.ChoiceError, edit string) string, also Also) (*dockwellv1.Change, error) {
 	who, _, err := by(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return h.propose(ctx, who, summary, edits, field)
+	return h.proposeAlso(ctx, who, summary, edits, field, also)
+}
+
+// Also is what another method adds to the edits it plans: what the plan should
+// say beside its steps.
+type Also struct {
+	Notes []revision.Note
 }
 
 func (h *Handler) propose(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string) (*dockwellv1.Change, error) {
+	return h.proposeAlso(ctx, who, summary, in, field, Also{})
+}
+
+func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string, also Also) (*dockwellv1.Change, error) {
 	fail := func(err error) error {
 		var choice *scope.ChoiceError
 		if field != nil && errors.As(err, &choice) {
@@ -118,7 +128,7 @@ func (h *Handler) propose(ctx context.Context, who revision.By, summary string, 
 	if err != nil {
 		return nil, fail(err)
 	}
-	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
+	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits, Notes: also.Notes})
 	if err != nil {
 		return nil, fail(err)
 	}
@@ -724,6 +734,10 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 	p := r.Plan
 	if p == nil {
 		return out
+	}
+	for i := range p.Notes {
+		n := &p.Notes[i]
+		out.Notes = append(out.Notes, &dockwellv1.PlanNote{Reason: n.Reason, Message: n.Message, Resource: resourcepb.Ref(n.Ref), Names: n.Names})
 	}
 	ids := map[resource.Ref]string{}
 	for i := range p.Resources {

@@ -626,6 +626,11 @@ function Effects({ reach, change, plan, confirmWith, typed, onType }: EffectsPro
       ),
     });
   }
+  (plan?.notes ?? []).forEach((note, i) => {
+    // A value anyone can read stops nobody, and is the most a note can say.
+    const icon = note.reason.startsWith("exposed_") ? "shield" : "activity";
+    rows.push({ key: `note-${i}`, icon, title: note.message });
+  });
   return (
     <>
       {offline.length > 0 && change.state === ChangeState.PLANNED ? (

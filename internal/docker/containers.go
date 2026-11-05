@@ -46,6 +46,13 @@ type HostConfig struct {
 	PortBindings  map[string][]PortBinding `json:"PortBindings,omitempty"`
 	RestartPolicy RestartPolicy            `json:"RestartPolicy"`
 	NetworkMode   string                   `json:"NetworkMode,omitempty"`
+	Privileged    bool                     `json:"Privileged,omitempty"`
+	GroupAdd      []string                 `json:"GroupAdd,omitempty"`
+	// NanoCPUs limits it to this many billionths of a CPU, and
+	// MemoryReservation is the memory the engine tries to leave it when the server
+	// runs short. Zero has no limit.
+	NanoCPUs          int64 `json:"NanoCpus,omitempty"`
+	MemoryReservation int64 `json:"MemoryReservation,omitempty"`
 	// CapDrop and CapAdd change the capabilities a container has; "ALL"
 	// drops every one.
 	CapDrop []string `json:"CapDrop,omitempty"`
@@ -311,9 +318,27 @@ func (c *Client) RenameContainer(ctx context.Context, id, name string) error {
 
 // UpdateRestartPolicy changes a container's restart policy in place.
 func (c *Client) UpdateRestartPolicy(ctx context.Context, id string, p RestartPolicy) error {
+	return c.UpdateContainer(ctx, id, ContainerUpdate{RestartPolicy: p})
+}
+
+// UpdateContainer changes what the engine can change on a running container.
+func (c *Client) UpdateContainer(ctx context.Context, id string, u ContainerUpdate) error {
+	// Docker refuses a memory limit past the swap it has for a container unless
+	// it is told a new one, and has none for a container with no limit yet. Twice
+	// the limit is what it gives a container made with one.
 	return c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/update", nil, struct {
-		RestartPolicy RestartPolicy `json:"RestartPolicy"`
-	}{p}, &struct{}{})
+		ContainerUpdate
+		MemorySwap int64 `json:"MemorySwap,omitempty"`
+	}{u, 2 * u.Memory}, &struct{}{})
+}
+
+// ContainerUpdate is what the engine changes on a running container. It reads
+// a limit of zero as leaving it as it is, so it can't lift one.
+type ContainerUpdate struct {
+	RestartPolicy     RestartPolicy `json:"RestartPolicy"`
+	NanoCPUs          int64         `json:"NanoCpus,omitempty"`
+	Memory            int64         `json:"Memory,omitempty"`
+	MemoryReservation int64         `json:"MemoryReservation,omitempty"`
 }
 
 // ConnectNetwork puts a container on a network, with aliases other

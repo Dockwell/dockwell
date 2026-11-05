@@ -6,7 +6,9 @@
 # the environment exports as a Compose file that docker compose reads and
 # lists; a Compose file imports; a service using a variable and a secret
 # runs with their values, exports without the secret, and imports again
-# with no change; and everything goes again. Then the agent build joins the
+# with no change; and everything goes again. A file in the shapes real ones
+# have runs on a network the server has, with what it asks for really applied,
+# and reaches another project on it by name. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy. It uses throwaway data
@@ -38,10 +40,14 @@ agent_data=$(mktemp -d)
 log=$(mktemp)
 agent_log=$(mktemp)
 project=""
+real_projects=()
 agent_pid=""
 
 port=${addr##*:}
 cookie=$(mktemp)
+# What a file's relative paths start from. Not the data directory, which no
+# container may mount, and Docker makes what's in it as root.
+real_dir=$(mktemp -d)
 
 pebble_dir=$(mktemp -d)
 tools=${E2E_INGRESS_TOOLS:-$(mktemp -d)}
@@ -72,15 +78,19 @@ cleanup() {
   if [[ -n "$project" ]]; then
     docker compose -p "$project" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   fi
+  for p in "${real_projects[@]}"; do
+    docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
+  done
+  docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker rm --force e2e-agent-web e2e-holds-80 e2e-returns dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
-  docker network rm dockwell_ingress e2e-took-subnet >/dev/null 2>&1 || true
+  docker network rm dockwell_ingress e2e-took-subnet e2e-edge >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
   for p in "${pebble_pids[@]:-}"; do
     [[ -z "$p" ]] || kill "$p" 2>/dev/null || true
   done
   wait 2>/dev/null || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir"
+  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir" "$real_dir"
 }
 trap cleanup EXIT
 
@@ -124,6 +134,15 @@ fail() {
 # makes its own token, from the data directory.
 dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"; }
 step() { echo "--- $*"; }
+# says PATTERN COMMAND... reports a command that ran, and printed something that
+# holds PATTERN. It captures what it printed first, as grep -q stops reading at its
+# first match: under pipefail what still writes to it can fail on the closed pipe,
+# so a check that passed reads as failed, and in an if, one that should fail passes.
+says() {
+  local out
+  out=$("${@:2}") || return 1
+  grep -qE -- "$1" <<<"$out"
+}
 
 for _ in $(seq 100); do
   curl -fsS "http://$addr/healthz" >/dev/null 2>&1 && break
@@ -196,20 +215,20 @@ container=$(docker ps --filter label=com.docker.compose.service=web --format '{{
 project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container") ||
   fail "docker inspect $container failed"
 [[ "$project" == env_* ]] || fail "$container is in the Compose project '$project', want its environment's, env_…"
-curl -fsS "http://127.0.0.1:$web_port/" | grep -q nginx || fail "web doesn't serve on port $web_port"
+says nginx curl -fsS "http://127.0.0.1:$web_port/" || fail "web doesn't serve on port $web_port"
 env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container"; }
-env_of | grep -qx GREETING=hello || fail "web's environment is $(env_of)"
+says '^GREETING=hello$' env_of || fail "web's environment is $(env_of)"
 
 step "It changes, and the change undoes"
 dw services update web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hi --yes ||
   fail "services update failed"
-env_of | grep -qx GREETING=hi || fail "after the update, web's environment is $(env_of)"
+says '^GREETING=hi$' env_of || fail "after the update, web's environment is $(env_of)"
 # Changes are listed newest first.
 changes=$(dw changes list --json) || fail "changes list failed"
 change=$(jq -r '.changes[0].id // empty' <<<"$changes") || fail "changes list printed what isn't JSON: $changes"
 [[ "$change" == chg_* ]] || fail "changes list has no change: $changes"
 dw changes undo "$change" --yes || fail "changes undo $change failed"
-env_of | grep -qx GREETING=hello || fail "after the undo, web's environment is $(env_of)"
+says '^GREETING=hello$' env_of || fail "after the undo, web's environment is $(env_of)"
 drift=$(dw drift list --json) || fail "drift list failed"
 jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after the undo: $drift"
 
@@ -428,12 +447,12 @@ else
   caddy_user=$(id -u):$(id -g)
 fi
 [[ "$user" == "$caddy_user" ]] || fail "dockwell-ingress runs as $user, want $caddy_user"
-docker inspect --format '{{.State.Running}}' dockwell-ingress | grep -q true || fail "dockwell-ingress isn't running"
+says true docker inspect --format '{{.State.Running}}' dockwell-ingress || fail "dockwell-ingress isn't running"
 running_as=$(docker exec dockwell-ingress id -u) || fail "can't ask dockwell-ingress who it runs as"
 [[ "$running_as" == "$caddy_uid" ]] || fail "Caddy's process runs as uid $running_as, want $caddy_uid"
 limits=$(docker inspect --format '{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}} {{.HostConfig.UsernsMode}}' dockwell-ingress) || fail "docker inspect dockwell-ingress failed"
 [[ "$limits" == "1073741824 1073741824 host" ]] || fail "dockwell-ingress has memory, swap and user namespace $limits, want 1 GiB, no swap and the server's"
-docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' dockwell-ingress | grep -qxF 'CADDY_ADMIN=unix//run/dockwell/admin.sock|0600' ||
+says '^CADDY_ADMIN=unix//run/dockwell/admin\.sock\|0600$' docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' dockwell-ingress ||
   fail "dockwell-ingress has no CADDY_ADMIN naming its socket, so an empty last config would open the admin API on TCP"
 for dir in data config run; do
   owned=$(priv stat -c '%u %a' "$data/ingress/$dir") || fail "can't read $data/ingress/$dir"
@@ -450,10 +469,10 @@ if [[ -n "${E2E_ROOT:-}" ]]; then
 fi
 if docker exec dockwell-ingress touch /etc/dockwell/x 2>/dev/null; then fail "Caddy can write to what it reads as it starts"; fi
 for _ in $(seq 100); do
-  docker inspect --format '{{.State.Running}}' dockwell-ingress-keep 2>/dev/null | grep -q true && break
+  says true docker inspect --format '{{.State.Running}}' dockwell-ingress-keep 2>/dev/null && break
   sleep 0.1
 done
-docker inspect --format '{{.State.Running}}' dockwell-ingress-keep 2>/dev/null | grep -q true || fail "nothing keeps the ingress network from being pruned: $(docker logs dockwell-ingress-keep 2>&1)"
+says true docker inspect --format '{{.State.Running}}' dockwell-ingress-keep 2>/dev/null || fail "nothing keeps the ingress network from being pruned: $(docker logs dockwell-ingress-keep 2>&1)"
 for p in 80 443; do
   listening "$p" || fail "nothing listens on port $p"
 done
@@ -468,7 +487,7 @@ network=$(docker network inspect --format '{{.Internal}} {{index .Options "com.d
 address=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAddress}}' "$web") || fail "web isn't on dockwell_ingress"
 static=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAMConfig.IPv4Address}}' "$web") || fail "web has no static address on dockwell_ingress"
 [[ "$address" == "$static" ]] || fail "web is at $address, and asked for $static"
-curl -fsS --max-time 5 "http://$address/" | grep -q nginx || fail "this machine can't reach web on the ingress network, at $address, as Caddy must"
+says nginx curl -fsS --max-time 5 "http://$address/" || fail "this machine can't reach web on the ingress network, at $address, as Caddy must"
 # wget_from_network says how wget exited inside a container on the network, so a
 # docker run that fails for any other reason doesn't read as the network holding.
 wget_from_network() {
@@ -499,23 +518,25 @@ for intermediate in 0 1; do
   curl -fsS --cacert "$pebble_dir/cert.pem" "https://localhost:15000/intermediates/$intermediate" >>"$pebble_dir/root.pem" 2>/dev/null || true
 done
 over_https() { curl -fsS --max-time 10 --cacert "$pebble_dir/root.pem" --resolve "$domain:443:127.0.0.1" "$@" "https://$domain/"; }
-over_https | grep -q nginx || fail "https://$domain/ doesn't serve web through Caddy: $(over_https -v 2>&1)"
+says nginx over_https || fail "https://$domain/ doesn't serve web through Caddy: $(over_https -v 2>&1)"
 redirect=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' --resolve "$domain:80:127.0.0.1" "http://$domain/x?y=1") || fail "http://$domain/ didn't answer"
 [[ "$redirect" == "308 https://$domain/x?y=1" ]] || fail "http://$domain/x?y=1 answers $redirect, want a redirect to HTTPS"
 
 step "Ingress: the service reads the real client, and Caddy owns the header"
 over_https -H 'X-Forwarded-For: 6.6.6.6' >/dev/null || fail "the request with a forged header failed"
 sleep 0.5
-docker logs --tail 5 "$web" 2>&1 | tail -1 | grep -q '"127.0.0.1"$' ||
+last_log() { docker logs --tail 5 "$web" 2>&1 | tail -1; }
+says '"127\.0\.0\.1"$' last_log ||
   fail "web's last request doesn't read as from 127.0.0.1, in X-Forwarded-For: $(docker logs --tail 5 "$web" 2>&1)"
-if docker logs --tail 5 "$web" 2>&1 | grep -q '6\.6\.6\.6'; then fail "a forged X-Forwarded-For reached web"; fi
+logs=$(docker logs --tail 5 "$web" 2>&1) || fail "docker logs $web failed"
+if grep -q '6\.6\.6\.6' <<<"$logs"; then fail "a forged X-Forwarded-For reached web"; fi
 # Whether this machine has IPv6 on loopback is the kernel's to say, as a curl that
 # fails for any other reason must fail this.
 if grep -q '^00000000000000000000000000000001' /proc/net/if_inet6 2>/dev/null; then
   curl -fsS --max-time 5 --cacert "$pebble_dir/root.pem" --resolve "$domain:443:[::1]" -o /dev/null "https://$domain/" ||
     fail "https://$domain/ doesn't answer over IPv6"
   sleep 0.5
-  docker logs --tail 5 "$web" 2>&1 | tail -1 | grep -q '"::1"$' ||
+  says '"::1"$' last_log ||
     fail "over IPv6, web's last request doesn't read as from ::1, so a client's real address is lost: $(docker logs --tail 5 "$web" 2>&1)"
 else
   echo "This machine has no IPv6 on loopback, so the client's real address over IPv6 wasn't checked"
@@ -526,7 +547,7 @@ dw services update web --app-image nginx:1.27-alpine --app-env GREETING=hi --yes
 [[ "$(docker inspect --format '{{.Id}}' "$web")" != "$web_id" ]] || fail "the update didn't replace web's container"
 now=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAMConfig.IPv4Address}}' "$web") || fail "the new container isn't on dockwell_ingress"
 [[ "$now" == "$static" ]] || fail "the new container is at $now, want the instance's address, $static"
-over_https | grep -q nginx || fail "after the update, https://$domain/ doesn't serve web"
+says nginx over_https || fail "after the update, https://$domain/ doesn't serve web"
 listed=$(docker compose -p "$project" ps --format '{{.Service}}') || fail "docker compose -p $project ps failed"
 grep -qx web <<<"$listed" || fail "docker compose doesn't list web on the ingress network: $listed"
 drift=$(dw drift list --json) || fail "drift list failed"
@@ -534,13 +555,13 @@ jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after
 
 step "Ingress: traffic keeps flowing with Dockwell down, and through a restart of Caddy"
 stop_dockwell
-over_https | grep -q nginx || fail "with Dockwell down, https://$domain/ stopped serving"
+says nginx over_https || fail "with Dockwell down, https://$domain/ stopped serving"
 docker restart --time 5 dockwell-ingress >/dev/null || fail "docker restart dockwell-ingress failed"
 for _ in $(seq 100); do
   over_https >/dev/null 2>&1 && break
   sleep 0.1
 done
-over_https | grep -q nginx || fail "with Dockwell down, Caddy came back without its last config"
+says nginx over_https || fail "with Dockwell down, Caddy came back without its last config"
 # Docker itself restarting brings back everything, and gives each its address, with
 # no agent there. It needs root, and a Docker that systemd runs.
 if [[ -n "${E2E_ROOT:-}" ]] && systemctl is-active --quiet docker 2>/dev/null; then
@@ -550,7 +571,7 @@ if [[ -n "${E2E_ROOT:-}" ]] && systemctl is-active --quiet docker 2>/dev/null; t
     over_https >/dev/null 2>&1 && break
     sleep 0.1
   done
-  over_https | grep -q nginx || fail "with Docker restarted and Dockwell down, https://$domain/ didn't come back"
+  says nginx over_https || fail "with Docker restarted and Dockwell down, https://$domain/ didn't come back"
   now=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAMConfig.IPv4Address}}' "$web") || fail "web isn't on dockwell_ingress after Docker restarted"
   [[ "$now" == "$static" ]] || fail "after Docker restarted, web is at $now, want $static"
 else
@@ -565,7 +586,7 @@ serves() {
     over_https >/dev/null 2>&1 && break
     sleep 0.1
   done
-  over_https | grep -q nginx || fail "$1"
+  says nginx over_https || fail "$1"
 }
 admin() { priv curl -fsS --max-time 2 --unix-socket "$data/ingress/run/admin.sock" "http://caddy$1"; }
 
@@ -685,7 +706,7 @@ step "Ingress: a hand edit reads as drift, and a revert puts it back"
 hand='{"handler":"static_response","body":"by hand"}'
 priv curl -fsS --unix-socket "$data/ingress/run/admin.sock" -X PUT -H 'Content-Type: application/json' -d "$hand" \
   "http://caddy/id/dockwell.$project.www/handle/0" >/dev/null || fail "can't edit the route by hand"
-over_https | grep -q 'by hand' || fail "the hand edit didn't take"
+says 'by hand' over_https || fail "the hand edit didn't take"
 drifted=""
 for _ in $(seq 60); do
   drift=$(dw drift list --json 2>/dev/null) || drift='{}'
@@ -694,10 +715,10 @@ for _ in $(seq 60); do
   sleep 0.5
 done
 [[ -n "$drifted" ]] || fail "a hand edit to the route doesn't read as drift: $drift"
-over_https | grep -q 'by hand' || fail "Dockwell reverted a hand edit on its own: drift is reported, never silently reverted"
+says 'by hand' over_https || fail "Dockwell reverted a hand edit on its own: drift is reported, never silently reverted"
 server=$(jq -r '.drift[] | select(.resource.kind == "route") | .serverId' <<<"$drift")
 dw drift revert --server-id "$server" --resource-id "$drifted" --yes || fail "drift revert failed"
-over_https | grep -q nginx || fail "after reverting, https://$domain/ doesn't serve web"
+says nginx over_https || fail "after reverting, https://$domain/ doesn't serve web"
 
 step "Ingress: the last route stops Caddy and frees the ports, and its certificate stays"
 certificate=$(priv find "$data/ingress/data/caddy/certificates" -name "$domain.crt") || fail "can't look for the certificate"
@@ -713,7 +734,8 @@ for p in 80 443; do
 done
 priv test -f "$certificate" || fail "the certificate went with Caddy"
 priv test -d "$data/ingress/data/caddy/acme" || fail "the ACME account went with Caddy"
-if docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$web" | grep -q dockwell_ingress; then fail "web stayed on the ingress network"; fi
+on=$(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$web") || fail "docker inspect $web failed"
+if grep -q dockwell_ingress <<<"$on"; then fail "web stayed on the ingress network"; fi
 
 step "Ingress: a route again reuses its certificate"
 dw routes create www --domain "$domain" --service web --port 80 --yes || fail "routes create www, again, failed"
@@ -721,7 +743,7 @@ for _ in $(seq 100); do
   over_https >/dev/null 2>&1 && break
   sleep 0.1
 done
-over_https | grep -q nginx || fail "with the route back, https://$domain/ doesn't serve web"
+says nginx over_https || fail "with the route back, https://$domain/ doesn't serve web"
 after=$(priv openssl x509 -in "$certificate" -noout -serial) || fail "can't read the certificate"
 [[ "$after" == "$before" ]] || fail "a new certificate was issued, $after, where the one kept was $before"
 dw routes delete www --yes || fail "routes delete www, again, failed"
@@ -762,9 +784,9 @@ if [[ -n "${E2E_PANEL:-}" ]]; then
   token_refused "$move"
   wait_for_panel || fail "https://$panel/healthz stopped answering on the panel's own certificate while the plan waited"
   person_apply "$move"
-  docker inspect --format '{{.State.Running}}' dockwell-ingress | grep -q true || fail "dockwell-ingress isn't running"
+  says true docker inspect --format '{{.State.Running}}' dockwell-ingress || fail "dockwell-ingress isn't running"
   wait_for_panel || fail "https://$panel/healthz didn't answer through Caddy within 60 s"
-  over_https | grep -q nginx || fail "with the panel beside it, https://$domain/ doesn't serve web"
+  says nginx over_https || fail "with the panel beside it, https://$domain/ doesn't serve web"
   state=$(panel_url -X POST -H 'Content-Type: application/json' -d '{}' "https://$panel/dockwell.v1.AuthService/GetAuthState") ||
     fail "the panel's API doesn't answer through Caddy"
   [[ "$(jq -r .rpId <<<"$state")" == "$panel" ]] || fail "through Caddy, the panel's RP ID is not its domain: $state"
@@ -832,6 +854,140 @@ dw environments delete staging --yes || fail "environments delete staging failed
 dw services delete web --yes || fail "services delete web failed"
 in_ingress=""
 
+step "A file in the shapes real ones have runs, as a person approves it"
+real_port=$((web_port + 1))
+docker network create e2e-edge >/dev/null || fail "docker network create e2e-edge failed"
+dw environments create real --yes >/dev/null || fail "environments create real failed"
+dw environments create other --yes >/dev/null || fail "environments create other failed"
+cat >"$data/real.yaml" <<'EOF'
+services:
+  shop:
+    container_name: e2e-storefront
+    image: nginx:1.27-alpine
+    build: ./not-read
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY_LIMIT}
+        reservations:
+          cpus: "0.25"
+          memory: 16M
+    cap_add: [NET_ADMIN]
+    cap_drop: [MKNOD]
+    group_add: ["12345"]
+    labels:
+      createdBy: Apps
+    networks: [e2e-edge]
+    ports:
+      - ${HOST_IP}:${PANEL_APP_PORT_HTTP}:80
+    restart: on-failure:5
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    volumes:
+      - ./data:/data
+networks:
+  e2e-edge:
+    external: true
+EOF
+printf 'CPUS=0.50\nMEMORY_LIMIT=64M\nHOST_IP=\nPANEL_APP_PORT_HTTP=%s\n' "$real_port" >"$data/real.env"
+import_real() { dw compose import --compose "$(cat "$data/real.yaml")" --env-file "$data/real.env" --directory "$real_dir" --environment real "$@"; }
+
+planned=$(import_real --plan-only --json) || fail "importing the file failed"
+change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
+[[ "$change" == chg_* ]] || fail "compose import planned no change: $planned"
+jq -e '.change.plan.hostAccess == true' <<<"$planned" >/dev/null || fail "the file plans no host access: $planned"
+for says in 'e2e-edge' 'NET_ADMIN' '12345' "$real_dir/data"; do
+  [[ "$planned" == *"$says"* ]] || fail "the plan doesn't name $says: $planned"
+done
+for reason in container_name no_build cpu_reservation; do
+  jq -e --arg r "$reason" 'any(.change.plan.notes[]; .reason == $r)' <<<"$planned" >/dev/null || fail "the plan doesn't say $reason: $planned"
+done
+token_refused "$change"
+person_apply "$change"
+
+shop=$(docker ps --filter label=com.docker.compose.service=shop --format '{{.Names}}') || fail "docker ps failed"
+[[ "$shop" == env_*-shop-1 ]] || fail "Docker runs '$shop' for shop, want env_…-shop-1, not the file's container_name"
+inspected=$(docker inspect "$shop") || fail "docker inspect $shop failed"
+real_projects+=("$(jq -r '.[0].Config.Labels["com.docker.compose.project"]' <<<"$inspected")")
+has() { jq -e "$1" <<<"$inspected" >/dev/null || fail "$shop isn't as asked: $1 is $(jq -c "$1" <<<"$inspected"), in $(jq -c '.[0].HostConfig' <<<"$inspected")"; }
+has '.[0].HostConfig.NanoCpus == 500000000'
+has '.[0].HostConfig.Memory == 67108864'
+has '.[0].HostConfig.MemoryReservation == 16777216'
+has '.[0].HostConfig.CapAdd | any(endswith("NET_ADMIN"))'
+has '.[0].HostConfig.CapDrop | any(endswith("MKNOD"))'
+has '.[0].HostConfig.GroupAdd | index("12345") != null'
+has '.[0].HostConfig.RestartPolicy.Name == "on-failure" and .[0].HostConfig.RestartPolicy.MaximumRetryCount == 5'
+has '.[0].NetworkSettings.Networks["e2e-edge"].Aliases | (index("e2e-storefront") != null and index("shop") != null)'
+has '.[0].NetworkSettings.Networks | keys == ["e2e-edge"]'
+has '.[0].HostConfig.Binds | length == 1'
+bind=$(jq -r '.[0].HostConfig.Binds[0]' <<<"$inspected")
+[[ "$bind" == "$real_dir/data:/data" ]] || fail "./data mounts as '$bind', want $real_dir/data:/data"
+page=$(curl -fsS "http://127.0.0.1:$real_port/") || fail "shop doesn't serve on port $real_port, on the empty HOST_IP's every address"
+[[ "$page" == *nginx* ]] || fail "shop serves something other than nginx on port $real_port: ${page:0:300}"
+drift=$(dw drift list --json) || fail "drift list failed"
+# Another environment has drift of its own by now, as an ingress step above prunes
+# a network it left unused, so this asks about shop alone.
+jq -e 'any((.drift // [])[]; .resource.name == "shop") | not' <<<"$drift" >/dev/null || fail "drift with shop running as asked: $drift"
+
+step "A limit changes in place, on a token, and the file's container stays"
+before=$(jq -r '.[0].Id' <<<"$inspected")
+import_real --variables MEMORY_LIMIT=128M --yes >/dev/null || fail "changing the limit failed"
+inspected=$(docker inspect "$shop") || fail "docker inspect $shop failed"
+[[ "$(jq -r '.[0].Id' <<<"$inspected")" == "$before" ]] || fail "changing a limit recreated $shop"
+has '.[0].HostConfig.Memory == 134217728'
+
+step "It exports as a file docker compose reads, naming the network as external"
+dw compose export --environment real >"$data/real-export.yaml" || fail "compose export failed"
+grep -q 'external: true' "$data/real-export.yaml" || fail "the export doesn't name its network as external:
+$(cat "$data/real-export.yaml")"
+docker compose -f "$data/real-export.yaml" config --quiet || fail "docker compose doesn't take the export:
+$(cat "$data/real-export.yaml")"
+listed=$(docker compose -f "$data/real-export.yaml" ps --format '{{.Service}}') || fail "docker compose -f <export> ps failed"
+[[ "$listed" == shop ]] || fail "docker compose -f <export> ps lists '$listed', want shop"
+
+step "Another project on the network reaches it by name, and can't take that name"
+docker tag nginx:1.27-alpine e2e-local-only:1 || fail "docker tag failed"
+other_file=$(printf 'services:\n  client:\n    image: e2e-local-only:1\n    build: .\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
+planned=$(dw compose import --compose "$other_file" --environment other --plan-only --json) || fail "importing a local-only image failed"
+change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
+token_refused "$change"
+person_apply "$change"
+client=$(docker ps --filter label=com.docker.compose.service=client --format '{{.Names}}') || fail "docker ps failed"
+[[ -n "$client" ]] || fail "Docker runs nothing for client"
+real_projects+=("$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$client")")
+page=$(docker exec "$client" wget -q -O - -T 5 http://e2e-storefront/) || fail "client can't reach shop by its container_name on e2e-edge"
+[[ "$page" == *nginx* ]] || fail "client reached something other than shop: ${page:0:300}"
+page=$(docker exec "$shop" wget -q -O - -T 5 http://client/) || fail "shop can't reach client by its name on e2e-edge"
+[[ "$page" == *nginx* ]] || fail "shop reached something other than client: ${page:0:300}"
+clash=$(printf 'services:\n  clash:\n    image: nginx:1.27-alpine\n    container_name: e2e-storefront\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
+if out=$(dw compose import --compose "$clash" --environment other --plan-only 2>&1); then
+  fail "a second container answering to e2e-storefront on e2e-edge was planned: ${out:0:300}"
+fi
+[[ "$out" == *"already does"* ]] || fail "a name another has failed some other way: ${out:0:300}"
+
+step "What isn't on the server is refused as it plans, by name"
+missing=$(printf 'services:\n  gone:\n    image: nginx:1.27-alpine\n    networks: [e2e-missing]\nnetworks:\n  e2e-missing:\n    external: true\n')
+if out=$(dw compose import --compose "$missing" --environment other --plan-only 2>&1); then
+  fail "a network the server hasn't got was planned: ${out:0:300}"
+fi
+[[ "$out" == *"the network e2e-missing isn't on this server"* ]] || fail "a missing network failed some other way: ${out:0:300}"
+nothing=$(printf 'services:\n  gone:\n    image: dockwell-e2e-no-such-image:1\n    build: .\n')
+if out=$(dw compose import --compose "$nothing" --environment other --plan-only 2>&1); then
+  fail "an image no one has was planned: ${out:0:300}"
+fi
+[[ "$out" == *"won't give it to a pull"* ]] || fail "an image no one has failed some other way: ${out:0:300}"
+
+step "Going leaves the network as it was"
+dw changes undo "$change" --yes >/dev/null || fail "changes undo $change failed"
+if docker inspect "$client" >/dev/null 2>&1; then fail "the undo left $client"; fi
+dw services delete shop --environment real --yes >/dev/null || fail "services delete shop failed"
+if docker inspect "$shop" >/dev/null 2>&1; then fail "deleting shop left $shop"; fi
+docker network inspect e2e-edge >/dev/null || fail "the undo or the deletion took the network e2e-edge, which Dockwell didn't make"
+
 step "The agent build joins, and runs a container"
 made=$(dw token create 2>>"$log") || fail "dockwell token create failed"
 ticket=$(awk '$1 == "dockwell" && $2 == "join" { print $3 }' <<<"$made")
@@ -839,7 +995,11 @@ ticket=$(awk '$1 == "dockwell" && $2 == "join" { print $3 }' <<<"$made")
 "$agent" join --data-dir "$agent_data" --name e2e-agent "$ticket" >"$agent_log" 2>&1 || fail "the agent build didn't join"
 "$agent" run --data-dir "$agent_data" --log-format json >"$agent_log" 2>&1 &
 agent_pid=$!
-joined() { grep '"msg":"server connected"' "$log" | grep '"name":"e2e-agent"' | grep '"build":"agent"' | grep -q '"container"'; }
+joined() {
+  local lines
+  lines=$(grep '"msg":"server connected"' "$log" | grep '"name":"e2e-agent"' | grep '"build":"agent"') || return 1
+  [[ "$lines" == *'"container"'* ]]
+}
 for _ in $(seq 300); do
   joined && break
   sleep 0.1

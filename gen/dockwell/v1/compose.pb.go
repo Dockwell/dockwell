@@ -9,6 +9,7 @@
 package dockwellv1
 
 import (
+	_ "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -37,11 +38,12 @@ type ImportComposeRequest struct {
 	// only one.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
 	// The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
-	// up to 256 KiB. Paths in it must be absolute, as it runs on servers where
-	// a path relative to the file means nothing.
+	// up to 256 KiB. A path relative to the file needs directory, as it runs on
+	// servers where it otherwise means nothing.
 	Compose string `protobuf:"bytes,4,opt,name=compose,proto3" json:"compose,omitempty"`
 	// Values for the variables the file uses, such as ${TAG}. A variable
-	// with no value here and no default in the file is refused.
+	// with no value here, in env or as a default in the file is refused. They
+	// win over env, as a shell's win over an .env file.
 	Variables map[string]string `protobuf:"bytes,5,rep,name=variables,proto3" json:"variables,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Where the services, volumes and networks run, by server ID, as an
 	// edit's servers. Empty keeps what exists where it runs, and puts what
@@ -51,6 +53,16 @@ type ImportComposeRequest struct {
 	// the file, as docker compose up --remove-orphans does. Volumes stay,
 	// with their data; delete one on its own to remove it.
 	RemoveOrphans bool `protobuf:"varint,7,opt,name=remove_orphans,json=removeOrphans,proto3" json:"remove_orphans,omitempty"`
+	// The .env file beside the Compose file, as its text, of up to 64 KiB, for
+	// the variables the file uses. The CLI takes it as a file, --env-file .env,
+	// as it may hold secrets. It reads as docker compose reads one, except that a
+	// value naming a variable with no value is refused, rather than left blank. A
+	// value for a secret the file's services use is refused, as any is.
+	Env string `protobuf:"bytes,8,opt,name=env,proto3" json:"env,omitempty"`
+	// The directory the file is in on the servers, as an absolute path, such as
+	// /opt/1panel/apps/postgresql/pg. A path relative to the file, such as
+	// ./data, starts there. Each is a server path, which a person approves.
+	Directory     string `protobuf:"bytes,9,opt,name=directory,proto3" json:"directory,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -132,6 +144,20 @@ func (x *ImportComposeRequest) GetRemoveOrphans() bool {
 		return x.RemoveOrphans
 	}
 	return false
+}
+
+func (x *ImportComposeRequest) GetEnv() string {
+	if x != nil {
+		return x.Env
+	}
+	return ""
+}
+
+func (x *ImportComposeRequest) GetDirectory() string {
+	if x != nil {
+		return x.Directory
+	}
+	return ""
 }
 
 // ImportComposeResponse carries the planned change.
@@ -312,7 +338,7 @@ var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\"\xd5\x02\n" +
+	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\"\x8b\x03\n" +
 	"\x14ImportComposeRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -320,7 +346,9 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\acompose\x18\x04 \x01(\tR\acompose\x12N\n" +
 	"\tvariables\x18\x05 \x03(\v20.dockwell.v1.ImportComposeRequest.VariablesEntryR\tvariables\x12\x18\n" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12%\n" +
-	"\x0eremove_orphans\x18\a \x01(\bR\rremoveOrphans\x1a<\n" +
+	"\x0eremove_orphans\x18\a \x01(\bR\rremoveOrphans\x12\x16\n" +
+	"\x03env\x18\b \x01(\tB\x04\xc8\xf3\x18\x01R\x03env\x12\x1c\n" +
+	"\tdirectory\x18\t \x01(\tR\tdirectory\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"D\n" +

@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -52,11 +53,12 @@ message ImportComposeRequest {
   // only one.
   string environment = 3;
   // The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
-  // up to 256 KiB. Paths in it must be absolute, as it runs on servers where
-  // a path relative to the file means nothing.
+  // up to 256 KiB. A path relative to the file needs directory, as it runs on
+  // servers where it otherwise means nothing.
   string compose = 4;
   // Values for the variables the file uses, such as ${TAG}. A variable
-  // with no value here and no default in the file is refused.
+  // with no value here, in env or as a default in the file is refused. They
+  // win over env, as a shell's win over an .env file.
   map<string, string> variables = 5;
   // Where the services, volumes and networks run, by server ID, as an
   // edit's servers. Empty keeps what exists where it runs, and puts what
@@ -66,6 +68,16 @@ message ImportComposeRequest {
   // the file, as docker compose up --remove-orphans does. Volumes stay,
   // with their data; delete one on its own to remove it.
   bool remove_orphans = 7;
+  // The .env file beside the Compose file, as its text, of up to 64 KiB, for
+  // the variables the file uses. The CLI takes it as a file, --env-file .env,
+  // as it may hold secrets. It reads as docker compose reads one, except that a
+  // value naming a variable with no value is refused, rather than left blank. A
+  // value for a secret the file's services use is refused, as any is.
+  string env = 8 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // The directory the file is in on the servers, as an absolute path, such as
+  // /opt/1panel/apps/postgresql/pg. A path relative to the file, such as
+  // ./data, starts there. Each is a server path, which a person approves.
+  string directory = 9;
 }
 
 // ImportComposeResponse carries the planned change.

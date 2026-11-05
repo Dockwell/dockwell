@@ -133,6 +133,12 @@ func (*Driver) References(spec proto.Message) []resource.Reference {
 // ReferenceKinds are volumes and networks.
 func (*Driver) ReferenceKinds() []resource.Kind { return []resource.Kind{volume.Kind, network.Kind} }
 
+// Answers are the names the service answers to on each of its networks: its own
+// and any others its app takes.
+func (*Driver) Answers(ref resource.Ref, spec proto.Message) []resource.Answer {
+	return container.Answers(ref.Name, spec.(*resourcev1.Service).GetApp())
+}
+
 // Target is where a service runs on a server: in its environment's
 // Compose project, as that project's service of the same name, in a
 // container named as Compose names a service's first, such as
@@ -236,9 +242,10 @@ func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Mess
 	return d.Containers.CheckAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
 }
 
-// HostAccess is what the app itself reaches on its server: the server
-// paths it mounts. Its networks are its environment's, never the server's
-// own. The engine adds what its volumes and networks reach (References).
+// HostAccess is what the app itself reaches on its server: the server paths it
+// mounts, the networks it joins that aren't its environment's, the server's own
+// network, and what it runs with beyond what Docker gives a container. The
+// engine adds what its volumes and networks reach (References).
 func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	return container.ServiceAccess(spec.(*resourcev1.Service).GetApp())
 }
