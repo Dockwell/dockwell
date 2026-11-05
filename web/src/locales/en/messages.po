@@ -511,6 +511,10 @@ msgstr "{out}, with {detail}"
 msgid "{path} as a proxy it believes on where a request came from"
 msgstr "{path} as a proxy it believes on where a request came from"
 
+#: src/features/changes/words.ts
+msgid "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
+msgstr "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
@@ -2923,6 +2927,10 @@ msgstr "It runs the new image with the rest as it is"
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from."
 msgstr "It takes that proxy's word for where a request came from."
+
+#: src/features/changes/notices.tsx
+msgid "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself."
+msgstr "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself."
 
 #: src/features/variables/VariablesPage.tsx
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."

@@ -511,6 +511,10 @@ msgstr "{out}，选项为 {detail}"
 msgid "{path} as a proxy it believes on where a request came from"
 msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
 
+#: src/features/changes/words.ts
+msgid "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
+msgstr "{path}，作为它信任的代理，相信它所说的请求来源：该范围内的其他任何东西都能访问这条路由，并声称其客户端是谁"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
@@ -2923,6 +2927,10 @@ msgstr "运行新镜像，其余保持不变"
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from."
 msgstr "它会相信该代理所说的请求来源。"
+
+#: src/features/changes/notices.tsx
+msgid "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself."
+msgstr "它会相信该代理所说的请求来源。该范围内的其他任何东西都能访问这条路由，并声称其客户端是谁，所以请指定一个由该代理独占的网络。"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."

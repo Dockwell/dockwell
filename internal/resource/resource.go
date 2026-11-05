@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/netip"
 	"regexp"
 	"slices"
 	"strconv"
@@ -672,13 +673,25 @@ func AccessWords(a Access) string {
 		}
 		return out
 	case AccessTrustedProxy:
-		return plain(a.Path) + " as a proxy it believes on where a request came from"
+		out := plain(a.Path) + " as a proxy it believes on where a request came from"
+		if namesARange(a.Path) {
+			out += ": whatever else is in that range can reach the route, and say who its client is"
+		}
+		return out
 	case AccessPlainForAnyone:
 		return "plain HTTP on " + plain(a.Path) + " for anyone who can reach this server, around whatever is in front of it"
 	case AccessHTTPSOff:
 		return "HTTPS on " + plain(a.Path) + ", which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
+}
+
+// namesARange reports a proxy that covers more than one address, so what else is
+// on that network can be it. A lone address is written as a range of one, and a
+// preset has its name. words.ts says the same for the panel.
+func namesARange(proxy string) bool {
+	p, err := netip.ParsePrefix(proxy)
+	return err == nil && !p.IsSingleIP()
 }
 
 // plain quotes a name in a plan that holds anything but what a name, a path, an
