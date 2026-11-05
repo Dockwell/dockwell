@@ -208,12 +208,13 @@ func (h *Handler) servers(ctx context.Context, tx *store.Tx, t *target, res stor
 	}
 	seen := map[string]bool{}
 	t.servers = nil
-	for _, d := range deps {
-		if seen[d.Server] {
+	for i := range deps {
+		serverID := deps[i].Server
+		if seen[serverID] {
 			continue
 		}
-		seen[d.Server] = true
-		s, err := tx.GetServer(ctx, d.Server)
+		seen[serverID] = true
+		s, err := tx.GetServer(ctx, serverID)
 		if errors.Is(err, store.ErrNotFound) {
 			continue
 		}
