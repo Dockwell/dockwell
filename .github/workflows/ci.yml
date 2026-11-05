@@ -21,7 +21,9 @@ jobs:
   go:
     name: Go
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # It takes about 14 minutes, under the race detector, so this leaves room for a slow
+    # runner rather than failing at random.
+    timeout-minutes: 20
     # The store's tests run on SQLite and on this Postgres (ADR 0014).
     services:
       postgres:
