@@ -71,12 +71,10 @@ func validateNetworking(c *resourcev1.Container) error {
 	slices.Sort(c.ExternalNetworks)
 	seen = map[string]bool{}
 	for _, a := range c.GetAliases() {
-		switch {
-		case !NameRE.MatchString(a) || len(a) > maxNameLength:
-			return fmt.Errorf("%q isn't a name a container can answer to: use letters, digits, dots, dashes and underscores, starting with a letter or digit, such as db", a)
-		case strings.HasPrefix(strings.ToLower(a), serviceForm):
-			return fmt.Errorf("%q has the form of a service's container, %s<ID>-<service>-1, so it can't be another name for one. Choose a name that doesn't start with %q", a, serviceForm, serviceForm)
-		case seen[strings.ToLower(a)]:
+		if err := CheckAlias(a); err != nil {
+			return fmt.Errorf("%q %w", a, err)
+		}
+		if seen[strings.ToLower(a)] {
 			return fmt.Errorf("the name %s is listed twice; list each name once", a)
 		}
 		seen[strings.ToLower(a)] = true
@@ -89,6 +87,33 @@ func validateNetworking(c *resourcev1.Container) error {
 		return errors.New("a service on the server's own network listens on the server's ports itself, and Docker publishes none for it. Leave out its ports")
 	case len(c.GetAliases()) > 0 && len(c.GetNetworks())+len(c.GetExternalNetworks()) == 0:
 		return errors.New("a service answers to other names on its networks, and this one has none, so nothing could reach it by them. Put it on a network, or leave out its aliases")
+	}
+	return nil
+}
+
+// CheckAlias says why name can't be another name for a container, in words that go
+// after the name. They don't hold it, as a caller may have it from a variable.
+func CheckAlias(name string) error {
+	switch {
+	case !NameRE.MatchString(name) || len(name) > maxNameLength:
+		return errors.New("isn't a name a container can answer to: use letters, digits, dots, dashes and underscores, starting with a letter or digit, such as db")
+	case strings.HasPrefix(strings.ToLower(name), serviceForm):
+		return fmt.Errorf("has the form of a service's container, %s<ID>-<service>-1, so it can't be another name for one. Choose a name that doesn't start with %q", serviceForm, serviceForm)
+	}
+	return nil
+}
+
+// CheckDriver says why name isn't one Docker takes for a driver of a network or a
+// volume, such as macvlan or vieux/sshfs:latest. A plan says what a driver reaches by
+// its name. It doesn't hold the name, as it may come from a variable.
+func CheckDriver(name string) error {
+	for i, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case i > 0 && strings.ContainsRune("_.:/-", r):
+		default:
+			return errors.New("the driver isn't a name Docker takes: use letters, digits, dots, dashes, underscores, colons and slashes, such as macvlan")
+		}
 	}
 	return nil
 }

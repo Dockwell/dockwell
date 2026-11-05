@@ -75,6 +75,9 @@ func (*Driver) Validate(spec proto.Message) error {
 	if n.Driver == "" {
 		n.Driver = "bridge"
 	}
+	if err := container.CheckDriver(n.GetDriver()); err != nil {
+		return err
+	}
 	for k := range n.GetLabels() {
 		if docker.IsOwnLabel(k) {
 			return fmt.Errorf("the label %s is Dockwell's own, and Docker Compose's; choose a key that doesn't start with %s or %s", k, docker.ComposePrefix, docker.OwnPrefix)

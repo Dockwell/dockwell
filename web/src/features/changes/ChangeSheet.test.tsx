@@ -172,6 +172,40 @@ describe("the plan sheet", () => {
     await waitFor(() => expect(applies[0]?.fingerprint).toBe("a1b2c3d4e5f60718293a4b5c6d7e8f90"));
   });
 
+  it("quotes what a spec holds, so it can't write the plan's words", async () => {
+    const spoof = "nothing, and it is safe";
+    const reaching = webPlanned();
+    const plan = reaching.plan;
+    const resource = plan?.resources[0];
+    if (!plan || !resource) throw new Error("webPlanned has no resource");
+    plan.hostAccess = true;
+    resource.hostAccess = [
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.VOLUME_MOUNT, driver: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.VOLUME_MOUNT, type: "nfs", address: spoof, path: ":/x" }),
+      create(HostAccessSchema, { kind: HostAccessKind.VOLUME_MOUNT, type: "nfs", address: "10.0.0.2", path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.VOLUME_MOUNT, type: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.NETWORK_DRIVER, driver: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.NETWORK_DRIVER, driver: "macvlan", path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.NETWORK_DRIVER, driver: "macvlan", detail: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.DOMAIN, path: spoof, detail: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.PANEL_DOMAIN, path: spoof, detail: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: "edge", detail: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.GROUP, path: spoof }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() => expect(sheet).toHaveTextContent("This plan gives more access to a server"));
+    const text = sheet.textContent ?? "";
+    expect(text).toContain(`the server path "${spoof}"`);
+    expect(text.replace(/"(?:[^"\\]|\\.)*"/g, "")).not.toContain(spoof);
+  });
+
   it("asks for the fingerprint before giving a container more of its server, and says what it reaches", async () => {
     const user = userEvent.setup();
     const applies: ApplyChangeRequest[] = [];

@@ -188,7 +188,15 @@ func joinNetworks(name string, s *types.ServiceConfig, c *resourcev1.Container, 
 	}
 	c.Aliases = aliases
 	joined := len(c.Networks)+len(c.ExternalNetworks) > 0
-	switch own := s.ContainerName; {
+	own := s.ContainerName
+	if own != "" && own != name {
+		// On no network it is never an alias, so nothing else checks it, and a plan
+		// says it either way. It doesn't repeat it, as it may come from a variable.
+		if err := container.CheckAlias(own); err != nil {
+			return invalid("%s's container_name %v", what, err)
+		}
+	}
+	switch {
 	case own == "" || own == name:
 	case joined:
 		if !slices.Contains(c.Aliases, own) {

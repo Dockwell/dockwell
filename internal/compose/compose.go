@@ -17,6 +17,7 @@ import (
 	"maps"
 	"path"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/container"
 )
 
 // Item is one resource a Compose file makes: its name and spec.
@@ -488,6 +490,9 @@ func parse(in Input) (*Stack, error) {
 	}
 	for _, name := range built {
 		image := m.Services[name].Image
+		if err := container.CheckImage(image); err != nil {
+			return nil, invalid("the service %s: %v", name, err)
+		}
 		m.notices = append(m.notices, Notice{
 			Reason: "no_build", Service: name, Names: []string{image},
 			Message: fmt.Sprintf("%s has build beside image, and Dockwell builds nothing, so it runs %s as named: that image must be on the server, or a pull must be able to get it", name, image),
@@ -498,7 +503,40 @@ func parse(in Input) (*Stack, error) {
 		return nil, err
 	}
 	out.Exposed, out.ExposedMore = exposed.report()
+	if err := checkPlanWords(out); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// A name a plan's notes say: what a service, a network, a container, an image, a
+// variable or a field can be called, and nothing that could read as words. Square
+// brackets are for an image's registry at an IPv6 address.
+var planName = regexp.MustCompile(`^[A-Za-z0-9_\[][A-Za-z0-9_.:/@+\[\]-]*$`)
+
+// maxPlanName is the most of one that a plan says: an image with a long tag and a
+// digest fits.
+const maxPlanName = 512
+
+// checkPlanWords refuses a file whose names a plan couldn't say as they are, since
+// a plan's notes are Dockwell's words with names in them. Each name has a check of
+// its own, which says more. This is what holds if a new note names something that
+// doesn't, so a file's values can't write what a person reads as the plan's. It
+// doesn't repeat the name, as it may come from a variable.
+func checkPlanWords(s *Stack) error {
+	var names []string
+	for _, n := range s.Notices {
+		names = append(append(names, n.Service), n.Names...)
+	}
+	for _, e := range s.Exposed {
+		names = append(names, e.Variable, e.Owner, e.Field)
+	}
+	for _, name := range names {
+		if len(name) > maxPlanName || !planName.MatchString(name) {
+			return invalid("the Compose file names something a plan can't say as it is. Use letters, digits, dots, dashes and underscores in its names")
+		}
+	}
+	return nil
 }
 
 // decode reads a canonical Compose model into compose-go's types, as its

@@ -51,6 +51,11 @@ export interface ChangeWords {
   domain(check: DomainCheck | undefined): string;
 }
 
+/** Quotes what could read as the plan's own words, as AccessWords does on the server. */
+function plain(s: string): string {
+  return /^[A-Za-z0-9_.,/=:@+*-]*$/.test(s) ? s : JSON.stringify(s);
+}
+
 export function useChangeWords(): ChangeWords {
   const { t } = useLingui();
   return useMemo<ChangeWords>(
@@ -157,7 +162,7 @@ export function useChangeWords(): ChangeWords {
         return "";
       },
       access(access) {
-        const { path, type, driver, detail } = access;
+        const [path, type, driver, detail] = [access.path, access.type, access.driver, access.detail].map(plain);
         const reads = access.readOnly ? t`read-only` : t`read-write`;
         switch (access.kind) {
           case HostAccessKind.SERVER_PATH: {
@@ -172,7 +177,7 @@ export function useChangeWords(): ChangeWords {
             return t`the server's own network`;
           case HostAccessKind.VOLUME_MOUNT: {
             if (driver !== "") return t`the volume driver ${driver}, which reaches what the plugin does (${reads})`;
-            const at = access.address + path;
+            const at = plain(access.address + access.path);
             return at === "" ? t`a ${type} mount (${reads})` : t`the ${type} mount ${at} (${reads})`;
           }
           case HostAccessKind.NETWORK_DRIVER: {

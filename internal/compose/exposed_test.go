@@ -4,6 +4,7 @@ package compose
 
 import (
 	"maps"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -258,5 +259,64 @@ func TestAFileCantFillAPlanWithNotes(t *testing.T) {
 	}
 	if !slices.Equal(again.Exposed, s.Exposed) {
 		t.Error("which it lists differs from one read to the next")
+	}
+}
+
+// Each name a plan says has a check of its own, so a file can't get here with one
+// that reads as words. This is what holds if a new note names something that hasn't:
+// it refuses the file, and doesn't repeat what it refuses.
+func TestAPlanSaysNoNameThatReadsAsWords(t *testing.T) {
+	for _, name := range []string{"a b", "a, b", "(a)", "a\nb", "a\tb", "a;b", "a\"b", "'a'", "", strings.Repeat("a", maxPlanName+1)} {
+		for what, s := range map[string]*Stack{
+			"a notice's service":  {Notices: []Notice{{Service: name}}},
+			"a notice's name":     {Notices: []Notice{{Service: "web", Names: []string{"db", name}}}},
+			"an exposure's name":  {Exposed: []Exposed{{Variable: name, Owner: "web", Field: "labels"}}},
+			"an exposure's owner": {Exposed: []Exposed{{Variable: "V", Owner: name, Field: "labels"}}},
+			"an exposure's field": {Exposed: []Exposed{{Variable: "V", Owner: "web", Field: name}}},
+			"a name after a good": {Notices: []Notice{{Service: "web", Names: []string{"db"}}, {Service: name}}},
+		} {
+			err := checkPlanWords(s)
+			if err == nil {
+				t.Errorf("%s of %q passes", what, name)
+				continue
+			}
+			if name != "" && strings.Contains(err.Error(), name) {
+				t.Errorf("%s: the refusal repeats it: %v", what, err)
+			}
+		}
+	}
+	// What real names are all pass.
+	for _, name := range []string{
+		"web", "db_1", "a.b-c", "nginx:1.27", "ghcr.io/acme/web:1.4.2", "[::1]:5000/acme/web:1",
+		"nginx@sha256:" + strings.Repeat("0", 64), "8080", "0.5", "command", "_V",
+	} {
+		s := &Stack{Notices: []Notice{{Service: "web", Names: []string{name}}}}
+		if err := checkPlanWords(s); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// Nothing a file can write gets as far as that check today, so that it is asked at
+// all takes having it refuse everything. A file with no names to say still reads.
+func TestReadingAFileAsksWhatAPlanCanSay(t *testing.T) {
+	was := planName
+	planName = regexp.MustCompile(`^$`)
+	t.Cleanup(func() { planName = was })
+	const web = "services:\n  web:\n    image: nginx:1.27\n"
+	for name, c := range map[string]struct {
+		body string
+		vars map[string]string
+	}{
+		"a notice":    {body: "    network_mode: host\n    container_name: db\n"},
+		"an exposure": {body: "    command: run ${V}\n", vars: map[string]string{"V": "x"}},
+	} {
+		_, err := parse(Input{File: []byte(web + c.body), Variables: c.vars})
+		if err == nil || !strings.Contains(Message(err), "names something a plan can't say") {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if _, err := parse(Input{File: []byte(web)}); err != nil {
+		t.Error(Message(err))
 	}
 }

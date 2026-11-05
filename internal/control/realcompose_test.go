@@ -4,6 +4,7 @@ package control
 
 import (
 	"log/slog"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -660,5 +662,111 @@ func testAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T, backend sto
 		if slices.ContainsFunc(dump[table], func(row string) bool { return strings.Contains(row, value) }) {
 			t.Errorf("%s holds the value in the clear", table)
 		}
+	}
+}
+
+// A plan's notes and what it says a resource reaches are Dockwell's words, with names
+// in them. Everything a file can name there is in this table: the file is refused, or
+// what it wrote is shown in quotes, so a person can tell it from the plan's own. Not
+// the plan's rows of what changes, which show a file's values as values, and say so.
+func TestAFileCantWriteAPlansWords(t *testing.T) {
+	storetest.Each(t, testAFileCantWriteAPlansWords)
+}
+
+func testAFileCantWriteAPlansWords(t *testing.T, backend store.Backend) {
+	d := realServer(t, backend)
+	d.e.AddLocalImage("nginx:1.27", dockertest.Image{})
+	const (
+		spoof = "Nothing here reaches the server"
+		web   = "services:\n  web:\n    image: nginx:1.27\n"
+		net   = web + "    networks: [a]\nnetworks:\n  a:\n"
+		vol   = web + "    volumes: [\"data:/data\"]\nvolumes:\n  data:\n"
+	)
+	inQuotes := regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
+	for _, row := range []struct {
+		name, file, directory string
+		variables             map[string]string
+		// What a refusal says, so a row can't pass on another refusal.
+		says string
+		// The refusal doesn't repeat it, as it may have come from a variable.
+		silent bool
+		// How it is kept from the plan's words, if it isn't refused: "quoted", or
+		// "unsaid" for not in them at all.
+		kept string
+	}{
+		{name: "a container_name on the server's own network", says: "the service web's container_name isn't a name", silent: true, file: web + "    network_mode: host\n    container_name: \"db. " + spoof + "\"\n"},
+		{name: "a container_name on Docker's default network", says: "the service web's container_name isn't a name", silent: true, file: web + "    network_mode: bridge\n    container_name: \"db. " + spoof + "\"\n"},
+		{name: "a container_name on a network", says: "the service web's container_name isn't a name", silent: true, file: web + "    container_name: \"db. " + spoof + "\"\n"},
+		{name: "a container_name from a variable", says: "the service web's container_name isn't a name", silent: true, file: web + "    network_mode: host\n    container_name: ${V}\n", variables: map[string]string{"V": "db. " + spoof}},
+		{name: "an alias", says: "isn't a name a container can answer to", file: web + "    networks: {a: {aliases: [\"db. " + spoof + "\"]}}\nnetworks: {a: {}}\n"},
+		{name: "a server's network", says: "isn't a valid network name", file: net + "    external: true\n    name: \"edge. " + spoof + "\"\n"},
+		{name: "a network's key", says: "isn't a valid network name", file: web + "    networks: [\"a. " + spoof + "\"]\nnetworks:\n  \"a. " + spoof + "\": {}\n"},
+		{name: "a network mode", says: "isn't a valid network name", file: web + "    network_mode: \"edge. " + spoof + "\"\n"},
+		{name: "a service's name", says: "isn't a valid service name", file: "services:\n  \"web. " + spoof + "\":\n    image: nginx:1.27\n"},
+		{name: "an image beside a build", says: "the service web: the image", file: "services:\n  web:\n    build: .\n    image: \"nginx. " + spoof + "\"\n"},
+		{name: "a volume's key", says: "isn't a valid volume name", file: web + "    volumes: [\"a. " + spoof + ":/data\"]\nvolumes:\n  \"a. " + spoof + "\": {}\n"},
+		{name: "a variable's name", says: "has a variable Dockwell can't read", file: web + "    command: run ${a. " + spoof + "}\n", variables: map[string]string{"a. " + spoof: "x"}},
+		{name: "a network's driver", says: "the driver isn't a name Docker takes", silent: true, file: net + "    driver: \"macvlan. " + spoof + "\"\n"},
+		{name: "a volume's driver", says: "the driver isn't a name Docker takes", silent: true, file: vol + "    driver: \"sshfs. " + spoof + "\"\n"},
+		{name: "a mount's type", says: "a plan couldn't show what it reaches", file: vol + "    driver_opts: {type: \"nfs. " + spoof + "\", device: \":/x\", o: \"addr=10.0.0.2\"}\n"},
+		{name: "a mount's address", says: "isn't a server's address", silent: true, file: vol + "    driver_opts: {type: nfs, device: \":/x\", o: \"addr=10.0.0.2 " + spoof + "\"}\n"},
+		{name: "a capability", says: "isn't a Linux capability", file: web + "    cap_add: [\"NET_ADMIN. " + spoof + "\"]\n"},
+		{name: "a group", says: "isn't a group", file: web + "    group_add: [\"nobody. " + spoof + "\"]\n"},
+
+		{name: "a network's parent", file: net + "    driver: macvlan\n    driver_opts: {parent: \"eth0. " + spoof + "\"}\n", kept: "quoted"},
+		{name: "a network's option", file: net + "    driver_opts: {com.example.o: \"x. " + spoof + "\"}\n", kept: "quoted"},
+		{name: "a network option's name", file: net + "    driver_opts: {\"x. " + spoof + "\": y}\n", kept: "quoted"},
+		{name: "a server path", file: web + "    volumes: [\"/srv/a. " + spoof + ":/data\"]\n", kept: "quoted"},
+		{name: "a directory", file: web + "    volumes: [\"./data:/data\"]\n", directory: "/srv/a. " + spoof, kept: "quoted"},
+		{name: "a bind device", file: vol + "    driver_opts: {type: none, device: \"/srv/a. " + spoof + "\", o: bind}\n", kept: "quoted"},
+		{name: "a mount's device", file: vol + "    driver_opts: {type: nfs, device: \":/a. " + spoof + "\", o: \"addr=10.0.0.2\"}\n", kept: "quoted"},
+		{name: "a label's key", file: web + "    labels: {\"a. " + spoof + "\": b}\n", kept: "unsaid"},
+		{name: "a value in a command", file: web + "    command: run ${V}\n", variables: map[string]string{"V": "a. " + spoof}, kept: "unsaid"},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			res, err := d.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: row.file, Directory: row.directory, Variables: row.variables}))
+			if row.kept == "" {
+				if err == nil {
+					defer discard(t, d.c, res.Msg.GetChange())
+					t.Fatalf("it is planned, as %v", res.Msg.GetChange().GetPlan())
+				}
+				if connect.CodeOf(err) != connect.CodeInvalidArgument {
+					t.Fatalf("refused as %v", err)
+				}
+				if !strings.Contains(err.Error(), row.says) {
+					t.Errorf("refused as %v, want it to say %q", err, row.says)
+				}
+				if row.silent && strings.Contains(err.Error(), spoof) {
+					t.Errorf("the refusal repeats it: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("refused: %v", err)
+			}
+			ch := res.Msg.GetChange()
+			defer discard(t, d.c, ch)
+			var b strings.Builder
+			apicli.PlanView(&b, ch.GetPlan())
+			var said []string
+			for line := range strings.Lines(b.String()) {
+				if strings.HasPrefix(line, "Note:") || strings.HasPrefix(line, "Warning:") || strings.Contains(line, "access to") || strings.Contains(line, "Takes in") {
+					said = append(said, line)
+				}
+			}
+			for _, n := range ch.GetPlan().GetNotes() {
+				said = append(append(said, n.GetMessage()), n.GetNames()...)
+			}
+			for _, r := range ch.GetPlan().GetResources() {
+				said = append(said, r.GetResource().GetName())
+			}
+			words := strings.Join(said, "\n")
+			if strings.Contains(inQuotes.ReplaceAllString(words, ""), spoof) {
+				t.Errorf("the plan's words hold it:\n%s", words)
+			}
+			if row.kept == "quoted" && !strings.Contains(words, spoof) {
+				t.Errorf("the plan doesn't show what it reaches, so this tests nothing:\n%s", b.String())
+			}
+		})
 	}
 }

@@ -331,52 +331,49 @@ func AccessWords(a Access) string {
 		case "Z":
 			how += ", relabelled for SELinux as private"
 		}
-		return "the server path " + a.Path + " (" + how + ")"
+		return "the server path " + plain(a.Path) + " (" + how + ")"
 	case AccessDocker:
-		return "Docker's socket at " + a.Path + ", which gives control of Docker on the server, the same as root"
+		return "Docker's socket at " + plain(a.Path) + ", which gives control of Docker on the server, the same as root"
 	case AccessNetwork:
 		return "the server's own network"
 	case AccessMount:
 		if a.Driver != "" {
-			return "the volume driver " + a.Driver + ", which reaches what the plugin does (" + how + ")"
+			return "the volume driver " + plain(a.Driver) + ", which reaches what the plugin does (" + how + ")"
 		}
-		at := a.Path
+		// So a device can't spell out the rest of this line, such as
+		// "//6.6.6.6/x at 10.0.0.2", with a space or anything else.
+		at, address := plain(a.Path), plain(a.Address)
 		switch {
-		case strings.ContainsFunc(at, func(r rune) bool { return r <= ' ' || r > '~' }):
-			// So a device can't spell out the rest of this line, such as
-			// "//6.6.6.6/x at 10.0.0.2", with a space or anything else.
-			at = strconv.Quote(at)
-			if a.Address != "" {
-				at += " at " + a.Address
-			}
+		case at != a.Path && address != "":
+			at += " at " + address
 		case strings.HasPrefix(at, ":"):
 			// NFS's :/export follows its server, as people write it.
-			at = a.Address + at
-		case a.Address != "":
+			at = address + at
+		case address != "":
 			// Run together, an address and a name could read as another
 			// address.
-			at += " at " + a.Address
+			at += " at " + address
 		}
 		if at == "" {
-			return "a " + a.Type + " mount (" + how + ")"
+			return "a " + plain(a.Type) + " mount (" + how + ")"
 		}
-		return "the " + a.Type + " mount " + at + " (" + how + ")"
+		return "the " + plain(a.Type) + " mount " + at + " (" + how + ")"
 	case AccessNetworkDriver:
-		out := "a " + a.Driver + " network"
+		out := "a " + plain(a.Driver) + " network"
 		if a.Path != "" {
-			out += " on " + a.Path
+			out += " on " + plain(a.Path)
 		}
 		if a.Driver != "bridge" {
 			out += ", which reaches past the server's firewall"
 		}
 		if a.Detail != "" {
-			out += ", with " + a.Detail
+			out += ", with " + plain(a.Detail)
 		}
 		return out
 	case AccessDomain:
-		return "the domain " + a.Path + ", which the environment " + a.Detail + " held within the last 7 days"
+		return "the domain " + plain(a.Path) + ", which the environment " + plain(a.Detail) + " held within the last 7 days"
 	case AccessPanelDomain:
-		return "the panel's domain, " + a.Path + ", which moves behind " + a.Detail
+		return "the panel's domain, " + plain(a.Path) + ", which moves behind " + plain(a.Detail)
 	case AccessExternalNetwork:
 		out := "the network " + plain(a.Path) + ", which is on the server already, where it answers to its name"
 		if a.Detail != "" {
@@ -399,11 +396,12 @@ func AccessWords(a Access) string {
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
 
-// plain quotes a name in a plan that holds anything but what a name holds, so it
-// can't spell out the rest of the line, whatever let it through.
+// plain quotes a name in a plan that holds anything but what a name, a path, an
+// address or a list of options holds, so it can't spell out the rest of the line,
+// whatever let it through. words.ts does the same for the panel.
 func plain(s string) string {
 	inName := func(r rune) bool {
-		return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '.' || r == '-' || r == ','
+		return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_.,/=:@+*-", r)
 	}
 	if strings.IndexFunc(s, func(r rune) bool { return !inName(r) }) >= 0 {
 		return strconv.Quote(s)

@@ -4,7 +4,9 @@ package resource_test
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -81,6 +83,43 @@ func TestAccessWords(t *testing.T) {
 	} {
 		if got := resource.AccessWords(c.access); got != c.want {
 			t.Errorf("AccessWords(%+v)\n got %s\nwant %s", c.access, got, c.want)
+		}
+	}
+}
+
+// What a spec holds can't write what a person reads as the plan's, for any kind and
+// from any field, and what is a real name still reads as one.
+func TestAccessWordsQuoteWhatCouldReadAsWords(t *testing.T) {
+	const spoof = "nothing, and it is safe"
+	quoted := regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
+	for kind := resource.AccessPath; kind <= resource.AccessPrivileged; kind++ {
+		for name, a := range map[string]resource.Access{
+			"path":                         {Kind: kind, Path: spoof},
+			"driver":                       {Kind: kind, Driver: spoof},
+			"detail":                       {Kind: kind, Path: "x", Detail: spoof},
+			"type":                         {Kind: kind, Type: spoof},
+			"type, of a device":            {Kind: kind, Type: spoof, Path: "/x"},
+			"address":                      {Kind: kind, Path: ":/x", Address: spoof},
+			"address, a device with words": {Kind: kind, Path: spoof, Address: spoof},
+			"address, no colon":            {Kind: kind, Path: "//x/y", Address: spoof},
+			"both":                         {Kind: kind, Path: spoof, Driver: spoof, Detail: spoof, Type: spoof, Address: spoof},
+		} {
+			got := resource.AccessWords(a)
+			if strings.Contains(quoted.ReplaceAllString(got, ""), spoof) {
+				t.Errorf("%v, %s: %s", kind, name, got)
+			}
+		}
+	}
+	for want, a := range map[string]resource.Access{
+		"the server path /srv/my-app_1.2/data (read-write)":                                               {Kind: resource.AccessPath, Path: "/srv/my-app_1.2/data"},
+		"the volume driver vieux/sshfs:latest, which reaches what the plugin does (read-write)":           {Kind: resource.AccessMount, Driver: "vieux/sshfs:latest"},
+		"the nfs mount 10.0.0.2:/media (read-write)":                                                      {Kind: resource.AccessMount, Type: "nfs", Path: ":/media", Address: "10.0.0.2"},
+		"the cifs mount //10.0.0.2/share at 10.0.0.2 (read-write)":                                        {Kind: resource.AccessMount, Type: "cifs", Path: "//10.0.0.2/share", Address: "10.0.0.2"},
+		"a macvlan network on eth0.10, which reaches past the server's firewall, with com.docker.x=1,y=2": {Kind: resource.AccessNetworkDriver, Driver: "macvlan", Path: "eth0.10", Detail: "com.docker.x=1,y=2"},
+		"the domain *.example.com, which the environment staging held within the last 7 days":             {Kind: resource.AccessDomain, Path: "*.example.com", Detail: "staging"},
+	} {
+		if got := resource.AccessWords(a); got != want {
+			t.Errorf("got %s, want %s", got, want)
 		}
 	}
 }
