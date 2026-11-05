@@ -7,6 +7,7 @@ package servers
 import (
 	"context"
 	"errors"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -21,6 +22,9 @@ type Service struct {
 }
 
 var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)
+
+// HeartbeatEvery is how often a watch says it is alive, whatever else it says.
+var HeartbeatEvery = 10 * time.Second
 
 // New returns a Service reading hub.
 func New(hub *fleet.Hub) *Service { return &Service{fleet: hub} }
@@ -58,10 +62,16 @@ func (s *Service) WatchServers(ctx context.Context, _ *connect.Request[dockwellv
 	if err := stream.Send(&dockwellv1.WatchServersResponse{SnapshotComplete: true}); err != nil {
 		return err
 	}
+	beat := time.NewTicker(HeartbeatEvery)
+	defer beat.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-beat.C:
+			if err := stream.Send(&dockwellv1.WatchServersResponse{Heartbeat: true}); err != nil {
+				return err
+			}
 		case u, ok := <-updates:
 			if !ok {
 				if ctx.Err() != nil {

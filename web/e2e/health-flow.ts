@@ -333,6 +333,29 @@ services:
     agent = startAgent();
     await listSays("afar", "Running");
     cli("services", "delete", "afar", "--project", "default", "--yes");
+
+    step("health: an agent that starts with Docker down says so from the start, and its server isn't healthy");
+    agent.kill("SIGKILL");
+    await new Promise((done) => agent.once("exit", done));
+    // A socket nothing listens on is Docker down, as after a reboot where it didn't come up.
+    agent = spawn(bin, ["run", "--data-dir", agentData, "--log-format", "json"], {
+      stdio: "ignore",
+      env: { ...clean, DOCKER_HOST: `unix://${join(agentData, "no-docker.sock")}` },
+    });
+    let said = "";
+    for (let i = 0; i < 100; i++) {
+      said = cli("servers", "get", second, "--json");
+      if (said.includes('"dockerUnreadableSince"') && said.includes("CONNECTION_CONNECTED")) break;
+      await page.waitForTimeout(300);
+    }
+    if (!said.includes('"dockerUnreadableSince"')) fail(`with Docker down from its start, the server says ${said}`);
+    await page.goto(`${origin}/servers/${second}`);
+    const agentPanel = page.getByRole("region", { name: "Agent" });
+    await agentPanel.getByText("Can't read Docker").first().waitFor({ timeout: SEEN_WITHIN });
+    await agentPanel.getByText("systemctl status docker").waitFor();
+    if ((await agentPanel.locator(".dw-tone-healthy").count()) > 0) fail("an agent started with Docker down reads green");
+    await page.locator(".topbar").getByText(/can't read Docker/i).waitFor({ timeout: SEEN_WITHIN });
+    await shoot(page, "health-docker-down-at-start");
   } finally {
     agent.kill("SIGKILL");
     for (const undo of cleanUp) undo();

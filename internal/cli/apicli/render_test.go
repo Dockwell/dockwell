@@ -929,3 +929,17 @@ func TestANameWrittenAsTextSaysTheFlag(t *testing.T) {
 		}
 	}
 }
+
+// A watch of the fleet says it is alive every few seconds, which a terminal shows by
+// going on: it prints nothing for it.
+func TestAHeartbeatPrintsNothing(t *testing.T) {
+	var out strings.Builder
+	serverEvent(&out, &dockwellv1.WatchServersResponse{Heartbeat: true}, now)
+	if out.Len() != 0 {
+		t.Errorf("a heartbeat printed %q", out.String())
+	}
+	serverEvent(&out, &dockwellv1.WatchServersResponse{SnapshotComplete: true}, now)
+	if !strings.Contains(out.String(), "Watching for changes") {
+		t.Errorf("the end of the snapshot printed %q", out.String())
+	}
+}

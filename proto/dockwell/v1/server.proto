@@ -78,6 +78,12 @@ message WatchServersResponse {
   // server that existed when the watch began came before it, and every later
   // message is a change. An empty fleet sends only this.
   bool snapshot_complete = 3;
+  // True on a message, without a server, that says only that the watch is
+  // alive. One comes every 10 s, whatever else does, so a client that hears
+  // nothing for longer knows the stream has stalled, as a frozen control plane
+  // or a proxy holding the connection open makes it, and that what it last
+  // heard may no longer be so.
+  bool heartbeat = 4;
 }
 
 // Connection says whether a server's agent is talking to the control plane.

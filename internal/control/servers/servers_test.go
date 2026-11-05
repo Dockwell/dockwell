@@ -116,6 +116,30 @@ func TestWatchAnEmptyFleet(t *testing.T) {
 	}
 }
 
+// A watch says it is alive every HeartbeatEvery, with nothing else to say, so a
+// client can tell a quiet fleet from a stream that has stalled.
+func TestAWatchSaysItIsAlive(t *testing.T) {
+	was := servers.HeartbeatEvery
+	servers.HeartbeatEvery = 20 * time.Millisecond
+	t.Cleanup(func() { servers.HeartbeatEvery = was })
+	client, _ := serve(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	stream, err := client.WatchServers(ctx, connect.NewRequest(&dockwellv1.WatchServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = stream.Close() }()
+	if msg := receive(t, stream); !msg.GetSnapshotComplete() {
+		t.Fatalf("got %v, want the end of the snapshot first", msg)
+	}
+	for range 3 {
+		if msg := receive(t, stream); !msg.GetHeartbeat() || msg.GetServer() != nil || msg.GetSnapshotComplete() {
+			t.Fatalf("with nothing changing, the watch sent %v, want only that it is alive", msg)
+		}
+	}
+}
+
 func TestListAndGet(t *testing.T) {
 	client, _ := serve(t, "hz-1", "hz-2")
 	list, err := client.ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{}))

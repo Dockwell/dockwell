@@ -2306,12 +2306,36 @@ dw services delete db --project blog --yes || fail "deleting blog's db failed"
 dw services delete db --project wiki --yes || fail "deleting wiki's db failed"
 dw services delete keeper --project default --environment production --yes || fail "deleting keeper failed"
 
-step "The agent build joins, and runs a container"
+step "The agent build joins with Docker down, says so from the start, and its server isn't healthy"
 made=$(dw token create 2>>"$log") || fail "dockwell token create failed"
 ticket=$(awk '$1 == "dockwell" && $2 == "join" { print $3 }' <<<"$made")
 [[ -n "$ticket" ]] || fail "dockwell token create printed no ticket: $made"
 "$agent" join --data-dir "$agent_data" --name e2e-agent "$ticket" >"$agent_log" 2>&1 || fail "the agent build didn't join"
-"$agent" run --data-dir "$agent_data" --log-format json >"$agent_log" 2>&1 &
+# A socket nothing listens on is Docker down, as after a reboot where it didn't come up.
+DOCKER_HOST=unix:///nonexistent/docker.sock "$agent" run --data-dir "$agent_data" --log-format json >"$agent_log" 2>&1 &
+agent_pid=$!
+agent_id=""
+for _ in $(seq 300); do
+  agent_id=$(grep '"msg":"server connected"' "$log" | grep '"name":"e2e-agent"' | grep -o '"server":"srv_[^"]*"' | head -1 | cut -d'"' -f4)
+  [[ -n "$agent_id" ]] && break
+  sleep 0.1
+done
+[[ -n "$agent_id" ]] || fail "the agent build didn't connect within 30 s with Docker down"
+# What the CLI says is read whole, then matched, as a pipe into grep -q could stop it short.
+agent_server() { dw servers get "$agent_id" --json 2>>"$log" || true; }
+said=""
+for _ in $(seq 100); do
+  said=$(agent_server)
+  [[ "$said" == *'"dockerUnreadableSince"'* ]] && break
+  sleep 0.1
+done
+[[ "$said" == *'"dockerUnreadableSince"'* ]] ||
+  fail "with Docker down from its start, the agent build's server doesn't say it can't read Docker: $said"
+kill "$agent_pid"
+wait "$agent_pid" || true
+
+step "The agent build, with Docker up, says nothing of it, and runs a container"
+"$agent" run --data-dir "$agent_data" --log-format json >>"$agent_log" 2>&1 &
 agent_pid=$!
 joined() {
   local lines
@@ -2323,6 +2347,12 @@ for _ in $(seq 300); do
   sleep 0.1
 done
 joined || fail "the agent build didn't connect within 30 s, offering the Docker kinds"
+for _ in $(seq 100); do
+  said=$(agent_server)
+  [[ "$said" == *'"dockerUnreadableSince"'* ]] || break
+  sleep 0.1
+done
+[[ "$said" != *'"dockerUnreadableSince"'* ]] || fail "with Docker up, the agent build's server still says it can't read Docker: $said"
 dw containers create e2e-agent-web --on e2e-agent --image nginx:1.27-alpine --yes || fail "containers create on the agent build failed"
 owner=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' e2e-agent-web) ||
   fail "Docker runs no container e2e-agent-web"

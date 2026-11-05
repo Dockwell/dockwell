@@ -232,6 +232,8 @@ func serverDetail(w io.Writer, s *dockwellv1.Server, now time.Time) {
 
 func serverEvent(w io.Writer, e *dockwellv1.WatchServersResponse, now time.Time) {
 	switch {
+	case e.GetHeartbeat():
+		// It says only that the watch is alive, which a terminal shows by going on.
 	case e.GetSnapshotComplete():
 		fmt.Fprintln(w, "Watching for changes. Press Ctrl+C to stop.")
 	case e.GetRemoved():

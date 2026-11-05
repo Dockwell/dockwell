@@ -308,8 +308,14 @@ type WatchServersResponse struct {
 	// server that existed when the watch began came before it, and every later
 	// message is a change. An empty fleet sends only this.
 	SnapshotComplete bool `protobuf:"varint,3,opt,name=snapshot_complete,json=snapshotComplete,proto3" json:"snapshot_complete,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// True on a message, without a server, that says only that the watch is
+	// alive. One comes every 10 s, whatever else does, so a client that hears
+	// nothing for longer knows the stream has stalled, as a frozen control plane
+	// or a proxy holding the connection open makes it, and that what it last
+	// heard may no longer be so.
+	Heartbeat     bool `protobuf:"varint,4,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *WatchServersResponse) Reset() {
@@ -359,6 +365,13 @@ func (x *WatchServersResponse) GetRemoved() bool {
 func (x *WatchServersResponse) GetSnapshotComplete() bool {
 	if x != nil {
 		return x.SnapshotComplete
+	}
+	return false
+}
+
+func (x *WatchServersResponse) GetHeartbeat() bool {
+	if x != nil {
+		return x.Heartbeat
 	}
 	return false
 }
@@ -965,11 +978,12 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"@\n" +
 	"\x11GetServerResponse\x12+\n" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\"\x15\n" +
-	"\x13WatchServersRequest\"\x8a\x01\n" +
+	"\x13WatchServersRequest\"\xa8\x01\n" +
 	"\x14WatchServersResponse\x12+\n" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\x12\x18\n" +
 	"\aremoved\x18\x02 \x01(\bR\aremoved\x12+\n" +
-	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\"\xad\x05\n" +
+	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\x12\x1c\n" +
+	"\theartbeat\x18\x04 \x01(\bR\theartbeat\"\xad\x05\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
