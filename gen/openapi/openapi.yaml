@@ -3208,14 +3208,23 @@ components:
                 flips:
                     type: integer
                     description: |-
-                        How many other times the state changed since the last event of this
-                         service on this server.
+                        How many times it went between good and bad since since, for a service
+                         that keeps changing. 0 for one that changed once.
                     format: int32
+                since:
+                    type: string
+                    description: |-
+                        When it came to this state, as the control plane heard, which is up to
+                         30 s before the event's time; or, for one that keeps changing, when it began
+                         to. Unset on events from before it was kept.
+                    format: date-time
             description: |-
                 EventHealth is how a service's health changed on a server, as far as the
                  timeline tells of it: when it turned unhealthy or stopped running, and when
-                 it came back. A state that lasts under 30 s isn't told, and at most one event
-                 is, for a service on a server, every 5 minutes: flips counts what came between.
+                 it came back. A state that lasts under 30 s isn't told, and one that lasts is
+                 told then. A service that went between good and bad 3 times in 5 minutes keeps
+                 changing, and is one event, whose time, flips and output change as it goes on,
+                 until it has stayed one way for 5 minutes.
         EventSubject:
             type: object
             properties:

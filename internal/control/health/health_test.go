@@ -287,7 +287,7 @@ func TestTheTimelineHearsOfAPause(t *testing.T) {
 	if len(got) != 1 || got[0].State != paused {
 		t.Fatalf("after a pause lasted, the timeline has %v", got)
 	}
-	c.tick(HoldOff)
+	c.tick(time.Minute)
 	say(healthy)
 	c.tick(Dwell)
 	r.Record(t.Context())
@@ -304,7 +304,15 @@ func (c *clock) tick(d time.Duration) { c.now = c.now.Add(d) }
 // events reads what the timeline has of a service, oldest first.
 func (w *world) events(t *testing.T) []Told {
 	t.Helper()
+	told, _ := w.eventsAt(t)
+	return told
+}
+
+// eventsAt is web's events on srv_A, oldest first, and when each was last told.
+func (w *world) eventsAt(t *testing.T) ([]Told, []time.Time) {
+	t.Helper()
 	var out []Told
+	var at []time.Time
 	if err := w.db.View(t.Context(), func(tx *store.Tx) error {
 		list, err := tx.ListEvents(t.Context(), 1000)
 		for i := len(list) - 1; i >= 0; i-- {
@@ -317,13 +325,14 @@ func (w *world) events(t *testing.T) []Told {
 					t.Errorf("an event is by %s, from %s", list[i].Actor, list[i].Surface)
 				}
 				out = append(out, told)
+				at = append(at, list[i].At)
 			}
 		}
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	return out
+	return out, at
 }
 
 func (w *world) newRecorder(c *clock) *Recorder {
@@ -359,7 +368,7 @@ func TestTheTimelineHearsAChangeOfState(t *testing.T) {
 		if len(got) != 1 || got[0].State != unhealthy || !strings.Contains(got[0].Output, "503") {
 			t.Fatalf("after it lasted, the timeline has %v", got)
 		}
-		c.tick(HoldOff)
+		c.tick(time.Minute)
 		say(healthy, "ok")
 		c.tick(Dwell)
 		r.Record(ctx)
@@ -367,7 +376,7 @@ func TestTheTimelineHearsAChangeOfState(t *testing.T) {
 		if len(got) != 2 || got[1].State != healthy || got[1].Previous != unhealthy {
 			t.Fatalf("after it came back, the timeline has %v", got)
 		}
-		c.tick(HoldOff)
+		c.tick(time.Hour)
 		r.Record(ctx)
 		if got := w.events(t); len(got) != 2 {
 			t.Errorf("nothing new makes %v", got)
@@ -405,41 +414,109 @@ func TestAShortGapIsntNews(t *testing.T) {
 	})
 }
 
-// A service that flaps doesn't flood: at most one event every HoldOff, saying how
-// many times it changed since the last, and ending with how it is now.
+// A service that keeps changing doesn't flood: it is one event, which changes as it
+// goes on, saying what it keeps falling to and how often since it began, and how
+// it settles is told once it has.
 func TestAFlappingServiceDoesntFlood(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		w := newWorld(t, b)
-		c := &clock{now: time.Unix(1_800_000_000, 0)}
+		start := time.Unix(1_800_000_000, 0)
+		c := &clock{now: start}
 		r := w.newRecorder(c)
 		state := healthy
 		r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, state, "ok")})
 		r.Record(t.Context())
 		// It flips every 40 s for an hour, long enough each time to be told.
 		const flips = 90
+		var last time.Time
 		for range flips {
 			if state == healthy {
 				state = unhealthy
 			} else {
 				state = healthy
 			}
+			last = c.now
 			r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, state, "out")})
-			c.tick(40 * time.Second)
+			for range 8 {
+				c.tick(5 * time.Second)
+				r.Record(t.Context())
+			}
+		}
+		got, at := w.eventsAt(t)
+		// Its first two changes are told as they come, then it keeps changing.
+		if len(got) != 3 {
+			t.Fatalf("an hour of flapping made %d events, want 3: %+v", len(got), got)
+		}
+		flap := got[2]
+		if flap.State != unhealthy || flap.Flips < flips-2 || flap.Since == nil || !flap.Since.Equal(start) {
+			t.Errorf("the event of an hour's flapping says %+v, want unhealthy, %d flips, since %s", flap, flips, start)
+		}
+		if late := c.now.Sub(at[2]); late > flapEvery+5*time.Second {
+			t.Errorf("the event of an hour's flapping was last told %s ago, want within %s", late, flapEvery)
+		}
+		// Once it has settled, that is told, as when it settled: healthy, as it was last.
+		settled := last
+		r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, healthy, "ok")})
+		for range 2 * FlapWindow / (5 * time.Second) {
+			c.tick(5 * time.Second)
 			r.Record(t.Context())
 		}
-		got := w.events(t)
-		if limit := 12 + 1; len(got) > limit {
-			t.Errorf("an hour of flapping made %d events, at most %d", len(got), limit)
+		got = w.events(t)
+		if len(got) != 4 || got[3].State != healthy || got[3].Previous != unhealthy || !got[3].Since.Equal(settled) || got[3].Flips != 0 {
+			t.Errorf("after it settled, the timeline has %+v, want it healthy since %s", got, settled)
 		}
-		if len(got) < 6 {
-			t.Errorf("an hour of flapping made %d events, too few to say it was flapping", len(got))
+	})
+}
+
+// An event is dated when its state came about, as well as Dwell lets the timeline
+// know, however soon after the last it comes: an outage soon after a recovery
+// reaches the timeline once it has lasted, not minutes later.
+func TestAHealthEventIsToldWhenItHappened(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		w := newWorld(t, b)
+		start := time.Unix(1_800_000_000, 0)
+		c := &clock{now: start}
+		r := w.newRecorder(c)
+		say := func(state dockwellv1.HealthState) {
+			r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, state, "")})
 		}
-		flipped := 0
-		for _, e := range got {
-			flipped += int(e.Flips)
+		wait := func(d time.Duration) {
+			for end := c.now.Add(d); c.now.Before(end); {
+				c.tick(5 * time.Second)
+				r.Record(t.Context())
+			}
 		}
-		if flipped < flips/2 {
-			t.Errorf("the events count %d flips of %d", flipped, flips)
+		say(healthy)
+		r.Record(t.Context())
+		var came []time.Time
+		for _, state := range []dockwellv1.HealthState{notRunning, healthy} {
+			came = append(came, c.now)
+			say(state)
+			wait(time.Minute)
+		}
+		got, at := w.eventsAt(t)
+		if len(got) != 2 {
+			t.Fatalf("a stop and a recovery a minute apart made %+v", got)
+		}
+		for i := range got {
+			if got[i].Since == nil || !got[i].Since.Equal(came[i]) {
+				t.Errorf("event %d says it came about at %v, want %s", i, got[i].Since, came[i])
+			}
+			if late := at[i].Sub(came[i]); late > Dwell+5*time.Second {
+				t.Errorf("event %d reached the timeline %s after it came about, want within %s", i, late, Dwell+5*time.Second)
+			}
+			if got[i].Flips != 0 {
+				t.Errorf("event %d says it changed %d times, with nothing before it", i, got[i].Flips)
+			}
+		}
+		// An outage a minute after the recovery is the third change in five minutes: it
+		// keeps changing, and that is told at once.
+		down := c.now
+		say(notRunning)
+		wait(10 * time.Second)
+		got, at = w.eventsAt(t)
+		if len(got) != 3 || got[2].State != notRunning || at[2].Sub(down) > 5*time.Second || got[2].Flips != 3 || !got[2].Since.Equal(came[0]) {
+			t.Errorf("an outage soon after a recovery made %+v, at %v, want it told within 5 s as changing 3 times since %s", got, at, came[0])
 		}
 	})
 }
@@ -550,11 +627,12 @@ func TestAServerCantSpeakForAServiceItDoesntRun(t *testing.T) {
 }
 
 // A service flapping faster than Dwell has no state that lasts long enough to be
-// told. It is told as what it keeps falling to, at HoldOff's pace, with how often.
+// told. It is told as what it keeps falling to, in one event, with how often.
 func TestAServiceFlappingFasterThanTheDwellIsTold(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		w := newWorld(t, b)
-		c := &clock{now: time.Unix(1_800_000_000, 0)}
+		start := time.Unix(1_800_000_000, 0)
+		c := &clock{now: start}
 		r := w.newRecorder(c)
 		state := healthy
 		r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, state, "ok")})
@@ -570,32 +648,27 @@ func TestAServiceFlappingFasterThanTheDwellIsTold(t *testing.T) {
 				say = "GET /healthz on port 8080 answered 503"
 			}
 			r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, state, say)})
-			c.tick(20 * time.Second)
-			r.Record(t.Context())
-		}
-		got := w.events(t)
-		if len(got) == 0 {
-			t.Fatal("two hours of a service down every other 20 s made no event at all")
-		}
-		if len(got) > int(2*time.Hour/HoldOff)+1 {
-			t.Errorf("it told of it %d times, more than HoldOff lets", len(got))
-		}
-		// Whichever way it happens to be as it's told, what it says is what it keeps falling to.
-		for i := range got {
-			if got[i].State != unhealthy || !strings.Contains(got[i].Output, "503") {
-				t.Errorf("event %d says %+v, want what it keeps falling to", i, got[i])
+			for range 4 {
+				c.tick(5 * time.Second)
+				r.Record(t.Context())
 			}
 		}
-		if got[0].State != unhealthy || !strings.Contains(got[0].Output, "503") || got[0].Flips == 0 {
-			t.Errorf("the first event says %+v, want what it keeps falling to, and how often", got[0])
+		got := w.events(t)
+		if len(got) != 1 {
+			t.Fatalf("two hours of a service down every other 20 s made %d events, want one: %+v", len(got), got)
+		}
+		// Whichever way it happens to be as it's told, what it says is what it keeps falling to.
+		if got[0].State != unhealthy || !strings.Contains(got[0].Output, "503") || got[0].Flips < 350 || !got[0].Since.Equal(start) {
+			t.Errorf("the event says %+v, want what it keeps falling to, and how often since %s", got[0], start)
 		}
 		// Once it settles, that is told too.
-		c.tick(HoldOff)
 		r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, healthy, "ok")})
-		c.tick(Dwell)
-		r.Record(t.Context())
-		if all := w.events(t); all[len(all)-1].State != healthy {
-			t.Errorf("after it settled, the last event says %+v", all[len(all)-1])
+		for range FlapWindow/(5*time.Second) + 1 {
+			c.tick(5 * time.Second)
+			r.Record(t.Context())
+		}
+		if all := w.events(t); len(all) != 2 || all[1].State != healthy {
+			t.Errorf("after it settled, the timeline has %+v", all)
 		}
 	})
 }

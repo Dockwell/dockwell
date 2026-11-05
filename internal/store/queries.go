@@ -289,6 +289,26 @@ func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
 	return nil
 }
 
+// UpdateEvent rewrites an event that tells of something still going on, as a
+// service that keeps changing: its time and what it says, so one event stands for
+// all of it rather than one each few minutes. It changes nothing else, and only an
+// event of e's action.
+func (t *Tx) UpdateEvent(ctx context.Context, e Event) error {
+	res, err := t.exec(ctx, `UPDATE audit_events SET at = ?, detail = ? WHERE id = ? AND action = ?`, millis(e.At), e.Detail, e.ID, e.Action)
+	if err != nil {
+		return fmt.Errorf("can't update audit event %s: %w", e.Action, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("can't update audit event %s: %w", e.Action, err)
+	} else if n == 0 {
+		return fmt.Errorf("can't update audit event %s %s: %w", e.Action, e.ID, ErrNotFound)
+	}
+	if t.recorded != nil {
+		*t.recorded = true
+	}
+	return nil
+}
+
 // LatestEvent reads the newest audit event of an action, about a subject and a
 // target, and whether there is one.
 func (t *Tx) LatestEvent(ctx context.Context, action, subject, target string) (Event, bool, error) {

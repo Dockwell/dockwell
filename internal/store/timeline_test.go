@@ -3,6 +3,7 @@
 package store_test
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -251,6 +252,55 @@ func TestHealthEventsFollowAResource(t *testing.T) {
 			}
 			if _, found, err := tx.LatestEvent(ctx, action, "svc_9", "srv_A"); err != nil || found {
 				t.Errorf("an event of nothing = %t, %v", found, err)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// An event of something still going on can be told again, in its place: its time
+// and what it says, and nothing of an event of another action.
+func TestAnEventCanBeToldAgain(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		at := time.UnixMilli(1_000_000)
+		const action = "service.health"
+		if err := db.Update(ctx, func(tx *store.Tx) error {
+			for _, e := range []store.Event{
+				{ID: "evt_1", At: at, Actor: "dockwell", Action: action, Subject: "svc_1", Target: "srv_A", Detail: "first"},
+				{ID: "evt_2", At: at, Actor: "dockwell", Action: "server.renew", Subject: "srv_A", Target: "srv_A", Detail: "renewed"},
+			} {
+				if err := tx.RecordEvent(ctx, e); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		later := at.Add(time.Minute)
+		if err := db.Update(ctx, func(tx *store.Tx) error {
+			return tx.UpdateEvent(ctx, store.Event{ID: "evt_1", At: later, Action: action, Detail: "again"})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		err := db.Update(ctx, func(tx *store.Tx) error {
+			return tx.UpdateEvent(ctx, store.Event{ID: "evt_2", At: later, Action: action, Detail: "not of this action"})
+		})
+		if !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("telling again an event of another action = %v, want not found", err)
+		}
+		if err := db.View(ctx, func(tx *store.Tx) error {
+			list, err := tx.ListEvents(ctx, 10)
+			if err != nil {
+				return err
+			}
+			if len(list) != 2 || list[0].ID != "evt_1" || !list[0].At.Equal(later) || list[0].Detail != "again" || list[0].Subject != "svc_1" ||
+				list[1].Detail != "renewed" || !list[1].At.Equal(at) {
+				t.Errorf("the events are %+v", list)
 			}
 			return nil
 		}); err != nil {
