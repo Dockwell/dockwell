@@ -1417,24 +1417,37 @@ type Route struct {
 	// "off" when TLS ends before this server, as at a tunnel or a proxy in front
 	// of it: the domain is served over plain HTTP on port 80, with no certificate
 	// and no redirect to HTTPS, so its traffic reaches this server unencrypted.
-	// That is fine on a tunnel or a private network, and not on the open internet.
-	// Empty gets a certificate. A domain's routes all take the same setting.
+	// Such a route answers only the proxies in trusted_proxies, or with none, this
+	// server's own loopback, unless plain_for_anyone says otherwise. Anyone else
+	// gets what a name with no route gets. Empty gets a certificate. A domain's
+	// routes all take the same setting. A person approves taking a domain that has
+	// had a certificate off it.
 	Tls string `protobuf:"bytes,5,opt,name=tls,proto3" json:"tls,omitempty"`
 	// The proxies in front of this server whose word this route takes on where a
 	// request came from, each an address, a range such as "203.0.113.0/24", or
-	// "cloudflare" for Cloudflare's published ranges. Only a request from one of
-	// them has its X-Forwarded-For believed, read from the right, and nothing is
-	// believed with this empty. A person approves each one a change adds, as a
-	// proxy that isn't really one makes client addresses forgeable. A range wider
-	// than /8 isn't taken.
+	// "cloudflare" for Cloudflare's published ranges. A request from anywhere else
+	// has its address taken from the connection, whatever another route on the
+	// server names. From an address or a range, X-Forwarded-For is read from the
+	// right. From "cloudflare", CF-Connecting-IP is read, as Cloudflare documents,
+	// and it's only as sure as Cloudflare says: see docs/security/ingress.md. A
+	// person approves each one a change adds, as a proxy that isn't really one makes
+	// client addresses forgeable. A range of Cloudflare's is named by the preset, and
+	// a public range wider than /12, or /28 in IPv6, or a private one wider than /8,
+	// isn't taken.
 	TrustedProxies []string `protobuf:"bytes,6,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
 	// A port on the server itself, such as 8080, for something that isn't a
-	// container, in place of service and port. The proxy dials 127.0.0.1 on it. It
-	// reaches past containers, so a person approves it. Dockwell's own ports aren't
-	// taken.
-	HostPort      uint32 `protobuf:"varint,7,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// container, in place of service and port. The proxy dials 127.0.0.1 on it, so
+	// what's there sees every caller as local. It reaches past containers, so a
+	// person approves it, and any change to where it answers. Dockwell's own ports,
+	// and Docker's API on 2375 and 2376, aren't taken.
+	HostPort uint32 `protobuf:"varint,7,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
+	// True for a route that says tls off to answer anyone who can reach this
+	// server's port 80, as for a site on a private network, or a load balancer whose
+	// addresses aren't known. It goes around whatever is in front, so a person
+	// approves it.
+	PlainForAnyone bool `protobuf:"varint,8,opt,name=plain_for_anyone,json=plainForAnyone,proto3" json:"plain_for_anyone,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Route) Reset() {
@@ -1514,6 +1527,13 @@ func (x *Route) GetHostPort() uint32 {
 		return x.HostPort
 	}
 	return 0
+}
+
+func (x *Route) GetPlainForAnyone() bool {
+	if x != nil {
+		return x.PlainForAnyone
+	}
+	return false
 }
 
 // Spec is the desired state of one resource, of any kind: the field that is
@@ -1873,7 +1893,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb9\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe3\x01\n" +
 	"\x05Route\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
@@ -1881,7 +1901,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x04port\x18\x04 \x01(\rR\x04port\x12\x10\n" +
 	"\x03tls\x18\x05 \x01(\tR\x03tls\x12'\n" +
 	"\x0ftrusted_proxies\x18\x06 \x03(\tR\x0etrustedProxies\x12\x1b\n" +
-	"\thost_port\x18\a \x01(\rR\bhostPort\"\xb1\x05\n" +
+	"\thost_port\x18\a \x01(\rR\bhostPort\x12(\n" +
+	"\x10plain_for_anyone\x18\b \x01(\bR\x0eplainForAnyone\"\xb1\x05\n" +
 	"\x04Spec\x12?\n" +
 	"\aproject\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.ProjectH\x00R\aproject\x12K\n" +
 	"\venvironment\x18\x02 \x01(\v2'.dockwell.resource.v1alpha1.EnvironmentH\x00R\venvironment\x12?\n" +

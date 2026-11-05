@@ -463,6 +463,14 @@ msgid "Also plans and applies changes that can be undone. Never removes data or 
 msgstr "还能规划并应用可撤销的更改。绝不会删除数据或切断访问。"
 
 #: src/features/changes/words.ts
+msgid "anyone on the internet"
+msgstr "互联网上的任何人"
+
+#: src/features/changes/words.ts
+msgid "anyone who can reach {server}"
+msgstr "任何能访问 {server} 的人"
+
+#: src/features/changes/words.ts
 msgid "API token"
 msgstr "API 令牌"
 
@@ -1127,6 +1135,10 @@ msgstr "悬停或聚焦一台服务器以查看详情。"
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS 自动配置。你的通行密钥在这个地址可用。"
 
+#: src/features/changes/words.ts
+msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
+msgstr "{path} 上的 HTTPS，它将停止：https:// 地址会报错，见过其 HSTS 的浏览器在该设置到期前也会拒绝纯 HTTP"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "I saved them"
 msgstr "我已保存"
@@ -1178,6 +1190,18 @@ msgstr "不到一分钟后"
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "安装时间"
+
+#: src/features/changes/words.ts
+msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+msgstr "它通过纯 HTTP 响应任何能访问 {server} 80 端口的人，绕过它前面的任何东西"
+
+#: src/features/changes/words.ts
+msgid "It answers only {list}. Anyone else gets what a name with no route gets"
+msgstr "它只响应 {list}。其他人得到的结果和访问没有路由的域名一样"
+
+#: src/features/changes/words.ts
+msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
+msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "It has been undone since."
@@ -1255,6 +1279,10 @@ msgstr "浅色"
 #: src/features/auth/ClaimPage.tsx
 msgid "Link expires"
 msgstr "链接过期"
+
+#: src/features/changes/words.ts
+msgid "Listening there now: {listening}"
+msgstr "目前在此监听的是：{listening}"
 
 #: src/app/Providers.tsx
 msgid "Live"
@@ -1444,8 +1472,8 @@ msgid "No passkey works at {rpId} yet"
 msgstr "{rpId} 上还没有可用的通行密钥"
 
 #: src/features/changes/words.ts
-msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}, and nothing it still serves stops"
-msgstr "此后 {server} 上没有路由需要证书，因此 {proxy} 会释放端口 {ports}，它仍在提供的服务都不会停止"
+msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
+msgstr "此后 {server} 上没有路由需要证书，因此 {proxy} 会释放端口 {ports}。不需要证书的路由会继续响应"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "No server · nothing goes down"
@@ -1506,6 +1534,10 @@ msgstr "这里还没有内容"
 #: src/app/Providers.tsx
 msgid "Nothing here yet."
 msgstr "这里还没有内容。"
+
+#: src/features/changes/words.ts
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
+msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
 
 #: src/app/Providers.tsx
 msgid "Nothing matches “{query}”. Try a server, app or action name."
@@ -1675,6 +1707,10 @@ msgstr "暂停"
 #: src/app/Providers.tsx
 msgid "Paused"
 msgstr "已暂停"
+
+#: src/features/changes/words.ts
+msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
+msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它前面的任何东西"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2227,6 +2263,10 @@ msgid "System"
 msgstr "跟随系统"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "Takes away {stopping}"
+msgstr "将取消{stopping}"
+
+#: src/features/changes/ChangeSheet.tsx
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "停用其镜像在 {kept} 保存的数据，服务器会保留 7 天"
 
@@ -2257,6 +2297,10 @@ msgstr "这个验证码已经用过了。请等待身份验证器应用中的下
 #: src/features/changes/ChangeSheet.tsx
 msgid "That didn't work"
 msgstr "操作没有成功"
+
+#: src/features/changes/words.ts
+msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
+msgstr "这让{who}能访问端口 {number}，而那里的程序会把每个调用者都看作此服务器本身（127.0.0.1），信任 localhost 的应用会相信这一点"
 
 #: src/features/auth/messages.ts
 msgid "That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks."
@@ -2403,8 +2447,12 @@ msgid "The plan didn't work"
 msgstr "计划没有成功"
 
 #: src/features/changes/words.ts
-msgid "the port {path} on the server itself, past its containers"
-msgstr "服务器本身的端口 {path}，这越过了容器的边界"
+msgid "the port {path} on the server itself, past its containers, at {detail}"
+msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {detail}"
+
+#: src/features/changes/words.ts
+msgid "the port {path} on the server itself, past its containers, at {detail} over plain HTTP"
+msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {detail}，通过纯 HTTP"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "the resource filter"
@@ -2815,6 +2863,10 @@ msgstr "变更内容"
 msgid "What happens next"
 msgstr "接下来"
 
+#: src/features/changes/words.ts
+msgid "what runs on {server} itself"
+msgstr "在 {server} 本机上运行的程序"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
 msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，应用其计划时，所有使用它的服务都会重启。"
@@ -2843,6 +2895,10 @@ msgstr "它属于哪个项目？"
 #: src/features/activity/ActivityPage.tsx
 msgid "Who"
 msgstr "执行者"
+
+#: src/features/changes/words.ts
+msgid "whoever comes through {list}"
+msgstr "经由 {list} 而来的任何人"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Why it failed"

@@ -60,8 +60,8 @@ func (e *Engine) checkClaims(ctx context.Context, tx *store.Tx, items []item) er
 	for i := range items {
 		it := &items[i]
 		for _, c := range e.kinds.Claims(it.ref.Kind, it.spec) {
-			for _, other := range all {
-				if err := e.conflict(ctx, tx, it, c, other, inChange[other.ref]); err != nil {
+			for j := range all {
+				if err := e.conflict(ctx, tx, it, c, all[j], inChange[all[j].ref]); err != nil {
 					return err
 				}
 			}
@@ -85,6 +85,9 @@ func (e *Engine) conflict(ctx context.Context, tx *store.Tx, it *item, c resourc
 	case c.Group == other.claim.Group && it.ref.Scope != other.ref.Scope:
 		return fault.New(ErrInvalid, "%s belongs to the environment %s, where %s %s serves it, so %s %s in the environment %s can't serve a path under it: a domain lives in one environment. Move the domain's routes first, or in this change, or use another domain",
 			c.GroupWords, scopeName(ctx, tx, other.ref.Scope), other.ref.Kind, other.ref.Name, it.ref.Kind, it.ref.Name, scopeName(ctx, tx, it.ref.Scope))
+	case c.Group == other.claim.Group && c.Manner != other.claim.Manner:
+		return fault.New(ErrInvalid, "%s would be served two ways: %s %s %s, and %s %s %s. Set them the same, in one change",
+			c.GroupWords, other.ref.Kind, other.ref.Name, other.claim.MannerWords, it.ref.Kind, it.ref.Name, c.MannerWords)
 	}
 	return nil
 }
@@ -188,6 +191,9 @@ func (e *Engine) takeovers(ctx context.Context, items []item) (map[resource.Ref]
 				if err := e.takeover(ctx, tx, it, held, out); err != nil {
 					return err
 				}
+				if err := e.weakening(ctx, tx, it, past, items, out); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -220,6 +226,77 @@ func (e *Engine) takeover(ctx context.Context, tx *store.Tx, it *item, past map[
 		}
 	}
 	return nil
+}
+
+// weakening adds a person's approval to an item that serves a Group the weaker way
+// where something served it the stronger way within the undo window, by the change
+// itself or an earlier one. It takes nothing away that's weak already, so a route
+// on a domain gone plain, once a person has said so, is a token's to edit.
+func (e *Engine) weakening(ctx context.Context, tx *store.Tx, it *item, past []store.Superseded, items []item, out map[resource.Ref][]resource.Access) error {
+	t, err := e.kinds.Type(it.ref.Kind)
+	if err != nil {
+		return err
+	}
+	weakens, ok := t.(resource.WeakensClaims)
+	if !ok || it.spec == nil || !weakens.Weak(it.spec) {
+		return nil
+	}
+	for _, c := range e.kinds.Claims(it.ref.Kind, it.spec) {
+		claims := func(spec proto.Message) bool {
+			return spec != nil && slices.ContainsFunc(e.kinds.Claims(it.ref.Kind, spec), func(o resource.Claim) bool { return o.Group == c.Group })
+		}
+		weakNow, err := e.scopeServesWeakly(ctx, tx, it, weakens, claims)
+		if err != nil {
+			return err
+		}
+		if weakNow {
+			continue
+		}
+		strong := false
+		for i := range items {
+			strong = strong || (items[i].ref.Kind == it.ref.Kind && claims(items[i].current) && !weakens.Weak(items[i].current))
+		}
+		for _, p := range past {
+			if strong {
+				break
+			}
+			spec, err := e.decode(ctx, tx, store.InRevision(p.ResourceID, string(it.ref.Kind), p.Revision), p.Spec)
+			if err != nil {
+				return err
+			}
+			strong = claims(spec) && !weakens.Weak(spec)
+		}
+		if strong {
+			out[it.ref] = append(out[it.ref], weakens.Weakens(c.Group))
+		}
+	}
+	return nil
+}
+
+// scopeServesWeakly reports whether what claims apply to, as it stands now, is
+// served the weaker way already: by the item, or another resource of its scope and
+// kind that isn't in this change.
+func (e *Engine) scopeServesWeakly(ctx context.Context, tx *store.Tx, it *item, weakens resource.WeakensClaims, claims func(proto.Message) bool) (bool, error) {
+	if claims(it.current) {
+		return weakens.Weak(it.current), nil
+	}
+	stored, err := tx.ListResources(ctx, it.ref.Scope, string(it.ref.Kind))
+	if err != nil {
+		return false, err
+	}
+	for _, r := range stored {
+		if r.Name == it.ref.Name {
+			continue
+		}
+		spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return false, err
+		}
+		if claims(spec) {
+			return weakens.Weak(spec), nil
+		}
+	}
+	return false, nil
 }
 
 // scopeHolds reports whether the item's scope holds a Group already, by the

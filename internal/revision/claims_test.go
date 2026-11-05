@@ -68,9 +68,10 @@ func (m *memIngress) Apply(_ context.Context, ref resource.Ref, spec *resourcev1
 func (*memIngress) Returning(context.Context, resource.Ref, *resourcev1.Route, []resource.Desired) []string {
 	return nil
 }
-func (*memIngress) Verify(context.Context, resource.Ref) error { return nil }
-func (*memIngress) Ready(context.Context) error                { return nil }
-func (m *memIngress) ReadyKey() any                            { return m }
+func (*memIngress) Listening(context.Context, uint32) (string, bool) { return "", false }
+func (*memIngress) Verify(context.Context, resource.Ref) error       { return nil }
+func (*memIngress) Ready(context.Context) error                      { return nil }
+func (m *memIngress) ReadyKey() any                                  { return m }
 
 const panelDomain = "panel.example.com"
 
@@ -494,6 +495,87 @@ func TestMovingThePanelNeedsAPerson(t *testing.T) {
 		p = propose(t, e, "Last route", Edit{Ref: resource.Ref{Kind: route.Kind, Scope: prod, Name: "www"}})
 		if p.HostAccess() {
 			t.Errorf("the last route's removal asks for a person: %+v", p.Resources)
+		}
+	})
+}
+
+func plainRouteIn(env, name, domain, path string) Edit {
+	return Edit{
+		Ref:  resource.Ref{Kind: route.Kind, Scope: env, Name: name},
+		Spec: &resourcev1.Route{Domain: domain, Path: path, Service: "web", Port: 8080, Tls: "off"},
+	}
+}
+
+// A domain is served one way or the other. Its plain HTTP would otherwise answer for
+// some paths and redirect for others, and its certificate have no one state. The
+// engine sees every route and the whole of a change, as a plan made while its server
+// was offline never reaches the agent's check, and a step of a plan that changes them
+// together can't be told from one that changes one.
+func TestADomainsRoutesAgreeOnACertificate(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, prod, _, _ := setupRoutes(t, b, "srv_A")
+		apply(t, e, propose(t, e, "Add www", routeIn(prod, "www", "app.example.com", "")))
+		refuseProposal(t, e, "a path taking none beside a domain that does", ErrInvalid,
+			"the domain app.example.com would be served two ways: route www takes a certificate, and route api takes none",
+			plainRouteIn(prod, "api", "app.example.com", "/api"))
+		refuseProposal(t, e, "two ways within a change", ErrInvalid,
+			"the domain new.example.com would be served two ways",
+			routeIn(prod, "a", "new.example.com", "/a"), plainRouteIn(prod, "b", "new.example.com", "/b"))
+		apply(t, e, propose(t, e, "A path too", routeIn(prod, "api", "app.example.com", "/api")))
+		refuseProposal(t, e, "one of two turned plain", ErrInvalid, "would be served two ways",
+			plainRouteIn(prod, "api", "app.example.com", "/api"))
+		// Both in one change is what to do, and a plain domain stays that way.
+		apply(t, e, propose(t, e, "Both", plainRouteIn(prod, "www", "app.example.com", ""), plainRouteIn(prod, "api", "app.example.com", "/api")))
+		refuseProposal(t, e, "a path taking one beside a domain that takes none", ErrInvalid, "would be served two ways",
+			routeIn(prod, "more", "app.example.com", "/more"))
+		apply(t, e, propose(t, e, "Another", plainRouteIn(prod, "more", "app.example.com", "/more")))
+	})
+}
+
+// What it takes to go off HTTPS: an edit in place, a delete and a new route in one
+// change or two, each counts, and a domain that never had a certificate doesn't.
+func TestTakingADomainOffHTTPSNeedsAPerson(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, prod, staging, _ := setupRoutes(t, b, "srv_A")
+		off := func(p *Plan) bool {
+			for i := range p.Resources {
+				for _, a := range p.Resources[i].HostAccess {
+					if a.Kind == resource.AccessHTTPSOff && a.Path == "app.example.com" {
+						return true
+					}
+				}
+			}
+			return false
+		}
+		ref := resource.Ref{Kind: route.Kind, Scope: prod, Name: "www"}
+		apply(t, e, propose(t, e, "Add www", routeIn(prod, "www", "app.example.com", "")))
+		if p := propose(t, e, "Off", plainRouteIn(prod, "www", "app.example.com", "")); !off(p) || !p.HostAccess() {
+			t.Errorf("an edit off HTTPS plans %+v", p.Resources)
+		}
+		if p := propose(t, e, "Swap", Edit{Ref: ref}, plainRouteIn(prod, "home", "app.example.com", "")); !off(p) {
+			t.Errorf("a delete and a new route in one change plans %+v", p.Resources)
+		}
+		apply(t, e, propose(t, e, "Gone", Edit{Ref: ref}))
+		if p := propose(t, e, "Back, plain", plainRouteIn(prod, "www", "app.example.com", "")); !off(p) {
+			t.Errorf("a new route after a delete plans %+v", p.Resources)
+		}
+		if p := propose(t, e, "Back, elsewhere", plainRouteIn(staging, "www", "app.example.com", "")); !off(p) {
+			t.Errorf("a new route in another environment plans %+v", p.Resources)
+		}
+		// A domain that has only been plain is a token's to serve, and to go on editing.
+		first := propose(t, e, "New", plainRouteIn(prod, "new", "new.example.com", ""))
+		if first.HostAccess() {
+			t.Errorf("a new plain domain plans %+v", first.Resources)
+		}
+		apply(t, e, first)
+		if p := propose(t, e, "Edit", plainRouteIn(prod, "new", "new.example.com", "/x")); p.HostAccess() {
+			t.Errorf("an edit of a plain route plans %+v", p.Resources)
+		}
+		// Once a person has said so, editing it is a token's again.
+		applyPlan := propose(t, e, "Back", plainRouteIn(prod, "www", "app.example.com", ""))
+		apply(t, e, applyPlan)
+		if p := propose(t, e, "Under a path", plainRouteIn(prod, "www", "app.example.com", "/y")); off(p) {
+			t.Errorf("an edit of what's plain already plans %+v", p.Resources)
 		}
 	})
 }

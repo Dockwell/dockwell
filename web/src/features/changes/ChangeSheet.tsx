@@ -10,6 +10,7 @@ import {
   ChangeState,
   type EditSchema,
   EventService,
+  HostAccessKind,
   type Plan,
   PlanWarning,
   ResourceService,
@@ -509,7 +510,11 @@ function ServerSteps({
               : 0;
             const stepBound = time.bound(stepHealthy);
             const kept = step.keptPaths.join(", ");
-            const reach = step.hostAccess.map((a) => words.access(a)).join("; ");
+            const reach = step.hostAccess
+              .filter((a) => a.kind !== HostAccessKind.HTTPS_OFF)
+              .map((a) => words.access(a))
+              .join("; ");
+            const httpsOff = step.hostAccess.filter((a) => a.kind === HostAccessKind.HTTPS_OFF);
             const dns = words.domain(step.domainCheck);
             const returning = words.returning(step.returningContainers, server.serverName);
             return (
@@ -532,6 +537,14 @@ function ServerSteps({
                   ) : null}
                   {step.restores ? <span>{t`Brings back the data the server kept`}</span> : null}
                   {reach ? <span className="plan-step-warn">{t`Reaches ${reach} on ${server.serverName}`}</span> : null}
+                  {httpsOff.map((a) => {
+                    const stopping = words.access(a);
+                    return (
+                      <span key={a.path} className="plan-step-warn">
+                        {t`Takes away ${stopping}`}
+                      </span>
+                    );
+                  })}
                   {step.healthUnknown ? (
                     <span>{t`Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy`}</span>
                   ) : null}
@@ -546,6 +559,11 @@ function ServerSteps({
                   {step.unencrypted ? (
                     <span className="plan-step-notice">{words.unencrypted(server.serverName)}</span>
                   ) : null}
+                  {words.answers(step.answers, step.serverPort, server.serverName).map((line) => (
+                    <span key={line} className="plan-step-notice">
+                      {line}
+                    </span>
+                  ))}
                   {live?.message && live.message !== "" ? <span>{live.message}</span> : null}
                 </span>
               </li>

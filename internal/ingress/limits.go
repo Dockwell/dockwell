@@ -114,7 +114,8 @@ func (m *Manager) pendingDomains(ctx context.Context, have []Route) ([]string, e
 		return nil, err
 	}
 	on := map[string]bool{}
-	for _, r := range have {
+	for k := range have {
+		r := &have[k]
 		if !r.Plain {
 			on[r.Domain] = true
 		}
@@ -160,7 +161,8 @@ func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired, m
 			touched[RouteID(d.Ref)] = true
 		}
 	}
-	for _, r := range have {
+	for k := range have {
+		r := &have[k]
 		ids[r.ID] = true
 		// One that takes no certificate has asked the authority for nothing, so a
 		// route giving it one asks for something new.
@@ -189,7 +191,7 @@ func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired, m
 	}
 	if added > 0 {
 		if left, _, _ := routesAfter(have, desired); left > MaxRoutes*margin {
-			return fmt.Errorf("this change would give this server %d routes, and a server takes at most %d, as each one costs its proxy memory and every change rewrites them all. Nothing changed. Delete routes you don't need, or put these on another server",
+			return fmt.Errorf("this change would give this server %d routes, and a server takes at most %d, as each one costs its proxy memory and every change rewrites them all. Delete routes you don't need, or put these on another server",
 				left, MaxRoutes)
 		}
 	}
@@ -207,10 +209,10 @@ func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired, m
 		return nil
 	}
 	if len(pending) == 0 {
-		return fmt.Errorf("this change adds %d new domains at once, and a server takes at most %d waiting for a certificate, as a burst of names that don't resolve can use up the certificate authority's limit for the whole server, the panel's domain too. Nothing changed. Split it into changes of up to %d, and make the next once their certificates have come. A domain stops counting %d hours after it was added, whether or not its certificate came",
+		return fmt.Errorf("this change adds %d new domains at once, and a server takes at most %d waiting for a certificate, as a burst of names that don't resolve can use up the certificate authority's limit for the whole server, the panel's domain too. Split it into changes of up to %d, and make the next once their certificates have come. A domain stops counting %d hours after it was added, whether or not its certificate came",
 			len(fresh), MaxPendingDomains, MaxPendingDomains, int(PendingWindow.Hours()))
 	}
-	return fmt.Errorf("%d domains on this server are waiting for a certificate, and this change adds %d more, past the limit of %d, as a burst of names that don't resolve can use up the certificate authority's limit for the whole server, the panel's domain too. Nothing changed. Point their DNS here, or delete the routes you don't need, such as %s, or split this change. A domain stops counting %d hours after it was added, whether or not its certificate came",
+	return fmt.Errorf("%d domains on this server are waiting for a certificate, and this change adds %d more, past the limit of %d, as a burst of names that don't resolve can use up the certificate authority's limit for the whole server, the panel's domain too. Point their DNS here, or delete the routes you don't need, such as %s, or split this change. A domain stops counting %d hours after it was added, whether or not its certificate came",
 		len(pending), len(fresh), MaxPendingDomains, human.List(sampleOf(pending)), int(PendingWindow.Hours()))
 }
 

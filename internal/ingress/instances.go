@@ -230,7 +230,8 @@ func (m *Manager) give(ctx context.Context, i Instance) (string, error) {
 	if a, ok := keeperAddress(m.table.Subnet); ok {
 		busy = append(busy, a)
 	}
-	for _, r := range routes {
+	for k := range routes {
+		r := &routes[k]
 		for _, up := range r.Upstreams {
 			if host, _, err := splitUpstream(up); err == nil {
 				busy = append(busy, host)
@@ -690,7 +691,8 @@ func (m *Manager) releaseUnused(ctx context.Context) error {
 		return err
 	}
 	used := map[Service]bool{}
-	for _, r := range routes {
+	for k := range routes {
+		r := &routes[k]
 		// A route edited by hand may be about any service, until someone
 		// reverts or adopts it. Taking a service off the network now would
 		// leave it nothing to go back to.
@@ -740,7 +742,8 @@ func (m *Manager) routesOf(ctx context.Context, s Service) ([]Route, uint32, err
 	}
 	var out []Route
 	var port uint32
-	for _, r := range routes {
+	for k := range routes {
+		r := &routes[k]
 		if r.Edited {
 			continue
 		}
@@ -750,7 +753,7 @@ func (m *Manager) routesOf(ctx context.Context, s Service) ([]Route, uint32, err
 				continue
 			}
 			if i, known := m.table.instanceAt(host); known && i.service() == s {
-				out = append(out, r)
+				out = append(out, *r)
 				port = p
 				break
 			}

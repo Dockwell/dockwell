@@ -3,6 +3,7 @@
 package route
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -181,6 +182,9 @@ func TestValidateRefusesWhatARouteCantSayOfWhereItSends(t *testing.T) {
 		{"a port on the server and a service's port", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Port: 80}, "one or the other"},
 		{"everyone as a proxy", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, TrustedProxies: []string{"0.0.0.0/0"}}, "covers too much"},
 		{"what isn't a proxy", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, TrustedProxies: []string{"{env.HOME}"}}, "isn't an address"},
+		{"Docker's API", &resourcev1.Route{Domain: "a.example.com", HostPort: 2375}, "Docker's API"},
+		{"Docker's API over TLS", &resourcev1.Route{Domain: "a.example.com", HostPort: 2376, Tls: "off"}, "Docker's API"},
+		{"anyone, with a certificate", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, PlainForAnyone: true}, "plain_for_anyone"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := d.Validate(proto.Clone(tc.spec))
@@ -218,14 +222,82 @@ func TestWhatAPersonApprovesOfARoute(t *testing.T) {
 	if got := d.HostAccess(&resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off"}); got != nil {
 		t.Errorf("a route that takes no certificate reaches %v", got)
 	}
-	got := d.HostAccess(&resourcev1.Route{Domain: "a.example.com", HostPort: 8080, TrustedProxies: []string{"10.0.0.0/8", "cloudflare"}})
+	got := d.HostAccess(&resourcev1.Route{Domain: "a.example.com", Path: "/x", HostPort: 8080, TrustedProxies: []string{"10.0.0.0/8", "cloudflare"}})
 	want := []resource.Access{
-		{Kind: resource.AccessServerPort, Path: "127.0.0.1:8080"},
+		{Kind: resource.AccessServerPort, Path: "127.0.0.1:8080", Detail: "a.example.com/x"},
 		{Kind: resource.AccessTrustedProxy, Path: "10.0.0.0/8"},
 		{Kind: resource.AccessTrustedProxy, Path: "cloudflare"},
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("HostAccess = %v, want %v", got, want)
+	}
+	// A port approved at one place and way isn't approved at another: a person who
+	// approved it behind an access proxy on one name hasn't approved it on any other.
+	moved := d.HostAccess(&resourcev1.Route{Domain: "b.example.com", HostPort: 8080})
+	if g := resource.NewAccess(d.HostAccess(&resourcev1.Route{Domain: "a.example.com", HostPort: 8080}), moved); len(g) != 1 {
+		t.Errorf("another domain gains %v", g)
+	}
+	plainly := d.HostAccess(&resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Tls: "off"})
+	if g := resource.NewAccess(d.HostAccess(&resourcev1.Route{Domain: "a.example.com", HostPort: 8080}), plainly); len(g) != 1 || g[0].Type != "http" {
+		t.Errorf("plain HTTP gains %v", g)
+	}
+	if g := resource.NewAccess(plainly, d.HostAccess(&resourcev1.Route{Domain: "a.example.com", HostPort: 8080})); len(g) != 1 {
+		t.Errorf("a certificate, which answers everyone, gains %v", g)
+	}
+	// Anyone is on a domain, so another domain is another approval.
+	anyone := func(domain string) []resource.Access {
+		return d.HostAccess(&resourcev1.Route{Domain: domain, Service: "web", Port: 80, Tls: "off", PlainForAnyone: true})
+	}
+	if g := anyone("a.example.com"); len(g) != 1 || g[0].Kind != resource.AccessPlainForAnyone {
+		t.Errorf("anyone plans %v", g)
+	}
+	if g := resource.NewAccess(anyone("a.example.com"), anyone("b.example.com")); len(g) != 1 {
+		t.Errorf("anyone on another domain gains %v", g)
+	}
+}
+
+// A plan says who a route answers when it isn't everyone over HTTPS, from its spec,
+// as a server that's offline can't be asked.
+func TestAPlanSaysWhoARouteAnswers(t *testing.T) {
+	d := &Driver{}
+	for _, tc := range []struct {
+		name string
+		spec *resourcev1.Route
+		want *resource.RouteAnswers
+		port uint32
+	}{
+		{"an ordinary route", spec("a.example.com", ""), nil, 0},
+		{"plain, naming none", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off"}, &resource.RouteAnswers{Reach: resource.ReachThisServer, Plain: true}, 0},
+		{"plain, naming a proxy", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off", TrustedProxies: []string{"cloudflare"}}, &resource.RouteAnswers{Reach: resource.ReachProxies, Proxies: []string{"cloudflare"}, Plain: true}, 0},
+		{"plain for anyone", &resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off", PlainForAnyone: true}, &resource.RouteAnswers{Reach: resource.ReachAnyone, Plain: true}, 0},
+		{"a port, with a certificate", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080}, &resource.RouteAnswers{Reach: resource.ReachAnyone}, 8080},
+		{"a port, plain", &resourcev1.Route{Domain: "a.example.com", HostPort: 8080, Tls: "off"}, &resource.RouteAnswers{Reach: resource.ReachThisServer, Plain: true}, 8080},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dec, err := d.Plan(nil, tc.spec, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(dec.Answers, tc.want) {
+				t.Errorf("Answers = %+v, want %+v", dec.Answers, tc.want)
+			}
+			if (dec.ServerPort != nil) != (tc.port != 0) || (dec.ServerPort != nil && dec.ServerPort.Port != tc.port) {
+				t.Errorf("ServerPort = %+v, want %d", dec.ServerPort, tc.port)
+			}
+		})
+	}
+}
+
+// How a route serves its domain is what the engine holds a domain's routes to.
+func TestAClaimSaysHowItServes(t *testing.T) {
+	d := &Driver{}
+	secure := d.Claims(spec("a.example.com", ""))[0]
+	plainly := d.Claims(&resourcev1.Route{Domain: "a.example.com", Service: "web", Port: 80, Tls: "off"})[0]
+	if secure.Manner == plainly.Manner {
+		t.Errorf("they claim the same way: %+v and %+v", secure, plainly)
+	}
+	if !d.Weak(&resourcev1.Route{Tls: "off"}) || d.Weak(spec("a.example.com", "")) {
+		t.Error("what's weak is the wrong way round")
 	}
 }
 

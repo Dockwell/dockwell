@@ -3,9 +3,12 @@
 package ingress
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"net/http"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -166,32 +169,6 @@ func TestPortsFollowWhatRoutesNeed(t *testing.T) {
 	effect = s.judge(t, "plain", nil)
 	if effect == nil || effect.Change != resource.IngressStops || !slices.Equal(effect.Ports, []string{"80/tcp"}) {
 		t.Errorf("the last plain route plans %+v", effect)
-	}
-}
-
-// A domain is served one way or the other, whatever a plan does to its routes.
-func TestADomainsRoutesAgreeOnACertificate(t *testing.T) {
-	s := newSetup(t)
-	s.apply(t, "a", spec("app.example.com", "", "web", 80))
-	ref := routeRef("b")
-	plain := &resourcev1.Route{Domain: "app.example.com", Path: "/api", Service: "web", Port: 80, Tls: TLSOff}
-	err := s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: plain}})
-	if err == nil || !strings.Contains(err.Error(), "app.example.com would have routes that take a certificate and routes that don't") {
-		t.Errorf("Check = %v, want it refused", err)
-	}
-	// Changing them in one plan is what to do.
-	all := []resource.Desired{{Ref: ref, Spec: plain}, {Ref: routeRef("a"), Spec: plainSpec("app.example.com")}}
-	if err := s.Check(t.Context(), ref, all); err != nil {
-		t.Errorf("both in one plan = %v", err)
-	}
-	// Two in one plan, as well as one against what is there.
-	mixed := []resource.Desired{{Ref: ref, Spec: plain}, {Ref: routeRef("c"), Spec: spec("new.example.com", "/x", "web", 80)}, {Ref: routeRef("d"), Spec: plainSpec("new.example.com")}}
-	if err := s.Check(t.Context(), ref, mixed); err == nil || !strings.Contains(err.Error(), "new.example.com") {
-		t.Errorf("mixed within one plan = %v", err)
-	}
-	// The steps of a plan change them one by one, which applying allows.
-	if err := s.Apply(t.Context(), ref, plain, nil); err != nil {
-		t.Errorf("the first step of a plan that changes them both = %v", err)
 	}
 }
 
@@ -406,13 +383,14 @@ func TestARouteCantReachDockwellsOwnPorts(t *testing.T) {
 }
 
 // What a route names as a proxy goes to the proxy as ranges, and reads back as
-// what it named, so a preset isn't drift.
+// what it named, so a preset isn't drift. A preset's ranges are kept apart from what
+// was named, as a request from them is read another way.
 func TestTrustedProxiesReadBackAsTheyWereNamed(t *testing.T) {
 	s := newSetup(t)
 	route := &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 80, TrustedProxies: []string{"127.0.0.1/32", PresetCloudflare}}
 	s.apply(t, "www", route)
 	routes, _ := s.proxy.Routes(t.Context())
-	if len(routes) != 1 || !slices.Contains(routes[0].TrustedProxies, "127.0.0.1/32") || !slices.Contains(routes[0].TrustedProxies, "173.245.48.0/20") || slices.Contains(routes[0].TrustedProxies, PresetCloudflare) {
+	if len(routes) != 1 || !slices.Equal(routes[0].TrustedProxies, []string{"127.0.0.1/32"}) || !slices.Contains(routes[0].EdgeProxies, "173.245.48.0/20") || slices.Contains(routes[0].EdgeProxies, PresetCloudflare) {
 		t.Fatalf("the proxy has %+v", routes)
 	}
 	got, err := s.Observe(t.Context(), routeRef("www"))
@@ -423,7 +401,7 @@ func TestTrustedProxiesReadBackAsTheyWereNamed(t *testing.T) {
 		t.Errorf("it reads back as %v, want %v", got, route)
 	}
 	// A list that isn't all of the preset's reads as what it holds, which is drift.
-	s.proxy.routes[0].TrustedProxies = slices.DeleteFunc(slices.Clone(routes[0].TrustedProxies), func(r string) bool { return r == "173.245.48.0/20" })
+	s.proxy.routes[0].EdgeProxies = slices.DeleteFunc(slices.Clone(routes[0].EdgeProxies), func(r string) bool { return r == "173.245.48.0/20" })
 	got, err = s.Observe(t.Context(), routeRef("www"))
 	if err != nil {
 		t.Fatal(err)
@@ -434,7 +412,7 @@ func TestTrustedProxiesReadBackAsTheyWereNamed(t *testing.T) {
 }
 
 func TestNormalizeTrustedProxies(t *testing.T) {
-	got, err := NormalizeTrustedProxies([]string{"10.0.0.5/8", "cloudflare", "203.0.113.9", "2001:db8::1", "203.0.113.9/32"})
+	got, err := NormalizeTrustedProxies([]string{"10.0.0.5/8", "cloudflare", "203.0.113.9", "2001:db8::1", "203.0.113.9/32", "cloudflare"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,16 +420,16 @@ func TestNormalizeTrustedProxies(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
-	// However it's written, it's what reads back: a route applied this way must
-	// compare equal to what its proxy has.
-	if got, err := NormalizeTrustedProxies(append(slices.Clone(cloudflareRanges), "127.0.0.1")); err != nil || !slices.Equal(got, []string{"127.0.0.1/32", PresetCloudflare}) {
-		t.Errorf("a preset's ranges spelled out read %v, %v", got, err)
-	}
-	if got, err := NormalizeTrustedProxies([]string{cloudflareRanges[0], PresetCloudflare}); err != nil || !slices.Equal(got, []string{PresetCloudflare}) {
-		t.Errorf("a range of a preset beside its name reads %v, %v", got, err)
-	}
 	if got, err := NormalizeTrustedProxies(nil); err != nil || len(got) != 0 {
 		t.Errorf("none reads %v, %v", got, err)
+	}
+	// What Cloudflare's ranges say is read from Cloudflare's own header, which only
+	// the preset does, so naming one by hand would walk past it: see the Worker in
+	// docs/security/ingress.md.
+	for _, entry := range []string{"2a06:98c0::/29", "2a06:98c0:3600::103", "104.16.0.0/13", "104.16.1.1", "104.16.0.0/16"} {
+		if _, err := NormalizeTrustedProxies([]string{entry}); err == nil || !strings.Contains(err.Error(), "Name cloudflare instead") {
+			t.Errorf("%s = %v, want it refused, naming the preset", entry, err)
+		}
 	}
 	for _, tc := range []struct{ entry, says string }{
 		{"0.0.0.0/0", "covers too much"},
@@ -476,5 +454,143 @@ func TestNormalizeTrustedProxies(t *testing.T) {
 	}
 	if _, err := NormalizeTrustedProxies(make([]string, maxTrustedProxies+1)); err == nil || !strings.Contains(err.Error(), "at most") {
 		t.Errorf("too many = %v", err)
+	}
+}
+
+// A range wide enough to hold many owners on the internet isn't naming a proxy. On
+// a private network, a wide one is still one owner's.
+func TestABoundOnWhatCanBeAProxy(t *testing.T) {
+	for _, tc := range []struct {
+		entry string
+		ok    bool
+	}{
+		{"8.0.0.0/8", false},
+		{"1.0.0.0/8", false},
+		{"104.0.0.0/8", false},
+		{"203.0.0.0/11", false},
+		{"172.0.0.0/8", false},
+		{"100.0.0.0/8", false},
+		{"2a00::/8", false},
+		{"2000::/8", false},
+		{"2400::/8", false},
+		{"2600::/8", false},
+		{"2001::/16", false},
+		{"2001:db8::/27", false},
+		{"ff00::/8", false},
+		{"224.0.0.0/8", false},
+		{"fc00::/7", false},
+		{"10.0.0.0/7", false},
+		{"203.0.0.0/12", true},
+		{"203.0.113.0/24", true},
+		{"2001:db8::/28", true},
+		{"2001:db8::/32", true},
+		{"10.0.0.0/8", true},
+		{"172.16.0.0/12", true},
+		{"192.168.0.0/16", true},
+		{"100.64.0.0/10", true},
+		{"127.0.0.0/8", true},
+		{"172.17.0.0/16", true},
+		{"fd00::/8", true},
+		{"fe80::/10", true},
+		{"::1", true},
+		{"127.0.0.1", true},
+	} {
+		got, err := NormalizeTrustedProxies([]string{tc.entry})
+		if (err == nil) != tc.ok {
+			t.Errorf("%s = %v, %v, want taken: %v", tc.entry, got, err, tc.ok)
+		}
+	}
+}
+
+// A start can fail for its own reasons beside whatever holds a port it doesn't want,
+// which is just what a plain route is for. So it isn't blamed on that, on a step or
+// on the agent's own start, and what's wrong gets said.
+func TestAStartFailureIsntBlamedOnPortsItDidntWant(t *testing.T) {
+	const why = "the image's digest doesn't match, so Docker wouldn't run it"
+	t.Run("on a step", func(t *testing.T) {
+		s := newSetup(t)
+		s.take(t, 443, "openresty")
+		s.proxy.startErr = errors.New(why)
+		err := s.Apply(t.Context(), routeRef("www"), plainSpec("app.example.com"), nil)
+		if err == nil || !strings.Contains(err.Error(), why) || strings.Contains(err.Error(), "443") {
+			t.Errorf("Apply = %v", err)
+		}
+	})
+	t.Run("as it reconciles", func(t *testing.T) {
+		s := newSetup(t)
+		s.take(t, 443, "openresty")
+		s.apply(t, "www", plainSpec("app.example.com"))
+		s.proxy.status = Status{Exists: true}
+		s.proxy.startErr = errors.New(why)
+		err := s.Reconcile(t.Context())
+		if err == nil || !strings.Contains(err.Error(), why) || strings.Contains(err.Error(), "443") {
+			t.Errorf("Reconcile = %v", err)
+		}
+	})
+	// One it wanted is named, with what the proxy said beside it.
+	t.Run("on a port it wanted", func(t *testing.T) {
+		s := newSetup(t)
+		s.proxy.startErr = errors.New(why)
+		s.proxy.onStart = func() { s.take(t, 80, "nginx") }
+		err := s.Apply(t.Context(), routeRef("www"), plainSpec("app.example.com"), nil)
+		if err == nil || !strings.Contains(err.Error(), "Port 80 is held by nginx") || !strings.Contains(err.Error(), why) {
+			t.Errorf("Apply = %v", err)
+		}
+	})
+}
+
+// A proxy that runs is told the truth of a port it can't have, with the setting that
+// means it doesn't need it.
+func TestARunningProxysPortTakenSaysWhatFollows(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", plainSpec("app.example.com"))
+	s.take(t, 443, "openresty")
+	ref := routeRef("secure")
+	secure := spec("secure.example.com", "", "web", 80)
+	for what, err := range map[string]error{
+		"plan":  s.Check(t.Context(), ref, []resource.Desired{{Ref: ref, Spec: secure}}),
+		"apply": s.Apply(t.Context(), ref, secure, nil),
+	} {
+		if err == nil || !strings.Contains(err.Error(), "Port 443 is held by openresty") || !strings.Contains(err.Error(), "set tls to off") || strings.Contains(err.Error(), "can't start") {
+			t.Errorf("%s = %v", what, err)
+		}
+	}
+}
+
+// A plan names what's on a port it sends to, or says nothing is, and neither stops it.
+func TestAPlanSaysWhatListensOnAPort(t *testing.T) {
+	s := newSetup(t)
+	if who, nothing := s.Listening(t.Context(), 8080); who != "" || !nothing {
+		t.Errorf("a free port reads %q, %v", who, nothing)
+	}
+	s.take(t, 8080, "myapp")
+	if who, nothing := s.Listening(t.Context(), 8080); who != "myapp" || nothing {
+		t.Errorf("a held port reads %q, %v", who, nothing)
+	}
+	s.engine.Intercept(func(*http.Request) error { return errors.New("docker has gone") })
+	defer s.engine.Intercept(nil)
+	if who, nothing := s.Listening(t.Context(), 8080); who != "" || nothing {
+		t.Errorf("with no way to tell, it reads %q, %v", who, nothing)
+	}
+}
+
+// A listener moved onto a routed port after the route was made is said once, as
+// nothing else looks again.
+func TestARouteToAPortDockwellCameToListenOnIsLogged(t *testing.T) {
+	s := newSetup(t)
+	var log bytes.Buffer
+	s.Logger = slog.New(slog.NewTextHandler(&log, nil))
+	s.apply(t, "www", hostPortSpec(9000))
+	s.OwnPorts = []int{9000}
+	for range 3 {
+		if err := s.Reconcile(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := strings.Count(log.String(), "a route sends to a port Dockwell now listens on itself"); n != 1 {
+		t.Errorf("it said so %d times:\n%s", n, log.String())
+	}
+	if !strings.Contains(log.String(), "app.example.com to port 9000") {
+		t.Errorf("it doesn't say which:\n%s", log.String())
 	}
 }

@@ -75,6 +75,9 @@ message DomainRoute {
   string tls = 7;
   // The port on the server itself it sends to, in place of a service's.
   uint32 host_port = 8;
+  // True when a route with tls off answers anyone who can reach the server, as
+  // Route.plain_for_anyone says.
+  bool plain_for_anyone = 9;
 }
 
 // DomainServer is where a domain stands on one server.

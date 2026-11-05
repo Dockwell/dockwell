@@ -12,15 +12,21 @@ import (
 const TLSOff = "off"
 
 // PresetCloudflare names Cloudflare's published ranges among a route's trusted
-// proxies.
+// proxies. A request from them has its address read from CF-Connecting-IP, as
+// Cloudflare documents for an origin. X-Forwarded-For isn't read past them: those
+// ranges are shared by all of Cloudflare's customers, and a Worker's cross-zone
+// request comes from one of them with whatever X-Forwarded-For its author wrote
+// (ADR 0030).
 const PresetCloudflare = "cloudflare"
 
 // cloudflareRanges are Cloudflare's published ranges, from
 // https://www.cloudflare.com/ips-v4 and ips-v6, as they stood on 2026-11-05. A
 // range Cloudflare adds later isn't believed until a release has it, so what a
-// service reads from there is Cloudflare's address, not a forged one. A route's
-// config holds these, so a new list reads as drift on a route that names the
-// preset, and reverting the drift applies the new list.
+// service reads from there is Cloudflare's address, not a forged one, and a route
+// with no certificate doesn't answer it. A route's config holds these, so a new
+// list reads as drift on a route that names the preset, and reverting the drift
+// applies the new list. .github/workflows/cloudflare-ranges.yml says when they've
+// changed, nightly.
 var cloudflareRanges = []string{
 	"103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "104.16.0.0/13", "104.24.0.0/14",
 	"108.162.192.0/18", "131.0.72.0/22", "141.101.64.0/18", "162.158.0.0/15", "172.64.0.0/13",
@@ -34,15 +40,27 @@ const (
 	// maxTrustedProxies is more than any route needs, past which a token that
 	// plans them costs a person a long read.
 	maxTrustedProxies = 32
-	// minTrustedBits is the widest range that can be someone's proxy. Past it, so
-	// many addresses could say whatever they like of a client that it isn't naming
-	// a proxy at all. Docker's address pools and 10.0.0.0/8 fit within it.
-	minTrustedBits = 8
+	// minPrivateBits is the widest range that can be someone's proxy on a private
+	// network, which 10.0.0.0/8 and Docker's address pools are.
+	minPrivateBits = 8
+	// minPublicBits4 and minPublicBits6 are the widest on the internet. Past them,
+	// so many addresses of so many owners could say whatever they like of a client
+	// that it isn't naming a proxy at all. Cloudflare's own widest are /13 and /29.
+	minPublicBits4 = 12
+	minPublicBits6 = 28
 )
 
 // mappedIPv4 is where IPv6 spells IPv4 addresses. A range over it would name
 // IPv4's whole internet in another way.
 var mappedIPv4 = netip.MustParseAddr("::ffff:0.0.0.0")
+
+// privateSpace is what isn't anyone's on the internet: a wide range here still
+// names one owner's network.
+var privateSpace = []netip.Prefix{
+	netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("169.254.0.0/16"),
+	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"), netip.MustParsePrefix("::1/128"),
+}
 
 // NormalizeTrustedProxies checks what a route names as its proxies, and returns
 // it canonical, sorted and without repeats, so that it compares equal to what the
@@ -60,9 +78,8 @@ func NormalizeTrustedProxies(list []string) ([]string, error) {
 		}
 		out = append(out, canon)
 	}
-	// As it reads back from the proxy, however it was written: a preset's ranges
-	// spelled out are the preset, and a range in a preset beside its name is the name.
-	return proxyNames(expandProxies(out)), nil
+	slices.Sort(out)
+	return slices.Compact(out), nil
 }
 
 func normalizeProxy(entry string) (string, error) {
@@ -84,38 +101,56 @@ func normalizeProxy(entry string) (string, error) {
 		return "", fmt.Errorf("the trusted proxy %s spells an IPv4 address in IPv6. Write it as IPv4", entry)
 	}
 	prefix = prefix.Masked()
-	if prefix.Bits() < minTrustedBits || prefix.Addr().IsUnspecified() || (prefix.Addr().Is6() && prefix.Contains(mappedIPv4)) {
-		return "", fmt.Errorf("the trusted proxy %s covers too much to be someone's proxy: anything in it could say any address is its client's, and services would believe it. Name your proxy's own address, or a range of /%d or narrower", entry, minTrustedBits)
+	if tooWide(prefix) {
+		return "", fmt.Errorf("the trusted proxy %s covers too much to be someone's proxy: anything in it could say any address is its client's, and services would believe it. Name your proxy's own address, or a range of /%d or narrower, /%d in IPv6, or /%d on a private network", entry, minPublicBits4, minPublicBits6, minPrivateBits)
+	}
+	if slices.ContainsFunc(cloudflareRanges, func(r string) bool { return netip.MustParsePrefix(r).Overlaps(prefix) }) {
+		return "", fmt.Errorf("the trusted proxy %s is in Cloudflare's ranges, which all its customers share, so X-Forwarded-For read from there can be written by anyone's Worker. Name %s instead, which reads the address Cloudflare documents for an origin", entry, PresetCloudflare)
 	}
 	return prefix.String(), nil
 }
 
-// expandProxies turns what a spec names into the ranges a proxy takes.
-func expandProxies(names []string) []string {
-	out := make([]string, 0, len(names))
-	for _, name := range names {
-		if name == PresetCloudflare {
-			out = append(out, cloudflareRanges...)
-			continue
-		}
-		out = append(out, name)
+// tooWide reports a range that can't be naming one proxy.
+func tooWide(p netip.Prefix) bool {
+	a := p.Addr()
+	switch {
+	case a.IsUnspecified(), a.IsMulticast(), a.Is6() && p.Contains(mappedIPv4):
+		return true
+	case slices.ContainsFunc(privateSpace, func(s netip.Prefix) bool { return s.Contains(a) && s.Bits() <= max(p.Bits(), minPrivateBits) }):
+		return p.Bits() < minPrivateBits
+	case a.Is4():
+		return p.Bits() < minPublicBits4
 	}
-	slices.Sort(out)
-	return slices.Compact(out)
+	return p.Bits() < minPublicBits6
 }
 
-// proxyNames is expandProxies the other way: a list that holds every range of a
-// preset reads as its name, and anything else as itself, so a preset compares
-// equal to the spec that named it. A list that lacks one of them reads as what it
-// holds, which is a difference, and shows as drift.
-func proxyNames(ranges []string) []string {
-	if len(ranges) == 0 {
+// splitProxies divides what a spec names into what has its X-Forwarded-For read,
+// and the ranges of a network that says who its client is in CF-Connecting-IP.
+func splitProxies(names []string) (named, edge []string) {
+	for _, name := range names {
+		if name == PresetCloudflare {
+			edge = slices.Clone(cloudflareRanges)
+			continue
+		}
+		named = append(named, name)
+	}
+	return named, edge
+}
+
+// proxyNames is splitProxies the other way. A list that holds every range of the
+// preset reads as its name, so it compares equal to the spec that named it, and one
+// that lacks any reads as what it holds, which is a difference, and shows as drift.
+func proxyNames(named, edge []string) []string {
+	if len(named)+len(edge) == 0 {
 		return nil
 	}
-	out := slices.Clone(ranges)
-	if !slices.ContainsFunc(cloudflareRanges, func(r string) bool { return !slices.Contains(ranges, r) }) {
-		out = slices.DeleteFunc(out, func(r string) bool { return slices.Contains(cloudflareRanges, r) })
-		out = append(out, PresetCloudflare)
+	out := slices.Clone(named)
+	if len(edge) > 0 {
+		if slices.ContainsFunc(cloudflareRanges, func(r string) bool { return !slices.Contains(edge, r) }) {
+			out = append(out, edge...)
+		} else {
+			out = append(out, PresetCloudflare)
+		}
 	}
 	slices.Sort(out)
 	return out

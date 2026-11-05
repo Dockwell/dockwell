@@ -463,6 +463,14 @@ msgid "Also plans and applies changes that can be undone. Never removes data or 
 msgstr "Also plans and applies changes that can be undone. Never removes data or cuts off access."
 
 #: src/features/changes/words.ts
+msgid "anyone on the internet"
+msgstr "anyone on the internet"
+
+#: src/features/changes/words.ts
+msgid "anyone who can reach {server}"
+msgstr "anyone who can reach {server}"
+
+#: src/features/changes/words.ts
 msgid "API token"
 msgstr "API token"
 
@@ -1127,6 +1135,10 @@ msgstr "Hover or focus a server to inspect it."
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS is automatic. Your passkey works at this address."
 
+#: src/features/changes/words.ts
+msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
+msgstr "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "I saved them"
 msgstr "I saved them"
@@ -1178,6 +1190,18 @@ msgstr "in under a minute"
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "Installed"
+
+#: src/features/changes/words.ts
+msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+msgstr "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+
+#: src/features/changes/words.ts
+msgid "It answers only {list}. Anyone else gets what a name with no route gets"
+msgstr "It answers only {list}. Anyone else gets what a name with no route gets"
+
+#: src/features/changes/words.ts
+msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
+msgstr "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "It has been undone since."
@@ -1255,6 +1279,10 @@ msgstr "Light"
 #: src/features/auth/ClaimPage.tsx
 msgid "Link expires"
 msgstr "Link expires"
+
+#: src/features/changes/words.ts
+msgid "Listening there now: {listening}"
+msgstr "Listening there now: {listening}"
 
 #: src/app/Providers.tsx
 msgid "Live"
@@ -1444,8 +1472,8 @@ msgid "No passkey works at {rpId} yet"
 msgstr "No passkey works at {rpId} yet"
 
 #: src/features/changes/words.ts
-msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}, and nothing it still serves stops"
-msgstr "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}, and nothing it still serves stops"
+msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
+msgstr "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "No server · nothing goes down"
@@ -1506,6 +1534,10 @@ msgstr "Nothing here yet"
 #: src/app/Providers.tsx
 msgid "Nothing here yet."
 msgstr "Nothing here yet."
+
+#: src/features/changes/words.ts
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
+msgstr "Nothing listens on port {number} yet, so this answers 502 until something does"
 
 #: src/app/Providers.tsx
 msgid "Nothing matches “{query}”. Try a server, app or action name."
@@ -1675,6 +1707,10 @@ msgstr "Pause"
 #: src/app/Providers.tsx
 msgid "Paused"
 msgstr "Paused"
+
+#: src/features/changes/words.ts
+msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
+msgstr "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2227,6 +2263,10 @@ msgid "System"
 msgstr "System"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "Takes away {stopping}"
+msgstr "Takes away {stopping}"
+
+#: src/features/changes/ChangeSheet.tsx
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 
@@ -2257,6 +2297,10 @@ msgstr "That code was already used. Wait for the next one in your authenticator 
 #: src/features/changes/ChangeSheet.tsx
 msgid "That didn't work"
 msgstr "That didn't work"
+
+#: src/features/changes/words.ts
+msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
+msgstr "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
 
 #: src/features/auth/messages.ts
 msgid "That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks."
@@ -2403,8 +2447,12 @@ msgid "The plan didn't work"
 msgstr "The plan didn't work"
 
 #: src/features/changes/words.ts
-msgid "the port {path} on the server itself, past its containers"
-msgstr "the port {path} on the server itself, past its containers"
+msgid "the port {path} on the server itself, past its containers, at {detail}"
+msgstr "the port {path} on the server itself, past its containers, at {detail}"
+
+#: src/features/changes/words.ts
+msgid "the port {path} on the server itself, past its containers, at {detail} over plain HTTP"
+msgstr "the port {path} on the server itself, past its containers, at {detail} over plain HTTP"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "the resource filter"
@@ -2815,6 +2863,10 @@ msgstr "What changed"
 msgid "What happens next"
 msgstr "What happens next"
 
+#: src/features/changes/words.ts
+msgid "what runs on {server} itself"
+msgstr "what runs on {server} itself"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
 msgstr "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
@@ -2843,6 +2895,10 @@ msgstr "Which project is it for?"
 #: src/features/activity/ActivityPage.tsx
 msgid "Who"
 msgstr "Who"
+
+#: src/features/changes/words.ts
+msgid "whoever comes through {list}"
+msgstr "whoever comes through {list}"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Why it failed"

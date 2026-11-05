@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -437,7 +438,7 @@ func TestNoClientAddressHeaderReachesAServiceOnRealCaddy(t *testing.T) {
 	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", strings.TrimPrefix(srv.URL, "http://")))
 	_ = c.waitServing(t, "app.example.net", "/").Body.Close()
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://app.example.net/", http.NoBody)
-	names := append([]string{"X-Forwarded-For", "X-Real-Ip"}, forgeableHeaders...)
+	names := slices.Concat([]string{"X-Forwarded-For", "X-Real-Ip"}, forgeableHeaders, claimsOfTheRequest)
 	for _, h := range names {
 		req.Header.Set(h, "6.6.6.6")
 	}

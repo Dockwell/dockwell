@@ -10,6 +10,9 @@ import {
   IngressChange,
   type IngressEffect,
   PlanAction,
+  type RouteAnswers,
+  RouteReach,
+  type ServerPortCheck,
   StepEffect,
   StepState,
   Surface,
@@ -51,6 +54,8 @@ export interface ChangeWords {
   domain(check: DomainCheck | undefined): string;
   /** What a route that takes no certificate means, as TLS ends before its server. It never stops a plan. */
   unencrypted(server: string): string;
+  /** Who a route answers, when it isn't anyone over HTTPS sent to a service, a sentence each. */
+  answers(answers: RouteAnswers | undefined, port: ServerPortCheck | undefined, server: string): string[];
 }
 
 /** Quotes what could read as the plan's own words, as AccessWords does on the server. */
@@ -207,9 +212,15 @@ export function useChangeWords(): ChangeWords {
           case HostAccessKind.PRIVILEGED:
             return t`privileged mode, which gives it every device and capability on the server, the same as root`;
           case HostAccessKind.SERVER_PORT:
-            return t`the port ${path} on the server itself, past its containers`;
+            return type === "http"
+              ? t`the port ${path} on the server itself, past its containers, at ${detail} over plain HTTP`
+              : t`the port ${path} on the server itself, past its containers, at ${detail}`;
           case HostAccessKind.TRUSTED_PROXY:
             return t`${path} as a proxy it believes on where a request came from`;
+          case HostAccessKind.PLAIN_FOR_ANYONE:
+            return t`plain HTTP on ${path} for anyone who can reach this server, around whatever is in front of it`;
+          case HostAccessKind.HTTPS_OFF:
+            return t`HTTPS on ${path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out`;
         }
         return t`something else on the server`;
       },
@@ -249,7 +260,7 @@ export function useChangeWords(): ChangeWords {
             break;
           case IngressChange.FREES_PORTS:
             out.push(
-              t`No route on ${server} takes a certificate after this, so ${proxy} frees ports ${ports}, and nothing it still serves stops`,
+              t`No route on ${server} takes a certificate after this, so ${proxy} frees ports ${ports}. Its routes that take none go on answering`,
             );
             break;
         }
@@ -280,6 +291,42 @@ export function useChangeWords(): ChangeWords {
       },
       unencrypted(server) {
         return t`Traffic for this route reaches ${server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it`;
+      },
+      answers(answers, port, server) {
+        if (!answers) return [];
+        const out: string[] = [];
+        const list = answers.proxies.join(", ");
+        let who = t`anyone on the internet`;
+        switch (answers.reach) {
+          case RouteReach.THIS_SERVER:
+            who = t`what runs on ${server} itself`;
+            out.push(
+              t`It answers only what runs on ${server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets`,
+            );
+            break;
+          case RouteReach.PROXIES:
+            who = t`whoever comes through ${list}`;
+            out.push(t`It answers only ${list}. Anyone else gets what a name with no route gets`);
+            break;
+          case RouteReach.ANYONE:
+            if (answers.plain) {
+              who = t`anyone who can reach ${server}`;
+              out.push(
+                t`It answers anyone who can reach ${server} on port 80, over plain HTTP, around whatever is in front of it`,
+              );
+            }
+            break;
+        }
+        if (!port) return out;
+        const number = String(port.port);
+        out.push(
+          t`That lets ${who} reach port ${number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe`,
+        );
+        const listening = port.listening;
+        if (listening !== "") out.push(t`Listening there now: ${listening}`);
+        else if (port.nothingListening)
+          out.push(t`Nothing listens on port ${number} yet, so this answers 502 until something does`);
+        return out;
       },
       actorKind(kind) {
         switch (kind) {

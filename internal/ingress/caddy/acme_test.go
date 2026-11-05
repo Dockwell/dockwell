@@ -132,7 +132,8 @@ func startPebble(t *testing.T) *pebble {
 }
 
 // addRecord points a name at an address, in the DNS the CA asks.
-func (p *pebble) addRecord(t *testing.T, host, addr string) {
+func (p *pebble) addRecord(t *testing.T, host string) {
+	const addr = "127.0.0.1"
 	t.Helper()
 	body, _ := json.Marshal(map[string]any{"host": host, "addresses": []string{addr}})
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, p.management+"/add-a", strings.NewReader(string(body)))
@@ -218,7 +219,7 @@ func TestCertificatesComeOverEachChallengeOnRealCaddy(t *testing.T) {
 		t.Run(challenge, func(t *testing.T) {
 			p := startPebble(t)
 			c := startCaddyWithCA(t, p, &ingress.PanelSite{Domain: "panel.example.net"}, challenge)
-			p.addRecord(t, "app.example.net", "127.0.0.1")
+			p.addRecord(t, "app.example.net")
 			put(t, c, aRoute("dockwell.env.www", "app.example.net", "", backend(t, "web")))
 
 			st := waitFor(t, c.Caddy, "app.example.net", ingress.CertIssued, 45*time.Second)
@@ -246,7 +247,7 @@ func TestAFailureSaysWhyAndFixingDNSWorksAtOnceOnRealCaddy(t *testing.T) {
 		t.Errorf("a name with no record reads as problem %d (%q), want DNS", st.Problem, st.Detail)
 	}
 
-	p.addRecord(t, "app.example.net", "127.0.0.1")
+	p.addRecord(t, "app.example.net")
 	begun := time.Now()
 	if err := c.Retry(t.Context()); err != nil {
 		t.Fatal(err)
@@ -359,7 +360,7 @@ func TestThePanelKeepsItsCertificateUntilCaddysOwnComesOnRealCaddy(t *testing.T)
 	}
 
 	// DNS comes to point here, and Caddy gets its own.
-	p.addRecord(t, "panel.example.net", "127.0.0.1")
+	p.addRecord(t, "panel.example.net")
 	if err := c.Retry(t.Context()); err != nil {
 		t.Fatal(err)
 	}

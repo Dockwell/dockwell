@@ -4,12 +4,15 @@ package caddy
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -87,6 +90,24 @@ func (r *realCaddy) plainGet(t *testing.T, host, path string, headers map[string
 		t.Fatalf("GET http://%s%s: %v", host, path, err)
 	}
 	return plainAnswer{status: res.StatusCode, location: res.Header.Get("Location"), body: body}
+}
+
+// waitAnswering waits for Caddy's plain HTTP port, once it has come back: its admin
+// socket answers before its HTTP listener is up, so waitAdmin says too little.
+func (r *realCaddy) waitAnswering(t *testing.T) {
+	t.Helper()
+	waitAdmin(t, r)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	for ctx.Err() == nil {
+		conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", r.http))
+		if err == nil {
+			_ = conn.Close()
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("nothing answers on port %d", r.http)
 }
 
 // bound reports whether something holds a port, on TCP or UDP.
@@ -172,7 +193,7 @@ func TestAPlainRouteServesHTTPAloneOnRealCaddy(t *testing.T) {
 	if err := c.proc.Run(t.Context(), filepath.Join(c.proc.Paths().Boot, bootstrapName)); err != nil {
 		t.Fatal(err)
 	}
-	waitAdmin(t, c)
+	c.waitAnswering(t)
 	if res := c.plainGet(t, "app.example.net", "/who", nil); res.status != http.StatusOK {
 		t.Errorf("after a restart it answers %d", res.status)
 	}
@@ -283,7 +304,7 @@ func TestPlainRoutesCloseAndGoOnRealCaddy(t *testing.T) {
 	if err := c.proc.Run(t.Context(), filepath.Join(c.proc.Paths().Boot, bootstrapName)); err != nil {
 		t.Fatal(err)
 	}
-	waitAdmin(t, c)
+	c.waitAnswering(t)
 	routes, err := c.Routes(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -428,7 +449,7 @@ func TestTrustedProxiesOnRealCaddy(t *testing.T) {
 func TestAProxyNamedElsewhereIsntBelievedOnRealCaddy(t *testing.T) {
 	c := startPlain(t)
 	r := plainRoute("dockwell.env.www", "app.example.net", backend(t, "web"))
-	r.TrustedProxies = []string{"203.0.113.0/24"}
+	r.TrustedProxies, r.PlainForAnyone = []string{"203.0.113.0/24"}, true
 	put(t, c, r)
 	seen := c.plainGet(t, "app.example.net", "/who", map[string]string{"X-Forwarded-For": "6.6.6.6", "X-Forwarded-Proto": "https"}).who(t)
 	if seen["real"] != "127.0.0.1" || seen["xff"] != "127.0.0.1" || seen["proto"] != "http" {
@@ -700,5 +721,563 @@ func TestAWriteClearsWhatACrashLeft(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("a FIFO held up removing what a crash left")
+	}
+}
+
+// ownAddress is a non-loopback address of this machine, which a request to it comes
+// from too, so it stands for a peer that isn't this server's loopback.
+func ownAddress(t *testing.T) string {
+	t.Helper()
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range addrs {
+		if ipn, ok := a.(*net.IPNet); ok && !ipn.IP.IsLoopback() && !ipn.IP.IsLinkLocalUnicast() && ipn.IP.To4() != nil {
+			return ipn.IP.String()
+		}
+	}
+	t.Skip("this machine has no address but loopback")
+	return ""
+}
+
+// plainGetAt is plainGet to one of this machine's addresses, which the request comes
+// from too.
+func (r *realCaddy) plainGetAt(t *testing.T, addr, host string, headers map[string]string) plainAnswer {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://%s:%d/who", addr, r.http), http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = host
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	res, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatalf("GET http://%s/who as %s: %v", addr, host, err)
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plainAnswer{status: res.StatusCode, location: res.Header.Get("Location"), body: body}
+}
+
+// A route with no certificate doesn't answer the whole internet. On a server with a
+// public address and no firewall, Host alone would otherwise go around a tunnel and
+// whatever Access or WAF sits in it. So it answers its own proxies, by the peer on
+// the connection and nothing it says, or with none, this server's own loopback. To
+// anyone else it's what a name with no route is, so they can't tell it's there.
+func TestAPlainRouteAnswersOnlyWhoItNamesOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	own := ownAddress(t)
+	up := backend(t, "web")
+	// Naming none, as with a tunnel on the server's own network: loopback alone.
+	put(t, c, plainRoute("dockwell.env.none", "none.example.net", up))
+	nobody := c.plainGet(t, "nope.example.net", "/who", nil)
+	if nobody.status != http.StatusNotFound {
+		t.Fatalf("a name with no route answers %d, so this proves nothing", nobody.status)
+	}
+	stranger := func(what, domain, addr string) {
+		t.Helper()
+		got := c.plainGetAt(t, addr, domain, nil)
+		if got.status != nobody.status || !bytes.Equal(got.body, nobody.body) {
+			t.Errorf("%s answered %d %q from %s, and a name with no route gets %d %q", what, got.status, got.body, addr, nobody.status, nobody.body)
+		}
+	}
+	if got := c.plainGetAt(t, "127.0.0.1", "none.example.net", nil); got.status != http.StatusOK {
+		t.Errorf("a route naming no proxy answers %d over loopback", got.status)
+	}
+	stranger("a route naming no proxy", "none.example.net", own)
+
+	// A tunnel that's named: it answers that, and believes it.
+	tunnel := plainRoute("dockwell.env.tunnel", "tunnel.example.net", up)
+	tunnel.TrustedProxies = []string{"127.0.0.1/32"}
+	put(t, c, tunnel)
+	if seen := c.plainGetAt(t, "127.0.0.1", "tunnel.example.net", map[string]string{"X-Forwarded-For": "198.51.100.7"}).who(t); seen["real"] != "198.51.100.7" {
+		t.Errorf("through its tunnel, the service saw %v", seen)
+	}
+	stranger("a route naming its tunnel", "tunnel.example.net", own)
+	// Saying it's the proxy counts for nothing.
+	got := c.plainGetAt(t, own, "tunnel.example.net", map[string]string{"X-Forwarded-For": "127.0.0.1", "X-Real-Ip": "127.0.0.1", "Forwarded": "for=127.0.0.1"})
+	if got.status != nobody.status {
+		t.Errorf("a stranger who says it's the proxy answered %d", got.status)
+	}
+
+	// An actual proxy on the network: that peer, not loopback.
+	proxy := plainRoute("dockwell.env.proxy", "proxy.example.net", up)
+	proxy.TrustedProxies = []string{own + "/32"}
+	put(t, c, proxy)
+	if seen := c.plainGetAt(t, own, "proxy.example.net", map[string]string{"X-Forwarded-For": "198.51.100.8", "X-Forwarded-Proto": "https"}).who(t); seen["real"] != "198.51.100.8" || seen["proto"] != "https" {
+		t.Errorf("through its proxy, the service saw %v", seen)
+	}
+	stranger("a route naming a proxy elsewhere", "proxy.example.net", "127.0.0.1")
+
+	// Anyone, as someone asked, with the peer as the client.
+	open := plainRoute("dockwell.env.open", "open.example.net", up)
+	open.PlainForAnyone = true
+	put(t, c, open)
+	for _, addr := range []string{"127.0.0.1", own} {
+		if seen := c.plainGetAt(t, addr, "open.example.net", map[string]string{"X-Forwarded-For": "6.6.6.6"}).who(t); seen["real"] != addr {
+			t.Errorf("a route for anyone, from %s, read %v", addr, seen)
+		}
+	}
+	routes, err := c.Routes(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 4 {
+		t.Fatalf("routes: %+v", routes)
+	}
+	for _, r := range routes {
+		if r.Edited {
+			t.Errorf("%s reads as edited by hand: %+v", r.ID, r)
+		}
+		if r.PlainForAnyone != (r.ID == "dockwell.env.open") {
+			t.Errorf("%s reads %+v", r.ID, r)
+		}
+	}
+
+	// What closes routes keeps to the same reach: a stranger still sees nothing there.
+	if err := c.SetClosed(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.plainGetAt(t, "127.0.0.1", "none.example.net", nil); got.status != http.StatusServiceUnavailable {
+		t.Errorf("closed, a route answers %d to what it answers", got.status)
+	}
+	stranger("a closed route", "none.example.net", own)
+	if got := c.plainGetAt(t, own, "open.example.net", nil); got.status != http.StatusServiceUnavailable {
+		t.Errorf("closed, a route for anyone answers %d", got.status)
+	}
+}
+
+// HTTP-01 for a route with a certificate comes to the same port, from the CA, and a
+// route's reach and the 404 after it are no part of that.
+func TestHTTP01GoesPastAPlainRoutesReachOnRealCaddy(t *testing.T) {
+	p := startPebble(t)
+	bin := needCaddy(t)
+	dir := shortDir(t)
+	proc := &process{bin: bin, dir: dir}
+	c := &Caddy{Dir: dir, Runtime: proc, ACMEDirectory: p.directory, ACMERoots: p.roots, HTTPPort: p.httpPort, HTTPSPort: p.tlsPort}
+	c.issuerForTest = map[string]any{
+		"module": "acme", "ca": p.directory,
+		"challenges": map[string]any{
+			"http":     map[string]any{"alternate_port": p.httpPort},
+			"tls-alpn": map[string]any{"disabled": true},
+		},
+		"trusted_roots_pem_files": []string{filepath.Join(proc.Paths().Boot, acmeRootsName)},
+	}
+	t.Cleanup(func() { proc.stop(syscall.SIGKILL) })
+	if err := c.Start(t.Context(), nil, true); err != nil {
+		out, _ := os.ReadFile(filepath.Join(dir, "caddy.out"))
+		t.Fatalf("%v\n%s", err, out)
+	}
+	r := &realCaddy{Caddy: c, proc: proc, http: c.HTTPPort, tls: c.HTTPSPort}
+	up := backend(t, "web")
+	// It names a proxy the CA isn't, so its reach would refuse the CA if that came
+	// into it, and the 404 would swallow the challenge.
+	named := plainRoute("dockwell.env.plain", "plain.example.net", up)
+	named.TrustedProxies = []string{"203.0.113.0/24"}
+	put(t, r, named)
+	put(t, r, plainRoute("dockwell.env.local", "local.example.net", up))
+	if res := r.plainGet(t, "nope.example.net", "/x", nil); res.status != http.StatusNotFound {
+		t.Fatalf("a name with no route answers %d", res.status)
+	}
+	p.addRecord(t, "secure.example.net")
+	put(t, r, aRoute("dockwell.env.secure", "secure.example.net", "", up))
+	waitFor(t, c, "secure.example.net", ingress.CertIssued, 60*time.Second)
+	noCertificateFor(t, r, "plain.example.net")
+	noCertificateFor(t, r, "local.example.net")
+}
+
+// A route believes a proxy only if it named that proxy, whatever another route on
+// the server names, though what Caddy trusts is per server.
+func TestARouteBelievesOnlyTheProxyItNamedOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	up := backend(t, "web")
+	mine := plainRoute("dockwell.envA.mine", "mine.example.net", up)
+	mine.TrustedProxies, mine.PlainForAnyone = []string{"203.0.113.0/24"}, true // the only proxy this one named
+	put(t, c, mine)
+	theirs := plainRoute("dockwell.envB.theirs", "theirs.example.net", up)
+	theirs.TrustedProxies = []string{"127.0.0.1/32"} // another project's, and the peer here
+	put(t, c, theirs)
+	forged := map[string]string{"X-Forwarded-For": "6.6.6.6", "X-Forwarded-Proto": "https", "X-Forwarded-Host": "evil.example.net"}
+	seen := c.plainGet(t, "mine.example.net", "/who", forged).who(t)
+	if seen["real"] != "127.0.0.1" || seen["xff"] != "127.0.0.1" {
+		t.Errorf("another project's proxy made this route believe it: %v", seen)
+	}
+	if seen["proto"] != "http" {
+		t.Errorf("X-Forwarded-Proto is %q, from a proxy this route never named", seen["proto"])
+	}
+	// And the one that named it does.
+	seen = c.plainGet(t, "theirs.example.net", "/who", forged).who(t)
+	if seen["real"] != "6.6.6.6" || seen["proto"] != "https" {
+		t.Errorf("the route that named it read %v", seen)
+	}
+	// Over TLS as well, where a route's reach isn't limited.
+	secure := aRoute("dockwell.envA.secure", "secure.example.net", "", up)
+	secure.TrustedProxies = []string{"203.0.113.0/24"}
+	put(t, c, secure)
+	_ = c.whoAt(t, "secure.example.net", "/who")
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://secure.example.net/who", http.NoBody)
+	req.Header.Set("X-Forwarded-For", "6.6.6.6")
+	req.Header.Set("X-Forwarded-Proto", "http")
+	res, err := c.client("secure.example.net").Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := who(t, res); got["real"] != "127.0.0.1" || got["proto"] != "https" {
+		t.Errorf("over TLS, from a peer it didn't name, the service saw %v", got)
+	}
+}
+
+// Caddy owns what says how a request came, through a trusted proxy too. A visitor's
+// X-Forwarded-Host passes through a proxy as anything else does, and an app builds a
+// password reset link from it. X-Forwarded-Proto is https from a proxy this route
+// named, and nothing else is taken from it.
+func TestAVisitorsForwardedHeadersStopAtCaddyOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	var seen http.Header
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { seen = r.Header.Clone() }))
+	t.Cleanup(srv.Close)
+	r := plainRoute("dockwell.env.www", "app.example.net", strings.TrimPrefix(srv.URL, "http://"))
+	r.TrustedProxies = []string{"127.0.0.1/32"}
+	put(t, c, r)
+	c.plainGet(t, "app.example.net", "/who", map[string]string{
+		"X-Forwarded-For": "6.6.6.6, 198.51.100.7", "X-Forwarded-Proto": "https", // as the edge sends them
+		"X-Forwarded-Host": "evil.example.net", "X-Forwarded-Port": "1", "X-Forwarded-Server": "evil", "X-Original-Host": "evil.example.net", // as the visitor wrote them
+		"X-Forwarded-Ssl": "on", "X-Forwarded-Scheme": "https", "Front-End-Https": "on", "X-Url-Scheme": "https", "X-Host": "evil.example.net",
+	})
+	if got := seen.Get("X-Forwarded-Host"); got != "app.example.net" {
+		t.Errorf("X-Forwarded-Host is %q, want the Host the request came with", got)
+	}
+	if got := seen.Get("X-Forwarded-Proto"); got != "https" {
+		t.Errorf("X-Forwarded-Proto from the proxy it named is %q", got)
+	}
+	for _, h := range claimsOfTheRequest {
+		if got := seen.Get(h); got != "" {
+			t.Errorf("a visitor's %s reached the service: %q", h, got)
+		}
+	}
+	for _, proto := range []string{"http", "ftp", "https, http", "javascript:alert(1)", ""} {
+		c.plainGet(t, "app.example.net", "/who", map[string]string{"X-Forwarded-Proto": proto})
+		if got := seen.Get("X-Forwarded-Proto"); got != "http" {
+			t.Errorf("X-Forwarded-Proto %q reads %q, want what the request came over", proto, got)
+		}
+	}
+	// Through a route that names none, on the same server, the same.
+	other := plainRoute("dockwell.env.other", "other.example.net", strings.TrimPrefix(srv.URL, "http://"))
+	put(t, c, other)
+	c.plainGet(t, "other.example.net", "/who", map[string]string{"X-Forwarded-Host": "evil.example.net", "X-Forwarded-Ssl": "on", "X-Forwarded-Proto": "https"})
+	if got := seen.Get("X-Forwarded-Host"); got != "other.example.net" {
+		t.Errorf("beside it, X-Forwarded-Host is %q", got)
+	}
+	if got := seen.Get("X-Forwarded-Proto"); got != "http" {
+		t.Errorf("beside it, X-Forwarded-Proto is %q", got)
+	}
+	if got := seen.Get("X-Forwarded-Ssl"); got != "" {
+		t.Errorf("beside it, X-Forwarded-Ssl is %q", got)
+	}
+}
+
+// Cloudflare's ranges are shared by all its customers, and a Worker's cross-zone
+// request comes from one, with what its author wrote in X-Forwarded-For and
+// 2a06:98c0:3600::103 after it. So from them the address is CF-Connecting-IP, as
+// Cloudflare's docs say an origin should read, and X-Forwarded-For is never walked.
+// The peer stands in for the edge, as a test can't come from Cloudflare's addresses.
+func TestCloudflaresRangesAreReadFromItsOwnHeaderOnRealCaddy(t *testing.T) {
+	const workerAddress = "2a06:98c0:3600::103"
+	worker := map[string]string{"X-Forwarded-For": "8.8.8.8, " + workerAddress, "Cf-Connecting-Ip": workerAddress, "X-Forwarded-Proto": "https"}
+	c := startPlain(t)
+	up := backend(t, "web")
+	edge := plainRoute("dockwell.env.edge", "edge.example.net", up)
+	edge.EdgeProxies = []string{"127.0.0.0/8"}
+	put(t, c, edge)
+	seen := c.plainGet(t, "edge.example.net", "/who", worker).who(t)
+	if seen["real"] != workerAddress || seen["xff"] != workerAddress {
+		t.Errorf("a Worker's request read %v, want Cloudflare's own word for it, %s", seen, workerAddress)
+	}
+	if seen["proto"] != "https" {
+		t.Errorf("from the edge, X-Forwarded-Proto is %q", seen["proto"])
+	}
+	// With no such header, it's the peer, and still not what X-Forwarded-For says.
+	if seen := c.plainGet(t, "edge.example.net", "/who", map[string]string{"X-Forwarded-For": "8.8.8.8"}).who(t); seen["real"] != "127.0.0.1" {
+		t.Errorf("with no CF-Connecting-IP, the service saw %v", seen)
+	}
+	// The ranges of the preset aren't what the server trusts, so a route that names
+	// something else doesn't walk past them either: that's the same Worker, through a
+	// tunnel beside a route that names the preset.
+	tunnel := plainRoute("dockwell.env.tunnel", "tunnel.example.net", up)
+	tunnel.TrustedProxies = []string{"127.0.0.1/32"}
+	put(t, c, tunnel)
+	far := plainRoute("dockwell.env.far", "far.example.net", up)
+	far.EdgeProxies = []string{"2a06:98c0::/29"}
+	put(t, c, far)
+	seen = c.plainGet(t, "tunnel.example.net", "/who", worker).who(t)
+	if seen["real"] != workerAddress {
+		t.Errorf("through a tunnel beside the preset, a Worker's request read %v: its author's %s was walked to", seen, "8.8.8.8")
+	}
+	cfg := configOf(t, c)
+	if strings.Contains(cfg, `"ranges":["127.0.0.1/32","2a06`) || strings.Contains(cfg, `"source":"static","ranges":["127.0.0.0/8"`) {
+		t.Errorf("a server trusts a preset's ranges: %s", cfg)
+	}
+	// And nobody but a peer in the ranges has the header read: not a route's named
+	// proxy, not anyone on a route that names the preset elsewhere.
+	if seen := c.plainGet(t, "tunnel.example.net", "/who", map[string]string{"Cf-Connecting-Ip": "6.6.6.6"}).who(t); seen["real"] != "127.0.0.1" {
+		t.Errorf("a named proxy's CF-Connecting-IP was read: %v", seen)
+	}
+	away := plainRoute("dockwell.env.away", "away.example.net", up)
+	away.EdgeProxies, away.PlainForAnyone = []string{"2a06:98c0::/29"}, true
+	put(t, c, away)
+	if seen := c.plainGet(t, "away.example.net", "/who", map[string]string{"Cf-Connecting-Ip": "6.6.6.6", "X-Forwarded-Proto": "https"}).who(t); seen["real"] != "127.0.0.1" || seen["proto"] != "http" {
+		t.Errorf("from outside the preset's ranges, the service saw %v", seen)
+	}
+	routes, err := c.Routes(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range routes {
+		if r.Edited {
+			t.Errorf("%s reads as edited by hand: %+v", r.ID, r)
+		}
+	}
+}
+
+// What decides who a route answers and what it believes is compared, not only read:
+// a hand edit of either would otherwise read as nothing.
+func TestHandEditsOfWhatARouteBelievesReadAsThemselvesOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	up := backend(t, "web")
+	r := plainRoute("dockwell.env.www", "app.example.net", up)
+	r.TrustedProxies = []string{"127.0.0.1/32"}
+	put(t, c, r)
+	path := "/config/apps/http/servers/" + httpServerName + "/routes/0"
+	for name, edit := range map[string]func(route) route{
+		"its reach": func(rt route) route {
+			rt.Match[0].RemoteIP = &remoteIP{Ranges: []string{"0.0.0.0/0"}}
+			return rt
+		},
+		"what it believes": func(rt route) route {
+			rt.Handle[0].Routes[1].Match[0].RemoteIP = &remoteIP{Ranges: []string{"0.0.0.0/0"}}
+			return rt
+		},
+		"an extra step": func(rt route) route {
+			rt.Handle[0].Routes = append(rt.Handle[0].Routes, beliefRoute{Handle: []map[string]string{{"handler": "vars", clientVar: "6.6.6.6"}}})
+			return rt
+		},
+		"its headers": func(rt route) route {
+			rt.Handle[1].Headers = clientAddress()
+			return rt
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			put(t, c, r)
+			b, err := json.Marshal(edit(routeJSON(r)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := c.call(t.Context(), http.MethodPatch, path, b, nil); err != nil {
+				t.Fatal(err)
+			}
+			routes, err := c.Routes(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(routes) != 1 || !routes[0].Edited {
+				t.Errorf("it reads %+v", routes)
+			}
+			// And it gets no say in what the server trusts.
+			if got := configOf(t, c); strings.Count(got, `"trusted_proxies"`) > 2 {
+				t.Errorf("config: %s", got)
+			}
+		})
+	}
+}
+
+// The panel reads the last of X-Forwarded-For, which is the peer, whatever a route
+// on the server trusts. Its address can't be forged through someone else's proxy.
+func TestThePanelReadsThePeerBesideARouteThatTrustsItOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	l, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", PanelSocket(c.Dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seen http.Header
+	protos := new(http.Protocols)
+	protos.SetHTTP1(true)
+	protos.SetUnencryptedHTTP2(true)
+	srv := &http.Server{ReadHeaderTimeout: 5 * time.Second, Protocols: protos, Handler: http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { seen = r.Header.Clone() })}
+	go func() { _ = srv.Serve(l) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	trusted := aRoute("dockwell.env.tunnel", "tunnel.example.net", "", backend(t, "web"))
+	trusted.TrustedProxies = []string{"127.0.0.1/32"}
+	put(t, c, trusted)
+	if err := c.SetPanel(t.Context(), &ingress.PanelSite{Domain: "panel.example.net"}); err != nil {
+		t.Fatal(err)
+	}
+	var res *http.Response
+	for range 100 {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://panel.example.net/who", http.NoBody)
+		req.Header.Set("X-Forwarded-For", "6.6.6.6")
+		req.Header.Set("X-Real-Ip", "6.6.6.7")
+		if res, err = c.client("panel.example.net").Do(req); err == nil {
+			_ = res.Body.Close()
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := strings.Split(seen.Get("X-Forwarded-For"), ",")
+	if got := strings.TrimSpace(list[len(list)-1]); got != "127.0.0.1" {
+		t.Errorf("the panel would read %q, want the peer", got)
+	}
+	if got := seen.Get("X-Real-Ip"); got != "127.0.0.1" {
+		t.Errorf("the panel's X-Real-IP is %q", got)
+	}
+}
+
+// A route with no name to serve doesn't bind HTTPS on a server that's otherwise
+// plain, or beside another proxy on 443 that reload would fail. What closes the
+// rest is one, and #93's route that says something of every response is another.
+func TestARouteThatNamesNoHostDoesntBindHTTPSOnRealCaddy(t *testing.T) {
+	c := startPlain(t)
+	put(t, c, plainRoute("dockwell.env.www", "app.example.net", backend(t, "web")))
+	noName, err := json.Marshal(map[string]any{
+		"@id":    "something-else",
+		"handle": []map[string]any{{"handler": "headers", "response": map[string]any{"set": map[string][]string{"Connection": {"close"}}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.mutate(t.Context(), func(routes []json.RawMessage) ([]json.RawMessage, error) { return append(routes, noName), nil }); err != nil {
+		t.Fatal(err)
+	}
+	if tcp, udp := bound(t, c.tls); tcp || udp {
+		t.Errorf("a route with no name made HTTPS bind: TCP %v, UDP %v", tcp, udp)
+	}
+	if err := c.SetClosed(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	if tcp, udp := bound(t, c.tls); tcp || udp {
+		t.Errorf("closing routes made HTTPS bind: TCP %v, UDP %v", tcp, udp)
+	}
+}
+
+// Port 80 alone works beside a real holder of 443, on TCP and UDP, through a restart
+// and a reload, and a route that then wants a certificate fails only itself.
+func TestAPlainServerRunsBesideAHolderOfHTTPSOnRealCaddy(t *testing.T) {
+	bin := needCaddy(t)
+	dir := shortDir(t)
+	proc := &process{bin: bin, dir: dir}
+	c := &Caddy{Dir: dir, Runtime: proc, HTTPPort: freePort(t), HTTPSPort: freePort(t), issuerForTest: map[string]any{"module": "internal"}}
+	t.Cleanup(func() { proc.stop(syscall.SIGKILL) })
+	tl, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", fmt.Sprintf(":%d", c.HTTPSPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tl.Close()
+	ul, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", fmt.Sprintf(":%d", c.HTTPSPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ul.Close()
+	if err := c.Start(t.Context(), nil, true); err != nil {
+		out, _ := os.ReadFile(filepath.Join(dir, "caddy.out"))
+		t.Fatalf("start beside a holder of %d: %v\n%s", c.HTTPSPort, err, out)
+	}
+	r := &realCaddy{Caddy: c, proc: proc, http: c.HTTPPort, tls: c.HTTPSPort}
+	up := backend(t, "web")
+	put(t, r, plainRoute("dockwell.env.www", "app.example.net", up))
+	if res := r.plainGet(t, "app.example.net", "/who", nil); res.status != http.StatusOK {
+		t.Errorf("it answers %d", res.status)
+	}
+	proc.stop(syscall.SIGKILL)
+	if err := proc.Run(t.Context(), filepath.Join(proc.Paths().Boot, bootstrapName)); err != nil {
+		t.Fatal(err)
+	}
+	r.waitAnswering(t)
+	if res := r.plainGet(t, "app.example.net", "/who", nil); res.status != http.StatusOK {
+		t.Errorf("after a restart it answers %d", res.status)
+	}
+	before := configOf(t, r)
+	if err := c.PutRoute(t.Context(), aRoute("dockwell.env.secure", "secure.example.net", "", up)); err == nil {
+		t.Error("a route that wants a certificate went in, with port 443 held")
+	}
+	if res := r.plainGet(t, "app.example.net", "/who", nil); res.status != http.StatusOK {
+		t.Errorf("after that failed, the plain route answers %d", res.status)
+	}
+	if got := configOf(t, r); got != before {
+		t.Errorf("the failed reload changed the config:\n%s\nwas\n%s", got, before)
+	}
+	put(t, r, plainRoute("dockwell.env.b", "b.example.net", up))
+	if err := c.DeleteRoute(t.Context(), "dockwell.env.www"); err != nil {
+		t.Fatalf("removing a route beside the holder: %v", err)
+	}
+}
+
+func configOf(t *testing.T, c *realCaddy) string {
+	t.Helper()
+	b, _, err := c.call(t.Context(), http.MethodGet, serversPath, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// Nothing but the panel's own key has to go: Caddy's own certificates stay, for a
+// route that comes back, and this says what that means for the panel's domain.
+func TestThePanelsOwnKeyGoesAndCaddysStaysOnRealCaddy(t *testing.T) {
+	c := startCaddy(t)
+	site := &ingress.PanelSite{Domain: "panel.example.net", Cert: selfSignedChain(t, "panel.example.net", "the panel's own CA")}
+	if err := c.SetPanel(t.Context(), site); err != nil {
+		t.Fatal(err)
+	}
+	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", "127.0.0.1:1"))
+	_ = c.waitServing(t, "panel.example.net", "/").Body.Close()
+	_ = c.waitServing(t, "app.example.net", "/").Body.Close()
+	if err := c.Stop(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	panelKey := strings.TrimSpace(string(site.Cert.Key))
+	escaped, err := json.Marshal(panelKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var caddysOwn bool
+	err = filepath.WalkDir(c.Dir, func(p string, d os.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case !d.Type().IsRegular():
+			return nil
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(c.Dir, p)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(b), panelKey) || strings.Contains(string(b), strings.Trim(string(escaped), `"`)) {
+			t.Errorf("the panel's own key is in %s", rel)
+		}
+		if strings.Contains(string(b), "PRIVATE KEY") {
+			if !strings.HasPrefix(rel, "data"+string(filepath.Separator)) {
+				t.Errorf("a key outside Caddy's data: %s", rel)
+			}
+			caddysOwn = caddysOwn || strings.HasSuffix(rel, filepath.Join("panel.example.net", "panel.example.net.key"))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !caddysOwn {
+		t.Error("Caddy's own key for the panel's domain went, and docs/security/ingress.md says it stays until it expires")
 	}
 }

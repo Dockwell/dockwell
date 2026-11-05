@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -248,6 +249,15 @@ type matcher struct {
 	// Protocol is "http" on a route that takes no certificate, which is both what
 	// marks it and a second lock: it can't answer over TLS.
 	Protocol string `json:"protocol,omitempty"`
+	// RemoteIP is who a route that takes no certificate answers, by the peer on the
+	// connection, whatever it says of itself.
+	RemoteIP *remoteIP `json:"remote_ip,omitempty"`
+	// Header holds what a request must carry, in what a route believes of it.
+	Header map[string][]string `json:"header,omitempty"`
+}
+
+type remoteIP struct {
+	Ranges []string `json:"ranges"`
 }
 
 type upstream struct {
@@ -272,10 +282,16 @@ type handler struct {
 	LoadBalancing    *loadBalancing `json:"load_balancing,omitempty"`
 	Transport        *transport     `json:"transport,omitempty"`
 	Headers          *headers       `json:"headers,omitempty"`
-	// TrustedProxies are the ranges a route takes the word of. The server's own
-	// trusted_proxies, which decide what {http.vars.client_ip} says, are all of
-	// these together, as Caddy has that per server.
-	TrustedProxies []string `json:"trusted_proxies,omitempty"`
+	// Routes are a subroute's: what a route believes of its request.
+	Routes []beliefRoute `json:"routes,omitempty"`
+}
+
+// beliefRoute is one step of what a route believes. It sets request variables, and
+// its route's reverse_proxy reads those, so which peer is believed is the route's
+// own, though what Caddy trusts is per server.
+type beliefRoute struct {
+	Match  []matcher           `json:"match,omitempty"`
+	Handle []map[string]string `json:"handle"`
 }
 
 // headers changes what a handler sends upstream.
@@ -299,12 +315,26 @@ var forgeableHeaders = []string{
 	"X-Envoy-External-Address", "X-Original-Forwarded-For",
 }
 
-// Caddy's placeholders for where a request came from: the peer on the connection,
-// and the client Caddy found through a proxy it trusts, which is the peer unless
-// that proxy said otherwise.
+// claimsOfTheRequest say how a request reached the server, or by what name, and
+// frameworks read them to build links and decide what's secure. Nothing says only
+// a proxy wrote them, so a route writes X-Forwarded-Host and X-Forwarded-Proto
+// itself, and these don't reach a service at all.
+var claimsOfTheRequest = []string{
+	"X-Forwarded-Port", "X-Forwarded-Server", "X-Forwarded-Ssl", "X-Forwarded-Scheme", "X-Url-Scheme", "Front-End-Https", "X-Original-Host", "X-Host",
+}
+
+// Caddy's placeholders for where a request came from and how: the peer on the
+// connection, the client Caddy found through a proxy it trusts, which is the peer
+// unless that proxy said otherwise, what Cloudflare says connected to it, and what
+// a route's own steps decided of these.
 const (
 	peerAddress    = "{http.request.remote.host}"
 	resolvedClient = "{http.vars.client_ip}"
+	edgeClient     = "{http.request.header.Cf-Connecting-Ip}"
+	realScheme     = "{http.request.scheme}"
+	requestHost    = "{http.request.hostport}"
+	clientVar      = "dockwell_client"
+	schemeVar      = "dockwell_scheme"
 )
 
 // clientAddress is what a route sends upstream of where a request came from, on a
@@ -312,6 +342,15 @@ const (
 // moved from OpenResty keeps working, and what else a client might claim is gone.
 // Caddy overwrites X-Forwarded-For and its like itself.
 func clientAddress() *headers {
+	return &headers{Request: &headerOps{
+		Set:    map[string][]string{"X-Real-Ip": {peerAddress}},
+		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
+	}}
+}
+
+// olderClientAddress is clientAddress as a config from before claimsOfTheRequest
+// has it, which reads as Dockwell's own, so an upgrade isn't drift.
+func olderClientAddress() *headers {
 	return &headers{Request: &headerOps{
 		Set:    map[string][]string{"X-Real-Ip": {peerAddress}},
 		Delete: forgeableHeaders,
@@ -325,23 +364,94 @@ func distrustingAddress() *headers {
 	return &headers{Request: &headerOps{
 		Set: map[string][]string{
 			"X-Real-Ip": {peerAddress}, "X-Forwarded-For": {peerAddress},
-			"X-Forwarded-Proto": {"{http.request.scheme}"}, "X-Forwarded-Host": {"{http.request.hostport}"},
+			"X-Forwarded-Proto": {realScheme}, "X-Forwarded-Host": {requestHost},
 		},
-		Delete: forgeableHeaders,
+		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
 	}}
 }
 
-// believingAddress is what a route that trusts a proxy sends. A service reads one
-// address, the client Caddy found reading X-Forwarded-For from the right: what a
-// client sent itself is further left, so it is never what's read, and it doesn't
-// reach the service to be read there either. A proxy's X-Forwarded-Proto and
-// X-Forwarded-Host come through as Caddy keeps them, so an app behind a tunnel
-// knows its visitors came over HTTPS.
+// believingAddress is what a route that names a proxy sends, from what its own
+// steps decided (beliefOf). A service reads one address, not a list a client may
+// have written the start of. X-Forwarded-Host is the Host this request came with,
+// as a proxy passes on what a visitor writes there, and an app builds links from it.
 func believingAddress() *headers {
+	client, scheme := "{http.vars."+clientVar+"}", "{http.vars."+schemeVar+"}"
 	return &headers{Request: &headerOps{
-		Set:    map[string][]string{"X-Real-Ip": {resolvedClient}, "X-Forwarded-For": {resolvedClient}},
-		Delete: forgeableHeaders,
+		Set: map[string][]string{
+			"X-Real-Ip": {client}, "X-Forwarded-For": {client},
+			"X-Forwarded-Proto": {scheme}, "X-Forwarded-Host": {requestHost},
+		},
+		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
 	}}
+}
+
+// beliefOf is what a route that names a proxy believes of a request: the peer on
+// the connection and the scheme it came over, unless the peer is one it named. Only
+// that route's own list counts, though Caddy finds {http.vars.client_ip} by what any
+// route on the server names.
+//
+//   - From a range it named, the client is the first address from the right of
+//     X-Forwarded-For that no route on the server names.
+//   - From Cloudflare's, the client is CF-Connecting-IP, and X-Forwarded-For isn't
+//     read: those ranges are shared by all its customers, and a Worker's request
+//     comes from one with whatever X-Forwarded-For its author wrote (ADR 0030).
+//   - From either, https is taken at its word, and nothing else is: a visitor can't
+//     put anything else in front of an app through it.
+func beliefOf(named, edge []string) handler {
+	steps := []beliefRoute{{Handle: []map[string]string{{"handler": "vars", clientVar: peerAddress, schemeVar: realScheme}}}}
+	if len(named) > 0 {
+		steps = append(steps, beliefRoute{
+			Match:  []matcher{{RemoteIP: &remoteIP{Ranges: named}}},
+			Handle: []map[string]string{{"handler": "vars", clientVar: resolvedClient}},
+		})
+	}
+	if len(edge) > 0 {
+		steps = append(steps, beliefRoute{
+			Match:  []matcher{{RemoteIP: &remoteIP{Ranges: edge}, Header: map[string][]string{"Cf-Connecting-Ip": {"*"}}}},
+			Handle: []map[string]string{{"handler": "vars", clientVar: edgeClient}},
+		})
+	}
+	steps = append(steps, beliefRoute{
+		Match:  []matcher{{RemoteIP: &remoteIP{Ranges: slices.Concat(named, edge)}, Header: map[string][]string{"X-Forwarded-Proto": {"https"}}}},
+		Handle: []map[string]string{{"handler": "vars", schemeVar: "https"}},
+	})
+	return handler{Handler: "subroute", Routes: steps}
+}
+
+// readBelief finds what ranges a route's steps believe, or nothing for a route that
+// has none. routeJSON writes it back to see they're what it would write.
+func readBelief(h handler) (named, edge []string) {
+	for _, step := range h.Routes {
+		if len(step.Match) != 1 || step.Match[0].RemoteIP == nil || len(step.Handle) != 1 {
+			continue
+		}
+		switch step.Handle[0][clientVar] {
+		case resolvedClient:
+			named = step.Match[0].RemoteIP.Ranges
+		case edgeClient:
+			edge = step.Match[0].RemoteIP.Ranges
+		}
+	}
+	return named, edge
+}
+
+// thisServer is who a route with no certificate answers if it names no proxy, as a
+// tunnel on the server's own network. A blanket rule for private addresses would let
+// in a whole network, as servers often sit on one, so a bridge's range is named in
+// trusted_proxies instead.
+var thisServer = []string{"127.0.0.0/8", "::1/128"}
+
+// reachOf is who a route with no certificate answers, by the peer on the connection,
+// or nil for anyone. Anyone else falls through to what a name with no route gets, so
+// it can't tell the route is there.
+func reachOf(r ingress.Route) *remoteIP {
+	switch {
+	case r.PlainForAnyone:
+		return nil
+	case len(r.TrustedProxies)+len(r.EdgeProxies) > 0:
+		return &remoteIP{Ranges: slices.Concat(r.TrustedProxies, r.EdgeProxies)}
+	}
+	return &remoteIP{Ranges: thisServer}
 }
 
 type route struct {
@@ -360,6 +470,7 @@ func routeJSON(r ingress.Route) route {
 	}
 	if r.Plain {
 		m.Protocol = plainProtocol
+		m.RemoteIP = reachOf(r)
 	}
 	ups := make([]upstream, len(r.Upstreams))
 	for i, u := range r.Upstreams {
@@ -370,10 +481,12 @@ func routeJSON(r ingress.Route) route {
 		LoadBalancing: &loadBalancing{TryDuration: tryDuration, TryInterval: tryInterval},
 		Headers:       clientAddress(),
 	}
-	if len(r.TrustedProxies) > 0 {
-		h.TrustedProxies, h.Headers = r.TrustedProxies, believingAddress()
+	handle := []handler{h}
+	if len(r.TrustedProxies)+len(r.EdgeProxies) > 0 {
+		h.Headers = believingAddress()
+		handle = []handler{beliefOf(r.TrustedProxies, r.EdgeProxies), h}
 	}
-	return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: []handler{h}}
+	return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: handle}
 }
 
 // plainProtocol is what Caddy's protocol matcher takes for a request not over TLS.
@@ -821,8 +934,8 @@ func routeID(raw json.RawMessage) string {
 // older build's keys stay on the list, so an upgrade isn't drift.
 var (
 	knownRouteKeys   = []string{"@id", "match", "handle", "terminal"}
-	knownMatchKeys   = []string{"host", "path", "protocol"}
-	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers", "trusted_proxies"}
+	knownMatchKeys   = []string{"host", "path", "protocol", "remote_ip"}
+	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers"}
 )
 
 // readRoute reads one of Dockwell's routes; ok is false for another's, which
@@ -834,10 +947,11 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	}
 	out := ingress.Route{ID: id}
 	var r route
-	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) != 1 || len(r.Match[0].Host) != 1 || len(r.Handle) != 1 || r.Handle[0].Handler != "reverse_proxy" {
+	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) != 1 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 2 || r.Handle[len(r.Handle)-1].Handler != "reverse_proxy" {
 		out.Edited = true
 		return out, true
 	}
+	proxy := r.Handle[len(r.Handle)-1]
 	out.Domain = r.Match[0].Host[0]
 	switch p := r.Match[0].Path; {
 	case len(p) == 0:
@@ -853,12 +967,36 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	default:
 		out.Edited = true
 	}
-	for _, u := range r.Handle[0].Upstreams {
+	for _, u := range proxy.Upstreams {
 		out.Upstreams = append(out.Upstreams, u.Dial)
 	}
-	out.TrustedProxies = r.Handle[0].TrustedProxies
-	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, len(out.TrustedProxies) > 0)
+	if len(r.Handle) == 2 {
+		out.TrustedProxies, out.EdgeProxies = readBelief(r.Handle[0])
+	}
+	out.PlainForAnyone = out.Plain && r.Match[0].RemoteIP == nil
+	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, len(r.Handle) == 2) || !beliefAndReachAreOurs(r, out)
 	return out, true
+}
+
+// beliefAndReachAreOurs reports a route whose steps and whose reach are what
+// Dockwell would write for what it read of them, as these decide who it answers and
+// what a service believes, and a hand edit of them would otherwise read as nothing.
+func beliefAndReachAreOurs(r route, read ingress.Route) bool {
+	want := routeJSON(read)
+	wantMatch, err1 := json.Marshal(want.Match[0].RemoteIP)
+	haveMatch, err2 := json.Marshal(r.Match[0].RemoteIP)
+	if err1 != nil || err2 != nil || !sameJSON(wantMatch, haveMatch) {
+		return false
+	}
+	if len(r.Handle) != len(want.Handle) {
+		return false
+	}
+	if len(r.Handle) == 1 {
+		return true
+	}
+	wantSteps, err1 := json.Marshal(want.Handle[0])
+	haveSteps, err2 := json.Marshal(r.Handle[0])
+	return err1 == nil && err2 == nil && sameJSON(wantSteps, haveSteps)
 }
 
 // headersAreOurs reports a route that changes the headers it sends as Dockwell
@@ -871,19 +1009,20 @@ func headersAreOurs(raw json.RawMessage, trusts bool) bool {
 			Headers json.RawMessage `json:"headers"`
 		} `json:"handle"`
 	}
-	if json.Unmarshal(raw, &r) != nil || len(r.Handle) != 1 {
+	if json.Unmarshal(raw, &r) != nil || len(r.Handle) == 0 {
 		return false
 	}
-	if len(r.Handle[0].Headers) == 0 {
+	have := r.Handle[len(r.Handle)-1].Headers
+	if len(have) == 0 {
 		return !trusts
 	}
-	shapes := []*headers{clientAddress(), distrustingAddress()}
+	shapes := []*headers{clientAddress(), olderClientAddress(), distrustingAddress()}
 	if trusts {
 		shapes = []*headers{believingAddress()}
 	}
 	return slices.ContainsFunc(shapes, func(h *headers) bool {
 		ours, err := json.Marshal(h)
-		return err == nil && sameJSON(r.Handle[0].Headers, ours)
+		return err == nil && sameJSON(have, ours)
 	})
 }
 
@@ -904,7 +1043,7 @@ func onlyKnownKeys(raw json.RawMessage) bool {
 		}
 		return true
 	}
-	return in(top, knownRouteKeys) && len(r.Match) == 1 && in(r.Match[0], knownMatchKeys) && len(r.Handle) == 1 && in(r.Handle[0], knownHandlerKeys)
+	return in(top, knownRouteKeys) && len(r.Match) == 1 && in(r.Match[0], knownMatchKeys) && len(r.Handle) > 0 && in(r.Handle[len(r.Handle)-1], knownHandlerKeys)
 }
 
 // mutate changes the routes as one reload, against the version it read, so a
@@ -1042,7 +1181,7 @@ func trustedRanges(routes []json.RawMessage) []string {
 func withTrust(routes []json.RawMessage, serverTrusts bool) []json.RawMessage {
 	for i, raw := range routes {
 		read, ok := readRoute(raw)
-		if !ok || read.Edited || len(read.TrustedProxies) > 0 {
+		if !ok || read.Edited || len(read.TrustedProxies)+len(read.EdgeProxies) > 0 {
 			continue
 		}
 		var r route
@@ -1066,14 +1205,15 @@ func withTrust(routes []json.RawMessage, serverTrusts bool) []json.RawMessage {
 	return routes
 }
 
-// setListen has the HTTPS server listen if it has anything to serve, and bind
-// nothing if not, as a server behind a tunnel needs no port 443. Caddy applies no
-// automatic HTTPS to a server with no port but the plain HTTP one, so with none it
-// asks for no certificate and makes no ACME account. A listen address changed by
-// hand stays, while it listens at all.
+// setListen has the HTTPS server listen if it serves any name, and bind nothing if
+// not, as a server behind a tunnel needs no port 443. A route with no host names
+// nothing to serve, as with what closes the rest, or says something of every
+// response. Caddy applies no automatic HTTPS to a server with no port but the plain
+// HTTP one, so with none it asks for no certificate and makes no ACME account. A
+// listen address changed by hand stays, while it listens at all.
 func (c *Caddy) setListen(server map[string]json.RawMessage, routes []json.RawMessage) error {
 	_, httpsPort := c.ports()
-	serves := slices.ContainsFunc(routes, func(raw json.RawMessage) bool { return routeID(raw) != closedRouteID })
+	serves := slices.ContainsFunc(routes, namesAHost)
 	var listen []string
 	if err := unmarshalIf(server["listen"], &listen); err != nil {
 		return err
@@ -1087,6 +1227,24 @@ func (c *Caddy) setListen(server map[string]json.RawMessage, routes []json.RawMe
 	var err error
 	server["listen"], err = json.Marshal(listen)
 	return err
+}
+
+// namesAHost reports a route that matches a name, under any of its matchers.
+func namesAHost(raw json.RawMessage) bool {
+	var r struct {
+		Match []struct {
+			Host []string `json:"host"`
+		} `json:"match"`
+	}
+	if json.Unmarshal(raw, &r) != nil {
+		return false
+	}
+	return slices.ContainsFunc(r.Match, func(m struct {
+		Host []string `json:"host"`
+	},
+	) bool {
+		return len(m.Host) > 0
+	})
 }
 
 // setServerRoutes puts routes on a server, in the order Caddy should try them, with
@@ -1121,17 +1279,24 @@ func setServerRoutes(server map[string]json.RawMessage, routes []json.RawMessage
 // site that works. It goes last, so what Caddy adds for a domain's redirect comes
 // ahead of it.
 func withDerived(plain, secure []json.RawMessage) ([]json.RawMessage, error) {
-	var domains []string
+	// A route's own reach goes with what closes it: anyone it doesn't answer gets what
+	// a name with no route gets, closed or not, so it can't tell the route is there.
+	var reached []matcher
 	for _, raw := range plain {
-		if read, ok := readRoute(raw); ok && read.Plain && !slices.Contains(domains, read.Domain) {
-			domains = append(domains, read.Domain)
+		read, ok := readRoute(raw)
+		if !ok || !read.Plain {
+			continue
+		}
+		m := matcher{Host: []string{read.Domain}, RemoteIP: reachOf(read)}
+		if !slices.ContainsFunc(reached, func(o matcher) bool { return slices.Equal(o.Host, m.Host) && reflect.DeepEqual(o.RemoteIP, m.RemoteIP) }) {
+			reached = append(reached, m)
 		}
 	}
-	if len(domains) == 0 {
+	if len(reached) == 0 {
 		return plain, nil
 	}
 	if slices.ContainsFunc(secure, func(raw json.RawMessage) bool { return routeID(raw) == closedRouteID }) {
-		closed, err := closedRouteFor(domains)
+		closed, err := closedRouteFor(reached)
 		if err != nil {
 			return nil, err
 		}
@@ -1275,12 +1440,12 @@ func (c *Caddy) DeleteRoute(ctx context.Context, id string) error {
 // routes on the plain HTTP server get theirs from this (closedRouteFor).
 func closedRoute() ([]byte, error) { return json.Marshal(closedBody(closedRouteID, nil)) }
 
-// closedRouteFor is closedRoute for these domains alone.
-func closedRouteFor(domains []string) ([]byte, error) {
-	return json.Marshal(closedBody(plainClosedID, domains))
+// closedRouteFor is closedRoute for what these match alone.
+func closedRouteFor(match []matcher) ([]byte, error) {
+	return json.Marshal(closedBody(plainClosedID, match))
 }
 
-func closedBody(id string, domains []string) map[string]any {
+func closedBody(id string, match []matcher) map[string]any {
 	body := map[string]any{
 		"@id": id, "terminal": true,
 		"handle": []map[string]any{{
@@ -1289,8 +1454,8 @@ func closedBody(id string, domains []string) map[string]any {
 			"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}, "Retry-After": {"60"}},
 		}},
 	}
-	if len(domains) > 0 {
-		body["match"] = []map[string]any{{"host": domains}}
+	if len(match) > 0 {
+		body["match"] = match
 	}
 	return body
 }

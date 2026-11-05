@@ -661,7 +661,9 @@ enum HostAccessKind {
   // detail. A token mustn't be able to cut off the panel it can't approve.
   HOST_ACCESS_KIND_PANEL_DOMAIN = 7;
   // A port on the server itself that a route sends to, in path, as
-  // "127.0.0.1:8080". It reaches past containers, to whatever listens there.
+  // "127.0.0.1:8080", at the domain and path in detail, and over plain HTTP when
+  // type says "http". It reaches past containers, to whatever listens there, so
+  // each of those is approved, not only the port.
   HOST_ACCESS_KIND_SERVER_PORT = 8;
   // A proxy a route believes on where a request came from, in path: an address,
   // a range, or "cloudflare". What it says of a client reaches services as true.
@@ -677,6 +679,12 @@ enum HostAccessKind {
   // Privileged mode: every device and capability on the server, the same as
   // root.
   HOST_ACCESS_KIND_PRIVILEGED = 13;
+  // A route with tls off that answers anyone who can reach the server's port 80,
+  // on the domain in path. It goes around whatever is in front of the server.
+  HOST_ACCESS_KIND_PLAIN_FOR_ANYONE = 14;
+  // The domain in path going off HTTPS, as it had a certificate within the undo
+  // window. https:// stops answering, and browsers that saw HSTS refuse plain HTTP.
+  HOST_ACCESS_KIND_HTTPS_OFF = 15;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -757,6 +765,45 @@ message PlanStep {
   // fine on a tunnel or a private network, and not on the open internet. It
   // never stops a plan, and needs no person.
   bool unencrypted = 20;
+  // Who a route with tls off, or to a port on the server, answers. Unset for what
+  // answers over HTTPS and sends to a service, as every other route does.
+  RouteAnswers answers = 21;
+  // The port on the server a route sends to, and what listens there as this was
+  // planned. It never stops a plan, and the fingerprint leaves what listens out.
+  ServerPortCheck server_port = 22;
+}
+
+// RouteAnswers is who a route answers, as its plan says.
+message RouteAnswers {
+  // Who.
+  RouteReach reach = 1;
+  // The proxies it answers, for ROUTE_REACH_PROXIES.
+  repeated string proxies = 2;
+  // True when it answers over plain HTTP, as tls off says.
+  bool plain = 3;
+}
+
+// RouteReach is who a route answers.
+enum RouteReach {
+  ROUTE_REACH_UNSPECIFIED = 0;
+  // This server's own loopback alone, as for a tunnel on the server's network.
+  ROUTE_REACH_THIS_SERVER = 1;
+  // The proxies the route names, and whoever comes through them.
+  ROUTE_REACH_PROXIES = 2;
+  // Anyone who can reach the server's port.
+  ROUTE_REACH_ANYONE = 3;
+}
+
+// ServerPortCheck is a port on the server that a route sends to.
+message ServerPortCheck {
+  // The port.
+  uint32 port = 1;
+  // What listens there, as the server said when this was planned, such as
+  // "nginx, in the container web-1". Empty when nothing does, or it couldn't say.
+  string listening = 2;
+  // True when the server said nothing listens there yet, so the route answers 502
+  // until something does. False, with listening empty, when it couldn't say.
+  bool nothing_listening = 3;
 }
 
 // IngressEffect is what a step does to the proxy that holds a server's public
@@ -793,7 +840,7 @@ enum IngressChange {
   // stops.
   INGRESS_CHANGE_TAKES_PORTS = 4;
   // It keeps running and frees ports, as the last route that needs a certificate
-  // goes, or stops needing one. Nothing it still serves stops.
+  // goes, or stops needing one. Its routes that take none go on answering.
   INGRESS_CHANGE_FREES_PORTS = 5;
 }
 

@@ -268,6 +268,8 @@ type statusBoard struct {
 	problem *problem
 	// outdated is whether the proxy read as outdated when it was last looked at.
 	outdated bool
+	// ownPorts is what was last logged of routes to ports Dockwell listens on.
+	ownPorts string
 	// ingress is what was last published of the ingress.
 	ingress *dockwellv1.IngressStatus
 }
@@ -412,8 +414,8 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 	// A domain has a certificate if any of its routes wants one, as a plan refuses
 	// the two together, and it can only be for the moment a plan's steps take.
 	domains := map[string]bool{}
-	for _, r := range routes {
-		domains[r.Domain] = domains[r.Domain] || !r.Plain
+	for i := range routes {
+		domains[routes[i].Domain] = domains[routes[i].Domain] || !routes[i].Plain
 	}
 	var names []string
 	for _, name := range slices.Sorted(maps.Keys(domains)) {

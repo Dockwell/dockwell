@@ -431,9 +431,12 @@ type DomainRoute struct {
 	// "off" when TLS ends before this server, as Route.tls says.
 	Tls string `protobuf:"bytes,7,opt,name=tls,proto3" json:"tls,omitempty"`
 	// The port on the server itself it sends to, in place of a service's.
-	HostPort      uint32 `protobuf:"varint,8,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostPort uint32 `protobuf:"varint,8,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
+	// True when a route with tls off answers anyone who can reach the server, as
+	// Route.plain_for_anyone says.
+	PlainForAnyone bool `protobuf:"varint,9,opt,name=plain_for_anyone,json=plainForAnyone,proto3" json:"plain_for_anyone,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *DomainRoute) Reset() {
@@ -520,6 +523,13 @@ func (x *DomainRoute) GetHostPort() uint32 {
 		return x.HostPort
 	}
 	return 0
+}
+
+func (x *DomainRoute) GetPlainForAnyone() bool {
+	if x != nil {
+		return x.PlainForAnyone
+	}
+	return false
 }
 
 // DomainServer is where a domain stands on one server.
@@ -873,7 +883,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x120\n" +
 	"\x06routes\x18\x04 \x03(\v2\x18.dockwell.v1.DomainRouteR\x06routes\x123\n" +
-	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\xb4\x01\n" +
+	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\xde\x01\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -882,7 +892,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x04port\x18\x05 \x01(\rR\x04port\x12\x10\n" +
 	"\x03url\x18\x06 \x01(\tR\x03url\x12\x10\n" +
 	"\x03tls\x18\a \x01(\tR\x03tls\x12\x1b\n" +
-	"\thost_port\x18\b \x01(\rR\bhostPort\"\xcb\x01\n" +
+	"\thost_port\x18\b \x01(\rR\bhostPort\x12(\n" +
+	"\x10plain_for_anyone\x18\t \x01(\bR\x0eplainForAnyone\"\xcb\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
