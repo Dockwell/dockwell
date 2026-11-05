@@ -88,6 +88,9 @@ type Monitor struct {
 	scannedAt time.Time
 	// blindSince is since when Docker hasn't been answering. Zero while it is.
 	blindSince time.Time
+	// started is when the monitor started, which is since when Docker hasn't
+	// answered, until a first list has come.
+	started time.Time
 }
 
 // watched is what a Monitor keeps of one container.
@@ -115,6 +118,7 @@ func (m *Monitor) init() {
 		m.signal = make(chan struct{}, 1)
 		m.wake = make(chan struct{}, 1)
 		m.watched = map[string]*watched{}
+		m.started = time.Now()
 	})
 }
 
@@ -132,11 +136,16 @@ func (m *Monitor) Changed() <-chan struct{} {
 }
 
 // DockerUnreadableSince is since when Docker hasn't answered: a list failed, and
-// none has come since. It is the zero time while Docker answers.
+// none has come since, or none has come yet, as when the agent starts with Docker
+// down or hung, which is since the monitor started. It is the zero time while
+// Docker answers.
 func (m *Monitor) DockerUnreadableSince() time.Time {
 	m.init()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.blindSince.IsZero() && m.scannedAt.IsZero() {
+		return m.started
+	}
 	return m.blindSince
 }
 
@@ -157,11 +166,12 @@ func (m *Monitor) Report() []*dockwellv1.InstanceHealth {
 	m.init()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	now := time.Now()
+	// Having read nothing is said too, on the same pace, as Docker not answering.
+	m.dirty, m.said = false, now
 	if m.scannedAt.IsZero() {
 		return nil
 	}
-	now := time.Now()
-	m.dirty, m.said = false, now
 	blind := m.isBlind()
 	out := make([]*dockwellv1.InstanceHealth, 0, len(m.watched))
 	for _, w := range m.watched {
@@ -307,10 +317,11 @@ func (m *Monitor) nudge() {
 }
 
 // refresh says how things are once in a while, whether or not anything changed: a
-// report's arrival is how the control plane knows the agent is still looking.
+// report's arrival is how the control plane knows the agent is still looking. One
+// that has read nothing yet says that Docker hasn't answered, on the same pace.
 func (m *Monitor) refresh(now time.Time) {
 	m.mu.Lock()
-	due := !m.scannedAt.IsZero() && now.Sub(m.said) >= m.refreshEvery()
+	due := now.Sub(m.said) >= m.refreshEvery()
 	m.mu.Unlock()
 	if due {
 		m.tell()
@@ -331,6 +342,9 @@ func (m *Monitor) scan(ctx context.Context) time.Duration {
 		first := m.blindSince.IsZero()
 		if first {
 			m.blindSince = time.Now()
+			if m.scannedAt.IsZero() {
+				m.blindSince = m.started // it hasn't answered since the start
+			}
 		}
 		m.dirty = true
 		m.mu.Unlock()

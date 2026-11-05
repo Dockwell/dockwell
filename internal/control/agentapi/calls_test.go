@@ -880,6 +880,37 @@ func TestAnAgentReportsHowItsServicesAre(t *testing.T) {
 	}
 }
 
+// An agent that starts with Docker down has read nothing, which says nothing of what
+// runs, and says from the start that Docker hasn't answered it, so its server can't
+// read as healthy. Nothing hears that as a service gone.
+func TestAnAgentThatHasntReadDockerSaysSo(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	blind := time.Now().Add(-time.Minute).Truncate(time.Second)
+	r := &healthReporter{changed: make(chan struct{}, 1), blind: blind}
+	var heard atomic.Int64
+	s.agents.OnHealth(func(string, []*dockwellv1.InstanceHealth) { heard.Add(1) })
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Health: r,
+		})
+	}()
+	waitForAgent(t, s.agents, id.ServerID, true)
+	waitUntil(t, "it said Docker hasn't answered", func() bool {
+		got, _ := s.agents.Health(id.ServerID)
+		return got.DockerUnreadableSince.Equal(blind)
+	})
+	if got, _ := s.agents.Health(id.ServerID); got.Said || len(got.Instances) != 0 {
+		t.Errorf("having read nothing, it said %+v", got)
+	}
+	if n := heard.Load(); n != 0 {
+		t.Errorf("what hears how services are heard %d reports from an agent that has read nothing", n)
+	}
+}
+
 // Where a route's certificate stands reaches the control plane as the stream
 // opens and as it changes, and stays once the agent has gone.
 func TestAnAgentReportsItsDomains(t *testing.T) {

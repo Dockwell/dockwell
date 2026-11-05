@@ -529,6 +529,65 @@ func TestAMonitorThatHasReadNothingHasNothingToSay(t *testing.T) {
 	}
 }
 
+// A monitor that starts with Docker down or hung hasn't read it, and says so from
+// its first moment, and on its pace after, so its server never reads as healthy
+// before Docker has answered once. Once Docker answers, it doesn't.
+func TestAMonitorThatHasReadNothingSaysDockerHasntAnswered(t *testing.T) {
+	for name, answer := range map[string]func(*http.Request) error{
+		"down": func(*http.Request) error { return errors.New("Cannot connect to the Docker daemon") },
+		"hung": func(r *http.Request) error { <-r.Context().Done(); return r.Context().Err() },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := dockertest.New(t)
+			add(e, "web")
+			var answering atomic.Bool
+			e.Intercept(func(r *http.Request) error {
+				if answering.Load() {
+					return nil
+				}
+				return answer(r)
+			})
+			before := time.Now()
+			m := &health.Monitor{Client: e.Client(), Scan: 5 * time.Millisecond, Refresh: 20 * time.Millisecond, CallTimeout: time.Hour}
+			if name == "down" {
+				m.CallTimeout = 0
+			}
+			since := m.DockerUnreadableSince()
+			if since.Before(before) || since.After(time.Now()) {
+				t.Errorf("before it has read anything, Docker is unreadable since %s, want since it started, at %s", since, before)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan struct{})
+			go func() { defer close(done); m.Run(ctx) }()
+			defer func() { cancel(); <-done }()
+			// It goes on saying so, on its pace, though it has nothing else to say.
+			for i := range 3 {
+				select {
+				case <-m.Changed():
+				case <-time.After(5 * time.Second):
+					t.Fatalf("with Docker %s, it said nothing for 5 s, the %d time", name, i+1)
+				}
+				m.Report()
+				if got := m.DockerUnreadableSince(); !got.Equal(since) {
+					t.Errorf("with Docker %s, it says it can't read it since %s, want %s", name, got, since)
+				}
+			}
+			if name == "hung" {
+				return // its list waits for its hour
+			}
+			answering.Store(true)
+			deadline := time.Now().Add(10 * time.Second)
+			for !m.DockerUnreadableSince().IsZero() || m.ScannedAt().IsZero() {
+				if time.Now().After(deadline) {
+					t.Fatal("with Docker answering again, it still says it can't read it")
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+		})
+	}
+}
+
 // Checks that hang hold a worker for their timeout. They can't hold them all, so one
 // that would have said a service has died gets its turn.
 func TestHungChecksDontHoldUpAServiceThatHasDied(t *testing.T) {

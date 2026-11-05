@@ -119,6 +119,16 @@ func (a *Agents) OnHealth(fn func(server string, instances []*dockwellv1.Instanc
 // isn't that nothing runs.
 func (a *Agents) ReportHealth(server string, h *agentv1.Health) {
 	if h.GetScannedAt() == nil {
+		// It hasn't read Docker yet, which says nothing of what runs, but it may say
+		// that Docker hasn't answered it, as when it starts with Docker down.
+		if h.GetDockerUnreadableSince() == nil {
+			return
+		}
+		a.mu.Lock()
+		a.health[server] = health.Report{
+			DockerUnreadableSince: h.GetDockerUnreadableSince().AsTime(), ReportedAt: h.GetReportedAt().AsTime(), ReceivedAt: time.Now(),
+		}
+		a.mu.Unlock()
 		return
 	}
 	instances := fitToShow(h.GetInstances())

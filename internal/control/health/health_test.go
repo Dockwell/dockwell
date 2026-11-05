@@ -766,9 +766,14 @@ func TestAnAgentThatCantReadDockerSaysSo(t *testing.T) {
 		w := newWorld(t, b)
 		blind := time.Now().Add(-2 * time.Minute)
 		unknown := w.instance("web", 1, dockwellv1.HealthState_HEALTH_STATE_UNKNOWN, "")
-		for name, instances := range map[string][]*dockwellv1.InstanceHealth{"with what it found": {unknown}, "having found none": nil} {
+		for name, report := range map[string]agenthealth.Report{
+			"with what it found": {Said: true, Instances: []*dockwellv1.InstanceHealth{unknown}, DockerUnreadableSince: blind},
+			"having found none":  {Said: true, DockerUnreadableSince: blind},
+			// As an agent started with Docker down, which has never read it.
+			"having read nothing": {DockerUnreadableSince: blind},
+		} {
 			t.Run(name, func(t *testing.T) {
-				h := New(w.db, oneReport{agenthealth.Report{Said: true, Instances: instances, DockerUnreadableSince: blind}}, slog.New(slog.DiscardHandler))
+				h := New(w.db, oneReport{report}, slog.New(slog.DiscardHandler))
 				got := w.list(t, h, &dockwellv1.ListHealthRequest{})[0]
 				s := got.GetServers()[0]
 				if got.GetState() != dockwellv1.HealthState_HEALTH_STATE_UNKNOWN || s.GetStale() || !s.GetDockerUnreadableSince().AsTime().Equal(blind) {

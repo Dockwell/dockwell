@@ -227,7 +227,8 @@ type Health struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Each container, by project, service and number. Empty with scanned_at set
 	// means the server runs none. With no scanned_at, the agent hasn't read Docker
-	// yet, so it hasn't said anything.
+	// yet, so it hasn't said what runs, only, with docker_unreadable_since, that
+	// Docker hasn't answered it.
 	Instances []*v1.InstanceHealth `protobuf:"bytes,1,rep,name=instances,proto3" json:"instances,omitempty"`
 	// When the agent last read the list of containers from Docker, on the server's
 	// clock.
@@ -236,7 +237,8 @@ type Health struct {
 	// something in it is without their clocks agreeing.
 	ReportedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=reported_at,json=reportedAt,proto3" json:"reported_at,omitempty"`
 	// Since when it hasn't been able to read Docker, on the same clock: a list of
-	// containers failed, and none has come since. Unset while it can.
+	// containers failed, and none has come since, or none has come yet, since the
+	// agent started. Unset while it can.
 	DockerUnreadableSince *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=docker_unreadable_since,json=dockerUnreadableSince,proto3" json:"docker_unreadable_since,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache

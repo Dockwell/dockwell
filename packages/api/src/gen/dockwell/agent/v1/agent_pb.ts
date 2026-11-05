@@ -130,7 +130,8 @@ export type Health = Message<"dockwell.agent.v1.Health"> & {
   /**
    * Each container, by project, service and number. Empty with scanned_at set
    * means the server runs none. With no scanned_at, the agent hasn't read Docker
-   * yet, so it hasn't said anything.
+   * yet, so it hasn't said what runs, only, with docker_unreadable_since, that
+   * Docker hasn't answered it.
    *
    * @generated from field: repeated dockwell.v1.InstanceHealth instances = 1;
    */
@@ -154,7 +155,8 @@ export type Health = Message<"dockwell.agent.v1.Health"> & {
 
   /**
    * Since when it hasn't been able to read Docker, on the same clock: a list of
-   * containers failed, and none has come since. Unset while it can.
+   * containers failed, and none has come since, or none has come yet, since the
+   * agent started. Unset while it can.
    *
    * @generated from field: google.protobuf.Timestamp docker_unreadable_since = 4;
    */

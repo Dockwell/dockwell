@@ -24,15 +24,26 @@ import (
 type saysRunning struct {
 	project string
 	blind   time.Time
+	// never is a monitor that hasn't read Docker yet, as one started with it down.
+	never bool
 }
 
 func (s saysRunning) Report() []*dockwellv1.InstanceHealth {
+	if s.never {
+		return nil
+	}
 	return []*dockwellv1.InstanceHealth{{
 		Project: s.project, Service: "web", Number: 1, Container: s.project + "-web-1",
 		State: dockwellv1.HealthState_HEALTH_STATE_NO_CHECK, Check: dockwellv1.HealthCheckKind_HEALTH_CHECK_KIND_NONE, Since: timestamppb.Now(),
 	}}
 }
-func (saysRunning) ScannedAt() time.Time               { return time.Now() }
+
+func (s saysRunning) ScannedAt() time.Time {
+	if s.never {
+		return time.Time{}
+	}
+	return time.Now()
+}
 func (s saysRunning) DockerUnreadableSince() time.Time { return s.blind }
 func (saysRunning) Changed() <-chan struct{}           { return nil }
 
@@ -249,4 +260,23 @@ func TestAServerSaysItsAgentCantReadDocker(t *testing.T) {
 	m.server.health = saysRunning{project: docker.Project(scope)}
 	m.server.connect(t, m.f)
 	eventually(t, "the server to say its agent reads Docker again", func() bool { return since() == nil })
+
+	// Started with Docker down, as after a reboot where it didn't come up: the agent
+	// has read nothing, and says so from the start, so neither its server nor what
+	// runs there reads as fine.
+	m.server.stop()
+	waitConnected(t, m.f, m.server.id.ServerID, false)
+	m.server.health = saysRunning{project: docker.Project(scope), blind: blind, never: true}
+	m.server.connect(t, m.f)
+	eventually(t, "the server to say its agent can't read Docker, having read nothing", func() bool { return since() != nil })
+	health := dockwellv1connect.NewHealthServiceClient(m.signedIn, m.signedIn.origin)
+	res, err := health.ListHealth(t.Context(), connect.NewRequest(&dockwellv1.ListHealthRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := res.Msg.GetServices()[0].GetServers()[0]
+	if s.GetState() != dockwellv1.HealthState_HEALTH_STATE_UNKNOWN || s.GetStale() || !s.GetDockerUnreadableSince().AsTime().Equal(blind) {
+		t.Errorf("with its agent having read nothing, web reads %v, stale=%t, Docker unreadable since %v; want unknown, not stale, since %s",
+			s.GetState(), s.GetStale(), s.GetDockerUnreadableSince(), blind)
+	}
 }

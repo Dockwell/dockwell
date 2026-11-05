@@ -585,7 +585,9 @@ write_service() {
 Description=Dockwell
 Documentation=$REPO_URL/blob/main/docs/install.md
 Wants=network-online.target
-After=network-online.target
+# After Docker, where there is one, so the agent finds it running at boot. A server
+# without Docker joins all the same, and its agent says Docker isn't there.
+After=network-online.target docker.service
 
 [Service]
 Type=simple
@@ -623,7 +625,7 @@ export GOMEMLIMIT
 
 depend() {
 	use net
-	after firewall
+	after firewall docker
 }
 EOF
 		;;
