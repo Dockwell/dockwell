@@ -830,7 +830,7 @@ describe("an app's overview", () => {
             const route = req.edits[0]?.spec?.kind.value as { domain: string } | undefined;
             if (route?.domain === "bad.example") {
               const err = new ConnectError(
-                "example is a name no public certificate authority issues for. Use a domain you own",
+                "bad.example is under .example, which is reserved, so no public certificate authority issues for it. Use a public domain, such as app.example.com",
                 Code.InvalidArgument,
               );
               err.metadata.set("Dockwell-Error", "invalid");
@@ -941,7 +941,7 @@ describe("an app's overview", () => {
     // Another proxy takes what connects, and the example isn't the range the guide warns against.
     await user.click(within(front).getByRole("radio", { name: /Another proxy/ }));
     const proxies = within(front).getByLabelText("What connects to this server");
-    expect(proxies).toHaveAccessibleDescription(/172\.20\.0\.0\/16.*a network of its own/);
+    expect(proxies).toHaveAccessibleDescription(/10\.77\.0\.0\/24.*a network of its own/);
     expect(sheet).not.toHaveTextContent("172.17");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(proxies).toHaveAccessibleDescription("Name what connects to this server, as an address or a range.");
@@ -1337,6 +1337,7 @@ describe("an app's overview", () => {
       const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
       expect(row).toHaveTextContent("Valid for 61 days");
       expect(row).toHaveTextContent("Port 8080");
+      expect(row).not.toHaveTextContent("On hz-1");
       expect(row.querySelector(".dw-status.dw-tone-healthy svg, .dw-status.dw-tone-healthy .dw-glyph")).not.toBeNull();
     });
 
@@ -1463,6 +1464,47 @@ describe("an app's overview", () => {
       expect(within(sheet).getByLabelText("Domain")).toHaveAttribute("readonly");
       expect(within(sheet).getByLabelText("Port in the app")).toHaveValue("8080");
       expect(within(sheet).getByRole("switch", { name: /A tunnel or a proxy in front/ })).toBeChecked();
+    });
+
+    it("offers that on a row that's still serving, as a failing renewal names the switch too", async () => {
+      const user = userEvent.setup();
+      const said =
+        "Its next certificate can't come. If this server sits behind a tunnel, or a proxy that ends TLS, it needs no certificate: set tls to off on its routes.";
+      const running = await atPage(() => ({
+        domains: [
+          aDomain({
+            certificate: certificate(CertificateState.ISSUED, said, new Date(Date.now() + 20 * 86_400_000)),
+          }),
+        ],
+      }));
+      const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
+      expect(row).toHaveTextContent("Renewal failing");
+      expect(row).toHaveTextContent('turn on "A tunnel or a proxy in front handles HTTPS" for this domain');
+      await user.click(within(row).getByRole("button", { name: "It's behind a tunnel or a proxy" }));
+      expect(await screen.findByRole("dialog", { name: "Move app.example.com behind what's in front" })).toBeVisible();
+    });
+
+    it("says nothing of which server with only one, and names it with two", async () => {
+      const hz2 = aServer({ id: "srv_2", name: "hz-2" });
+      const app = anApp("web", "nginx:1.5", {}, {});
+      const issued = { certificate: certificate(CertificateState.ISSUED) };
+      const domain = aDomain(issued);
+      const seen = { ...domain, servers: [{ ...domain.servers[0], serverId: "srv_2", serverName: "hz-2" }] };
+      renderAt(
+        "/apps/svc_web",
+        api(
+          [app],
+          {
+            services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({ revisions }) },
+            domains: { listDomains: (() => ({ domains: [seen] })) as never },
+          },
+          hz1,
+          hz2,
+        ),
+      );
+      const running = await screen.findByRole("region", { name: "What runs" });
+      const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
+      await waitFor(() => expect(row).toHaveTextContent("On hz-2"));
     });
 
     it("moves a domain behind a tunnel by editing the routes it has, whatever they're called", async () => {

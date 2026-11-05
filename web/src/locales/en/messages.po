@@ -1328,8 +1328,8 @@ msgid "Always"
 msgstr "Always"
 
 #: src/features/apps/AddDomainSheet.tsx
-msgid "An address or a range, such as 172.20.0.0/16 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
-msgstr "An address or a range, such as 172.20.0.0/16 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+msgstr "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "An app named {name} already runs here. Choose another name, or deploy to it from its page."
@@ -3629,6 +3629,14 @@ msgid "Next error"
 msgstr "Next error"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
+msgstr "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Next, point what's in front at port 80 on {on}, over http://. https:// there fails, as this route takes no certificate."
+msgstr "Next, point what's in front at port 80 on {on}, over http://. https:// there fails, as this route takes no certificate."
+
+#: src/features/changes/ChangeSheet.tsx
 msgid "Next, point what's in front at port 80 on this server, over http://. https:// there fails, as this server takes no certificate."
 msgstr "Next, point what's in front at port 80 on this server, over http://. https:// there fails, as this server takes no certificate."
 
@@ -3960,6 +3968,10 @@ msgstr "On {networks}, other services can reach the new container by its service
 #: src/features/changes/words.ts
 msgid "On {networks}, other services can reach the new container by its service's name before it has passed its check, beside the old one, as Docker can't add a name to a container later"
 msgstr "On {networks}, other services can reach the new container by its service's name before it has passed its check, beside the old one, as Docker can't add a name to a container later"
+
+#: src/features/apps/DomainNote.tsx
+msgid "On <0>{held}</0>"
+msgstr "On <0>{held}</0>"
 
 #. placeholder {0}: check.http.port
 #: src/features/apps/AppOverview.tsx

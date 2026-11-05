@@ -403,7 +403,7 @@ export function AddDomainSheet({
                   spellCheck={false}
                   value={proxies}
                   error={proxiesError}
-                  hint={t`An address or a range, such as 172.20.0.0/16 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas.`}
+                  hint={t`An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas.`}
                   onChange={(event) => {
                     setProxies(event.target.value);
                     setProxiesError(undefined);

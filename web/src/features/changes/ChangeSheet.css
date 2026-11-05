@@ -668,8 +668,12 @@ a.plan-reach-at:focus-visible {
   color: var(--ink-muted);
 }
 
-/* A machine value in the plan's own words, such as its image in the subtitle. */
-.plan-view .dw-sheet-sub code,
+/* A machine value in the plan's own words, such as its image in the subtitle: whole, on
+   as many lines as it takes, as nothing else there says it. */
+.plan-view .dw-sheet-sub code {
+  overflow-wrap: anywhere;
+}
+
 /* One line through the flow, whatever it says, so the plan under it holds still. What it
    names is in full just below: the subtitle says it, and so does the row. */
 .plan-view .dw-sheet-title,

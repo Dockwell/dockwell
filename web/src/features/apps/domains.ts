@@ -113,7 +113,9 @@ export function refusedField(
   )
     return "port";
   if (form.domain !== "" && text.includes(form.domain.toLowerCase())) return "domain";
-  if (/\bdomain\b/.test(text)) return "domain";
+  // Each of the rest names what it's about, so those above are all that's yours. A
+  // limit or the panel's domain says "domain" of something else. These two can't name it.
+  if (/^(a route needs a domain|the domain )/.test(text)) return "domain";
   return "";
 }
 

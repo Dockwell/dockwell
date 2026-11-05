@@ -1328,8 +1328,8 @@ msgid "Always"
 msgstr "始终"
 
 #: src/features/apps/AddDomainSheet.tsx
-msgid "An address or a range, such as 172.20.0.0/16 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
-msgstr "地址或范围，例如隧道在桥接网络上时的 172.20.0.0/16。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
+msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+msgstr "地址或范围，例如隧道在桥接网络上时的 10.77.0.0/24。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "An app named {name} already runs here. Choose another name, or deploy to it from its page."
@@ -3629,6 +3629,14 @@ msgid "Next error"
 msgstr "下一个错误"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
+msgstr "接下来，将 {on} 上的隧道指向 http://127.0.0.1:80。使用 https:// 会失败，因为此路由不使用证书。"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "Next, point what's in front at port 80 on {on}, over http://. https:// there fails, as this route takes no certificate."
+msgstr "接下来，让前面的代理通过 http:// 指向 {on} 的 80 端口。使用 https:// 会失败，因为此路由不使用证书。"
+
+#: src/features/changes/ChangeSheet.tsx
 msgid "Next, point what's in front at port 80 on this server, over http://. https:// there fails, as this server takes no certificate."
 msgstr "接下来，让前面的代理通过 http:// 指向此服务器的 80 端口。使用 https:// 会失败，因为此服务器不使用证书。"
 
@@ -3960,6 +3968,10 @@ msgstr "在 {networks} 上，新容器通过检查之前，其他服务就可以
 #: src/features/changes/words.ts
 msgid "On {networks}, other services can reach the new container by its service's name before it has passed its check, beside the old one, as Docker can't add a name to a container later"
 msgstr "在 {networks} 上，其他服务可以在新容器通过检查之前通过服务名访问到它，与旧容器并存，因为 Docker 无法在之后为容器添加名称"
+
+#: src/features/apps/DomainNote.tsx
+msgid "On <0>{held}</0>"
+msgstr "位于 <0>{held}</0>"
 
 #. placeholder {0}: check.http.port
 #: src/features/apps/AppOverview.tsx

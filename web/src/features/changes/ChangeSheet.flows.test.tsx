@@ -1294,6 +1294,11 @@ describe("the sheet holds still", () => {
     expect(css).toMatch(/\.plan-view \.dw-sheet-title,\s*\.plan-title-words \{[^}]*white-space: nowrap;/);
   });
 
+  it("doesn't hold what its subtitle names to one line, which would clip it", () => {
+    const css = readFileSync(resolve(__dirname, "ChangeSheet.css"), "utf8");
+    expect(css).toMatch(/\.plan-view \.dw-sheet-sub code \{[^}]*overflow-wrap: anywhere;/);
+  });
+
   it("sizes its type on the scale", () => {
     const css = readFileSync(resolve(__dirname, "ChangeSheet.css"), "utf8");
     // 16 px is a phone's own: a field any smaller makes it zoom in.

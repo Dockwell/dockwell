@@ -528,7 +528,7 @@ function DomainRow({
   const silent = useSilent(look);
   const where = routeWhere(domain, route);
   // Its certificate can't come, and a tunnel or a proxy in front may be why.
-  const mayBeBehind = look.state !== "serving" && /set tls to off/.test(look.message);
+  const mayBeBehind = /set tls to off/.test(look.message);
   return (
     <li
       className={cx(

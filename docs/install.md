@@ -186,7 +186,7 @@ docker network create -o com.docker.network.bridge.name=tunnel0 tunnel
 docker network inspect tunnel --format '{{(index .IPAM.Config 0).Subnet}}'
 ```
 
-Start it with `docker run --network tunnel --add-host host.docker.internal:host-gateway`. Its service is `http://host.docker.internal:80`, and the route names the range that printed, such as `--trusted-proxies 172.20.0.0/16`. Without that, it's someone else, and gets a 404. A firewall such as ufw treats it as incoming, so allow it: `ufw allow in on tunnel0 to any port 80`. Keep everything else off that network, as anything on it could say the same. A service on a network of its environment can do this too, with that network's range and the address of its gateway, if the network isn't `internal`.
+Start it with `docker run --network tunnel --add-host host.docker.internal:host-gateway`. Its service is `http://host.docker.internal:80`, and the route names the range that printed, such as `--trusted-proxies 10.77.0.0/24`. Without that, it's someone else, and gets a 404. A firewall such as ufw treats it as incoming, so allow it: `ufw allow in on tunnel0 to any port 80`. Keep everything else off that network, as anything on it could say the same. A service on a network of its environment can do this too, with that network's range and the address of its gateway, if the network isn't `internal`.
 
 **On a network other projects share,** such as one a service joins with `external_networks`, it's the same with that network's range, from `docker network inspect NAME --format '{{(index .IPAM.Config 0).Subnet}}'`. Naming it names everything on it: each could reach the route, and say who its client is. So give the tunnel a network of its own, or run it on the server's own.
 
