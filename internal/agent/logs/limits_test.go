@@ -6,9 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -187,6 +189,92 @@ func TestAFollowOutlivesManyDeploys(t *testing.T) {
 			defer c.mu.Unlock()
 			return c.byLine[want] != nil
 		})
+	}
+}
+
+// A deploy makes its container a while before it starts it, as the old one stops
+// first, and that can take seconds. A look in that time has read nothing of it.
+// So one that then starts, says why it can't go on and is gone by the next look,
+// as a failed deploy's is, still reads: this is what a follower is there to see.
+func TestAFollowReadsAContainerItSawBeforeItStarted(t *testing.T) {
+	for _, removed := range []bool{false, true} {
+		name := "stopped"
+		if removed {
+			name = "kept"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			ctr := made(t, e, "app-1")
+			r := newReader(t, e)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			c := newCollector()
+			follow(ctx, r, &agentv1.LogsCall{Tail: -1}, c)
+			waitFor(t, "a first look, which finds it not started", c.isCaughtUp)
+			if err := r.Client.StartContainer(t.Context(), ctr.ID); err != nil {
+				t.Fatal(err)
+			}
+			e.Print("app-1", docker.Stdout, "can't reach the database")
+			if removed {
+				keep(t, r, e, "app-1", true)
+			} else {
+				e.Stop("app-1")
+			}
+			waitFor(t, "why it failed", func() bool { return slices.Contains(c.got(), "can't reach the database") })
+		})
+	}
+}
+
+// A look finds a container, and a rollback removes it before its log is asked
+// for, so nothing was read of it. What the server kept of it is read instead.
+func TestAFollowReadsAContainerThatGoesBeforeItsLogIsAskedFor(t *testing.T) {
+	e := dockertest.New(t)
+	r := newReader(t, e)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	follow(ctx, r, &agentv1.LogsCall{Tail: -1}, c)
+	waitFor(t, "a first look, which finds nothing", c.isCaughtUp)
+	var once atomic.Bool
+	e.Intercept(func(req *http.Request) error {
+		if strings.HasSuffix(req.URL.Path, "/logs") && once.CompareAndSwap(false, true) {
+			keep(t, r, e, "app-1", true)
+		}
+		return nil
+	})
+	addContainer(t, e, "app-1", 1)
+	e.Print("app-1", docker.Stdout, "can't reach the database")
+	waitFor(t, "why it failed", func() bool { return slices.Contains(c.got(), "can't reach the database") })
+	if !once.Load() {
+		t.Error("its log was never asked for, so this tested nothing")
+	}
+}
+
+// One that restarts and is gone between two looks reads what the last run said,
+// and what it had read already, once.
+func TestAFollowReadsARestartItDidNotSee(t *testing.T) {
+	e := dockertest.New(t)
+	ctr := addContainer(t, e, "app-1", 1)
+	r := newReader(t, e)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	follow(ctx, r, &agentv1.LogsCall{Tail: -1}, c)
+	waitFor(t, "caught up", c.isCaughtUp)
+	e.Print("app-1", docker.Stdout, "first run")
+	waitFor(t, "the first run", func() bool { return slices.Contains(c.got(), "first run") })
+	e.Stop("app-1")
+	time.Sleep(50 * time.Millisecond)
+	if err := r.Client.StartContainer(t.Context(), ctr.ID); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Millisecond) // so its lines have times of their own
+	e.Print("app-1", docker.Stdout, "second run")
+	keep(t, r, e, "app-1", true)
+	waitFor(t, "the second run", func() bool { return slices.Contains(c.got(), "second run") })
+	time.Sleep(700 * time.Millisecond) // a further look, which has nothing more to read
+	if got := c.got(); !slices.Equal(got, []string{"first run", "second run"}) {
+		t.Errorf("read %q, want each line once", got)
 	}
 }
 

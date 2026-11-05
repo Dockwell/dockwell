@@ -98,6 +98,16 @@ func (k *Kept) slot() string {
 	return "replaced"
 }
 
+// wentBefore reports a container that had stopped before t, by the time it says
+// it finished or, if it couldn't tell, when it was kept.
+func (k *Kept) wentBefore(t time.Time) bool {
+	at := k.Finished
+	if at.IsZero() {
+		at = k.KeptAt
+	}
+	return at.Before(t)
+}
+
 // Archive keeps the logs of containers a change removed, in a directory only
 // its owner can read, as they may hold secrets. A failure in here never stops
 // a change: it is logged, and the logs aren't kept.

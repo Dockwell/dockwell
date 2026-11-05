@@ -46,6 +46,19 @@ func addContainer(t *testing.T, e *dockertest.Engine, name string, revision int)
 	})
 }
 
+// made adds a container as a deploy makes it: there, and not started yet.
+func made(t *testing.T, e *dockertest.Engine, name string) *docker.Container {
+	t.Helper()
+	return e.AddContainer(docker.Container{
+		Name: "/" + name,
+		Config: docker.Config{Image: "app:1", Labels: map[string]string{
+			docker.LabelProject: testProject, docker.LabelService: testService, docker.LabelNumber: "1",
+		}},
+		Created: time.Now().Add(-time.Minute).UTC(),
+		State:   docker.State{Status: "created"},
+	})
+}
+
 // collector gathers what a stream sends.
 type collector struct {
 	mu      sync.Mutex

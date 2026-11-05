@@ -373,6 +373,9 @@ type sourceState struct {
 	// src is the source as last listed, which only the goroutine that scans
 	// reads. A reader gets its own, as the next scan replaces this one.
 	src *source
+	// runRead is when the run the last read covered started, which also only
+	// that goroutine reads: a run since then has lines no read has seen.
+	runRead int64
 	// live is set once what the source had when the call came has been read.
 	live     atomic.Bool
 	reading  atomic.Bool
@@ -383,6 +386,8 @@ type sourceState struct {
 	waiting atomic.Bool
 	// problem says why its log can't be read, and it won't be tried again.
 	problem atomic.Pointer[string]
+	// unread says its last read never got to the log, so it counts for nothing.
+	unread atomic.Bool
 	// cursor is the last line kept, for following it again.
 	cursorMu sync.Mutex
 	cursor   time.Time
@@ -572,15 +577,23 @@ func (s *stream) startReading(st *sourceState, src *source, first bool) bool {
 	if st.problem.Load() != nil || st.reading.Load() {
 		return true
 	}
+	state := src.proto.GetState()
+	// One that hasn't started has written nothing, so looking at it reads nothing
+	// of it. A deploy makes its container a while before starting it, as the old
+	// one stops first, and it may then fail and be gone by the next look.
+	if state == dockwellv1.LogSourceState_LOG_SOURCE_STATE_CREATED {
+		return true
+	}
 	kept := src.kept != nil
+	run := src.proto.GetStartTime().AsTime().UnixNano()
 	again := st.lastRead.Load() != 0
-	if again && (kept || !s.call.GetFollow() || src.proto.GetState() != dockwellv1.LogSourceState_LOG_SOURCE_STATE_RUNNING) {
+	if again && !st.unread.Load() && (!s.call.GetFollow() || (state != dockwellv1.LogSourceState_LOG_SOURCE_STATE_RUNNING && run == st.runRead)) {
 		return true // it was read to its end, and nothing more will come
 	}
-	// A container that came and went since the call came was what a follower
-	// was there to see, as when a deploy fails and is rolled back in between
-	// two looks. Otherwise what was kept isn't read unless asked for.
-	if s.outsideTime(st, src.proto) || (kept && !s.wantsKept() && src.proto.GetCreateTime().AsTime().Before(s.start)) {
+	// A container that went since the call came was what a follower was there to
+	// see, as when a deploy fails and is rolled back in between two looks.
+	// Otherwise what was kept isn't read unless asked for.
+	if s.outsideTime(st, src.proto) || (kept && !s.wantsKept() && src.kept.wentBefore(s.start)) {
 		return true
 	}
 	if s.reading.Load() >= MaxSourcesPerStream {
@@ -594,6 +607,8 @@ func (s *stream) startReading(st *sourceState, src *source, first bool) bool {
 	}
 	s.reading.Add(1)
 	st.reading.Store(true)
+	st.unread.Store(false)
+	st.runRead = run
 	st.lastRead.Store(time.Now().UnixNano())
 	s.wg.Go(func() {
 		defer s.reading.Add(-1)
@@ -796,7 +811,13 @@ func (s *stream) checkRotated(src *source, cursor, first time.Time) {
 // listed, which the next scan sees, or of one that keeps no log to read, which
 // is said once.
 func (s *stream) readFailed(st *sourceState, src *source, err error) {
-	if s.ctx.Err() != nil || docker.IsNotFound(err) || docker.IsUnavailable(err) {
+	if s.ctx.Err() != nil {
+		return
+	}
+	// It has gone, or Docker is restarting: the next look tries again, in what the
+	// server kept of it if it has gone.
+	if docker.IsNotFound(err) || docker.IsUnavailable(err) {
+		st.unread.Store(true)
 		return
 	}
 	s.r.logger().Warn("can't read a container's log", slog.String("container", src.proto.GetContainerName()), slog.String("error", err.Error()))
@@ -1048,9 +1069,12 @@ func (s *stream) checkCaughtUp() {
 func (s *stream) readKept(st *sourceState, src *source) {
 	k := src.kept
 	since, until := s.since(st), timeOf(s.call.GetUntil())
-	var cursor time.Time
-	var skip uint32
-	if st.after != nil {
+	// From where a read of the container left off, which may have been of Docker,
+	// or else from where the call says.
+	st.cursorMu.Lock()
+	cursor, skip := st.cursor, st.count
+	st.cursorMu.Unlock()
+	if cursor.IsZero() && st.after != nil {
 		cursor, skip = st.after.GetTime().AsTime(), st.after.GetCount()
 	}
 	// A read of no lines has nothing to do, whatever it would have filtered.
