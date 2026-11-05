@@ -426,8 +426,8 @@
   .dw-log-day {
     padding-inline: var(--space-3);
   }
-  /* A finger shows what can be done with a line by tapping it. It sits in the row
-     of time and source, and the level makes way. */
+  /* A finger shows what can be done with a line by tapping it, under the line, as
+     it may not fit beside its time and level. */
   .dw-log-time.is-repeat,
   .dw-log-src.is-repeat,
   .dw-log-lvl:empty {
@@ -436,11 +436,17 @@
   .dw-log-line.is-current:not(.is-active) .dw-log-actions {
     display: none;
   }
-  .dw-log-line.is-active .dw-log-lvl {
-    margin-inline-end: 52px;
+  .dw-log-line.is-active .dw-log-actions {
+    position: static;
+    grid-column: 1 / -1;
+    justify-self: end;
+    background: none;
   }
-  .dw-log-actions {
+  /* A pointer in a window this narrow: over the row of time and level, on a ground
+     of its own, as moving the row under the pointer would be worse. */
+  .dw-log-line:not(.is-active) .dw-log-actions {
     top: 0;
     right: var(--space-1);
+    background: var(--surface-sunken);
   }
 }

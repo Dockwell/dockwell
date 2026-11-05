@@ -440,6 +440,28 @@ async function main() {
   await page.getByRole("dialog").locator(".dw-log-line.is-current").waitFor();
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
+  // On a phone, tapping a line shows what can be done with it, clear of what it says.
+  await page.setViewportSize({ width: 360, height: 740 });
+  await sleep(300);
+  await page.locator(".dw-log-line:has(.dw-log-lvl-word)").first().click();
+  await page.getByRole("button", { name: "Show in context" }).first().waitFor({ timeout: 2000 });
+  const covered = await page.evaluate(() => {
+    const line = document.querySelector(".dw-log-line.is-active");
+    const tools = line?.querySelector(".dw-log-actions")?.getBoundingClientRect();
+    if (!line || !tools) return "no line was tapped";
+    return [...line.querySelectorAll(".dw-log-time, .dw-log-src, .dw-log-lvl, .dw-log-text")]
+      .filter((el) => {
+        const b = el.getBoundingClientRect();
+        return (
+          b.width > 0 && b.left < tools.right && tools.left < b.right && b.top < tools.bottom && tools.top < b.bottom
+        );
+      })
+      .map((el) => el.className)
+      .join(", ");
+  });
+  if (covered) fail(`on a phone, a line's actions sit over its ${covered}`);
+  await page.setViewportSize({ width: 1440, height: 970 });
+  await sleep(300);
   await page.getByRole("textbox", { name: "Search logs" }).fill("nothing has this in it");
   await page.getByText(/^Nothing in the [\d,]+ lines loaded has "nothing has this in it"\.$/).waitFor();
   await shoot(page, "no-match");
