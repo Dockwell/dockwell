@@ -104,6 +104,9 @@ const (
 	CertificateProblem_CERTIFICATE_PROBLEM_REFUSED CertificateProblem = 6
 	// Anything else; the message has the certificate authority's words.
 	CertificateProblem_CERTIFICATE_PROBLEM_OTHER CertificateProblem = 7
+	// The server couldn't reach the certificate authority at all, as when its
+	// own resolver or outbound network fails. Nothing is known of the domain.
+	CertificateProblem_CERTIFICATE_PROBLEM_CANT_REACH_CA CertificateProblem = 8
 )
 
 // Enum value maps for CertificateProblem.
@@ -117,16 +120,18 @@ var (
 		5: "CERTIFICATE_PROBLEM_CAA",
 		6: "CERTIFICATE_PROBLEM_REFUSED",
 		7: "CERTIFICATE_PROBLEM_OTHER",
+		8: "CERTIFICATE_PROBLEM_CANT_REACH_CA",
 	}
 	CertificateProblem_value = map[string]int32{
-		"CERTIFICATE_PROBLEM_UNSPECIFIED":  0,
-		"CERTIFICATE_PROBLEM_DNS":          1,
-		"CERTIFICATE_PROBLEM_CONNECTION":   2,
-		"CERTIFICATE_PROBLEM_WRONG_SERVER": 3,
-		"CERTIFICATE_PROBLEM_RATE_LIMITED": 4,
-		"CERTIFICATE_PROBLEM_CAA":          5,
-		"CERTIFICATE_PROBLEM_REFUSED":      6,
-		"CERTIFICATE_PROBLEM_OTHER":        7,
+		"CERTIFICATE_PROBLEM_UNSPECIFIED":   0,
+		"CERTIFICATE_PROBLEM_DNS":           1,
+		"CERTIFICATE_PROBLEM_CONNECTION":    2,
+		"CERTIFICATE_PROBLEM_WRONG_SERVER":  3,
+		"CERTIFICATE_PROBLEM_RATE_LIMITED":  4,
+		"CERTIFICATE_PROBLEM_CAA":           5,
+		"CERTIFICATE_PROBLEM_REFUSED":       6,
+		"CERTIFICATE_PROBLEM_OTHER":         7,
+		"CERTIFICATE_PROBLEM_CANT_REACH_CA": 8,
 	}
 )
 
@@ -689,7 +694,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x1dCERTIFICATE_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19CERTIFICATE_STATE_PENDING\x10\x01\x12\x1c\n" +
 	"\x18CERTIFICATE_STATE_ISSUED\x10\x02\x12\x1c\n" +
-	"\x18CERTIFICATE_STATE_FAILED\x10\x03*\xa3\x02\n" +
+	"\x18CERTIFICATE_STATE_FAILED\x10\x03*\xca\x02\n" +
 	"\x12CertificateProblem\x12#\n" +
 	"\x1fCERTIFICATE_PROBLEM_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17CERTIFICATE_PROBLEM_DNS\x10\x01\x12\"\n" +
@@ -698,7 +703,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	" CERTIFICATE_PROBLEM_RATE_LIMITED\x10\x04\x12\x1b\n" +
 	"\x17CERTIFICATE_PROBLEM_CAA\x10\x05\x12\x1f\n" +
 	"\x1bCERTIFICATE_PROBLEM_REFUSED\x10\x06\x12\x1d\n" +
-	"\x19CERTIFICATE_PROBLEM_OTHER\x10\a2}\n" +
+	"\x19CERTIFICATE_PROBLEM_OTHER\x10\a\x12%\n" +
+	"!CERTIFICATE_PROBLEM_CANT_REACH_CA\x10\b2}\n" +
 	"\rDomainService\x12l\n" +
 	"\vListDomains\x12\x1f.dockwell.v1.ListDomainsRequest\x1a .dockwell.v1.ListDomainsResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/domains\x90\x02\x01B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vDomainProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"

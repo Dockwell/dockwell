@@ -1699,6 +1699,7 @@ components:
                         - CERTIFICATE_PROBLEM_CAA
                         - CERTIFICATE_PROBLEM_REFUSED
                         - CERTIFICATE_PROBLEM_OTHER
+                        - CERTIFICATE_PROBLEM_CANT_REACH_CA
                     type: string
                     description: |-
                         Why it failed, or why renewing it is failing while an issued one still

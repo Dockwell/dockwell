@@ -111,7 +111,7 @@ A host-networked Caddy can't use Docker's DNS, which answers only inside contain
 - **The agent's reconcile puts it back** if something else recreated the container, such as `docker compose up` from an export.
 - **Reading back:** a dial in Caddy's config maps through the table to a service and a port. So a swap of containers never reads as drift: the spec has the service and the port, not the addresses. A dial the table doesn't know reads as drift, and so does any other change to a route's shape.
 - **A service with no routes isn't on the network,** and the last route on a server removes the network too.
-- **A container on its own can't name `dockwell_ingress`.** It could take the address of a stopped service's instance, and receive its traffic.
+- **A container on its own can't name `dockwell_ingress`,** by its name or by its ID. It could take the address of a stopped service's instance, and receive its traffic. Docker takes a network by the start of its ID as readily as by its name, so the agent looks each name up exactly before it makes a container, and refuses one that answers to another name, as it does for an environment's networks ([ADR 0021](0021-the-docker-driver.md)).
 
 **What #28 calls** (`ingress.Upstreams`, on the agent). None of these make a plan, a revision or drift, as none changes a spec:
 
@@ -184,7 +184,9 @@ The agent reports each domain's state, and the API serves it (`DomainService.Lis
 
   | Problem | What it means | The fix it gives |
   | --- | --- | --- |
-  | `dns` | No such record, or DNS failed | Point an A or AAAA record at this server |
+  | `dns` | No such record | Point an A or AAAA record at this server |
+  | `dns`, with the lookup failing | The CA's lookup broke, such as SERVFAIL on a CAA record, with the CA's words | Check that the domain's nameservers answer; a new record won't help until they do |
+  | `cant_reach_ca` | This server's own request to the CA failed, with no ACME problem type, so nothing is known of the domain | Check this server's DNS resolver and outbound network |
   | `connection` | The CA couldn't reach 80 or 443 | Open both in the firewall and at your provider |
   | `wrong_server` | Something else answered | Point DNS here; turn off any CDN or proxy in front for now |
   | `rate_limited` | The CA's limit, with when it lifts | Wait; Dockwell tries again by itself |

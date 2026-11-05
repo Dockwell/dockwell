@@ -140,4 +140,7 @@ enum CertificateProblem {
   CERTIFICATE_PROBLEM_REFUSED = 6;
   // Anything else; the message has the certificate authority's words.
   CERTIFICATE_PROBLEM_OTHER = 7;
+  // The server couldn't reach the certificate authority at all, as when its
+  // own resolver or outbound network fails. Nothing is known of the domain.
+  CERTIFICATE_PROBLEM_CANT_REACH_CA = 8;
 }

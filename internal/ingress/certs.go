@@ -43,6 +43,9 @@ const (
 	ProblemRateLimited
 	ProblemCAA
 	ProblemRefused
+	// ProblemCantReachCA is this server failing to reach the certificate
+	// authority at all, so nothing about the domain is known yet.
+	ProblemCantReachCA
 	ProblemOther
 )
 
@@ -72,6 +75,9 @@ func ClassifyFailure(text string) (Problem, string, bool) {
 	const limit = 400
 	m := acmeProblem.FindStringSubmatch(text)
 	if m == nil {
+		if cantReachCA(text) {
+			return ProblemCantReachCA, cut(text, limit), true
+		}
 		return ofWords(text), cut(text, limit), true
 	}
 	detail := cut(strings.TrimSpace(m[2]), limit)
@@ -95,6 +101,30 @@ func ClassifyFailure(text string) (Problem, string, bool) {
 // dnsWords are how a certificate authority says DNS failed under a problem
 // type that doesn't, as Pebble says "malformed".
 var dnsWords = []string{"could not resolve", "error occurred while resolving", "nxdomain", "no valid a records", "no such host", "dns problem", "servfail"}
+
+// localWords are what this server's own request to the certificate authority
+// fails with, which never carries an ACME problem type: the authority didn't
+// answer, so it has said nothing of the domain. Each is a part of a Go network
+// error, or of what the ACME client wraps one in.
+var localWords = []string{"dial tcp", "dial udp", "lookup ", "connection refused", "connection reset", "network is unreachable", "no route to host", "i/o timeout", "tls handshake", "x509:", "performing request", "making new acme client", "registering account"}
+
+// cantReachCA reports a failure of this server's own request to the
+// certificate authority. It is asked only of words with no ACME problem type,
+// so a resolver failure here isn't blamed on the domain's DNS.
+func cantReachCA(text string) bool {
+	lower := strings.ToLower(text)
+	return slices.ContainsFunc(localWords, func(w string) bool { return strings.Contains(lower, w) })
+}
+
+// lookupFailed are how a certificate authority says its DNS lookup broke, as
+// opposed to finding no record: the domain's nameservers didn't answer, so no
+// A record would help.
+var lookupFailed = []string{"servfail", "looking up caa", "timeout", "refused", "nameservers may be malfunctioning"}
+
+func dnsLookupFailed(detail string) bool {
+	lower := strings.ToLower(detail)
+	return slices.ContainsFunc(lookupFailed, func(w string) bool { return strings.Contains(lower, w) })
+}
 
 // ofWords is the problem a message without a telling type describes.
 func ofWords(text string) Problem {
@@ -138,7 +168,12 @@ func certMessage(domain string, st CertState, check *resource.DomainCheck) strin
 // problemWords says what went wrong, and how to fix it.
 func problemWords(domain string, st CertState, check *resource.DomainCheck) string {
 	switch st.Problem {
+	case ProblemCantReachCA:
+		return fmt.Sprintf("this server couldn't reach the certificate authority: %s Nothing is known yet about %s, so its DNS may be fine. Check this server's own DNS resolver and outbound network.", sentence(st.Detail), domain)
 	case ProblemDNS:
+		if dnsLookupFailed(st.Detail) {
+			return fmt.Sprintf("the certificate authority's DNS lookup for %s failed: %s Check that the domain's nameservers answer; adding an A record won't help until they do.", domain, sentence(st.Detail))
+		}
 		return fmt.Sprintf("the certificate authority couldn't find %s in DNS. %s", domain, pointHere(check))
 	case ProblemConnection:
 		return fmt.Sprintf("the certificate authority couldn't reach this server for %s on port 80 or 443, which a firewall often blocks. Open both, in the server's firewall and at your provider.", domain)
@@ -187,6 +222,7 @@ var problems = map[Problem]dockwellv1.CertificateProblem{
 	ProblemRateLimited: dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_RATE_LIMITED,
 	ProblemCAA:         dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_CAA,
 	ProblemRefused:     dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_REFUSED,
+	ProblemCantReachCA: dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_CANT_REACH_CA,
 	ProblemOther:       dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_OTHER,
 }
 

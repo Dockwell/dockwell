@@ -245,7 +245,7 @@ func TestAFailureIsReadByItsProblemType(t *testing.T) {
 		{"HTTP 400 urn:ietf:params:acme:error:rejectedIdentifier - Invalid identifiers requested", ProblemRefused},
 		{"HTTP 400 urn:ietf:params:acme:error:malformed - Could not resolve URL \"app.example.com\"", ProblemDNS},
 		{"HTTP 500 urn:ietf:params:acme:error:serverInternal - the CA is having a bad day", ProblemOther},
-		{"Get \"https://acme.example/dir\": dial tcp: connect: connection refused", ProblemOther},
+		{"Get \"https://acme.example/dir\": dial tcp: connect: connection refused", ProblemCantReachCA},
 	} {
 		got, detail, failed := ClassifyFailure(tc.text)
 		if !failed || got != tc.want {
@@ -292,5 +292,73 @@ func TestEachCertificateStateSaysWhatToDo(t *testing.T) {
 	}
 	if msg := certMessage("app.example.com", CertState{Phase: CertIssued}, nil); msg != "" {
 		t.Errorf("an issued certificate says %q", msg)
+	}
+}
+
+// A control plane runs its agent in one process, so a panic here would take
+// the control plane down with it.
+func TestAnUnreadableProcNetIsAnErrorNotAPanic(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file of any mode")
+	}
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "net"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "net", "tcp")
+	if err := os.WriteFile(path, nil, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	h := &Holders{Proc: dir}
+	_, err := h.sockets()
+	if err == nil || !strings.Contains(err.Error(), path) {
+		t.Errorf("sockets = %v, want an error naming %s", err, path)
+	}
+}
+
+// The authority never answered, so nothing is known of the domain, and fixing
+// its DNS is the wrong advice.
+func TestAResolverFailureHereIsntBlamedOnTheDomain(t *testing.T) {
+	for _, text := range []string{
+		`making new ACME client: registering account [] with server: provisioning client: performing request: Get "https://acme-v02.api.letsencrypt.org/directory": dial tcp: lookup acme-v02.api.letsencrypt.org on 127.0.0.53:53: no such host`,
+		`performing request: Get "https://acme-v02.api.letsencrypt.org/directory": dial tcp 172.65.32.248:443: i/o timeout`,
+		`performing request: Get "https://acme-v02.api.letsencrypt.org/directory": tls: failed to verify certificate: x509: certificate signed by unknown authority`,
+	} {
+		problem, detail, failed := ClassifyFailure(text)
+		if !failed || problem != ProblemCantReachCA {
+			t.Errorf("ClassifyFailure(%q) = %v, %v, want that this server can't reach the authority", text, problem, failed)
+		}
+		msg := certMessage("app.example.com", CertState{Phase: CertFailed, Problem: problem, Detail: detail}, nil)
+		if !strings.Contains(msg, "this server's own DNS resolver and outbound network") || strings.Contains(msg, "A or AAAA") {
+			t.Errorf("for %q it says: %s", text, msg)
+		}
+	}
+	// The authority's own words about the domain still read as DNS, even when
+	// they say "no such host".
+	problem, _, _ := ClassifyFailure(`urn:ietf:params:acme:error:dns - no valid A records found for app.example.com: no such host`)
+	if problem != ProblemDNS {
+		t.Errorf("the authority's own DNS failure reads as %v", problem)
+	}
+}
+
+// The record may be there, and no A record fixes nameservers that don't answer.
+func TestAFailedDNSLookupIsntNoRecord(t *testing.T) {
+	for _, tc := range []struct{ name, text, want string }{
+		{"CAA", `HTTP 400 urn:ietf:params:acme:error:dns - DNS problem: SERVFAIL looking up CAA for example.com - the domain's nameservers may be malfunctioning`, "SERVFAIL looking up CAA"},
+		{"A", `HTTP 400 urn:ietf:params:acme:error:dns - DNS problem: SERVFAIL looking up A for app.example.com - the domain's nameservers may be malfunctioning`, "SERVFAIL looking up A"},
+		{"timeout", `HTTP 400 urn:ietf:params:acme:error:dns - DNS problem: query timed out looking up CAA for example.com`, "looking up CAA"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			problem, detail, _ := ClassifyFailure(tc.text)
+			msg := certMessage("app.example.com", CertState{Phase: CertFailed, Problem: problem, Detail: detail}, nil)
+			if !strings.Contains(msg, tc.want) || !strings.Contains(msg, "nameservers answer") || strings.Contains(msg, "A or AAAA") {
+				t.Errorf("it says: %s", msg)
+			}
+		})
+	}
+	// With no record at all, an A record is the fix.
+	problem, detail, _ := ClassifyFailure(`urn:ietf:params:acme:error:dns - DNS problem: NXDOMAIN looking up A for app.example.com`)
+	if msg := certMessage("app.example.com", CertState{Phase: CertFailed, Problem: problem, Detail: detail}, nil); !strings.Contains(msg, "A or AAAA") {
+		t.Errorf("for NXDOMAIN it says: %s", msg)
 	}
 }
