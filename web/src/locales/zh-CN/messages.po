@@ -195,6 +195,10 @@ msgstr "{out}，可绕过服务器的防火墙"
 msgid "{out}, with {detail}"
 msgstr "{out}，选项为 {detail}"
 
+#: src/features/changes/words.ts
+msgid "{path} as a proxy it believes on where a request came from"
+msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, other {# 个变量}}"
@@ -457,6 +461,14 @@ msgstr "已被认领"
 #: src/features/auth/TokensPanel.tsx
 msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
 msgstr "还能规划并应用可撤销的更改。绝不会删除数据或切断访问。"
+
+#: src/features/changes/words.ts
+msgid "anyone on the internet"
+msgstr "互联网上的任何人"
+
+#: src/features/changes/words.ts
+msgid "anyone who can reach {server}"
+msgstr "任何能访问 {server} 的人"
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -858,12 +870,12 @@ msgid "Dismiss"
 msgstr "关闭"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do"
-msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{here}），因此暂时无法获取证书。请将其指向此服务器，之后即可获取证书"
+msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{here}），因此暂时无法获取证书。请将其指向此服务器，之后即可获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is"
-msgstr "{domain} 的 DNS 指向 {found}。此服务器自身的地址都是私有地址（{here}），因此 Agent 无法判断它是否指向此服务器。如果不是，在指向此服务器之前无法获取证书"
+msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}。此服务器自身的地址都是私有地址（{here}），因此 Agent 无法判断它是否指向此服务器。如果不是，在指向此服务器之前无法获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
@@ -1123,6 +1135,10 @@ msgstr "悬停或聚焦一台服务器以查看详情。"
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS 自动配置。你的通行密钥在这个地址可用。"
 
+#: src/features/changes/words.ts
+msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
+msgstr "{path} 上的 HTTPS，它将停止：https:// 地址会报错，见过其 HSTS 的浏览器在该设置到期前也会拒绝纯 HTTP"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "I saved them"
 msgstr "我已保存"
@@ -1174,6 +1190,18 @@ msgstr "不到一分钟后"
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "安装时间"
+
+#: src/features/changes/words.ts
+msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+msgstr "它通过纯 HTTP 响应任何能访问 {server} 80 端口的人，绕过它前面的任何东西"
+
+#: src/features/changes/words.ts
+msgid "It answers only {list}. Anyone else gets what a name with no route gets"
+msgstr "它只响应 {list}。其他人得到的结果和访问没有路由的域名一样"
+
+#: src/features/changes/words.ts
+msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
+msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "It has been undone since."
@@ -1251,6 +1279,10 @@ msgstr "浅色"
 #: src/features/auth/ClaimPage.tsx
 msgid "Link expires"
 msgstr "链接过期"
+
+#: src/features/changes/words.ts
+msgid "Listening there now: {listening}"
+msgstr "目前在此监听的是：{listening}"
 
 #: src/app/Providers.tsx
 msgid "Live"
@@ -1439,6 +1471,10 @@ msgstr "这个地址没有通行密钥？通行密钥属于创建它的地址，
 msgid "No passkey works at {rpId} yet"
 msgstr "{rpId} 上还没有可用的通行密钥"
 
+#: src/features/changes/words.ts
+msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
+msgstr "此后 {server} 上没有路由需要证书，因此 {proxy} 会释放端口 {ports}。不需要证书的路由会继续响应"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "No server · nothing goes down"
 msgstr "不涉及服务器 · 不会停机"
@@ -1498,6 +1534,10 @@ msgstr "这里还没有内容"
 #: src/app/Providers.tsx
 msgid "Nothing here yet."
 msgstr "这里还没有内容。"
+
+#: src/features/changes/words.ts
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
+msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
 
 #: src/app/Providers.tsx
 msgid "Nothing matches “{query}”. Try a server, app or action name."
@@ -1667,6 +1707,10 @@ msgstr "暂停"
 #: src/app/Providers.tsx
 msgid "Paused"
 msgstr "已暂停"
+
+#: src/features/changes/words.ts
+msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
+msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它前面的任何东西"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2219,6 +2263,10 @@ msgid "System"
 msgstr "跟随系统"
 
 #: src/features/changes/ChangeSheet.tsx
+msgid "Takes away {stopping}"
+msgstr "将取消{stopping}"
+
+#: src/features/changes/ChangeSheet.tsx
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "停用其镜像在 {kept} 保存的数据，服务器会保留 7 天"
 
@@ -2249,6 +2297,10 @@ msgstr "这个验证码已经用过了。请等待身份验证器应用中的下
 #: src/features/changes/ChangeSheet.tsx
 msgid "That didn't work"
 msgstr "操作没有成功"
+
+#: src/features/changes/words.ts
+msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
+msgstr "这让{who}能访问端口 {number}，而那里的程序会把每个调用者都看作此服务器本身（127.0.0.1），信任 localhost 的应用会相信这一点"
 
 #: src/features/auth/messages.ts
 msgid "That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks."
@@ -2394,6 +2446,14 @@ msgstr "通行密钥请求已过期。请重试。"
 msgid "The plan didn't work"
 msgstr "计划没有成功"
 
+#: src/features/changes/words.ts
+msgid "the port {path} on the server itself, past its containers, at {detail}"
+msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {detail}"
+
+#: src/features/changes/words.ts
+msgid "the port {path} on the server itself, past its containers, at {detail} over plain HTTP"
+msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {detail}，通过纯 HTTP"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "the resource filter"
 msgstr "资源筛选"
@@ -2462,6 +2522,10 @@ msgstr "这个安装已经有所有者"
 #: src/features/auth/messages.ts
 msgid "This install already has an owner. Sign in instead."
 msgstr "这个安装已经有所有者。请直接登录。"
+
+#: src/features/changes/words.ts
+msgid "This is the first route on {server} that takes a certificate, so {proxy} takes ports {ports} too, and nothing it serves stops"
+msgstr "这是 {server} 上第一条需要证书的路由，因此 {proxy} 还会占用端口 {ports}，它提供的服务都不会停止"
 
 #: src/features/changes/words.ts
 msgid "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
@@ -2555,6 +2619,10 @@ msgstr "验证码错误次数过多。请等待 {0} 后重试。"
 #: src/features/auth/messages.ts
 msgid "Too many wrong codes. Wait a moment, then try again."
 msgstr "验证码错误次数过多。请稍候再试。"
+
+#: src/features/changes/words.ts
+msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
+msgstr "此路由的流量以未加密的方式到达 {server}，因为 TLS 在到达它之前就已终止。在隧道或私有网络上这没有问题；在开放的互联网上则不行，沿途的任何人都能读取这些流量"
 
 #. Read after a metric's name to name its chart, as in “CPU trend”.
 #: src/app/Providers.tsx
@@ -2795,6 +2863,10 @@ msgstr "变更内容"
 msgid "What happens next"
 msgstr "接下来"
 
+#: src/features/changes/words.ts
+msgid "what runs on {server} itself"
+msgstr "在 {server} 本机上运行的程序"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
 msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，应用其计划时，所有使用它的服务都会重启。"
@@ -2823,6 +2895,10 @@ msgstr "它属于哪个项目？"
 #: src/features/activity/ActivityPage.tsx
 msgid "Who"
 msgstr "执行者"
+
+#: src/features/changes/words.ts
+msgid "whoever comes through {list}"
+msgstr "经由 {list} 而来的任何人"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Why it failed"

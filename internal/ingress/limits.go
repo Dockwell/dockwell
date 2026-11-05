@@ -13,7 +13,6 @@ import (
 	"slices"
 	"time"
 
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -36,6 +35,12 @@ const (
 	// so a domain that stays failed costs little. It must not block others for
 	// ever.
 	PendingWindow = 3 * time.Hour
+	// applyMargin is how far past these limits a step may go as it applies. A
+	// plan's check counts what it removes, and its makes run before its deletes, so
+	// a plan that swaps routes at a limit goes past it for a moment. A step knows
+	// only itself, so this is what it allows for. What it still stops is plans made
+	// a while ago, which saw fewer than there are now, adding up without end.
+	applyMargin = 2
 )
 
 // domainsFile keeps when each domain with no certificate yet was added.
@@ -101,15 +106,19 @@ func (m *Manager) noteDomain(ctx context.Context, domain string) error {
 
 // pendingDomains are the domains on this server that count as waiting for a
 // certificate: added within PendingWindow, with no certificate yet. It drops what
-// no longer counts, so what is recorded stays no more than this.
+// no longer counts, so what is recorded stays no more than this. A domain that
+// takes no certificate asks nothing of the authority, so it never counts.
 func (m *Manager) pendingDomains(ctx context.Context, have []Route) ([]string, error) {
 	added, err := m.addedAt()
 	if err != nil {
 		return nil, err
 	}
 	on := map[string]bool{}
-	for _, r := range have {
-		on[r.Domain] = true
+	for k := range have {
+		r := &have[k]
+		if !r.Plain {
+			on[r.Domain] = true
+		}
 	}
 	var names []string
 	cutoff := m.now().Add(-PendingWindow)
@@ -138,34 +147,51 @@ func (m *Manager) pendingDomains(ctx context.Context, have []Route) ([]string, e
 
 // checkLimits refuses what would take this server past its limits. A plan that
 // only removes routes or edits them adds nothing, so it passes whatever the count:
-// removing a route must always work.
-func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired) error {
+// removing a route must always work. margin is how many times over the limits
+// this may go, which is 1 for a whole plan, and applyMargin for one step of it.
+func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired, margin int) error {
 	have, err := m.Proxy.Routes(ctx)
 	if err != nil {
 		return err
 	}
-	ids, domains := map[string]bool{}, map[string]bool{}
-	for _, r := range have {
+	ids, domains, after := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	touched := map[string]bool{}
+	for _, d := range desired {
+		if d.Ref.Kind == routeKind {
+			touched[RouteID(d.Ref)] = true
+		}
+	}
+	for k := range have {
+		r := &have[k]
 		ids[r.ID] = true
-		domains[r.Domain] = true
+		// One that takes no certificate has asked the authority for nothing, so a
+		// route giving it one asks for something new.
+		if !r.Plain {
+			domains[r.Domain] = true
+		}
+		if !touched[r.ID] {
+			after[r.Domain] = true
+		}
 	}
 	added := 0
 	var fresh []string
 	for _, d := range desired {
-		spec, ok := d.Spec.(*resourcev1.Route)
-		if d.Ref.Kind != routeKind || !ok || spec == nil {
+		spec := routeSpec(d)
+		if spec == nil {
 			continue
 		}
+		after[spec.GetDomain()] = true
 		if !ids[RouteID(d.Ref)] {
 			added++
 		}
-		if name := spec.GetDomain(); !domains[name] && !slices.Contains(fresh, name) {
+		name := spec.GetDomain()
+		if spec.GetTls() != TLSOff && !domains[name] && !slices.Contains(fresh, name) {
 			fresh = append(fresh, name)
 		}
 	}
 	if added > 0 {
-		if left, _, _ := routesAfter(have, desired); left > MaxRoutes {
-			return fmt.Errorf("this change would give this server %d routes, and a server takes at most %d, as each one costs its proxy memory and every change rewrites them all. Nothing changed. Delete routes you don't need, or put these on another server",
+		if left, _, _ := routesAfter(have, desired); left > MaxRoutes*margin {
+			return fmt.Errorf("this change would give this server %d routes, and a server takes at most %d, as each one costs its proxy memory and every change rewrites them all. Delete routes you don't need, or put these on another server",
 				left, MaxRoutes)
 		}
 	}
@@ -176,10 +202,17 @@ func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired) e
 	if err != nil {
 		return err
 	}
-	if len(pending)+len(fresh) <= MaxPendingDomains {
+	// What this plan takes off the server asks nothing more of the authority, so
+	// fixing a typo in a domain leaves the count as it was.
+	pending = slices.DeleteFunc(pending, func(d string) bool { return !after[d] })
+	if len(pending)+len(fresh) <= MaxPendingDomains*margin {
 		return nil
 	}
-	return fmt.Errorf("%d domains on this server are waiting for a certificate, and this change adds %d more, past the limit of %d, as a burst of names that don't resolve can use up the certificate authority's limit for the whole server, the panel's domain too. Nothing changed. Point their DNS here, or delete the routes you don't need, such as %s. A domain stops counting %d hours after it was added, whether or not its certificate came",
+	if len(pending) == 0 {
+		return fmt.Errorf("this change adds %d new domains at once, and a server takes at most %d waiting for a certificate, as a burst of names that don't resolve can use up the certificate authority's limit for the whole server, the panel's domain too. Split it into changes of up to %d, and make the next once their certificates have come. A domain stops counting %d hours after it was added, whether or not its certificate came",
+			len(fresh), MaxPendingDomains, MaxPendingDomains, int(PendingWindow.Hours()))
+	}
+	return fmt.Errorf("%d domains on this server are waiting for a certificate, and this change adds %d more, past the limit of %d, as a burst of names that don't resolve can use up the certificate authority's limit for the whole server, the panel's domain too. Point their DNS here, or delete the routes you don't need, such as %s, or split this change. A domain stops counting %d hours after it was added, whether or not its certificate came",
 		len(pending), len(fresh), MaxPendingDomains, human.List(sampleOf(pending)), int(PendingWindow.Hours()))
 }
 

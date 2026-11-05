@@ -160,6 +160,50 @@ type Decision struct {
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
 	Returning []string `json:",omitempty"`
+	// Unencrypted is true when the step has a route serve plain HTTP that didn't,
+	// as TLS ends before its server, so its traffic reaches the server
+	// unencrypted. It never stops a plan and needs no person, so it isn't a
+	// Warning, which does. The fingerprint covers the spec that says it.
+	Unencrypted bool `json:",omitempty"`
+	// Answers says who a route with tls off, or to a port on the server, answers,
+	// from its spec. It never stops a plan.
+	Answers *RouteAnswers `json:",omitempty"`
+	// ServerPort is the port on the server a route sends to, and what listens there
+	// if its server could say. It never stops a plan, and a fingerprint leaves it
+	// out: the spec says the port.
+	ServerPort *ServerPortCheck `json:",omitempty"`
+}
+
+// RouteReach is who a route answers.
+type RouteReach int
+
+// Reaches.
+const (
+	// ReachThisServer is this server's own loopback alone.
+	ReachThisServer RouteReach = iota + 1
+	// ReachProxies is the proxies a route names, and whoever comes through them.
+	ReachProxies
+	// ReachAnyone is anyone who can reach the server's port.
+	ReachAnyone
+)
+
+// RouteAnswers is who a route answers, as its plan says.
+type RouteAnswers struct {
+	Reach RouteReach
+	// Proxies are what it answers, for ReachProxies.
+	Proxies []string `json:",omitempty"`
+	// Plain is true when it answers over plain HTTP.
+	Plain bool `json:",omitempty"`
+}
+
+// ServerPortCheck is a port on the server that a route sends to.
+type ServerPortCheck struct {
+	Port uint32
+	// Listening names what listens there. Empty when nothing does, or the server
+	// couldn't say.
+	Listening string `json:",omitempty"`
+	// Nothing is true when the server said nothing listens there yet.
+	Nothing bool `json:",omitempty"`
 }
 
 // IngressChange is what happens to the proxy that holds a server's public
@@ -177,6 +221,12 @@ const (
 	// IngressRestarts is a newer version of the proxy, so what it serves is
 	// down for the step's downtime.
 	IngressRestarts
+	// IngressTakesPorts is the first route that needs a certificate on a server
+	// whose routes needed none: the proxy keeps running, and takes more ports.
+	IngressTakesPorts
+	// IngressFreesPorts is the last route that needs a certificate going: the
+	// proxy keeps running, and frees the ports only that needed.
+	IngressFreesPorts
 )
 
 // IngressEffect is what a step does to a server's ingress.
@@ -284,6 +334,23 @@ const (
 	// AccessPrivileged is Docker's privileged mode: every device and capability
 	// on the server.
 	AccessPrivileged
+	// AccessServerPort is a port on the server itself that a route sends to, in
+	// Path, as 127.0.0.1:8080, at the domain and path in Detail, over plain HTTP when
+	// Type is http. It reaches past containers, to whatever listens there, so each
+	// of those is approved, not only the port (ADR 0030).
+	AccessServerPort
+	// AccessTrustedProxy is a proxy a route believes on where a request came from,
+	// in Path: an address, a range or a named preset. What it says of a client
+	// reaches services as true, so one that isn't really a proxy makes client
+	// addresses forgeable (ADR 0030).
+	AccessTrustedProxy
+	// AccessPlainForAnyone is a route with tls off that answers anyone who can
+	// reach the server's port 80, on the domain in Path, going around whatever is in
+	// front of the server (ADR 0030).
+	AccessPlainForAnyone
+	// AccessHTTPSOff is the domain in Path going off HTTPS, as it had a certificate
+	// within the undo window, so https:// stops answering (ADR 0030).
+	AccessHTTPSOff
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -392,6 +459,18 @@ func AccessWords(a Access) string {
 		return "the group " + plain(a.Path) + ", which is the same as root if it is the group that owns Docker's socket on the server"
 	case AccessPrivileged:
 		return "privileged mode, which gives it every device and capability on the server, the same as root"
+	case AccessServerPort:
+		out := "the port " + plain(a.Path) + " on the server itself, past its containers, at " + plain(a.Detail)
+		if a.Type == "http" {
+			out += " over plain HTTP"
+		}
+		return out
+	case AccessTrustedProxy:
+		return plain(a.Path) + " as a proxy it believes on where a request came from"
+	case AccessPlainForAnyone:
+		return "plain HTTP on " + plain(a.Path) + " for anyone who can reach this server, around whatever is in front of it"
+	case AccessHTTPSOff:
+		return "HTTPS on " + plain(a.Path) + ", which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
@@ -610,6 +689,11 @@ type Claim struct {
 	// Group is what one scope alone may hold, so that no other scope can
 	// claim a part of it: app.example.com.
 	Group string
+	// Manner is how a claim serves its Group, which every claim on a Group must
+	// agree on: a domain with a certificate, or without. Empty is one manner too.
+	Manner string
+	// MannerWords say what Manner is, for people: "takes no certificate".
+	MannerWords string
 	// Words say what Key is, for people: "app.example.com/api".
 	Words string
 	// GroupWords say what Group is, for people: "the domain app.example.com".
@@ -628,6 +712,18 @@ type Claimer interface {
 // a Group another scope held, whose name is held.
 type TakesOver interface {
 	TakesOver(group, held string) Access
+}
+
+// WeakensClaims is a Claimer whose specs can serve a Group a weaker way than
+// another spec of the kind does, which a person approves when it comes to a Group
+// served the stronger way within the undo window. A token could otherwise take a
+// live domain off HTTPS, in place or by deleting a route in one change and making
+// another in the next (ADR 0030).
+type WeakensClaims interface {
+	// Weak reports a spec that serves what it claims the weaker way.
+	Weak(spec proto.Message) bool
+	// Weakens is what a person approves for it.
+	Weakens(group string) Access
 }
 
 // SingleServer is a kind whose resources run on one server at a time, whose

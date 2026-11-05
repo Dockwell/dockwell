@@ -59,6 +59,9 @@ type CertState struct {
 	Detail  string
 	// NotAfter is when an issued certificate expires.
 	NotAfter time.Time
+	// None says it has no certificate and asks for none, as TLS ends before this
+	// server. Phase says nothing then.
+	None bool
 }
 
 // acmeProblem finds an ACME problem type (RFC 8555) in what a proxy logs,
@@ -147,6 +150,8 @@ func cut(s string, n int) string {
 func certMessage(domain string, st CertState, check *resource.DomainCheck) string {
 	retry := "Dockwell tries again by itself."
 	switch {
+	case st.None:
+		return "None: TLS ends before this server, so it has no certificate here and asks for none."
 	case st.Phase == CertIssued && st.Problem == ProblemNone:
 		return ""
 	case st.Phase == CertIssued:
@@ -188,6 +193,29 @@ func problemWords(domain string, st CertState, check *resource.DomainCheck) stri
 	case ProblemNone, ProblemOther:
 	}
 	return fmt.Sprintf("the certificate authority couldn't issue it: %s If this goes on, see docker logs %s.", sentence(st.Detail), ContainerName)
+}
+
+// offWords say what a route's domain can do instead, when its certificate can't
+// come because something in front of the server answers for it. They aren't for
+// the panel's own domain, which can't be served this way.
+const offWords = "If this server sits behind a tunnel, or a proxy that ends TLS, it needs no certificate: set tls to off on its routes."
+
+// routeCertMessage is certMessage for a route's domain, which also says when the
+// setting for a server behind a tunnel or a proxy may be the fix. A limit, a CAA
+// record and a refused name aren't what a tunnel causes.
+func routeCertMessage(domain string, st CertState, check *resource.DomainCheck) string {
+	msg := certMessage(domain, st, check)
+	switch {
+	case st.None, msg == "":
+		return msg
+	case st.Phase == CertPending:
+		if check == nil || check.State != resource.DomainElsewhere {
+			return msg
+		}
+	case st.Problem == ProblemRateLimited, st.Problem == ProblemCAA, st.Problem == ProblemRefused:
+		return msg
+	}
+	return msg + " " + offWords
 }
 
 func pointHere(check *resource.DomainCheck) string {
@@ -240,6 +268,8 @@ type statusBoard struct {
 	problem *problem
 	// outdated is whether the proxy read as outdated when it was last looked at.
 	outdated bool
+	// ownPorts is what was last logged of routes to ports Dockwell listens on.
+	ownPorts string
 	// ingress is what was last published of the ingress.
 	ingress *dockwellv1.IngressStatus
 }
@@ -381,11 +411,18 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		}
 		return false
 	}
+	// A domain has a certificate if any of its routes wants one, as a plan refuses
+	// the two together, and it can only be for the moment a plan's steps take.
 	domains := map[string]bool{}
-	for _, r := range routes {
-		domains[r.Domain] = true
+	for i := range routes {
+		domains[routes[i].Domain] = domains[routes[i].Domain] || !routes[i].Plain
 	}
-	names := slices.Sorted(maps.Keys(domains))
+	var names []string
+	for _, name := range slices.Sorted(maps.Keys(domains)) {
+		if domains[name] {
+			names = append(names, name)
+		}
+	}
 	certs, err := m.Proxy.Certificates(ctx, names)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -394,8 +431,13 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		return false
 	}
 	retry := false
-	list := make([]*dockwellv1.DomainStatus, 0, len(names))
-	for _, name := range names {
+	list := make([]*dockwellv1.DomainStatus, 0, len(domains))
+	for _, name := range slices.Sorted(maps.Keys(domains)) {
+		if !domains[name] {
+			// Its DNS points at whatever is in front, which says nothing here.
+			list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, CertState{None: true}, nil)})
+			continue
+		}
 		st := certs[name]
 		check, nowHere := m.domainCheck(ctx, name, st)
 		retry = retry || (nowHere && st.Phase != CertIssued)
@@ -467,7 +509,10 @@ func (m *Manager) domainCheck(ctx context.Context, name string, st CertState) (c
 }
 
 func certProto(domain string, st CertState, check *resource.DomainCheck) *dockwellv1.Certificate {
-	out := &dockwellv1.Certificate{State: phases[st.Phase], Problem: problems[st.Problem], Message: certMessage(domain, st, check)}
+	out := &dockwellv1.Certificate{State: phases[st.Phase], Problem: problems[st.Problem], Message: routeCertMessage(domain, st, check)}
+	if st.None {
+		out.State = dockwellv1.CertificateState_CERTIFICATE_STATE_NONE
+	}
 	if !st.NotAfter.IsZero() {
 		out.ExpireTime = timestamppb.New(st.NotAfter)
 	}

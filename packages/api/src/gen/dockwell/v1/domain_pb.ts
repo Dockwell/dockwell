@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/domain.proto.
  */
 export const file_dockwell_v1_domain: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjoKEkxpc3REb21haW5zUmVxdWVzdBITCgtlbnZpcm9ubWVudBgBIAEoCRIPCgdzZXJ2aWNlGAIgASgJIjsKE0xpc3REb21haW5zUmVzcG9uc2USJAoHZG9tYWlucxgBIAMoCzITLmRvY2t3ZWxsLnYxLkRvbWFpbiKRAQoGRG9tYWluEgwKBG5hbWUYASABKAkSFgoOZW52aXJvbm1lbnRfaWQYAiABKAkSCwoDdXJsGAMgASgJEigKBnJvdXRlcxgEIAMoCzIYLmRvY2t3ZWxsLnYxLkRvbWFpblJvdXRlEioKB3NlcnZlcnMYBSADKAsyGS5kb2Nrd2VsbC52MS5Eb21haW5TZXJ2ZXIiYQoLRG9tYWluUm91dGUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIMCgRwYXRoGAMgASgJEg8KB3NlcnZpY2UYBCABKAkSDAoEcG9ydBgFIAEoDRILCgN1cmwYBiABKAkinQEKDERvbWFpblNlcnZlchIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKQoGc3RhdHVzGAMgASgLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEg0KBXN0YWxlGAQgASgIEisKB2luZ3Jlc3MYBSABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIroBCg1JbmdyZXNzU3RhdHVzEg0KBXByb3h5GAEgASgJEg8KB3J1bm5pbmcYAiABKAgSLAoHcHJvYmxlbRgDIAEoDjIbLmRvY2t3ZWxsLnYxLkluZ3Jlc3NQcm9ibGVtEg8KB21lc3NhZ2UYBCABKAkSDwoHaG9sZGVycxgFIAMoCRIPCgd2ZXJzaW9uGAYgASgJEhYKDnBpbm5lZF92ZXJzaW9uGAcgASgJEhAKCG91dGRhdGVkGAggASgIInQKDERvbWFpblN0YXR1cxIOCgZkb21haW4YASABKAkSLQoLY2VydGlmaWNhdGUYAiABKAsyGC5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZRIlCgNkbnMYAyABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayKvAQoLQ2VydGlmaWNhdGUSLAoFc3RhdGUYASABKA4yHS5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVN0YXRlEjAKB3Byb2JsZW0YAiABKA4yHy5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVByb2JsZW0SDwoHbWVzc2FnZRgDIAEoCRIvCgtleHBpcmVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAqlQEKDkluZ3Jlc3NQcm9ibGVtEh8KG0lOR1JFU1NfUFJPQkxFTV9VTlNQRUNJRklFRBAAEh8KG0lOR1JFU1NfUFJPQkxFTV9QT1JUU19UQUtFThABEiAKHElOR1JFU1NfUFJPQkxFTV9TVUJORVRfVEFLRU4QAhIfChtJTkdSRVNTX1BST0JMRU1fTk9UX1JVTk5JTkcQAyqQAQoQQ2VydGlmaWNhdGVTdGF0ZRIhCh1DRVJUSUZJQ0FURV9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUNFUlRJRklDQVRFX1NUQVRFX1BFTkRJTkcQARIcChhDRVJUSUZJQ0FURV9TVEFURV9JU1NVRUQQAhIcChhDRVJUSUZJQ0FURV9TVEFURV9GQUlMRUQQAyrKAgoSQ2VydGlmaWNhdGVQcm9ibGVtEiMKH0NFUlRJRklDQVRFX1BST0JMRU1fVU5TUEVDSUZJRUQQABIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0ROUxABEiIKHkNFUlRJRklDQVRFX1BST0JMRU1fQ09OTkVDVElPThACEiQKIENFUlRJRklDQVRFX1BST0JMRU1fV1JPTkdfU0VSVkVSEAMSJAogQ0VSVElGSUNBVEVfUFJPQkxFTV9SQVRFX0xJTUlURUQQBBIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0NBQRAFEh8KG0NFUlRJRklDQVRFX1BST0JMRU1fUkVGVVNFRBAGEh0KGUNFUlRJRklDQVRFX1BST0JMRU1fT1RIRVIQBxIlCiFDRVJUSUZJQ0FURV9QUk9CTEVNX0NBTlRfUkVBQ0hfQ0EQCDJ9Cg1Eb21haW5TZXJ2aWNlEmwKC0xpc3REb21haW5zEh8uZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL2RvbWFpbnNCpAEKD2NvbS5kb2Nrd2VsbC52MUILRG9tYWluUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjoKEkxpc3REb21haW5zUmVxdWVzdBITCgtlbnZpcm9ubWVudBgBIAEoCRIPCgdzZXJ2aWNlGAIgASgJIjsKE0xpc3REb21haW5zUmVzcG9uc2USJAoHZG9tYWlucxgBIAMoCzITLmRvY2t3ZWxsLnYxLkRvbWFpbiKRAQoGRG9tYWluEgwKBG5hbWUYASABKAkSFgoOZW52aXJvbm1lbnRfaWQYAiABKAkSCwoDdXJsGAMgASgJEigKBnJvdXRlcxgEIAMoCzIYLmRvY2t3ZWxsLnYxLkRvbWFpblJvdXRlEioKB3NlcnZlcnMYBSADKAsyGS5kb2Nrd2VsbC52MS5Eb21haW5TZXJ2ZXIimwEKC0RvbWFpblJvdXRlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEcGF0aBgDIAEoCRIPCgdzZXJ2aWNlGAQgASgJEgwKBHBvcnQYBSABKA0SCwoDdXJsGAYgASgJEgsKA3RscxgHIAEoCRIRCglob3N0X3BvcnQYCCABKA0SGAoQcGxhaW5fZm9yX2FueW9uZRgJIAEoCCKdAQoMRG9tYWluU2VydmVyEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRIpCgZzdGF0dXMYAyABKAsyGS5kb2Nrd2VsbC52MS5Eb21haW5TdGF0dXMSDQoFc3RhbGUYBCABKAgSKwoHaW5ncmVzcxgFIAEoCzIaLmRvY2t3ZWxsLnYxLkluZ3Jlc3NTdGF0dXMiugEKDUluZ3Jlc3NTdGF0dXMSDQoFcHJveHkYASABKAkSDwoHcnVubmluZxgCIAEoCBIsCgdwcm9ibGVtGAMgASgOMhsuZG9ja3dlbGwudjEuSW5ncmVzc1Byb2JsZW0SDwoHbWVzc2FnZRgEIAEoCRIPCgdob2xkZXJzGAUgAygJEg8KB3ZlcnNpb24YBiABKAkSFgoOcGlubmVkX3ZlcnNpb24YByABKAkSEAoIb3V0ZGF0ZWQYCCABKAgidAoMRG9tYWluU3RhdHVzEg4KBmRvbWFpbhgBIAEoCRItCgtjZXJ0aWZpY2F0ZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlEiUKA2RucxgDIAEoCzIYLmRvY2t3ZWxsLnYxLkRvbWFpbkNoZWNrIq8BCgtDZXJ0aWZpY2F0ZRIsCgVzdGF0ZRgBIAEoDjIdLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlU3RhdGUSMAoHcHJvYmxlbRgCIAEoDjIfLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlUHJvYmxlbRIPCgdtZXNzYWdlGAMgASgJEi8KC2V4cGlyZV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCqVAQoOSW5ncmVzc1Byb2JsZW0SHwobSU5HUkVTU19QUk9CTEVNX1VOU1BFQ0lGSUVEEAASHwobSU5HUkVTU19QUk9CTEVNX1BPUlRTX1RBS0VOEAESIAocSU5HUkVTU19QUk9CTEVNX1NVQk5FVF9UQUtFThACEh8KG0lOR1JFU1NfUFJPQkxFTV9OT1RfUlVOTklORxADKqwBChBDZXJ0aWZpY2F0ZVN0YXRlEiEKHUNFUlRJRklDQVRFX1NUQVRFX1VOU1BFQ0lGSUVEEAASHQoZQ0VSVElGSUNBVEVfU1RBVEVfUEVORElORxABEhwKGENFUlRJRklDQVRFX1NUQVRFX0lTU1VFRBACEhwKGENFUlRJRklDQVRFX1NUQVRFX0ZBSUxFRBADEhoKFkNFUlRJRklDQVRFX1NUQVRFX05PTkUQBCrKAgoSQ2VydGlmaWNhdGVQcm9ibGVtEiMKH0NFUlRJRklDQVRFX1BST0JMRU1fVU5TUEVDSUZJRUQQABIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0ROUxABEiIKHkNFUlRJRklDQVRFX1BST0JMRU1fQ09OTkVDVElPThACEiQKIENFUlRJRklDQVRFX1BST0JMRU1fV1JPTkdfU0VSVkVSEAMSJAogQ0VSVElGSUNBVEVfUFJPQkxFTV9SQVRFX0xJTUlURUQQBBIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0NBQRAFEh8KG0NFUlRJRklDQVRFX1BST0JMRU1fUkVGVVNFRBAGEh0KGUNFUlRJRklDQVRFX1BST0JMRU1fT1RIRVIQBxIlCiFDRVJUSUZJQ0FURV9QUk9CTEVNX0NBTlRfUkVBQ0hfQ0EQCDJ9Cg1Eb21haW5TZXJ2aWNlEmwKC0xpc3REb21haW5zEh8uZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL2RvbWFpbnNCpAEKD2NvbS5kb2Nrd2VsbC52MUILRG9tYWluUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListDomainsRequest says which domains to return.
@@ -92,7 +92,9 @@ export type Domain = Message<"dockwell.v1.Domain"> & {
   environmentId: string;
 
   /**
-   * Where it answers, such as "https://app.example.com".
+   * Where it answers, such as "https://app.example.com". A domain whose routes
+   * take no certificate reads "http://app.example.com", which is what this server
+   * serves, and whatever ends TLS in front of it may answer HTTPS too.
    *
    * @generated from field: string url = 3;
    */
@@ -148,14 +150,14 @@ export type DomainRoute = Message<"dockwell.v1.DomainRoute"> & {
   path: string;
 
   /**
-   * The service it sends to, by name.
+   * The service it sends to, by name. Empty when host_port is set.
    *
    * @generated from field: string service = 4;
    */
   service: string;
 
   /**
-   * The service's port it sends to.
+   * The service's port it sends to. Empty when host_port is set.
    *
    * @generated from field: uint32 port = 5;
    */
@@ -167,6 +169,28 @@ export type DomainRoute = Message<"dockwell.v1.DomainRoute"> & {
    * @generated from field: string url = 6;
    */
   url: string;
+
+  /**
+   * "off" when TLS ends before this server, as Route.tls says.
+   *
+   * @generated from field: string tls = 7;
+   */
+  tls: string;
+
+  /**
+   * The port on the server itself it sends to, in place of a service's.
+   *
+   * @generated from field: uint32 host_port = 8;
+   */
+  hostPort: number;
+
+  /**
+   * True when a route with tls off answers anyone who can reach the server, as
+   * Route.plain_for_anyone says.
+   *
+   * @generated from field: bool plain_for_anyone = 9;
+   */
+  plainForAnyone: boolean;
 };
 
 /**
@@ -456,6 +480,14 @@ export enum CertificateState {
    * @generated from enum value: CERTIFICATE_STATE_FAILED = 3;
    */
   FAILED = 3,
+
+  /**
+   * None, as TLS ends before this server: its routes say tls off, so it has no
+   * certificate here, and none is asked for.
+   *
+   * @generated from enum value: CERTIFICATE_STATE_NONE = 4;
+   */
+  NONE = 4,
 }
 
 /**

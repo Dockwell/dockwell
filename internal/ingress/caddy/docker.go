@@ -183,8 +183,13 @@ func (c *Container) request(ref, config string) *docker.CreateRequest {
 			bind("data", containerData, "Z"), bind("config", containerConfig, "Z"), bind("run", containerRun, "Z"),
 			bind(bootDirName, containerBoot, "ro,Z"),
 		},
-		CapDrop:        []string{"ALL"},
-		CapAdd:         []string{"NET_BIND_SERVICE"},
+		CapDrop: []string{"ALL"},
+		CapAdd:  []string{"NET_BIND_SERVICE"},
+		// The image gives its binary that capability as a file capability, which
+		// no-new-privileges ignores, and a daemon can set that for every container.
+		// A container can say otherwise for itself (Moby's parseSecurityOpt, in
+		// daemon_unix.go), so a hardened daemon stays hardened for all the rest.
+		SecurityOpt:    []string{"no-new-privileges=false"},
 		ReadonlyRootfs: true,
 		Tmpfs:          map[string]string{"/tmp": "rw,noexec,nosuid,size=16m"},
 		LogConfig:      &docker.LogConfig{Type: "json-file", Config: map[string]string{"max-size": "10m", "max-file": "3"}},

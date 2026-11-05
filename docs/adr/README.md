@@ -29,6 +29,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0023](0023-a-full-build-and-an-agent-build.md) | A full build and an agent build, from one codebase | Accepted |
 | [0024](0024-the-caddy-ingress-driver.md) | The Caddy ingress driver, on the server's own network | Accepted |
 | [0029](0029-a-catalog-format-fed-from-other-catalogs.md) | A catalog format of our own, fed from other catalogs | Accepted |
+| [0030](0030-routes-behind-a-tunnel-or-a-proxy.md) | Routes behind a tunnel or a proxy | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 

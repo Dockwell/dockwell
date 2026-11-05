@@ -18,6 +18,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
@@ -93,12 +94,19 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 	rt := spec.(*resourcev1.Route)
 	name := rt.GetDomain()
 	d := byName[name]
+	// What this server serves, which always answers: whatever ends TLS in front of
+	// it may answer HTTPS too, and a private network may have nothing to.
+	scheme := "https://"
+	if rt.GetTls() == ingress.TLSOff {
+		scheme = "http://"
+	}
 	if d == nil {
-		d = &dockwellv1.Domain{Name: name, EnvironmentId: r.Scope, Url: "https://" + name}
+		d = &dockwellv1.Domain{Name: name, EnvironmentId: r.Scope, Url: scheme + name}
 		byName[name] = d
 	}
 	d.Routes = append(d.Routes, &dockwellv1.DomainRoute{
-		Id: r.ID, Name: r.Name, Path: rt.GetPath(), Service: rt.GetService(), Port: rt.GetPort(), Url: "https://" + route.Where(rt),
+		Id: r.ID, Name: r.Name, Path: rt.GetPath(), Service: rt.GetService(), Port: rt.GetPort(), Url: scheme + route.Where(rt),
+		Tls: rt.GetTls(), HostPort: rt.GetHostPort(), PlainForAnyone: rt.GetPlainForAnyone(),
 	})
 	placed, err := tx.Placement(ctx, r.ID, r.Revision)
 	if err != nil {

@@ -314,6 +314,8 @@ func accessClass(a resource.Access) string {
 		return "privileged mode"
 	case resource.AccessDomain, resource.AccessPanelDomain:
 		return "a domain"
+	case resource.AccessServerPort, resource.AccessTrustedProxy, resource.AccessPlainForAnyone, resource.AccessHTTPSOff:
+		return "a route's reach"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }

@@ -12,6 +12,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -223,6 +224,23 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 		}
 	}
 	out.Aliases = slices.Sorted(maps.Keys(names))
+}
+
+// checkRouted refuses taking a service with a route onto the server's own network,
+// as Docker can't put it on the ingress's as well, so the route would stop reaching
+// it. It looks only as a plan is made, as only a plan knows its other steps: one
+// that moves the route too, to a port on the server, can go in either order.
+func (d *Docker) checkRouted(ctx context.Context, t Target, spec *resourcev1.Container) error {
+	desired := resource.DesiredIn(ctx)
+	if !spec.GetHostNetwork() || d.Ingress == nil || !t.Scoped || desired == nil {
+		return nil
+	}
+	routed, err := d.Ingress.RoutedAfter(ctx, ingress.Instance{Project: t.Project, Service: t.Service, Number: 1}, desired)
+	if err != nil || !routed {
+		return err
+	}
+	return fmt.Errorf("the service %[1]s has a route, and Docker can't put a container on the server's own network on the ingress's as well, so the route would stop reaching it. "+
+		"Send the route to the port %[1]s will listen on with host_port in this change too, or leave out host_network", t.Service)
 }
 
 // checkExternalNetworks refuses a service whose networks the server hasn't got,

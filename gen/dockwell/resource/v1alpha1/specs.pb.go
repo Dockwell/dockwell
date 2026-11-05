@@ -1393,10 +1393,13 @@ func (x *Network) GetLabels() map[string]string {
 }
 
 // Route sends a domain's traffic, or a path under it, to a port of a service
-// in the route's environment, over HTTPS with a certificate Dockwell gets for
-// the domain. A server's first route starts its ingress, which takes ports 80
-// and 443; its last stops it and frees them. See
-// docs/adr/0024-the-caddy-ingress-driver.md.
+// in the route's environment, or to a port on the server itself. It comes over
+// HTTPS with a certificate Dockwell gets for the domain, unless tls says TLS
+// ends before this server. A server's first route starts its ingress, which
+// takes ports 80 and 443, or port 80 alone while no route on the server takes
+// a certificate; its last stops it and frees them. See
+// docs/adr/0024-the-caddy-ingress-driver.md and
+// docs/adr/0030-routes-behind-a-tunnel-or-a-proxy.md.
 type Route struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The domain, such as "app.example.com": a lowercase DNS name that a
@@ -1405,12 +1408,47 @@ type Route struct {
 	// The path it covers, such as "/api": that path and what is under it,
 	// which reach the service as they are. Empty covers the whole domain.
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	// The service to send it to, by name, in the route's environment.
+	// The service to send it to, by name, in the route's environment. Empty when
+	// host_port names a port on the server instead.
 	Service string `protobuf:"bytes,3,opt,name=service,proto3" json:"service,omitempty"`
-	// The port the service listens on inside its container, such as 8080.
-	Port          uint32 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// The port the service listens on inside its container, such as 8080. Empty
+	// when host_port names a port on the server instead.
+	Port uint32 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	// "off" when TLS ends before this server, as at a tunnel or a proxy in front
+	// of it: the domain is served over plain HTTP on port 80, with no certificate
+	// and no redirect to HTTPS, so its traffic reaches this server unencrypted.
+	// Such a route answers only the proxies in trusted_proxies, or with none, this
+	// server's own loopback, unless plain_for_anyone says otherwise. Anyone else
+	// gets what a name with no route gets. Empty gets a certificate. A domain's
+	// routes all take the same setting. A person approves taking a domain that has
+	// had a certificate off it.
+	Tls string `protobuf:"bytes,5,opt,name=tls,proto3" json:"tls,omitempty"`
+	// The proxies in front of this server whose word this route takes on where a
+	// request came from, each an address, a range such as "203.0.113.0/24", or
+	// "cloudflare" for Cloudflare's published ranges. A request from anywhere else
+	// has its address taken from the connection, whatever another route on the
+	// server names. From an address or a range, X-Forwarded-For is read from the
+	// right. From "cloudflare", CF-Connecting-IP is read, as Cloudflare documents,
+	// and it's only as sure as Cloudflare says: see docs/security/ingress.md. A
+	// person approves each one a change adds, as a proxy that isn't really one makes
+	// client addresses forgeable. A range of Cloudflare's is named by the preset, and
+	// a public range wider than /12, or /28 in IPv6, or a private one wider than /8,
+	// isn't taken.
+	TrustedProxies []string `protobuf:"bytes,6,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
+	// A port on the server itself, such as 8080, in place of service and port, for
+	// something that isn't a Dockwell service, or a service on the server's own
+	// network, which a route can't send to by name. The proxy dials 127.0.0.1 on it,
+	// so what's there sees every caller as local. It reaches past containers, so a
+	// person approves it, and any change to where it answers. Dockwell's own ports,
+	// and Docker's API on 2375 and 2376, aren't taken.
+	HostPort uint32 `protobuf:"varint,7,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
+	// True for a route that says tls off to answer anyone who can reach this
+	// server's port 80, as for a site on a private network, or a load balancer whose
+	// addresses aren't known. It goes around whatever is in front, so a person
+	// approves it.
+	PlainForAnyone bool `protobuf:"varint,8,opt,name=plain_for_anyone,json=plainForAnyone,proto3" json:"plain_for_anyone,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Route) Reset() {
@@ -1469,6 +1507,34 @@ func (x *Route) GetPort() uint32 {
 		return x.Port
 	}
 	return 0
+}
+
+func (x *Route) GetTls() string {
+	if x != nil {
+		return x.Tls
+	}
+	return ""
+}
+
+func (x *Route) GetTrustedProxies() []string {
+	if x != nil {
+		return x.TrustedProxies
+	}
+	return nil
+}
+
+func (x *Route) GetHostPort() uint32 {
+	if x != nil {
+		return x.HostPort
+	}
+	return 0
+}
+
+func (x *Route) GetPlainForAnyone() bool {
+	if x != nil {
+		return x.PlainForAnyone
+	}
+	return false
 }
 
 // Spec is the desired state of one resource, of any kind: the field that is
@@ -1828,12 +1894,16 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"a\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe3\x01\n" +
 	"\x05Route\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
 	"\aservice\x18\x03 \x01(\tR\aservice\x12\x12\n" +
-	"\x04port\x18\x04 \x01(\rR\x04port\"\xb1\x05\n" +
+	"\x04port\x18\x04 \x01(\rR\x04port\x12\x10\n" +
+	"\x03tls\x18\x05 \x01(\tR\x03tls\x12'\n" +
+	"\x0ftrusted_proxies\x18\x06 \x03(\tR\x0etrustedProxies\x12\x1b\n" +
+	"\thost_port\x18\a \x01(\rR\bhostPort\x12(\n" +
+	"\x10plain_for_anyone\x18\b \x01(\bR\x0eplainForAnyone\"\xb1\x05\n" +
 	"\x04Spec\x12?\n" +
 	"\aproject\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.ProjectH\x00R\aproject\x12K\n" +
 	"\venvironment\x18\x02 \x01(\v2'.dockwell.resource.v1alpha1.EnvironmentH\x00R\venvironment\x12?\n" +

@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -181,7 +182,7 @@ func startCaddy(t *testing.T) *realCaddy {
 	t.Cleanup(func() { proc.stop(syscall.SIGKILL) })
 	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
 	defer cancel()
-	if err := c.Start(ctx, nil); err != nil {
+	if err := c.Start(ctx, nil, false); err != nil {
 		out, _ := os.ReadFile(filepath.Join(dir, "caddy.out"))
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -437,7 +438,7 @@ func TestNoClientAddressHeaderReachesAServiceOnRealCaddy(t *testing.T) {
 	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", strings.TrimPrefix(srv.URL, "http://")))
 	_ = c.waitServing(t, "app.example.net", "/").Body.Close()
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://app.example.net/", http.NoBody)
-	names := append([]string{"X-Forwarded-For", "X-Real-Ip"}, forgeableHeaders...)
+	names := slices.Concat([]string{"X-Forwarded-For", "X-Real-Ip"}, forgeableHeaders, claimsOfTheRequest)
 	for _, h := range names {
 		req.Header.Set(h, "6.6.6.6")
 	}
@@ -815,7 +816,7 @@ func TestHandEditsReadAsThemselvesOnRealCaddy(t *testing.T) {
 		t.Errorf("with a header added by hand, Routes = %+v, want it reading as edited", routes)
 	}
 	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", web))
-	raw, _, _, err := c.rawRoutes(t.Context())
+	raw, _, err := c.rawRoutes(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -858,7 +859,7 @@ func TestThePanelSitsBehindCaddyOnRealCaddy(t *testing.T) {
 	c := &Caddy{Dir: dir, Runtime: proc, HTTPPort: freePort(t), HTTPSPort: freePort(t), issuerForTest: map[string]any{"module": "internal"}}
 	t.Cleanup(func() { proc.stop(syscall.SIGKILL) })
 	site := &ingress.PanelSite{Domain: "panel.example.net"}
-	if err := c.Start(t.Context(), site); err != nil {
+	if err := c.Start(t.Context(), site, false); err != nil {
 		t.Fatal(err)
 	}
 	r := &realCaddy{Caddy: c, proc: proc, http: c.HTTPPort, tls: c.HTTPSPort}
@@ -921,7 +922,7 @@ func TestThePanelSitsBehindCaddyOnRealCaddy(t *testing.T) {
 	if err := c.SetPanel(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
-	raw, _, _, err := c.rawRoutes(t.Context())
+	raw, _, err := c.rawRoutes(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -980,19 +981,16 @@ func TestStoppingKeepsCertificatesOnRealCaddy(t *testing.T) {
 	if _, err := os.Stat(certs[0]); err != nil {
 		t.Fatalf("the certificate went with Caddy: %v", err)
 	}
-	// Its last config is set aside, so the next first route starts from the
-	// bootstrap, with what this build sets.
+	// Its last config goes, so the next first route starts from the bootstrap,
+	// with what this build sets, and what it held of the panel's key goes with it.
 	if _, err := os.Stat(c.autosaveFile()); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("Caddy's last config stayed where it would resume it: %v", err)
-	}
-	if _, err := os.Stat(c.autosaveFile() + ".last"); err != nil {
-		t.Errorf("Caddy's last config wasn't kept: %v", err)
 	}
 	if conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(t.Context(), "tcp", fmt.Sprintf("127.0.0.1:%d", c.tls)); err == nil {
 		_ = conn.Close()
 		t.Error("Caddy stopped, and its port still answers")
 	}
-	if err := c.Start(t.Context(), nil); err != nil {
+	if err := c.Start(t.Context(), nil, false); err != nil {
 		t.Fatal(err)
 	}
 	put(t, c, aRoute("dockwell.env.www", "app.example.net", "", web))

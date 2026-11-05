@@ -1686,6 +1686,7 @@ components:
                         - CERTIFICATE_STATE_PENDING
                         - CERTIFICATE_STATE_ISSUED
                         - CERTIFICATE_STATE_FAILED
+                        - CERTIFICATE_STATE_NONE
                     type: string
                     description: Where it stands.
                     format: enum
@@ -2098,7 +2099,10 @@ components:
                     description: The environment that holds it, by ID. A domain lives in one environment.
                 url:
                     type: string
-                    description: Where it answers, such as "https://app.example.com".
+                    description: |-
+                        Where it answers, such as "https://app.example.com". A domain whose routes
+                         take no certificate reads "http://app.example.com", which is what this server
+                         serves, and whatever ends TLS in front of it may answer HTTPS too.
                 routes:
                     type: array
                     items:
@@ -2151,14 +2155,26 @@ components:
                     description: The path it covers. Empty covers the whole domain.
                 service:
                     type: string
-                    description: The service it sends to, by name.
+                    description: The service it sends to, by name. Empty when host_port is set.
                 port:
                     type: integer
-                    description: The service's port it sends to.
+                    description: The service's port it sends to. Empty when host_port is set.
                     format: uint32
                 url:
                     type: string
                     description: Where it answers, such as "https://app.example.com/api".
+                tls:
+                    type: string
+                    description: '"off" when TLS ends before this server, as Route.tls says.'
+                hostPort:
+                    type: integer
+                    description: The port on the server itself it sends to, in place of a service's.
+                    format: uint32
+                plainForAnyone:
+                    type: boolean
+                    description: |-
+                        True when a route with tls off answers anyone who can reach the server, as
+                         Route.plain_for_anyone says.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -2687,10 +2703,14 @@ components:
                         - HOST_ACCESS_KIND_NETWORK_DRIVER
                         - HOST_ACCESS_KIND_DOMAIN
                         - HOST_ACCESS_KIND_PANEL_DOMAIN
+                        - HOST_ACCESS_KIND_SERVER_PORT
+                        - HOST_ACCESS_KIND_TRUSTED_PROXY
                         - HOST_ACCESS_KIND_EXTERNAL_NETWORK
                         - HOST_ACCESS_KIND_CAPABILITY
                         - HOST_ACCESS_KIND_GROUP
                         - HOST_ACCESS_KIND_PRIVILEGED
+                        - HOST_ACCESS_KIND_PLAIN_FOR_ANYONE
+                        - HOST_ACCESS_KIND_HTTPS_OFF
                     type: string
                     description: What it is.
                     format: enum
@@ -2814,6 +2834,8 @@ components:
                         - INGRESS_CHANGE_STARTS
                         - INGRESS_CHANGE_STOPS
                         - INGRESS_CHANGE_RESTARTS
+                        - INGRESS_CHANGE_TAKES_PORTS
+                        - INGRESS_CHANGE_FREES_PORTS
                     type: string
                     description: What happens to the proxy.
                     format: enum
@@ -2824,7 +2846,9 @@ components:
                     type: array
                     items:
                         type: string
-                    description: The ports it takes or frees, such as "80/tcp", "443/tcp" and "443/udp".
+                    description: |-
+                        The ports it takes or frees, such as "80/tcp", "443/tcp" and "443/udp".
+                         A server whose routes all say tls off needs port 80 alone.
                 panelDomain:
                     type: string
                     description: |-
@@ -3270,6 +3294,25 @@ components:
                          a reboot, and that may then take the ports the server's proxy needs, so
                          its routes stop answering. It never stops a plan, and the fingerprint leaves
                          it out. Keep one stopped with docker update --restart=no.
+                unencrypted:
+                    type: boolean
+                    description: |-
+                        True when the step has a route serve plain HTTP that didn't, as TLS ends
+                         before this server, so its traffic reaches the server unencrypted. That is
+                         fine on a tunnel or a private network, and not on the open internet. It
+                         never stops a plan, and needs no person.
+                answers:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteAnswers'
+                    description: |-
+                        Who a route with tls off, or to a port on the server, answers. Unset for what
+                         answers over HTTPS and sends to a service, as every other route does.
+                serverPort:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerPortCheck'
+                    description: |-
+                        The port on the server a route sends to, and what listens there as this was
+                         planned. It never stops a plan, and the fingerprint leaves what listens out.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -3590,17 +3633,89 @@ components:
                          which reach the service as they are. Empty covers the whole domain.
                 service:
                     type: string
-                    description: The service to send it to, by name, in the route's environment.
+                    description: |-
+                        The service to send it to, by name, in the route's environment. Empty when
+                         host_port names a port on the server instead.
                 port:
                     type: integer
-                    description: The port the service listens on inside its container, such as 8080.
+                    description: |-
+                        The port the service listens on inside its container, such as 8080. Empty
+                         when host_port names a port on the server instead.
                     format: uint32
+                tls:
+                    type: string
+                    description: |-
+                        "off" when TLS ends before this server, as at a tunnel or a proxy in front
+                         of it: the domain is served over plain HTTP on port 80, with no certificate
+                         and no redirect to HTTPS, so its traffic reaches this server unencrypted.
+                         Such a route answers only the proxies in trusted_proxies, or with none, this
+                         server's own loopback, unless plain_for_anyone says otherwise. Anyone else
+                         gets what a name with no route gets. Empty gets a certificate. A domain's
+                         routes all take the same setting. A person approves taking a domain that has
+                         had a certificate off it.
+                trustedProxies:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The proxies in front of this server whose word this route takes on where a
+                         request came from, each an address, a range such as "203.0.113.0/24", or
+                         "cloudflare" for Cloudflare's published ranges. A request from anywhere else
+                         has its address taken from the connection, whatever another route on the
+                         server names. From an address or a range, X-Forwarded-For is read from the
+                         right. From "cloudflare", CF-Connecting-IP is read, as Cloudflare documents,
+                         and it's only as sure as Cloudflare says: see docs/security/ingress.md. A
+                         person approves each one a change adds, as a proxy that isn't really one makes
+                         client addresses forgeable. A range of Cloudflare's is named by the preset, and
+                         a public range wider than /12, or /28 in IPv6, or a private one wider than /8,
+                         isn't taken.
+                hostPort:
+                    type: integer
+                    description: |-
+                        A port on the server itself, such as 8080, in place of service and port, for
+                         something that isn't a Dockwell service, or a service on the server's own
+                         network, which a route can't send to by name. The proxy dials 127.0.0.1 on it,
+                         so what's there sees every caller as local. It reaches past containers, so a
+                         person approves it, and any change to where it answers. Dockwell's own ports,
+                         and Docker's API on 2375 and 2376, aren't taken.
+                    format: uint32
+                plainForAnyone:
+                    type: boolean
+                    description: |-
+                        True for a route that says tls off to answer anyone who can reach this
+                         server's port 80, as for a site on a private network, or a load balancer whose
+                         addresses aren't known. It goes around whatever is in front, so a person
+                         approves it.
             description: |-
                 Route sends a domain's traffic, or a path under it, to a port of a service
-                 in the route's environment, over HTTPS with a certificate Dockwell gets for
-                 the domain. A server's first route starts its ingress, which takes ports 80
-                 and 443; its last stops it and frees them. See
-                 docs/adr/0024-the-caddy-ingress-driver.md.
+                 in the route's environment, or to a port on the server itself. It comes over
+                 HTTPS with a certificate Dockwell gets for the domain, unless tls says TLS
+                 ends before this server. A server's first route starts its ingress, which
+                 takes ports 80 and 443, or port 80 alone while no route on the server takes
+                 a certificate; its last stops it and frees them. See
+                 docs/adr/0024-the-caddy-ingress-driver.md and
+                 docs/adr/0030-routes-behind-a-tunnel-or-a-proxy.md.
+        RouteAnswers:
+            type: object
+            properties:
+                reach:
+                    enum:
+                        - ROUTE_REACH_UNSPECIFIED
+                        - ROUTE_REACH_THIS_SERVER
+                        - ROUTE_REACH_PROXIES
+                        - ROUTE_REACH_ANYONE
+                    type: string
+                    description: Who.
+                    format: enum
+                proxies:
+                    type: array
+                    items:
+                        type: string
+                    description: The proxies it answers, for ROUTE_REACH_PROXIES.
+                plain:
+                    type: boolean
+                    description: True when it answers over plain HTTP, as tls off says.
+            description: RouteAnswers is who a route answers, as its plan says.
         Secret:
             type: object
             properties:
@@ -3759,6 +3874,24 @@ components:
                          until_healthy, or its downtime, added up. Unset when the downtime says
                          it all.
             description: ServerPlan is the part of a plan on one server.
+        ServerPortCheck:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    description: The port.
+                    format: uint32
+                listening:
+                    type: string
+                    description: |-
+                        What listens there, as the server said when this was planned, such as
+                         "nginx, in the container web-1". Empty when nothing does, or it couldn't say.
+                nothingListening:
+                    type: boolean
+                    description: |-
+                        True when the server said nothing listens there yet, so the route answers 502
+                         until something does. False, with listening empty, when it couldn't say.
+            description: ServerPortCheck is a port on the server that a route sends to.
         ServerStats:
             type: object
             properties:

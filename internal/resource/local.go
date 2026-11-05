@@ -124,13 +124,18 @@ func DesiredIn(ctx context.Context) []Desired {
 	return d
 }
 
+// WithDesired says what a plan under way touches on this server, as Plan does.
+func WithDesired(ctx context.Context, desired []Desired) context.Context {
+	return context.WithValue(ctx, desiredKey{}, desired)
+}
+
 // Plan observes each resource and judges the step from there to desired.
 // Each desired spec is checked and normalized again first, as the control
 // plane did: a spec that skipped that, or a default this agent fills in
 // that the control plane didn't, can't make a plan that applying then
 // fails to match.
 func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
-	ctx = context.WithValue(ctx, desiredKey{}, desired)
+	ctx = WithDesired(ctx, desired)
 	steps := make([]Step, 0, len(desired))
 	for _, want := range desired {
 		d, err := l.Drivers.Driver(want.Ref.Kind)

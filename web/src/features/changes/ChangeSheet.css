@@ -95,6 +95,11 @@
   color: var(--critical);
 }
 
+/* What someone should know and may well have chosen. It isn't an alarm. */
+.plan-step-notice {
+  color: var(--warning);
+}
+
 /* What applying means, a row each, as M-Plan-Approve has them. */
 .plan-effects {
   display: flex;

@@ -262,6 +262,12 @@ func accessWords(p *revision.Plan) string {
 				parts = append(parts, "claims "+resource.AccessWords(a))
 			case resource.AccessPanelDomain:
 				parts = append(parts, "moves the panel's domain, "+a.Path+", behind "+a.Detail)
+			case resource.AccessTrustedProxy:
+				parts = append(parts, "has "+r.Ref.Name+" take "+resource.AccessWords(a))
+			case resource.AccessPlainForAnyone:
+				parts = append(parts, "has "+r.Ref.Name+" serve "+resource.AccessWords(a))
+			case resource.AccessHTTPSOff:
+				parts = append(parts, "takes away "+resource.AccessWords(a))
 			default:
 				reach = append(reach, resource.AccessWords(a))
 			}

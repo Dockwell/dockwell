@@ -7,8 +7,10 @@ package cli
 import (
 	"context"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/control"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -160,5 +163,34 @@ func TestRunRefusesADomainARouteHolds(t *testing.T) {
 	}
 	if err := refuseClaimedDomain(ctx, db, "other.example.com"); err != nil {
 		t.Errorf("--domain other.example.com = %v", err)
+	}
+}
+
+// What no route may send to is every port the control plane listens on, and those
+// it takes back when the proxy goes, on whatever flags moved them.
+func TestOwnPortsAreEveryListener(t *testing.T) {
+	listen := func() net.Listener {
+		l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = l.Close() })
+		return l
+	}
+	port := func(l net.Listener) int { return l.Addr().(*net.TCPAddr).Port }
+	api, agents, secure, plain := listen(), listen(), listen(), listen()
+	got := ownPorts(control.Listeners{API: api, Agents: agents}, runFlags{})
+	if want := []int{port(api), port(agents)}; !slices.Equal(got, want) {
+		t.Errorf("with no domain, got %v, want %v", got, want)
+	}
+	got = ownPorts(control.Listeners{API: api, Agents: agents, HTTPS: secure, HTTP: plain}, runFlags{})
+	if want := []int{port(api), port(agents), port(secure), port(plain)}; !slices.Equal(got, want) {
+		t.Errorf("with its public listeners, got %v, want %v", got, want)
+	}
+	// With the proxy holding its ports, it has no listeners there, and they're
+	// still its own.
+	got = ownPorts(control.Listeners{API: api, Agents: agents}, runFlags{domain: "panel.example.com", httpsListen: ":8443", httpListen: "127.0.0.1:8080"})
+	if want := []int{port(api), port(agents), 8443, 8080}; !slices.Equal(got, want) {
+		t.Errorf("handed over, got %v, want %v", got, want)
 	}
 }

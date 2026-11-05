@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package route is the "route" kind: a domain, or a path under it, sent to a
-// port of a service in the route's environment, over HTTPS. What runs it on a
-// server is an Ingress, which names no proxy (internal/ingress). See
-// docs/adr/0024-the-caddy-ingress-driver.md.
+// port of a service in the route's environment or a port on the server itself,
+// over HTTPS, or over plain HTTP when TLS ends before the server. What runs it on
+// a server is an Ingress, which names no proxy (internal/ingress). See
+// docs/adr/0024-the-caddy-ingress-driver.md and
+// docs/adr/0030-routes-behind-a-tunnel-or-a-proxy.md.
 package route
 
 import (
@@ -11,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +22,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
@@ -45,6 +49,9 @@ type Ingress interface {
 	// Returning names stopped containers that Docker starts again when it next
 	// restarts, and that may then take the proxy's ports. It only warns.
 	Returning(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, desired []resource.Desired) []string
+	// Listening names what listens on a port on the server, or says nothing does.
+	// With neither, it couldn't say. It only informs.
+	Listening(ctx context.Context, port uint32) (who string, nothing bool)
 	// Apply makes the proxy serve the route, or stop serving it when spec is
 	// nil, and keeps connections up across the change.
 	Apply(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, effect *resource.IngressEffect) error
@@ -73,6 +80,8 @@ var (
 	_ resource.Judge         = (*Driver)(nil)
 	_ resource.Readier       = (*Driver)(nil)
 	_ resource.SharedReadier = (*Driver)(nil)
+	_ resource.HostAccesser  = (*Driver)(nil)
+	_ resource.WeakensClaims = (*Driver)(nil)
 )
 
 // Kind returns "route".
@@ -205,20 +214,69 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if err := CheckPath(r.GetPath()); err != nil {
 		return err
 	}
+	if err := checkTLS(r); err != nil {
+		return err
+	}
 	if d.Reserved != "" && UnderOrIs(r.GetDomain(), d.Reserved) {
+		if r.GetTls() == ingress.TLSOff {
+			return fmt.Errorf("%s can't be served without a certificate, as the panel's passkeys and cookies need HTTPS on its own domain, %s, and the names under it. Choose another name for this route", r.GetDomain(), d.Reserved)
+		}
 		if r.GetDomain() == d.Reserved {
 			return fmt.Errorf("%s is the panel's own domain, so no route can claim it: the panel's sign-in depends on it. Choose another name for this route", r.GetDomain())
 		}
 		return fmt.Errorf("%s is under the panel's own domain, %s, where browsers offer the panel's passkeys to anything that asks. Choose a name that isn't under it", r.GetDomain(), d.Reserved)
 	}
+	proxies, err := ingress.NormalizeTrustedProxies(r.GetTrustedProxies())
+	if err != nil {
+		return err
+	}
+	r.TrustedProxies = proxies
+	if len(proxies) == 0 {
+		r.TrustedProxies = nil
+	}
+	if r.GetPlainForAnyone() && r.GetTls() != ingress.TLSOff {
+		return errors.New("a route's plain_for_anyone says who answers over plain HTTP, and this route takes a certificate. Set tls to off with it, or leave it out")
+	}
+	if r.GetHostPort() != 0 {
+		return checkHostPort(r)
+	}
 	if err := resource.CheckLabel("service", r.GetService(), "web"); err != nil {
 		if r.GetService() == "" {
-			return errors.New("a route needs a service to send to, in its environment, such as web")
+			return errors.New("a route needs a service to send to, in its environment, such as web, or a port on the server itself in host_port")
 		}
 		return err
 	}
 	if p := r.GetPort(); p == 0 || p > 65535 {
 		return fmt.Errorf("a route needs the port its service listens on inside its container, from 1 to 65535, such as 8080, not %d", p)
+	}
+	return nil
+}
+
+// dockerAPIPorts are Docker's own ports for its API over TCP. Nothing else has a
+// claim on them, and a route to one is root for whoever finds it.
+var dockerAPIPorts = []uint32{2375, 2376}
+
+// checkTLS refuses a tls that means nothing: a certificate is what a route gets
+// unless it says TLS ends before this server.
+func checkTLS(r *resourcev1.Route) error {
+	if t := r.GetTls(); t != "" && t != ingress.TLSOff {
+		return fmt.Errorf("a route's tls is %q, and it takes only %q, when TLS ends before this server, as at a tunnel or a proxy in front of it. Leave it empty to get a certificate", t, ingress.TLSOff)
+	}
+	return nil
+}
+
+// checkHostPort refuses a route that names a port on the server and a service
+// too, as only one of them can be where it sends. Which ports are Dockwell's own
+// is the server's to say (Ingress.Check).
+func checkHostPort(r *resourcev1.Route) error {
+	if r.GetHostPort() > 65535 {
+		return fmt.Errorf("a route's host_port is a port on the server itself, from 1 to 65535, such as 8080, not %d", r.GetHostPort())
+	}
+	if slices.Contains(dockerAPIPorts, r.GetHostPort()) {
+		return fmt.Errorf("port %d is Docker's API, which is root on the server to anyone who reaches it, so no route may send to it. If you run something else there, move it to another port", r.GetHostPort())
+	}
+	if r.GetService() != "" || r.GetPort() != 0 {
+		return fmt.Errorf("this route names a service and the server's port %d, and a route sends to one or the other. Leave out service and port, or host_port", r.GetHostPort())
 	}
 	return nil
 }
@@ -237,14 +295,48 @@ func (*Driver) References(spec proto.Message) []resource.Reference {
 // ReferenceKinds is services, the one kind a route names.
 func (*Driver) ReferenceKinds() []resource.Kind { return []resource.Kind{service.Kind} }
 
+// HostAccess is what a person approves of a route: a port on the server itself,
+// which reaches past containers, and each proxy it believes on where a request
+// came from. Everything else a route does, a token can (ADR 0030).
+func (*Driver) HostAccess(spec proto.Message) []resource.Access {
+	r := spec.(*resourcev1.Route)
+	var out []resource.Access
+	if p := r.GetHostPort(); p != 0 {
+		a := resource.Access{Kind: resource.AccessServerPort, Path: ingress.ServerHost + ":" + strconv.FormatUint(uint64(p), 10), Detail: Where(r)}
+		if r.GetTls() == ingress.TLSOff {
+			a.Type = "http"
+		}
+		out = append(out, a)
+	}
+	for _, proxy := range r.GetTrustedProxies() {
+		out = append(out, resource.Access{Kind: resource.AccessTrustedProxy, Path: proxy})
+	}
+	if r.GetPlainForAnyone() {
+		out = append(out, resource.Access{Kind: resource.AccessPlainForAnyone, Path: r.GetDomain()})
+	}
+	return out
+}
+
+// Weak reports a route that takes no certificate, against one that does.
+func (*Driver) Weak(spec proto.Message) bool { return plain(spec) }
+
+// Weakens is what a person approves as a domain with a certificate goes off HTTPS.
+func (*Driver) Weakens(group string) resource.Access {
+	return resource.Access{Kind: resource.AccessHTTPSOff, Path: group}
+}
+
 // Claims are the route's domain and path, which one route alone may hold, and
 // its domain, which one environment alone may.
 func (*Driver) Claims(spec proto.Message) []resource.Claim {
 	r := spec.(*resourcev1.Route)
-	return []resource.Claim{{
+	c := resource.Claim{
 		Key: r.GetDomain() + r.GetPath(), Group: r.GetDomain(),
-		Words: Where(r), GroupWords: "the domain " + r.GetDomain(),
-	}}
+		Words: Where(r), GroupWords: "the domain " + r.GetDomain(), MannerWords: "takes a certificate",
+	}
+	if plain(r) {
+		c.Manner, c.MannerWords = ingress.TLSOff, "takes none"
+	}
+	return []resource.Claim{c}
 }
 
 // TakesOver is what a person approves as an environment claims a domain
@@ -276,16 +368,42 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 
 // Plan is what a route's step is, from the specs alone, as the control plane
 // plans an offline server. A route changes in place, with nothing stopped,
-// whatever about it changes.
+// whatever about it changes. It says when a route starts serving plain HTTP,
+// which a plan says plainly, and needs no person.
 func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	switch {
-	case actual == nil:
-		return resource.Decision{Action: resource.ActionCreate}, nil
 	case desired == nil:
 		return resource.Decision{Action: resource.ActionDelete}, nil
+	case actual == nil:
+		return withAnswers(resource.Decision{Action: resource.ActionCreate, Unencrypted: plain(desired)}, desired), nil
 	}
-	return resource.Decision{Action: resource.ActionUpdate}, nil
+	return withAnswers(resource.Decision{Action: resource.ActionUpdate, Unencrypted: plain(desired) && !plain(actual)}, desired), nil
 }
+
+// withAnswers says who a route answers, when it isn't what every route answers:
+// anyone, over HTTPS, sent to its service.
+func withAnswers(dec resource.Decision, spec proto.Message) resource.Decision {
+	r := spec.(*resourcev1.Route)
+	port := r.GetHostPort()
+	if !plain(r) && port == 0 {
+		return dec
+	}
+	dec.Answers = &resource.RouteAnswers{Reach: resource.ReachAnyone, Plain: plain(r)}
+	switch {
+	case !plain(r) || r.GetPlainForAnyone():
+	case len(r.GetTrustedProxies()) > 0:
+		dec.Answers.Reach, dec.Answers.Proxies = resource.ReachProxies, r.GetTrustedProxies()
+	default:
+		dec.Answers.Reach = resource.ReachThisServer
+	}
+	if port != 0 {
+		dec.ServerPort = &resource.ServerPortCheck{Port: port}
+	}
+	return dec
+}
+
+// plain reports a route that takes no certificate.
+func plain(spec proto.Message) bool { return spec.(*resourcev1.Route).GetTls() == ingress.TLSOff }
 
 // Judge is Plan with what the server knows: what the step does to its
 // ingress, how long that takes, and what DNS says of the domain.
@@ -304,6 +422,9 @@ func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired pr
 	}
 	dec.Ingress, dec.Domain = effect, check
 	dec.Returning = d.Ingress.Returning(ctx, ref, spec, resource.DesiredIn(ctx))
+	if c := dec.ServerPort; c != nil {
+		c.Listening, c.Nothing = d.Ingress.Listening(ctx, c.Port)
+	}
 	if effect != nil && effect.Change == resource.IngressRestarts {
 		dec.Effect = resource.EffectRestart
 		dec.Downtime = RestartDowntime

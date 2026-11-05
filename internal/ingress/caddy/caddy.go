@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,14 +32,27 @@ import (
 // Name is the proxy's name, for people.
 const Name = "Caddy"
 
-// serverName is the HTTP server in Caddy's config that holds the routes, and
-// httpServerName the one that keeps the panel's rules on plain HTTP.
+// serverName is the HTTP server in Caddy's config that holds the routes that
+// take a certificate, and httpServerName the one on the plain HTTP port alone,
+// which holds those that don't and keeps the panel's rules. Caddy applies no
+// automatic HTTPS to a server on that port alone, so what is on it asks for no
+// certificate and redirects nowhere, and what isn't can't be reached over it.
 const (
 	serverName     = "dockwell"
 	httpServerName = "dockwell_http"
 	panelRouteID   = "dockwell.panel"
 	closedRouteID  = "dockwell.closed"
-	routesPath     = "/config/apps/http/servers/" + serverName + "/routes"
+	// panelPlainPrefix starts the IDs of the panel's rules on plain HTTP.
+	panelPlainPrefix = panelRouteID + ".plain."
+	// derivedPrefix starts the IDs of what the plain HTTP server gets from the
+	// rest of the config, so it is made anew with every change.
+	derivedPrefix = "dockwell.plain."
+	plainClosedID = derivedPrefix + "closed"
+	plainNoneID   = derivedPrefix + "none"
+	routesPath    = "/config/apps/http/servers/" + serverName + "/routes"
+	// serversPath is every server, whose ETag covers them all, as one reload can
+	// move a route from one to the other.
+	serversPath = "/config/apps/http/servers"
 	// startWait bounds waiting for Caddy to answer after it starts.
 	startWait = 30 * time.Second
 	// streamClose is how long a WebSocket, or anything else that upgraded,
@@ -57,7 +71,8 @@ const (
 	// adminWait bounds one call of the admin API. A Caddy that hangs, as under
 	// docker pause, accepts a connection and never answers, and the agent holds
 	// up every plan on this server while it waits. A reload of the most routes a
-	// server may have takes under a second.
+	// server may have takes a few seconds at worst, each naming the preset, as
+	// measured on a busy machine (ADR 0030).
 	adminWait = 15 * time.Second
 )
 
@@ -232,6 +247,18 @@ func errorOf(b []byte) string {
 type matcher struct {
 	Host []string `json:"host,omitempty"`
 	Path []string `json:"path,omitempty"`
+	// Protocol is "http" on a route that takes no certificate, which is both what
+	// marks it and a second lock: it can't answer over TLS.
+	Protocol string `json:"protocol,omitempty"`
+	// RemoteIP is who a route that takes no certificate answers, by the peer on the
+	// connection, whatever it says of itself.
+	RemoteIP *remoteIP `json:"remote_ip,omitempty"`
+	// Header holds what a request must carry, in what a route believes of it.
+	Header map[string][]string `json:"header,omitempty"`
+}
+
+type remoteIP struct {
+	Ranges []string `json:"ranges"`
 }
 
 type upstream struct {
@@ -256,6 +283,16 @@ type handler struct {
 	LoadBalancing    *loadBalancing `json:"load_balancing,omitempty"`
 	Transport        *transport     `json:"transport,omitempty"`
 	Headers          *headers       `json:"headers,omitempty"`
+	// Routes are a subroute's: what a route believes of its request.
+	Routes []beliefRoute `json:"routes,omitempty"`
+}
+
+// beliefRoute is one step of what a route believes. It sets request variables, and
+// its route's reverse_proxy reads those, so which peer is believed is the route's
+// own, though what Caddy trusts is per server.
+type beliefRoute struct {
+	Match  []matcher           `json:"match,omitempty"`
+	Handle []map[string]string `json:"handle"`
 }
 
 // headers changes what a handler sends upstream.
@@ -279,14 +316,143 @@ var forgeableHeaders = []string{
 	"X-Envoy-External-Address", "X-Original-Forwarded-For",
 }
 
-// clientAddress is what every route sends upstream of where a request came
-// from: X-Real-IP is the client's real address, so an app moved from OpenResty
-// keeps working, and what else a client might claim is gone.
+// claimsOfTheRequest say how a request reached the server, or by what name, and
+// frameworks read them to build links and decide what's secure. Nothing says only
+// a proxy wrote them, so a route writes X-Forwarded-Host and X-Forwarded-Proto
+// itself, and these don't reach a service at all.
+var claimsOfTheRequest = []string{
+	"X-Forwarded-Port", "X-Forwarded-Server", "X-Forwarded-Ssl", "X-Forwarded-Scheme", "X-Url-Scheme", "Front-End-Https", "X-Original-Host", "X-Host",
+}
+
+// Caddy's placeholders for where a request came from and how: the peer on the
+// connection, the client Caddy found through a proxy it trusts, which is the peer
+// unless that proxy said otherwise, what Cloudflare says connected to it, and what
+// a route's own steps decided of these.
+const (
+	peerAddress    = "{http.request.remote.host}"
+	resolvedClient = "{http.vars.client_ip}"
+	edgeClient     = "{http.request.header.Cf-Connecting-Ip}"
+	realScheme     = "{http.request.scheme}"
+	requestHost    = "{http.request.hostport}"
+	clientVar      = "dockwell_client"
+	schemeVar      = "dockwell_scheme"
+)
+
+// clientAddress is what a route sends upstream of where a request came from, on a
+// server that trusts no proxy: X-Real-IP is the client's real address, so an app
+// moved from OpenResty keeps working, and what else a client might claim is gone.
+// Caddy overwrites X-Forwarded-For and its like itself.
 func clientAddress() *headers {
 	return &headers{Request: &headerOps{
-		Set:    map[string][]string{"X-Real-Ip": {"{http.request.remote.host}"}},
+		Set:    map[string][]string{"X-Real-Ip": {peerAddress}},
+		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
+	}}
+}
+
+// olderClientAddress is clientAddress as a config from before claimsOfTheRequest
+// has it, which reads as Dockwell's own, so an upgrade isn't drift.
+func olderClientAddress() *headers {
+	return &headers{Request: &headerOps{
+		Set:    map[string][]string{"X-Real-Ip": {peerAddress}},
 		Delete: forgeableHeaders,
 	}}
+}
+
+// distrustingAddress is clientAddress on a server where another route trusts a
+// proxy. Caddy decides what it trusts per server, so it would keep that proxy's
+// forwarded headers for this route too, and this writes them over.
+func distrustingAddress() *headers {
+	return &headers{Request: &headerOps{
+		Set: map[string][]string{
+			"X-Real-Ip": {peerAddress}, "X-Forwarded-For": {peerAddress},
+			"X-Forwarded-Proto": {realScheme}, "X-Forwarded-Host": {requestHost},
+		},
+		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
+	}}
+}
+
+// believingAddress is what a route that names a proxy sends, from what its own
+// steps decided (beliefOf). A service reads one address, not a list a client may
+// have written the start of. X-Forwarded-Host is the Host this request came with,
+// as a proxy passes on what a visitor writes there, and an app builds links from it.
+func believingAddress() *headers {
+	client, scheme := "{http.vars."+clientVar+"}", "{http.vars."+schemeVar+"}"
+	return &headers{Request: &headerOps{
+		Set: map[string][]string{
+			"X-Real-Ip": {client}, "X-Forwarded-For": {client},
+			"X-Forwarded-Proto": {scheme}, "X-Forwarded-Host": {requestHost},
+		},
+		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
+	}}
+}
+
+// beliefOf is what a route that names a proxy believes of a request: the peer on
+// the connection and the scheme it came over, unless the peer is one it named. Only
+// that route's own list counts, though Caddy finds {http.vars.client_ip} by what any
+// route on the server names.
+//
+//   - From a range it named, the client is the first address from the right of
+//     X-Forwarded-For that no route on the server names.
+//   - From Cloudflare's, the client is CF-Connecting-IP, and X-Forwarded-For isn't
+//     read: those ranges are shared by all its customers, and a Worker's request
+//     comes from one with whatever X-Forwarded-For its author wrote (ADR 0030).
+//   - From either, https is taken at its word, and nothing else is: a visitor can't
+//     put anything else in front of an app through it.
+func beliefOf(named, edge []string) handler {
+	steps := []beliefRoute{{Handle: []map[string]string{{"handler": "vars", clientVar: peerAddress, schemeVar: realScheme}}}}
+	if len(named) > 0 {
+		steps = append(steps, beliefRoute{
+			Match:  []matcher{{RemoteIP: &remoteIP{Ranges: named}}},
+			Handle: []map[string]string{{"handler": "vars", clientVar: resolvedClient}},
+		})
+	}
+	if len(edge) > 0 {
+		steps = append(steps, beliefRoute{
+			Match:  []matcher{{RemoteIP: &remoteIP{Ranges: edge}, Header: map[string][]string{"Cf-Connecting-Ip": {"*"}}}},
+			Handle: []map[string]string{{"handler": "vars", clientVar: edgeClient}},
+		})
+	}
+	steps = append(steps, beliefRoute{
+		Match:  []matcher{{RemoteIP: &remoteIP{Ranges: slices.Concat(named, edge)}, Header: map[string][]string{"X-Forwarded-Proto": {"https"}}}},
+		Handle: []map[string]string{{"handler": "vars", schemeVar: "https"}},
+	})
+	return handler{Handler: "subroute", Routes: steps}
+}
+
+// readBelief finds what ranges a route's steps believe, or nothing for a route that
+// has none. routeJSON writes it back to see they're what it would write.
+func readBelief(h handler) (named, edge []string) {
+	for _, step := range h.Routes {
+		if len(step.Match) != 1 || step.Match[0].RemoteIP == nil || len(step.Handle) != 1 {
+			continue
+		}
+		switch step.Handle[0][clientVar] {
+		case resolvedClient:
+			named = step.Match[0].RemoteIP.Ranges
+		case edgeClient:
+			edge = step.Match[0].RemoteIP.Ranges
+		}
+	}
+	return named, edge
+}
+
+// thisServer is who a route with no certificate answers if it names no proxy, as a
+// tunnel on the server's own network. A blanket rule for private addresses would let
+// in a whole network, as servers often sit on one, so a bridge's range is named in
+// trusted_proxies instead.
+var thisServer = []string{"127.0.0.0/8", "::1/128"}
+
+// reachOf is who a route with no certificate answers, by the peer on the connection,
+// or nil for anyone. Anyone else falls through to what a name with no route gets, so
+// it can't tell the route is there.
+func reachOf(r ingress.Route) *remoteIP {
+	switch {
+	case r.PlainForAnyone:
+		return nil
+	case len(r.TrustedProxies)+len(r.EdgeProxies) > 0:
+		return &remoteIP{Ranges: slices.Concat(r.TrustedProxies, r.EdgeProxies)}
+	}
+	return &remoteIP{Ranges: thisServer}
 }
 
 type route struct {
@@ -303,16 +469,29 @@ func routeJSON(r ingress.Route) route {
 	if r.Path != "" {
 		m.Path = []string{r.Path, r.Path + "/*"}
 	}
+	if r.Plain {
+		m.Protocol = plainProtocol
+		m.RemoteIP = reachOf(r)
+	}
 	ups := make([]upstream, len(r.Upstreams))
 	for i, u := range r.Upstreams {
 		ups[i] = upstream{Dial: u}
 	}
-	return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: []handler{{
+	h := handler{
 		Handler: "reverse_proxy", Upstreams: ups, FlushInterval: -1, StreamCloseDelay: streamClose,
 		LoadBalancing: &loadBalancing{TryDuration: tryDuration, TryInterval: tryInterval},
 		Headers:       clientAddress(),
-	}}}
+	}
+	handle := []handler{h}
+	if len(r.TrustedProxies)+len(r.EdgeProxies) > 0 {
+		h.Headers = believingAddress()
+		handle = []handler{beliefOf(r.TrustedProxies, r.EdgeProxies), h}
+	}
+	return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: handle}
 }
+
+// plainProtocol is what Caddy's protocol matcher takes for a request not over TLS.
+const plainProtocol = "http"
 
 // panelRoute sends the panel's domain to its socket, over cleartext HTTP/2 so
 // that gRPC reaches it whole. The socket is only as trusted as who can reach
@@ -352,18 +531,25 @@ func plainHTTPRules(p *ingress.PanelSite) []map[string]any {
 
 // bootstrap is the config Caddy starts with when it has no last config of its
 // own. It names the admin socket, as AdminEnv does: Caddy's default is TCP on
-// the server's loopback.
-func (c *Caddy) bootstrap(panel *ingress.PanelSite) ([]byte, error) {
+// the server's loopback. plainOnly listens on the plain HTTP port alone, for
+// routes that take no certificate, which a server with the panel's site has none
+// of the use of: that needs HTTPS.
+func (c *Caddy) bootstrap(panel *ingress.PanelSite, plainOnly bool) ([]byte, error) {
 	paths := c.Runtime.Paths()
 	httpPort, httpsPort := c.ports()
 	routes := []route{}
 	servers := map[string]any{}
-	if panel != nil {
+	listen := []string{":" + strconv.Itoa(httpsPort)}
+	switch {
+	case panel != nil:
 		routes = append(routes, panelRoute(panel, filepath.Join(paths.Run, panelSocketName)))
 		servers[httpServerName] = map[string]any{"listen": []string{":" + strconv.Itoa(httpPort)}, "routes": plainHTTPRules(panel)}
+	case plainOnly:
+		listen = []string{}
+		servers[httpServerName] = map[string]any{"listen": []string{":" + strconv.Itoa(httpPort)}, "routes": []route{}}
 	}
 	servers[serverName] = map[string]any{
-		"listen": []string{":" + strconv.Itoa(httpsPort)}, "strict_sni_host": true, "routes": routes,
+		"listen": listen, "strict_sni_host": true, "routes": routes,
 		// A certificate loaded for the panel's domain would otherwise stop Caddy
 		// getting its own, and nothing renews one that was loaded.
 		"automatic_https": map[string]any{"ignore_loaded_certificates": true},
@@ -443,15 +629,15 @@ func (c *Caddy) Status(ctx context.Context) (ingress.Status, error) { return c.R
 
 // Prepare writes what Caddy reads as it starts, and gets its image.
 func (c *Caddy) Prepare(ctx context.Context, panel *ingress.PanelSite) error {
-	if err := c.prepare(panel); err != nil {
+	if err := c.prepare(panel, false); err != nil {
 		return err
 	}
 	return c.Runtime.Pull(ctx)
 }
 
 // Start runs Caddy, and returns once its admin API answers.
-func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite) error {
-	if err := c.prepare(panel); err != nil {
+func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite, plainOnly bool) error {
+	if err := c.prepare(panel, plainOnly); err != nil {
 		return err
 	}
 	// A damaged last config would start it with nothing, or not at all.
@@ -501,11 +687,11 @@ const bootstrapName = "bootstrap.json"
 // That goes in the boot directory, which is root's and read-only to Caddy, so
 // nothing Caddy does can change where a write of root's lands, or what it reads
 // when it next starts.
-func (c *Caddy) prepare(panel *ingress.PanelSite) error {
+func (c *Caddy) prepare(panel *ingress.PanelSite, plainOnly bool) error {
 	if err := EnsureDirs(c.Dir); err != nil {
 		return err
 	}
-	b, err := c.bootstrap(panel)
+	b, err := c.bootstrap(panel, plainOnly)
 	if err != nil {
 		return err
 	}
@@ -594,37 +780,30 @@ func OwnSocket(path string) error {
 // autosaveFile is Caddy's last config, for messages.
 func (c *Caddy) autosaveFile() string { return filepath.Join(c.configDir(), autosaveRel) }
 
-// Stop stops Caddy and frees its ports, keeping its certificates. Its last
-// config is set aside, not left to resume, and the agent's copy goes: a server's
-// next first route starts from the bootstrap, with what this build sets.
+// Stop stops Caddy and frees its ports, keeping its certificates. Its last config
+// goes, not left to resume, and the agent's copy too, and all they held of the
+// panel's key: a server's next first route starts from the bootstrap, with what
+// this build sets.
 func (c *Caddy) Stop(ctx context.Context) error {
 	if err := c.Runtime.Remove(ctx); err != nil {
 		return err
 	}
-	root, err := os.OpenRoot(c.configDir())
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-	case err != nil:
-		return fmt.Errorf("can't set aside Caddy's last config: %w", err)
-	default:
-		defer root.Close()
-		if err := root.Rename(autosaveRel, autosaveRel+".last"); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("can't set aside Caddy's last config: %w", err)
-		}
+	if err := c.forgetLastConfig(); err != nil {
+		return err
 	}
 	return c.forgetGood()
 }
 
-// rawRoutes reads the routes with Caddy's own ETag, or from its last config
-// when it is down, whereupon the ETag is empty.
-func (c *Caddy) rawRoutes(ctx context.Context) ([]json.RawMessage, string, bool, error) {
-	b, etag, err := c.call(ctx, http.MethodGet, routesPath, nil, nil)
+// readServers reads Caddy's servers with their ETag, or from its last config when
+// it is down, whereupon the ETag is empty. up says it answered.
+func (c *Caddy) readServers(ctx context.Context) (servers map[string]json.RawMessage, etag string, up bool, err error) {
+	b, etag, err := c.call(ctx, http.MethodGet, serversPath, nil, nil)
 	if err == nil {
-		routes, err := decodeRoutes(b)
-		return routes, etag, true, err
+		servers, err := decodeServers(b)
+		return servers, etag, err == nil, err
 	}
 	if !errors.Is(err, errDown) {
-		// A Caddy with no config at all says the path to the routes is invalid.
+		// A Caddy with no config at all says the path to the servers is invalid.
 		var ae *adminError
 		if errors.As(err, &ae) && (ae.Status == http.StatusNotFound || strings.Contains(ae.Message, "invalid traversal path")) {
 			return nil, etag, true, nil
@@ -644,16 +823,75 @@ func (c *Caddy) rawRoutes(ctx context.Context) ([]json.RawMessage, string, bool,
 	var config struct {
 		Apps struct {
 			HTTP struct {
-				Servers map[string]struct {
-					Routes []json.RawMessage `json:"routes"`
-				} `json:"servers"`
+				Servers map[string]json.RawMessage `json:"servers"`
 			} `json:"http"`
 		} `json:"apps"`
 	}
 	if err := json.Unmarshal(saved, &config); err != nil {
 		return nil, "", false, fmt.Errorf("can't read Caddy's last config in %s: %w", c.autosaveFile(), err)
 	}
-	return config.Apps.HTTP.Servers[serverName].Routes, "", false, nil
+	return config.Apps.HTTP.Servers, "", false, nil
+}
+
+func decodeServers(b []byte) (map[string]json.RawMessage, error) {
+	if len(bytes.TrimSpace(b)) == 0 || bytes.Equal(bytes.TrimSpace(b), []byte("null")) {
+		return nil, nil
+	}
+	var servers map[string]json.RawMessage
+	if err := json.Unmarshal(b, &servers); err != nil {
+		return nil, fmt.Errorf("can't read Caddy's servers: %w", err)
+	}
+	return servers, nil
+}
+
+// routesIn are the routes of both Dockwell's servers, as one list, and what is
+// left of the plain HTTP server's: routes that aren't Dockwell's, which stay
+// where they are. What it derives from the rest isn't in either.
+func routesIn(servers map[string]json.RawMessage) (all, others []json.RawMessage, err error) {
+	read := func(name string) ([]json.RawMessage, error) {
+		var server struct {
+			Routes json.RawMessage `json:"routes"`
+		}
+		if len(servers[name]) == 0 {
+			return nil, nil
+		}
+		if err := json.Unmarshal(servers[name], &server); err != nil {
+			return nil, fmt.Errorf("can't read Caddy's server %s: %w", name, err)
+		}
+		return decodeRoutes(server.Routes)
+	}
+	if all, err = read(serverName); err != nil {
+		return nil, nil, err
+	}
+	plain, err := read(httpServerName)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, raw := range plain {
+		id := routeID(raw)
+		switch {
+		case strings.HasPrefix(id, derivedPrefix):
+		case strings.HasPrefix(id, "dockwell."):
+			all = append(all, raw)
+		default:
+			others = append(others, raw)
+		}
+	}
+	return all, others, nil
+}
+
+// rawRoutes reads the routes of both Dockwell's servers, or from Caddy's last
+// config when it is down. up says it answered.
+func (c *Caddy) rawRoutes(ctx context.Context) (routes []json.RawMessage, up bool, err error) {
+	servers, _, up, err := c.readServers(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	routes, _, err = routesIn(servers)
+	if err != nil {
+		return nil, false, err
+	}
+	return routes, up, nil
 }
 
 func decodeRoutes(b []byte) ([]json.RawMessage, error) {
@@ -670,7 +908,7 @@ func decodeRoutes(b []byte) ([]json.RawMessage, error) {
 // Routes returns the routes Dockwell gave Caddy, as it has them now, or as it
 // last had them if it is down.
 func (c *Caddy) Routes(ctx context.Context) ([]ingress.Route, error) {
-	raw, _, _, err := c.rawRoutes(ctx)
+	raw, _, err := c.rawRoutes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -697,7 +935,7 @@ func routeID(raw json.RawMessage) string {
 // older build's keys stay on the list, so an upgrade isn't drift.
 var (
 	knownRouteKeys   = []string{"@id", "match", "handle", "terminal"}
-	knownMatchKeys   = []string{"host", "path"}
+	knownMatchKeys   = []string{"host", "path", "protocol", "remote_ip"}
 	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers"}
 )
 
@@ -705,15 +943,16 @@ var (
 // Dockwell leaves alone.
 func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	id := routeID(raw)
-	if !strings.HasPrefix(id, "dockwell.") || strings.HasPrefix(id, panelRouteID) || id == closedRouteID {
+	if !strings.HasPrefix(id, "dockwell.") || strings.HasPrefix(id, panelRouteID) || strings.HasPrefix(id, derivedPrefix) || id == closedRouteID {
 		return ingress.Route{}, false
 	}
 	out := ingress.Route{ID: id}
 	var r route
-	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) != 1 || len(r.Match[0].Host) != 1 || len(r.Handle) != 1 || r.Handle[0].Handler != "reverse_proxy" {
+	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) != 1 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 2 || r.Handle[len(r.Handle)-1].Handler != "reverse_proxy" {
 		out.Edited = true
 		return out, true
 	}
+	proxy := r.Handle[len(r.Handle)-1]
 	out.Domain = r.Match[0].Host[0]
 	switch p := r.Match[0].Path; {
 	case len(p) == 0:
@@ -722,30 +961,70 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	default:
 		out.Edited = true
 	}
-	for _, u := range r.Handle[0].Upstreams {
+	switch r.Match[0].Protocol {
+	case "":
+	case plainProtocol:
+		out.Plain = true
+	default:
+		out.Edited = true
+	}
+	for _, u := range proxy.Upstreams {
 		out.Upstreams = append(out.Upstreams, u.Dial)
 	}
-	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw)
+	if len(r.Handle) == 2 {
+		out.TrustedProxies, out.EdgeProxies = readBelief(r.Handle[0])
+	}
+	out.PlainForAnyone = out.Plain && r.Match[0].RemoteIP == nil
+	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, len(r.Handle) == 2) || !beliefAndReachAreOurs(r, out)
 	return out, true
+}
+
+// beliefAndReachAreOurs reports a route whose steps and whose reach are what
+// Dockwell would write for what it read of them, as these decide who it answers and
+// what a service believes, and a hand edit of them would otherwise read as nothing.
+func beliefAndReachAreOurs(r route, read ingress.Route) bool {
+	want := routeJSON(read)
+	wantMatch, err1 := json.Marshal(want.Match[0].RemoteIP)
+	haveMatch, err2 := json.Marshal(r.Match[0].RemoteIP)
+	if err1 != nil || err2 != nil || !sameJSON(wantMatch, haveMatch) {
+		return false
+	}
+	if len(r.Handle) != len(want.Handle) {
+		return false
+	}
+	if len(r.Handle) == 1 {
+		return true
+	}
+	wantSteps, err1 := json.Marshal(want.Handle[0])
+	haveSteps, err2 := json.Marshal(r.Handle[0])
+	return err1 == nil && err2 == nil && sameJSON(wantSteps, haveSteps)
 }
 
 // headersAreOurs reports a route that changes the headers it sends as Dockwell
 // has it do, or, as an older config may, not at all. Its key alone isn't enough:
-// a header added by hand is a hand edit, and would otherwise read as nothing.
-func headersAreOurs(raw json.RawMessage) bool {
+// a header added by hand is a hand edit, and would otherwise read as nothing. A
+// route that trusts a proxy believes it, and one that doesn't never does.
+func headersAreOurs(raw json.RawMessage, trusts bool) bool {
 	var r struct {
 		Handle []struct {
 			Headers json.RawMessage `json:"headers"`
 		} `json:"handle"`
 	}
-	if json.Unmarshal(raw, &r) != nil || len(r.Handle) != 1 {
+	if json.Unmarshal(raw, &r) != nil || len(r.Handle) == 0 {
 		return false
 	}
-	if len(r.Handle[0].Headers) == 0 {
-		return true
+	have := r.Handle[len(r.Handle)-1].Headers
+	if len(have) == 0 {
+		return !trusts
 	}
-	ours, err := json.Marshal(clientAddress())
-	return err == nil && sameJSON(r.Handle[0].Headers, ours)
+	shapes := []*headers{clientAddress(), olderClientAddress(), distrustingAddress()}
+	if trusts {
+		shapes = []*headers{believingAddress()}
+	}
+	return slices.ContainsFunc(shapes, func(h *headers) bool {
+		ours, err := json.Marshal(h)
+		return err == nil && sameJSON(have, ours)
+	})
 }
 
 func onlyKnownKeys(raw json.RawMessage) bool {
@@ -765,7 +1044,7 @@ func onlyKnownKeys(raw json.RawMessage) bool {
 		}
 		return true
 	}
-	return in(top, knownRouteKeys) && len(r.Match) == 1 && in(r.Match[0], knownMatchKeys) && len(r.Handle) == 1 && in(r.Handle[0], knownHandlerKeys)
+	return in(top, knownRouteKeys) && len(r.Match) == 1 && in(r.Match[0], knownMatchKeys) && len(r.Handle) > 0 && in(r.Handle[len(r.Handle)-1], knownHandlerKeys)
 }
 
 // mutate changes the routes as one reload, against the version it read, so a
@@ -773,22 +1052,17 @@ func onlyKnownKeys(raw json.RawMessage) bool {
 // Routes that aren't Dockwell's stay, so a hand-added one isn't lost either.
 func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json.RawMessage, error)) error {
 	for try := 0; ; try++ {
-		raw, etag, up, err := c.rawRoutes(ctx)
+		servers, etag, up, err := c.readServers(ctx)
 		if err != nil {
 			return err
 		}
 		if !up {
 			return fmt.Errorf("%w, so it can't change its routes. Start it with docker start %s; the agent starts it within a minute", errDown, ingress.ContainerName)
 		}
-		next, err := edit(raw)
-		if err != nil {
+		if err := c.editServers(servers, edit); err != nil {
 			return err
 		}
-		if next == nil {
-			next = []json.RawMessage{} // "null" isn't a list of routes
-		}
-		sortRoutes(next)
-		body, err := json.Marshal(next)
+		body, err := json.Marshal(servers)
 		if err != nil {
 			return err
 		}
@@ -796,7 +1070,7 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 		if etag != "" {
 			header.Set("If-Match", etag)
 		}
-		_, _, err = c.call(ctx, http.MethodPatch, routesPath, body, header)
+		_, _, err = c.call(ctx, http.MethodPatch, serversPath, body, header)
 		var ae *adminError
 		if errors.As(err, &ae) && ae.Status == http.StatusPreconditionFailed && try < 3 {
 			continue
@@ -808,10 +1082,246 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 	}
 }
 
+// errNoServer is a config that lacks the server Dockwell's routes go on.
+var errNoServer = errors.New("caddy isn't running Dockwell's config, so its routes can't change. The agent puts back its own copy of a config left empty within a minute. If this goes on, see what it runs with docker logs " + ingress.ContainerName)
+
+// editServers applies an edit to the routes of Dockwell's servers, and puts each
+// route on the one it belongs on: what takes no certificate on the plain HTTP
+// server, and the rest on the other. What follows from the routes is set here too,
+// so it can't fall out of step with them: whether HTTPS listens at all, what the
+// plain HTTP server derives, and which proxies the servers trust. Everything else
+// in them is left as it is.
+func (c *Caddy) editServers(servers map[string]json.RawMessage, edit func([]json.RawMessage) ([]json.RawMessage, error)) error {
+	if len(servers[serverName]) == 0 {
+		return errNoServer
+	}
+	all, others, err := routesIn(servers)
+	if err != nil {
+		return err
+	}
+	next, err := edit(all)
+	if err != nil {
+		return err
+	}
+	var secure []json.RawMessage
+	plain := others
+	for _, raw := range next {
+		if onPlainServer(raw) {
+			plain = append(plain, raw)
+		} else {
+			secure = append(secure, raw)
+		}
+	}
+	trusted := trustedRanges(next)
+	secure = withTrust(secure, len(trusted) > 0)
+	plain = withTrust(plain, len(trusted) > 0)
+	var tlsServer map[string]json.RawMessage
+	if err := unmarshalIf(servers[serverName], &tlsServer); err != nil {
+		return err
+	}
+	if err := c.setListen(tlsServer, secure); err != nil {
+		return err
+	}
+	if err := setServerRoutes(tlsServer, secure, trusted); err != nil {
+		return err
+	}
+	if servers[serverName], err = json.Marshal(tlsServer); err != nil {
+		return err
+	}
+	if plain, err = withDerived(plain, secure); err != nil {
+		return err
+	}
+	if len(plain) == 0 {
+		delete(servers, httpServerName)
+		return nil
+	}
+	plainServer := map[string]json.RawMessage{}
+	if err := unmarshalIf(servers[httpServerName], &plainServer); err != nil {
+		return err
+	}
+	if len(plainServer["listen"]) == 0 {
+		httpPort, _ := c.ports()
+		if plainServer["listen"], err = json.Marshal([]string{":" + strconv.Itoa(httpPort)}); err != nil {
+			return err
+		}
+	}
+	if err := setServerRoutes(plainServer, plain, trusted); err != nil {
+		return err
+	}
+	servers[httpServerName], err = json.Marshal(plainServer)
+	return err
+}
+
+// onPlainServer reports a route that goes on the plain HTTP server: the panel's
+// rules, and Dockwell's routes that take no certificate.
+func onPlainServer(raw json.RawMessage) bool {
+	id := routeID(raw)
+	if strings.HasPrefix(id, panelPlainPrefix) {
+		return true
+	}
+	read, ok := readRoute(raw)
+	return ok && read.Plain
+}
+
+// trustedRanges are the ranges any of Dockwell's routes trusts, sorted, for its
+// servers. A route edited by hand gets no say in what they trust.
+func trustedRanges(routes []json.RawMessage) []string {
+	var out []string
+	for _, raw := range routes {
+		if read, ok := readRoute(raw); ok && !read.Edited {
+			out = append(out, read.TrustedProxies...)
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// withTrust has each of Dockwell's routes that trusts no proxy write over what
+// Caddy keeps for a proxy, if its server trusts any. Caddy decides that per server,
+// so what another route names would otherwise reach this one.
+func withTrust(routes []json.RawMessage, serverTrusts bool) []json.RawMessage {
+	for i, raw := range routes {
+		read, ok := readRoute(raw)
+		if !ok || read.Edited {
+			continue
+		}
+		// One with steps of its own already decides for itself.
+		var r route
+		if json.Unmarshal(raw, &r) != nil || len(r.Handle) != 1 {
+			continue
+		}
+		want := clientAddress()
+		if serverTrusts {
+			want = distrustingAddress()
+		}
+		have, err1 := json.Marshal(r.Handle[0].Headers)
+		ours, err2 := json.Marshal(want)
+		if err1 != nil || err2 != nil || sameJSON(have, ours) {
+			continue
+		}
+		r.Handle[0].Headers = want
+		if b, err := json.Marshal(r); err == nil {
+			routes[i] = b
+		}
+	}
+	return routes
+}
+
+// setListen has the HTTPS server listen if it serves any name, and bind nothing if
+// not, as a server behind a tunnel needs no port 443. A route with no host names
+// nothing to serve, as with what closes the rest, or says something of every
+// response. Caddy applies no automatic HTTPS to a server with no port but the plain
+// HTTP one, so with none it asks for no certificate and makes no ACME account. A
+// listen address changed by hand stays, while it listens at all.
+func (c *Caddy) setListen(server map[string]json.RawMessage, routes []json.RawMessage) error {
+	_, httpsPort := c.ports()
+	serves := slices.ContainsFunc(routes, namesAHost)
+	var listen []string
+	if err := unmarshalIf(server["listen"], &listen); err != nil {
+		return err
+	}
+	switch {
+	case !serves:
+		listen = []string{}
+	case len(listen) == 0:
+		listen = []string{":" + strconv.Itoa(httpsPort)}
+	}
+	var err error
+	server["listen"], err = json.Marshal(listen)
+	return err
+}
+
+// namesAHost reports a route that matches a name, under any of its matchers.
+func namesAHost(raw json.RawMessage) bool {
+	var r struct {
+		Match []struct {
+			Host []string `json:"host"`
+		} `json:"match"`
+	}
+	if json.Unmarshal(raw, &r) != nil {
+		return false
+	}
+	return slices.ContainsFunc(r.Match, func(m struct {
+		Host []string `json:"host"`
+	},
+	) bool {
+		return len(m.Host) > 0
+	})
+}
+
+// setServerRoutes puts routes on a server, in the order Caddy should try them, with
+// the ranges it trusts. Strict reads X-Forwarded-For from the right: Caddy's default
+// takes its leftmost address, which is whatever the client sent, through any proxy
+// that appends to the header, as Cloudflare does.
+func setServerRoutes(server map[string]json.RawMessage, routes []json.RawMessage, trusted []string) error {
+	if routes == nil {
+		routes = []json.RawMessage{} // "null" isn't a list of routes
+	}
+	sortRoutes(routes)
+	var err error
+	if server["routes"], err = json.Marshal(routes); err != nil {
+		return err
+	}
+	if len(trusted) == 0 {
+		delete(server, "trusted_proxies")
+		delete(server, "trusted_proxies_strict")
+		return nil
+	}
+	if server["trusted_proxies"], err = json.Marshal(map[string]any{"source": "static", "ranges": trusted}); err != nil {
+		return err
+	}
+	server["trusted_proxies_strict"], err = json.Marshal(1)
+	return err
+}
+
+// withDerived adds what the plain HTTP server's routes need, given those on the
+// HTTPS server. What closes routes there says 503 for their domains alone, as the
+// panel's domain and those with certificates still redirect. And a name with no
+// route gets a 404, as Caddy would otherwise answer an empty 200, which reads as a
+// site that works. It goes last, so what Caddy adds for a domain's redirect comes
+// ahead of it.
+func withDerived(plain, secure []json.RawMessage) ([]json.RawMessage, error) {
+	// A route's own reach goes with what closes it: anyone it doesn't answer gets what
+	// a name with no route gets, closed or not, so it can't tell the route is there.
+	var reached []matcher
+	for _, raw := range plain {
+		read, ok := readRoute(raw)
+		if !ok || !read.Plain {
+			continue
+		}
+		m := matcher{Host: []string{read.Domain}, RemoteIP: reachOf(read)}
+		if !slices.ContainsFunc(reached, func(o matcher) bool { return slices.Equal(o.Host, m.Host) && reflect.DeepEqual(o.RemoteIP, m.RemoteIP) }) {
+			reached = append(reached, m)
+		}
+	}
+	if len(reached) == 0 {
+		return plain, nil
+	}
+	if slices.ContainsFunc(secure, func(raw json.RawMessage) bool { return routeID(raw) == closedRouteID }) {
+		closed, err := closedRouteFor(reached)
+		if err != nil {
+			return nil, err
+		}
+		plain = append(plain, closed)
+	}
+	none, err := json.Marshal(map[string]any{
+		"@id": plainNoneID, "terminal": true,
+		"handle": []map[string]any{{
+			"handler": "static_response", "status_code": http.StatusNotFound,
+			"body":    "There's no site at this address.\n",
+			"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}},
+		}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(plain, none), nil
+}
+
 // sortRoutes puts what is most specific first, as Caddy takes the first route
 // that matches: the panel, routes that aren't Dockwell's, what closes the rest,
-// then each domain's longest paths first. It is stable, so a config reads the
-// same each time.
+// then each domain's longest paths first, and last what answers for a name with no
+// route. It is stable, so a config reads the same each time.
 func sortRoutes(routes []json.RawMessage) {
 	type key struct {
 		rank         int
@@ -820,12 +1330,14 @@ func sortRoutes(routes []json.RawMessage) {
 	keyOf := func(raw json.RawMessage) key {
 		id := routeID(raw)
 		switch {
-		case id == panelRouteID:
+		case strings.HasPrefix(id, panelRouteID):
 			return key{rank: 0}
 		case !strings.HasPrefix(id, "dockwell."):
 			return key{rank: 1}
-		case id == closedRouteID:
+		case id == closedRouteID, id == plainClosedID:
 			return key{rank: 2}
+		case id == plainNoneID:
+			return key{rank: 4}
 		}
 		r, _ := readRoute(raw)
 		return key{rank: 3, domain: r.Domain, path: r.Path}
@@ -844,7 +1356,7 @@ func sortRoutes(routes []json.RawMessage) {
 		switch {
 		case ka.rank != kb.rank:
 			return ka.rank - kb.rank
-		case ka.rank < 3:
+		case ka.rank != 3:
 			return 0
 		case ka.domain != kb.domain:
 			return strings.Compare(ka.domain, kb.domain)
@@ -926,23 +1438,35 @@ func (c *Caddy) DeleteRoute(ctx context.Context, id string) error {
 
 // closedRoute answers every request that reaches it with 503. It has no
 // matcher, and comes ahead of Dockwell's routes, so what they dial is never
-// dialled. Certificates come from the names in those routes, which stay.
-func closedRoute() ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"@id": closedRouteID, "terminal": true,
+// dialled. Certificates come from the names in those routes, which stay. The
+// routes on the plain HTTP server get theirs from this (closedRouteFor).
+func closedRoute() ([]byte, error) { return json.Marshal(closedBody(closedRouteID, nil)) }
+
+// closedRouteFor is closedRoute for what these match alone.
+func closedRouteFor(match []matcher) ([]byte, error) {
+	return json.Marshal(closedBody(plainClosedID, match))
+}
+
+func closedBody(id string, match []matcher) map[string]any {
+	body := map[string]any{
+		"@id": id, "terminal": true,
 		"handle": []map[string]any{{
 			"handler": "static_response", "status_code": http.StatusServiceUnavailable,
 			"body":    "This site can't be reached right now. Try again in a little while.\n",
 			"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}, "Retry-After": {"60"}},
 		}},
-	})
+	}
+	if len(match) > 0 {
+		body["match"] = match
+	}
+	return body
 }
 
 // SetClosed has every route answer 503, or takes that away, if it isn't so
 // already. With Caddy down, it goes in the last config, which is what Caddy
 // serves when it starts again.
 func (c *Caddy) SetClosed(ctx context.Context, closed bool) error {
-	raw, _, up, err := c.rawRoutes(ctx)
+	raw, up, err := c.rawRoutes(ctx)
 	if err != nil {
 		return err
 	}
@@ -968,7 +1492,7 @@ func (c *Caddy) SetClosed(ctx context.Context, closed bool) error {
 
 // SetPanel makes Caddy serve the panel's site, or stop, if it isn't already.
 func (c *Caddy) SetPanel(ctx context.Context, panel *ingress.PanelSite) error {
-	raw, _, up, err := c.rawRoutes(ctx)
+	raw, up, err := c.rawRoutes(ctx)
 	if err != nil || !up {
 		return err
 	}
@@ -985,16 +1509,21 @@ func (c *Caddy) SetPanel(ctx context.Context, panel *ingress.PanelSite) error {
 	if (panel == nil && i < 0) || (i >= 0 && panel != nil && sameJSON(raw[i], want)) {
 		return nil
 	}
-	if err := c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
-		routes = slices.DeleteFunc(routes, func(r json.RawMessage) bool { return routeID(r) == panelRouteID })
-		if panel != nil {
-			routes = append(routes, want)
+	return c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
+		routes = slices.DeleteFunc(routes, func(r json.RawMessage) bool { return strings.HasPrefix(routeID(r), panelRouteID) })
+		if panel == nil {
+			return routes, nil
+		}
+		routes = append(routes, want)
+		for _, rule := range plainHTTPRules(panel) {
+			b, err := json.Marshal(rule)
+			if err != nil {
+				return nil, err
+			}
+			routes = append(routes, b)
 		}
 		return routes, nil
-	}); err != nil {
-		return err
-	}
-	return c.setPlainHTTP(ctx, panel)
+	})
 }
 
 // panelCertTag marks the certificate loaded for the panel, among any others.
@@ -1082,33 +1611,6 @@ func sameJSON(a, b []byte) bool {
 	return bytes.Equal(ca, cb)
 }
 
-// setPlainHTTP puts the panel's rules on plain HTTP, or takes them off.
-func (c *Caddy) setPlainHTTP(ctx context.Context, panel *ingress.PanelSite) error {
-	path := "/config/apps/http/servers/" + httpServerName
-	if panel == nil {
-		_, _, err := c.call(ctx, http.MethodDelete, path, nil, nil)
-		var ae *adminError
-		if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
-			return nil
-		}
-		return err
-	}
-	httpPort, _ := c.ports()
-	body, err := json.Marshal(map[string]any{"listen": []string{":" + strconv.Itoa(httpPort)}, "routes": plainHTTPRules(panel)})
-	if err != nil {
-		return err
-	}
-	_, _, err = c.call(ctx, http.MethodPatch, path, body, nil)
-	var ae *adminError
-	if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
-		_, _, err = c.call(ctx, http.MethodPut, path, body, nil)
-	}
-	if err == nil {
-		c.keepRunning(ctx)
-	}
-	return err
-}
-
 // InFlight says how many requests an upstream has now, across configs.
 func (c *Caddy) InFlight(ctx context.Context, up string) (int, error) {
 	b, _, err := c.call(ctx, http.MethodGet, "/reverse_proxy/upstreams", nil, nil)
@@ -1135,15 +1637,15 @@ func (c *Caddy) InFlight(ctx context.Context, up string) (int, error) {
 // the same config again only when told to, and a reload starts what it
 // manages anew.
 func (c *Caddy) Retry(ctx context.Context) error {
-	raw, etag, up, err := c.rawRoutes(ctx)
-	if err != nil || !up || raw == nil {
+	servers, etag, up, err := c.readServers(ctx)
+	if err != nil || !up || servers == nil {
 		return err
 	}
-	body, err := json.Marshal(raw)
+	body, err := json.Marshal(servers)
 	if err != nil {
 		return err
 	}
-	_, _, err = c.call(ctx, http.MethodPatch, routesPath, body, http.Header{"Cache-Control": {"must-revalidate"}, "If-Match": {etag}})
+	_, _, err = c.call(ctx, http.MethodPatch, serversPath, body, http.Header{"Cache-Control": {"must-revalidate"}, "If-Match": {etag}})
 	// Changed meanwhile: that was a reload too, and starts what this would.
 	var ae *adminError
 	if errors.As(err, &ae) && ae.Status == http.StatusPreconditionFailed {

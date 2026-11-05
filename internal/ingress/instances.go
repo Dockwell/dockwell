@@ -230,7 +230,8 @@ func (m *Manager) give(ctx context.Context, i Instance) (string, error) {
 	if a, ok := keeperAddress(m.table.Subnet); ok {
 		busy = append(busy, a)
 	}
-	for _, r := range routes {
+	for k := range routes {
+		r := &routes[k]
 		for _, up := range r.Upstreams {
 			if host, _, err := splitUpstream(up); err == nil {
 				busy = append(busy, host)
@@ -339,7 +340,18 @@ func (m *Manager) dialing(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return slices.ContainsFunc(routes, func(r Route) bool { return len(r.Upstreams) > 0 }), nil
+	return dialsContainers(routes), nil
+}
+
+// dialsContainers reports a route that dials anything but a port on the server
+// itself, which needs no network, and no container can take.
+func dialsContainers(routes []Route) bool {
+	return slices.ContainsFunc(routes, func(r Route) bool {
+		return slices.ContainsFunc(r.Upstreams, func(up string) bool {
+			host, _, err := splitUpstream(up)
+			return err != nil || host != ServerHost
+		})
+	})
 }
 
 // restoreNetwork makes the ingress network again on its recorded subnet, and
@@ -436,20 +448,32 @@ func keeperAddress(subnet string) (string, bool) {
 // It runs Caddy's image, which the server has already, as a user that isn't root,
 // with nothing else: no capabilities, no mounts, and no way out of a network that
 // has none. It is best effort, as the rest holds without it.
-func (m *Manager) ensureKeeper(ctx context.Context) {
+//
+// inStep says a route's step is running, under a plan someone asked for. A keeper
+// moves to a new pin only then, as the proxy does: all it does is sleep, so what
+// it runs doesn't matter, and an upgrade of Dockwell moves nothing on its own.
+// Nothing but a step pulls either: that can take minutes with the manager's lock
+// held, and every plan on this server waits for it.
+func (m *Manager) ensureKeeper(ctx context.Context, inStep bool) {
 	if m.KeeperImage == "" {
 		return
 	}
-	if err := m.keepNetwork(ctx); err != nil && ctx.Err() == nil {
+	if err := m.keepNetwork(ctx, inStep); err != nil && ctx.Err() == nil {
 		m.logger().WarnContext(ctx, "can't run the container that keeps the ingress network from being pruned, so docker network prune could remove it. If it does, the agent makes it again on its own subnet; the agent tries again within a minute",
 			slog.String("container", KeeperName), slog.String("error", err.Error()))
 	}
 }
 
-func (m *Manager) keepNetwork(ctx context.Context) error {
+func (m *Manager) keepNetwork(ctx context.Context, inStep bool) error {
 	addr, ok := keeperAddress(m.table.Subnet)
 	if !ok {
 		return nil
+	}
+	// What it runs next, when it needs making: found first, so that a keeper that
+	// runs isn't taken away for what can't be had.
+	image, err := m.keeperImage(ctx, inStep)
+	if err != nil {
+		return err
 	}
 	got, err := m.Client.ContainerNamed(ctx, KeeperName)
 	switch {
@@ -457,40 +481,34 @@ func (m *Manager) keepNetwork(ctx context.Context) error {
 		if got.Config.Labels[docker.OwnPrefix+"ingress"] == "" {
 			return fmt.Errorf("a container named %[1]s is on this server, and Dockwell didn't make it. Rename or remove it with docker rename %[1]s or docker rm %[1]s", KeeperName)
 		}
-		if got.Config.Image != m.KeeperImage {
-			if err := m.Client.RemoveContainer(ctx, got.ID, true); err != nil && !docker.IsNotFound(err) {
+		replace := inStep && image != "" && got.Config.Image != image
+		if !replace {
+			if got.State.Running {
+				return nil
+			}
+			ep := got.NetworkSettings.Networks[docker.IngressNetwork]
+			n, err := m.Client.NetworkNamed(ctx, docker.IngressNetwork)
+			if err != nil {
 				return err
 			}
-			break
+			if ep != nil && (ep.NetworkID == "" || ep.NetworkID == n.ID) {
+				return m.Client.StartContainer(ctx, got.ID)
+			}
 		}
-		if got.State.Running {
-			return nil
-		}
-		ep := got.NetworkSettings.Networks[docker.IngressNetwork]
-		n, err := m.Client.NetworkNamed(ctx, docker.IngressNetwork)
-		if err != nil {
-			return err
-		}
-		if ep != nil && (ep.NetworkID == "" || ep.NetworkID == n.ID) {
-			return m.Client.StartContainer(ctx, got.ID)
-		}
-		// Asleep on a network that has gone: it can't start, so it goes.
+		// On another pin in a step, or asleep on a network that has gone, which it
+		// can't start on: it goes.
 		if err := m.Client.RemoveContainer(ctx, got.ID, true); err != nil && !docker.IsNotFound(err) {
 			return err
 		}
 	case !docker.IsNotFound(err):
 		return err
 	}
-	if _, err := m.Client.InspectImage(ctx, m.KeeperImage); docker.IsNotFound(err) {
-		if err := m.Client.PullImage(ctx, m.KeeperImage, func(string) {}); err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
+	if image == "" {
+		return fmt.Errorf("the server doesn't have %s yet, so it waits for this server's next route change", m.KeeperImage)
 	}
 	id, err := m.Client.CreateContainer(ctx, KeeperName, &docker.CreateRequest{
 		Config: docker.Config{
-			Image: m.KeeperImage, Cmd: []string{"sleep", "infinity"}, User: "65532:65532",
+			Image: image, Cmd: []string{"sleep", "infinity"}, User: "65532:65532",
 			Labels: map[string]string{docker.OwnPrefix + "ingress": keeperLabel},
 		},
 		HostConfig: docker.HostConfig{
@@ -505,6 +523,36 @@ func (m *Manager) keepNetwork(ctx context.Context) error {
 		return err
 	}
 	return m.Client.StartContainer(ctx, id)
+}
+
+// keeperImage is what a keeper can run now: the pinned image if the server has it,
+// or else, in a step, once that has pulled it. With neither, outside a step, it is
+// what the proxy runs, which the server must have, and failing that, nothing.
+func (m *Manager) keeperImage(ctx context.Context, inStep bool) (string, error) {
+	_, err := m.Client.InspectImage(ctx, m.KeeperImage)
+	switch {
+	case err == nil:
+		return m.KeeperImage, nil
+	case !docker.IsNotFound(err):
+		return "", err
+	}
+	if inStep {
+		if err := m.Client.PullImage(ctx, m.KeeperImage, func(string) {}); err != nil {
+			return "", err
+		}
+		return m.KeeperImage, nil
+	}
+	st, err := m.Proxy.Status(ctx)
+	if err != nil || st.Image == "" {
+		return "", err
+	}
+	if _, err := m.Client.InspectImage(ctx, st.Image); err != nil {
+		if docker.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return st.Image, nil
 }
 
 // removeNetwork removes the ingress network, and what kept it, once nothing is
@@ -570,6 +618,9 @@ func (m *Manager) attach(ctx context.Context, i Instance) error {
 	case err != nil:
 		return err
 	}
+	if c.HostConfig.NetworkMode == hostNetworkMode {
+		return serversNetwork(i.Service) // a plan refuses this, and one may be old
+	}
 	addr := m.table.Addresses[i.String()]
 	if ep, on := c.NetworkSettings.Networks[docker.IngressNetwork]; on {
 		n, err := m.Client.NetworkNamed(ctx, docker.IngressNetwork)
@@ -591,6 +642,9 @@ func (m *Manager) attach(ctx context.Context, i Instance) error {
 	}
 	return nil
 }
+
+// hostNetworkMode is how Docker says a container is on the server's own network.
+const hostNetworkMode = "host"
 
 func endpoint(addr string) docker.EndpointSettings {
 	return docker.EndpointSettings{IPAMConfig: &docker.EndpointIPAM{IPv4Address: addr}}
@@ -643,7 +697,8 @@ func (m *Manager) releaseUnused(ctx context.Context) error {
 		return err
 	}
 	used := map[Service]bool{}
-	for _, r := range routes {
+	for k := range routes {
+		r := &routes[k]
 		// A route edited by hand may be about any service, until someone
 		// reverts or adopts it. Taking a service off the network now would
 		// leave it nothing to go back to.
@@ -653,6 +708,9 @@ func (m *Manager) releaseUnused(ctx context.Context) error {
 		for _, up := range r.Upstreams {
 			i, known := m.instanceOf(up)
 			if !known {
+				if host, _, err := splitUpstream(up); err == nil && host == ServerHost {
+					continue // a port on the server itself, which is no service's
+				}
 				return nil
 			}
 			used[i.service()] = true
@@ -690,7 +748,8 @@ func (m *Manager) routesOf(ctx context.Context, s Service) ([]Route, uint32, err
 	}
 	var out []Route
 	var port uint32
-	for _, r := range routes {
+	for k := range routes {
+		r := &routes[k]
 		if r.Edited {
 			continue
 		}
@@ -700,7 +759,7 @@ func (m *Manager) routesOf(ctx context.Context, s Service) ([]Route, uint32, err
 				continue
 			}
 			if i, known := m.table.instanceAt(host); known && i.service() == s {
-				out = append(out, r)
+				out = append(out, *r)
 				port = p
 				break
 			}

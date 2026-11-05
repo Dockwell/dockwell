@@ -65,6 +65,8 @@ DATA=/var/lib/dockwell
 UNIT=/etc/systemd/system/dockwell.service
 INITD=/etc/init.d/dockwell
 OPENRC_LOG=/var/log/dockwell.log
+# What marks the containers and the network of Dockwell's ingress.
+INGRESS_LABEL=dev.dockwell.ingress
 
 usage() {
 	cat <<'EOF'
@@ -86,6 +88,8 @@ Options:
                        download cosign from a mirror of its GitHub releases
                        (env DOCKWELL_COSIGN_MIRROR)
   --uninstall          remove Dockwell; your workloads and data stay
+  --remove-ingress     with --uninstall, also remove Dockwell's ingress, which
+                       frees the ports it holds; your routes stop answering
   -h, --help           show this help
 
 Without --join, this server becomes a control server: it runs the control
@@ -843,9 +847,11 @@ uninstall() {
 	fi
 	if [ -z "$found" ]; then
 		say "Dockwell isn't installed on this server, so there's nothing to remove."
+		ingress_after_uninstall
 		return 0
 	fi
 	say "Removed Dockwell: $BIN and its service. Your workloads keep running."
+	ingress_after_uninstall
 	if [ -d "$DATA" ]; then
 		cat <<EOF
 Its data is still in $DATA, so installing again picks up where it left off.
@@ -856,10 +862,81 @@ EOF
 	fi
 }
 
+# ingress_containers lists the containers of Dockwell's ingress, running or not:
+# Caddy, and what keeps its network from being pruned. It fails when Docker doesn't
+# answer.
+ingress_containers() {
+	docker ps -aq --filter "label=$INGRESS_LABEL"
+}
+
+# ingress_networks names what networks Dockwell's ingress made.
+ingress_networks() {
+	docker network ls --format '{{.Name}}' --filter "label=$INGRESS_LABEL"
+}
+
+# ingress_after_uninstall removes the ingress when asked, and otherwise says what
+# stays, as it goes on holding the server's ports with Dockwell gone, and a proxy
+# someone wants back can't start until it lets go.
+ingress_after_uninstall() {
+	if [ -n "${remove_ingress:-}" ]; then
+		take_ingress_away
+		return 0
+	fi
+	has docker || return 0
+	left=$(ingress_containers 2>/dev/null) || return 0
+	[ -n "$left" ] || return 0
+	cat <<EOF
+
+Dockwell's ingress is still here, so your routes keep answering: Caddy, in the
+container dockwell-ingress, holds the ports they need, 80 and perhaps 443, beside
+the container dockwell-ingress-keep and the network dockwell_ingress.
+To free those ports and remove them, run this again with --uninstall --remove-ingress.
+Do that before you delete $DATA: Caddy's container mounts directories
+under it, which Docker would make again as root the next time it restarts, and
+Caddy couldn't read them, so it would restart for ever.
+
+EOF
+}
+
+# take_ingress_away removes Caddy's container, what keeps its network, and the
+# network, which frees the ports they hold. A service on the network stays as it is,
+# on its other networks, and it comes off first, as a network with anything on it
+# can't go.
+take_ingress_away() {
+	if ! has docker; then
+		say "Docker isn't on this server, so there's no ingress to remove."
+		return 0
+	fi
+	containers=$(ingress_containers) || fail "Docker doesn't answer, so the ingress wasn't removed. Start Docker, and run this again."
+	networks=$(ingress_networks) || fail "Docker doesn't answer, so the ingress wasn't removed. Start Docker, and run this again."
+	if [ -z "$containers$networks" ]; then
+		say "There's no ingress on this server to remove."
+		return 0
+	fi
+	for container in $containers; do
+		docker rm --force "$container" >/dev/null || fail "Docker couldn't remove the ingress's container $container. See why with docker logs $container, and run this again."
+	done
+	for network in $networks; do
+		attached=$(docker ps -aq --filter "network=$network") || fail "Docker doesn't answer, so the network $network wasn't removed. Start Docker, and run this again."
+		for container in $attached; do
+			docker network disconnect --force "$network" "$container" >/dev/null || fail "Docker couldn't take the container $container off the network $network. Take it off with docker network disconnect --force $network $container, and run this again."
+		done
+		docker network rm "$network" >/dev/null || fail "Docker couldn't remove the network $network. See what's on it with docker network inspect $network, and run this again."
+	done
+	cat <<EOF
+Removed Dockwell's ingress, so the ports it held are free and your routes no longer
+answer. Your services keep running. A proxy you stopped for it can start again:
+set its restart policy back, as with docker update --restart=always <name>, and
+start it. Its certificates stay in $DATA/ingress, and if you install
+Dockwell again with this data, it takes the ports back for your routes.
+EOF
+}
+
 # options prints the options this run was given, for a command to run again,
 # with the ticket left for the reader to paste.
 options() {
 	[ "$action" != uninstall ] || printf ' --uninstall'
+	[ -z "${remove_ingress:-}" ] || printf ' --remove-ingress'
 	[ -z "$ticket" ] || printf ' --join <ticket>'
 	[ -z "$version" ] || printf ' --version %s' "$(quote "$version")"
 	[ -z "$mirror" ] || printf ' --mirror %s' "$(quote "$mirror")"
@@ -882,6 +959,7 @@ main() {
 	cosign_mirror=${DOCKWELL_COSIGN_MIRROR:-}
 	from_env=${DOCKWELL_JOIN:-${DOCKWELL_VERSION:-${DOCKWELL_MIRROR:-${DOCKWELL_COSIGN_MIRROR:-}}}}
 	action=install
+	remove_ingress=
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--join)
@@ -924,6 +1002,10 @@ main() {
 			action=uninstall
 			shift
 			;;
+		--remove-ingress)
+			remove_ingress=1
+			shift
+			;;
 		-h | --help)
 			usage
 			return 0
@@ -934,6 +1016,7 @@ main() {
 
 	mirror=${mirror%/}
 	cosign_mirror=${cosign_mirror%/}
+	[ -z "$remove_ingress" ] || [ "$action" = uninstall ] || fail "--remove-ingress goes with --uninstall: run this with both to remove Dockwell and its ingress."
 
 	detect
 	case $action in

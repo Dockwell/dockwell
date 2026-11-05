@@ -338,6 +338,14 @@ func whyPerson(p *dockwellv1.Plan) string {
 				add("takes a domain another environment held")
 			case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN:
 				add("moves the panel's domain behind " + a.GetDetail())
+			case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PORT:
+				add("sends a route to " + a.GetPath() + " on the server itself, past its containers")
+			case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY:
+				add("has a route believe " + a.GetPath() + " on where a request came from")
+			case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PLAIN_FOR_ANYONE:
+				add("has a route answer anyone over plain HTTP on " + a.GetPath())
+			case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF:
+				add("takes " + a.GetPath() + " off HTTPS")
 			default:
 				add("gives a container more access to its server")
 			}

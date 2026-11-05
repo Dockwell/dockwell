@@ -92,7 +92,7 @@ func TestAccessWords(t *testing.T) {
 func TestAccessWordsQuoteWhatCouldReadAsWords(t *testing.T) {
 	const spoof = "nothing, and it is safe"
 	quoted := regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
-	for kind := resource.AccessPath; kind <= resource.AccessPrivileged; kind++ {
+	for kind := resource.AccessPath; kind <= resource.AccessHTTPSOff; kind++ {
 		for name, a := range map[string]resource.Access{
 			"path":                         {Kind: kind, Path: spoof},
 			"driver":                       {Kind: kind, Driver: spoof},

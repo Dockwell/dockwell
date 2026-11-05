@@ -47,7 +47,9 @@ message Domain {
   string name = 1;
   // The environment that holds it, by ID. A domain lives in one environment.
   string environment_id = 2;
-  // Where it answers, such as "https://app.example.com".
+  // Where it answers, such as "https://app.example.com". A domain whose routes
+  // take no certificate reads "http://app.example.com", which is what this server
+  // serves, and whatever ends TLS in front of it may answer HTTPS too.
   string url = 3;
   // Its routes, by path.
   repeated DomainRoute routes = 4;
@@ -63,12 +65,19 @@ message DomainRoute {
   string name = 2;
   // The path it covers. Empty covers the whole domain.
   string path = 3;
-  // The service it sends to, by name.
+  // The service it sends to, by name. Empty when host_port is set.
   string service = 4;
-  // The service's port it sends to.
+  // The service's port it sends to. Empty when host_port is set.
   uint32 port = 5;
   // Where it answers, such as "https://app.example.com/api".
   string url = 6;
+  // "off" when TLS ends before this server, as Route.tls says.
+  string tls = 7;
+  // The port on the server itself it sends to, in place of a service's.
+  uint32 host_port = 8;
+  // True when a route with tls off answers anyone who can reach the server, as
+  // Route.plain_for_anyone says.
+  bool plain_for_anyone = 9;
 }
 
 // DomainServer is where a domain stands on one server.
@@ -160,6 +169,9 @@ enum CertificateState {
   // The last try failed. Dockwell tries again by itself, and at once when the
   // domain's DNS starts pointing here.
   CERTIFICATE_STATE_FAILED = 3;
+  // None, as TLS ends before this server: its routes say tls off, so it has no
+  // certificate here, and none is asked for.
+  CERTIFICATE_STATE_NONE = 4;
 }
 
 // CertificateProblem is why a certificate failed.

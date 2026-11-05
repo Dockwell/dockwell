@@ -72,9 +72,11 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // plane, on the control server. Both builds run it the same way.
 //
 // panel is the panel on this server, when the control plane beside this agent
-// has a domain; nil on a server that joined.
-func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel) error {
-	drivers, collector, routes := agentDrivers(ctx, stdio, logger, dir, panel)
+// has a domain; nil on a server that joined. ownPorts are the ports the control
+// plane beside it listens on, which no route may send to; a server that joined
+// has none, as its agent opens no ports.
+func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
+	drivers, collector, routes := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	return agent.Run(ctx, agent.Config{
 		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector, Domains: routes,
 	})
@@ -90,7 +92,7 @@ const ingressEvery = time.Minute
 // while Docker answers, and keeps pruning the volumes deleted 7 days ago,
 // and its ingress as its routes need it, until ctx is done. The collector
 // reads the same Docker's version.
-func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel) (*resource.Registry, *collect.Collector, *ingress.Manager) {
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int) (*resource.Registry, *collect.Collector, *ingress.Manager) {
 	collector := collect.New()
 	socket, err := docker.SocketFrom(stdio.Getenv)
 	client := docker.Unusable(err)
@@ -104,7 +106,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	paths := &container.Paths{Client: client, DataDir: dir.Root}
 	proxy := &caddy.Container{Client: client, Dir: dir.Ingress(), Mirror: stdio.Getenv(envIngressImage)}
 	routes := &ingress.Manager{
-		Client: client, Dir: dir.Ingress(), Panel: panel, Logger: logger, KeeperImage: proxy.Reference(),
+		Client: client, Dir: dir.Ingress(), Panel: panel, OwnPorts: ownPorts, Logger: logger, KeeperImage: proxy.Reference(),
 		Proxy: &caddy.Caddy{
 			Dir: dir.Ingress(), Runtime: proxy,
 			ACMEDirectory: stdio.Getenv(envACMEDirectory), ACMERoots: stdio.Getenv(envACMERoots),

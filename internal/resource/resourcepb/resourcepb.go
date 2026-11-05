@@ -113,13 +113,28 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	}
 	p.DomainCheck = DomainCheck(s.Domain)
 	p.ReturningContainers = s.Returning
+	p.Unencrypted = s.Unencrypted
+	if a := s.Answers; a != nil {
+		p.Answers = &dockwellv1.RouteAnswers{Reach: routeReaches[a.Reach], Proxies: a.Proxies, Plain: a.Plain}
+	}
+	if c := s.ServerPort; c != nil {
+		p.ServerPort = &dockwellv1.ServerPortCheck{Port: c.Port, Listening: c.Listening, NothingListening: c.Nothing}
+	}
 	return p
 }
 
 var ingressChanges = map[resource.IngressChange]dockwellv1.IngressChange{
-	resource.IngressStarts:   dockwellv1.IngressChange_INGRESS_CHANGE_STARTS,
-	resource.IngressStops:    dockwellv1.IngressChange_INGRESS_CHANGE_STOPS,
-	resource.IngressRestarts: dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS,
+	resource.IngressStarts:     dockwellv1.IngressChange_INGRESS_CHANGE_STARTS,
+	resource.IngressStops:      dockwellv1.IngressChange_INGRESS_CHANGE_STOPS,
+	resource.IngressRestarts:   dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS,
+	resource.IngressTakesPorts: dockwellv1.IngressChange_INGRESS_CHANGE_TAKES_PORTS,
+	resource.IngressFreesPorts: dockwellv1.IngressChange_INGRESS_CHANGE_FREES_PORTS,
+}
+
+var routeReaches = map[resource.RouteReach]dockwellv1.RouteReach{
+	resource.ReachThisServer: dockwellv1.RouteReach_ROUTE_REACH_THIS_SERVER,
+	resource.ReachProxies:    dockwellv1.RouteReach_ROUTE_REACH_PROXIES,
+	resource.ReachAnyone:     dockwellv1.RouteReach_ROUTE_REACH_ANYONE,
 }
 
 var domainStates = map[resource.DomainState]dockwellv1.DomainCheckState{
@@ -151,6 +166,11 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessCapability:      dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY,
 	resource.AccessGroup:           dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP,
 	resource.AccessPrivileged:      dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED,
+
+	resource.AccessServerPort:     dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PORT,
+	resource.AccessTrustedProxy:   dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY,
+	resource.AccessPlainForAnyone: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PLAIN_FOR_ANYONE,
+	resource.AccessHTTPSOff:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF,
 }
 
 // HostAccess converts what a resource reaches on its server.
@@ -222,6 +242,16 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.Domain = &resource.DomainCheck{Domain: d.GetDomain(), State: state, Found: d.GetFound(), Here: d.GetHere()}
 	}
 	s.Returning = p.GetReturningContainers()
+	s.Unencrypted = p.GetUnencrypted()
+	// Who it answers only informs: the control plane has the spec. One this build
+	// doesn't know reads as not known.
+	if a := p.GetAnswers(); a != nil {
+		reach, _ := from(routeReaches, a.GetReach())
+		s.Answers = &resource.RouteAnswers{Reach: reach, Proxies: a.GetProxies(), Plain: a.GetPlain()}
+	}
+	if c := p.GetServerPort(); c != nil {
+		s.ServerPort = &resource.ServerPortCheck{Port: c.GetPort(), Listening: c.GetListening(), Nothing: c.GetNothingListening()}
+	}
 	return s, nil
 }
 

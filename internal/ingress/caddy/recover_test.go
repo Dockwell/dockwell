@@ -42,7 +42,7 @@ func TestWritingTheBootstrapDoesntFollowALinkOfCaddys(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &Caddy{Dir: dir, Runtime: &process{dir: dir}, ACMERoots: roots}
-	if err := c.prepare(nil); err != nil {
+	if err := c.prepare(nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(victim); string(b) != "the control plane's key" {
@@ -306,7 +306,7 @@ func TestAnEmptyLastConfigNeverOpensAdminOnTCPOnRealCaddy(t *testing.T) {
 	if err := os.WriteFile(c.autosaveFile(), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.prepare(nil); err != nil {
+	if err := c.prepare(nil, false); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { proc.stop(syscall.SIGKILL) })
@@ -427,7 +427,7 @@ func TestStartPutsADamagedLastConfigRightOnRealCaddy(t *testing.T) {
 		t.Fatal(err)
 	}
 	damage(t, c, whole[:len(whole)/2])
-	if err := c.Start(t.Context(), nil); err != nil {
+	if err := c.Start(t.Context(), nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if got := c.whoAt(t, "app.example.net", "/who"); got["name"] != "web" {
@@ -477,7 +477,7 @@ func TestADamagedLastConfigWithNoCopyStartsFromTheBootstrapOnRealCaddy(t *testin
 	if _, err := os.Stat(c.autosaveFile() + ".damaged"); err != nil {
 		t.Errorf("the damaged file wasn't kept for someone to read: %v", err)
 	}
-	if err := c.Start(t.Context(), nil); err != nil {
+	if err := c.Start(t.Context(), nil, false); err != nil {
 		out, _ := os.ReadFile(filepath.Join(c.Dir, "caddy.out"))
 		t.Fatalf("%v\n%s", err, out)
 	}
@@ -665,7 +665,7 @@ func TestClosedRoutesAnswer503AndThePanelDoesntOnRealCaddy(t *testing.T) {
 	caddy := &Caddy{Dir: dir, Runtime: proc, HTTPPort: freePort(t), HTTPSPort: freePort(t), issuerForTest: map[string]any{"module": "internal"}}
 	t.Cleanup(func() { proc.stop(syscall.SIGKILL) })
 	site := &ingress.PanelSite{Domain: "panel.example.net"}
-	if err := caddy.Start(t.Context(), site); err != nil {
+	if err := caddy.Start(t.Context(), site, false); err != nil {
 		t.Fatal(err)
 	}
 	c := &realCaddy{Caddy: caddy, proc: proc, http: caddy.HTTPPort, tls: caddy.HTTPSPort}

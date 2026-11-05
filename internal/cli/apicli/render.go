@@ -511,6 +511,12 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if line := domainWords(st.GetDomainCheck()); line != "" {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			if st.GetUnencrypted() {
+				fmt.Fprintln(tw, "      "+unencryptedWords(s.GetServerName()))
+			}
+			for _, line := range answersWords(st.GetAnswers(), st.GetServerPort(), s.GetServerName()) {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			for _, warning := range st.GetWarnings() {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
 					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
@@ -566,7 +572,54 @@ func ingressWords(e *dockwellv1.IngressEffect, server string) []string {
 		}
 	case dockwellv1.IngressChange_INGRESS_CHANGE_RESTARTS:
 		out = append(out, fmt.Sprintf("%s restarts on %s, for a newer version, so everything it serves is down for that long.", proxy, server))
+	case dockwellv1.IngressChange_INGRESS_CHANGE_TAKES_PORTS:
+		out = append(out, fmt.Sprintf("This is the first route on %s that takes a certificate, so %s takes ports %s too, and nothing it serves stops.", server, proxy, ports))
+	case dockwellv1.IngressChange_INGRESS_CHANGE_FREES_PORTS:
+		out = append(out, fmt.Sprintf("No route on %s takes a certificate after this, so %s frees ports %s. Its routes that take none go on answering.", server, proxy, ports))
 	default:
+	}
+	return out
+}
+
+// unencryptedWords says what serving a route over plain HTTP means. It isn't an
+// alarm: it's what a tunnel or a private network wants, and it never stops a plan.
+func unencryptedWords(server string) string {
+	return fmt.Sprintf("Traffic for this route reaches %s unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it.", server)
+}
+
+// answersWords says who a route answers, when it isn't anyone over HTTPS sent to a
+// service, and for a port on the server, what that does to what's there.
+func answersWords(a *dockwellv1.RouteAnswers, port *dockwellv1.ServerPortCheck, server string) []string {
+	if a == nil {
+		return nil
+	}
+	var out []string
+	who := ""
+	switch a.GetReach() {
+	case dockwellv1.RouteReach_ROUTE_REACH_THIS_SERVER:
+		who = "what runs on " + server + " itself"
+		out = append(out, fmt.Sprintf("It answers only what runs on %s itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets.", server))
+	case dockwellv1.RouteReach_ROUTE_REACH_PROXIES:
+		list := human.List(a.GetProxies())
+		who = "whoever comes through " + list
+		out = append(out, fmt.Sprintf("It answers only %s. Anyone else gets what a name with no route gets.", list))
+	case dockwellv1.RouteReach_ROUTE_REACH_ANYONE:
+		who = "anyone on the internet"
+		if a.GetPlain() {
+			who = "anyone who can reach " + server
+			out = append(out, fmt.Sprintf("It answers anyone who can reach %s on port 80, over plain HTTP, around whatever is in front of it.", server))
+		}
+	default:
+	}
+	if port == nil {
+		return out
+	}
+	out = append(out, fmt.Sprintf("That lets %s reach port %d, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe.", who, port.GetPort()))
+	switch {
+	case port.GetListening() != "":
+		out = append(out, fmt.Sprintf("Listening there now: %s.", port.GetListening()))
+	case port.GetNothingListening():
+		out = append(out, fmt.Sprintf("Nothing listens on port %d yet, so this answers 502 until something does.", port.GetPort()))
 	}
 	return out
 }
@@ -574,11 +627,13 @@ func ingressWords(e *dockwellv1.IngressEffect, server string) []string {
 // reachWords says what a step reaches that a person approves. A domain isn't
 // access to a server, and the panel's domain moving isn't given to anything.
 func reachWords(access []*dockwellv1.HostAccess, server string) string {
-	var reach, other []*dockwellv1.HostAccess
+	var reach, other, off []*dockwellv1.HostAccess
 	for _, a := range access {
 		switch a.GetKind() {
-		case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN:
+		case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOMAIN, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY, dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PLAIN_FOR_ANYONE:
 			other = append(other, a)
+		case dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF:
+			off = append(off, a)
 		default:
 			reach = append(reach, a)
 		}
@@ -586,6 +641,9 @@ func reachWords(access []*dockwellv1.HostAccess, server string) string {
 	var out []string
 	if len(reach) > 0 {
 		out = append(out, fmt.Sprintf("Gives it access to %s: %s.", server, human.List(accessWords(reach))))
+	}
+	if len(off) > 0 {
+		out = append(out, fmt.Sprintf("Takes away %s.", human.List(accessWords(off))))
 	}
 	if len(other) > 0 {
 		out = append(out, fmt.Sprintf("Takes in %s.", human.List(accessWords(other))))
@@ -617,9 +675,9 @@ func domainWords(c *dockwellv1.DomainCheck) string {
 		}
 		return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come. Point an A or AAAA record at %s; it comes once you do.", c.GetDomain(), here)
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE:
-		return fmt.Sprintf("DNS for %s points at %s, not this server (%s), so its certificate can't come yet. Point it here; it comes once you do.", c.GetDomain(), found, here)
+		return fmt.Sprintf("DNS for %s points at %s, not this server (%s), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain(), found, here)
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL:
-		return fmt.Sprintf("DNS for %s points at %s. This server's own addresses are private (%s), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is.", c.GetDomain(), found, here)
+		return fmt.Sprintf("DNS for %s points at %s. This server's own addresses are private (%s), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain(), found, here)
 	default:
 		return ""
 	}
@@ -650,6 +708,11 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:       resource.AccessCapability,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP:            resource.AccessGroup,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED:       resource.AccessPrivileged,
+
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PORT:      resource.AccessServerPort,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY:    resource.AccessTrustedProxy,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PLAIN_FOR_ANYONE: resource.AccessPlainForAnyone,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF:        resource.AccessHTTPSOff,
 }
 
 // upTo writes a bound to the second, rounding up, as "1 min 50 s", so it

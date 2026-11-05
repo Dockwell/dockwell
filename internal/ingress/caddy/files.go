@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -82,6 +83,37 @@ func readIn(dir, name string, limit int64) ([]byte, error) {
 	return b, nil
 }
 
+// maxTempScan bounds how many names are looked through for a temp file left
+// behind. Caddy's directories are its to fill, and they hold a handful.
+const maxTempScan = 4096
+
+// removeTemps removes what writeIn leaves of name if it dies in mid-write. It
+// goes through names alone, in a directory opened without waiting on a FIFO, and
+// removes what stands there, never through it.
+func removeTemps(root *os.Root, name string) error {
+	parent, base := filepath.Dir(name), filepath.Base(name)
+	dir, err := root.OpenFile(parent, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_DIRECTORY, 0)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	defer dir.Close()
+	entries, err := dir.ReadDir(maxTempScan)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "."+base+".") && strings.HasSuffix(e.Name(), ".tmp") {
+			if err := root.Remove(filepath.Join(parent, e.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // owner is who a written file belongs to. A negative uid leaves it with the
 // agent.
 type owner struct{ uid, gid int }
@@ -119,10 +151,12 @@ func writeIn(dir, name string, b []byte, mode os.FileMode, who owner) error {
 			}
 		}
 	}
-	tmp := filepath.Join(parent, "."+filepath.Base(name)+"."+strconv.Itoa(os.Getpid())+".tmp")
-	if err := root.Remove(tmp); err != nil && !errors.Is(err, os.ErrNotExist) {
+	// What a crash left of an earlier write goes too: it may hold what the file no
+	// longer does, such as the panel's key.
+	if err := removeTemps(root, name); err != nil {
 		return err
 	}
+	tmp := filepath.Join(parent, "."+filepath.Base(name)+"."+strconv.Itoa(os.Getpid())+".tmp")
 	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, mode)
 	if err != nil {
 		return err

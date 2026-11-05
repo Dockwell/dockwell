@@ -42,8 +42,9 @@ type Proxy interface {
 	Prepare(ctx context.Context, panel *PanelSite) error
 	// Start makes it run, with its last config, or with panel's site and no
 	// routes if it has none, and returns once it answers. A proxy of an older
-	// version is replaced.
-	Start(ctx context.Context, panel *PanelSite) error
+	// version is replaced. plainOnly starts one with no config on its plain HTTP
+	// port alone, for routes that take no certificate.
+	Start(ctx context.Context, panel *PanelSite, plainOnly bool) error
 	// Stop stops it and frees its ports, keeping its certificates.
 	Stop(ctx context.Context) error
 	// Routes returns the routes Dockwell gave it, as it has them now, or as
@@ -104,6 +105,16 @@ type Route struct {
 	Domain, Path string
 	// Upstreams are the addresses it sends to, as ip:port.
 	Upstreams []string
+	// Plain is true when TLS ends before this server: it is served over plain
+	// HTTP alone, with no certificate and no redirect.
+	Plain bool
+	// TrustedProxies are the ranges whose X-Forwarded-For it believes, for a request
+	// from one of them, and EdgeProxies those of a network whose CF-Connecting-IP it
+	// believes. With neither, it believes nothing.
+	TrustedProxies, EdgeProxies []string
+	// PlainForAnyone is true for a Plain route that answers anyone. Without it, one
+	// answers only what it trusts, or this server's own loopback if that's nothing.
+	PlainForAnyone bool
 	// Edited is true when it holds something Dockwell doesn't put there, as
 	// after a hand edit, so what it reads as isn't the whole of it.
 	Edited bool
@@ -150,9 +161,12 @@ type Manager struct {
 	Dir string
 	// Panel is the panel on this server, or nil.
 	Panel *Panel
-	// Ports are the ports the proxy holds, from the server's side. Nil means
-	// DefaultPorts.
+	// Ports are the ports the proxy holds, from the server's side, its plain HTTP
+	// port first. Nil means DefaultPorts.
 	Ports []Port
+	// OwnPorts are the ports Dockwell listens on itself on this server, such as
+	// the panel's and the agent listener's, which no route may send to.
+	OwnPorts []int
 	// Holders finds what holds a port. Nil means NewHolders' default, on this
 	// server's /proc and the Docker Engine.
 	Holders *Holders
@@ -202,6 +216,27 @@ func (m *Manager) ports() []Port {
 		return m.Ports
 	}
 	return DefaultPorts
+}
+
+// plainPorts are what a proxy holds for routes that take no certificate: its
+// plain HTTP port alone, as a tunnel or a proxy in front needs nothing else.
+func (m *Manager) plainPorts() []Port { return m.ports()[:1] }
+
+// portsFor are the ports a proxy holds, given whether anything it serves needs
+// HTTPS. The panel's site does, wherever the proxy serves it.
+func (m *Manager) portsFor(https bool) []Port {
+	if https || m.Panel.Moves() {
+		return m.ports()
+	}
+	return m.plainPorts()
+}
+
+// plainOnly reports ports that leave out what HTTPS needs.
+func (m *Manager) plainOnly(ports []Port) bool { return len(minus(m.ports(), ports)) > 0 }
+
+// minus is what of ports isn't in other.
+func minus(ports, other []Port) []Port {
+	return slices.DeleteFunc(slices.Clone(ports), func(p Port) bool { return slices.Contains(other, p) })
 }
 
 func (m *Manager) holders() *Holders {
@@ -303,7 +338,10 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 		return nil, nil
 	}
 	r := routes[i]
-	out := &resourcev1.Route{Domain: r.Domain, Path: r.Path}
+	out := &resourcev1.Route{Domain: r.Domain, Path: r.Path, TrustedProxies: proxyNames(r.TrustedProxies, r.EdgeProxies), PlainForAnyone: r.PlainForAnyone}
+	if r.Plain {
+		out.Tls = TLSOff
+	}
 	if r.Edited {
 		out.Service = editedByHand
 		return out, nil
@@ -314,11 +352,14 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 	for _, up := range r.Upstreams {
 		host, port, err := splitUpstream(up)
 		inst, known := m.table.instanceAt(host)
-		if err != nil || !known || inst.Project != docker.Project(ref.Scope) {
+		switch {
+		case err == nil && !known && host == ServerHost && len(r.Upstreams) == 1:
+			out.HostPort = port
+			continue
+		case err != nil || !known || inst.Project != docker.Project(ref.Scope):
 			out.Service, out.Port = up, 0
 			return out, nil
-		}
-		if out.Service != "" && (out.Service != inst.Service || out.Port != port) {
+		case out.Service != "" && (out.Service != inst.Service || out.Port != port):
 			out.Service, out.Port = up, 0
 			return out, nil
 		}
@@ -326,6 +367,10 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 	}
 	return out, nil
 }
+
+// ServerHost is what a route to a port on the server itself dials, from the
+// proxy on the server's own network.
+const ServerHost = "127.0.0.1"
 
 // editedByHand is what a route reads as in place of its service, when its
 // config holds what Dockwell doesn't put there.
@@ -363,8 +408,8 @@ func routesAfter(have []Route, desired []resource.Desired) (left int, first, las
 			last = d.Ref
 		}
 	}
-	for _, r := range have {
-		if !in[r.ID] {
+	for i := range have {
+		if !in[have[i].ID] {
 			left++
 		}
 	}
@@ -374,6 +419,36 @@ func routesAfter(have []Route, desired []resource.Desired) (left int, first, las
 // routeKind is the route kind, which internal/resource/route names. That
 // package names no proxy, and this one needs none of it but this.
 const routeKind resource.Kind = "route"
+
+// routeSpec is a plan's item as a route, or nil for one that isn't, or that
+// deletes.
+func routeSpec(d resource.Desired) *resourcev1.Route {
+	if d.Ref.Kind != routeKind {
+		return nil
+	}
+	spec, ok := d.Spec.(*resourcev1.Route)
+	if !ok {
+		return nil
+	}
+	return spec
+}
+
+// needsHTTPS reports routes that need a certificate once a plan applies: those it
+// makes or edits, and those it leaves. A route edited by hand counts, as nothing
+// here can say what it needs.
+func needsHTTPS(have []Route, desired []resource.Desired) bool {
+	in := map[string]bool{}
+	for _, d := range desired {
+		if d.Ref.Kind != routeKind {
+			continue
+		}
+		in[RouteID(d.Ref)] = true
+		if spec := routeSpec(d); spec != nil && spec.GetTls() != TLSOff {
+			return true
+		}
+	}
+	return slices.ContainsFunc(have, func(r Route) bool { return !in[r.ID] && !r.Plain })
+}
 
 // Judge says what a step does to the ingress, given all the plan touches on
 // this server, and what DNS says of the route's domain.
@@ -391,24 +466,43 @@ func (m *Manager) Judge(ctx context.Context, ref resource.Ref, spec *resourcev1.
 		return nil, nil, err
 	}
 	left, first, last := routesAfter(have, desired)
+	held, after := m.portsFor(needsHTTPS(have, nil)), m.portsFor(needsHTTPS(have, desired))
+	proxy := m.Proxy.Name()
 	var effect *resource.IngressEffect
 	switch {
 	case spec != nil && !st.Running && first == ref:
-		effect = &resource.IngressEffect{Change: resource.IngressStarts, Proxy: m.Proxy.Name(), Ports: portNames(m.ports())}
+		effect = &resource.IngressEffect{Change: resource.IngressStarts, Proxy: proxy, Ports: portNames(after)}
 	case spec != nil && st.Outdated && first == ref:
-		effect = &resource.IngressEffect{Change: resource.IngressRestarts, Proxy: m.Proxy.Name()}
+		effect = &resource.IngressEffect{Change: resource.IngressRestarts, Proxy: proxy}
 	case spec == nil && left == 0 && last == ref:
-		effect = &resource.IngressEffect{Change: resource.IngressStops, Proxy: m.Proxy.Name(), Ports: portNames(m.ports())}
+		effect = &resource.IngressEffect{Change: resource.IngressStops, Proxy: proxy, Ports: portNames(held)}
+	case st.Running && left > 0 && (first == ref || (first == resource.Ref{} && last == ref)):
+		if more := minus(after, held); len(more) > 0 {
+			effect = &resource.IngressEffect{Change: resource.IngressTakesPorts, Proxy: proxy, Ports: portNames(more)}
+		} else if less := minus(held, after); len(less) > 0 {
+			effect = &resource.IngressEffect{Change: resource.IngressFreesPorts, Proxy: proxy, Ports: portNames(less)}
+		}
 	}
-	if effect != nil && effect.Change != resource.IngressRestarts && m.Panel.Moves() {
-		effect.PanelDomain = m.Panel.Domain
+	if effect != nil && m.Panel.Moves() {
+		// Starting again behind the proxy it is behind already moves nothing, so a
+		// brief outage doesn't turn a token's route plan into a person's.
+		starting := effect.Change == resource.IngressStarts && !m.behindProxy()
+		if starting || effect.Change == resource.IngressStops {
+			effect.PanelDomain = m.Panel.Domain
+		}
 	}
+	// A domain behind a tunnel or a proxy points at that, so DNS has nothing to
+	// say of a certificate that nothing asks for.
 	var check *resource.DomainCheck
-	if spec != nil {
+	if spec != nil && spec.GetTls() != TLSOff {
 		check = m.dns().Check(ctx, spec.GetDomain())
 	}
 	return effect, check, nil
 }
+
+// behindProxy reports a panel whose ports are with the proxy, whether or not the
+// proxy is up: dockwell run left them alone if the marker was there as it started.
+func (m *Manager) behindProxy() bool { return m.handed || Active(m.Dir) }
 
 // Returning names what the plan should warn of on this server: stopped containers
 // that Docker starts again when it next restarts, and that may take the ports
@@ -420,7 +514,11 @@ func (m *Manager) Returning(ctx context.Context, ref resource.Ref, spec *resourc
 	if _, first, _ := routesAfter(nil, desired); first != ref {
 		return nil
 	}
-	return m.holders().Returning(ctx, m.ports())
+	ports := m.ports()
+	if have, err := m.Proxy.Routes(ctx); err == nil {
+		ports = m.portsFor(needsHTTPS(have, desired))
+	}
+	return m.holders().Returning(ctx, ports)
 }
 
 // Check refuses what stops a plan's routes running on this server: another
@@ -432,50 +530,202 @@ func (m *Manager) Check(ctx context.Context, _ resource.Ref, desired []resource.
 		return err
 	}
 	defer m.mu.unlock()
-	if err := m.checkLimits(ctx, desired); err != nil {
+	if err := m.checkLimits(ctx, desired, 1); err != nil {
 		return err
 	}
-	return m.checkStart(ctx)
+	have, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return err
+	}
+	if err := m.checkHostPorts(desired); err != nil {
+		return err
+	}
+	if err := m.checkServersNetwork(ctx, desired); err != nil {
+		return err
+	}
+	return m.checkPorts(ctx, have, m.portsFor(needsHTTPS(have, desired)))
 }
 
-// checkStart refuses what would stop the proxy starting, if it needs to: a daemon
-// it can't run under, or something else on its ports. Both come before the panel
-// lets go of the ports, as they're no use to anyone then.
-func (m *Manager) checkStart(ctx context.Context) error {
+// serversNetwork says why a route can't send to a service on the server's own
+// network by its name, and what can: Docker can't put a container there on any
+// other network, so the proxy has no address for it (ADR 0030).
+func serversNetwork(service string) error {
+	return fmt.Errorf("the service %[1]s runs on the server's own network, and Docker can't put a container there on the ingress's as well, so a route can't send to it by name. "+
+		"Send the route to the port %[1]s listens on with host_port, or take %[1]s off host_network", service)
+}
+
+// checkServersNetwork refuses a route to a service on the server's own network. What
+// the plan runs says first, as a service in it may be going onto that network or
+// coming off it, and then what the server runs.
+func (m *Manager) checkServersNetwork(ctx context.Context, desired []resource.Desired) error {
+	planned := map[Service]bool{}
+	for _, d := range desired {
+		if spec, ok := d.Spec.(*resourcev1.Service); ok {
+			planned[Service{Project: docker.Project(d.Ref.Scope), Name: d.Ref.Name}] = spec.GetApp().GetHostNetwork()
+		}
+	}
+	for _, d := range desired {
+		spec := routeSpec(d)
+		if spec == nil || spec.GetHostPort() != 0 {
+			continue
+		}
+		s := serviceOf(d.Ref, spec)
+		on, inPlan := planned[s]
+		if !inPlan {
+			c, err := m.Client.ContainerNamed(ctx, Instance{Project: s.Project, Service: s.Name, Number: 1}.ContainerName())
+			switch {
+			case docker.IsNotFound(err):
+				continue
+			case err != nil:
+				return err
+			}
+			on = c.HostConfig.NetworkMode == hostNetworkMode
+		}
+		if on {
+			return serversNetwork(s.Name)
+		}
+	}
+	return nil
+}
+
+// RoutedAfter reports a route that still sends to an instance's service once the
+// plan under way applies. Those the plan touches say for themselves, in Check.
+func (m *Manager) RoutedAfter(ctx context.Context, i Instance, desired []resource.Desired) (bool, error) {
+	if err := m.mu.lock(ctx); err != nil {
+		return false, err
+	}
+	defer m.mu.unlock()
+	if err := m.table.load(m.Dir); err != nil {
+		return false, err
+	}
+	have, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return false, err
+	}
+	in := map[string]bool{}
+	for _, d := range desired {
+		if d.Ref.Kind == routeKind {
+			in[RouteID(d.Ref)] = true
+		}
+	}
+	for k := range have {
+		r := &have[k]
+		if in[r.ID] {
+			continue
+		}
+		for _, up := range r.Upstreams {
+			if got, known := m.instanceOf(up); known && got.service() == i.service() {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// Listening names what listens on a port on the server, for a plan to say, or says
+// nothing does. With neither, it couldn't say, and it never stops a plan.
+func (m *Manager) Listening(ctx context.Context, port uint32) (who string, nothing bool) {
+	held, err := m.holders().Of(ctx, []Port{{Number: int(port)}})
+	if err != nil {
+		return "", false
+	}
+	if len(held) == 0 {
+		return "", true
+	}
+	return held[0].Words, false
+}
+
+// checkHostPorts refuses a route to a port on the server that is Dockwell's own:
+// the panel's and its other listeners, or the proxy's, which would dial itself.
+func (m *Manager) checkHostPorts(desired []resource.Desired) error {
+	for _, d := range desired {
+		spec := routeSpec(d)
+		if spec == nil || spec.GetHostPort() == 0 {
+			continue
+		}
+		port := int(spec.GetHostPort())
+		if slices.Contains(m.OwnPorts, port) {
+			return fmt.Errorf("port %d on this server is one Dockwell listens on itself, and a route to it would open the panel or the agent's own listener to the internet, past what guards them. Choose the port of what you mean to serve", port)
+		}
+		if slices.ContainsFunc(m.ports(), func(p Port) bool { return p.Number == port && !p.UDP }) {
+			return fmt.Errorf("port %d on this server is the one %s listens on, so a route to it would send requests round in a circle. Choose the port of what you mean to serve", port, m.Proxy.Name())
+		}
+	}
+	return nil
+}
+
+// checkPorts refuses what would stop the proxy holding the ports it needs: all of
+// them if it has to start, and otherwise those it doesn't hold yet. This comes
+// before the panel lets go of the ports, as they're no use to anyone then.
+func (m *Manager) checkPorts(ctx context.Context, have []Route, want []Port) error {
 	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
 	}
 	if st.Running {
-		return nil
+		want = minus(want, m.portsFor(needsHTTPS(have, nil)))
+		if len(want) == 0 {
+			return nil
+		}
 	}
-	info, err := m.Client.Info(ctx)
+	held, err := m.othersOn(ctx, want)
 	if err != nil {
 		return err
 	}
-	if info.NoNewPrivileges() {
-		return errors.New("docker on this server sets no-new-privileges for every container, so " + m.Proxy.Name() + " couldn't bind ports 80 and 443, as it gets that from a file capability, which that setting ignores. Nothing changed. To use routes here, remove no-new-privileges from /etc/docker/daemon.json and restart Docker")
-	}
-	held, err := m.othersOnPorts(ctx)
-	if err != nil {
-		return err
-	}
-	if len(held) == 0 {
+	switch {
+	case len(held) == 0:
 		return nil
+	case st.Running:
+		return portsWanted(held, m.Proxy.Name())
 	}
 	return portsTaken(held, m.Proxy.Name())
 }
 
-// othersOnPorts says what holds the proxy's ports, but for the panel when it
+// othersOn says what holds these of the proxy's ports, but for the panel when it
 // gives them up as the proxy starts, and the proxy itself.
-func (m *Manager) othersOnPorts(ctx context.Context) ([]Holder, error) {
-	held, err := m.holders().Of(ctx, m.ports())
+func (m *Manager) othersOn(ctx context.Context, ports []Port) ([]Holder, error) {
+	held, err := m.holders().Of(ctx, ports)
 	if err != nil {
 		return nil, err
 	}
 	return slices.DeleteFunc(held, func(h Holder) bool {
 		return (h.Self && (m.Panel.Moves() || m.handed)) || h.Container == ContainerName
 	}), nil
+}
+
+// holdersWords says who holds what, as the start of a sentence.
+func holdersWords(held []Holder) string {
+	parts := make([]string, 0, len(held))
+	for i, h := range held {
+		switch {
+		case i > 0 && h.Words == held[i-1].Words:
+			parts = append(parts, "port "+h.Port.Words()+" by the same")
+		case i == 0:
+			parts = append(parts, "Port "+h.Port.Words()+" is held by "+h.Words)
+		default:
+			parts = append(parts, "port "+h.Port.Words()+" by "+h.Words)
+		}
+	}
+	return strings.Join(parts, ", and ")
+}
+
+// findWords says how to find out what holds a port the agent can't name, if there's
+// one, with a space ahead of it.
+func findWords(held []Holder) string {
+	for _, h := range held {
+		if h.Unknown {
+			return " To see what holds it, run " + h.Port.FindCommand() + "."
+		}
+	}
+	return ""
+}
+
+// portsWanted says who holds what a running proxy needs for a route that wants a
+// certificate, as it runs for routes that didn't. They go on, and the route may not
+// need one at all.
+func portsWanted(held []Holder, proxy string) error {
+	return fmt.Errorf("%s, so %s, which runs for this server's other routes, can't take it for this route's certificate. What it serves goes on.%s Free that port, or if TLS ends before this server, as at a tunnel or a proxy in front of it, set tls to off on this route",
+		holdersWords(held), proxy, findWords(held))
 }
 
 // holderNames are the names to act on, each once: a container's, or else what the
@@ -536,27 +786,9 @@ func portsHeldNow(held []Holder, proxy, panelDomain string) error {
 
 // portsTaken says who holds what, what follows, and how to fix it.
 func portsTaken(held []Holder, proxy string) error {
-	parts := make([]string, 0, len(held))
-	for i, h := range held {
-		switch {
-		case i > 0 && h.Words == held[i-1].Words:
-			parts = append(parts, "port "+h.Port.Words()+" by the same")
-		case i == 0:
-			parts = append(parts, "Port "+h.Port.Words()+" is held by "+h.Words)
-		default:
-			parts = append(parts, "port "+h.Port.Words()+" by "+h.Words)
-		}
-	}
-	how := ""
-	for _, h := range held {
-		if h.Unknown {
-			how = " To see what holds it, run " + h.Port.FindCommand() + "."
-			break
-		}
-	}
 	return fmt.Errorf("%s, so %s can't start on this server and this route can't serve traffic. What runs there keeps running.%s "+
 		"Stop that proxy, or publish the service's port and point that proxy at it",
-		strings.Join(parts, ", and "), proxy, how)
+		holdersWords(held), proxy, findWords(held))
 }
 
 // Ready says why routes can't run on this server now.
@@ -595,38 +827,72 @@ func (m *Manager) Apply(ctx context.Context, ref resource.Ref, spec *resourcev1.
 
 // put serves one route, starting the proxy if this is the first.
 func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Route, effect *resource.IngressEffect) error {
-	// As a plan made a while ago can have seen fewer than there are now.
-	if err := m.checkLimits(ctx, []resource.Desired{{Ref: ref, Spec: spec}}); err != nil {
+	// As a plan made a while ago can have seen fewer than there are now. Its own
+	// later deletes aren't known here, so this allows for them (applyMargin).
+	step := []resource.Desired{{Ref: ref, Spec: spec}}
+	if err := m.checkLimits(ctx, step, applyMargin); err != nil {
+		return err
+	}
+	if err := m.checkHostPorts(step); err != nil {
 		return err
 	}
 	st, err := m.Proxy.Status(ctx)
 	if err != nil {
 		return err
 	}
+	if m.Panel.Moves() && Active(m.Dir) {
+		m.handed = true // dockwell run left the ports alone, as they are the proxy's
+	}
 	if !st.Running && m.Panel.Moves() && !m.handed && (effect == nil || effect.PanelDomain == "") {
-		return fmt.Errorf("this plan didn't say that the panel's domain, %s, moves behind %s, as its server wasn't reachable when it was made, and that step needs a person. Nothing changed. Make the plan again", m.Panel.Domain, m.Proxy.Name())
+		return fmt.Errorf("this plan didn't say that the panel's domain, %s, moves behind %s, as its server wasn't reachable when it was made, and that step needs a person. Make the plan again", m.Panel.Domain, m.Proxy.Name())
 	}
-	if err := m.ensureNetwork(ctx); err != nil {
-		return err
-	}
-	svc := serviceOf(ref, spec)
-	instances, err := m.reserveAll(ctx, svc)
+	have, err := m.Proxy.Routes(ctx)
 	if err != nil {
 		return err
 	}
+	want := m.portsFor(needsHTTPS(have, step))
+	// What a running proxy doesn't hold yet comes before anything else changes.
+	if st.Running {
+		if err := m.checkPorts(ctx, have, want); err != nil {
+			return err
+		}
+	}
+	var dials []string
+	if port := spec.GetHostPort(); port != 0 {
+		dials = []string{ServerHost + ":" + strconv.Itoa(int(port))}
+	} else {
+		if err := m.ensureNetwork(ctx); err != nil {
+			return err
+		}
+		instances, err := m.reserveAll(ctx, serviceOf(ref, spec))
+		if err != nil {
+			return err
+		}
+		dials = m.dialsOf(instances, spec.GetPort())
+	}
 	start := !st.Running || (st.Outdated && effect != nil && effect.Change == resource.IngressRestarts)
 	if start {
-		if err := m.start(ctx, st); err != nil {
+		if err := m.start(ctx, st, have, want); err != nil {
 			m.leaveAsItWas(ctx)
 			return err
 		}
 	}
-	r := Route{ID: RouteID(ref), Domain: spec.GetDomain(), Path: spec.GetPath(), Upstreams: m.dialsOf(instances, spec.GetPort())}
+	named, edge := splitProxies(spec.GetTrustedProxies())
+	r := Route{
+		ID: RouteID(ref), Domain: spec.GetDomain(), Path: spec.GetPath(), Upstreams: dials,
+		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(),
+	}
 	m.logReplaced(ctx, r)
-	if err := m.noteDomain(ctx, r.Domain); err != nil {
-		return err
+	if !r.Plain {
+		if err := m.noteDomain(ctx, r.Domain); err != nil {
+			return err
+		}
 	}
 	if err := m.Proxy.PutRoute(ctx, r); err != nil {
+		// A port taken since the check is refused by name, as at any other time.
+		if strings.Contains(err.Error(), "address already in use") {
+			err = m.named(ctx, want, err)
+		}
 		return fmt.Errorf("%s refused the route %s: %w", m.Proxy.Name(), ref.Name, err)
 	}
 	// An edit may have left the service it sent to with no route.
@@ -634,7 +900,7 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		m.logger().WarnContext(ctx, "can't take a service with no route left off the ingress network, which does no harm; the agent tries again",
 			slog.String("error", err.Error()))
 	}
-	m.ensureKeeper(ctx)
+	m.ensureKeeper(ctx, true)
 	return nil
 }
 
@@ -652,7 +918,8 @@ func (m *Manager) logReplaced(ctx context.Context, r Route) {
 		}
 		return parts[1]
 	}
-	for _, old := range routes {
+	for i := range routes {
+		old := &routes[i]
 		if old.ID != r.ID && old.Domain == r.Domain && project(old.ID) != project(r.ID) {
 			m.logger().WarnContext(ctx, "a route replaced one for the same domain, left by another control plane or an older database, which the engine says can't stand beside it",
 				slog.String("domain", r.Domain), slog.String("old", old.ID), slog.String("new", r.ID))
@@ -662,9 +929,9 @@ func (m *Manager) logReplaced(ctx context.Context, r Route) {
 
 // start takes the panel's ports, if it holds them, and starts the proxy. When
 // the proxy can't start, the panel takes them back.
-func (m *Manager) start(ctx context.Context, st Status) error {
+func (m *Manager) start(ctx context.Context, st Status, have []Route, want []Port) error {
 	if !st.Running {
-		if err := m.checkStart(ctx); err != nil {
+		if err := m.checkPorts(ctx, have, want); err != nil {
 			return err
 		}
 	}
@@ -685,7 +952,7 @@ func (m *Manager) start(ctx context.Context, st Status) error {
 		}
 		m.handed, moved = true, true
 	}
-	if err := m.Proxy.Start(ctx, m.panelSite(ctx)); err != nil {
+	if err := m.Proxy.Start(ctx, m.panelSite(ctx), m.plainOnly(want)); err != nil {
 		if moved {
 			// The proxy didn't start, so nothing else holds them.
 			m.retake(ctx)
@@ -693,7 +960,7 @@ func (m *Manager) start(ctx context.Context, st Status) error {
 		if !st.Running {
 			_ = m.setActive(false)
 		}
-		return m.named(ctx, err)
+		return m.named(ctx, want, err)
 	}
 	// A proxy resuming its last config ignores the bootstrap, so the panel's
 	// site goes in now if this start of Dockwell has one it hadn't.
@@ -734,11 +1001,12 @@ func (m *Manager) leaveAsItWas(ctx context.Context) {
 	}
 }
 
-// named says who holds the ports when a proxy couldn't start for them: they
-// can be taken between the check and the start, and a port taken is refused by
-// name, whenever it is found out.
-func (m *Manager) named(ctx context.Context, startErr error) error {
-	held, err := m.holders().Of(context.WithoutCancel(ctx), m.ports())
+// named says who holds the ports a proxy wanted, when it couldn't start: they can
+// be taken between the check and the start, and a port taken is refused by name,
+// whenever it is found out. What the proxy itself said goes with it, as the ports
+// may not be why, and one it didn't want says nothing of why.
+func (m *Manager) named(ctx context.Context, want []Port, startErr error) error {
+	held, err := m.holders().Of(context.WithoutCancel(ctx), want)
 	if err != nil {
 		return startErr
 	}
@@ -746,7 +1014,7 @@ func (m *Manager) named(ctx context.Context, startErr error) error {
 	if len(held) == 0 {
 		return startErr
 	}
-	return portsTaken(held, m.Proxy.Name())
+	return fmt.Errorf("%w. %s said: %w", portsTaken(held, m.Proxy.Name()), m.Proxy.Name(), startErr)
 }
 
 // remove stops serving a route, and stops the proxy if it was the last. It
@@ -834,9 +1102,17 @@ func (m *Manager) Verify(ctx context.Context, ref resource.Ref) error {
 const ContainerName = "dockwell-ingress"
 
 // PublicPort reports a port the proxy holds while the server has routes, so a
-// service can't publish it.
-func (m *Manager) PublicPort(_ context.Context, port uint32, udp bool) (bool, error) {
-	return Active(m.Dir) && slices.ContainsFunc(m.ports(), func(p Port) bool { return int64(p.Number) == int64(port) && p.UDP == udp }), nil
+// service can't publish it. A server whose routes take no certificate holds its
+// plain HTTP port alone; when it can't be read, it counts as holding them all.
+func (m *Manager) PublicPort(ctx context.Context, port uint32, udp bool) (bool, error) {
+	if !Active(m.Dir) {
+		return false, nil
+	}
+	ports := m.ports()
+	if have, err := m.Proxy.Routes(ctx); err == nil {
+		ports = m.portsFor(needsHTTPS(have, nil))
+	}
+	return slices.ContainsFunc(ports, func(p Port) bool { return int64(p.Number) == int64(port) && p.UDP == udp }), nil
 }
 
 // Reconcile puts the server as its routes need it, when the agent comes back
@@ -897,11 +1173,17 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		return m.stop(ctx)
 	}
 	m.noteOutdated(ctx, st)
+	m.noteOwnPorts(ctx, routes)
 	// The network first: a route that dials a subnet someone else has now mustn't
-	// get a request, even from a proxy that is starting.
-	networkErr := m.ensureNetwork(ctx)
+	// get a request, even from a proxy that is starting. Routes to the server's own
+	// ports alone have no use for one.
+	var networkErr error
+	if m.table.Subnet != "" || dialsContainers(routes) {
+		networkErr = m.ensureNetwork(ctx)
+	}
 	if !st.Running {
-		held, err := m.othersOnPorts(ctx)
+		want := m.portsFor(needsHTTPS(routes, nil))
+		held, err := m.othersOn(ctx, want)
 		if err != nil {
 			return errors.Join(err, networkErr)
 		}
@@ -911,8 +1193,8 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 			return errors.Join(err, networkErr)
 		}
 		m.logger().InfoContext(ctx, "starting the ingress, which wasn't running", slog.String("proxy", m.Proxy.Name()))
-		if err := m.Proxy.Start(ctx, m.panelSite(ctx)); err != nil {
-			err = m.named(ctx, err)
+		if err := m.Proxy.Start(ctx, m.panelSite(ctx), m.plainOnly(want)); err != nil {
+			err = m.named(ctx, want, err)
 			m.report(&problem{kind: dockwellv1.IngressProblem_INGRESS_PROBLEM_NOT_RUNNING, message: err.Error()})
 			return errors.Join(err, networkErr)
 		}
@@ -937,7 +1219,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	if err := m.Proxy.SetClosed(ctx, false); err != nil {
 		return err
 	}
-	m.ensureKeeper(ctx)
+	m.ensureKeeper(ctx, false)
 	m.report(nil)
 	return nil
 }
@@ -963,6 +1245,32 @@ func (m *Manager) noteOutdated(ctx context.Context, st Status) {
 	if st.Outdated && !said {
 		m.logger().WarnContext(ctx, "the ingress runs another version than this release of Dockwell pins, which may be missing security fixes. It moves to the pinned one on this server's next route change",
 			slog.String("proxy", m.Proxy.Name()), slog.String("version", st.Version), slog.String("pinned", st.Pinned))
+	}
+}
+
+// noteOwnPorts says once when a route sends to a port Dockwell has come to listen
+// on, as a listener moved there after the route was made. A plan refuses that, and
+// nothing looks again until now. The panel's listener refuses a public Host, so
+// nothing is exposed, but the route doesn't reach what it meant to.
+func (m *Manager) noteOwnPorts(ctx context.Context, routes []Route) {
+	var found []string
+	for k := range routes {
+		r := &routes[k]
+		for _, up := range r.Upstreams {
+			if host, port, err := splitUpstream(up); err == nil && host == ServerHost && slices.Contains(m.OwnPorts, int(port)) {
+				found = append(found, r.Domain+" to port "+strconv.Itoa(int(port)))
+			}
+		}
+	}
+	said := strings.Join(found, ", ")
+	b := &m.status
+	b.mu.Lock()
+	again := said != b.ownPorts
+	b.ownPorts = said
+	b.mu.Unlock()
+	if again && said != "" {
+		m.logger().WarnContext(ctx, "a route sends to a port Dockwell now listens on itself, so it doesn't reach what it was made for. Nothing is exposed, as the panel's listener refuses a public Host. Move Dockwell's listener, or point the route at another port",
+			slog.String("routes", said))
 	}
 }
 

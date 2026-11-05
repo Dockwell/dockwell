@@ -97,6 +97,9 @@ const (
 	// The last try failed. Dockwell tries again by itself, and at once when the
 	// domain's DNS starts pointing here.
 	CertificateState_CERTIFICATE_STATE_FAILED CertificateState = 3
+	// None, as TLS ends before this server: its routes say tls off, so it has no
+	// certificate here, and none is asked for.
+	CertificateState_CERTIFICATE_STATE_NONE CertificateState = 4
 )
 
 // Enum value maps for CertificateState.
@@ -106,12 +109,14 @@ var (
 		1: "CERTIFICATE_STATE_PENDING",
 		2: "CERTIFICATE_STATE_ISSUED",
 		3: "CERTIFICATE_STATE_FAILED",
+		4: "CERTIFICATE_STATE_NONE",
 	}
 	CertificateState_value = map[string]int32{
 		"CERTIFICATE_STATE_UNSPECIFIED": 0,
 		"CERTIFICATE_STATE_PENDING":     1,
 		"CERTIFICATE_STATE_ISSUED":      2,
 		"CERTIFICATE_STATE_FAILED":      3,
+		"CERTIFICATE_STATE_NONE":        4,
 	}
 )
 
@@ -331,7 +336,9 @@ type Domain struct {
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The environment that holds it, by ID. A domain lives in one environment.
 	EnvironmentId string `protobuf:"bytes,2,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
-	// Where it answers, such as "https://app.example.com".
+	// Where it answers, such as "https://app.example.com". A domain whose routes
+	// take no certificate reads "http://app.example.com", which is what this server
+	// serves, and whatever ends TLS in front of it may answer HTTPS too.
 	Url string `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
 	// Its routes, by path.
 	Routes []*DomainRoute `protobuf:"bytes,4,rep,name=routes,proto3" json:"routes,omitempty"`
@@ -415,14 +422,21 @@ type DomainRoute struct {
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// The path it covers. Empty covers the whole domain.
 	Path string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
-	// The service it sends to, by name.
+	// The service it sends to, by name. Empty when host_port is set.
 	Service string `protobuf:"bytes,4,opt,name=service,proto3" json:"service,omitempty"`
-	// The service's port it sends to.
+	// The service's port it sends to. Empty when host_port is set.
 	Port uint32 `protobuf:"varint,5,opt,name=port,proto3" json:"port,omitempty"`
 	// Where it answers, such as "https://app.example.com/api".
-	Url           string `protobuf:"bytes,6,opt,name=url,proto3" json:"url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Url string `protobuf:"bytes,6,opt,name=url,proto3" json:"url,omitempty"`
+	// "off" when TLS ends before this server, as Route.tls says.
+	Tls string `protobuf:"bytes,7,opt,name=tls,proto3" json:"tls,omitempty"`
+	// The port on the server itself it sends to, in place of a service's.
+	HostPort uint32 `protobuf:"varint,8,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
+	// True when a route with tls off answers anyone who can reach the server, as
+	// Route.plain_for_anyone says.
+	PlainForAnyone bool `protobuf:"varint,9,opt,name=plain_for_anyone,json=plainForAnyone,proto3" json:"plain_for_anyone,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *DomainRoute) Reset() {
@@ -495,6 +509,27 @@ func (x *DomainRoute) GetUrl() string {
 		return x.Url
 	}
 	return ""
+}
+
+func (x *DomainRoute) GetTls() string {
+	if x != nil {
+		return x.Tls
+	}
+	return ""
+}
+
+func (x *DomainRoute) GetHostPort() uint32 {
+	if x != nil {
+		return x.HostPort
+	}
+	return 0
+}
+
+func (x *DomainRoute) GetPlainForAnyone() bool {
+	if x != nil {
+		return x.PlainForAnyone
+	}
+	return false
 }
 
 // DomainServer is where a domain stands on one server.
@@ -848,14 +883,17 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x120\n" +
 	"\x06routes\x18\x04 \x03(\v2\x18.dockwell.v1.DomainRouteR\x06routes\x123\n" +
-	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\x85\x01\n" +
+	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\xde\x01\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x18\n" +
 	"\aservice\x18\x04 \x01(\tR\aservice\x12\x12\n" +
 	"\x04port\x18\x05 \x01(\rR\x04port\x12\x10\n" +
-	"\x03url\x18\x06 \x01(\tR\x03url\"\xcb\x01\n" +
+	"\x03url\x18\x06 \x01(\tR\x03url\x12\x10\n" +
+	"\x03tls\x18\a \x01(\tR\x03tls\x12\x1b\n" +
+	"\thost_port\x18\b \x01(\rR\bhostPort\x12(\n" +
+	"\x10plain_for_anyone\x18\t \x01(\bR\x0eplainForAnyone\"\xcb\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -886,12 +924,13 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x1bINGRESS_PROBLEM_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bINGRESS_PROBLEM_PORTS_TAKEN\x10\x01\x12 \n" +
 	"\x1cINGRESS_PROBLEM_SUBNET_TAKEN\x10\x02\x12\x1f\n" +
-	"\x1bINGRESS_PROBLEM_NOT_RUNNING\x10\x03*\x90\x01\n" +
+	"\x1bINGRESS_PROBLEM_NOT_RUNNING\x10\x03*\xac\x01\n" +
 	"\x10CertificateState\x12!\n" +
 	"\x1dCERTIFICATE_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19CERTIFICATE_STATE_PENDING\x10\x01\x12\x1c\n" +
 	"\x18CERTIFICATE_STATE_ISSUED\x10\x02\x12\x1c\n" +
-	"\x18CERTIFICATE_STATE_FAILED\x10\x03*\xca\x02\n" +
+	"\x18CERTIFICATE_STATE_FAILED\x10\x03\x12\x1a\n" +
+	"\x16CERTIFICATE_STATE_NONE\x10\x04*\xca\x02\n" +
 	"\x12CertificateProblem\x12#\n" +
 	"\x1fCERTIFICATE_PROBLEM_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17CERTIFICATE_PROBLEM_DNS\x10\x01\x12\"\n" +
