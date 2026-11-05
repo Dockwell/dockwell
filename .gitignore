@@ -1,6 +1,9 @@
 # Build output
 /bin/
 /dist/
+# What go build leaves here with no -o
+/dockwell
+/dockwell-agent
 
 # Dependencies
 node_modules/
