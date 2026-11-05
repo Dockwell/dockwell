@@ -119,7 +119,7 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 	if err != nil {
 		return nil, err
 	}
-	plain := Proposal{Summary: words, Actor: by.Actor, Via: by.Via, Edits: []Edit{ed}, Notes: notes, RollsBackTo: number, IfNothing: nothing}
+	plain := Proposal{Summary: words, Actor: by.Actor, Via: by.Via, Edits: []Edit{ed}, Notes: notes, RollsBackTo: number, IfNothing: nothing, Intent: &Intent{Kind: IntentRollBack, Resource: resourceID, Revision: number}}
 	gone := Note{Reason: "digest_gone", Message: goneWords, Ref: ed.Ref}
 	if pinned == nil {
 		if goneWords != "" {

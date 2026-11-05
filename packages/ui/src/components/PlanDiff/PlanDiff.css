@@ -4,13 +4,20 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+/* The counts, then the impact on a row of its own, whatever the width. */
 .dw-plan-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.dw-plan-counts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-4);
-  font-size: 13px;
-  color: var(--ink-muted);
+  gap: var(--space-1) var(--space-4);
 }
 .dw-plan-count {
   display: inline-flex;
@@ -21,15 +28,19 @@
   color: var(--ink);
   font-weight: 600;
 }
-.dw-plan-count.is-zero {
-  opacity: 0.55;
-}
 .dw-plan-impact {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 6px;
   color: var(--ink-muted);
+}
+.dw-plan-impact > .dw-icon {
+  flex: none;
+  margin-top: 2px;
+}
+.dw-plan-impact code {
+  font-size: 12.5px;
+  color: var(--ink);
 }
 .dw-plan-sym {
   font: 600 14px / 1 var(--font-mono);
@@ -44,6 +55,7 @@
 .dw-plan-sym.is-remove {
   color: var(--diff-remove);
 }
+/* A zero is a promise, not a state: it keeps its symbol, in ink, and holds 4.5:1. */
 .dw-plan-list {
   margin: 0;
   padding: 0;
@@ -106,6 +118,14 @@ button.dw-plan-row:hover {
   color: var(--ink-muted);
   white-space: nowrap;
 }
+.dw-plan-val code {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: inherit;
+  background: none;
+  padding: 0;
+}
 .dw-plan-res.is-remove .dw-plan-name code {
   text-decoration: line-through;
   text-decoration-color: var(--diff-remove);
@@ -128,8 +148,25 @@ button.dw-plan-row:hover {
 .dw-plan-changes[hidden] {
   display: none;
 }
-.dw-plan-path {
+.dw-plan-path,
+.dw-plan-label {
   color: var(--ink-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* What a field means is words, not a machine value. */
+.dw-plan-label {
+  font: 400 12.5px / 20px var(--font-sans);
+}
+.dw-plan-label.is-critical,
+.dw-plan-path.is-critical {
+  color: var(--critical);
+  font-weight: 500;
+}
+.dw-plan-label.is-warning,
+.dw-plan-path.is-warning {
+  color: var(--warning);
+  font-weight: 500;
 }
 .dw-plan-val {
   display: flex;
@@ -144,10 +181,26 @@ button.dw-plan-row:hover {
 }
 /* Old values are struck through as well as coloured, so the diff reads in grayscale. */
 .dw-diff-from,
-.dw-diff-to {
+.dw-diff-to,
+.dw-diff-critical,
+.dw-diff-warning,
+.dw-diff-change {
   padding: 0 5px;
   border-radius: 3px;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+/* Words with machine values among them: the words in sans, the values in mono. */
+.dw-diff-from.is-words,
+.dw-diff-to.is-words,
+.dw-diff-critical.is-words,
+.dw-diff-warning.is-words,
+.dw-diff-change.is-words {
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.dw-diff-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 .dw-diff-from {
   background: var(--diff-remove-soft);
@@ -159,10 +212,43 @@ button.dw-plan-row:hover {
   background: var(--diff-add-soft);
   color: var(--diff-add);
 }
+/* What puts the server or its data at risk is never a green "added". */
+.dw-diff-critical {
+  background: var(--critical-soft);
+  color: var(--critical);
+  font-weight: 500;
+}
+.dw-diff-change {
+  background: var(--diff-change-soft);
+  color: var(--diff-change);
+}
 .dw-diff-secret {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   color: var(--ink-muted);
   font-family: var(--font-sans);
+}
+/* What comes along with what matters, folded on a row of its own. */
+/* It is a sentence, so it wraps, where a name in a row stays on one line. */
+.dw-plan-also > .dw-plan-row {
+  padding-block: var(--space-2);
+}
+.dw-plan-also > .dw-plan-row > .dw-plan-name {
+  display: block;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  color: var(--ink);
+}
+.dw-plan-also > .dw-plan-row > .dw-plan-name code {
+  overflow: visible;
+}
+.dw-plan-also-list {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+.dw-plan-also-list[hidden] {
+  display: none;
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -112,6 +113,12 @@ var _ Agent = Local{}
 // it; the driver checks again as it applies.
 type Checker interface {
 	Check(ctx context.Context, ref Ref, desired proto.Message) error
+}
+
+// PathFollower is a driver that can say where the server paths a resource mounts
+// lead through symlinks on this server, so its plan can say what they really reach.
+type PathFollower interface {
+	Leads(ctx context.Context, ref Ref, desired proto.Message) (map[string]string, error)
 }
 
 // PlanChecker is a driver that checks a resource about to start against what
@@ -241,6 +248,11 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			}
 			step.Pull = step.Action != ActionNone
 		}
+		if f, ok := d.(PathFollower); ok && spec != nil && step.Action != ActionNone {
+			if step.Leads, err = f.Leads(ctx, want.Ref, spec); err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+		}
 		// Only what is about to start can fail to: a resource left as it is
 		// isn't refused for what is around it.
 		if c, ok := d.(PlanChecker); ok && spec != nil && (step.Action == ActionCreate || step.Action == ActionReplace) {
@@ -304,7 +316,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		return err
 	}
 	if desired, err = normalize(d, desired); err != nil {
-		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
+		return cantApply(step, err)
 	}
 	if l.Values != nil && len(Uses(d, desired)) > 0 {
 		values, err := l.Values.Values(ctx, l.Server, step.Ref, desired)
@@ -320,18 +332,20 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
+		return cantApply(step, err)
 	}
 	actual, err := Observe(ctx, d, step.Ref)
 	if err != nil {
-		return fmt.Errorf("applied %s, but can't read it back: %w", step.Ref, err)
+		return Plainly(fmt.Sprintf("%s changed, but Dockwell can't read it back: %s. Check it on this server, then try again.", step.Ref.Name, clause(err)),
+			fmt.Errorf("applied %s, but can't read it back: %w", step.Ref, err))
 	}
 	if !Equal(actual, desired) {
 		what := "something else"
 		if changes := Diff(desired, actual); len(changes) > 0 {
 			what = "a different " + changes[0].Path
 		}
-		return fmt.Errorf("applied %s, but the server has %s than asked for", step.Ref, what)
+		return Plainly(fmt.Sprintf("%s changed, but this server has %s than asked for. Check what else manages it, then try again.", step.Ref.Name, what),
+			fmt.Errorf("applied %s, but the server has %s than asked for", step.Ref, what))
 	}
 	if desired == nil {
 		return nil
@@ -344,9 +358,27 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 	}
 	if err := d.Verify(ctx, step.Ref, desired); err != nil {
-		return fmt.Errorf("applied %s, but it isn't healthy: %w", step.Ref, err)
+		return Plainly(fmt.Sprintf("%s isn't healthy: %s. Check it on this server, then try again.", step.Ref.Name, clause(err)),
+			fmt.Errorf("applied %s, but it isn't healthy: %w", step.Ref, err))
 	}
 	return nil
+}
+
+// cantApply is a step its driver couldn't carry out. A driver that says why
+// in plain words keeps them; otherwise it is the step and the driver's reason,
+// without the scope in its ref, which is an ID.
+func cantApply(step Step, err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return Plainly(fmt.Sprintf("The step's time ran out before Dockwell could %s %s, so it stopped waiting. Check it on this server, then try again.", step.Action, step.Ref.Name),
+			fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err))
+	}
+	return Plainly(fmt.Sprintf("Dockwell can't %s %s: %s. Check it on this server, then try again.", step.Action, step.Ref.Name, clause(err)),
+		fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err))
+}
+
+// clause is an error's message to go on inside a sentence.
+func clause(err error) string {
+	return strings.TrimRight(strings.TrimSpace(err.Error()), ".")
 }
 
 // Observe reads each resource from its driver.

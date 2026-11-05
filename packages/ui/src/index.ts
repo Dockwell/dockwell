@@ -34,7 +34,14 @@ export {
   type SegmentedOption,
 } from "./components/SegmentedControl/SegmentedControl";
 export { SelectField, type SelectFieldProps, type SelectOption } from "./components/SelectField/SelectField";
-export { Sheet, type SheetProps } from "./components/Sheet/Sheet";
+export {
+  Sheet,
+  type SheetProps,
+  SheetSwap,
+  SheetView,
+  type SheetViewProps,
+  useSheetViewAway,
+} from "./components/Sheet/Sheet";
 export { Sparkline, type SparklineProps, type SparklineTone } from "./components/Sparkline/Sparkline";
 export { StatusBadge, type StatusBadgeProps } from "./components/StatusBadge/StatusBadge";
 export { Switch, type SwitchProps } from "./components/Switch/Switch";

@@ -64,6 +64,13 @@ func (g *gate) Put(ctx context.Context, name string, rule *resourcev1.FirewallRu
 	return g.Fake.Put(ctx, name, rule)
 }
 
+// forget lets go of why a slow put stopped, for the next one to say.
+func (g *gate) forget() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.gotErr = nil
+}
+
 func (g *gate) stopped() error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -346,6 +353,7 @@ func TestCallsAreCancelledOnTheAgent(t *testing.T) {
 	waitUntil(t, "the agent stops the cancelled call", func() bool { return errors.Is(fw.stopped(), context.Canceled) })
 
 	// Out of time: the agent gets the time that is left, and stops there.
+	fw.forget()
 	ctx, cancel = context.WithTimeout(t.Context(), 200*time.Millisecond)
 	defer cancel()
 	go func() { errc <- a.Apply(ctx, slow, rule) }()
@@ -363,6 +371,57 @@ func TestCallsAreCancelledOnTheAgent(t *testing.T) {
 // A stream that drops fails the calls waiting on it at once, saying the
 // step may or may not have run; once the agent reconnects, calls reach it
 // again.
+// A call whose time runs out on the agent, whose answer may beat the control
+// plane's own deadline, is still a call that ran out of time, with its words.
+func TestTimeRunningOutOnTheAgentCountsAsTime(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	runAgent(t, s, id, resource.NewRegistry(&firewall.Driver{Backend: agentOutOfTime{Fake: firewall.NewFake()}}))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	step := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "http"}, Decision: resource.Decision{Action: resource.ActionCreate}}
+	err := a.Apply(t.Context(), step, &resourcev1.FirewallRule{Port: 80})
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "didn't answer within") {
+		t.Errorf("err = %v, want it to say the agent didn't answer in time", err)
+	}
+	if plain, _ := resource.Explain(err); !strings.HasPrefix(plain, "The step's time ran out") {
+		t.Errorf("it reads %q", plain)
+	}
+}
+
+// agentOutOfTime is a firewall whose call runs out of time on the agent, with
+// the control plane's own deadline still some way off.
+type agentOutOfTime struct{ *firewall.Fake }
+
+func (agentOutOfTime) Put(context.Context, string, *resourcev1.FirewallRule) error {
+	return context.DeadlineExceeded
+}
+
+func TestAFailureComesOverTheStreamInPlainWords(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	runAgent(t, s, id, resource.NewRegistry(&firewall.Driver{Backend: plainFailing{Fake: firewall.NewFake()}}))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	step := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "http"}, Decision: resource.Decision{Action: resource.ActionCreate}}
+	err := a.Apply(t.Context(), step, &resourcev1.FirewallRule{Port: 80})
+	plain, detail := resource.Explain(err)
+	if plain != "Port 80 can't open. Check the firewall, then try again." {
+		t.Errorf("plain = %q", plain)
+	}
+	if !strings.Contains(detail, "iptables said no") {
+		t.Errorf("detail = %q, want what the agent said", detail)
+	}
+	if got := resource.ReasonOf(err); got != resource.ReasonPort {
+		t.Errorf("it comes down to %q, want what the agent said it does", got)
+	}
+}
+
+// plainFailing is a firewall that fails each rule, in plain words.
+type plainFailing struct{ *firewall.Fake }
+
+func (plainFailing) Put(context.Context, string, *resourcev1.FirewallRule) error {
+	return resource.PlainlyBecause(resource.ReasonPort, "Port 80 can't open. Check the firewall, then try again.", errors.New("iptables said no"))
+}
+
 func TestAStreamThatDropsFailsItsCalls(t *testing.T) {
 	s := startStack(t, 5*time.Second)
 	id := s.enrollLocal(t)
@@ -376,8 +435,13 @@ func TestAStreamThatDropsFailsItsCalls(t *testing.T) {
 	stop()
 	select {
 	case err := <-errc:
-		if !errors.Is(err, agentapi.ErrLost) || !strings.Contains(err.Error(), "may or may not have run") {
+		if !errors.Is(err, agentapi.ErrLost) {
 			t.Errorf("a call on a dropped stream = %v, want ErrLost", err)
+		}
+		// What can't be known, in words that end, and nothing of what comes next: the engine says that.
+		plain, _ := resource.Explain(err)
+		if want := "hz-1 went offline during this step, so Dockwell can't tell whether it ran. Check that hz-1 is up."; plain != want {
+			t.Errorf("a call on a dropped stream reads %q, want %q", plain, want)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("a call on a dropped stream is still waiting")
@@ -647,7 +711,7 @@ func TestDockerKindsWaitForDocker(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(heard) == 0 || heard[0] != "pulling nginx:1.27" {
+	if len(heard) == 0 || heard[0] != "Pulling nginx:1.27" {
 		t.Errorf("heard %q while the agent applied, want what it pulled", heard)
 	}
 	if c := e.Container(service.ContainerName(web)); c == nil || !c.State.Running {

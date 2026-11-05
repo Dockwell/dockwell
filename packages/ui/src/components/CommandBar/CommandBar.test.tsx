@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -309,5 +309,18 @@ describe("CommandBar overlay", () => {
     await user.keyboard("web{Escape}");
     await user.click(screen.getByRole("button", { name: "Search" }));
     expect(combobox()).toHaveValue("");
+  });
+
+  it("runs what is highlighted on Enter alone, and nothing on Ctrl or Cmd with it", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<CommandBar open items={[{ id: "overview", label: "Overview" }]} onSelect={onSelect} />);
+    const input = screen.getByRole("combobox");
+    await waitFor(() => expect(input).toHaveFocus());
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+    expect(onSelect).not.toHaveBeenCalled();
+    await user.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 });

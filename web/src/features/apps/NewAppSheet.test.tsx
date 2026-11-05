@@ -12,6 +12,8 @@ import {
   type ImportComposeRequest,
   PlanAction,
   type ProposeChangeRequest,
+  StepProgressSchema,
+  StepState,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -125,7 +127,7 @@ describe("New app, from an image", () => {
     await screen.findByRole("dialog", { name: "Applying" });
     expect(applies[0]?.fingerprint).toBe("feedfacefeedfacefeedfacefeedface");
     watch.push(watched(moved(planned(), { state: ChangeState.APPLIED })));
-    const done = await screen.findByRole("dialog", { name: "Applied" });
+    const done = await screen.findByRole("dialog", { name: "nginx is live" });
     await user.click(within(done).getByRole("button", { name: "Open nginx" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx"));
   });
@@ -150,9 +152,9 @@ describe("New app, from an image", () => {
     watch.push(
       watched(moved(planned(), { state: ChangeState.FAILED, error: "pull access denied", rolledBackBy: "chg_back" })),
     );
-    const failed = await screen.findByRole("dialog", { name: "The change failed" });
+    const failed = await screen.findByRole("dialog", { name: "Couldn't create nginx" });
     expect(failed).toHaveTextContent("pull access denied");
-    await user.click(within(failed).getByRole("button", { name: "Done" }));
+    await user.click(within(failed).getByRole("button", { name: /Edit and try again/ }));
     const back = await screen.findByRole("dialog", { name: "New app" });
     const field = within(back).getByLabelText<HTMLInputElement>("Image");
     expect(field).toHaveValue("nginx:doesnotexist");
@@ -162,6 +164,68 @@ describe("New app, from an image", () => {
       expect(field).toHaveFocus();
       expect(field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0)).toBe("nginx:doesnotexist");
     });
+  });
+
+  it("says what to check in what this form has, and lets you leave from the failure", async () => {
+    const user = userEvent.setup();
+    const failed = moved(planned(), {
+      state: ChangeState.FAILED,
+      error: "nginx stopped right after it started, with exit code 1. Check its command and variables, then try again.",
+      steps: [
+        create(StepProgressSchema, {
+          serverId: "srv_1",
+          resourceId: "svc_nginx",
+          state: StepState.FAILED,
+          message: "x",
+          reason: "exits",
+        }),
+      ],
+    });
+    const { sheet, router } = await openImage(
+      api({
+        changes: {
+          proposeChange: () => ({ change: failed }),
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    await user.type(within(sheet).getByLabelText("Image"), "nginx:broken");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    const plan = await screen.findByRole("dialog", { name: "Couldn't create nginx" });
+    const notice = within(plan).getByRole("alert");
+    // This form has no command to check.
+    expect(notice).toHaveTextContent("Check the image and its variables, then try again.");
+    expect(notice).not.toHaveTextContent("command");
+    await user.click(within(plan).getByRole("button", { name: /^Done/ }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/apps"));
+  });
+
+  it("keeps one shell and one scrim from the form to its plan and back, with your values and focus", async () => {
+    const user = userEvent.setup();
+    const { sheet } = await openImage(
+      api({
+        changes: {
+          proposeChange: () => ({ change: planned() }),
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const scrim = document.querySelector(".dw-scrim");
+    const image = within(sheet).getByLabelText("Image");
+    await user.type(image, "nginx:1.27");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(plan).toBe(sheet);
+    expect(document.querySelector(".dw-scrim")).toBe(scrim);
+    expect(document.querySelectorAll(".dw-sheet")).toHaveLength(1);
+    await user.click(within(plan).getByRole("button", { name: "Cancel" }));
+    const back = await screen.findByRole("dialog", { name: "New app" });
+    expect(back).toBe(sheet);
+    expect(document.querySelector(".dw-scrim")).toBe(scrim);
+    expect(within(back).getByLabelText("Image")).toHaveValue("nginx:1.27");
+    expect(within(back).getByLabelText("Image")).toHaveFocus();
   });
 
   it("comes back to the form as you left it when you cancel the plan, and discards the plan", async () => {
@@ -388,8 +452,9 @@ describe("New app, from an image", () => {
     await user.type(within(sheet).getByLabelText("Path in the app"), "/var/run/docker.sock");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
-    expect(plan).toHaveTextContent("This plan gives more access to a server");
-    expect(plan).toHaveTextContent("Docker's socket at /var/run/docker.sock");
+    const risk = within(plan).getByRole("alert");
+    expect(risk).toHaveTextContent(/gets root on/);
+    expect(risk).toHaveTextContent("/var/run/docker.sock gives it control of Docker on the server, the same as root.");
     expect(within(plan).getByRole("button", { name: /Apply plan/ })).toBeDisabled();
     await user.type(within(plan).getByLabelText(/to apply it/), "feedface");
     expect(within(plan).getByRole("button", { name: /Apply plan/ })).toBeEnabled();

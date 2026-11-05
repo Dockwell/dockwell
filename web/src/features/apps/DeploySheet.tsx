@@ -9,7 +9,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
-import { useChangeSheet } from "../changes/ChangeSheet";
+import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useApp } from "./AppContext";
 import { imageOf, isMoving, nameOf, tidyMessage } from "./app";
 
@@ -22,7 +22,6 @@ import { imageOf, isMoving, nameOf, tidyMessage } from "./app";
 export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClose: () => void }) {
   const { t } = useLingui();
   const transport = useTransport();
-  const sheet = useChangeSheet();
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(ServiceService, transport), [transport]);
   const name = nameOf(service);
@@ -31,7 +30,8 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
   const [busy, setBusy] = useState(false);
   const [fieldError, setFieldError] = useState<string>();
   const [failure, setFailure] = useState<string>();
-  const [hidden, setHidden] = useState(false);
+  // The plan under review takes this sheet over, and Cancel brings the form back as it was.
+  const [plan, setPlan] = useState<Opening>();
   const field = useRef<HTMLInputElement>(null);
   const { state } = useApp();
   // One change at a time: this one's plan couldn't apply until that one ends.
@@ -41,11 +41,11 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
   // Back from a plan that failed, what it said is at the field, ready to change.
   const reveal = useRef(false);
   useEffect(() => {
-    if (hidden || !reveal.current) return;
+    if (plan || !reveal.current) return;
     reveal.current = false;
     field.current?.focus();
     field.current?.select();
-  }, [hidden]);
+  }, [plan]);
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -69,18 +69,26 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
       return;
     }
     setBusy(false);
-    setHidden(true);
-    sheet.open({
+    setPlan({
       kind: "plan",
       make: () => Promise.resolve({ change }),
+      retryLabel: t`Edit and try again`,
+      onDone: onClose,
+      fix: (reason) => {
+        // This form has an image and nothing else, so that is what there is to check here.
+        if (reason === "exits" || reason === "unhealthy" || reason === "command") {
+          return t`Check the image and tag, then deploy again.`;
+        }
+        return reason === "port" ? t`Stop what uses it on this server, then deploy again.` : undefined;
+      },
       onClose: (after) => {
         // Cancelling comes back here, with what you typed, as failing does, saying why
         // at the field. Anything else is under way or over.
         if (after?.state === ChangeState.FAILED) {
           setFieldError(tidyMessage(after.error));
           reveal.current = true;
-          setHidden(false);
-        } else if (after && after.state === ChangeState.PLANNED) setHidden(false);
+          setPlan(undefined);
+        } else if (!after || after.state === ChangeState.PLANNED) setPlan(undefined);
         else onClose();
       },
     });
@@ -88,7 +96,8 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
 
   return (
     <Sheet
-      open={!hidden}
+      open
+      over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={field}
       title={t`Deploy ${name}`}
       subtitle={t`It runs the new image with the rest as it is`}

@@ -20,6 +20,7 @@ import {
   type IconName,
   Panel,
   PHONE_QUERY,
+  type PlanValue,
   Sheet,
   type Status,
   StatusBadge,
@@ -30,12 +31,16 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef } from "react";
+import { isValidElement, type ReactNode, useCallback, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { FailureNotice } from "../changes/FailureNotice";
+import { useFieldRows } from "../changes/fields";
+import { failedStep, wentOffline } from "../changes/plan";
+import { RollbackLine, rollbackSubject } from "../changes/RollbackLine";
 import { useChangeWords } from "../changes/words";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useApp, useRevisions } from "./AppContext";
@@ -43,14 +48,12 @@ import { ListSkeleton } from "./AppsPage";
 import {
   bareImage,
   canRollBackTo,
-  fieldName,
   fieldOfChange,
   imageChange,
   nameOf,
   revisionName,
   shortDigest,
   shortImages,
-  tidyMessage,
 } from "./app";
 import { ImageName, WholeImage } from "./ImageName";
 import { type Look, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
@@ -524,40 +527,54 @@ function RevisionPanel({
   );
 }
 
+/** A secret's value, which is never shown. */
+function isHidden(value: PlanValue | undefined): boolean {
+  return typeof value === "object" && value !== null && "secret" in value;
+}
+
+/** A value as a plan reads it: a machine value on its own, or words with machine values among them. */
+function DiffValue({ value }: { value: PlanValue | undefined }) {
+  return isValidElement(value) ? value : <code>{value as ReactNode}</code>;
+}
+
 /**
- * What a revision changed, each field's old value above its new one, so a long
- * value never breaks in the middle of a word. An image reads by what moved, and
- * its full name is the Image fact below.
+ * What a revision changed, in the plan's words, with each value whole and the
+ * old one above the new, so a long value never breaks in the middle of a word.
+ * An image reads by what moved, and its full name is the Image fact below.
  */
 function RevisionDiff({ rev }: { rev: ServiceRevision }) {
   const { t } = useLingui();
+  const rows = useFieldRows();
   return (
     <ul className="deploy-diff">
-      {rev.changes.map((change) => {
-        const path = fieldName(change.path);
+      {rows({ kind: "service", changes: rev.changes }).map((row) => {
         const image =
-          path === "image" && change.op === FieldOp.MODIFIED ? imageChange(change.from, change.to) : undefined;
-        const from = image?.from ?? change.from;
-        const to = image?.to ?? change.to;
+          row.path === "image" && typeof row.from === "string" && typeof row.to === "string"
+            ? imageChange(row.from, row.to)
+            : undefined;
+        const from = image?.from ?? row.from;
+        const to = image?.to ?? row.to;
+        const secret = isHidden(from) || isHidden(to);
         return (
-          <li key={change.path} className="deploy-diff-row">
-            <code className="deploy-diff-path">{path}</code>
-            {change.sensitive ? (
-              <span className="app-muted">{t`Changed, and hidden`}</span>
-            ) : (
-              <span className="deploy-diff-values">
-                {change.op !== FieldOp.ADDED && from !== "" ? (
-                  <del className="deploy-diff-from">
-                    <code>{from}</code>
-                  </del>
-                ) : null}
-                {change.op !== FieldOp.REMOVED && to !== "" ? (
-                  <ins className="deploy-diff-to">
-                    <code>{to}</code>
+          <li key={row.path} className="deploy-diff-row">
+            <span className="deploy-diff-path">{row.label ?? row.path}</span>
+            <span className="deploy-diff-values">
+              {from !== undefined && from !== "" && !secret ? (
+                <del className={cx("deploy-diff-from", isValidElement(from) && "is-words")}>
+                  <DiffValue value={from} />
+                </del>
+              ) : null}
+              {to !== undefined && to !== "" && !secret ? (
+                row.tone === "change" ? (
+                  <code>{to as ReactNode}</code>
+                ) : (
+                  <ins className={cx("deploy-diff-to", isValidElement(to) && "is-words")}>
+                    <DiffValue value={to} />
                   </ins>
-                ) : null}
-              </span>
-            )}
+                )
+              ) : null}
+              {secret || row.hidden ? <span className="app-muted">{t`Changed, and hidden`}</span> : null}
+            </span>
           </li>
         );
       })}
@@ -568,6 +585,7 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
 /** What a revision did and how it went. */
 function RevisionBody({ rev }: { rev: ServiceRevision }) {
   const { t, i18n } = useLingui();
+  const appName = nameOf(useApp().service);
   const appWords = useAppWords();
   // What a moving tag really was, so it can be told apart from the same tag later.
   const digest = rev.deployments.find((d) => d.digest !== "")?.digest ?? "";
@@ -586,16 +604,11 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
   const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
   return (
     <div className="deploy-body">
-      {change?.state === ChangeState.FAILED || failed ? (
-        <Callout tone="critical" title={t`Why it failed`}>
-          {tidyMessage(failed?.error || change?.error || "")}
-          {change?.rolledBackBy ? (
-            <>
-              {" "}
-              <Trans>Dockwell rolled back the steps already done.</Trans>
-            </>
-          ) : null}
-        </Callout>
+      {change?.state === ChangeState.FAILED ? (
+        <RollbackLine change={change} subject={rollbackSubject(change.plan, { name: appName, changes: rev.changes })} />
+      ) : null}
+      {(change?.state === ChangeState.FAILED || failed) && !wentOffline(change) ? (
+        <FailureNotice message={failed?.error || change?.error || ""} detail={failedStep(change)?.detail} />
       ) : null}
       {rev.deleted ? null : (
         <div className="deploy-part">

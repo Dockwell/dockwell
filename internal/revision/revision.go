@@ -250,6 +250,8 @@ type Proposal struct {
 	// Unpinned is this proposal without the image digest it pins, to plan instead
 	// if a server has no way to get that image.
 	Unpinned *Proposal
+	// Intent is what it is for, when the method that proposed it knows.
+	Intent *Intent
 }
 
 // Place is where a plan's resources live, as far as anyone has a choice: Project
@@ -258,6 +260,25 @@ type Proposal struct {
 type Place struct {
 	Project     string `json:",omitempty"`
 	Environment string `json:",omitempty"`
+}
+
+// What a change can be for.
+const (
+	IntentDeploy      = "deploy"       // it runs another image
+	IntentPublishPort = "publish_port" // it publishes one more port
+	IntentRollBack    = "roll_back"    // a person takes it back to an earlier revision
+	IntentRepull      = "repull"       // it pulls its image again, and replaces it only if that is newer
+)
+
+// Intent is what a change is for, in a person's terms. A plan says what happens
+// to resources, which for a deploy or a new port is that a container is made
+// again: this says what that comes to. It isn't in the fingerprint.
+type Intent struct {
+	Kind     string
+	Resource string // the ID of the resource it is about
+	Image    string `json:",omitempty"` // the image a deploy runs
+	Port     int    `json:",omitempty"` // the server's port that publishing opens
+	Revision int    `json:",omitempty"` // the revision a rollback puts back
 }
 
 // Plan is what applying a change would do.
@@ -287,6 +308,9 @@ type Plan struct {
 	Places []Place `json:",omitempty"`
 	// RollsBackTo is the revision it puts back, for a plan RollBackTo made.
 	RollsBackTo int `json:",omitempty"`
+	// Intent is what it is for, when the method that proposed it knows. It
+	// isn't in the fingerprint: it says nothing about what the plan does.
+	Intent *Intent `json:",omitempty"`
 }
 
 // How a change's fingerprint is made, as its record says (ADR 0022).
@@ -524,7 +548,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Places, err = e.places(ctx, items); err != nil {
 		return nil, err
 	}
-	plan.Change, plan.Summary, plan.Reverts, plan.Notes, plan.RollsBackTo = changeID, p.Summary, reverts, p.Notes, p.RollsBackTo
+	plan.Change, plan.Summary, plan.Reverts, plan.Notes, plan.RollsBackTo, plan.Intent = changeID, p.Summary, reverts, p.Notes, p.RollsBackTo, p.Intent
 	record, err := json.Marshal(plan)
 	if err != nil {
 		return nil, err
@@ -1335,6 +1359,12 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 		}
 		ids := map[resource.Ref]string{}
+		// Where the agent says each server path leads, which only it can read.
+		leads := map[string]string{}
+		for i := range steps {
+			maps.Copy(leads, steps[i].Leads)
+			steps[i].Leads = nil
+		}
 		// What each item reaches on this server that it couldn't, from its
 		// specs: the control plane decides it, whatever the agent says.
 		gains := map[resource.Ref][]resource.Access{}
@@ -1343,6 +1373,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
 			if it.desiredOn(server) != nil {
 				gained = append(gained, takes[it.ref]...)
+			}
+			for j := range gained {
+				gained[j] = gained[j].Leading(leads[gained[j].Path])
 			}
 			if len(gained) > 0 {
 				gains[it.ref] = gained
@@ -1421,7 +1454,9 @@ func (e *Engine) reach(ref resource.Ref, spec proto.Message, named map[resource.
 		if use.Apart {
 			continue
 		}
-		for _, a := range e.kinds.HostAccess(use.Kind, named[resource.Ref{Kind: use.Kind, Scope: ref.Scope, Name: use.Name}]) {
+		access := e.kinds.HostAccess(use.Kind, named[resource.Ref{Kind: use.Kind, Scope: ref.Scope, Name: use.Name}])
+		for i := range access {
+			a := access[i]
 			a.ReadOnly = a.ReadOnly || use.ReadOnly
 			out = append(out, a)
 		}
@@ -2060,18 +2095,18 @@ func holds(ctx context.Context, tx *store.Tx, c store.Change, plan *Plan) error 
 	}
 	for _, s := range plan.Servers {
 		if s.Offline {
-			return fault.New(ErrOffline, "%s isn't connected, so %s can't apply. Apply it again once %s's agent reconnects", s.Name, c.ID, s.Name)
+			return fault.New(ErrOffline, "%s isn't connected, so this change can't apply. Apply it again once its agent reconnects", s.Name)
 		}
 	}
 	switch {
 	case c.FingerprintScheme < fingerprintKeyed && plan.plain == c.Fingerprint:
 		// Planned before the upgrade, and still the plan reviewed.
 	case c.FingerprintScheme < fingerprintKeyed:
-		return fault.New(ErrPlanChanged, "%s was planned by an earlier version of Dockwell, and its plan no longer matches what applying it would do now, "+
-			"as the servers or how Dockwell plans changed since. Propose the change again and review the new plan", c.ID)
+		return fault.New(ErrPlanChanged, "this change was planned by an earlier version of Dockwell, and its plan no longer matches what applying it would do now, "+
+			"as the servers or how Dockwell plans changed since. Plan the change again and review the new plan")
 	case plan.Fingerprint != c.Fingerprint:
-		return fault.New(ErrPlanChanged, "the servers changed since %s was planned, so its plan no longer matches them. "+
-			"Propose the change again and review what changed", c.ID)
+		return fault.New(ErrPlanChanged, "the servers changed since this plan was made, so it no longer matches them. "+
+			"Plan the change again and review what changed")
 	}
 	return nil
 }
@@ -2160,7 +2195,9 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	stop := func(qi int, err error, untouched bool) error {
 		q := queue[qi]
 		it := byRef[q.step.Ref]
-		p, u := e.step(c.ID, q.index, StepFailed, err.Error())
+		err = stepFailure(q.name, err)
+		plain, detail := resource.Explain(err)
+		p, u := e.failed(c.ID, q.index, err)
 		var recorded bool
 		if untouched && it.rev == it.base {
 			recorded = e.recordProgress(ctx, c.ID)
@@ -2173,7 +2210,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		for _, rest := range queue[qi+1:] {
 			e.step(c.ID, rest.index, StepSkipped, message(StepSkipped, rest.step.Action, rest.step.Ref, rest.name))
 		}
-		return e.fail(ctx, c, q.step.Ref, err)
+		// A change's error stands on its own, so once there is more than
+		// one server it says which, unless the message has already.
+		if detail != "" && len(plan.Servers) > 1 {
+			plain = q.name + ": " + plain
+		}
+		return e.fail(ctx, c, q.step.Ref, err, plain)
 	}
 	// interrupt leaves the change applying, as the control plane stops,
 	// with the step it was at queued again: Resume plans it against the
@@ -2231,14 +2273,14 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			if e.isStopping() {
 				return interrupt(qi)
 			}
-			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run", q.name), false)
+			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run. Try again once its agent reconnects", q.name), false)
 		}
 		running := message(StepRunning, q.step.Action, q.step.Ref, q.name)
 		_, u := e.step(c.ID, q.index, StepRunning, running)
 		e.announce(c.ID, u)
 		callCtx, called := e.calling(ctx)
 		index := q.index
-		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, running+": "+m) })
+		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, m) })
 		var told resource.Outcome
 		callCtx = resource.WithOutcome(callCtx, func(o resource.Outcome) {
 			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(o.Note, told.Note), told.Untouched || o.Untouched
@@ -2367,6 +2409,15 @@ func (e *Engine) pulledNewer(ctx context.Context, changeID string, items []item,
 	it.rev = rev
 }
 
+// stepFailure puts a step's time running out in plain words: all a server
+// said is that its agent didn't answer in time.
+func stepFailure(server string, err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return resource.Plainly(fmt.Sprintf("%s's agent didn't finish this step in time, so Dockwell stopped waiting. It may still finish there. Check %s, then try again.", server, server), err)
+	}
+	return err
+}
+
 // deployed records how a step went on a server: the revision is live
 // there, or failed; or, where the step took it off the server, what it
 // had there is superseded. It records the change's progress with it. A
@@ -2386,8 +2437,9 @@ func (e *Engine) deployedImage(ctx context.Context, changeID string, it *item, s
 		}
 		switch {
 		case failed != nil && slices.Contains(it.servers, server):
+			plain, _ := resource.Explain(failed)
 			return tx.SetDeploymentState(ctx, store.Deployment{
-				ResourceID: it.id, Revision: it.rev, Server: server, State: store.DeploymentFailed, Error: failed.Error(), UpdatedAt: now,
+				ResourceID: it.id, Revision: it.rev, Server: server, State: store.DeploymentFailed, Error: plain, UpdatedAt: now,
 			})
 		case failed != nil:
 			return nil //nolint:nilerr // a failed step off a server leaves its deployment as it was
@@ -2660,7 +2712,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		}
 		if it.base != ci.BaseRevision {
 			r, _ := tx.GetResource(ctx, ci.Kind, ci.Scope, ci.Name)
-			return nil, fault.New(ErrStale, "%s changed in %s after %s was planned, so its plan is out of date. Propose the change again", ref, r.ChangeID, c.ID)
+			return nil, fault.New(ErrStale, "%s changed after this plan was made (in %s), so the plan is out of date. Plan the change again", ref.Name, r.ChangeID)
 		}
 		if it.id == "" {
 			// A new resource has the ID the change gave it, so what lives
@@ -2726,9 +2778,9 @@ func (e *Engine) unmoved(ctx context.Context, tx *store.Tx, c store.Change, item
 // on record, so they can follow it, and only once the failure is: if it
 // can't be recorded, the change stays applying on record, and Resume takes
 // it up again.
-func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, cause error) error {
+func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, cause error, plain string) error {
 	ferr := &FailedError{Change: c.ID, Step: at, Err: cause}
-	if err := e.finish(ctx, c, store.ChangeFailed, cause.Error(), "change.failed", e.progress(c.ID)); err != nil {
+	if err := e.finish(ctx, c, store.ChangeFailed, plain, "change.failed", e.progress(c.ID)); err != nil {
 		return errors.Join(ferr, err)
 	}
 	if IsRollback(c) {
@@ -2961,7 +3013,7 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	if len(edits) == 0 {
 		return nil, fault.New(ErrCantUndo, "%s made no revisions, so there's nothing to undo", changeID)
 	}
-	return e.propose(ctx, Proposal{Summary: "Undo " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, changeID, true)
+	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, changeID, true)
 }
 
 // Drift is a resource that doesn't match its latest revision.

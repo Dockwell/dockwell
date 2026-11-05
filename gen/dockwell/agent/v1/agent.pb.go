@@ -1806,7 +1806,18 @@ type CallError struct {
 	// True when the agent didn't run the call because it is moving to a new
 	// stream, as when its certificate was renewed. Nothing ran, and the
 	// control plane sends the call again once the agent reconnects.
-	Draining      bool `protobuf:"varint,2,opt,name=draining,proto3" json:"draining,omitempty"`
+	Draining bool `protobuf:"varint,2,opt,name=draining,proto3" json:"draining,omitempty"`
+	// The reason in plain words, when the agent has them, such as "nginx:9
+	// can't be pulled. ...": the fact, then the consequence, then the fix. It
+	// leaves the chain of errors to message, which says more and reads worse.
+	// Empty when message says it all, as from an older agent.
+	Plain string `protobuf:"bytes,3,opt,name=plain,proto3" json:"plain,omitempty"`
+	// True when the call failed because its time ran out on the agent, which
+	// may answer just before the control plane's own deadline.
+	OutOfTime bool `protobuf:"varint,4,opt,name=out_of_time,json=outOfTime,proto3" json:"out_of_time,omitempty"`
+	// What the failure comes down to, when the driver knows, as StepProgress has
+	// it.
+	Reason        string `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1853,6 +1864,27 @@ func (x *CallError) GetDraining() bool {
 		return x.Draining
 	}
 	return false
+}
+
+func (x *CallError) GetPlain() string {
+	if x != nil {
+		return x.Plain
+	}
+	return ""
+}
+
+func (x *CallError) GetOutOfTime() bool {
+	if x != nil {
+		return x.OutOfTime
+	}
+	return false
+}
+
+func (x *CallError) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
 }
 
 // PlanResult carries a plan call's steps.
@@ -2145,10 +2177,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04plan\x18\x03 \x01(\v2\x1d.dockwell.agent.v1.PlanResultH\x00R\x04plan\x126\n" +
 	"\x05apply\x18\x04 \x01(\v2\x1e.dockwell.agent.v1.ApplyResultH\x00R\x05apply\x12<\n" +
 	"\aobserve\x18\x05 \x01(\v2 .dockwell.agent.v1.ObserveResultH\x00R\aobserveB\b\n" +
-	"\x06result\"A\n" +
+	"\x06result\"\x8f\x01\n" +
 	"\tCallError\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x1a\n" +
-	"\bdraining\x18\x02 \x01(\bR\bdraining\"9\n" +
+	"\bdraining\x18\x02 \x01(\bR\bdraining\x12\x14\n" +
+	"\x05plain\x18\x03 \x01(\tR\x05plain\x12\x1e\n" +
+	"\vout_of_time\x18\x04 \x01(\bR\toutOfTime\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\"9\n" +
 	"\n" +
 	"PlanResult\x12+\n" +
 	"\x05steps\x18\x01 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\"\r\n" +

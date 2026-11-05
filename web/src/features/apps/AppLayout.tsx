@@ -136,7 +136,21 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
         </>
       }
       lead={
-        moving ? (
+        state.kind === "rollback-failed" ? (
+          <Trans>
+            Putting <code>{image}</code> back failed, {ago}
+          </Trans>
+        ) : moving && service.rolledBackChangeId !== "" ? (
+          state.kind === "waiting" ? (
+            <Trans>
+              Dockwell puts <code>{image}</code> back once {state.servers.join(", ")} reconnects
+            </Trans>
+          ) : (
+            <Trans>
+              Dockwell is putting <code>{image}</code> back, started {ago}
+            </Trans>
+          )
+        ) : moving ? (
           <Trans>
             Deploying <code>{image}</code>, started {ago}
           </Trans>
@@ -144,7 +158,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           <>
             <WholeImage image={image} />
             {" · "}
-            {who.deployed(latest?.change, ago)}
+            {state.kind === "rolled-back" ? (
+              <Trans>rolled back by Dockwell {ago}</Trans>
+            ) : (
+              who.deployed(latest?.change, ago)
+            )}
           </>
         )
       }

@@ -26,17 +26,17 @@ func TestProgressKeepsTheLatest(t *testing.T) {
 		defer mu.Unlock()
 		sent = append(sent, m)
 	})
-	p.say("pulling nginx:1.27")
-	p.say("pulling nginx:1.27, 12 of 48 MB")
-	p.say("starting")
-	if got := heard(); !slices.Equal(got, []string{"pulling nginx:1.27"}) {
+	p.say("Pulling nginx:1.27")
+	p.say("Pulling nginx:1.27: 12 of 48 MB")
+	p.say("Starting web")
+	if got := heard(); !slices.Equal(got, []string{"Pulling nginx:1.27"}) {
 		t.Errorf("sent %q at once, want the first message alone", got)
 	}
 	deadline := time.Now().Add(time.Second)
 	for len(heard()) < 2 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if got := heard(); !slices.Equal(got, []string{"pulling nginx:1.27", "starting"}) {
+	if got := heard(); !slices.Equal(got, []string{"Pulling nginx:1.27", "Starting web"}) {
 		t.Errorf("sent %q, want the latest once the interval ended", got)
 	}
 	p.say("checking health")

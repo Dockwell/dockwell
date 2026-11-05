@@ -34,6 +34,8 @@ import { type CSSProperties, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { MachineWords } from "../changes/FailureNotice";
+import { withoutIds } from "../changes/plan";
 import { CopyButton } from "../servers/CopyButton";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { AddPortSheet } from "./AddPortSheet";
@@ -47,10 +49,10 @@ import {
   deployedAt,
   environmentOf,
   imageOf,
+  isDockerSocket,
   isMoving,
   nameOf,
   revisionName,
-  tidyMessage,
   valuesOf,
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
@@ -122,14 +124,49 @@ function AppNotice() {
             other: `${servers} aren't connected`,
           })}
           actions={
-            <Button onClick={() => openChange(service.changeId)}>
-              <Trans>Open the plan</Trans>
+            service.rolledBackChangeId !== "" ? (
+              <Button onClick={() => openChange(service.rolledBackChangeId)}>
+                <Trans>See why</Trans>
+              </Button>
+            ) : (
+              <Button onClick={() => openChange(service.changeId)}>
+                <Trans>Open the plan</Trans>
+              </Button>
+            )
+          }
+        >
+          {service.rolledBackChangeId !== "" ? (
+            <Trans>
+              Once it reconnects, Dockwell puts <code>{image}</code> back, after a deploy that failed. Until then it
+              can't tell what is running there.
+            </Trans>
+          ) : (
+            <Trans>
+              The deploy waits for its agent, and carries on once it reconnects. Check that <code>dockwell run</code> is
+              still running on the server.
+            </Trans>
+          )}
+        </Callout>
+      );
+    case "rollback-failed":
+      return (
+        <Callout
+          tone="critical"
+          title={t`Putting ${name} back failed too`}
+          actions={
+            <Button onClick={() => openChange(service.rolledBackChangeId)}>
+              <Trans>See why</Trans>
             </Button>
           }
         >
+          {state.error ? (
+            <span>
+              <MachineWords>{withoutIds(state.error)}</MachineWords>{" "}
+            </span>
+          ) : null}
           <Trans>
-            The deploy waits for its agent, and carries on once it reconnects. Check that <code>dockwell run</code> is
-            still running on the server.
+            {name} may not be running, or may be running the new version. Check it, then deploy what should run, or fix
+            it on the server.
           </Trans>
         </Callout>
       );
@@ -144,8 +181,11 @@ function AppNotice() {
             </Button>
           }
         >
-          {state.error ? <span>{tidyMessage(state.error)} </span> : null}
-          <Trans>Fix what it says, then deploy again.</Trans>
+          {state.error ? (
+            <span>
+              <MachineWords>{withoutIds(state.error)}</MachineWords>{" "}
+            </span>
+          ) : null}
         </Callout>
       );
     case "rolled-back":
@@ -160,7 +200,8 @@ function AppNotice() {
           }
         >
           <Trans>
-            {name} runs <code>{image}</code> again, as it did before. Fix what stopped the deploy, then deploy again.
+            {name} is on <code>{image}</code>, as it was before that deploy. Fix what stopped the deploy, then deploy
+            again.
           </Trans>
         </Callout>
       );
@@ -219,7 +260,10 @@ function RunningPanel() {
   const before = moving
     ? revisions?.find((r) => r.number < service.revision && !r.deleted && r.image !== "")
     : undefined;
-  const running = moving ? bareImage(before?.image ?? "") : image;
+  // While a rollback runs or waits, what is there is what nobody can say yet.
+  const rollingBack = (moving && service.rolledBackChangeId !== "") || state.kind === "rollback-failed";
+  const running = rollingBack ? "" : moving ? bareImage(before?.image ?? "") : image;
+  const away = state.servers.join(", ");
   const columns: TableColumn<ServiceInfo["deployments"][number] & { id: string }>[] = [
     {
       key: "server",
@@ -245,7 +289,7 @@ function RunningPanel() {
   ];
   return (
     <Panel
-      title={t`Running`}
+      title={rollingBack ? t`What runs` : t`Running`}
       actions={
         // The title carries the state on wide screens; the phone's header has only the word.
         <span className="app-running-actions">
@@ -262,7 +306,13 @@ function RunningPanel() {
     >
       {phone ? (
         <p className="app-running-now">
-          {moving ? (
+          {state.kind === "rollback-failed" ? (
+            <Trans>Rolling back failed {when}</Trans>
+          ) : state.kind === "rolled-back" ? (
+            <Trans>
+              {revision} rolled back by Dockwell {when}
+            </Trans>
+          ) : moving ? (
             <Trans>
               {revision} started deploying {when}
             </Trans>
@@ -280,6 +330,21 @@ function RunningPanel() {
             </span>
             <WholeImage image={running} />
             <CopyButton text={running} label={t`Copy the image`} />
+          </>
+        ) : rollingBack ? (
+          <>
+            <span className="app-running-label">
+              <Trans>Image</Trans>
+            </span>
+            <span className="app-muted">
+              {state.kind === "rollback-failed" ? (
+                <Trans>Unknown, as putting it back failed</Trans>
+              ) : state.kind === "waiting" ? (
+                <Trans>Unknown until {away} reconnects</Trans>
+              ) : (
+                <Trans>Unknown until this is put back</Trans>
+              )}
+            </span>
           </>
         ) : (
           <span className="app-muted">
@@ -396,7 +461,9 @@ function RecentDeployments() {
   const moving = isMoving(state);
   const shown = (revisions ?? []).slice(0, RECENT);
   // The newest revision that would run, and that differs from what runs now.
-  const back = (revisions ?? []).slice(1).find((r) => canRollBackTo(r, state.kind === "failed"));
+  const back = (revisions ?? [])
+    .slice(1)
+    .find((r) => canRollBackTo(r, state.kind === "failed" || state.kind === "rollback-failed"));
   const backTo = back ? revisionName(back.number) : "";
   const events: TimelineEvent[] = shown.map((rev, i) => {
     const change = rev.change;
@@ -604,7 +671,9 @@ function MountRow({ mount }: { mount: Mount }) {
         <code>{mount.target}</code>
       </span>
       <span className="app-mount-tags">
-        {isPath ? <Tag words>{t`Server path`}</Tag> : null}
+        {isPath ? (
+          <Tag words>{isDockerSocket(mount.source.value ?? "") ? t`Docker's socket` : t`Server path`}</Tag>
+        ) : null}
         {mount.readOnly ? <Tag words>{t`Read-only`}</Tag> : null}
       </span>
     </li>

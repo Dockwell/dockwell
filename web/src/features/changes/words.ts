@@ -9,6 +9,8 @@ import {
   HostAccessKind,
   IngressChange,
   type IngressEffect,
+  type Intent,
+  IntentKind,
   PlanAction,
   type RouteAnswers,
   RouteReach,
@@ -18,8 +20,11 @@ import {
   Surface,
 } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
+
+import { type Fold, kindWord } from "./plan";
 
 /** How a step is going, as a status and a word. */
 export interface StepLook {
@@ -27,13 +32,20 @@ export interface StepLook {
   word: string;
 }
 
+/** Where a step is, which says how its verb reads. */
+export type Tense = "plan" | "doing" | "done" | "failed";
+
 /** The words the plan sheet and Activity share, in the active locale. */
 export interface ChangeWords {
-  /** A resource's kind, as a noun: "Project". */
+  /** A resource's kind, as a word after its name: "project". */
   kind(kind: string): string;
-  /** What a step does: "Create", "Replace". */
-  action(action: PlanAction): string;
-  /** What a step does to what the resource serves: "Restarts". Empty for nothing. */
+  /** What a step does, in the tense of where it is: "Create", "Creating", "Created", "Couldn't create". */
+  verb(action: PlanAction, tense: Tense): string;
+  /** What a change is for, in the tense of where it is: "Deploy nginx:1.29", "Deploying nginx:1.29", "Couldn't deploy nginx:1.29". */
+  intent(intent: Intent, tense: Tense): string;
+  /** What a change is for, as its row's tag: "Deploy", "Deployed". */
+  intentTag(intent: Intent, done: boolean): string;
+  /** What a step will do to what the resource serves: "Restarts". Empty for nothing. */
   effect(effect: StepEffect): string;
   step(state: StepState): StepLook;
   /** Where a change stands, as a status and a word, or undefined for an applied one, which stays quiet. */
@@ -59,7 +71,7 @@ export interface ChangeWords {
 }
 
 /** Quotes what could read as the plan's own words, as AccessWords does on the server. */
-function plain(s: string): string {
+export function plain(s: string): string {
   return /^[A-Za-z0-9_.,/=:@+*-]*$/.test(s) ? s : JSON.stringify(s);
 }
 
@@ -70,47 +82,95 @@ export function useChangeWords(): ChangeWords {
       kind(kind) {
         switch (kind) {
           case "project":
-            return t`Project`;
+            return t`project`;
           case "environment":
-            return t`Environment`;
+            return t`environment`;
           case "service":
-            return t`Service`;
+            return t`app`;
           case "container":
-            return t`Container`;
+            return t`container`;
           case "volume":
-            return t`Volume`;
+            return t`volume`;
           case "network":
-            return t`Network`;
+            return t`network`;
           case "route":
-            return t`Route`;
+            return t`route`;
           case "firewall.rule":
-            return t`Firewall rule`;
+            return t`firewall rule`;
           case "variable":
-            return t`Variable`;
+            return t`variable`;
           case "secret":
-            return t`Secret`;
+            return t`secret`;
         }
-        return kind;
+        return kindWord(kind);
       },
-      action(action) {
+      verb(action, tense) {
         switch (action) {
           case PlanAction.CREATE:
-            return t`Create`;
+            return { plan: t`Create`, doing: t`Creating`, done: t`Created`, failed: t`Couldn't create` }[tense];
           case PlanAction.UPDATE:
-            return t`Update in place`;
+            return { plan: t`Update`, doing: t`Updating`, done: t`Updated`, failed: t`Couldn't update` }[tense];
           case PlanAction.REPLACE:
-            return t`Replace`;
+            return { plan: t`Replace`, doing: t`Replacing`, done: t`Replaced`, failed: t`Couldn't replace` }[tense];
           case PlanAction.DELETE:
-            return t`Destroy`;
+            return { plan: t`Delete`, doing: t`Deleting`, done: t`Deleted`, failed: t`Couldn't delete` }[tense];
         }
-        return t`Nothing to do`;
+        return { plan: t`Check`, doing: t`Checking`, done: t`Checked`, failed: t`Couldn't check` }[tense];
+      },
+      intent(intent, tense) {
+        const { image, port } = intent;
+        const revision = `r${intent.revision}`;
+        switch (intent.kind) {
+          case IntentKind.DEPLOY:
+            return {
+              plan: t`Deploy ${image}`,
+              doing: t`Deploying ${image}`,
+              done: t`Deployed ${image}`,
+              failed: t`Couldn't deploy ${image}`,
+            }[tense];
+          case IntentKind.PUBLISH_PORT:
+            return {
+              plan: t`Publish port ${port}`,
+              doing: t`Publishing port ${port}`,
+              done: t`Published port ${port}`,
+              failed: t`Couldn't publish port ${port}`,
+            }[tense];
+          case IntentKind.ROLL_BACK:
+            return {
+              plan: t`Roll back to ${revision}`,
+              doing: t`Rolling back to ${revision}`,
+              done: t`Rolled back to ${revision}`,
+              failed: t`Couldn't roll back to ${revision}`,
+            }[tense];
+          case IntentKind.REPULL:
+            return {
+              plan: t`Pull ${image} again`,
+              doing: t`Pulling ${image} again`,
+              done: t`Pulled ${image} again`,
+              failed: t`Couldn't pull ${image}`,
+            }[tense];
+        }
+        return "";
+      },
+      intentTag(intent, done) {
+        switch (intent.kind) {
+          case IntentKind.DEPLOY:
+            return done ? t`Deployed` : t`Deploy`;
+          case IntentKind.PUBLISH_PORT:
+            return done ? t`Published port` : t`Publish port`;
+          case IntentKind.ROLL_BACK:
+            return done ? t`Rolled back` : t`Roll back`;
+          case IntentKind.REPULL:
+            return done ? t`Pulled again` : t`Pull again`;
+        }
+        return "";
       },
       effect(effect) {
         switch (effect) {
           case StepEffect.RESTART:
             return t`Restarts`;
           case StepEffect.RECREATE:
-            return t`Recreated`;
+            return t`Recreates its container`;
         }
         return "";
       },
@@ -169,20 +229,33 @@ export function useChangeWords(): ChangeWords {
         return "";
       },
       access(access) {
-        const [path, type, driver, detail] = [access.path, access.type, access.driver, access.detail].map(plain);
+        const [path, type, driver, detail, leadsTo] = [
+          access.path,
+          access.type,
+          access.driver,
+          access.detail,
+          access.leadsTo,
+        ].map(plain);
         const reads = access.readOnly ? t`read-only` : t`read-write`;
         switch (access.kind) {
           case HostAccessKind.SERVER_PATH: {
             let how = reads;
             if (access.relabel === "z") how = t`${reads}, relabelled for SELinux as shared`;
             if (access.relabel === "Z") how = t`${reads}, relabelled for SELinux as private`;
-            return t`the server path ${path} (${how})`;
+            return leadsTo
+              ? t`the server path ${path}, which leads to ${leadsTo} (${how})`
+              : t`the server path ${path} (${how})`;
           }
           case HostAccessKind.DOCKER_SOCKET:
-            return t`Docker's socket at ${path}, which gives control of Docker on the server, the same as root`;
+            return leadsTo
+              ? t`the server path ${path}, which leads to Docker's socket at ${leadsTo}, which gives control of Docker on the server, the same as root`
+              : t`Docker's socket at ${path}, which gives control of Docker on the server, the same as root`;
           case HostAccessKind.HOST_NETWORK:
             return t`the server's own network`;
           case HostAccessKind.VOLUME_MOUNT: {
+            if (driver !== "" && path !== "") {
+              return t`the volume driver ${driver} at ${path}, which reaches what the plugin does (${reads})`;
+            }
             if (driver !== "") return t`the volume driver ${driver}, which reaches what the plugin does (${reads})`;
             const at = plain(access.address + access.path);
             return at === "" ? t`a ${type} mount (${reads})` : t`the ${type} mount ${at} (${reads})`;
@@ -343,5 +416,25 @@ export function useChangeWords(): ChangeWords {
       },
     }),
     [t],
+  );
+}
+
+/** What comes along with a plan's apps, as one row says it: "Also creates project blog, a network and 2 volumes". */
+export function useAlsoWords() {
+  const { t, i18n } = useLingui();
+  return useCallback(
+    (fold: Fold, done: boolean): string => {
+      const { project, environment, networks, volumes } = fold;
+      const parts: string[] = [];
+      if (project) parts.push(t`project ${project}`);
+      if (environment) parts.push(t`environment ${environment}`);
+      if (networks > 0) parts.push(plural(networks, { one: "a network", other: "# networks" }));
+      if (volumes > 0) parts.push(plural(volumes, { one: "a volume", other: "# volumes" }));
+      // British English leaves out the serial comma, as these words do.
+      const locale = i18n.locale.startsWith("en") ? "en-GB" : i18n.locale;
+      const list = new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(parts);
+      return done ? t`Also created ${list}` : t`Also creates ${list}`;
+    },
+    [t, i18n.locale],
   );
 }

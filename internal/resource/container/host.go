@@ -135,26 +135,6 @@ func (h Host) refuse(p string) string {
 	return ""
 }
 
-// sockets are where Docker and containerd take connections, as the
-// system service and rootless Docker have them.
-var sockets = []string{"/var/run/docker.sock", "/run/docker.sock", "/var/run/containerd/containerd.sock", "/run/containerd/containerd.sock"}
-
-// controlsDocker reports a server path that is, or holds, Docker's or
-// containerd's socket: whoever reaches it controls Docker, which is the
-// same as root.
-func controlsDocker(p string) bool {
-	if base := path.Base(p); base == "docker.sock" || base == "containerd.sock" {
-		return true
-	}
-	if slices.ContainsFunc(sockets, func(s string) bool { return within(s, p) }) {
-		return true
-	}
-	// Rootless Docker listens in its user's runtime directory, such as
-	// /run/user/1000/docker.sock.
-	user, ok := strings.CutPrefix(p, "/run/user")
-	return ok && (user == "" || strings.HasPrefix(user, "/") && !strings.Contains(user[1:], "/"))
-}
-
 // HostAccess lists what a container reaches on its server: each server
 // path it mounts, Docker's socket among them, the networks it joins, and what
 // it runs with beyond what Docker gives a container. A service's networks are
@@ -201,10 +181,10 @@ func mountAccess(c *resourcev1.Container) []resource.Access {
 // control of Docker when it is or holds Docker's socket, read-only or not,
 // as a socket mounted read-only still takes connections.
 func PathAccess(p string, readOnly bool) resource.Access {
-	if controlsDocker(p) {
+	if resource.ControlsDocker(p) {
 		return resource.Access{Kind: resource.AccessDocker, Path: p}
 	}
-	return resource.Access{Kind: resource.AccessPath, Path: p, ReadOnly: readOnly}
+	return resource.Access{Kind: resource.AccessPath, Path: p, ReadOnly: readOnly, SameAsRoot: resource.SystemPath(p, readOnly)}
 }
 
 // MountOptions is what the local volume driver's o option says.
@@ -324,6 +304,75 @@ func (d *Docker) checkPublicPorts(ctx context.Context, spec *resourcev1.Containe
 	return nil
 }
 
+// Leads says where the server paths a spec mounts lead through symlinks on this
+// server, those it binds through a volume too, for the ones that lead elsewhere.
+// A plan says so, as a symlink to /etc reaches /etc whatever it is called.
+func (d *Docker) Leads(ctx context.Context, t Target, spec *resourcev1.Container) (map[string]string, error) {
+	if d.Paths == nil || len(spec.GetMounts()) == 0 {
+		return nil, nil
+	}
+	h, err := d.Paths.Host(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, m := range spec.GetMounts() {
+		if p := m.GetHostPath(); p != "" {
+			paths = append(paths, p)
+			continue
+		}
+		v, err := d.Client.InspectVolume(ctx, t.DockerName(m.GetVolume()))
+		switch {
+		case docker.IsNotFound(err):
+			continue // the change makes it, and says where its own path leads
+		case err != nil:
+			return nil, err
+		}
+		if dev, ok := BindDevice(v.Driver, v.Options); ok {
+			paths = append(paths, dev)
+		}
+	}
+	return h.Leads(paths...)
+}
+
+// Leads says where each path leads on the server, for those that lead elsewhere.
+func (h Host) Leads(paths ...string) (map[string]string, error) {
+	if h.Resolve == nil {
+		return nil, nil
+	}
+	out := map[string]string{}
+	for _, p := range paths {
+		to, err := h.Resolve(p)
+		if err != nil {
+			return nil, fmt.Errorf("can't follow the server path %s to see where it leads: %w. Mount a path the agent can read", p, err)
+		}
+		if clean := path.Clean(p); to != clean {
+			out[clean] = to
+		}
+	}
+	return out, nil
+}
+
+// pathLeader is a Runtime that can say where a spec's server paths lead, as
+// Docker can.
+type pathLeader interface {
+	Leads(ctx context.Context, t Target, spec *resourcev1.Container) (map[string]string, error)
+}
+
+// Leads says where the server paths a container mounts lead on this server.
+func (d *Driver) Leads(ctx context.Context, ref resource.Ref, desired proto.Message) (map[string]string, error) {
+	return d.LeadsAt(ctx, HostTarget(ref), desired.(*resourcev1.Container))
+}
+
+// LeadsAt says where the server paths the container at t mounts lead, for a
+// service's app too.
+func (d *Driver) LeadsAt(ctx context.Context, t Target, c *resourcev1.Container) (map[string]string, error) {
+	if l, ok := d.Runtime.(pathLeader); ok {
+		return l.Leads(ctx, t, c)
+	}
+	return nil, nil
+}
+
 // hostChecker is a Runtime that checks a spec on its server, as Docker
 // does.
 type hostChecker interface {
@@ -383,6 +432,9 @@ func (p *Paths) Host(ctx context.Context) (Host, error) {
 
 // maxLinks bounds the symlinks resolve follows, as the kernel's limit does.
 const maxLinks = 40
+
+// Resolve follows an absolute path on this server, as resolve does.
+func Resolve(p string) (string, error) { return resolve(p) }
 
 // resolve follows an absolute path on this server part by part, as the
 // kernel does: .. goes up from where a symlink led, not from how the path

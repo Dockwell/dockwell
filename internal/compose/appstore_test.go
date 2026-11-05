@@ -177,8 +177,9 @@ func (r *storeReport) count(stack *Stack) {
 	seen := map[string]bool{}
 	d := &service.Driver{}
 	for _, s := range stack.Services {
-		for _, a := range d.HostAccess(s.Spec) {
-			seen[accessClass(a)] = true
+		access := d.HostAccess(s.Spec)
+		for i := range access {
+			seen[accessClass(access[i])] = true
 		}
 	}
 	for k := range seen {

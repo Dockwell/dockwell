@@ -9,6 +9,7 @@ import {
   ChangeState,
   EnvironmentVariableSchema,
   type ListVariablesRequest,
+  PlanAction,
   type ProposeChangeRequest,
   ResourceSchema,
   type RevealSecretRequest,
@@ -64,7 +65,13 @@ const planned = create(ChangeSchema, {
   summary: "Add the secret STRIPE_KEY",
   state: ChangeState.PLANNED,
   proposedBy: mira,
-  plan: { fingerprint: "0123456789abcdef", summary: { create: 1 } },
+  plan: {
+    fingerprint: "0123456789abcdef",
+    summary: { create: 1 },
+    resources: [
+      { id: "res_key", resource: { kind: "secret", scope: "env_prod", name: "STRIPE_KEY" }, action: PlanAction.CREATE },
+    ],
+  },
 });
 
 function api(environments = [production], more: Api = {}): Api & { proposals: ProposeChangeRequest[] } {

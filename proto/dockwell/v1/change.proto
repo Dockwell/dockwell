@@ -77,8 +77,10 @@ service ChangeService {
   // Otherwise it commits the change's revisions and starts running its
   // steps, and returns the change as it starts applying. The steps run to
   // an end whether or not the caller waits. Follow them with WatchChange,
-  // or by polling GetChange. If a step fails, the steps already done are
-  // rolled back in a change of Dockwell's own, named in rolled_back_by.
+  // or by polling GetChange. If a step fails, Dockwell starts rolling back what
+  // was done, in a change of its own, named in rolled_back_by. That runs on after
+  // this change has failed, may wait for a server, and may fail too, so read
+  // rollback_status for how it went.
   //
   // A plan that destroys data or may cut off access needs the fingerprint
   // of the plan you reviewed, and a signed-in session: no API token may
@@ -433,16 +435,58 @@ message Change {
   google.protobuf.Timestamp apply_time = 12;
   // Until when UndoChange works, once it is applied. Unset otherwise.
   google.protobuf.Timestamp undo_deadline = 13;
-  // Why it failed, when it did.
+  // Why it failed, when it did, in plain words: the fact, then the
+  // consequence, then the fix. The step that failed has what the server said
+  // in its detail.
   string error = 14;
   // Each step of the plan with its progress, once it is applying: servers
   // in plan order, and on each the steps in the order they run.
   repeated StepProgress steps = 15;
   // The change that rolled this one back after it failed, if any. It may
-  // still be applying, as when it waits for a server to reconnect.
+  // still be applying, as when it waits for a server to reconnect, or have
+  // failed: rollback_status says how it went.
   string rolled_back_by = 16;
   // The applied change that undid this one, if any.
   string undone_by = 17;
+  // How the rollback in rolled_back_by is going, which is what says whether
+  // what ran before is back. It moves on after this change has failed, so
+  // read it afresh, or follow the rollback with WatchChange. Unset when there
+  // is no rollback.
+  RollbackStatus rollback_status = 18;
+}
+
+// RollbackStatus is how the rollback of a failed change is going, for
+// whoever has to say what runs now.
+message RollbackStatus {
+  // The rollback's change, as rolled_back_by says.
+  string id = 1;
+  // Where it is.
+  RollbackState state = 2;
+  // How many steps it takes. None means the servers still had what was there
+  // before, as the failed change stopped before it changed them.
+  int32 steps = 3;
+  // The servers it waits for, by name, while it waits.
+  repeated string waiting_for = 4;
+  // Why it failed, in plain words, when it did.
+  string error = 5;
+  // What the server said, when it failed and error puts that in plain words.
+  string detail = 6;
+  // The resources its steps put back, by name. What isn't here didn't change,
+  // so it never stopped.
+  repeated string restored = 7;
+}
+
+// RollbackState is where the rollback of a failed change is.
+enum RollbackState {
+  ROLLBACK_STATE_UNSPECIFIED = 0;
+  // Its steps are running.
+  ROLLBACK_STATE_APPLYING = 1;
+  // A step waits for its server to reconnect, or for its agent to plan it.
+  ROLLBACK_STATE_WAITING = 2;
+  // Every step ran, so what was there before is back.
+  ROLLBACK_STATE_APPLIED = 3;
+  // A step failed, so what was there before may not be back.
+  ROLLBACK_STATE_FAILED = 4;
 }
 
 // ChangeState is where a change is.
@@ -541,6 +585,9 @@ message Plan {
   // about what stays as it is or what can be read, not about what runs. A note
   // never stops anyone applying it.
   repeated PlanNote notes = 8;
+  // What the change is for, in a person's terms, when the method that proposed
+  // it knows. Unset for a change proposed as plain edits.
+  Intent intent = 10;
   // Which project and environment its resources land in, once there's a choice
   // of either, so a plan can't read as another's. Empty while there's one
   // project with one environment. A plan that spans several lists each.
@@ -599,6 +646,37 @@ message PlanSummary {
   int32 destroy = 4;
 }
 
+// Intent is what a change is for, in a person's terms. A plan says what happens
+// to resources, which for a deploy or a new port is that a container is made
+// again: this says what that comes to. It isn't in the fingerprint, as it says
+// nothing about what the plan does.
+message Intent {
+  // What it is.
+  IntentKind kind = 1;
+  // The ID of the resource it is about.
+  string resource_id = 2;
+  // The image a deploy runs.
+  string image = 3;
+  // The port on the server that publishing a port opens.
+  int32 port = 4;
+  // The revision a rollback puts back.
+  int64 revision = 5;
+}
+
+// IntentKind is what a change is for.
+enum IntentKind {
+  INTENT_KIND_UNSPECIFIED = 0;
+  // It runs another image.
+  INTENT_KIND_DEPLOY = 1;
+  // It publishes one more port.
+  INTENT_KIND_PUBLISH_PORT = 2;
+  // A person takes it back to an earlier revision.
+  INTENT_KIND_ROLL_BACK = 3;
+  // It pulls the image it runs again, as its tag may have moved, and replaces it
+  // only if that is a newer image.
+  INTENT_KIND_REPULL = 4;
+}
+
 // PlannedResource is what a plan does to one resource as a whole.
 message PlannedResource {
   // The resource's ID. A new resource has its ID from when it is planned.
@@ -652,9 +730,16 @@ message HostAccess {
   // "name=value" with commas between, sorted. For a network the server has,
   // the other names a service answers to on it, with commas between, sorted.
   string detail = 8;
-  // True for what is the same as root on the server, whatever else it says,
-  // such as privileged mode or the capability SYS_ADMIN.
+  // True for what is as good as root on the server, whatever else it says:
+  // Docker's socket, the server's own network, a system path such as /etc,
+  // privileged mode or the capability SYS_ADMIN. All host access needs a
+  // signed-in person; a client should ask for more than a click only for this,
+  // so that the warning means something when it comes.
   bool same_as_root = 9;
+  // Where the server path leads through symlinks, as its server's agent reads it,
+  // when that is somewhere else. Empty when it isn't, or when no agent has said,
+  // as for a server that wasn't connected when it was planned.
+  string leads_to = 10;
 }
 
 // HostAccessKind is what a resource reaches on its server.
@@ -975,12 +1060,26 @@ message StepProgress {
   // How it is going.
   StepState state = 5;
   // What is happening, for people, such as "Replacing web on hz-1", or why
-  // the step failed.
+  // the step failed, in plain words.
   string message = 6;
   // When it started running. Unset until then.
   google.protobuf.Timestamp start_time = 7;
   // When it finished. Unset until then.
   google.protobuf.Timestamp finish_time = 8;
+  // What the step's driver says it is doing right now, such as "Pulling
+  // nginx:1.27: 12 of 48 MB". Empty until it says, and once the step ends.
+  string activity = 9;
+  // What the server said, when a step failed and message puts it in plain
+  // words: the whole chain of errors, IDs included. It never holds a secret,
+  // as drivers keep them out of their errors.
+  string detail = 10;
+  // What a failure comes down to, when the driver knows, so a client can say
+  // what to do about it where it is: "image", "command", "exits", "unhealthy",
+  // "port" or "mount". Empty when it doesn't, and it may gain others.
+  string reason = 11;
+  // True when the server went away during the step, so nothing can say whether
+  // it ran until the server is back.
+  bool lost = 12;
   // What the step did in the end, on this server, once it's done: action says
   // what was planned, and only the step can say this, as a pull finds out as it
   // goes. PLAN_ACTION_NONE left what runs exactly as it was. Unspecified until

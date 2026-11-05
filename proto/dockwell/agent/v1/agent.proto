@@ -340,6 +340,17 @@ message CallError {
   // stream, as when its certificate was renewed. Nothing ran, and the
   // control plane sends the call again once the agent reconnects.
   bool draining = 2;
+  // The reason in plain words, when the agent has them, such as "nginx:9
+  // can't be pulled. ...": the fact, then the consequence, then the fix. It
+  // leaves the chain of errors to message, which says more and reads worse.
+  // Empty when message says it all, as from an older agent.
+  string plain = 3;
+  // True when the call failed because its time ran out on the agent, which
+  // may answer just before the control plane's own deadline.
+  bool out_of_time = 4;
+  // What the failure comes down to, when the driver knows, as StepProgress has
+  // it.
+  string reason = 5;
 }
 
 // PlanResult carries a plan call's steps.

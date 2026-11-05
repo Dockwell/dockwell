@@ -297,7 +297,8 @@ func (t *Tx) ListChanges(ctx context.Context, page ChangePage, limit int) ([]Cha
 
 // Reverting returns the changes that undo or roll back any of changeIDs,
 // oldest first, in one query. Each has only its ID, actor, state and what
-// it reverts.
+// it reverts, and its error, plan and progress, which say how a rollback is
+// going.
 func (t *Tx) Reverting(ctx context.Context, changeIDs []string) ([]Change, error) {
 	if len(changeIDs) == 0 {
 		return nil, nil
@@ -307,7 +308,7 @@ func (t *Tx) Reverting(ctx context.Context, changeIDs []string) ([]Change, error
 		args[i] = id
 	}
 	marks := strings.Repeat("?, ", len(changeIDs)-1) + "?"
-	rows, err := t.query(ctx, `SELECT id, actor, state, reverts FROM changes WHERE reverts IN (`+marks+`) ORDER BY created_at, id`, args...)
+	rows, err := t.query(ctx, `SELECT id, actor, state, reverts, error, plan, progress FROM changes WHERE reverts IN (`+marks+`) ORDER BY created_at, id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("can't read the changes that revert others: %w", err)
 	}
@@ -315,9 +316,11 @@ func (t *Tx) Reverting(ctx context.Context, changeIDs []string) ([]Change, error
 	var out []Change
 	for rows.Next() {
 		var c Change
-		if err := rows.Scan(&c.ID, &c.Actor, &c.State, &c.Reverts); err != nil {
+		var errText sql.NullString
+		if err := rows.Scan(&c.ID, &c.Actor, &c.State, &c.Reverts, &errText, &c.Plan, &c.Progress); err != nil {
 			return nil, fmt.Errorf("can't read the changes that revert others: %w", err)
 		}
+		c.Error = errText.String
 		out = append(out, c)
 	}
 	return out, rows.Err()

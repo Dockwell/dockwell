@@ -9,7 +9,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
-import { useChangeSheet } from "../changes/ChangeSheet";
+import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useApp } from "./AppContext";
 import { isMoving, nameOf, portRefusal, tidyMessage } from "./app";
 import { validPort } from "./form";
@@ -23,7 +23,6 @@ import { validPort } from "./form";
 export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClose: () => void }) {
   const { t } = useLingui();
   const transport = useTransport();
-  const sheet = useChangeSheet();
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(ServiceService, transport), [transport]);
   const name = nameOf(service);
@@ -34,7 +33,8 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
   const [hostError, setHostError] = useState<string>();
   const [appError, setAppError] = useState<string>();
   const [failure, setFailure] = useState<string>();
-  const [hidden, setHidden] = useState(false);
+  // The plan under review takes this sheet over, and Cancel brings the form back as it was.
+  const [plan, setPlan] = useState<Opening>();
   const field = useRef<HTMLInputElement>(null);
   const { state } = useApp();
   // One change at a time: this one's plan couldn't apply until that one ends.
@@ -43,11 +43,11 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
   // Back from a plan that failed, what it said is at the field, ready to change.
   const reveal = useRef(false);
   useEffect(() => {
-    if (hidden || !reveal.current) return;
+    if (plan || !reveal.current) return;
     reveal.current = false;
     field.current?.focus();
     field.current?.select();
-  }, [hidden]);
+  }, [plan]);
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -80,18 +80,22 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
       return;
     }
     setBusy(false);
-    setHidden(true);
-    sheet.open({
+    setPlan({
       kind: "plan",
       make: () => Promise.resolve({ change }),
+      retryLabel: t`Edit and try again`,
+      onDone: onClose,
+      fix: (reason) =>
+        // A port is all that moved, and its numbers are all this form has.
+        reason === "exits" || reason === "unhealthy" ? t`Check the port in the app, then try again.` : undefined,
       onClose: (after) => {
         // Cancelling comes back here, with what you typed, as failing does, saying why
         // at the field. Anything else is under way or over.
         if (after?.state === ChangeState.FAILED) {
           setHostError(tidyMessage(after.error));
           reveal.current = true;
-          setHidden(false);
-        } else if (after && after.state === ChangeState.PLANNED) setHidden(false);
+          setPlan(undefined);
+        } else if (!after || after.state === ChangeState.PLANNED) setPlan(undefined);
         else onClose();
       },
     });
@@ -99,7 +103,8 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
 
   return (
     <Sheet
-      open={!hidden}
+      open
+      over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={field}
       title={t`Add a port to ${name}`}
       subtitle={t`People outside the server reach the app through this port`}

@@ -1343,7 +1343,7 @@
 }
 
 .deploy-diff-path {
-  font: 500 12px / 18px var(--font-mono);
+  font: 500 12px / 18px var(--font-sans);
 }
 
 .deploy-diff-values {
@@ -1378,6 +1378,17 @@
 .deploy-diff-from code,
 .deploy-diff-to code {
   font: inherit;
+}
+
+/* Words with machine values among them: the words in sans, the values in mono. */
+.deploy-diff-from.is-words,
+.deploy-diff-to.is-words {
+  font-family: var(--font-sans);
+}
+
+.deploy-diff-from.is-words code,
+.deploy-diff-to.is-words code {
+  font-family: var(--font-mono);
 }
 
 .deploy-rollout {

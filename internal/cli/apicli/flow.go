@@ -568,8 +568,8 @@ func (r *runner) outcome(c *dockwellv1.Change, began time.Time) error {
 		return nil
 	case dockwellv1.ChangeState_CHANGE_STATE_FAILED:
 		msg := fmt.Sprintf("%s failed: %s", id, sentence(c.GetError()))
-		if c.GetRolledBackBy() != "" {
-			msg += fmt.Sprintf(" Dockwell is rolling back what it had done, in %s; follow it with dockwell changes watch %s", c.GetRolledBackBy(), c.GetRolledBackBy())
+		if words := rollbackWords(c); words != "" {
+			msg += " " + words
 		}
 		return errors.New(strings.TrimSuffix(msg, "."))
 	case dockwellv1.ChangeState_CHANGE_STATE_DISCARDED:

@@ -43,7 +43,7 @@ a.dw-btn {
   width: var(--h);
   padding: 0;
 }
-.dw-btn:active:not(:disabled) {
+.dw-btn:active:not(:disabled):not(.is-loading) {
   transform: translateY(0.5px);
 }
 .dw-btn:focus-visible {
@@ -92,17 +92,13 @@ a.dw-btn {
   filter: brightness(1.06);
 }
 
+/* The cap takes the button's own colour at full strength, so it holds 4.5:1; only its edge is softer. */
 .dw-btn .dw-kbd {
   margin: 0 -4px 0 2px;
   background: transparent;
-  border-color: currentColor;
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
   border-bottom-width: 1px;
   color: inherit;
-  opacity: 0.6;
-}
-.dw-btn-primary .dw-kbd,
-.dw-btn-danger .dw-kbd {
-  opacity: 0.75;
 }
 .dw-btn-spinner {
   flex: none;

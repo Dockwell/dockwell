@@ -1,27 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { create } from "@bufbuild/protobuf";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { type Timestamp, timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
+  type Change,
   ChangeState,
   DomainCheckSchema,
   DomainCheckState,
+  FieldChangeSchema,
+  FieldOp,
   HostAccessKind,
   HostAccessSchema,
   IngressChange,
   IngressEffectSchema,
   PlanAction,
   PlanNoteSchema,
+  PlanSummarySchema,
+  type PortMappingSchema,
   RouteAnswersSchema,
   RouteReach,
+  ServerPlanSchema,
   ServerPortCheckSchema,
+  type ServiceInfoSchema,
   StepProgressSchema,
   StepState,
   type WatchChangeResponse,
   WatchChangeResponseSchema,
 } from "@dockwell/api";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,7 +37,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { applied, moved, shopPlanned, watched, webPlanned } from "../../test/changes";
-import { type Api, feed, onPhone, renderWithApi } from "../../test/render";
+import { type Api, feed, onPhone, quietWatch, renderWithApi } from "../../test/render";
+import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
 
 function Opener({ opening }: { opening: Opening }) {
@@ -81,13 +90,12 @@ describe("the plan sheet", () => {
     await within(sheet).findByText("to replace");
     expect(sheet).toHaveTextContent("1 to replace");
     // A replace counts on its own, and the secret says only that it changed.
-    expect(sheet).toHaveTextContent("0 to change");
-    expect(within(sheet).getAllByText("hidden")).toHaveLength(2);
+    expect(sheet).not.toHaveTextContent(/\b0 to/);
+    expect(within(sheet).getAllByText("hidden")).toHaveLength(1);
     expect(sheet).toHaveTextContent("hz-1 · about 2 s down");
-    const steps = within(sheet).getByRole("region", { name: "Steps by server" });
-    expect(steps).toHaveTextContent("hz-1");
-    expect(steps).toHaveTextContent("Replace web");
-    expect(steps).toHaveTextContent("Container");
+    // With one server, there are no steps to tell apart, and nothing about how they run.
+    expect(within(sheet).queryByRole("region", { name: /Steps/ })).toBeNull();
+    expect(sheet).not.toHaveTextContent("one at a time");
     expect(sheet).toHaveTextContent("Undo for 7 days");
     await expectAccessible(document.body);
 
@@ -108,7 +116,8 @@ describe("the plan sheet", () => {
       ],
     });
     act(() => watch.push(watched(running)));
-    await screen.findByText("Waiting to replace web on hz-1");
+    const applying = await screen.findByRole("dialog", { name: "Applying" });
+    expect(await within(applying).findByRole("region", { name: "Steps" })).toHaveTextContent("Replace web");
     act(() =>
       watch.push(
         create(WatchChangeResponseSchema, {
@@ -127,19 +136,20 @@ describe("the plan sheet", () => {
         }),
       ),
     );
-    const applying = await screen.findByRole("dialog", { name: "Applying" });
-    expect(await within(applying).findByText("Replacing web on hz-1")).toBeVisible();
-    expect(within(applying).getByText("Running")).toBeVisible();
+    // In the tense of where it is: never "Replaced" while it runs.
+    expect(await within(applying).findByText("Running")).toBeVisible();
+    expect(within(applying).getByRole("region", { name: "Steps" })).toHaveTextContent("Replacing web");
     expect(applying).toHaveTextContent("It keeps applying if you close this.");
 
     act(() => watch.push(watched(applied(running))));
-    const done = await screen.findByRole("dialog", { name: "Applied" });
-    expect(done).toHaveTextContent("Every step ran");
-    expect(done).toHaveTextContent(/You can undo it until/);
-    expect(within(done).getByRole("button", { name: "Undo" })).toBeVisible();
+    const done = await screen.findByRole("dialog", { name: "web is live" });
+    expect(done).toHaveTextContent("1 replaced");
+    expect(done).not.toHaveTextContent("to replace");
+    expect(done).not.toHaveTextContent("about 2 s down");
+    expect(within(done).getByRole("button", { name: /Undo until/ })).toBeVisible();
     await expectAccessible(document.body);
     // An applied plan stays, sheet or no sheet.
-    await user.click(within(done).getByRole("button", { name: "Done" }));
+    await user.click(within(done).getByRole("button", { name: /Done/ }));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(discard).not.toHaveBeenCalled();
   });
@@ -162,7 +172,7 @@ describe("the plan sheet", () => {
 
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
-    expect(sheet).toHaveTextContent("This plan destroys data or may cut off access");
+    expect(within(sheet).getByRole("alert")).toHaveTextContent("This plan destroys data or may cut off access");
     expect(apply).toBeDisabled();
     const field = within(sheet).getByLabelText("Type a1b2c3d4 to apply it");
     await user.type(field, "a1b2c3d5");
@@ -202,14 +212,21 @@ describe("the plan sheet", () => {
       create(HostAccessSchema, { kind: HostAccessKind.TRUSTED_PROXY, path: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.PLAIN_FOR_ANYONE, path: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.HTTPS_OFF, path: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/a", leadsTo: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/b", leadsTo: spoof, sameAsRoot: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/srv/c", leadsTo: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: spoof, sameAsRoot: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.GROUP, path: spoof, sameAsRoot: true }),
     ];
     renderSheet(proposeWeb, {
       changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },
     });
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
-    await waitFor(() => expect(sheet).toHaveTextContent("This plan gives more access to a server"));
+    await within(sheet).findByRole("alert");
     const text = sheet.textContent ?? "";
-    expect(text).toContain(`the server path "${spoof}"`);
+    expect(text).toContain(`reaches "${spoof}" on hz-1`);
+    expect(text).toContain(`joins the group "${spoof}" on hz-1`);
+    expect(text).toContain(`has the Linux capability "${spoof}" on hz-1`);
     expect(text.replace(/"(?:[^"\\]|\\.)*"/g, "")).not.toContain(spoof);
   });
 
@@ -254,6 +271,7 @@ describe("the plan sheet", () => {
       }),
     ];
     step.untilHealthy = { $typeName: "google.protobuf.Duration", seconds: 110n, nanos: 0 };
+    if (plan.servers[0]) plan.servers[0].untilHealthy = step.untilHealthy;
     step.keptPaths = ["/var/lib/postgresql/data"];
     step.destroysData = true;
     renderSheet(proposeWeb, {
@@ -268,43 +286,39 @@ describe("the plan sheet", () => {
     });
 
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
-    expect(sheet).toHaveTextContent("This plan gives more access to a server");
-    expect(sheet).toHaveTextContent(
-      "Reaches the server path /srv/app/config (read-only); Docker's socket at /var/run/docker.sock, which gives control of Docker on the server, the same as root",
+    const risk = await within(sheet).findByRole("alert");
+    // The worst of it leads, in the form's words, above everything else in the plan.
+    expect(risk.querySelector(".dw-callout-title")).toHaveTextContent("web gets root on hz-1");
+    expect(risk).toHaveTextContent("/var/run/docker.sock gives it control of Docker on the server, the same as root.");
+    expect(risk).toHaveTextContent("Apply this only if you trust what it runs.");
+    // What stops short of root has a row of its own, as a warning, and no alarm.
+    expect(risk).not.toHaveTextContent("/srv/app/config");
+    const effects = within(sheet).getByRole("region", { name: "What applying means" });
+    expect(effects).toHaveTextContent("web reaches the nfs mount 10.0.0.2:/media (read-write) on hz-1");
+    expect(effects).toHaveTextContent("web reaches /srv/app/config on hz-1");
+    expect(effects).toHaveTextContent("It can read that path on the server.");
+    expect(risk).toHaveTextContent(
+      "web loses what its image keeps at /var/lib/postgresql/data. The server keeps that data for 7 days",
     );
-    // At the plan's level too, as a plan with no steps has nowhere else.
-    expect(sheet).toHaveTextContent("web reaches the nfs mount 10.0.0.2:/media (read-write).");
-    expect(sheet).toHaveTextContent("Its image isn't on the server yet, so its own health check isn't known");
-    expect(sheet).toHaveTextContent("Up to 1 min 50 s until healthy");
-    // What it joins and runs with, named, and what is the same as root says so.
-    expect(sheet).toHaveTextContent(
-      "the network edge, which is on the server already, where it answers to its name and to db: whatever else is on that network, other projects' services too, can reach it, and it can reach them",
-    );
-    expect(sheet).toHaveTextContent("the Linux capability SYS_ADMIN, which is the same as root");
-    expect(sheet).toHaveTextContent("the Linux capability NET_RAW;");
-    expect(sheet).toHaveTextContent(
-      "the group 999, which is the same as root if it is the group that owns Docker's socket on the server",
-    );
-    expect(sheet).toHaveTextContent(
-      "privileged mode, which gives it every device and capability on the server, the same as root",
-    );
-    // What no step says, the plan says beside them.
-    expect(sheet).toHaveTextContent("web has build beside image, and Dockwell builds nothing");
-    expect(sheet).toHaveTextContent("REDIS_PASSWORD from your .env is in redis's command");
-    // A value in plain sight stands with what most needs reading, not with what is by the way.
-    const iconBeside = (text: string) =>
-      within(sheet).getByText(text, { exact: false }).closest(".plan-effect")?.querySelector("svg")?.innerHTML;
-    expect(iconBeside("REDIS_PASSWORD from your .env")).toBe(iconBeside("This plan gives more access to a server"));
-    expect(iconBeside("REDIS_PASSWORD from your .env")).not.toBe(iconBeside("web has build beside image"));
-    expect(sheet).toHaveTextContent(
-      "Takes out of use what its image keeps at /var/lib/postgresql/data, which the server keeps for 7 days",
-    );
-    const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
+    expect(
+      risk.compareDocumentPosition(sheet.querySelector(".dw-plan") as Element) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(sheet).not.toHaveTextContent("about 2 s down, no downtime");
+    expect(sheet).toHaveTextContent("web may take longer to be healthy, as its image isn't on the server yet.");
+    expect(sheet).toHaveTextContent("about 2 s down, and up to 1 min 50 s until healthy");
+    // The confirmation sits in the footer beside Apply, with the reason Apply waits.
+    const footer = sheet.querySelector(".dw-sheet-foot") as HTMLElement;
+    const apply = within(footer).getByRole("button", { name: /Apply plan/ });
+    const field = within(footer).getByLabelText("Type a1b2c3d4 to apply it");
     expect(apply).toBeDisabled();
-    await user.type(within(sheet).getByLabelText("Type a1b2c3d4 to apply it"), "a1b2c3d4");
+    expect(apply).toHaveAccessibleDescription("Type a1b2c3d4 to apply it");
+    expect(apply).toHaveClass("dw-btn-danger");
+    await waitFor(() => expect(field).toHaveFocus());
+    await user.type(field, "a1b2c3d4");
     expect(apply).toBeEnabled();
     await expectAccessible(document.body);
-    await user.click(apply);
+    // Enter in the field applies it, as the button beside it says.
+    await user.keyboard("{Enter}");
     await waitFor(() => expect(applies[0]?.fingerprint).toBe("a1b2c3d4e5f60718293a4b5c6d7e8f90"));
   });
 
@@ -405,13 +419,16 @@ describe("the plan sheet", () => {
     });
 
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() => expect(sheet.querySelector(".plan-risk")).toBeTruthy());
+    expect(sheet).toHaveTextContent("web reaches the port 127.0.0.1:8080 on hz-1");
+    expect(sheet).toHaveTextContent("That is the server itself, past its containers, at app.example.com.");
+    expect(sheet).toHaveTextContent("web believes the proxy cloudflare on hz-1");
+    expect(sheet).toHaveTextContent("It takes that proxy's word for where a request came from.");
+    expect(sheet).toHaveTextContent("web answers plain HTTP on lan.example.com on hz-1");
+    expect(sheet).toHaveTextContent("Anyone who can reach this server gets it, around whatever is in front of it.");
+    expect(sheet).toHaveTextContent("web stops HTTPS on live.example.com on hz-1");
     expect(sheet).toHaveTextContent(
-      "the port 127.0.0.1:8080 on the server itself, past its containers, at app.example.com",
-    );
-    expect(sheet).toHaveTextContent("cloudflare as a proxy it believes on where a request came from");
-    expect(sheet).toHaveTextContent("plain HTTP on lan.example.com for anyone who can reach this server");
-    expect(sheet).toHaveTextContent(
-      "Takes away HTTPS on live.example.com, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out",
+      "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out.",
     );
     expect(sheet).toHaveTextContent("It answers anyone who can reach hz-1 on port 80, over plain HTTP");
     expect(sheet).toHaveTextContent("That lets anyone who can reach hz-1 reach port 8080");
@@ -455,6 +472,121 @@ describe("the plan sheet", () => {
     expect(sheet).toHaveTextContent("the panel's domain, panel.example.com, which moves behind Caddy");
   });
 
+  it("marks what reaches the server as a risk in the diff, never as a green addition", async () => {
+    const reaching = webPlanned();
+    const plan = reaching.plan;
+    const resource = plan?.resources[0];
+    if (!plan || !resource) throw new Error("webPlanned has no resource");
+    plan.hostAccess = true;
+    resource.action = PlanAction.CREATE;
+    resource.hostAccess = [
+      create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" }),
+    ];
+    resource.changes = [
+      create(FieldChangeSchema, { path: "image", op: FieldOp.ADDED, to: "nginx:1.28" }),
+      create(FieldChangeSchema, { path: "mounts[0].host_path", op: FieldOp.ADDED, to: "/var/run/docker.sock" }),
+      create(FieldChangeSchema, { path: "mounts[0].target", op: FieldOp.ADDED, to: "/var/run/docker.sock" }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const socket = await within(sheet).findByText("Docker's socket");
+    expect(socket).toHaveClass("is-critical");
+    expect(socket.nextElementSibling?.querySelector(".dw-diff-critical")).toHaveTextContent("/var/run/docker.sock");
+    expect(socket.nextElementSibling?.querySelector(".dw-diff-to")).toBeNull();
+    // What puts the server at risk comes first in its resource.
+    expect(sheet.querySelector(".dw-plan-changes dt")).toBe(socket);
+  });
+
+  it("leads with what a plan says about itself, and says it in its own words", async () => {
+    const noted = webPlanned();
+    if (noted.plan) {
+      noted.plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "volumes_stay",
+          message: "web keeps what is in data as it is. Check before you apply",
+          resource: { kind: "service", name: "web" },
+          names: ["data", "/srv/data"],
+        }),
+        create(PlanNoteSchema, {
+          reason: "exposed_variable",
+          message: "web's command holds the value of TOKEN.",
+          resource: { kind: "service", name: "web" },
+          names: ["TOKEN", "command"],
+        }),
+        create(PlanNoteSchema, { reason: "newer", message: "This reason is new. The panel doesn't know it yet." }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: noted }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const callout = (await within(sheet).findByText(/keeps what is in/)).closest(".dw-callout") as HTMLElement;
+    expect(callout).toHaveClass("dw-tone-warning");
+    expect(callout.querySelector(".dw-callout-title")).toHaveTextContent(
+      "web keeps what is in data, /srv/data as it is",
+    );
+    expect(callout).toHaveTextContent("A rollback puts back its spec, not its data");
+    expect(callout).toHaveTextContent(
+      "web's command holds the value of TOKEN. Anyone who can read this app can see it.",
+    );
+    expect(callout).toHaveTextContent("use $$TOKEN in the command.");
+    expect(callout).toHaveTextContent("This reason is new. The panel doesn't know it yet.");
+    expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(callout);
+    // It stops nobody.
+    expect(within(sheet).getByRole("button", { name: /Apply plan/ })).toBeEnabled();
+    await expectAccessible(document.body);
+  });
+
+  it("leaves a plan's own word to a row once something worse has the Callout", async () => {
+    const noted = webPlanned();
+    if (noted.plan) {
+      noted.plan.destructive = true;
+      noted.plan.notes = [create(PlanNoteSchema, { message: "This is worth knowing. Look at it." })];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: noted }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent("This plan destroys data");
+    expect(
+      within(sheet)
+        .getAllByText(/./)
+        .filter((el) => el.classList.contains("dw-callout-title")),
+    ).toHaveLength(1);
+    expect(within(sheet).getByRole("region", { name: "What applying means" })).toHaveTextContent(
+      "This is worth knowing",
+    );
+  });
+
+  it("gives data loss the same treatment: it leads, it is marked in the diff, and it asks first", async () => {
+    const losing = webPlanned();
+    const plan = losing.plan;
+    const step = plan?.servers[0]?.steps[0];
+    const resource = plan?.resources[0];
+    if (!plan || !step || !resource) throw new Error("webPlanned has no step");
+    plan.destructive = true;
+    resource.action = PlanAction.DELETE;
+    step.action = PlanAction.DELETE;
+    step.keptPaths = ["/var/lib/postgresql/data"];
+    step.destroysData = true;
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: losing }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+      "web loses what its image keeps at /var/lib/postgresql/data",
+    );
+    // Open though it deletes, as what is at risk is never folded away.
+    const row = within(sheet).getByText("data taken out of use");
+    expect(row).toBeVisible();
+    expect(row).toHaveClass("is-critical");
+    expect(row.nextElementSibling?.querySelector(".dw-diff-critical")).toHaveTextContent("/var/lib/postgresql/data");
+    expect(within(sheet).getByRole("button", { name: /Delete web/ })).toBeDisabled();
+    expect(within(sheet).getByLabelText("Type a1b2c3d4 to apply it")).toBeVisible();
+  });
+
   it("discards the plan it made when you cancel", async () => {
     const user = userEvent.setup();
     const discarded: string[] = [];
@@ -475,7 +607,7 @@ describe("the plan sheet", () => {
     await within(sheet).findByText("to create");
     expect(sheet).toHaveTextContent("2 to create");
     // Projects run on no server: there are no steps to show, and nothing goes down.
-    expect(within(sheet).queryByRole("region", { name: "Steps by server" })).toBeNull();
+    expect(within(sheet).queryByRole("region", { name: /Steps/ })).toBeNull();
     expect(sheet).toHaveTextContent("No server · nothing goes down");
     await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(discarded).toEqual(["chg_shop"]));
@@ -579,7 +711,7 @@ describe("the plan sheet", () => {
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     await within(sheet).findByText("to create");
     expect(sheet).toHaveTextContent("1 to create");
-    expect(sheet).toHaveTextContent("0 to change");
+    expect(sheet).not.toHaveTextContent(/\b0 to/);
     expect(within(sheet).queryByText("shop")).toBeNull();
     expect(within(sheet).getByText("production")).toBeVisible();
   });
@@ -602,6 +734,70 @@ describe("the plan sheet", () => {
     await user.click(within(sheet).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(discard).not.toHaveBeenCalled();
+  });
+
+  it("says why a plan won't apply in plain words, and the plan stays to try again", async () => {
+    const user = userEvent.setup();
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: webPlanned() }),
+        watchChange: feed<WatchChangeResponse>().stream,
+        applyChange: () => {
+          throw new ConnectError(
+            "another change is applying web now, so this one can't start yet. Apply it again once that one ends (chg_01M6MGMR9)",
+            Code.FailedPrecondition,
+          );
+        },
+      },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
+    await user.click(apply);
+    const alert = await within(sheet).findByRole("alert");
+    expect(alert).toHaveTextContent("That didn't apply");
+    expect(alert).toHaveTextContent(
+      "Another change is applying web now, so this one can't start yet. Apply it again once that one ends.",
+    );
+    expect(alert).not.toHaveTextContent("chg_");
+    expect(apply).toBeEnabled();
+  });
+
+  it("keeps a server's name as it is written when it starts a sentence", async () => {
+    const user = userEvent.setup();
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: webPlanned() }),
+        watchChange: feed<WatchChangeResponse>().stream,
+        applyChange: () => {
+          throw new ConnectError(
+            "hz-1 isn't connected, so this change can't apply. Apply it again once its agent reconnects",
+            Code.Unavailable,
+          );
+        },
+      },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(await within(sheet).findByRole("button", { name: /Apply plan/ }));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+      "hz-1 isn't connected, so this change can't apply. Apply it again once its agent reconnects.",
+    );
+  });
+
+  it("gives a failure a capital where it starts with a word, and leaves a name as it is", async () => {
+    const failed = (error: string) => moved(webPlanned(), { state: ChangeState.FAILED, error, steps: [] });
+    const first = renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: failed("the server's agent isn't connected") }) },
+      { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+    );
+    expect((await screen.findByRole("alert")).querySelector(".dw-callout-title")).toHaveTextContent(
+      "The server's agent isn't connected",
+    );
+    first.unmount();
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: failed("hz-1: it exits. Check it") }) },
+      { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+    );
+    expect((await screen.findByRole("alert")).querySelector(".dw-callout-title")).toHaveTextContent("hz-1: it exits");
   });
 
   it("says why a plan couldn't be made", async () => {
@@ -630,6 +826,370 @@ describe("the plan sheet", () => {
     const sheet = await screen.findByRole("dialog", { name: "审查计划" });
     expect(sheet).toHaveClass("is-phone");
     expect(within(sheet).getByRole("button", { name: /应用计划/ })).toBeVisible();
+    await expectAccessible(document.body);
+  });
+});
+
+type Timed = { startTime?: Timestamp; finishTime?: Timestamp };
+
+describe("the plan sheet, once it runs", () => {
+  const aStep = (fields: { state: StepState; message?: string; activity?: string; detail?: string } & Timed) =>
+    create(StepProgressSchema, { serverId: "srv_1", resourceId: "res_web", ...fields });
+
+  /** The fleet: hz-1, which people reach on a public address. */
+  async function* serversWatch(req: unknown, ctx: HandlerContext) {
+    yield changed(aServer({ id: "srv_1", name: "hz-1", inventory: { addresses: ["203.0.113.9"] } }));
+    yield snapshotComplete;
+    yield* quietWatch(req, ctx);
+  }
+
+  function aService(ports: MessageInitShape<typeof PortMappingSchema>[]): MessageInitShape<typeof ServiceInfoSchema> {
+    return {
+      id: "res_web",
+      resource: { kind: "service", scope: "env_1", name: "web" },
+      spec: { runs: { case: "app", value: { image: "nginx:1.28", ports } } },
+      deployments: [{ serverId: "srv_1", serverName: "hz-1" }],
+    };
+  }
+
+  function aServicePlan(): Change {
+    const change = webPlanned();
+    const resource = change.plan?.resources[0];
+    const step = change.plan?.servers[0]?.steps[0];
+    if (resource?.resource) resource.resource.kind = "service";
+    if (step?.resource) step.resource.kind = "service";
+    return change;
+  }
+
+  it("says what it is doing, for how long, in figures that hold still", async () => {
+    const watch = feed<WatchChangeResponse>();
+    const planned = aServicePlan();
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: planned }) },
+      { changes: { watchChange: watch.stream, applyChange: () => ({ change: planned }) } },
+    );
+    await screen.findByRole("dialog", { name: "Review plan" });
+    act(() =>
+      watch.push(
+        watched(
+          moved(planned, {
+            state: ChangeState.APPLYING,
+            steps: [
+              aStep({
+                state: StepState.RUNNING,
+                message: "Pulling nginx:1.28: 12 of 48 MB",
+                activity: "Pulling nginx:1.28: 12 of 48 MB",
+                startTime: timestampFromDate(new Date(Date.now() - 6_000)),
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const applying = await screen.findByRole("dialog", { name: "Applying" });
+    const step = await within(applying).findByText("Pulling nginx:1.28: 12 of 48 MB");
+    const elapsed = step.closest(".plan-step")?.querySelector(".plan-step-time");
+    expect(elapsed?.textContent).toMatch(/^[67] s$/);
+    // The downtime is still to come, and in the future tense.
+    expect(applying).toHaveTextContent("hz-1 · about 2 s down");
+  });
+
+  it("arrives: the title says it is live, and its address is the first line", async () => {
+    const change = applied(aServicePlan());
+    change.steps = [
+      aStep({
+        state: StepState.DONE,
+        startTime: timestampFromDate(new Date(Date.now() - 6_000)),
+        finishTime: timestampFromDate(new Date()),
+      }),
+    ];
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change }), doneLabel: "Open web" },
+      {
+        services: { listServices: () => ({ services: [aService([{ hostPort: 8080, containerPort: 3000 }])] }) },
+        servers: { watchServers: serversWatch },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      },
+    );
+    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const link = await within(done).findByRole("link", { name: "203.0.113.9:8080" });
+    expect(link).toHaveAttribute("href", "http://203.0.113.9:8080");
+    expect(link.closest(".plan-body")?.firstElementChild).toContainElement(link);
+    expect(done).toHaveTextContent("1 replaced");
+    expect(done).not.toHaveTextContent("no downtime");
+    expect(within(done).queryByRole("alert")).toBeNull();
+    expect(done.querySelector(".dw-callout")).toBeNull();
+    // With one server the steps say nothing the plan doesn't, once it has landed.
+    expect(within(done).queryByRole("region", { name: "Steps" })).toBeNull();
+    expect(within(done).getByRole("button", { name: /Open web/ })).toBeVisible();
+    await expectAccessible(document.body);
+  });
+
+  it("says so when nothing can reach it yet, and what to do about that", async () => {
+    const change = applied(aServicePlan());
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change }) },
+      {
+        services: { listServices: () => ({ services: [aService([])] }) },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      },
+    );
+    const done = await screen.findByRole("dialog", { name: "web is live" });
+    await within(done).findByText(/Add a port on its page/);
+    expect(done).toHaveTextContent("Nothing outside hz-1 reaches web yet. Add a port on its page.");
+  });
+
+  it("says at once that a new app with no port can't be reached, before the list is read again", async () => {
+    const change = applied(aServicePlan());
+    const [resource] = change.plan?.resources ?? [];
+    const step = change.plan?.servers[0]?.steps[0];
+    if (!resource || !step) throw new Error("no step");
+    resource.action = PlanAction.CREATE;
+    step.action = PlanAction.CREATE;
+    resource.changes = [create(FieldChangeSchema, { path: "app.image", op: FieldOp.ADDED, to: "nginx:1.28" })];
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change }) },
+      {
+        services: { listServices: () => new Promise(() => {}) },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      },
+    );
+    const done = await screen.findByRole("dialog", { name: "web is live" });
+    expect(await within(done).findByText(/Add a port on its page/)).toBeVisible();
+  });
+
+  it("doesn't call a change on record live, as it may not be any more", async () => {
+    renderSheet(
+      { kind: "change", id: "chg_web" },
+      {
+        changes: {
+          getChange: () => ({ change: applied(aServicePlan()) }),
+          watchChange: feed<WatchChangeResponse>().stream,
+        },
+      },
+    );
+    const record = await screen.findByRole("dialog", { name: "Applied" });
+    expect(record).toHaveTextContent(/Applied .* by Mira Chen/);
+    expect(record).toHaveTextContent("1 replaced");
+  });
+
+  it("deleting says what it does: it stops, for good, with Delete all the way and the danger button", async () => {
+    const user = userEvent.setup();
+    const deleting = aServicePlan();
+    const plan = deleting.plan;
+    const resource = plan?.resources[0];
+    const server = plan?.servers[0];
+    if (!plan || !resource || !server?.steps[0]) throw new Error("no step");
+    plan.summary = create(PlanSummarySchema, { destroy: 1 });
+    resource.action = PlanAction.DELETE;
+    server.steps[0].action = PlanAction.DELETE;
+    server.steps[0].downtime = undefined;
+    server.downtime = undefined;
+    deleting.summary = "Delete web";
+    const watch = feed<WatchChangeResponse>();
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: deleting }) },
+      { changes: { watchChange: watch.stream, applyChange: () => ({ change: deleting }) } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText("to delete");
+    // Said once, and in agreement with the footer beside it.
+    expect(sheet.textContent?.match(/stops/g)).toHaveLength(1);
+    expect(sheet).toHaveTextContent(/hz-1 · web stops, and you can undo this until \d+ \w+\./);
+    expect(sheet).toHaveTextContent("Undo for 7 days");
+    expect(sheet).not.toHaveTextContent("doesn't come back");
+    expect(sheet).not.toHaveTextContent(/no downtime/i);
+    expect(sheet).not.toHaveTextContent(/destroy/i);
+    expect(sheet).toHaveTextContent("Delete");
+    const apply = within(sheet).getByRole("button", { name: /Delete web/ });
+    expect(apply).toHaveClass("dw-btn-danger");
+    await user.click(apply);
+    act(() => watch.push(watched(applied(deleting))));
+    const done = await screen.findByRole("dialog", { name: "web is deleted" });
+    expect(done).toHaveTextContent("1 deleted");
+    expect(done).toHaveTextContent("Deleted");
+    expect(done).not.toHaveTextContent(/destroy/i);
+  });
+
+  it("puts a failure in plain words, with what the server said only behind Details, and a way back", async () => {
+    const user = userEvent.setup();
+    const raw =
+      "hz-1: can't create service web in env_01M6MCCCXQW6G67PMQDK7PVYAY: can't pull acme/web:1.0: pull access denied";
+    const plain =
+      "acme/web:1.0 can't be pulled. The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again.";
+    const failed = moved(aServicePlan(), {
+      state: ChangeState.FAILED,
+      error: plain,
+      rolledBackBy: "chg_back",
+      steps: [aStep({ state: StepState.FAILED, message: plain, detail: raw })],
+    });
+    const closed = vi.fn();
+    renderSheet(
+      {
+        kind: "plan",
+        make: () => Promise.resolve({ change: failed }),
+        retryLabel: "Edit and try again",
+        onClose: closed,
+      },
+      { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't replace web" });
+    const notice = within(sheet).getByRole("alert");
+    expect(notice.querySelector(".dw-callout-title")).toHaveTextContent("acme/web:1.0 can't be pulled");
+    expect(notice).toHaveTextContent("Check the name, then try again.");
+    // Said once, with no IDs on show, and nothing done yet to roll back.
+    expect(sheet.textContent?.match(/can't be pulled/g)).toHaveLength(1);
+    expect(notice).not.toHaveTextContent("Dockwell rolled back");
+    const details = notice.querySelector("details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details).toHaveTextContent(raw);
+    expect(within(sheet).getByText("What it set out to do")).toBeVisible();
+    expect(sheet).not.toHaveTextContent("to replace");
+    const back = within(sheet).getByRole("button", { name: /Edit and try again/ });
+    expect(back).toHaveClass("dw-btn-primary");
+    await expectAccessible(document.body);
+    await user.click(back);
+    expect(closed).toHaveBeenCalledOnce();
+  });
+
+  it("goes through with the keyboard alone: Apply, then whatever comes next, with focus there", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchChangeResponse>();
+    const planned = aServicePlan();
+    const applies = vi.fn(() => ({ change: moved(planned, { state: ChangeState.APPLYING }) }));
+    const closed = vi.fn();
+    renderSheet(
+      {
+        kind: "plan",
+        make: () => Promise.resolve({ change: planned }),
+        doneLabel: "Open web",
+        onClose: closed,
+      },
+      { changes: { watchChange: watch.stream, applyChange: applies } },
+    );
+    await screen.findByRole("button", { name: /Apply plan/ });
+    // A key held down from the step before never applies a plan unseen.
+    fireEvent.keyDown(window, { key: "Enter", ctrlKey: true, repeat: true });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(applies).not.toHaveBeenCalled();
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await waitFor(() => expect(applies).toHaveBeenCalledOnce());
+    const heading = await screen.findByRole("heading", { name: "Applying" });
+    // The button it was on has gone, and focus stays in the sheet, so Escape and Tab still work.
+    await waitFor(() => expect(heading).toHaveFocus());
+    act(() => watch.push(watched(applied(planned))));
+    const open = await screen.findByRole("button", { name: /Open web/ });
+    await waitFor(() => expect(open).toHaveFocus());
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(closed).toHaveBeenCalledOnce();
+  });
+
+  it("offers an undo in the same sheet, reads like any plan, and Cancel goes back to what it would undo", async () => {
+    const user = userEvent.setup();
+    const change = applied(aServicePlan());
+    const undoing = moved(aServicePlan(), { id: "chg_undo", summary: "Undo: Update web", reverts: "chg_web" });
+    const dialogs = () => document.querySelectorAll(".dw-sheet");
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change }) },
+      {
+        services: { listServices: () => ({ services: [aService([])] }) },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          undoChange: () => ({ change: undoing }),
+          discardChange: () => ({}),
+          getChange: () => ({ change }),
+        },
+      },
+    );
+    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const shell = dialogs()[0];
+    await user.click(within(done).getByRole("button", { name: /Undo until/ }));
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(plan).toHaveAccessibleDescription("Undo: Update web");
+    await within(plan).findByText("to replace");
+    expect(within(plan).getByRole("button", { name: /Apply plan/ })).toBeVisible();
+    // One shell, one scrim.
+    expect(dialogs()).toHaveLength(1);
+    expect(dialogs()[0]).toBe(shell);
+    expect(document.querySelectorAll(".dw-scrim")).toHaveLength(1);
+    await user.click(within(plan).getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("dialog", { name: "web is live" })).toBeVisible();
+    expect(dialogs()[0]).toBe(shell);
+  });
+
+  it("has nothing to apply when a plan has nothing to do, and says so", async () => {
+    const user = userEvent.setup();
+    const nothing = webPlanned();
+    if (nothing.plan) {
+      nothing.plan.resources = [];
+      nothing.plan.servers = [];
+      nothing.plan.summary = create(PlanSummarySchema, {});
+    }
+    const discard = vi.fn(() => ({}));
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: nothing }) },
+      { changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: discard } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Nothing to change" });
+    expect(sheet).toHaveTextContent("there is nothing to apply");
+    expect(within(sheet).queryByRole("button", { name: /Apply/ })).toBeNull();
+    expect(sheet).not.toHaveTextContent("to create");
+    expect(sheet).not.toHaveTextContent("Undo");
+    await expectAccessible(document.body);
+    await user.click(within(sheet).getAllByRole("button", { name: "Close" }).at(-1) as HTMLElement);
+    await waitFor(() => expect(discard).toHaveBeenCalledOnce());
+  });
+
+  it("can say there is nothing to do without a plan at all, in the words of whoever knows why", async () => {
+    renderSheet(
+      {
+        kind: "nothing",
+        summary: "Roll back web to r1",
+        detail: "web already runs r1, so there is nothing to roll back.",
+      },
+      {},
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Nothing to change" });
+    expect(sheet).toHaveAccessibleDescription("Roll back web to r1");
+    expect(sheet).toHaveTextContent("web already runs r1, so there is nothing to roll back.");
+    expect(within(sheet).queryByRole("button", { name: /Apply/ })).toBeNull();
+  });
+
+  it("shows a fleet's steps by server, and how they run, once there is a fleet", async () => {
+    const fleet = aServicePlan();
+    const first = fleet.plan?.servers[0];
+    if (!fleet.plan || !first) throw new Error("no server");
+    fleet.plan.servers = [
+      first,
+      create(ServerPlanSchema, { ...first, serverId: "srv_2", serverName: "hz-2", offline: true }),
+    ];
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: fleet }) },
+      { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const steps = await within(sheet).findByRole("region", { name: "Steps by server" });
+    expect(steps).toHaveTextContent("hz-1");
+    expect(steps).toHaveTextContent("hz-2");
+    expect(steps).toHaveTextContent("Replace web app");
+    expect(sheet).toHaveTextContent("Steps run one at a time on each server, servers side by side.");
+    // Apply says why it can't yet, right beside it.
+    expect(within(sheet).getByRole("button", { name: /Apply plan/ })).toBeDisabled();
+    expect(sheet.querySelector(".dw-sheet-foot")).toHaveTextContent("hz-2 has to reconnect first");
+  });
+
+  it("reads in Chinese all the way to the arrival", async () => {
+    await activateLocale("zh-CN");
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: applied(aServicePlan()) }) },
+      {
+        services: { listServices: () => ({ services: [aService([])] }) },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      },
+    );
+    const done = await screen.findByRole("dialog", { name: "web 已上线" });
+    expect(done).toHaveTextContent("1 已替换");
+    await within(done).findByText(/添加端口/);
     await expectAccessible(document.body);
   });
 });

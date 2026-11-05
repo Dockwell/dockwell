@@ -318,3 +318,26 @@ func TestAnotherRemoteIsNewAccess(t *testing.T) {
 		t.Errorf("ip= and addr= of one server read as new access: %v", got)
 	}
 }
+
+// A plugin's options can say where it mounts, and that is what it reaches. Any
+// other value stays out of what a plan says, as it may be a secret.
+func TestAPluginThatMountsTheSystemIsAsGoodAsRoot(t *testing.T) {
+	access := func(options map[string]string) resource.Access {
+		t.Helper()
+		got := (&volume.Driver{}).HostAccess(&resourcev1.Volume{Driver: "local-persist", Options: options})
+		if len(got) != 1 {
+			t.Fatalf("%v reaches %v", options, got)
+		}
+		return got[0]
+	}
+	for _, at := range []string{"/etc", "/etc/", "/root/.ssh", "/home", "/var/run/docker.sock"} {
+		if a := access(map[string]string{"mountpoint": at}); !a.AsGoodAsRoot() || a.Path == "" {
+			t.Errorf("a plugin with mountpoint %s reads %+v", at, a)
+		}
+	}
+	for _, options := range []map[string]string{{"mountpoint": "/srv/data"}, {"token": "s3cret"}, {"mountpoint": "relative/etc"}, nil} {
+		if a := access(options); a.AsGoodAsRoot() || a.Path != "" {
+			t.Errorf("a plugin with %v reads %+v", options, a)
+		}
+	}
+}

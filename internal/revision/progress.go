@@ -48,8 +48,22 @@ type StepProgress struct {
 	Ref        resource.Ref    `json:"ref"`
 	Action     resource.Action `json:"action"`
 	State      StepState       `json:"state"`
-	// Message says what is happening, for people, or why the step failed.
-	Message  string    `json:"message,omitempty"`
+	// Message says what is happening, for people, or why the step failed,
+	// in plain words.
+	Message string `json:"message,omitempty"`
+	// Activity is what the step's driver last said it is doing, while it
+	// runs.
+	Activity string `json:"activity,omitempty"`
+	// Detail is what a server said when the step failed, when Message puts
+	// that in plain words.
+	Detail string `json:"detail,omitempty"`
+	// Reason says what a failure comes down to, when the driver knows.
+	Reason string `json:"reason,omitempty"`
+	// Lost is true when the server went away during the step, so nothing can
+	// say whether it ran until the server is back.
+	Lost bool `json:"lost,omitempty"`
+	// Note is what the step found that changed what it did, such as a pull that
+	// found nothing newer.
 	Started  time.Time `json:"started,omitzero"`
 	Finished time.Time `json:"finished,omitzero"`
 	// Did is what the step did in the end, once it's done: Action says what was
@@ -214,7 +228,7 @@ func (e *Engine) claim(changeID, takesOver string, items []item, resumeLater boo
 			if resumeLater {
 				e.waiters[other] = true
 			}
-			return fault.New(ErrBusy, "%s is applying %s now, so this change can't start yet. Apply it once %s ends", other, items[i].ref, other)
+			return fault.New(ErrBusy, "another change is applying %s now, so this one can't start yet. Apply it again once that one ends (%s)", items[i].ref.Name, other)
 		}
 	}
 	for i := range items {
@@ -309,7 +323,7 @@ func (e *Engine) step(changeID string, i int, state StepState, message string) (
 	case state.Final():
 		s.Finished = now
 	}
-	s.State, s.Message = state, message
+	s.State, s.Message, s.Activity, s.Detail = state, message, "", ""
 	step := *s
 	c := p.clone()
 	return &c, &Update{Index: i, Step: &step}
@@ -330,11 +344,30 @@ func (e *Engine) finished(changeID string, i int, said string, did resource.Acti
 	return p, u
 }
 
-// progressed updates the message of a step that is running, as its
-// driver says how it is going, such as how much of an image it has
-// pulled, and tells the change's watchers. It isn't recorded: the step's
-// end is. A word that comes once the step is no longer running is
-// dropped.
+// failed is step for a step that failed, with what a person reads about it,
+// what the server said, and what it comes down to.
+func (e *Engine) failed(changeID string, i int, err error) (*Progress, *Update) {
+	plain, detail := resource.Explain(err)
+	reason, lost := resource.ReasonOf(err), errors.Is(err, resource.ErrLost)
+	p, u := e.step(changeID, i, StepFailed, plain)
+	if p == nil {
+		return nil, nil
+	}
+	say := func(s *StepProgress) { s.Detail, s.Reason, s.Lost = detail, reason, lost }
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	if live, ok := e.live[changeID]; ok && i < len(live.Steps) {
+		say(&live.Steps[i])
+	}
+	say(&p.Steps[i])
+	say(u.Step)
+	return p, u
+}
+
+// progressed updates what a step that is running says, as its driver says
+// how it is going, such as how much of an image it has pulled, and tells
+// the change's watchers. It isn't recorded: the step's end is. A word that
+// comes once the step is no longer running is dropped.
 func (e *Engine) progressed(changeID string, i int, message string) {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
@@ -342,7 +375,7 @@ func (e *Engine) progressed(changeID string, i int, message string) {
 	if !ok || i < 0 || i >= len(p.Steps) || p.Steps[i].State != StepRunning {
 		return
 	}
-	p.Steps[i].Message = message
+	p.Steps[i].Message, p.Steps[i].Activity = message, message
 	step := p.Steps[i]
 	e.publishLocked(changeID, Update{Index: i, Step: &step})
 }
@@ -472,6 +505,99 @@ type Record struct {
 	// RolledBackBy is the rollback of this change, if it failed and one was
 	// made; UndoneBy the applied change that undid it.
 	RolledBackBy, UndoneBy string
+	// Rollback says how that rollback is going, nil when there is none.
+	Rollback *Rollback
+}
+
+// What a rollback's state can be: it runs on after the change it rolls back
+// has failed, and only its own record can say how it went.
+const (
+	RollbackApplying = "applying" // its steps are running
+	RollbackWaiting  = "waiting"  // a step waits for its server
+	RollbackApplied  = "applied"  // every step ran, so what was there before is back
+	RollbackFailed   = "failed"   // a step failed, so what was there before may not be back
+)
+
+// Rollback is how the rollback of a failed change is going, for whoever has
+// to say what runs now.
+type Rollback struct {
+	// ID is the rollback's change.
+	ID string
+	// State is one of the Rollback states.
+	State string
+	// Steps counts its steps. None means the servers still had what was
+	// there before, as the failed change stopped before it changed them.
+	Steps int
+	// WaitingFor names the servers it waits for, in RollbackWaiting.
+	WaitingFor []string
+	// Restored names the resources its steps put back. What isn't here didn't
+	// change, so it never stopped.
+	Restored []string
+	// Error says why it failed, in plain words, and Detail what the server
+	// said, in RollbackFailed.
+	Error, Detail string
+}
+
+// rollbackOf reads how a rollback is going from its record, and its live
+// progress while it runs here.
+func (e *Engine) rollbackOf(c *store.Change) (*Rollback, error) {
+	var plan struct {
+		Servers []struct {
+			Server, Name, Unplanned string
+			Steps                   []struct{ Ref struct{ Name string } }
+		}
+	}
+	if err := json.Unmarshal(c.Plan, &plan); err != nil {
+		return nil, fmt.Errorf("can't read a stored plan: %w", err)
+	}
+	r := &Rollback{ID: c.ID, State: RollbackApplying}
+	names := make(map[string]string, len(plan.Servers))
+	for i := range plan.Servers {
+		names[plan.Servers[i].Server] = plan.Servers[i].Name
+		r.Steps += len(plan.Servers[i].Steps)
+		for _, step := range plan.Servers[i].Steps {
+			if !slices.Contains(r.Restored, step.Ref.Name) {
+				r.Restored = append(r.Restored, step.Ref.Name)
+			}
+		}
+	}
+	var progress Progress
+	if p := e.progress(c.ID); p != nil {
+		progress = *p
+	} else {
+		var err error
+		if progress, err = decodeProgress(c.Progress); err != nil {
+			return nil, err
+		}
+	}
+	switch c.State {
+	case store.ChangeApplied:
+		r.State = RollbackApplied
+	case store.ChangeFailed:
+		r.State, r.Error = RollbackFailed, c.Error
+		if i := slices.IndexFunc(progress.Steps, func(s StepProgress) bool { return s.State == StepFailed }); i >= 0 {
+			r.Detail = progress.Steps[i].Detail
+		}
+	default:
+		wait := func(name string) {
+			r.State = RollbackWaiting
+			if !slices.Contains(r.WaitingFor, name) {
+				r.WaitingFor = append(r.WaitingFor, name)
+			}
+		}
+		for i := range progress.Steps {
+			if s := &progress.Steps[i]; s.State == StepWaiting {
+				wait(names[s.Server])
+			}
+		}
+		// A part its agent couldn't plan has no steps yet, and waits all the same.
+		for i := range plan.Servers {
+			if plan.Servers[i].Unplanned != "" {
+				wait(plan.Servers[i].Name)
+			}
+		}
+	}
+	return r, nil
 }
 
 // Brief is a plan in brief: its fingerprint, its counts, and whether it is
@@ -481,11 +607,12 @@ type Brief struct {
 	Counts      Counts
 	Destructive bool
 	HostAccess  bool
+	Intent      *Intent // what it is for, when the method that proposed it knows
 }
 
 // Brief sums up the plan.
 func (p *Plan) Brief() Brief {
-	return Brief{Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive(), HostAccess: p.HostAccess()}
+	return Brief{Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive(), HostAccess: p.HostAccess(), Intent: p.Intent}
 }
 
 // brief reads a stored plan in brief, leaving out the rest: its field
@@ -493,6 +620,7 @@ func (p *Plan) Brief() Brief {
 func brief(b []byte) (Brief, error) {
 	var stored struct {
 		Fingerprint string
+		Intent      *Intent
 		Resources   []struct {
 			Action     resource.Action
 			HostAccess []resource.Access
@@ -507,7 +635,7 @@ func brief(b []byte) (Brief, error) {
 	if err := json.Unmarshal(b, &stored); err != nil {
 		return Brief{}, fmt.Errorf("can't read a stored plan: %w", err)
 	}
-	p := Plan{Fingerprint: stored.Fingerprint, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
+	p := Plan{Fingerprint: stored.Fingerprint, Intent: stored.Intent, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
 	for i := range stored.Resources {
 		p.Resources[i].Action, p.Resources[i].HostAccess = stored.Resources[i].Action, stored.Resources[i].HostAccess
 	}
@@ -618,6 +746,9 @@ func (e *Engine) complete(ctx context.Context, tx *store.Tx, records []*Record) 
 		case r == nil:
 		case IsRollback(*rc):
 			r.RolledBackBy = rc.ID
+			if r.Rollback, err = e.rollbackOf(rc); err != nil {
+				return err
+			}
 		case rc.State == store.ChangeApplied:
 			r.UndoneBy = rc.ID
 		}

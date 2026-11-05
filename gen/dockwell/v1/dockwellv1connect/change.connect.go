@@ -93,8 +93,10 @@ type ChangeServiceClient interface {
 	// Otherwise it commits the change's revisions and starts running its
 	// steps, and returns the change as it starts applying. The steps run to
 	// an end whether or not the caller waits. Follow them with WatchChange,
-	// or by polling GetChange. If a step fails, the steps already done are
-	// rolled back in a change of Dockwell's own, named in rolled_back_by.
+	// or by polling GetChange. If a step fails, Dockwell starts rolling back what
+	// was done, in a change of its own, named in rolled_back_by. That runs on after
+	// this change has failed, may wait for a server, and may fail too, so read
+	// rollback_status for how it went.
 	//
 	// A plan that destroys data or may cut off access needs the fingerprint
 	// of the plan you reviewed, and a signed-in session: no API token may
@@ -296,8 +298,10 @@ type ChangeServiceHandler interface {
 	// Otherwise it commits the change's revisions and starts running its
 	// steps, and returns the change as it starts applying. The steps run to
 	// an end whether or not the caller waits. Follow them with WatchChange,
-	// or by polling GetChange. If a step fails, the steps already done are
-	// rolled back in a change of Dockwell's own, named in rolled_back_by.
+	// or by polling GetChange. If a step fails, Dockwell starts rolling back what
+	// was done, in a change of its own, named in rolled_back_by. That runs on after
+	// this change has failed, may wait for a server, and may fail too, so read
+	// rollback_status for how it went.
 	//
 	// A plan that destroys data or may cut off access needs the fingerprint
 	// of the plan you reviewed, and a signed-in session: no API token may

@@ -119,7 +119,7 @@ export async function removeMade(socket: string, before: DockerMade): Promise<st
   const remove = async (list: string[], known: string[], path: (item: string) => string) => {
     for (const item of list.filter((i) => !known.includes(i))) await call(socket, "DELETE", path(item)).catch(() => {});
   };
-  await remove(now.containers, before.containers, (id) => `/containers/${id}?force=1`);
+  await remove(now.containers, before.containers, (id) => `/containers/${id}?force=true`);
   await remove(now.networks, before.networks, (id) => `/networks/${id}`);
   await remove(now.volumes, before.volumes, (name) => `/volumes/${name}`);
   const left = await dockerMade(socket);

@@ -167,7 +167,7 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		}
 		for _, want := range []string{
 			"Create project shop", "Planned ", " by the API token CLI test from the CLI.",
-			"+ project shop", "Create", "+ display_name", "Shop", "+ environment production", "2 to create · 0 to change · 0 to destroy",
+			"+ project shop", "Create", "+ display_name", "Shop", "+ environment production", "2 to create · 0 to change · 0 to delete",
 			"Applied chg_", "Undo it within 7 days",
 		} {
 			if !strings.Contains(r.out, want) {
@@ -304,7 +304,7 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		if r.code != exitOK {
 			t.Fatalf("changes undo = %d:\n%s%s", r.code, r.out, r.err)
 		}
-		for _, want := range []string{"It undoes " + created, "- project shop", "Destroy", "0 to create · 0 to change · 2 to destroy", "Applied chg_"} {
+		for _, want := range []string{"It undoes " + created, "- project shop", "Delete", "0 to create · 0 to change · 2 to delete", "Applied chg_"} {
 			if !strings.Contains(r.out, want) {
 				t.Errorf("changes undo didn't print %q:\n%s", want, r.out)
 			}

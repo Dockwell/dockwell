@@ -16,8 +16,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -739,6 +742,391 @@ func TestAnAgentsFailureNamesItsServerOnce(t *testing.T) {
 	if got := err.Error(); got != "can't plan on hz-1: can't read the firewall" {
 		t.Errorf("message = %q", got)
 	}
+}
+
+// A step's failure reads in plain words on the step, the change and the
+// deployment, with what the server said kept on the step. Once there is more
+// than one server, the change says which it was on.
+func TestAFailureReadsPlainly(t *testing.T) { storetest.Each(t, testAFailureReadsPlainly) }
+
+func testAFailureReadsPlainly(t *testing.T, backend store.Backend) {
+	const plain = "web can't start. Check its settings, then try again."
+	const raw = "can't create service web in env_01: docker can't start env_01-web-1"
+	for _, tt := range []struct {
+		servers []string
+		change  string
+	}{
+		{[]string{"srv_A"}, plain},
+		{[]string{"srv_A", "srv_B"}, "srv_A: " + plain},
+	} {
+		e, f, _ := setup(t, backend, tt.servers...)
+		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+			if step.Ref.Name == "boom" {
+				return resource.Plainly(plain, errors.New(raw))
+			}
+			return nil
+		}}
+		edits := []Edit{rule("srv_A", "boom", 9)}
+		if len(tt.servers) > 1 {
+			edits = append(edits, rule("srv_B", "other", 10))
+		}
+		p := propose(t, e, "Open boom", edits...)
+		var failed *FailedError
+		if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) {
+			t.Fatalf("apply = %v", err)
+		}
+		r, err := e.Change(t.Context(), p.Change)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Error != tt.change {
+			t.Errorf("the change's error = %q, want %q", r.Error, tt.change)
+		}
+		i := slices.IndexFunc(r.Progress.Steps, func(s StepProgress) bool { return s.State == StepFailed })
+		if i < 0 {
+			t.Fatalf("no step failed: %+v", r.Progress.Steps)
+		}
+		if s := r.Progress.Steps[i]; s.Message != plain || s.Detail != raw || s.Activity != "" {
+			t.Errorf("the failed step = %+v, want the plain words, and what the server said behind them", s)
+		}
+		// The chain stays on what a log and a caller see.
+		if !strings.Contains(failed.Error(), raw) {
+			t.Errorf("the error returned = %q, want the chain", failed.Error())
+		}
+	}
+}
+
+// A step reports what its driver is doing while it runs, and stops once it
+// ends.
+func TestAStepSaysWhatItIsDoing(t *testing.T) { storetest.Each(t, testAStepSaysWhatItIsDoing) }
+
+func testAStepSaysWhatItIsDoing(t *testing.T, backend store.Backend) {
+	e, f, _ := setup(t, backend, "srv_A")
+	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, apply: func(ctx context.Context, _ resource.Step, _ proto.Message) error {
+		resource.Progress(ctx, "Pulling nginx:1.27: 12 of 48 MB")
+		return nil
+	}}
+	p := propose(t, e, "Open http", rule("srv_A", "http", 80))
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	w := e.Watch(ctx, p.Change)
+	if err := e.Start(t.Context(), p.Change, By{Actor: "user:usr_mira", Via: ViaPanel}); err != nil {
+		t.Fatal(err)
+	}
+	var said, after string
+	for u := range w {
+		if u.Step != nil && u.Step.State == StepRunning && u.Step.Activity != "" {
+			said = u.Step.Activity
+		}
+		if u.Step != nil && u.Step.State == StepDone {
+			after = u.Step.Activity
+		}
+		if u.State == store.ChangeApplied {
+			break
+		}
+	}
+	if said != "Pulling nginx:1.27: 12 of 48 MB" || after != "" {
+		t.Errorf("a watcher heard %q while it ran and %q once done", said, after)
+	}
+	e.Wait()
+}
+
+// What a change says of itself is about the step, and what the rollback did
+// comes from the rollback's own record, whichever way it went: a failed deploy
+// of a running app never reads as if the app were down once the old one is
+// back, or as if it were back while its rollback runs, waits or fails.
+func TestARollbackSaysHowItWent(t *testing.T) { storetest.Each(t, testARollbackSaysHowItWent) }
+
+func testARollbackSaysHowItWent(t *testing.T, backend store.Backend) {
+	statusOf := func(t *testing.T, e *Engine, id string) (*Record, *Rollback) {
+		t.Helper()
+		r, err := e.Change(t.Context(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Rollback == nil || r.Rollback.ID != r.RolledBackBy {
+			t.Fatalf("the change's rollback is %+v, rolled back by %q", r.Rollback, r.RolledBackBy)
+		}
+		return r, r.Rollback
+	}
+
+	t.Run("a deploy that broke the running app, put back", func(t *testing.T) {
+		e, engines, db := setupDocker(t, backend, "srv_A")
+		env := production(t, db)
+		engines["srv_A"].Registry["nginx:broken"] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"nginx"}}}
+		apply(t, e, propose(t, e, "Run web", app(env, "nginx:1.27")))
+		next := propose(t, e, "Deploy nginx:broken", app(env, "nginx:broken"))
+		var failed *FailedError
+		if err := e.Apply(t.Context(), next.Change); !errors.As(err, &failed) {
+			t.Fatalf("apply = %v", err)
+		}
+		e.Wait()
+		r, back := statusOf(t, e, next.Change)
+		if back.State != RollbackApplied || back.Steps == 0 || !slices.Contains(back.Restored, "web") {
+			t.Errorf("rollback = %+v, want applied, with the steps that put web back", back)
+		}
+		if strings.Contains(r.Error, "isn't running") || strings.Contains(r.Error, "so it") {
+			t.Errorf("the change says %q, which the rollback makes false", r.Error)
+		}
+		c := engines["srv_A"].Container(service.ContainerName(app(env, "").Ref))
+		if c == nil || c.Config.Image != "nginx:1.27" || !c.State.Running {
+			t.Errorf("after the rollback the container is %+v", c)
+		}
+	})
+
+	t.Run("a pull that failed before anything on the server changed", func(t *testing.T) {
+		e, engines, db := setupDocker(t, backend, "srv_A")
+		env := production(t, db)
+		apply(t, e, propose(t, e, "Run web", app(env, "nginx:1.27")))
+		// The registry doesn't answer, so the plan can't tell, and the pull is what finds out.
+		engines["srv_A"].RegistryDown = true
+		next := propose(t, e, "Deploy ghost:1", app(env, "ghost:1"))
+		var failed *FailedError
+		if err := e.Apply(t.Context(), next.Change); !errors.As(err, &failed) {
+			t.Fatalf("apply = %v", err)
+		}
+		e.Wait()
+		_, back := statusOf(t, e, next.Change)
+		if back.State != RollbackApplied || back.Steps != 0 || len(back.Restored) != 0 {
+			t.Errorf("rollback = %+v, want applied, with nothing to do on the server", back)
+		}
+		if c := engines["srv_A"].Container(service.ContainerName(app(env, "").Ref)); c == nil || c.Config.Image != "nginx:1.27" || !c.State.Running {
+			t.Errorf("the container is %+v, want the old one, as it was", c)
+		}
+	})
+
+	t.Run("a rollback that failed", func(t *testing.T) {
+		e, f, _ := setup(t, backend, "srv_A")
+		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+			switch {
+			case step.Ref.Name == "boom":
+				return resource.Plainly("boom can't open. Check it, then try again.", errors.New("raw boom"))
+			case step.Action == resource.ActionDelete:
+				return resource.Plainly("http can't be taken away. Check the firewall, then try again.", errors.New("raw rollback"))
+			}
+			return nil
+		}}
+		p := propose(t, e, "Open http and boom", rule("srv_A", "http", 80), rule("srv_A", "boom", 9))
+		var failed *FailedError
+		if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) {
+			t.Fatalf("apply = %v", err)
+		}
+		e.Wait()
+		_, back := statusOf(t, e, p.Change)
+		if back.State != RollbackFailed || back.Error != "http can't be taken away. Check the firewall, then try again." || back.Detail != "raw rollback" {
+			t.Errorf("rollback = %+v, want failed, with its words and what the server said", back)
+		}
+	})
+
+	t.Run("a rollback that waits for its server", func(t *testing.T) {
+		e, f, _ := setup(t, backend, "srv_A")
+		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+			if step.Ref.Name == "boom" {
+				f["srv_A"].online.Store(false)
+				return fmt.Errorf("%w: srv_A's agent disconnected during this step, so it may or may not have run. Check that srv_A is up", resource.ErrLost)
+			}
+			return nil
+		}}
+		p := propose(t, e, "Open http and boom", rule("srv_A", "http", 80), rule("srv_A", "boom", 9))
+		_ = e.Apply(t.Context(), p.Change)
+		r, back := statusOf(t, e, p.Change)
+		if back.State != RollbackWaiting || !slices.Equal(back.WaitingFor, []string{"srv_A"}) {
+			t.Errorf("rollback = %+v, want it waiting for srv_A", back)
+		}
+		if strings.Contains(r.Error, "puts things back") || strings.Contains(r.Error, "rolled") {
+			t.Errorf("the change says %q, and its rollback is what says that", r.Error)
+		}
+		_ = e.Stop(context.Background())
+	})
+
+	t.Run("a rollback still running", func(t *testing.T) {
+		e, f, _ := setup(t, backend, "srv_A")
+		release := make(chan struct{})
+		running := make(chan struct{}, 1)
+		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+			switch {
+			case step.Ref.Name == "boom":
+				return errors.New("boom can't open")
+			case step.Action == resource.ActionDelete:
+				running <- struct{}{}
+				<-release
+			}
+			return nil
+		}}
+		p := propose(t, e, "Open http and boom", rule("srv_A", "http", 80), rule("srv_A", "boom", 9))
+		if err := e.Start(t.Context(), p.Change, By{Actor: "user:usr_mira", Via: ViaPanel}); err != nil {
+			t.Fatal(err)
+		}
+		<-running
+		if _, back := statusOf(t, e, p.Change); back.State != RollbackApplying {
+			t.Errorf("rollback = %+v, want it applying", back)
+		}
+		close(release)
+		e.Wait()
+		if _, back := statusOf(t, e, p.Change); back.State != RollbackApplied {
+			t.Errorf("rollback = %+v, want it applied once its step ends", back)
+		}
+	})
+
+	t.Run("a list says the same", func(t *testing.T) {
+		e, f, _ := setup(t, backend, "srv_A")
+		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+			if step.Ref.Name == "boom" {
+				return errors.New("boom can't open")
+			}
+			return nil
+		}}
+		p := propose(t, e, "Open http and boom", rule("srv_A", "http", 80), rule("srv_A", "boom", 9))
+		_ = e.Apply(t.Context(), p.Change)
+		e.Wait()
+		records, err := e.Changes(t.Context(), store.ChangePage{}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range records {
+			if r.ID == p.Change && (r.Rollback == nil || r.Rollback.State != RollbackApplied) {
+				t.Errorf("the list says its rollback is %+v", r.Rollback)
+			}
+		}
+	})
+}
+
+// A part of a rollback its agent couldn't plan has no steps yet, and waits all
+// the same, for the server named.
+func TestARollbackThatCantBePlannedYetWaits(t *testing.T) {
+	e := &Engine{}
+	back, err := e.rollbackOf(&store.Change{
+		ID: "chg_back", State: store.ChangeApplying,
+		Plan: []byte(`{"Servers":[{"Server":"srv_A","Name":"hz-1","Unplanned":"its agent couldn't plan"}]}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.State != RollbackWaiting || !slices.Equal(back.WaitingFor, []string{"hz-1"}) || back.Steps != 0 {
+		t.Errorf("rollback = %+v, want it waiting for hz-1", back)
+	}
+}
+
+// The agent says what it found on a read-back that doesn't match, and stops:
+// no rollback has run yet, and the rollback may fail the same way.
+func TestAMismatchSaysNothingOfARollback(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		e, f, _ := setup(t, backend, "srv_A")
+		fw := &takenOver{Fake: firewall.NewFake()}
+		f["srv_A"].agent = resource.Local{Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw})}
+		apply(t, e, propose(t, e, "Open http", rule("srv_A", "http", 80)))
+		fw.on.Store(true)
+		next := propose(t, e, "Move http", rule("srv_A", "http", 81))
+		var failed *FailedError
+		if err := e.Apply(t.Context(), next.Change); !errors.As(err, &failed) {
+			t.Fatalf("apply = %v", err)
+		}
+		e.Wait()
+		r, err := e.Change(t.Context(), next.Change)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "http changed, but this server has a different port than asked for. Check what else manages it, then try again."; r.Error != want {
+			t.Errorf("the change says %q, want %q", r.Error, want)
+		}
+		if r.Rollback == nil || r.Rollback.State != RollbackFailed {
+			t.Fatalf("its rollback is %+v, want it to fail the same way", r.Rollback)
+		}
+		if strings.Contains(r.Rollback.Error, "put it back") {
+			t.Errorf("the rollback says %q, and nothing follows a rollback", r.Rollback.Error)
+		}
+	})
+}
+
+// takenOver is a firewall something else manages: once it takes over, what is
+// read back is never what was put.
+type takenOver struct {
+	*firewall.Fake
+	on atomic.Bool
+}
+
+func (m *takenOver) Rule(ctx context.Context, name string) (*resourcev1.FirewallRule, error) {
+	r, err := m.Fake.Rule(ctx, name)
+	if err != nil || r == nil || !m.on.Load() {
+		return r, err
+	}
+	c := proto.Clone(r).(*resourcev1.FirewallRule)
+	c.Port = 9999
+	return c, nil
+}
+
+// leading is an agent that says where server paths lead, as one that can read the
+// server does.
+type leading struct {
+	resource.Agent
+	leads *map[string]string
+}
+
+func (l leading) Plan(ctx context.Context, desired []resource.Desired) ([]resource.Step, error) {
+	steps, err := l.Agent.Plan(ctx, desired)
+	for i := range steps {
+		steps[i].Leads = *l.leads
+	}
+	return steps, err
+}
+
+// A plan says what a path really reaches, from what the agent reads: a symlink to
+// /etc is as loud as /etc. It is in the fingerprint, so a link that moves between
+// the review and Apply stops it, and an agent can't quieten what the spec says.
+func TestAPlanSaysWhereAPathLeads(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		e, _, db := setupDocker(t, backend, "srv_A")
+		env := production(t, db)
+		agents := e.agents.(onDocker)
+		leads := map[string]string{"/srv/link": "/etc"}
+		agents["srv_A"] = leading{Agent: agents["srv_A"], leads: &leads}
+		mounting := func(host, name string) Edit {
+			ed := app(env, "nginx:1.27")
+			ed.Ref.Name = name
+			ed.Spec.(*resourcev1.Service).GetApp().Mounts = []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: host}, Target: "/x"}}
+			return ed
+		}
+		access := func(t *testing.T, p *Plan) resource.Access {
+			t.Helper()
+			if len(p.Resources) != 1 || len(p.Resources[0].HostAccess) != 1 {
+				t.Fatalf("the plan reaches %+v", p.Resources)
+			}
+			step := p.Servers[0].Steps[0]
+			if len(step.HostAccess) != 1 || step.HostAccess[0] != p.Resources[0].HostAccess[0] {
+				t.Errorf("the step reaches %+v, and the resource %+v", step.HostAccess, p.Resources[0].HostAccess)
+			}
+			if step.Leads != nil {
+				t.Errorf("the plan keeps what the agent said as well: %v", step.Leads)
+			}
+			return step.HostAccess[0]
+		}
+		loud := propose(t, e, "Run a link", mounting("/srv/link", "web"))
+		if a := access(t, loud); !a.AsGoodAsRoot() || a.LeadsTo != "/etc" || a.Path != "/srv/link" {
+			t.Errorf("a link to /etc reads %+v", a)
+		}
+
+		// It moves before anyone applies it, so what was reviewed is not what would run.
+		leads = map[string]string{"/srv/link": "/srv/site"}
+		if err := e.Apply(t.Context(), loud.Change); !errors.Is(err, ErrPlanChanged) {
+			t.Errorf("a link that moved after its plan: apply = %v, want ErrPlanChanged", err)
+		}
+
+		// Now it leads to a folder, which is only a warning.
+		quiet := propose(t, e, "Run a link again", mounting("/srv/link", "web2"))
+		if a := access(t, quiet); a.AsGoodAsRoot() || a.LeadsTo != "/srv/site" {
+			t.Errorf("a link to a folder reads %+v", a)
+		}
+
+		// An agent can't make what the spec says quieter, and one that says nothing leaves it.
+		leads = map[string]string{"/etc": "/srv/site"}
+		if a := access(t, propose(t, e, "Run /etc", mounting("/etc", "web3"))); !a.AsGoodAsRoot() {
+			t.Errorf("an agent's word quietened /etc: %+v", a)
+		}
+		leads = nil
+		if a := access(t, propose(t, e, "Run a link, unread", mounting("/srv/link", "web4"))); a.AsGoodAsRoot() || a.LeadsTo != "" {
+			t.Errorf("with nothing from the agent, a path reads %+v", a)
+		}
+	})
 }
 
 // A list of changes has each plan in brief, and what rolled each back or

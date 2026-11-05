@@ -5,6 +5,9 @@ import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { createElement, type ReactNode, useCallback, useMemo } from "react";
 
+import { MachineWords } from "../changes/FailureNotice";
+import { intentOf } from "../changes/plan";
+import { useChangeWords } from "../changes/words";
 import { type AppState, bareImage, fieldName, fieldOfChange, shortImage } from "./app";
 import { useAppWords } from "./words";
 
@@ -31,7 +34,11 @@ export function useRevisionLook() {
         return { status: "down", word: t`Failed` };
       }
       if (change?.state === ChangeState.APPLYING || rev.deployments.some((d) => d.state === DeploymentState.PENDING)) {
-        return { status: "deploying", word: t`Deploying` };
+        // What runs here is the rollback, which may be waiting for a server, and never reads as a deploy.
+        if (change?.rollback && rev.number === latest && state?.kind === "waiting") {
+          return { status: state.status, word: words.state(state) };
+        }
+        return { status: "deploying", word: change?.rollback ? t`Rolling back` : t`Deploying` };
       }
       if (rev.number === latest) {
         if (state && (state.kind === "offline" || state.kind === "unknown" || state.kind === "unplaced")) {
@@ -60,12 +67,18 @@ export interface RevisionTitle {
 export function useRevisionTitle() {
   const { t } = useLingui();
   const words = useAppWords();
+  const changeWords = useChangeWords();
   return useCallback(
     (rev: ServiceRevision): RevisionTitle => {
       const plain = (text: string): RevisionTitle => ({ node: text, text });
       const change = rev.change;
       if (rev.deleted) return plain(t`Deleted`);
-      if (change?.rollback) return plain(t`Rolled back after a failed deploy`);
+      if (change?.rollback) {
+        // Its own record says how it went, and it may not be over, or may have failed too.
+        if (change.state === ChangeState.FAILED) return plain(t`Rolling back after a failed deploy failed too`);
+        if (change.state === ChangeState.APPLIED) return plain(t`Rolled back after a failed deploy`);
+        return plain(t`Rolling back after a failed deploy`);
+      }
       if (rev.rolledBackTo > 0n) {
         const target = `r${rev.rolledBackTo}`;
         return plain(t`Rolled back to ${target}`);
@@ -75,6 +88,15 @@ export function useRevisionTitle() {
       const moving =
         !failed &&
         (change?.state === ChangeState.APPLYING || rev.deployments.some((d) => d.state === DeploymentState.PENDING));
+      // What the plan says it was for, in the words its sheet used, with the image as this list shortens it.
+      const intent = intentOf(change?.plan);
+      if (intent) {
+        const said = changeWords.intent(
+          { ...intent, image: shortImage(bareImage(intent.image)) },
+          failed ? "failed" : moving ? "doing" : "done",
+        );
+        return { node: createElement(MachineWords, null, said), text: said };
+      }
       const pulled = shortImage(bareImage(rev.image));
       const imageField = rev.changes.find((c) => fieldName(c.path) === "image");
       const created = rev.number === 1n || imageField?.op === FieldOp.ADDED;
@@ -114,7 +136,7 @@ export function useRevisionTitle() {
       if (moving) return plain(more > 0 ? t`Changing ${field} and ${more} more` : t`Changing ${field}`);
       return plain(more > 0 ? t`Changed ${field} and ${more} more` : t`Changed ${field}`);
     },
-    [t, words],
+    [t, words, changeWords],
   );
 }
 

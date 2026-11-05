@@ -156,9 +156,10 @@ export type ServiceInfo = Message<"dockwell.v1.ServiceInfo"> & {
   changeId: string;
 
   /**
-   * The failed change that Dockwell rolled back with its latest revision,
-   * when it did: the service runs what it ran before, and the deploy it
-   * was asked for didn't happen.
+   * The failed change that Dockwell made its latest revision to roll back, when
+   * it did. That rollback may still be running, may be waiting for a server, or
+   * may have failed too: change_state says how it stands, and the deployments
+   * where. Only once it has applied does the service have what it had before.
    *
    * @generated from field: string rolled_back_change_id = 8;
    */

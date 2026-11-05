@@ -252,9 +252,11 @@ func TestAPullWithNothingNewerStillVerifies(t *testing.T) {
 	before := b.e.Container(name).ID
 	b.e.Edit(name, func(c *docker.Container) { c.State.Health = &docker.Health{Status: "unhealthy", FailingStreak: 3} })
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
-	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "is as asked, but it isn't healthy") ||
-		!strings.Contains(got.GetError(), "fails its health check") {
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "fails its health check") {
 		t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
+	}
+	if detail := got.GetSteps()[0].GetDetail(); !strings.Contains(detail, "is as asked, but it isn't healthy") {
+		t.Errorf("the step's detail is %q", detail)
 	}
 	if b.e.Container(name).ID != before {
 		t.Error("with nothing newer, the container was replaced")
@@ -326,6 +328,44 @@ func TestARemovedContainerWithNoImageSaysNothingRuns(t *testing.T) {
 	}
 }
 
+// A rollback pins what a revision ran, so deploying its tag again replaces what
+// runs whatever the pull finds. A screen reads "stays as it is" only from what the
+// steps say they did, so that must be what happened, with the undo that goes with it.
+func TestDeployingTheTagAfterARollbackSaysItReplaced(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	name, web := runLatest(t, b)
+	b.e.Registry["ghcr.io/acme/shop:other"] = dockertest.Image{Digest: digestB, Config: docker.Config{Cmd: []string{"shop"}}}
+	b.done(t, b.deploy(t, web.GetId(), "ghcr.io/acme/shop:other"))
+	back, err := b.s.RollBackService(t.Context(), connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: web.GetId(), Revision: 1}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.done(t, back.Msg.GetChange())
+	pinned := b.e.Container(name)
+
+	plan := b.deploy(t, web.GetId(), latest)
+	if kind := plan.GetPlan().GetIntent().GetKind(); kind != dockwellv1.IntentKind_INTENT_KIND_DEPLOY {
+		t.Errorf("the plan is for %v", kind)
+	}
+	if noteOf(plan, "pulls_again") != nil {
+		t.Errorf("the plan claims only if newer: %v", plan.GetPlan().GetNotes())
+	}
+	done := b.done(t, plan)
+	if b.e.Container(name).ID == pinned.ID {
+		t.Fatal("the container still names the pin")
+	}
+	stays := true
+	for _, s := range done.GetSteps() {
+		stays = stays && s.GetDid() == dockwellv1.PlanAction_PLAN_ACTION_NONE
+	}
+	if stays || len(done.GetSteps()) == 0 {
+		t.Errorf("it was replaced, and its steps read as staying: %v", done.GetSteps())
+	}
+	if done.GetUndoDeadline() == nil {
+		t.Error("it was replaced, and there's nothing to undo it with")
+	}
+}
+
 // A pin can't be changed in place, so leaving one replaces the container whatever
 // the pull finds, and the plan and the step say so.
 func TestLeavingAPinSaysItReplaces(t *testing.T) {
@@ -341,9 +381,19 @@ func TestLeavingAPinSaysItReplaces(t *testing.T) {
 	if noteOf(plan, "pulls_again") != nil {
 		t.Errorf("the plan claims only if newer: %v", plan.GetPlan().GetNotes())
 	}
+	// It replaces whatever the pull finds, so it reads as a deploy, not as what may come to nothing.
+	if kind := plan.GetPlan().GetIntent().GetKind(); kind != dockwellv1.IntentKind_INTENT_KIND_DEPLOY {
+		t.Errorf("the plan is for %v", kind)
+	}
 	got := b.done(t, plan)
 	if b.e.Container(name).ID == before {
 		t.Fatal("the container still names the pin")
+	}
+	// The step says it replaced it, which is what the panel reads, whatever words come with it.
+	for _, st := range got.GetSteps() {
+		if st.GetDid() != dockwellv1.PlanAction_PLAN_ACTION_REPLACE {
+			t.Errorf("the step says it did %v", st.GetDid())
+		}
 	}
 	if said := got.GetSteps()[0].GetMessage(); strings.Contains(said, "stays as it is") || strings.Contains(said, "already the newest") {
 		t.Errorf("it was replaced, and the step says %q", said)

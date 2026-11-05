@@ -101,7 +101,7 @@ describe("Button", () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  it("shows a spinner, disables itself and reports busy while loading", async () => {
+  it("shows a spinner, stops working, keeps its focus and reports busy while loading", async () => {
     const onClick = vi.fn();
     const { container } = render(
       <Button variant="primary" icon="deploy" loading onClick={onClick}>
@@ -109,8 +109,10 @@ describe("Button", () => {
       </Button>,
     );
     const button = screen.getByRole("button", { name: "Deploying" });
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAttribute("aria-busy", "true");
+    button.focus();
+    expect(button).toHaveFocus();
     expect(container.querySelector(".dw-btn-spinner")).not.toBeNull();
     expect(container.querySelector(".dw-icon")).toBeNull();
     await userEvent.click(button);

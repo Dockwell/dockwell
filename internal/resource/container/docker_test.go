@@ -346,7 +346,7 @@ func TestPullsAndHealth(t *testing.T) {
 		t.Fatal(err)
 	}
 	mu.Lock()
-	if !slices.Contains(heard, "pulling nginx:1.27") || !slices.ContainsFunc(heard, func(m string) bool { return strings.HasSuffix(m, " of 48 MB") }) {
+	if !slices.Contains(heard, "Pulling nginx:1.27") || !slices.ContainsFunc(heard, func(m string) bool { return strings.HasSuffix(m, " of 48 MB") }) {
 		t.Errorf("heard %q while pulling, want how far it was", heard)
 	}
 	mu.Unlock()
@@ -363,7 +363,7 @@ func TestPullsAndHealth(t *testing.T) {
 
 	for image, want := range map[string]string{
 		"ghost:1": "can't pull ghost:1: pull access denied for ghost:1",
-		"crash:1": "crash stopped right after it started, with exit code 1. See why with docker logs crash",
+		"crash:1": "crash stopped right after it started, with exit code 1",
 		"sick:1":  "sick runs, but fails its health check",
 	} {
 		ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: strings.Split(image, ":")[0]}
@@ -373,6 +373,88 @@ func TestPullsAndHealth(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("running %s = %v, want %q", image, err, want)
 		}
+	}
+}
+
+// Each way a real person's first deploy goes wrong reads in plain words, and
+// what Docker said stays behind them.
+func TestFailuresReadPlainly(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	e.Registry["ghost:nosuchtag"] = dockertest.Image{PullError: "manifest for ghost:nosuchtag not found: manifest unknown: manifest unknown"}
+	e.BindError = func(source string) string {
+		if source == "/readonly/uploads" {
+			return "mkdir /readonly/uploads: read-only file system"
+		}
+		return ""
+	}
+	l := resource.Local{Drivers: drivers(e)}
+	run := func(name string, spec *resourcev1.Container) error {
+		t.Helper()
+		ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: name}
+		if err := container.Validate(spec); err != nil {
+			t.Fatal(err)
+		}
+		return l.Apply(t.Context(), resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}, spec)
+	}
+	port := func(n uint32) []*resourcev1.PortMapping {
+		return []*resourcev1.PortMapping{{HostPort: n, ContainerPort: 80}}
+	}
+	if err := run("first", &resourcev1.Container{Image: "nginx:1.27", Ports: port(8080)}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name  string
+		spec  *resourcev1.Container
+		plain string
+	}{
+		{"ghost", &resourcev1.Container{Image: "ghost:1"}, "ghost:1 can't be pulled. The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again."},
+		{"tagged", &resourcev1.Container{Image: "ghost:nosuchtag"}, "ghost:nosuchtag isn't on its registry, so it can't be pulled. The tag may be wrong. Check the name and tag, then try again."},
+		{"crash", &resourcev1.Container{Image: "crash:1"}, "crash stopped right after it started, with exit code 1. Check its command and variables, then try again."},
+		{"sick", &resourcev1.Container{Image: "sick:1"}, "sick runs, but fails its health check. Check the command its health check runs, then try again."},
+		{"second", &resourcev1.Container{Image: "nginx:1.27", Ports: port(8080)}, "Port 8080 is already in use on this server. Choose another port, or stop what uses it, then try again."},
+		{"mounted", &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/readonly/uploads"}, Target: "/u"}}}, "mounted can't mount /readonly/uploads (read-only file system). Check the path on this server, then try again."},
+	} {
+		plain, detail := resource.Explain(run(tt.name, tt.spec))
+		if plain != tt.plain {
+			t.Errorf("%s reads %q, want %q", tt.name, plain, tt.plain)
+		}
+		if detail == "" || detail == plain {
+			t.Errorf("%s has %q behind it, want what Docker said", tt.name, detail)
+		}
+		// A rollback takes the container away, so nothing sends a person to it.
+		if strings.Contains(detail, "docker logs") || strings.Contains(detail, "docker inspect") {
+			t.Errorf("%s has %q behind it, which sends you to a container that is gone", tt.name, detail)
+		}
+	}
+}
+
+// A service's failure names the service, not the container Docker runs it as,
+// and what it is doing, as a step shows it.
+func TestAServiceFailureNamesTheService(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	var heard []string
+	var mu sync.Mutex
+	ctx := resource.WithProgress(t.Context(), func(m string) {
+		mu.Lock()
+		defer mu.Unlock()
+		heard = append(heard, m)
+	})
+	l := resource.Local{Drivers: drivers(e)}
+	ref := resource.Ref{Kind: service.Kind, Scope: "env_01M6MCCCXQW6G67PMQDK7PVYAY", Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "crash:1"}}}
+	plain, detail := resource.Explain(l.Apply(ctx, resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}, spec))
+	if plain != "web stopped right after it started, with exit code 1. Check its command and variables, then try again." {
+		t.Errorf("plain = %q", plain)
+	}
+	if !strings.Contains(strings.ToLower(detail), "env_01m6mccc") {
+		t.Errorf("detail = %q, want the chain with its IDs", detail)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.Contains(heard, "Starting web") || !slices.Contains(heard, "Checking that web stays up") {
+		t.Errorf("heard %q, want what it was doing in its own name", heard)
 	}
 }
 

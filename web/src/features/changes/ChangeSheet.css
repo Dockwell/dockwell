@@ -1,9 +1,17 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
+/* Each phase of a plan comes in softly, as an action answered: reduced motion makes it instant. */
 .plan-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-5);
+  animation: dw-fade var(--motion-fast) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-body {
+    animation: none;
+  }
 }
 
 .plan-section {
@@ -17,12 +25,210 @@
 }
 
 .plan-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
   font-size: 13px;
   line-height: 18px;
   color: var(--ink-muted);
 }
 
-/* Each server's steps: the server, then a row a step. */
+/* Where it stands, in the title's own place through the flow. A long name wraps, and the mark stays on its first line. */
+.plan-title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.plan-title-mark {
+  flex: none;
+  display: inline-flex;
+  width: 14px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  color: var(--tone);
+}
+
+/* A long name in a label ends in an ellipsis, and never pushes the footer's other button out of the sheet. */
+.plan-view .dw-sheet-foot .dw-btn {
+  min-width: 0;
+}
+
+.plan-view .dw-sheet-foot .dw-btn-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-view .dw-sheet-foot .plan-undo {
+  flex: none;
+}
+
+/* What can't be taken back. */
+.plan-risk code,
+.plan-failure code,
+.plan-rollback code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.plan-risk-more {
+  margin: var(--space-2) 0 0;
+}
+
+.plan-risk-more b {
+  font-weight: 600;
+}
+
+/* What the server said, for whoever digs in. */
+.plan-details {
+  margin-top: var(--space-2);
+}
+
+.plan-details summary {
+  display: inline-block;
+  border-radius: var(--radius-xs);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.plan-details summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.plan-details-text {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 12px / 18px var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The line that says where it stands: its reach, then where it is reached. It holds one place through the flow. */
+.plan-lead,
+.plan-reach-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+.plan-lead > .dw-icon,
+.plan-reach-row > .dw-icon {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.plan-lead code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.plan-lead.is-next {
+  align-items: flex-start;
+}
+
+.plan-reach {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-reach-at {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: 500 14px / 20px var(--font-mono);
+  color: var(--ink);
+}
+
+a.plan-reach-at {
+  border-radius: var(--radius-xs);
+  color: var(--link);
+  text-decoration: none;
+}
+
+.plan-reach-at code {
+  font: inherit;
+  color: inherit;
+}
+
+a.plan-reach-at:hover {
+  text-decoration: underline;
+}
+
+a.plan-reach-at:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.plan-reach-how {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.plan-reach-row .copy-button {
+  margin-left: auto;
+}
+
+/* A plan with nothing in it. */
+.plan-nothing {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  color: var(--ink-muted);
+}
+
+.plan-nothing .dw-icon {
+  flex: none;
+  color: var(--healthy);
+}
+
+.plan-nothing p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+.plan-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+/* Steps. A group holds a fleet's servers today, and a rollout's waves later. */
+.plan-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .plan-server {
   display: flex;
   flex-direction: column;
@@ -37,6 +243,7 @@
   align-items: center;
   gap: var(--space-2);
   padding: 10px var(--space-4);
+  border-bottom: 1px solid var(--line);
   color: var(--ink-muted);
 }
 
@@ -48,7 +255,7 @@
 
 .plan-server-meta {
   margin-left: auto;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .plan-steps {
@@ -62,31 +269,54 @@
   flex-direction: column;
   gap: 2px;
   padding: 10px var(--space-4);
-  border-top: 1px solid var(--line);
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 20px;
+}
+
+.plan-step + .plan-step {
+  border-top: 1px solid var(--line);
 }
 
 .plan-step-what {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
 }
 
-.plan-step-what code {
-  font-size: 12.5px;
+.plan-step-what > .dw-status,
+.plan-step-what > .dw-badge {
+  flex: none;
+}
+
+.plan-step-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.plan-step-line code {
+  font-size: 12px;
 }
 
 .plan-step-kind {
   color: var(--ink-muted);
 }
 
+/* Counts up in place: Host Grotesk's figures are tabular, and it keeps to its side. */
+.plan-step-time {
+  flex: none;
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
 .plan-step-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 2px var(--space-3);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
 }
@@ -125,6 +355,15 @@
   margin-top: 2px;
 }
 
+.plan-effect-warn {
+  flex: none;
+  display: flex;
+  width: 16px;
+  justify-content: center;
+  margin-top: 4px;
+  color: var(--warning);
+}
+
 .plan-effect-text {
   display: flex;
   flex-direction: column;
@@ -140,50 +379,192 @@
   text-wrap: balance;
 }
 
+.plan-effect-title code {
+  font-size: 13px;
+}
+
 .plan-effect-detail {
   font-size: 13px;
   line-height: 18px;
 }
 
-.plan-confirm {
-  padding: 14px var(--space-4);
-  border-top: 1px solid var(--line);
+/* The confirmation, beside the button it opens. Apply stays where it always is. */
+.plan-gate {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "field note note"
+    "field cancel apply";
+  align-items: end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.plan-gate-field {
+  grid-area: field;
+  min-width: 0;
+}
+
+.plan-gate-field .dw-field-label code {
+  font-size: 12px;
+}
+
+.plan-gate-note {
+  grid-area: note;
+  justify-self: end;
+  align-self: start;
+}
+
+.plan-gate-note .dw-sheet-note {
+  margin: 0;
+}
+
+.plan-gate-cancel {
+  grid-area: cancel;
+}
+
+.plan-gate .plan-apply {
+  grid-area: apply;
+}
+
+.plan-lead.is-next > .dw-icon {
+  margin-top: 2px;
 }
 
 /* On a phone the sheet is the screen: edge to edge, with the actions in reach of a thumb. */
 .dw-sheet.plan-sheet.is-phone {
-  --control-sm: 44px;
-  --control-md: 44px;
   inset: 0;
   width: 100%;
   max-width: none;
   border-radius: 0;
 }
 
-.plan-sheet.is-phone .dw-sheet-head {
+.dw-sheet-view.plan-view.is-phone {
+  --control-sm: 44px;
+  --control-md: 44px;
+}
+
+.plan-view.is-phone .dw-sheet-head {
   padding: var(--space-4) var(--space-2) var(--space-3) var(--space-4);
 }
 
-.plan-sheet.is-phone .dw-sheet-body {
+.plan-view.is-phone .dw-sheet-body {
   padding: var(--space-5) var(--space-4) var(--space-4);
 }
 
-.plan-sheet.is-phone .dw-sheet-foot {
+.dw-sheet-view.plan-view.is-phone .dw-sheet-foot {
   flex-wrap: wrap;
   gap: 10px var(--space-2);
   padding: var(--space-3) var(--space-4) max(22px, env(safe-area-inset-bottom));
 }
 
-.plan-sheet.is-phone .dw-sheet-note {
+.dw-sheet-view.plan-view.is-phone .dw-sheet-note {
   flex: 1 1 100%;
+  margin: 0;
 }
 
-.plan-sheet.is-phone .dw-sheet-foot .dw-btn {
+.dw-sheet-view.plan-view.is-phone .dw-sheet-foot .dw-btn {
   --h: 48px;
+  flex: 0 0 auto;
+  height: 48px;
   min-width: 104px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
-.plan-sheet.is-phone .dw-sheet-foot .dw-btn:last-child {
+.dw-sheet-view.plan-view.is-phone .dw-sheet-foot .plan-undo {
+  min-width: 0;
+  margin-right: auto;
+}
+
+/* The way on fills the row, and takes one of its own before its label would end in an ellipsis. */
+.dw-sheet-view.plan-view.is-phone .dw-sheet-foot .dw-btn:last-child {
   flex: 1 1 auto;
+}
+
+.plan-view.is-phone .plan-gate {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "field field"
+    "note note"
+    "cancel apply";
+}
+
+.plan-view.is-phone .plan-gate-note {
+  justify-self: start;
+}
+
+/* Big enough that a phone doesn't zoom in on it as it takes focus. */
+.plan-view.is-phone .plan-gate-field input {
+  font-size: 16px;
+}
+
+.plan-view.is-phone .dw-plan-changes {
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  padding-left: var(--space-4);
+}
+
+/* What a failed change's rollback did: whether what ran before runs now. It sits under the failure, and is no second Callout. */
+.plan-rollback {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+.plan-rollback-mark {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  color: var(--tone);
+}
+
+.plan-rollback-title {
+  font-weight: 500;
+}
+
+.plan-rollback-said,
+.plan-rollback-text {
+  color: var(--ink-muted);
+}
+
+.plan-lead-count {
+  flex: none;
+  margin-left: auto;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+/* A machine value in the plan's own words, such as its image in the subtitle. */
+.plan-view .dw-sheet-sub code,
+.plan-view .dw-sheet-title code {
+  font-size: 0.93em;
+}
+
+.plan-places {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Big enough for a thumb, wherever a failure's Details shows. */
+@media (pointer: coarse) {
+  .plan-details summary {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+.plan-view.is-phone .plan-details summary {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
 }

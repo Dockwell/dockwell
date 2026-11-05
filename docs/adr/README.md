@@ -29,6 +29,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0023](0023-a-full-build-and-an-agent-build.md) | A full build and an agent build, from one codebase | Accepted |
 | [0024](0024-the-caddy-ingress-driver.md) | The Caddy ingress driver, on the server's own network | Accepted |
 | [0026](0026-the-app-screens.md) | The app screens, and what they needed of the API | Accepted |
+| [0028](0028-the-plan-sheet.md) | The plan sheet: one shell, what can't be taken back first, and failures said twice | Accepted |
 | [0029](0029-a-catalog-format-fed-from-other-catalogs.md) | A catalog format of our own, fed from other catalogs | Accepted |
 | [0030](0030-routes-behind-a-tunnel-or-a-proxy.md) | Routes behind a tunnel or a proxy | Accepted |
 

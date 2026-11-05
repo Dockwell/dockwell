@@ -82,10 +82,14 @@ export interface UIStrings {
   planDiff: {
     /** The default action word on each resource's row. */
     action: Readonly<Record<PlanAction, string>>;
+    /** The same, once it is done. */
+    actionDone: Readonly<Record<PlanAction, string>>;
     /** The kind shown after a resource's name. */
     kind: Readonly<Record<PlanKind, string>>;
     /** The summary, each after a count: "3 to create". Replacements count apart from changes. */
-    summary: Readonly<{ create: string; change: string; replace: string; destroy: string }>;
+    summary: Readonly<{ create: string; change: string; replace: string; destroy: string; ifNewer: string }>;
+    /** The same, once it is done: "3 created". */
+    summaryDone: Readonly<{ create: string; change: string; replace: string; destroy: string }>;
     /** Stands in for a secret value, which is never shown. */
     hidden: string;
     /** Read before an old and a new value. */
@@ -154,7 +158,13 @@ export const englishStrings: UIStrings = {
       create: "Create",
       update: "Update in place",
       replace: "Replace",
-      destroy: "Destroy",
+      destroy: "Delete",
+    },
+    actionDone: {
+      create: "Created",
+      update: "Updated in place",
+      replace: "Replaced",
+      destroy: "Deleted",
     },
     kind: {
       project: "project",
@@ -173,8 +183,17 @@ export const englishStrings: UIStrings = {
       package: "package",
       server: "server",
       firewall: "firewall",
+      route: "route",
+      resource: "resource",
     },
-    summary: { create: "to create", change: "to change", replace: "to replace", destroy: "to destroy" },
+    summary: {
+      create: "to create",
+      change: "to update",
+      replace: "to replace",
+      destroy: "to delete",
+      ifNewer: "to update if newer",
+    },
+    summaryDone: { create: "created", change: "updated", replace: "replaced", destroy: "deleted" },
     hidden: "hidden",
     from: "from",
     to: "to",

@@ -152,8 +152,9 @@ describe("Activity", () => {
     await user.click(within(detail).getByRole("button", { name: "Undo this change" }));
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(undos).toEqual([expect.objectContaining({ id: "chg_shop" })]);
-    expect(await within(sheet).findByText("Undo Create the project shop")).toBeVisible();
-    expect(sheet).toHaveTextContent("2 to destroy");
+    await within(sheet).findByText("to delete");
+    expect(sheet).toHaveTextContent("Undo Create the project shop");
+    expect(sheet).toHaveTextContent("2 to delete");
   });
 
   it("leads from a change to a secret, and from a reveal, to the variables and secrets", async () => {

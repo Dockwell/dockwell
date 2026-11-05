@@ -84,7 +84,7 @@ func TestPlanView(t *testing.T) {
 		"      Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy.\n" +
 		"      May cut off remote access to hz-1, such as SSH.\n" +
 		"\n" +
-		"1 to create · 0 to change · 1 to replace · 0 to destroy\n" +
+		"1 to create · 0 to change · 1 to replace · 0 to delete\n" +
 		"It destroys data or may cut off access, which undo may not bring back.\n" +
 		"It reaches more of a server, or what isn't its own yet, which a person approves:\n" +
 		"  service web: the server path /srv/app/config (read-only)\n" +
@@ -160,13 +160,115 @@ func TestChangeView(t *testing.T) {
 	for _, want := range []string{
 		"chg_1  Add a staging environment\n",
 		"Applied 3 min ago by the API token deploy from the CLI.\n",
-		"1 to create · 0 to change · 0 to destroy\n",
+		"1 to create · 0 to change · 0 to delete\n",
 		"Steps:\n  Done  Created container web on hz-1\n",
 		"Undo it within 6 days with dockwell changes undo chg_1.",
 	} {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("ChangeView doesn't have %q:\n%s", want, buf.String())
 		}
+	}
+}
+
+// A failure reads in plain words, and what the server said is there too, for
+// whoever digs in.
+func TestChangeViewKeepsWhatTheServerSaid(t *testing.T) {
+	c := &dockwellv1.Change{
+		Id: "chg_1", Summary: "Run nginx:9", State: dockwellv1.ChangeState_CHANGE_STATE_FAILED,
+		Error: "nginx:9 isn't on its registry, so it can't be pulled. Check the name and tag, then try again.",
+		Plan:  &dockwellv1.Plan{Summary: &dockwellv1.PlanSummary{Create: 1}},
+		Steps: []*dockwellv1.StepProgress{{
+			State:   dockwellv1.StepState_STEP_STATE_FAILED,
+			Message: "nginx:9 isn't on its registry, so it can't be pulled. Check the name and tag, then try again.",
+			Detail:  "hz-1: can't create service web in env_01: manifest unknown",
+		}},
+	}
+	var buf bytes.Buffer
+	ChangeView(&buf, c, now)
+	for _, want := range []string{
+		"It failed: nginx:9 isn't on its registry, so it can't be pulled. Check the name and tag, then try again.\n",
+		"What the server said: hz-1: can't create service web in env_01: manifest unknown.\n",
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("ChangeView doesn't have %q:\n%s", want, buf.String())
+		}
+	}
+}
+
+// A failed change says how its rollback went, from what the API says of it,
+// and never that what ran before is back unless it is.
+func TestChangeViewSaysHowTheRollbackWent(t *testing.T) {
+	deploy := &dockwellv1.Plan{
+		Summary: &dockwellv1.PlanSummary{Replace: 1},
+		Resources: []*dockwellv1.PlannedResource{{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "web"}, Action: dockwellv1.PlanAction_PLAN_ACTION_REPLACE,
+		}},
+	}
+	rule := &dockwellv1.Plan{
+		Summary: &dockwellv1.PlanSummary{Change: 1},
+		Resources: []*dockwellv1.PlannedResource{{
+			Resource: &dockwellv1.ResourceRef{Kind: "firewall.rule", Name: "http"}, Action: dockwellv1.PlanAction_PLAN_ACTION_UPDATE,
+		}},
+	}
+	first := &dockwellv1.Plan{Summary: &dockwellv1.PlanSummary{Create: 2}}
+	const (
+		applied  = dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED
+		applying = dockwellv1.RollbackState_ROLLBACK_STATE_APPLYING
+		waiting  = dockwellv1.RollbackState_ROLLBACK_STATE_WAITING
+		failed   = dockwellv1.RollbackState_ROLLBACK_STATE_FAILED
+	)
+	for _, tt := range []struct {
+		name string
+		plan *dockwellv1.Plan
+		s    *dockwellv1.RollbackStatus
+		want []string
+		not  string
+	}{
+		{"put back", deploy, &dockwellv1.RollbackStatus{State: applied, Steps: 1, Restored: []string{"web"}}, []string{"Dockwell put back what ran before, in chg_2, and it runs again. It was down while that happened."}, ""},
+		{"put back around what runs", deploy, &dockwellv1.RollbackStatus{State: applied, Steps: 1, Restored: []string{"data"}}, []string{"Dockwell put back what was there before, in chg_2."}, "runs again"},
+		{"put back, and nothing runs", rule, &dockwellv1.RollbackStatus{State: applied, Steps: 1, Restored: []string{"http"}}, []string{"Dockwell put back what was there before, in chg_2."}, "runs again"},
+		{"nothing to put back", deploy, &dockwellv1.RollbackStatus{State: applied}, []string{"It stopped before it changed anything on the servers, so what was there before still is (chg_2)."}, "put back"},
+		{"a first deploy, cleared away", first, &dockwellv1.RollbackStatus{State: applied, Steps: 2}, []string{"Dockwell cleared away what it had made, in chg_2."}, "before"},
+		{"a first deploy, with nothing to clear", first, &dockwellv1.RollbackStatus{State: applied}, []string{"It stopped before it changed anything on the servers (chg_2)."}, "still is"},
+		{"running", deploy, &dockwellv1.RollbackStatus{State: applying, Steps: 1}, []string{"Dockwell is putting back what was there before, in chg_2. Follow it with dockwell changes watch chg_2."}, "runs again"},
+		{"a first deploy, running", first, &dockwellv1.RollbackStatus{State: applying, Steps: 1}, []string{"Dockwell is clearing away what it made, in chg_2."}, "before"},
+		{"waiting", deploy, &dockwellv1.RollbackStatus{State: waiting, Steps: 1, WaitingFor: []string{"hz-1"}}, []string{"Dockwell puts back what was there before, in chg_2, when it can reach hz-1. It can't tell what is running there until then."}, "runs again"},
+		{"a first deploy, waiting", first, &dockwellv1.RollbackStatus{State: waiting, Steps: 1, WaitingFor: []string{"hz-1", "hz-2"}}, []string{"Dockwell clears away what it made, in chg_2, when it can reach hz-1, hz-2."}, "before"},
+		{"failed", deploy, &dockwellv1.RollbackStatus{State: failed, Steps: 1, Error: "http can't be taken away", Detail: "raw"}, []string{
+			"Putting back what was there before failed too, in chg_2: http can't be taken away. What the server said: raw.",
+			"The servers may be left between the two, so check what runs, then deploy what should, or fix it by hand.",
+		}, "runs again"},
+		{"a first deploy, failed", first, &dockwellv1.RollbackStatus{State: failed, Steps: 1, Error: "http can't be taken away"}, []string{
+			"Clearing away what it made failed too, in chg_2: http can't be taken away.",
+			"Parts of it may still be on the servers, so check what is there, then try again, or remove them by hand.",
+		}, "between the two"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.s.Id = "chg_2"
+			c := &dockwellv1.Change{
+				Id: "chg_1", State: dockwellv1.ChangeState_CHANGE_STATE_FAILED, Error: "it failed.", RolledBackBy: "chg_2", RollbackStatus: tt.s,
+				Plan: tt.plan,
+			}
+			var buf bytes.Buffer
+			ChangeView(&buf, c, now)
+			for _, want := range tt.want {
+				if !strings.Contains(buf.String(), want) {
+					t.Errorf("ChangeView doesn't have %q:\n%s", want, buf.String())
+				}
+			}
+			if strings.Contains(buf.String(), "rolled back") || tt.not != "" && strings.Contains(buf.String(), tt.not) {
+				t.Errorf("ChangeView says what it can't know:\n%s", buf.String())
+			}
+		})
+	}
+}
+
+// With no word from the API on how it went, it says where to find out.
+func TestChangeViewDoesntGuessAtARollback(t *testing.T) {
+	var buf bytes.Buffer
+	ChangeView(&buf, &dockwellv1.Change{Id: "chg_1", State: dockwellv1.ChangeState_CHANGE_STATE_FAILED, RolledBackBy: "chg_2"}, now)
+	if want := "Dockwell made chg_2 to roll it back. See how that went with dockwell changes get chg_2."; !strings.Contains(buf.String(), want) {
+		t.Errorf("ChangeView doesn't have %q:\n%s", want, buf.String())
 	}
 }
 
@@ -365,6 +467,22 @@ func TestEveryAccessKindHasWords(t *testing.T) {
 		}
 		if got := accessWords([]*dockwellv1.HostAccess{{Kind: kind, Path: "x"}})[0]; strings.HasPrefix(got, "access(") {
 			t.Errorf("%s has no words in the CLI: %s", kind, got)
+		}
+	}
+}
+
+// The CLI can't apply what is as good as root, and still says what the panel does
+// of it: that it is, and where a symlink leads, as it does of an ordinary folder.
+func TestTheCLISaysWhatIsAsGoodAsRootAndWhereAPathLeads(t *testing.T) {
+	for want, a := range map[string]*dockwellv1.HostAccess{
+		"the server path /etc (read-write), which is as good as root":                                                                               {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/etc", SameAsRoot: true},
+		"the server path /srv/conf, which leads to /etc (read-only), which is as good as root":                                                      {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/conf", ReadOnly: true, LeadsTo: "/etc", SameAsRoot: true},
+		"the server path /srv/current, which leads to /srv/9 (read-write)":                                                                          {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/current", LeadsTo: "/srv/9"},
+		"the server path /srv/site (read-only)":                                                                                                     {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/site", ReadOnly: true},
+		"the server path /srv/s, which leads to Docker's socket at /run/docker.sock, which gives control of Docker on the server, the same as root": {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET, Path: "/srv/s", LeadsTo: "/run/docker.sock", SameAsRoot: true},
+	} {
+		if got := accessWords([]*dockwellv1.HostAccess{a})[0]; got != want {
+			t.Errorf("it reads %q, want %q", got, want)
 		}
 	}
 }

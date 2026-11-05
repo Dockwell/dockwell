@@ -245,12 +245,18 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 	if m.GetImage() == "" {
 		return nil, authapi.Invalid(errors.New("the deploy names no image. Pass one in image, such as ghcr.io/acme/web:1.4.2"))
 	}
-	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (editing, error) {
+	intent := &revision.Intent{Kind: revision.IntentDeploy, Image: m.GetImage()}
+	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, app *resourcev1.Container) (editing, error) {
 		// A tag can move, so naming the one it has means "whatever that is now". Only
 		// a digest can't, and the record can name one no server runs, which deploying
 		// again puts right, so only what the servers say refuses it.
 		running := app.GetImage()
 		again := resource.BareImage(running) == m.GetImage() && resource.BareImage(m.GetImage()) == m.GetImage()
+		// Off a pinned digest this replaces it whatever the pull finds, so it's a
+		// deploy, not the pull that may find nothing.
+		if again && running == m.GetImage() {
+			intent.Kind = revision.IntentRepull
+		}
 		app.Image = m.GetImage()
 		did := editing{
 			summary:   cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)),
@@ -284,7 +290,8 @@ func (h *Handler) AddServicePort(ctx context.Context, req *connect.Request[dockw
 	if protocol == resourcev1.Protocol_PROTOCOL_UNSPECIFIED {
 		protocol = resourcev1.Protocol_PROTOCOL_TCP
 	}
-	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (editing, error) {
+	intent := &revision.Intent{Kind: revision.IntentPublishPort, Port: int(m.GetHostPort())}
+	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, app *resourcev1.Container) (editing, error) {
 		for _, p := range app.GetPorts() {
 			if p.GetHostPort() == m.GetHostPort() && p.GetProtocol() == protocol && p.GetHostIp() == m.GetHostIp() {
 				return editing{}, authapi.Invalid(fmt.Errorf("%s already publishes port %d. Choose another port on the server", name, m.GetHostPort()))
@@ -316,8 +323,9 @@ type editing struct {
 // So anyone may make it without being able to read a secret back, and what
 // the spec holds that no response carries survives. It says what the change is
 // for, and refuses what it can't do. A change that lands after the read makes
-// it stale, as proposing what was read would quietly undo that change.
-func (h *Handler) edit(ctx context.Context, named, project, environment string, change func(name string, app *resourcev1.Container) (editing, error)) (*dockwellv1.Change, error) {
+// it stale, as proposing what was read would quietly undo that change. intent is
+// what the plan says it comes to.
+func (h *Handler) edit(ctx context.Context, named, project, environment string, intent *revision.Intent, change func(name string, app *resourcev1.Container) (editing, error)) (*dockwellv1.Change, error) {
 	r, err := h.find(ctx, named, project, environment)
 	if err != nil {
 		return nil, err
@@ -348,10 +356,11 @@ func (h *Handler) edit(ctx context.Context, named, project, environment string, 
 		did.note.Ref = ref
 		notes = []revision.Note{did.note}
 	}
+	intent.Resource = r.ID
 	return h.changes.Propose(ctx, did.summary, []*dockwellv1.Edit{{
 		Resource: resourcepb.Ref(ref),
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
-	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing, Pull: did.pull, Run: did.run, Notes: notes})
+	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing, Pull: did.pull, Run: did.run, Notes: notes, Intent: intent})
 }
 
 // RollBackService plans going back to an earlier revision.

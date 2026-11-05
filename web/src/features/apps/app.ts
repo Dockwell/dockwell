@@ -13,6 +13,7 @@ import {
 } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 
+import { withoutIds } from "../changes/plan";
 import type { ServerSummary } from "../servers/server";
 
 /** What a service runs, as the first screens know it: an app from an image. */
@@ -60,6 +61,8 @@ export type AppStateKind =
   | "waiting"
   /** A step failed, or the change gave up before a server got it. */
   | "failed"
+  /** Its last deploy failed, and so did putting back what ran before, so what runs isn't known. */
+  | "rollback-failed"
   /** It was live, but a server it runs on isn't connected, so its state isn't known. */
   | "offline"
   /** Its last deploy failed, and Dockwell put back what ran before. */
@@ -84,6 +87,7 @@ const LOOKS: Readonly<Record<AppStateKind, Status>> = {
   deploying: "deploying",
   waiting: "degraded",
   failed: "down",
+  "rollback-failed": "down",
   offline: "degraded",
   "rolled-back": "degraded",
   unplaced: "stopped",
@@ -115,6 +119,14 @@ export function appState(
   });
   if (placed.length === 0) return state("unplaced");
   const failed = placed.filter((d) => d.state === DeploymentState.FAILED);
+  // Its latest revision is a rollback, and that failed: nothing says what is there now.
+  if (service.rolledBackChangeId !== "" && service.changeState === ChangeState.FAILED) {
+    return state(
+      "rollback-failed",
+      failed.length > 0 ? failed : placed,
+      failed.find((d) => d.error !== "")?.error ?? "",
+    );
+  }
   if (failed.length > 0) return state("failed", failed, failed.find((d) => d.error !== "")?.error ?? "");
   const pending = placed.filter((d) => d.state === DeploymentState.PENDING);
   // Under a change that has failed, a deployment still pending won't move again.
@@ -130,6 +142,11 @@ export function appState(
   return state(service.rolledBackChangeId !== "" ? "rolled-back" : "live");
 }
 
+/** True for a server path that is Docker's or containerd's socket, which is the same as root. */
+export function isDockerSocket(path: string): boolean {
+  return /(^|\/)(docker|containerd)\.sock$/.test(path);
+}
+
 /** Work going on: nothing should go back, and what runs isn't what the latest revision says yet. */
 export function isMoving(state: AppState): boolean {
   return state.kind === "deploying" || state.kind === "waiting";
@@ -137,6 +154,7 @@ export function isMoving(state: AppState): boolean {
 
 /** The order of concern: what needs you first, what is moving next, then the calm. */
 const CONCERN: Readonly<Record<AppStateKind, number>> = {
+  "rollback-failed": 0,
   failed: 0,
   waiting: 1,
   offline: 2,
@@ -313,10 +331,7 @@ export function canRollBackTo(revision: ServiceRevision, recovering = false): bo
  * isn't valid: the server path…" reads "The server path…".
  */
 export function tidyMessage(message: string): string {
-  const bare = message
-    .replace(/^.*?\bisn't valid: /, "")
-    .replace(/\bservice (\S+) in env_[0-9A-Za-z]+/g, "$1")
-    .replace(/ in env_[0-9A-Za-z]+/g, "");
+  const bare = withoutIds(message);
   // A message that starts with a server's name keeps it as it is written.
   if (/^[a-z0-9-]+:\s/.test(bare)) return bare;
   return bare.charAt(0).toUpperCase() + bare.slice(1);

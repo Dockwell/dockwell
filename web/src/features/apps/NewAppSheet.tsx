@@ -48,7 +48,7 @@ import {
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
-import { useChangeSheet } from "../changes/ChangeSheet";
+import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import {
   appOf,
@@ -114,7 +114,6 @@ export function NewAppSheet({
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
   const navigate = useNavigate();
-  const sheet = useChangeSheet();
   const { fleet, servers, only } = useFleetView();
   const places = usePlaces();
   const services = useServices().data;
@@ -141,7 +140,8 @@ export function NewAppSheet({
   const [removeOrphans, setRemoveOrphans] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
-  const [planning, setPlanning] = useState(false);
+  // The plan under review takes this sheet over, and Cancel brings the form back as it was.
+  const [plan, setPlan] = useState<Opening>();
   const [leaving, setLeaving] = useState(false);
 
   const fileBytes = useMemo(() => new TextEncoder().encode(file).length, [file]);
@@ -240,18 +240,25 @@ export function NewAppSheet({
   const revealAfter = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: it runs when the form comes back, and revealError reads only what's on screen
   useEffect(() => {
-    if (planning || !revealAfter.current) return;
+    if (plan || !revealAfter.current) return;
     revealAfter.current = false;
     revealError();
-  }, [planning]);
+  }, [plan]);
 
   const review = (change: Change | undefined, open: "app" | "list") => {
     const service = change?.plan?.resources.find((r) => r.resource?.kind === "service");
     const label = service?.resource?.name ?? "";
-    setPlanning(true);
-    sheet.open({
+    setPlan({
       kind: "plan",
       make: () => Promise.resolve({ change }),
+      retryLabel: t`Edit and try again`,
+      onDone: onClose,
+      fix: (reason) => {
+        // A Compose file has a command to check, which is what the server says. This form hasn't.
+        if (source === "compose") return undefined;
+        if (reason === "exits" || reason === "unhealthy") return t`Check the image and its variables, then try again.`;
+        return reason === "command" ? t`Check the image and tag, then try again.` : undefined;
+      },
       ...(open === "app" && label ? { doneLabel: t`Open ${label}` } : {}),
       ...(open === "list" ? { doneLabel: t`Show the apps` } : {}),
       onClose: (after) => {
@@ -270,11 +277,13 @@ export function NewAppSheet({
               revealAfter.current = true;
             } else setFailure(message);
           }
-          setPlanning(false);
+          setPlan(undefined);
           return;
         }
-        if (open === "app" && service) void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
-        else void navigate({ to: "/apps" });
+        // Undone in the same sheet, it has no page to open.
+        if (open === "app" && service && after.reverts === "") {
+          void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
+        } else void navigate({ to: "/apps" });
       },
     });
   };
@@ -403,7 +412,8 @@ export function NewAppSheet({
 
   return (
     <Sheet
-      open={!planning}
+      open
+      over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={firstField}
       title={t`New app`}
       subtitle={subtitle}

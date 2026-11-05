@@ -165,7 +165,8 @@ function CommandPanel({
       setActive(Math.max(0, activeIndex - 1));
     } else if (event.key === "Enter") {
       event.preventDefault();
-      run(results[activeIndex]);
+      // Ctrl+Enter goes on through a flow elsewhere. Here it would run whatever is highlighted, unasked.
+      if (!event.metaKey && !event.ctrlKey) run(results[activeIndex]);
     } else if (event.key === "Escape" && !modal && onClose) {
       // In overlay mode the layer handles Escape.
       event.preventDefault();

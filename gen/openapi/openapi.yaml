@@ -138,8 +138,10 @@ paths:
                  Otherwise it commits the change's revisions and starts running its
                  steps, and returns the change as it starts applying. The steps run to
                  an end whether or not the caller waits. Follow them with WatchChange,
-                 or by polling GetChange. If a step fails, the steps already done are
-                 rolled back in a change of Dockwell's own, named in rolled_back_by.
+                 or by polling GetChange. If a step fails, Dockwell starts rolling back what
+                 was done, in a change of its own, named in rolled_back_by. That runs on after
+                 this change has failed, may wait for a server, and may fail too, so read
+                 rollback_status for how it went.
 
                  A plan that destroys data or may cut off access needs the fingerprint
                  of the plan you reviewed, and a signed-in session: no API token may
@@ -2088,7 +2090,10 @@ components:
                     format: date-time
                 error:
                     type: string
-                    description: Why it failed, when it did.
+                    description: |-
+                        Why it failed, when it did, in plain words: the fact, then the
+                         consequence, then the fix. The step that failed has what the server said
+                         in its detail.
                 steps:
                     type: array
                     items:
@@ -2100,10 +2105,19 @@ components:
                     type: string
                     description: |-
                         The change that rolled this one back after it failed, if any. It may
-                         still be applying, as when it waits for a server to reconnect.
+                         still be applying, as when it waits for a server to reconnect, or have
+                         failed: rollback_status says how it went.
                 undoneBy:
                     type: string
                     description: The applied change that undid this one, if any.
+                rollbackStatus:
+                    allOf:
+                        - $ref: '#/components/schemas/RollbackStatus'
+                    description: |-
+                        How the rollback in rolled_back_by is going, which is what says whether
+                         what ran before is back. It moves on after this change has failed, so
+                         read it afresh, or follow the rollback with WatchChange. Unset when there
+                         is no rollback.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.
@@ -3206,8 +3220,17 @@ components:
                 sameAsRoot:
                     type: boolean
                     description: |-
-                        True for what is the same as root on the server, whatever else it says,
-                         such as privileged mode or the capability SYS_ADMIN.
+                        True for what is as good as root on the server, whatever else it says:
+                         Docker's socket, the server's own network, a system path such as /etc,
+                         privileged mode or the capability SYS_ADMIN. All host access needs a
+                         signed-in person; a client should ask for more than a click only for this,
+                         so that the warning means something when it comes.
+                leadsTo:
+                    type: string
+                    description: |-
+                        Where the server path leads through symlinks, as its server's agent reads it,
+                         when that is somewhere else. Empty when it isn't, or when no agent has said,
+                         as for a server that wasn't connected when it was planned.
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.
@@ -3373,6 +3396,37 @@ components:
                         True when the proxy isn't the version this server's Dockwell pins. It may
                          be missing security fixes, and moves on the server's next route change.
             description: IngressStatus is where a server's ingress stands, on a server with routes.
+        Intent:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - INTENT_KIND_UNSPECIFIED
+                        - INTENT_KIND_DEPLOY
+                        - INTENT_KIND_PUBLISH_PORT
+                        - INTENT_KIND_ROLL_BACK
+                        - INTENT_KIND_REPULL
+                    type: string
+                    description: What it is.
+                    format: enum
+                resourceId:
+                    type: string
+                    description: The ID of the resource it is about.
+                image:
+                    type: string
+                    description: The image a deploy runs.
+                port:
+                    type: integer
+                    description: The port on the server that publishing a port opens.
+                    format: int32
+                revision:
+                    type: string
+                    description: The revision a rollback puts back.
+            description: |-
+                Intent is what a change is for, in a person's terms. A plan says what happens
+                 to resources, which for a deploy or a new port is that a container is made
+                 again: this says what that comes to. It isn't in the fingerprint, as it says
+                 nothing about what the plan does.
         ListChangesResponse:
             type: object
             properties:
@@ -3646,6 +3700,12 @@ components:
                         What a person should know before applying it that no step says, as it is
                          about what stays as it is or what can be read, not about what runs. A note
                          never stops anyone applying it.
+                intent:
+                    allOf:
+                        - $ref: '#/components/schemas/Intent'
+                    description: |-
+                        What the change is for, in a person's terms, when the method that proposed
+                         it knows. Unset for a change proposed as plain edits.
                 places:
                     type: array
                     items:
@@ -4185,6 +4245,49 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: RollBackServiceResponse carries the planned rollback.
+        RollbackStatus:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The rollback's change, as rolled_back_by says.
+                state:
+                    enum:
+                        - ROLLBACK_STATE_UNSPECIFIED
+                        - ROLLBACK_STATE_APPLYING
+                        - ROLLBACK_STATE_WAITING
+                        - ROLLBACK_STATE_APPLIED
+                        - ROLLBACK_STATE_FAILED
+                    type: string
+                    description: Where it is.
+                    format: enum
+                steps:
+                    type: integer
+                    description: |-
+                        How many steps it takes. None means the servers still had what was there
+                         before, as the failed change stopped before it changed them.
+                    format: int32
+                waitingFor:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers it waits for, by name, while it waits.
+                error:
+                    type: string
+                    description: Why it failed, in plain words, when it did.
+                detail:
+                    type: string
+                    description: What the server said, when it failed and error puts that in plain words.
+                restored:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The resources its steps put back, by name. What isn't here didn't change,
+                         so it never stopped.
+            description: |-
+                RollbackStatus is how the rollback of a failed change is going, for
+                 whoever has to say what runs now.
         Route:
             type: object
             properties:
@@ -4622,9 +4725,10 @@ components:
                 rolledBackChangeId:
                     type: string
                     description: |-
-                        The failed change that Dockwell rolled back with its latest revision,
-                         when it did: the service runs what it ran before, and the deploy it
-                         was asked for didn't happen.
+                        The failed change that Dockwell made its latest revision to roll back, when
+                         it did. That rollback may still be running, may be waiting for a server, or
+                         may have failed too: change_state says how it stands, and the deployments
+                         where. Only once it has applied does the service have what it had before.
                 changeState:
                     enum:
                         - CHANGE_STATE_UNSPECIFIED
@@ -4889,7 +4993,7 @@ components:
                     type: string
                     description: |-
                         What is happening, for people, such as "Replacing web on hz-1", or why
-                         the step failed.
+                         the step failed, in plain words.
                 startTime:
                     type: string
                     description: When it started running. Unset until then.
@@ -4898,6 +5002,28 @@ components:
                     type: string
                     description: When it finished. Unset until then.
                     format: date-time
+                activity:
+                    type: string
+                    description: |-
+                        What the step's driver says it is doing right now, such as "Pulling
+                         nginx:1.27: 12 of 48 MB". Empty until it says, and once the step ends.
+                detail:
+                    type: string
+                    description: |-
+                        What the server said, when a step failed and message puts it in plain
+                         words: the whole chain of errors, IDs included. It never holds a secret,
+                         as drivers keep them out of their errors.
+                reason:
+                    type: string
+                    description: |-
+                        What a failure comes down to, when the driver knows, so a client can say
+                         what to do about it where it is: "image", "command", "exits", "unhealthy",
+                         "port" or "mount". Empty when it doesn't, and it may gain others.
+                lost:
+                    type: boolean
+                    description: |-
+                        True when the server went away during the step, so nothing can say whether
+                         it ran until the server is back.
                 did:
                     enum:
                         - PLAN_ACTION_UNSPECIFIED
