@@ -14,6 +14,7 @@ import {
   PlanAction,
   type RestartServiceRequest,
   type WatchChangeResponse,
+  type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -23,6 +24,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { aHealth, anApp, aRevision, type HealthOn, places, running, SERVER } from "../../test/apps";
+import { changeEvent, moved, since, snapshot, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -307,6 +309,28 @@ describe("what runs, from what the server says", () => {
     );
     await waitFor(() => expect(screen.getAllByText("Running").length).toBeGreaterThan(30));
     expect(reads).toBe(1);
+  });
+
+  it("reads again at once when a change moves on, as what runs is what it changes", async () => {
+    let reads = 0;
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([]));
+    renderAt("/apps", {
+      ...api([web], {
+        listHealth: () => {
+          reads += 1;
+          return {
+            services: [aHealth("svc_web", { state: reads > 1 ? HealthState.HEALTHY : HealthState.NOT_RUNNING })],
+          };
+        },
+      }),
+      events: { watchEvents: watch.stream, listEvents: () => ({}) },
+    });
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Not running"));
+    watch.push(since([changeEvent(moved(webPlanned(), { state: ChangeState.APPLIED }))]));
+    // Well before its own pace would read again.
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"), { timeout: 3_000 });
   });
 
   it("comes first when it needs a look, whatever its record says, and counts in the line under the title", async () => {

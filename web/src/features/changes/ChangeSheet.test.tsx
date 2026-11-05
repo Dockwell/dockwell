@@ -744,6 +744,13 @@ describe("the plan sheet", () => {
           resource: { kind: "service", name: "web" },
           names: ["TOKEN", "command"],
         }),
+        create(PlanNoteSchema, {
+          reason: "exposed_variable",
+          message:
+            "REDIS_PASSWORD from your .env is in cache's command, so anyone who can read this change can read it",
+          resource: { kind: "service", name: "cache" },
+          names: ["REDIS_PASSWORD", "labels"],
+        }),
         create(PlanNoteSchema, { reason: "newer", message: "This reason is new. The panel doesn't know it yet." }),
       ];
     }
@@ -758,9 +765,12 @@ describe("the plan sheet", () => {
     );
     expect(callout).toHaveTextContent("A rollback puts back its spec, not its data");
     expect(callout).toHaveTextContent(
-      "web's command holds the value of TOKEN. Anyone who can read this change, or export this environment, can read it.",
+      "web's command holds the value of TOKEN. Anyone who can read this app can see it.",
     );
     expect(callout).toHaveTextContent("write the command as a list, with each word its own variable.");
+    // Where it came from an .env, it says so, and what can't be hidden where it lands.
+    expect(callout).toHaveTextContent("cache's labels holds the value of REDIS_PASSWORD from your .env");
+    expect(callout).toHaveTextContent("It can't be hidden there, so if it's a secret, set it in environment");
     expect(callout).toHaveTextContent("This reason is new. The panel doesn't know it yet.");
     expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(callout);
     // It stops nobody.

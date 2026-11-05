@@ -171,6 +171,23 @@ describe("StatusBadge", () => {
     expect(container.firstChild).toHaveClass("dw-status-dot", "dw-tone-warning");
   });
 
+  it("gives what runs unchecked and what nobody can say shapes of their own, never green", () => {
+    const shapes = new Set<string>();
+    for (const status of ["healthy", "running", "degraded", "down", "deploying", "stopped", "unknown"] as const) {
+      const { container, unmount } = render(<StatusBadge status={status} />);
+      shapes.add(container.querySelector("svg")?.innerHTML ?? "");
+      if (status === "running" || status === "unknown") {
+        expect(container.firstChild).not.toHaveClass("dw-tone-healthy");
+      }
+      unmount();
+    }
+    expect(shapes.size).toBe(7);
+    render(<StatusBadge status="running" />);
+    expect(screen.getByText("Running")).toBeVisible();
+    render(<StatusBadge status="unknown" />);
+    expect(screen.getByText("Unknown")).toBeVisible();
+  });
+
   it("still announces the state when the label names the subject", async () => {
     const { container } = render(<StatusBadge status="down" label="ams-1-03" meta="for 6 min" variant="pill" />);
     expect(container.textContent).toBe("Down: ams-1-03for 6 min");
