@@ -3273,7 +3273,11 @@ type PlanNote struct {
 	// "updates_project"; the volumes and server paths for "volumes_stay"; the
 	// variables and secrets, by the names the service sees, for "values_latest";
 	// the container_name, or the image, or the ports. Never a variable's value.
-	Names         []string `protobuf:"bytes,4,rep,name=names,proto3" json:"names,omitempty"`
+	Names []string `protobuf:"bytes,4,rep,name=names,proto3" json:"names,omitempty"`
+	// Where the value came from, for "exposed_variable": "env_file" for the .env
+	// sent beside the file, which someone may not have read for this, and
+	// "variables" for the request's own. Empty otherwise.
+	From          string `protobuf:"bytes,5,opt,name=from,proto3" json:"from,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3334,6 +3338,13 @@ func (x *PlanNote) GetNames() []string {
 		return x.Names
 	}
 	return nil
+}
+
+func (x *PlanNote) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
 }
 
 // PlanSummary counts the resources a plan touches by what it does to them.
@@ -5256,12 +5267,13 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06places\x18\t \x03(\v2\x16.dockwell.v1.PlanPlaceR\x06places\"G\n" +
 	"\tPlanPlace\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x02 \x01(\tR\venvironment\"\x88\x01\n" +
+	"\venvironment\x18\x02 \x01(\tR\venvironment\"\x9c\x01\n" +
 	"\bPlanNote\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x124\n" +
 	"\bresource\x18\x03 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +
-	"\x05names\x18\x04 \x03(\tR\x05names\"q\n" +
+	"\x05names\x18\x04 \x03(\tR\x05names\x12\x12\n" +
+	"\x04from\x18\x05 \x01(\tR\x04from\"q\n" +
 	"\vPlanSummary\x12\x16\n" +
 	"\x06create\x18\x01 \x01(\x05R\x06create\x12\x16\n" +
 	"\x06change\x18\x02 \x01(\x05R\x06change\x12\x18\n" +

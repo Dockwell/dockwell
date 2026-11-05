@@ -491,11 +491,16 @@ func planNotes(env string, notices []compose.Notice) []revision.Note {
 func exposedNotes(env string, exposed []compose.Exposed, more bool, given map[string]string) []revision.Note {
 	out := make([]revision.Note, 0, len(exposed)+1)
 	for _, e := range exposed {
+		from := "env_file"
+		if _, ok := given[e.Variable]; ok {
+			from = "variables"
+		}
 		out = append(out, revision.Note{
 			Reason:  "exposed_variable",
 			Message: exposedMessage(e, given),
 			Ref:     resource.Ref{Kind: resource.Kind(e.Kind), Scope: env, Name: e.Owner},
 			Names:   []string{e.Variable, e.Field},
+			From:    from,
 		})
 	}
 	if more {

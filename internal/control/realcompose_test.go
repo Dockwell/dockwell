@@ -581,6 +581,7 @@ func testAValueInALabelShowsAndThePlanSaysSo(t *testing.T, backend store.Backend
 	c := changeClient(b, b.origin)
 	file := "services:\n  redis:\n    image: redis:8\n    labels: {auth: \"${PANEL_REDIS_ROOT_PASSWORD}\"}\n"
 	const name = "PANEL_REDIS_ROOT_PASSWORD"
+	from := map[string]string{}
 	notes := func(ch *dockwellv1.Change) map[string]string {
 		t.Helper()
 		out := map[string]string{}
@@ -588,6 +589,7 @@ func testAValueInALabelShowsAndThePlanSaysSo(t *testing.T, backend store.Backend
 			if n.GetReason() != "exposed_variable" {
 				continue
 			}
+			from[n.GetNames()[1]] = n.GetFrom()
 			if strings.Contains(n.GetMessage(), value) || slices.Contains(n.GetNames(), value) {
 				t.Errorf("the note holds the value: %v", n)
 			}
@@ -608,11 +610,15 @@ func testAValueInALabelShowsAndThePlanSaysSo(t *testing.T, backend store.Backend
 	if got := notes(fromEnv)["labels"]; got != want {
 		t.Errorf("for a label the plan says %q, want %q", got, want)
 	}
+	// A surface with words of its own reads where it came from in a field, not in these.
+	if from["labels"] != "env_file" {
+		t.Errorf("for a label the note says the value came from %q, want env_file", from["labels"])
+	}
 	discard(t, c, fromEnv)
 
 	fromRequest := importIn(t, cc, &dockwellv1.ImportComposeRequest{Compose: file, Variables: map[string]string{name: value}})
-	if got := notes(fromRequest)["labels"]; !strings.HasPrefix(got, name+" from the request's variables is in redis's labels") {
-		t.Errorf("for a value in variables the plan says %q", got)
+	if got := notes(fromRequest)["labels"]; !strings.HasPrefix(got, name+" from the request's variables is in redis's labels") || from["labels"] != "variables" {
+		t.Errorf("for a value in variables the plan says %q, from %q", got, from["labels"])
 	}
 	discard(t, c, fromRequest)
 

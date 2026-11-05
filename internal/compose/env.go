@@ -227,24 +227,45 @@ func escapes(s string) string {
 
 // checkDirectory refuses a directory for a file's relative paths that isn't one
 // a plan can show as it is: what comes of it is a server path, and goes through
-// all a server path does. It must say what it means, as one must.
-func checkDirectory(dir string) error {
+// all a server path does. It must say what it means, as one must. It returns it
+// without a . in it, which leads where it would without, symlinks or not.
+func checkDirectory(dir string) (string, error) {
 	switch {
 	case dir == "":
-		return nil
+		return "", nil
 	case len(dir) > 4<<10:
-		return invalid("the directory is %d KiB long, which no path on a server is. Give the directory the Compose file is in", len(dir)>>10)
-	case !strings.HasPrefix(dir, "/"):
-		return invalid("the directory %q isn't an absolute path, and a server has nowhere else to start from. Give the one the Compose file is in, such as /srv/app", dir)
-	case strings.ContainsAny(dir, ":") || strings.IndexFunc(dir, unicode.IsControl) >= 0:
-		return invalid("the directory %q has a colon or a control character in it, which Docker can't take. Use a path without one", dir)
-	}
-	for _, part := range strings.Split(dir, "/") {
-		if part == "." || part == ".." {
-			return invalid("the directory %q has %s in it, which a server reads through symlinks, so Dockwell can't tell where it leads. Write it without", dir, part)
+		return "", invalid("the directory is %d KiB long, which no path on a server is. Give the directory the Compose file is in", len(dir)>>10)
+	case strings.HasPrefix(dir, "~"):
+		// A shell's, for a home directory, which is root's for most servers.
+		user, rest, _ := strings.Cut(dir[1:], "/")
+		full := "/root"
+		if user != "" {
+			full = "/home/" + user
 		}
+		if rest != "" {
+			full += "/" + rest
+		}
+		return "", invalid("the directory %q starts with ~, which a shell reads as a home directory, and a server takes a path as it is written. Give the full path, such as %s", dir, full)
+	case !strings.HasPrefix(dir, "/"):
+		return "", invalid("the directory %q isn't an absolute path, and a server has nowhere else to start from. Give the one the Compose file is in, such as /srv/app", dir)
+	case strings.ContainsAny(dir, ":") || strings.IndexFunc(dir, unicode.IsControl) >= 0:
+		return "", invalid("the directory %q has a colon or a control character in it, which Docker can't take. Use a path without one", dir)
 	}
-	return nil
+	parts := strings.Split(dir, "/")
+	kept := parts[:0]
+	for _, part := range parts {
+		switch part {
+		case "..":
+			return "", invalid("the directory %q has .. in it, which a server reads through symlinks, so Dockwell can't tell where it leads. Write the directory it means, without ..", dir)
+		case ".":
+			continue
+		}
+		kept = append(kept, part)
+	}
+	if out := strings.Join(kept, "/"); out != "" {
+		return out, nil
+	}
+	return "/", nil
 }
 
 // checkDeploy refuses what a service's deploy holds beyond its limits, by name.

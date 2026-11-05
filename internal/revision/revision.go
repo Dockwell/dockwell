@@ -234,6 +234,8 @@ type Note struct {
 	Ref resource.Ref
 	// Names are what it is about, as the API's PlanNote says.
 	Names []string `json:",omitempty"`
+	// From is where a value came from, as the API's PlanNote says.
+	From string `json:",omitempty"`
 }
 
 // Proposal is a set of edits someone wants to make.
