@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -26,9 +27,10 @@ import (
 // TestAppStore measures what Dockwell reads of a checkout of 1Panel's public app
 // store, and prints a table: how many of its Compose files read, what they need a
 // person to approve, every distinct refusal with a count, and what keys lie behind
-// the first refusal each file met. It reads them as a change does, through each
-// spec's Validate, with what 1Panel itself would pass an install: each app's form
-// defaults, its container's name, and no HOST_IP. It isn't run in CI, and nothing
+// the first refusal each file met, and what a plan warns of once every variable has
+// a value. It reads them as a change does, through each spec's Validate, with what
+// 1Panel itself would pass an install: each app's form defaults, its container's
+// name, and no HOST_IP. It isn't run in CI, and nothing
 // of the store goes in this repository: it is GPL-3.0, and ADR 0029 says what that
 // means for us.
 //
@@ -73,6 +75,16 @@ type storeReport struct {
 	keys           map[string]int
 	alone          map[string]int
 	aloneApps      map[string]map[string]bool
+	// What a plan warns of, with a value for every variable. An empty form default
+	// has none to warn of, where a real install has one, so these give it one.
+	filled, warned, mostWarnings, keptDefaults int
+	warnings, warnedFiles                      map[string]int
+	warnedCredentials                          map[string]int
+	warnedVariables, perFile                   map[string]int
+	// What might say a field that doesn't warn should, from each file as it stands:
+	// a credential, by what its name says or its app's form does, and a variable in
+	// a URL.
+	quietCredentials, quietURLs map[string]int
 }
 
 func (r *storeReport) read(t *testing.T, root, file string) {
@@ -84,6 +96,9 @@ func (r *storeReport) read(t *testing.T, root, file string) {
 		r.apps, r.readApps, r.aloneApps = map[string]bool{}, map[string]bool{}, map[string]map[string]bool{}
 		r.refusals, r.examples, r.access, r.noticed = map[string]int{}, map[string]string{}, map[string]int{}, map[string]int{}
 		r.missing, r.keys, r.alone, r.final = map[string]int{}, map[string]int{}, map[string]int{}, map[string]int{}
+		r.warnings, r.warnedFiles, r.warnedCredentials = map[string]int{}, map[string]int{}, map[string]int{}
+		r.warnedVariables, r.perFile = map[string]int{}, map[string]int{}
+		r.quietCredentials, r.quietURLs = map[string]int{}, map[string]int{}
 	}
 	r.files++
 	r.apps[app] = true
@@ -92,6 +107,8 @@ func (r *storeReport) read(t *testing.T, root, file string) {
 		t.Fatal(err)
 	}
 	r.noteKeys(text, app)
+	passwords := storePasswords(dir)
+	r.noteQuiet(text, passwords)
 	variables := storeVariables(t, dir, app)
 	directory := "/opt/1panel/apps/" + filepath.ToSlash(rel)
 	stack, err := readStore(text, variables, directory)
@@ -119,6 +136,7 @@ func (r *storeReport) read(t *testing.T, root, file string) {
 	} else {
 		r.final[classify(Message(final))]++
 	}
+	r.noteWarnings(text, variables, passwords, directory)
 	if err != nil {
 		class := classify(Message(err))
 		r.refusals[class]++
@@ -171,6 +189,105 @@ func (r *storeReport) count(stack *Stack) {
 	}
 	for k := range noted {
 		r.noticed[k]++
+	}
+}
+
+// noteWarnings counts what a plan warns of with a value for every variable the file
+// names, even one its own default would do for, so it is the most an .env could get.
+// HOST_IP stays empty, as 1Panel passes it, and is in a field that doesn't warn. A
+// value of the wrong kind for a default can be refused, and then it keeps the default.
+func (r *storeReport) noteWarnings(text []byte, variables map[string]string, passwords map[string]bool, directory string) {
+	filled := maps.Clone(variables)
+	for k, v := range filled {
+		if v == "" && k != "HOST_IP" {
+			filled[k] = placeholder(k)
+		}
+	}
+	every := maps.Clone(filled)
+	for _, m := range storeVariable.FindAllSubmatch(text, -1) {
+		if name := string(m[1]); every[name] == "" && name != "HOST_IP" {
+			every[name] = placeholder(name)
+		}
+	}
+	stack, err := readStore(text, every, directory)
+	if err != nil {
+		if stack, err = readStore(text, filled, directory); err != nil {
+			return
+		}
+		r.keptDefaults++
+	}
+	r.filled++
+	if len(stack.Exposed) > 0 {
+		r.warned++
+		r.perFile[strconv.Itoa(len(stack.Exposed))]++
+	}
+	r.mostWarnings = max(r.mostWarnings, len(stack.Exposed))
+	fields, named := map[string]bool{}, map[string]bool{}
+	for _, e := range stack.Exposed {
+		field := e.Kind + " " + e.Field
+		r.warnings[field]++
+		fields[field] = true
+		named[field+": "+e.Variable] = true
+		if passwords[e.Variable] || credentialName.MatchString(e.Variable) {
+			r.warnedCredentials[field]++
+		}
+	}
+	for field := range fields {
+		r.warnedFiles[field]++
+	}
+	for name := range named {
+		r.warnedVariables[name]++
+	}
+}
+
+// noteQuiet looks for a secret in what a plan doesn't warn of, as the file stands,
+// so it sees the files that don't read too. A sensitive field is where one belongs.
+func (r *storeReport) noteQuiet(text []byte, passwords map[string]bool) {
+	var doc map[string]any
+	if yaml.Unmarshal(text, &doc) != nil {
+		return
+	}
+	for section, c := range map[string]struct {
+		kind  string
+		quiet map[string]bool
+	}{"services": {"service", quietServiceFields}, "networks": {"network", quietNetworkFields}, "volumes": {"volume", quietVolumeFields}} {
+		entries, _ := doc[section].(map[string]any)
+		for _, entry := range entries {
+			fields, _ := entry.(map[string]any)
+			for k, v := range fields {
+				eachString(k, v, func(path, s string) {
+					field, quiet := quietField(c.quiet, path)
+					if !quiet || field == "environment" || c.kind == "volume" && field == "driver_opts" {
+						return
+					}
+					where := c.kind + " " + field
+					for _, m := range storeVariable.FindAllStringSubmatch(s, -1) {
+						if passwords[m[1]] || credentialName.MatchString(m[1]) {
+							r.quietCredentials[where+": "+m[1]]++
+						}
+					}
+					if storeURL.MatchString(s) {
+						r.quietURLs[where]++
+					}
+				})
+			}
+		}
+	}
+}
+
+// eachString calls f with each string in v, and where it is, as place writes it.
+func eachString(path string, v any, f func(path, s string)) {
+	switch v := v.(type) {
+	case string:
+		f(path, v)
+	case map[string]any:
+		for k, e := range v {
+			eachString(path+"."+k, e, f)
+		}
+	case []any:
+		for i, e := range v {
+			eachString(path+"["+strconv.Itoa(i)+"]", e, f)
+		}
 	}
 }
 
@@ -249,6 +366,32 @@ func validateStack(stack *Stack) error {
 	return nil
 }
 
+// storePasswords are the variables an app's form has as passwords.
+func storePasswords(dir string) map[string]bool {
+	out := map[string]bool{}
+	text, err := os.ReadFile(filepath.Join(dir, "data.yml"))
+	if err != nil {
+		return out
+	}
+	var data struct {
+		Additional struct {
+			Fields []struct {
+				Key  string `yaml:"envKey"`
+				Type string `yaml:"type"`
+			} `yaml:"formFields"`
+		} `yaml:"additionalProperties"`
+	}
+	if yaml.Unmarshal(text, &data) != nil {
+		return out
+	}
+	for _, f := range data.Additional.Fields {
+		if f.Type == "password" {
+			out[f.Key] = true
+		}
+	}
+	return out
+}
+
 // storeVariables are what 1Panel would pass an install of the app: the defaults
 // of its form, its container's name, and no HOST_IP.
 func storeVariables(t *testing.T, dir, app string) map[string]string {
@@ -278,6 +421,10 @@ func storeVariables(t *testing.T, dir, app string) map[string]string {
 }
 
 var (
+	storeVariable  = regexp.MustCompile(`\$\{?([A-Za-z_][A-Za-z0-9_]*)`)
+	credentialName = regexp.MustCompile(`(?i)password|passwd|pwd|secret|token|credential|api_?key|access_?key|private_?key|(^|_)pass(_|$)|(^|_)auth(_|$)`)
+	storeURL       = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s]*\$`)
+
 	noValue      = regexp.MustCompile(`uses (.*), with no value`)
 	missingNames = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
 	classes      = []struct {
@@ -331,6 +478,16 @@ func (r *storeReport) String() string {
 	table("What the files that read need a person to approve", r.access)
 	table("What the plan says of the files that read", r.noticed)
 	table("Variables with no value in the store", r.missing)
+	fmt.Fprintf(&b, "With a value for every variable a file names, %d files read, %d of them with their own defaults, as a value was refused. A plan warns on %d of them, with %d warnings at most in one file.\n\n", r.filled, r.keptDefaults, r.warned, r.mostWarnings)
+	fmt.Fprintf(&b, "| What a plan warns of | Warnings | Files | Of a credential, by its name or its app's form |\n| --- | ---: | ---: | ---: |\n")
+	for _, k := range byCount(r.warnings) {
+		fmt.Fprintf(&b, "| %s | %d | %d | %d |\n", k, r.warnings[k], r.warnedFiles[k], r.warnedCredentials[k])
+	}
+	b.WriteString("\n")
+	table("Warnings a file gets", r.perFile)
+	table("What each warning names", r.warnedVariables)
+	table("A credential, by its name or its app's form, in a field that doesn't warn", r.quietCredentials)
+	table("A variable in a URL, in a field that doesn't warn", r.quietURLs)
 	fmt.Fprintf(&b, "| Keys of a service Dockwell doesn't take | Files | Alone: the only one in the file | Apps, alone |\n| --- | ---: | ---: | ---: |\n")
 	for _, k := range byCount(r.keys) {
 		fmt.Fprintf(&b, "| `%s` | %d | %d | %d |\n", k, r.keys[k], r.alone[k], len(r.aloneApps[k]))

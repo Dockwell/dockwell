@@ -153,10 +153,10 @@ func planNotes(env string, notices []compose.Notice) []revision.Note {
 	return out
 }
 
-// exposedNotes are what a plan says of where a file writes a value in plain sight,
-// by the variable and the field and never the value: the fact, what it means, and
-// what to do. more says the file writes more than these. A variable in given came
-// from the request, and any other from the .env beside the file.
+// exposedNotes are what a plan says of where a file writes a value in free text, by
+// the variable and the field and never the value: the fact, what it means, and what
+// to do. more says the file writes more than these. A variable in given came from the
+// request, and any other from the .env beside the file.
 func exposedNotes(env string, exposed []compose.Exposed, more bool, given map[string]string) []revision.Note {
 	out := make([]revision.Note, 0, len(exposed)+1)
 	for _, e := range exposed {
@@ -191,18 +191,10 @@ func exposedMessage(e compose.Exposed, given map[string]string) string {
 	switch e.Field {
 	case "healthcheck":
 		field = "health check"
-	case "working_dir":
-		field = "working directory"
-	case "volumes":
-		field = "mounts"
 	case "driver_opts":
 		field = "driver options"
 	case "environment":
 		field = "environment variable names"
-	case "network_mode":
-		field = "network mode"
-	case "deploy":
-		field = "limits"
 	}
 	fact := fmt.Sprintf("%s from %s is in %s %s, so anyone who can read this change or export this environment can read it", e.Variable, from, owner, field)
 	switch e.Field {

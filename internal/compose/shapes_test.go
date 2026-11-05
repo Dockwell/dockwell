@@ -104,6 +104,11 @@ func TestAnInstalledAppReads(t *testing.T) {
 	if err := (&service.Driver{}).Validate(s.Services[0].Spec); err != nil {
 		t.Errorf("it doesn't validate: %v", err)
 	}
+	// Its name and ports are from variables, as nearly every installed app's are, and
+	// a warning on them would be on every plan.
+	if len(s.Exposed) != 0 {
+		t.Errorf("it warns of %+v", s.Exposed)
+	}
 	noted := slices.ContainsFunc(s.Notices, func(n compose.Notice) bool {
 		return n.Reason == "container_name" && n.Service == "db" && strings.Contains(n.Message, "1Panel-postgresql-abcd")
 	})

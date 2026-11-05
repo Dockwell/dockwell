@@ -627,6 +627,11 @@ func testAValueOutsideEnvironmentShowsAndThePlanSaysSo(t *testing.T, backend sto
 		"a default":      {Compose: "services:\n  redis:\n    image: redis:8\n    command: redis-server --port ${PORT:-6379}\n"},
 		"nothing in it":  {Compose: "services:\n  redis:\n    image: redis:8\n    command: redis-server ${EXTRA}\n", Env: "EXTRA=\n"},
 		"in environment": {Compose: "services:\n  redis:\n    image: redis:8\n    environment: {K: \"${K}\"}\n", Env: "K=" + value + "\n"},
+		// As nearly every real file has: a warning on these would be on every plan.
+		"a name, a number and a path": {
+			Compose: "services:\n  redis:\n    image: ${IMAGE}\n    container_name: ${CONTAINER_NAME}\n    restart: ${RESTART}\n    ports: [\"${PORT}:6379\"]\n    user: ${USERNAME}\n    working_dir: /srv/${DIR}\n    volumes: [\"/srv/${DIR}:/data\"]\n    healthcheck: {test: [CMD, redis-cli, ping], interval: \"${EVERY}\"}\n",
+			Env:     "IMAGE=redis:8\nCONTAINER_NAME=cache\nRESTART=always\nPORT=16379\nUSERNAME=redis\nDIR=cache\nEVERY=30s\n",
+		},
 	} {
 		ch := importIn(t, cc, req)
 		if got := notes(ch); len(got) != 0 {

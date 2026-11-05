@@ -9,36 +9,67 @@ import (
 	"strings"
 )
 
-// Exposed is a variable whose value a Compose file writes where anyone who can
-// read what it makes sees it: in a plan, in the store's record of that plan, and in
-// an export. Only a spec's sensitive fields are blanked (ADR 0021), so a value
-// that is a secret belongs in a service's environment.
+// Exposed is a variable whose value a Compose file writes in free text, where a
+// secret can really land, and where anyone who can read what it makes sees it: in a
+// plan, in the store's record of that plan, and in an export. Only a spec's sensitive
+// fields are blanked (ADR 0021), so a value that is a secret belongs in a service's
+// environment.
 type Exposed struct {
 	Variable string
 	// Kind says what holds it: service, volume or network.
 	Kind string
 	// Owner is that service, volume or network's name.
 	Owner string
-	// Field is its field, such as command, labels or user.
+	// Field is its field, such as command, labels or healthcheck.
 	Field string
 }
 
-// What a file can write a value into that a plan doesn't warn of. Anything else
-// warns, so a field added to what Dockwell reads warns until someone decides it
-// needn't. TestEveryFieldAVariableReaches names each, and fails on one that isn't
-// named.
+// What a plan doesn't warn of. A value shows in every field a spec keeps but its
+// sensitive ones, and a plan warns only where it is free text, as in a command or a
+// label, where a secret can really land. A name, a number or a path shows as what it
+// is. Nearly every real file has container_name: ${CONTAINER_NAME} and
+// ports: ${PORT}:80, so a warning there would be on nearly every plan, people would
+// stop reading what is always there, and the one about a password in a command would
+// go unread.
+//
+// Anything not named here warns, so a field added to what Dockwell reads warns until
+// someone decides it needn't. TestEveryFieldAVariableReaches has a row for each, and
+// fails on one without. A field is a key, or a key and what's in it, as with a health
+// check's timings, beside its test, which is what it runs.
 var (
 	quietServiceFields = keys(
+		// Names.
+		"image", "container_name", "network_mode", "networks", "user", "cap_add", "cap_drop", "group_add",
+		// Numbers, and one of a few words.
+		"ports", "restart", "cpus", "mem_limit", "mem_reservation", "deploy", "privileged",
+		"healthcheck.interval", "healthcheck.timeout", "healthcheck.start_period", "healthcheck.retries", "healthcheck.disable",
+		// Paths.
+		"volumes", "working_dir",
+		// Changes nothing on one server, or orders the change, so neither is kept.
+		"expose", "depends_on",
 		// Container.env is sensitive, so a plan masks it and an export leaves it
 		// out. An entry's name isn't, so a list's names still warn (walk).
 		"environment",
-		// Changes nothing on one server, or orders the change, so neither is kept.
-		"expose", "depends_on",
 	)
-	// Volume.options is sensitive, as a CIFS password has to go there.
-	quietVolumeFields  = keys("driver_opts")
-	quietNetworkFields = keys()
+	// A driver is a name. Volume.options is sensitive, as a CIFS password has to go
+	// there.
+	quietVolumeFields = keys("driver", "driver_opts")
+	// A network's driver_opts are free text, and not sensitive.
+	quietNetworkFields = keys("driver", "internal", "external", "name")
 )
+
+// quietField says a plan doesn't warn of a value at path, in what quiet is about.
+// It gives path's key too, which is what a note names.
+func quietField(quiet map[string]bool, path string) (string, bool) {
+	field, in := path, ""
+	if i := strings.IndexAny(path, ".["); i >= 0 {
+		field, in = path[:i], path[i+1:]
+	}
+	if i := strings.IndexAny(in, ".["); i >= 0 {
+		in = in[:i]
+	}
+	return field, quiet[field] || quiet[field+"."+in]
+}
 
 // maxExposed is the most a file's plan lists. A real file comes nowhere near it,
 // and a plan keeps what it says for good: 256 KiB of $a$b… would otherwise be
@@ -71,10 +102,9 @@ func (x *exposure) note(at place, name string, naming bool) {
 	if e.Kind == "" {
 		return // the file's name or version, which nothing keeps
 	}
-	field, _, _ := strings.Cut(at.path, ".")
-	field, _, _ = strings.Cut(field, "[")
+	field, isQuiet := quietField(quiet, at.path)
 	e.Field = field
-	if quiet[field] && !naming {
+	if isQuiet && !naming {
 		return
 	}
 	if !x.seen[e] && len(x.seen) == maxExposed {

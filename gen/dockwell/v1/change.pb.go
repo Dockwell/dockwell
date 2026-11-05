@@ -2626,7 +2626,8 @@ type PlanNote struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What it is about, for a surface that says it in its own words:
 	// "exposed_variable" for a variable whose value a Compose file writes in
-	// plain sight, "exposed_more" for a file that writes more of them than a plan
+	// free text, such as a command or a label, where anyone who can read the plan
+	// reads it, "exposed_more" for a file that writes more of them than a plan
 	// lists, "container_name" for a name a service now answers to as an alias,
 	// "no_build" for an image a Compose file builds and Dockwell doesn't,
 	// "cpu_reservation" for a CPU reservation Docker has no way to keep, and

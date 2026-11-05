@@ -17,63 +17,82 @@ import (
 )
 
 // A field a variable can reach, for a value it takes there, and what Dockwell does
-// with it. shows is what a plan and an export then show, or empty for what they
-// don't: a sensitive field, or one that isn't kept.
+// with it. warns says a plan warns of a value there. shows is what a plan and an
+// export then show of it, or empty for what they don't: a sensitive field, or one
+// that isn't kept.
 type fieldRow struct {
 	kind, field, file, value, shows string
+	warns                           bool
 }
 
 func serviceRow(field, body, value, shows string) fieldRow {
-	return fieldRow{"service", field, "services:\n  web:\n    image: nginx:1.27\n" + body, value, shows}
+	return fieldRow{kind: "service", field: field, file: "services:\n  web:\n    image: nginx:1.27\n" + body, value: value, shows: shows}
 }
 
 func networkRow(field, body, value, shows string) fieldRow {
-	return fieldRow{"network", field, "services:\n  web:\n    image: nginx:1.27\n    networks: [back]\nnetworks:\n  back:\n" + body, value, shows}
+	return fieldRow{kind: "network", field: field, file: "services:\n  web:\n    image: nginx:1.27\n    networks: [back]\nnetworks:\n  back:\n" + body, value: value, shows: shows}
 }
 
 func volumeRow(field, body, value, shows string) fieldRow {
-	return fieldRow{"volume", field, "services:\n  web:\n    image: nginx:1.27\n    volumes: [\"data:/data\"]\nvolumes:\n  data:\n" + body, value, shows}
+	return fieldRow{kind: "volume", field: field, file: "services:\n  web:\n    image: nginx:1.27\n    volumes: [\"data:/data\"]\nvolumes:\n  data:\n" + body, value: value, shows: shows}
+}
+
+func warns(r fieldRow) fieldRow {
+	r.warns = true
+	return r
 }
 
 const marker = "s3cr3tMarker7Hq"
 
 func fieldRows() []fieldRow {
 	return []fieldRow{
-		{"service", "image", "services:\n  web:\n    image: ${V}\n", "nginx:1.27", "nginx:1.27"},
-		serviceRow("command", "    command: run ${V}\n", marker, marker),
-		serviceRow("entrypoint", "    entrypoint: [run, \"${V}\"]\n", marker, marker),
-		serviceRow("environment", "    environment: {K: \"${V}\"}\n", marker, ""),
-		serviceRow("ports", "    ports: [\"${V}:80\"]\n", "18080", "18080"),
-		serviceRow("restart", "    restart: ${V}\n", "always", "always"),
-		serviceRow("labels", "    labels: {k: \"${V}\"}\n", marker, marker),
-		serviceRow("volumes", "    volumes: [\"/srv/${V}:/data\"]\n", marker, marker),
-		serviceRow("networks", "    networks: {back: {aliases: [\"${V}\"]}}\nnetworks:\n  back: {}\n", marker, marker),
-		serviceRow("network_mode", "    network_mode: ${V}\n", marker, marker),
-		serviceRow("user", "    user: ${V}\n", marker, marker),
-		serviceRow("working_dir", "    working_dir: /srv/${V}\n", marker, marker),
-		serviceRow("healthcheck", "    healthcheck: {test: [CMD, run, \"${V}\"]}\n", marker, marker),
-		serviceRow("depends_on", "    depends_on: {db: {condition: \"${V}\"}}\n  db:\n    image: nginx:1.27\n", "service_started", ""),
-		serviceRow("expose", "    expose: [\"${V}\"]\n", "18080", ""),
+		// Free text, where a secret can really land.
+		warns(serviceRow("command", "    command: run ${V}\n", marker, marker)),
+		warns(serviceRow("entrypoint", "    entrypoint: [run, \"${V}\"]\n", marker, marker)),
+		warns(serviceRow("healthcheck.test", "    healthcheck: {test: [CMD, run, \"${V}\"]}\n", marker, marker)),
+		warns(serviceRow("labels", "    labels: {k: \"${V}\"}\n", marker, marker)),
+		warns(networkRow("labels", "    labels: {k: \"${V}\"}\n", marker, marker)),
+		warns(networkRow("driver_opts", "    driver_opts: {opt: \"${V}\"}\n", marker, marker)),
+		warns(volumeRow("labels", "    labels: {k: \"${V}\"}\n", marker, marker)),
+
+		// A name, a number or a path, which shows as what it is.
+		{kind: "service", field: "image", file: "services:\n  web:\n    image: ${V}\n", value: "nginx:1.27", shows: "nginx:1.27"},
 		serviceRow("container_name", "    container_name: ${V}\n    networks: [back]\nnetworks:\n  back: {}\n", marker, marker),
-		// Nothing reads it, so its variables aren't read at all.
-		serviceRow("build", "    build: {context: \"${V}\"}\n", marker, ""),
-		serviceRow("deploy", "    deploy: {resources: {limits: {memory: \"${V}\"}}}\n", "64M", "64M"),
-		serviceRow("cpus", "    cpus: ${V}\n", "1.5", "1.5"),
-		serviceRow("mem_limit", "    mem_limit: ${V}\n", "64M", "64M"),
-		serviceRow("mem_reservation", "    mem_reservation: ${V}\n", "32M", "32M"),
+		serviceRow("network_mode", "    network_mode: ${V}\n", marker, marker),
+		serviceRow("networks", "    networks: {back: {aliases: [\"${V}\"]}}\nnetworks:\n  back: {}\n", marker, marker),
+		// Not free text, as a user is a name or a number, though nothing checks it.
+		serviceRow("user", "    user: ${V}\n", marker, marker),
 		serviceRow("cap_add", "    cap_add: [\"${V}\"]\n", "NET_ADMIN", "NET_ADMIN"),
 		serviceRow("cap_drop", "    cap_drop: [\"${V}\"]\n", "MKNOD", "MKNOD"),
 		serviceRow("group_add", "    group_add: [\"${V}\"]\n", "12345", "12345"),
+		serviceRow("ports", "    ports: [\"${V}:80\"]\n", "18080", "18080"),
+		serviceRow("restart", "    restart: ${V}\n", "always", "always"),
+		serviceRow("cpus", "    cpus: ${V}\n", "1.5", "1.5"),
+		serviceRow("mem_limit", "    mem_limit: ${V}\n", "64M", "64M"),
+		serviceRow("mem_reservation", "    mem_reservation: ${V}\n", "32M", "32M"),
+		serviceRow("deploy", "    deploy: {resources: {limits: {memory: \"${V}\"}}}\n", "64M", "64M"),
 		serviceRow("privileged", "    privileged: ${V}\n", "true", "true"),
+		serviceRow("healthcheck.interval", "    healthcheck: {test: [CMD, run], interval: \"${V}\"}\n", "45s", "45s"),
+		serviceRow("healthcheck.timeout", "    healthcheck: {test: [CMD, run], timeout: \"${V}\"}\n", "45s", "45s"),
+		serviceRow("healthcheck.start_period", "    healthcheck: {test: [CMD, run], start_period: \"${V}\"}\n", "45s", "45s"),
+		serviceRow("healthcheck.retries", "    healthcheck: {test: [CMD, run], retries: \"${V}\"}\n", "7", "7"),
+		serviceRow("healthcheck.disable", "    healthcheck: {disable: \"${V}\"}\n", "true", ""),
+		serviceRow("volumes", "    volumes: [\"/srv/${V}:/data\"]\n", marker, marker),
+		serviceRow("working_dir", "    working_dir: /srv/${V}\n", marker, marker),
 		networkRow("driver", "    driver: ${V}\n", "overlay", "overlay"),
-		networkRow("driver_opts", "    driver_opts: {opt: \"${V}\"}\n", marker, marker),
 		networkRow("internal", "    internal: ${V}\n", "true", "true"),
-		networkRow("labels", "    labels: {k: \"${V}\"}\n", marker, marker),
 		networkRow("external", "    external: ${V}\n", "true", "back"),
 		networkRow("name", "    external: true\n    name: ${V}\n", marker, marker),
 		volumeRow("driver", "    driver: ${V}\n", "custom", "custom"),
+
+		// Sensitive, so a plan masks it.
+		serviceRow("environment", "    environment: {K: \"${V}\"}\n", marker, ""),
 		volumeRow("driver_opts", "    driver_opts: {type: \"${V}\"}\n", "tmpfs", ""),
-		volumeRow("labels", "    labels: {k: \"${V}\"}\n", marker, marker),
+
+		// Not kept, or never read.
+		serviceRow("depends_on", "    depends_on: {db: {condition: \"${V}\"}}\n  db:\n    image: nginx:1.27\n", "service_started", ""),
+		serviceRow("expose", "    expose: [\"${V}\"]\n", "18080", ""),
+		serviceRow("build", "    build: {context: \"${V}\"}\n", marker, ""),
 	}
 }
 
@@ -100,18 +119,23 @@ func showsValue(s *Stack, want string) bool {
 	})
 }
 
-// Every field a variable can reach is either named in the plan, as what it holds
-// shows in the plan and an export, or is one of a few that don't show. A row says
-// which, and it is held to it both ways. A key Dockwell takes without a row here
+// Every field a variable can reach has a row here, which decides whether a plan warns
+// of a value in it: where it is free text, and not where it is a name, a number or a
+// path, as nearly every real file writes those from a variable. A row is held to what
+// it says, and to what a plan and an export show. A key Dockwell takes without a row
 // fails, so a new field can't go without someone deciding it. For each source of a
 // value: an .env, and the request's variables, which are the same mechanism.
 func TestEveryFieldAVariableReaches(t *testing.T) {
 	rows := fieldRows()
-	covered := map[string]map[string]bool{"service": {}, "network": {}, "volume": {}}
+	covered := map[string]map[string]bool{"service": {}, "network": {}, "volume": {}, "healthcheck": {}}
 	for _, r := range rows {
-		covered[r.kind][r.field] = true
+		key, in, inside := strings.Cut(r.field, ".")
+		covered[r.kind][key] = true
+		if inside {
+			covered[key][in] = true
+		}
 	}
-	for kind, all := range map[string]map[string]bool{"service": serviceKeys, "network": networkKeys, "volume": volumeKeys} {
+	for kind, all := range map[string]map[string]bool{"service": serviceKeys, "network": networkKeys, "volume": volumeKeys, "healthcheck": healthKeys} {
 		for _, k := range slices.Sorted(maps.Keys(all)) {
 			if !covered[kind][k] {
 				t.Errorf("a %s's %s has no row here, so nothing says whether a plan warns of a value in it. Add one", kind, k)
@@ -132,21 +156,19 @@ func TestEveryFieldAVariableReaches(t *testing.T) {
 					t.Fatal(Message(err))
 				}
 				owner := map[string]string{"service": "web", "network": "back", "volume": "data"}[r.kind]
-				noted := slices.Contains(s.Exposed, Exposed{Variable: "V", Kind: r.kind, Owner: owner, Field: r.field})
-				if r.shows == "" {
-					if noted || len(s.Exposed) > 0 {
-						t.Errorf("it warns of a field that doesn't show: %+v", s.Exposed)
-					}
-					if showsValue(s, r.value) {
-						t.Errorf("the value shows, so this field needs a note: %+v", shown(s))
-					}
-					return
-				}
-				if !noted {
+				key, _, _ := strings.Cut(r.field, ".")
+				if r.warns && !slices.Contains(s.Exposed, Exposed{Variable: "V", Kind: r.kind, Owner: owner, Field: key}) {
 					t.Errorf("the plan doesn't name V in %s: %+v", r.field, s.Exposed)
 				}
-				if !showsValue(s, r.shows) {
-					t.Errorf("%q doesn't show, so the note isn't true of it: %+v", r.shows, shown(s))
+				if !r.warns && len(s.Exposed) > 0 {
+					t.Errorf("it warns of a field that decides it needn't: %+v", s.Exposed)
+				}
+				if r.shows == "" {
+					if showsValue(s, r.value) {
+						t.Errorf("the value shows, so this row is wrong: %+v", shown(s))
+					}
+				} else if !showsValue(s, r.shows) {
+					t.Errorf("%q doesn't show, so this row is wrong: %+v", r.shows, shown(s))
 				}
 			})
 		}
