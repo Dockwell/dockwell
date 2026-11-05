@@ -128,8 +128,11 @@ func TestNoContainerJoinsANetworkOfItsOwnByItsID(t *testing.T) {
 		if err := container.Validate(spec); err != nil {
 			t.Fatal(err)
 		}
+		// The start of an ID can match others, which Docker calls ambiguous: a
+		// refusal too. Either way, nothing is made.
 		err := l.Apply(t.Context(), resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}, spec)
-		if err == nil || !strings.Contains(err.Error(), "isn't on this server, so web can't join it") {
+		refused := err != nil && (strings.Contains(err.Error(), "isn't on this server, so web can't join it") || strings.Contains(err.Error(), "is ambiguous"))
+		if !refused {
 			t.Errorf("joining %s = %v, want it refused", n, err)
 		}
 		if c := e.Container("web"); c != nil {

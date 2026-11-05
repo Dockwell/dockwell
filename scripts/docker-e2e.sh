@@ -173,10 +173,10 @@ person_apply() {
 token_refused() {
   local fingerprint answer
   fingerprint=$(change_field "$1" plan.fingerprint) || fail "can't read the plan of $1"
-  answer=$(curl -sS --max-time 30 -w '\n%{http_code}' -H "Authorization: Bearer $api_token" -H 'Content-Type: application/json' \
+  answer=$(curl -sS --max-time 30 -i -w '\n%{http_code}' -H "Authorization: Bearer $api_token" -H 'Content-Type: application/json' \
     -d "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}" "http://$addr/dockwell.v1.ChangeService/ApplyChange") || fail "the API didn't answer a token applying $1"
   [[ "${answer##*$'\n'}" == 403 ]] || fail "the server let a token apply $1: $answer"
-  grep -q needs_session <<<"$answer" || fail "the server refused a token applying $1 for another reason: $answer"
+  grep -qi '^dockwell-error: needs_session' <<<"$answer" || fail "the server refused a token applying $1 for another reason: $answer"
   [[ "$(change_field "$1" state)" == CHANGE_STATE_PLANNED ]] || fail "$1 isn't planned after the token was refused"
 }
 api_token=$(person_call TokenService/CreateToken '{"name":"e2e","scope":"TOKEN_SCOPE_READ_WRITE"}' | jq -r .secret) || fail "can't make an API token"
