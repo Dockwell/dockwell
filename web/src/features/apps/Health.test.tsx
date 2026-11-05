@@ -394,6 +394,109 @@ describe("what was read stands by its age, however reads go", () => {
     focusManager.setFocused(undefined);
   });
 
+  const fine = () => ({ services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] });
+
+  // What a row reads each second, and whether it's green.
+  const watch = async (row: HTMLElement, seconds: number) => {
+    const seen: string[] = [];
+    for (let i = 0; i < seconds; i++) {
+      await vi.advanceTimersByTimeAsync(1_000);
+      const word = row.textContent?.match(/Healthy|Unknown|Not running|Checking/)?.[0];
+      seen.push(`${word}${row.querySelector(".dw-tone-healthy") ? ":green" : ""}`);
+    }
+    return seen;
+  };
+
+  it("never shows an hour-old reading as a tab comes back, while its read back is under way", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let slow = false;
+    renderAt(
+      "/apps",
+      api([web], {
+        listHealth: async () => {
+          if (!slow)
+            return { services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] };
+          await new Promise((r) => setTimeout(r, 7_000));
+          return { services: [aHealth("svc_web", { state: HealthState.NOT_RUNNING, said: "exited" })] };
+        },
+      }),
+    );
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    focusManager.setFocused(false);
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    slow = true;
+    focusManager.setFocused(true);
+    const seen = await watch(row, 8);
+    expect(seen.filter((s) => s.includes("Healthy"))).toEqual([]);
+    expect(seen.slice(0, 6)).toEqual(Array(6).fill("Checking"));
+    await waitFor(() => expect(row).toHaveTextContent("Not running"));
+    focusManager.setFocused(undefined);
+  });
+
+  it("keeps no reading trusted for the length of a clock's step back", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let hang = false;
+    renderAt("/apps", api([web], { listHealth: () => (hang ? new Promise(() => {}) : fine()) }));
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    await vi.advanceTimersByTimeAsync(10_500);
+    vi.setSystemTime(Date.now() - 3_600_000);
+    hang = true;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(row).toHaveTextContent("Unknown");
+    expect(row.querySelector(".dw-tone-healthy")).toBeNull();
+  });
+
+  it("never shows a reading from before a sleep as the laptop wakes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let hang = false;
+    renderAt("/apps", api([web], { listHealth: () => (hang ? new Promise(() => {}) : fine()) }));
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    // Asleep for an hour: the wall clock moves, and no timer runs.
+    hang = true;
+    vi.setSystemTime(Date.now() + 3_600_000);
+    const seen = await watch(row, 12);
+    expect(seen.filter((s) => s.includes("Healthy"))).toEqual([]);
+    // Its read back on waking is Checking for its time, then nobody can say.
+    expect(seen.at(-1)).toBe("Unknown");
+  });
+
+  it("gives a hung read back one time, not one for each screen moved to", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let hang = false;
+    const page = renderAt("/apps", api([web], { listHealth: () => (hang ? new Promise(() => {}) : fine()) }));
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    focusManager.setFocused(false);
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    hang = true;
+    focusManager.setFocused(true);
+    const green: string[] = [];
+    const look = (at: string) => {
+      if (page.container.querySelector("main .dw-tone-healthy")) green.push(at);
+    };
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(1_500);
+      look(`list ${i}`);
+    }
+    page.router.history.push("/apps/svc_web");
+    await screen.findByRole("heading", { level: 1, name: "web" });
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(1_500);
+      look(`app ${i}`);
+    }
+    // 12 s on, past the read's own 8 s, whichever screen opened since.
+    const head = page.container.querySelector(".page-title-row") as HTMLElement;
+    expect(head).toHaveTextContent("Unknown");
+    page.router.history.push("/apps");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(screen.getByRole("row", { name: /web/ })).toHaveTextContent("Unknown");
+    expect(green).toEqual([]);
+    focusManager.setFocused(undefined);
+  });
+
   it("says on an app's page and in its head that it can't say, once what it read is too old", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     let hang = false;

@@ -205,7 +205,10 @@ export function AppsPage({
     const timer = setTimeout(() => setWaited(true), ORDER_WAIT_MS);
     return () => clearTimeout(timer);
   }, [settled]);
-  const ordered = settled || waited;
+  // Once ordered, it stays so, as a read back from the background is Checking for a moment.
+  const orderedOnce = useRef(false);
+  if (settled || waited) orderedOnce.current = true;
+  const ordered = orderedOnce.current;
   // Each time someone asks to see what needs a look first, the order starts over.
   const [epoch, setEpoch] = useState(0);
   const order = useRef<{ epoch: number; keys: string[] }>({ epoch: 0, keys: [] });

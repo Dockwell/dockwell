@@ -14,9 +14,10 @@ import {
 } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 
 import { useOnline } from "../../lib/online";
+import { ageOf, useWake } from "../../lib/wake";
 
 /** The most ListHealth returns at once. */
 const PAGE_SIZE = 1000;
@@ -267,15 +268,22 @@ export interface HealthView {
   settled: boolean;
 }
 
-/** Renders again at when, so a reading that runs out of time says so on its own. */
-function useRenderAt(...when: number[]): void {
+/** When each client last read how things run, and when its read under way began, by a clock that only moves forward. */
+const heardAt = new WeakMap<QueryClient, number>();
+const readingSince = new WeakMap<QueryClient, number>();
+/** When a read last failed, on the same clock, so a clock that steps can't make one look older than the last good read. */
+const failedAt = new WeakMap<QueryClient, number>();
+
+/** Renders again in the soonest of ms, so a reading that runs out of time says so on its own. */
+function useRenderIn(...ms: number[]): void {
   const [, tick] = useReducer((n: number) => n + 1, 0);
-  const next = Math.min(...when.filter((at) => at > Date.now()));
+  const next = Math.min(...ms.filter((m) => m >= 0));
+  // Set again on each render, as what's due moves with what's read.
   useEffect(() => {
     if (!Number.isFinite(next)) return;
-    const timer = setTimeout(tick, next - Date.now() + 1);
+    const timer = setTimeout(tick, next + 1);
     return () => clearTimeout(timer);
-  }, [next]);
+  });
 }
 
 /**
@@ -283,59 +291,77 @@ function useRenderAt(...when: number[]): void {
  * many apps makes one request, and every screen shares it. It reads on a pace of its
  * own, as the API has no stream of it, only while a screen that shows it is open and
  * in front, and soon after a change moves on (readHealthSoon). What it last read
- * stands for TRUST_FOR_MS, whatever the reads do, and a read that takes longer than
- * READ_TIMEOUT_MS gives way. After that it says it can't read, and why, which is
- * never that the app doesn't run. A screen that comes back to it, or opens on what an
- * earlier one read, has its first read's time to bring it up to date.
+ * stands for TRUST_FOR_MS, whatever the reads do, by a clock that doesn't step back
+ * and one that counts a sleep (ageOf), and a read that takes longer than
+ * READ_TIMEOUT_MS gives way. Past that it never shows what it read: while the first
+ * read back is under way, as on a screen back from the background or a laptop that
+ * woke, it reads as Checking, for that read's time at most, and then it says it
+ * can't read, and why, which is never that the app doesn't run.
  */
 export function useHealth(): HealthView {
   const transport = useTransport();
   const queryClient = useQueryClient();
   const online = useOnline();
-  const { data, dataUpdatedAt, errorUpdatedAt, isPending, fetchStatus } = useQuery({
-    queryKey: createConnectQueryKey({
-      schema: HealthService.method.listHealth,
-      input: {},
-      transport,
-      cardinality: "finite",
-    }),
+  const queryKey = createConnectQueryKey({
+    schema: HealthService.method.listHealth,
+    input: {},
+    transport,
+    cardinality: "finite",
+  });
+  const { data, dataUpdatedAt, fetchStatus, failureCount } = useQuery({
+    queryKey,
     queryFn: async ({ signal }) => {
+      // A read's first try starts its time; a try again after a failure doesn't.
+      if ((queryClient.getQueryState(queryKey)?.fetchFailureCount ?? 0) === 0) {
+        readingSince.set(queryClient, performance.now());
+      }
       const client = createClient(HealthService, transport);
       const all = create(ListHealthResponseSchema);
       let pageToken = "";
-      do {
-        const page = await client.listHealth(
-          { pageSize: PAGE_SIZE, pageToken },
-          { signal, timeoutMs: READ_TIMEOUT_MS },
-        );
-        all.services.push(...page.services);
-        pageToken = page.nextPageToken;
-      } while (pageToken !== "");
+      try {
+        do {
+          const page = await client.listHealth(
+            { pageSize: PAGE_SIZE, pageToken },
+            { signal, timeoutMs: READ_TIMEOUT_MS },
+          );
+          all.services.push(...page.services);
+          pageToken = page.nextPageToken;
+        } while (pageToken !== "");
+      } catch (err) {
+        failedAt.set(queryClient, performance.now());
+        throw err;
+      }
+      heardAt.set(queryClient, performance.now());
       return all;
     },
     staleTime: 0,
     refetchInterval: () => ((soonUntil.get(queryClient) ?? 0) > Date.now() ? READ_SOON_MS : READ_EVERY_MS),
   });
-  // When the reads under way began: a reading that went stale while nobody read, as on a
-  // screen in the background, stands while the first read back is under way, and no longer.
-  const fetchingSince = useRef<number | undefined>(undefined);
-  if (fetchStatus !== "fetching") fetchingSince.current = undefined;
-  else fetchingSince.current ??= Date.now();
-  const graceUntil =
-    fetchingSince.current !== undefined && errorUpdatedAt <= dataUpdatedAt
-      ? fetchingSince.current + READ_TIMEOUT_MS
-      : 0;
-  const trustedUntil = data === undefined ? 0 : Math.max(dataUpdatedAt + TRUST_FOR_MS, graceUntil);
-  useRenderAt(trustedUntil);
-  const now = Date.now();
-  const trusted = data !== undefined && now <= trustedUntil;
-  // Nothing read yet, and nothing failed: a first read is on its way.
-  const reading = !trusted && isPending && fetchStatus === "fetching";
+  // Coming back into view, waking, or a clock that steps, looks again, and reads again,
+  // as no timer that was waiting ran.
+  const [, look] = useReducer((n: number) => n + 1, 0);
+  useWake(() => {
+    look();
+    void queryClient.refetchQueries({ queryKey, type: "active" }, { cancelRefetch: false });
+  });
+  const age = data === undefined ? Number.POSITIVE_INFINITY : ageOf(dataUpdatedAt, heardAt.get(queryClient));
+  const trusted = age <= TRUST_FOR_MS;
+  // A read's first try under way, within its time, is Checking, and never what was read,
+  // until a read has failed since the last that didn't: then nobody can say, and stays so,
+  // rather than come and go with each read that tries again.
+  const tried = performance.now() - (readingSince.get(queryClient) ?? Number.NEGATIVE_INFINITY);
+  const reading =
+    !trusted &&
+    fetchStatus === "fetching" &&
+    failureCount === 0 &&
+    (failedAt.get(queryClient) ?? Number.NEGATIVE_INFINITY) <= (heardAt.get(queryClient) ?? Number.NEGATIVE_INFINITY) &&
+    tried < READ_TIMEOUT_MS;
+  useRenderIn(trusted ? TRUST_FOR_MS - age : Number.NaN, reading ? READ_TIMEOUT_MS - tried : Number.NaN);
   const why: Unread = online ? "unreachable" : "offline";
-  const heardAt = dataUpdatedAt > 0 ? dataUpdatedAt : undefined;
+  const lastHeard = dataUpdatedAt > 0 ? dataUpdatedAt : undefined;
   const lost = !trusted && !reading;
   return useMemo(() => {
-    const heard = heardAt === undefined ? undefined : new Date(heardAt);
+    const heard = lastHeard === undefined ? undefined : new Date(lastHeard);
     const byId = new Map(((trusted ? data?.services : undefined) ?? []).map((s) => [s.id, healthOf(s)]));
     return {
       unread: lost ? { why, heard } : undefined,
@@ -349,5 +375,5 @@ export function useHealth(): HealthView {
         return waitingForReport(health, after ?? lastDeployed(service), Date.now()) ? unread("reading") : health;
       },
     };
-  }, [data, trusted, reading, lost, why, heardAt]);
+  }, [data, trusted, reading, lost, why, lastHeard]);
 }
