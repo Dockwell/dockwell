@@ -136,6 +136,67 @@ describe("LogStore", () => {
     expect(s.labels()).toEqual(["hz-1", "hz-2"]);
   });
 
+  describe("where a new container starts, whichever comes first", () => {
+    const marked = (s: LogStore) =>
+      Array.from({ length: s.length }, (_, i) => s.entryAt(s.start + i)).map((e) =>
+        e?.started ? `-- ${e.source} --` : (e?.text ?? ""),
+      );
+
+    it("waits for its replica, when its lines come before the page says it", () => {
+      const s = new LogStore();
+      s.setSource("old", "hz-1", "srv/1");
+      s.add([chunk("old", line(1, "old line"))]);
+      s.add([chunk("new", line(3, "new line"), line(4, "and more"))]);
+      expect(marked(s)).toEqual(["old line", "new line", "and more"]);
+      s.setSource("new", "hz-1", "srv/1");
+      expect(marked(s)).toEqual(["old line", "-- new --", "new line", "and more"]);
+      // Said again, as the page says each source each time it draws them, nothing more.
+      s.setSource("new", "hz-1", "srv/1");
+      expect(marked(s)).toHaveLength(4);
+    });
+
+    it("waits for the one before it, too", () => {
+      const s = new LogStore();
+      s.add([chunk("old", line(1, "old line"))]);
+      s.add([chunk("new", line(3, "new line"))]);
+      s.setSource("new", "hz-1", "srv/1");
+      expect(marked(s)).toEqual(["old line", "new line"]);
+      s.setSource("old", "hz-1", "srv/1");
+      expect(marked(s)).toEqual(["old line", "-- new --", "new line"]);
+    });
+
+    it("says nothing of another replica, however late it is known", () => {
+      const s = new LogStore();
+      s.add([chunk("old", line(1, "old line")), chunk("other", line(2, "another replica's"))]);
+      s.setSource("other", "hz-2", "srv2/1");
+      s.setSource("old", "hz-1", "srv/1");
+      expect(marked(s)).toEqual(["old line", "another replica's"]);
+    });
+
+    it("goes with what is held while what shows holds still", () => {
+      const s = new LogStore();
+      s.setSource("old", "hz-1", "srv/1");
+      s.add([chunk("old", line(1, "old line"))]);
+      s.setHolding(true);
+      s.add([chunk("new", line(3, "new line"))]);
+      s.setSource("new", "hz-1", "srv/1");
+      expect(marked(s)).toEqual(["old line"]);
+      expect(s.arrived).toBe(1);
+      s.setHolding(false);
+      expect(marked(s)).toEqual(["old line", "-- new --", "new line"]);
+    });
+
+    it("forgets what waited when it starts over", () => {
+      const s = new LogStore();
+      s.setSource("old", "hz-1", "srv/1");
+      s.add([chunk("old", line(1, "old line"))]);
+      s.add([chunk("new", line(3, "new line"))]);
+      s.clear();
+      s.setSource("new", "hz-1", "srv/1");
+      expect(s.length).toBe(0);
+    });
+  });
+
   it("finds a line by its ID, to keep a reader's place", () => {
     const s = new LogStore();
     s.add([chunk("a", line(1, "one"), line(2, "two"), line(3, "three"))]);

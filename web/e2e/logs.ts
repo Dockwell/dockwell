@@ -555,7 +555,12 @@ async function main() {
     page.getByRole("button", { name: "Download these lines" }).click(),
   ]);
   const loaded = readFileSync((await marked.path()) ?? fail("no download"), "utf8");
-  if (!loaded.includes(`-- new container ${newOne} of `)) fail(`what's loaded doesn't say where ${newOne} began`);
+  if (!loaded.includes(`-- new container ${newOne} of `)) {
+    const said = loaded.split("\n").filter((l) => / -- .* --$/.test(l));
+    fail(
+      `what's loaded doesn't say where ${newOne} began. What it says of places in the log:\n${said.join("\n") || "nothing"}`,
+    );
+  }
   // However many it has read that have gone.
   for (const image of ["ghcr.io/acme/shop:next2", "ghcr.io/acme/shop:next3"]) await deploying(image);
   await headSettles("after several deploys");
