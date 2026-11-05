@@ -21,8 +21,10 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -126,7 +128,13 @@ func main() {
 	})
 	go func() {
 		srv := &http.Server{Addr: os.Args[2], Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-		log.Fatal(srv.ListenAndServe())
+		// With port 0 it takes one that is free, and says which.
+		l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", srv.Addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Fprintln(os.Stderr, "logload: listening on", l.Addr())
+		log.Fatal(srv.Serve(l))
 	}()
 	fmt.Println(e.Socket)
 	stop := make(chan os.Signal, 1)

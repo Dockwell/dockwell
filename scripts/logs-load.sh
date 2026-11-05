@@ -17,8 +17,6 @@ full=$(realpath "${1:?$usage}")
 agent=$(realpath "${2:?$usage}")
 seconds=${3:-30}
 root=$(cd "$(dirname "$0")/.." && pwd)
-addr=127.0.0.1:${LOAD_PORT:-7695}
-load=127.0.0.1:${LOAD_CONTROL_PORT:-7696}
 work=$(mktemp -d)
 pids=()
 cleanup() {
@@ -78,24 +76,32 @@ sample() {
 said() { echo "median $median MB, largest $largest MB, $cpu% of a CPU"; }
 
 (cd "$root" && go build -o "$work/logload" ./scripts/logload && go build -o "$work/claim" ./scripts/claim)
-"$work/logload" "$work/docker" "$load" >"$work/logload.log" 2>&1 &
+# Ports that are free, as on one someone else holds, this would measure their server,
+# and read its own log for what that server did.
+"$work/logload" "$work/docker" 127.0.0.1:0 >"$work/logload.log" 2>&1 &
 pids+=($!)
+load=
 for _ in $(seq 100); do
-  [[ -S "$work/docker/docker.sock" ]] && break
+  load=$(sed -n 's/^logload: listening on //p' "$work/logload.log")
+  [[ -S "$work/docker/docker.sock" && -n "$load" ]] && break
   sleep 0.1
 done
-[[ -S "$work/docker/docker.sock" ]] || fail "the fake engine didn't start"
+[[ -S "$work/docker/docker.sock" && -n "$load" ]] || fail "the fake engine didn't start"
 
 # The control plane's own agent has no Docker, so the service goes on the agent build.
 export DOCKWELL_LOG_FORMAT=text DOCKWELL_DATA_DIR=$work/control
-DOCKER_HOST=unix://$work/none.sock "$full" run --listen "$addr" --agent-listen 127.0.0.1:0 --log-format json >"$work/control.log" 2>&1 &
+DOCKER_HOST=unix://$work/none.sock "$full" run --listen 127.0.0.1:0 --agent-listen 127.0.0.1:0 --log-format json >"$work/control.log" 2>&1 &
 control=$!
 pids+=("$control")
+addr=
 for _ in $(seq 100); do
-  curl -fsS "http://$addr/healthz" >/dev/null 2>&1 && break
+  addr=$(sed -n 's/.*"listener":"control plane","addr":"\([^"]*\)".*/\1/p' "$work/control.log")
+  [[ -n "$addr" ]] && curl -fsS "http://$addr/healthz" >/dev/null 2>&1 && break
   sleep 0.1
 done
-curl -fsS "http://$addr/healthz" >/dev/null 2>&1 || fail "the control plane didn't start"
+if [[ -z "$addr" ]] || ! curl -fsS "http://$addr/healthz" >/dev/null 2>&1; then
+  fail "the control plane didn't start"
+fi
 link=$(grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' "$work/control.log" | head -1) || true
 [[ -n "$link" ]] || fail "dockwell run printed no claim link"
 "$work/claim" "$link" >/dev/null || fail "can't claim the install"
