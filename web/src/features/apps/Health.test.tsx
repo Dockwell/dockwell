@@ -184,7 +184,9 @@ describe("the list's order", () => {
     await waitFor(() => expect(screen.getByText(/1 needs a look/)).toBeVisible());
     // Nothing moves under the pointer: the lead says so, and offers.
     expect(rowNames()).toEqual(["quiet", "broken"]);
-    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByRole("button", { name: "Show them first" }));
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(screen.getByRole("button", { name: "Show them first" }));
     await waitFor(() => expect(rowNames()).toEqual(["broken", "quiet"]));
     expect(screen.queryByRole("button", { name: "Show them first" })).not.toBeInTheDocument();
   });
@@ -204,7 +206,12 @@ describe("an agent that can't read Docker", () => {
       "/apps/svc_web",
       api(
         [web],
-        reading({ state: HealthState.UNKNOWN, stale: false, lastSaid: HealthState.NO_CHECK, dockerUnreadableMsAgo: 150_000 }),
+        reading({
+          state: HealthState.UNKNOWN,
+          stale: false,
+          lastSaid: HealthState.NO_CHECK,
+          dockerUnreadableMsAgo: 150_000,
+        }),
         {},
         blind,
       ),
@@ -233,7 +240,9 @@ describe("an agent that can't read Docker", () => {
     );
     let panel = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() =>
-      expect(panel).toHaveTextContent(/The agent on hz-1 isn't connected, so it can't say how this runs now. It last read Running, .* ago./),
+      expect(panel).toHaveTextContent(
+        /The agent on hz-1 isn't connected, so it can't say how this runs now. It last read Running, .* ago./,
+      ),
     );
     first.unmount();
     renderAt("/apps/svc_web", api([web], reading({ state: HealthState.UNKNOWN, stale: false })));
@@ -245,7 +254,9 @@ describe("an agent that can't read Docker", () => {
 
 describe("what was read stands by its age, however reads go", () => {
   const healthy = (): Api["health"] => ({
-    listHealth: () => ({ services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] }),
+    listHealth: () => ({
+      services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })],
+    }),
   });
 
   it("doesn't leave Healthy standing on a read that never answers, and the next read goes out", async () => {
@@ -305,14 +316,18 @@ describe("what was read stands by its age, however reads go", () => {
       "/apps/svc_web",
       api([web], {
         listHealth: () =>
-          hang ? new Promise(() => {}) : { services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] },
+          hang
+            ? new Promise(() => {})
+            : { services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] },
       }),
     );
     const panel = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() => expect(panel).toHaveTextContent("Healthy"));
     hang = true;
     await vi.advanceTimersByTimeAsync(35_000);
-    await waitFor(() => expect(panel).toHaveTextContent("The panel can't reach the control plane, so it can't say how this runs."));
+    await waitFor(() =>
+      expect(panel).toHaveTextContent("The panel can't reach the control plane, so it can't say how this runs."),
+    );
     const head = page.container.querySelector(".page-title-row") as HTMLElement;
     expect(head).toHaveTextContent("Unknown");
     expect(head.querySelector(".dw-tone-healthy")).toBeNull();
@@ -649,7 +664,7 @@ describe("a health check on the overview", () => {
 });
 
 describe("restarting an app", () => {
-  const plan = (rolling: boolean) =>
+  const plan = (rolling: boolean, unchecked: { stopped?: boolean; noCheck?: boolean } = {}) =>
     create(ChangeSchema, {
       id: "chg_restart",
       summary: "Restart web",
@@ -679,9 +694,11 @@ describe("restarting an app", () => {
                 action: PlanAction.REPLACE,
                 restart: "chg_restart",
                 ...(rolling ? {} : { downtime: { seconds: 13n, nanos: 0 } }),
+                ...(unchecked.stopped ? { changes: [{ path: "state", from: "exited", to: "running" }] } : {}),
                 rollout: {
                   rolling,
-                  healthyWithin: { seconds: 60n, nanos: 0 },
+                  healthyWithin: { seconds: unchecked.noCheck ? 2n : 60n, nanos: 0 },
+                  ...(unchecked.noCheck ? { noCheck: true, soak: { seconds: 5n, nanos: 0 } } : {}),
                   ...(rolling ? {} : { ports: ["8080/tcp"] }),
                 },
               },
@@ -719,9 +736,33 @@ describe("restarting an app", () => {
       expect(sheet).toHaveTextContent("A restart has no undo, as it changes nothing to go back to.");
       expect(sheet.querySelector(".dw-sheet-note")).toHaveTextContent("No undo");
       expect(sheet).not.toHaveTextContent(/Undo for \d+ days/);
+      // It counts what it restarts as that, not as a replace.
+      expect(sheet.querySelector(".dw-plan-counts")).toHaveTextContent("1 to restart");
+      expect(sheet).not.toHaveTextContent("to replace");
       await expectAccessible(document.body);
     },
   );
+
+  it("says what nothing checking it comes to, for one that's stopped, with one clock", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/svc_web",
+      api([web], reading({ state: HealthState.NOT_RUNNING }), {
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+          restartService: () => ({ change: plan(true, { stopped: true, noCheck: true }) }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restart" }));
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(sheet).toHaveTextContent(
+      "Nothing checks it, so it has to keep running for 5 s. If it doesn't, the new one goes, and what was stopped stays stopped",
+    );
+    expect(sheet).not.toHaveTextContent("healthy within");
+    expect(sheet).not.toHaveTextContent("stay healthy");
+  });
 
   it("isn't offered while it's moving, or where it has no server", async () => {
     const moving = anApp(

@@ -38,7 +38,7 @@ import { type CSSProperties, useEffect, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
-import { useDescribe, useHealthEventWords } from "../activity/describe";
+import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
@@ -723,7 +723,7 @@ function RecentHealth() {
   const now = useAgoNow(newest ? timestampDate(newest) : undefined);
   if (list.length === 0) return null;
   const items: TimelineEvent[] = list.map((event) => {
-    const when = event.time ? timestampDate(event.time) : new Date(0);
+    const when = happenedAt(event);
     const look = words.look(event);
     return {
       id: event.id,

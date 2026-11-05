@@ -169,6 +169,7 @@ export function diffResources(
     };
     if (diffKind(kind) === "resource") out.kindLabel = kindWord(kind);
     if (maybe.has(resource.id)) out.ifNewer = true;
+    if (steps.some((s) => s.restart !== "")) out.restart = true;
     if (intent?.resourceId === resource.id && resource.action !== PlanAction.DELETE) {
       out.action = "update";
       if (options.tag) out.note = options.tag(intent);

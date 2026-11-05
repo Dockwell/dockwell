@@ -746,7 +746,7 @@ func TestRolloutWordsSayWhatFollows(t *testing.T) {
 		},
 		"a deploy that rolls, which nothing checks": {
 			plan: &dockwellv1.RolloutPlan{Rolling: true, HealthyWithin: durationpb.New(2 * time.Second), NoCheck: true},
-			want: []string{"Nothing checks it, so it only has to start, and what runs goes on serving until then. If it doesn't, Dockwell rolls this back."},
+			want: []string{"Nothing checks it, so a new container takes over once it starts, and what runs goes on serving until then. If it doesn't, Dockwell rolls this back."},
 			not:  []string{"healthy", "within"},
 		},
 		"what it can't read":     {plan: &dockwellv1.RolloutPlan{CantTell: []string{"nfs-share"}}, want: []string{"can't read where nfs-share really lands"}},

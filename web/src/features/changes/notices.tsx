@@ -397,7 +397,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
                 ? t`environment variable names`
                 : field;
         // The API says where the value came from, and an .env is where someone may not have looked.
-        const fromEnv = note.message.includes("from your .env");
+        const fromEnv = note.from === "env_file";
         return {
           key,
           title: fromEnv

@@ -52,7 +52,7 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { type Described, useCounts, useDescribe, useHealthEventWords, useProgress } from "./describe";
+import { type Described, happenedAt, useCounts, useDescribe, useHealthEventWords, useProgress } from "./describe";
 import { type EventFilter, useEvents } from "./useEvents";
 import "./ActivityPage.css";
 
@@ -362,7 +362,8 @@ function useMeta() {
 function MetaLine({ look, parts }: { look: StepLook | undefined; parts: string[] }) {
   return (
     <span className="dw-tl-meta">
-      {look ? <StatusBadge status={look.status} label={look.word} /> : null}
+      {/* Its word is the state, so a screen reader hears that alone. */}
+      {look ? <StatusBadge status={look.status} label={look.word} labelIsState /> : null}
       {parts.map((part) => (
         <span key={part}>{part}</span>
       ))}
@@ -412,7 +413,7 @@ function DayTable({
       width: 104,
       align: "right",
       render: (event) => {
-        const date = event.time ? timestampDate(event.time) : new Date(0);
+        const date = happenedAt(event);
         return (
           <div className="activity-when">
             <time dateTime={date.toISOString()}>{time.ago(date, now)}</time>
@@ -443,7 +444,7 @@ function PhoneDay({ events, summaries, now }: DayProps) {
   const sheet = useChangeSheet();
   const items: TimelineEvent[] = events.map((event) => {
     const d = describe(event, summaries);
-    const date = event.time ? timestampDate(event.time) : new Date(0);
+    const date = happenedAt(event);
     const change = event.change;
     return {
       id: event.id,
@@ -632,7 +633,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
   const rows = useFieldRows();
   const change = event.change;
   const full = useQuery(ChangeService.method.getChange, { id: event.id }, { enabled: change !== undefined });
-  const date = event.time ? timestampDate(event.time) : new Date(0);
+  const date = happenedAt(event);
   const ago = time.ago(date, now);
   const kindWord = event.actor ? words.actorKind(event.actor.kind) : "";
   const look = change ? words.state(change.state) : undefined;
@@ -822,7 +823,7 @@ function HealthFacts({ event }: { event: Event }) {
       ) : null}
       {flips ? (
         <>
-          <dt>{t`Since last time`}</dt>
+          <dt>{t`Changes`}</dt>
           <dd>{flips}</dd>
         </>
       ) : null}

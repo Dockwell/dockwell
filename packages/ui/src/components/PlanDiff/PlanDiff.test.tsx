@@ -255,6 +255,20 @@ describe("PlanDiff", () => {
     expect(container.querySelector(".dw-plan-summary")).toBeNull();
   });
 
+  it("counts a restart as one, apart from a replace", () => {
+    const { container } = render(
+      <PlanDiff
+        resources={[
+          { id: "a", action: "replace", kind: "service", name: "web", restart: true },
+          { id: "b", action: "replace", kind: "service", name: "db" },
+        ]}
+      />,
+    );
+    const counts = container.querySelector(".dw-plan-counts");
+    expect(counts).toHaveTextContent("1 to restart");
+    expect(counts).toHaveTextContent("1 to replace");
+  });
+
   it("respects expanded and speaks the app's language", () => {
     render(
       <UIStringsProvider
@@ -268,6 +282,7 @@ describe("PlanDiff", () => {
               create: "待创建",
               change: "待更改",
               replace: "待替换",
+              restart: "待重启",
               destroy: "待删除",
               ifNewer: "如有更新则更新",
             },

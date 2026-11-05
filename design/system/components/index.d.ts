@@ -246,6 +246,8 @@ export interface PlanResource {
   note?: string;
   changes?: PlanChange[];
   expanded?: boolean;
+  /** Replaced as it was, a restart: counts as "to restart", apart from a replace. */
+  restart?: boolean;
 }
 export interface PlanDiffProps { resources: PlanResource[]; impact?: React.ReactNode; className?: string }
 export declare function PlanDiff(props: PlanDiffProps): React.ReactElement;

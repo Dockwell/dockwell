@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ActorKind, type Change, ChangeState, type Event, EventKind, HealthState, StepState } from "@dockwell/api";
 import type { IconName, Status } from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
+
+import { useTimeWords } from "../../lib/time";
 
 /** How an event shows on the timeline. */
 export interface Described {
@@ -105,22 +108,47 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
   );
 }
 
+/** Whether a health event stands for a service that keeps changing, which the server tells as one event that goes on. */
+export function keepsChanging(event: Event): boolean {
+  return (event.health?.flips ?? 0) > 0 && event.health?.since !== undefined;
+}
+
 /**
- * How a service's health changed. The server tells of a state that lasted, and of a
- * service on a server at most once in 5 minutes, so a flapping app is one line every
- * few minutes that says how often it changed (useHealthEventWords), and what it keeps
- * falling to is what it says.
+ * When what an event tells of happened: for a change of health, when the service came
+ * to it, which the server tells once it has lasted, up to 30 s on; for one that keeps
+ * changing, the last time it was told, as it goes on. Otherwise the event's time.
+ */
+export function happenedAt(event: Event): Date {
+  const since = event.health?.since;
+  if (since && !keepsChanging(event)) return timestampDate(since);
+  return event.time ? timestampDate(event.time) : new Date(0);
+}
+
+/**
+ * How a service's health changed. The server tells of a state that lasted, as it
+ * happened, and of a service that keeps changing as one event, which says how often
+ * since when (useHealthEventWords), and what it keeps falling to.
  */
 function describeHealth(event: Event, i18n: I18n): Described {
   const name = event.subject?.name || event.subject?.id || i18n._(msg`A service`);
   const server = event.health?.serverName || i18n._(msg`its server`);
+  if (keepsChanging(event)) {
+    const tone =
+      event.health?.state === HealthState.UNHEALTHY
+        ? "warning"
+        : event.health?.state === HealthState.PAUSED
+          ? undefined
+          : "critical";
+    return { title: i18n._(msg`${name} keeps changing on ${server}`), icon: "activity", ...(tone ? { tone } : {}) };
+  }
   switch (event.health?.state) {
     case HealthState.UNHEALTHY:
       return { title: i18n._(msg`${name} turned unhealthy on ${server}`), icon: "activity", tone: "warning" };
     case HealthState.NOT_RUNNING:
       return { title: i18n._(msg`${name} stopped running on ${server}`), icon: "activity", tone: "critical" };
     case HealthState.PAUSED:
-      return { title: i18n._(msg`${name} was paused on ${server}`), icon: "activity", tone: "warning" };
+      // Grey, as its state is: someone paused it, which is news, not trouble of its own.
+      return { title: i18n._(msg`${name} was paused on ${server}`), icon: "activity" };
     case HealthState.HEALTHY:
       return { title: i18n._(msg`${name} is healthy again on ${server}`), icon: "activity" };
     case HealthState.NO_CHECK:
@@ -133,23 +161,29 @@ function describeHealth(event: Event, i18n: I18n): Described {
 export interface HealthEventWords {
   /** Its state, as a shape, a word and a colour. */
   look(event: Event): { status: Status; word: string } | undefined;
-  /** What its check last said, and how many other times it changed, so a flapping app is one line. */
+  /** What its check last said, and how often it changed, for one that keeps changing. */
   detail(event: Event): string;
-  /** How many other times it changed, or nothing. */
+  /** How often it changed, and over how long, for one that keeps changing, or nothing. */
   flips(event: Event): string;
 }
 
 export function useHealthEventWords(): HealthEventWords {
   const { t } = useLingui();
+  const time = useTimeWords();
   return useMemo<HealthEventWords>(() => {
     const flips = (event: Event): string => {
       const count = event.health?.flips ?? 0;
-      return count > 0
-        ? plural(count, {
-            one: "It changed once more since the last of these.",
-            other: "It changed # more times since the last of these.",
-          })
-        : "";
+      if (count === 0) return "";
+      const since = event.health?.since;
+      if (!since || !event.time) {
+        // Told before the server said since when: it counted the times in between.
+        return plural(count, {
+          one: "It changed once more since the last of these.",
+          other: "It changed # more times since the last of these.",
+        });
+      }
+      const span = time.span(Math.max(timestampDate(event.time).getTime() - timestampDate(since).getTime(), 0));
+      return plural(count, { one: `It changed once in ${span}.`, other: `It changed # times in ${span}.` });
     };
     return {
       flips,
@@ -173,7 +207,7 @@ export function useHealthEventWords(): HealthEventWords {
         return [said.charAt(0).toUpperCase() + said.slice(1), flips(event)].filter(Boolean).join(" · ");
       },
     };
-  }, [t]);
+  }, [t, time]);
 }
 
 function describeChange(change: Change, summaries: ReadonlyMap<string, string>, i18n: I18n): Described {
@@ -200,7 +234,8 @@ export function useCounts(): (change: Change) => string {
       const parts: string[] = [];
       if (s.create) parts.push(t`${s.create} to create`);
       if (s.change) parts.push(t`${s.change} to update`);
-      if (s.replace) parts.push(t`${s.replace} to replace`);
+      // A restart replaces what runs as it was, which is no replace to whoever asked for it.
+      if (s.replace) parts.push(change.restart ? t`${s.replace} to restart` : t`${s.replace} to replace`);
       if (s.destroy) parts.push(t`${s.destroy} to delete`);
       return parts.join(" · ");
     },

@@ -743,13 +743,15 @@ describe("the plan sheet", () => {
           message: "web's command holds the value of TOKEN.",
           resource: { kind: "service", name: "web" },
           names: ["TOKEN", "command"],
+          from: "variables",
         }),
         create(PlanNoteSchema, {
           reason: "exposed_variable",
-          message:
-            "REDIS_PASSWORD from your .env is in cache's command, so anyone who can read this change can read it",
+          // What the panel goes by is the field: its words are the server's, in English.
+          message: "REDIS_PASSWORD is in cache's labels, so anyone who can read this change can read it",
           resource: { kind: "service", name: "cache" },
           names: ["REDIS_PASSWORD", "labels"],
+          from: "env_file",
         }),
         create(PlanNoteSchema, { reason: "newer", message: "This reason is new. The panel doesn't know it yet." }),
       ];
@@ -768,6 +770,7 @@ describe("the plan sheet", () => {
       "web's command holds the value of TOKEN. Anyone who can read this app can see it.",
     );
     expect(callout).toHaveTextContent("write the command as a list, with each word its own variable.");
+    expect(callout).not.toHaveTextContent("TOKEN from your .env");
     // Where it came from an .env, it says so, and what can't be hidden where it lands.
     expect(callout).toHaveTextContent("cache's labels holds the value of REDIS_PASSWORD from your .env");
     expect(callout).toHaveTextContent("It can't be hidden there, so if it's a secret, set it in environment");

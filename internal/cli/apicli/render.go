@@ -791,19 +791,24 @@ func startsStopped(st *dockwellv1.PlanStep) bool {
 // unchecked says how a container that nothing checks takes over: once it has run for
 // soak, as healthy is only that it runs.
 func unchecked(soak time.Duration, restart, stopped bool) string {
-	runs := "Nothing checks it, so it only has to start"
-	if soak > 0 {
-		runs = "Nothing checks it, so it has to keep running for " + human.Duration(soak)
-	}
-	switch {
-	case stopped && restart:
-		return runs + ". If it doesn't, the new one goes, and what was stopped stays stopped."
-	case stopped:
+	if stopped {
+		runs := "Nothing checks it, so it only has to start"
+		if soak > 0 {
+			runs = "Nothing checks it, so it has to keep running for " + human.Duration(soak)
+		}
+		if restart {
+			return runs + ". If it doesn't, the new one goes, and what was stopped stays stopped."
+		}
 		return runs + ". If it doesn't, Dockwell rolls this back."
-	case restart:
-		return runs + ", and what runs goes on serving until then. If it doesn't, the new one goes, and what runs stays."
 	}
-	return runs + ", and what runs goes on serving until then. If it doesn't, Dockwell rolls this back."
+	takes := "Nothing checks it, so a new container takes over once it starts"
+	if soak > 0 {
+		takes = "Nothing checks it, so a new container takes over once it has kept running for " + human.Duration(soak)
+	}
+	if restart {
+		return takes + ", and what runs goes on serving until then. If it doesn't, the new one goes, and what runs stays."
+	}
+	return takes + ", and what runs goes on serving until then. If it doesn't, Dockwell rolls this back."
 }
 
 func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
