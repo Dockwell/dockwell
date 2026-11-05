@@ -8,6 +8,7 @@ How Dockwell keeps an environment's secrets, and every spec that may hold one, e
 | --- | --- | --- |
 | Secrets' values | Sealed in `revisions` and `change_items`, in `<data>/control/state.db` or Postgres; in memory on the control plane while it reads one; in memory on an agent for one step; in the running container's environment | They are the credentials the apps use: databases, payment providers, storage |
 | Containers' and services' environments | Sealed the same way, as their specs may hold a secret | People put credentials there too |
+| A volume's options | Sealed the same way, as a CIFS mount's password goes in them. Docker keeps them with the volume on the server | A password for a file share |
 | The install's key | `<data>/control/key`, 0600 | It opens every key-encryption key, so every secret, the CA's key and the authenticator secrets |
 | Key-encryption keys | `key_encryption_keys`, sealed with the install's key | Each opens every data key wrapped under it |
 | Data keys | `data_keys`, wrapped under a key-encryption key | Each opens one stored spec |
