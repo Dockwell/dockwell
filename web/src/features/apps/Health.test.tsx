@@ -388,6 +388,22 @@ describe("what the fleet last said stands by its age too", () => {
     );
   });
 
+  it("reads Unknown when the clock steps back an hour as the watch goes quiet", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fleet = quietFleet(true);
+    const page = renderAt("/apps", { ...api([web], running(web)), servers: { watchServers: fleet.watchServers } });
+    const top = await waitFor(() => {
+      const bar = page.container.querySelector(".topbar") as HTMLElement;
+      expect(bar).toHaveTextContent("Healthy");
+      return bar;
+    });
+    fleet.state.answering = false;
+    vi.setSystemTime(Date.now() - 3_600_000);
+    await vi.advanceTimersByTimeAsync(40_000);
+    await waitFor(() => expect(top).toHaveTextContent("Unknown"));
+    expect(top.querySelector(".dw-tone-healthy")).toBeNull();
+  });
+
   it("reads Unknown in a list of servers too", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     let answering = true;
@@ -575,6 +591,23 @@ describe("what was read stands by its age, however reads go", () => {
     expect(seen.filter((s) => s.includes("Healthy"))).toEqual([]);
     // Its read back on waking is Checking for its time, then nobody can say.
     expect(seen.at(-1)).toBe("Unknown");
+  });
+
+  it("never shows a reading from before a sleep as the laptop wakes, with a read under way across it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let hang = false;
+    renderAt("/apps", api([web], { listHealth: () => (hang ? new Promise(() => {}) : fine()) }));
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    // The next read goes out and hangs, and the laptop sleeps with it under way.
+    hang = true;
+    await vi.advanceTimersByTimeAsync(10_500);
+    expect(row).toHaveTextContent("Healthy");
+    vi.setSystemTime(Date.now() + 3_600_000);
+    // Woken: the look that notices finds the reading an hour old, whatever the read under way does.
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(row).not.toHaveTextContent("Healthy");
+    expect(row.querySelector(".dw-tone-healthy")).toBeNull();
   });
 
   it("gives a hung read back one time, not one for each screen moved to", async () => {
