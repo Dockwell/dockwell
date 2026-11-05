@@ -22,7 +22,7 @@ import (
 // authority, past what any server needs, so a write token can't use them up.
 const (
 	// MaxRoutes is the most routes a server may have. Caddy's memory grows with
-	// them, 140 MB at 1,000 as measured, and each change rewrites them all.
+	// them, 153 MB at 1,000 as measured, and each change rewrites them all.
 	MaxRoutes = 1000
 	// MaxPendingDomains is how many domains on a server may wait for their first
 	// certificate at once. Let's Encrypt allows 300 new orders per account per 3

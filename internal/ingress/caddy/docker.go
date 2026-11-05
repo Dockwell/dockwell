@@ -34,7 +34,7 @@ const (
 )
 
 // memoryLimit is the most memory Caddy's container may use, with no swap. It
-// reads 140 MB at the most routes a server may have (ingress.MaxRoutes), so this
+// reads 153 MB at the most routes a server may have (ingress.MaxRoutes), so this
 // is far past what it needs: what it stops is a Caddy that runs away taking the
 // server with it. Docker starts it again if it goes past this.
 const memoryLimit = 1 << 30

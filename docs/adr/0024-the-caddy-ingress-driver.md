@@ -210,7 +210,7 @@ A manual stop of a container with `restart: always` lasts until Docker next rest
 
 A write token can add any route, so what routes cost is limited per server, past what any server needs.
 
-- **1,000 routes.** Caddy's memory grows with them, 140 MB at 1,000, and each change rewrites them all. A plan that takes a server past that is refused, with what to do. Editing or removing is never refused.
+- **1,000 routes.** Caddy's memory grows with them, 153 MB at 1,000 and 486 MB at 5,000, as measured, and each change rewrites them all. A plan that takes a server past that is refused, with what to do. Editing or removing is never refused.
 - **50 domains waiting for a certificate, as they come.** Let's Encrypt allows 300 new orders per account per 3 hours, and that's the one account the panel's domain needs too. A route for a domain the server hasn't got, which would take it past 50, is refused, naming some of them, with what to do: point their DNS here, or delete those you don't need.
 - **What pending counts:** a domain with no certificate, for 3 hours from when it was added, whether it's on its way or has failed. A domain that stays failed must not block others for ever, and 3 hours is that limit's own window, by which its first order has dropped out of the count, and Caddy retries on the staging directory, backing off. `ingress/domains.json` keeps when each was added, across restarts.
 - **What that doesn't stop.** Caddy's reload starts a pending name's attempt again on the production directory, so many route changes with many names pending can still use up the limit. As measured against Pebble, 5 reloads in 5 s with 30 names pending made 1 new order, and a minute with no changes made 29.
@@ -301,7 +301,7 @@ Docker verifies a digest pull whatever serves it, so a mirror can't change what 
 
 ## Consequences
 
-- **Memory.** Caddy is outside the agent's budget, as ADR 0005 says: 63 MB in the run above. `internal/ingress`, `internal/ingress/caddy` and `internal/resource/route` are in the agent build, and bring no module it didn't link. An idle agent of the agent build reads 20.4 MB, 0.6 MB more than the Docker driver's at 86cbf22, and a control plane with its own agent, of the full build, 39.6 MB, 0.7 MB more: medians of 5 runs after 180 s, each beside the other on one machine (ADR 0018). The agent build's binary is 0.5 MB larger.
+- **Memory.** Caddy is outside the agent's budget, as ADR 0005 says: 63 MB in the run above. `internal/ingress`, `internal/ingress/caddy` and `internal/resource/route` are in the agent build, and bring no module it didn't link. An idle agent of the agent build reads 20.4 MB, 0.6 MB more than `main` at 2177586, and a control plane with its own agent, of the full build, 39.9 MB, 1.1 MB more: medians of 5 runs after 180 s, each beside the other on one machine (ADR 0018). `dockwell-ingress-keep` is outside the budget too, and nothing here measures it, as no machine this was written on has Docker. The agent build's binary is 0.5 MB larger.
 - **Docker is required for ingress.** A server without it can't have a route, which is no loss: it has no service to route to either.
 - **An app must listen on every address in its container,** as it must for Compose's ports. One bound to its first interface alone isn't reachable from the ingress network.
 - **The server's firewall applies to 80 and 443.** A published Docker port goes around ufw; Caddy doesn't. A blocked port shows up as `connection`, with the fix.
