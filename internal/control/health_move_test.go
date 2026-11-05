@@ -20,8 +20,11 @@ import (
 )
 
 // saysRunning is an agent's monitor that says web runs, with nothing checking it,
-// each time its stream opens.
-type saysRunning struct{ project string }
+// each time its stream opens, and since when it can't read Docker, when it can't.
+type saysRunning struct {
+	project string
+	blind   time.Time
+}
 
 func (s saysRunning) Report() []*dockwellv1.InstanceHealth {
 	return []*dockwellv1.InstanceHealth{{
@@ -29,9 +32,9 @@ func (s saysRunning) Report() []*dockwellv1.InstanceHealth {
 		State: dockwellv1.HealthState_HEALTH_STATE_NO_CHECK, Check: dockwellv1.HealthCheckKind_HEALTH_CHECK_KIND_NONE, Since: timestamppb.Now(),
 	}}
 }
-func (saysRunning) ScannedAt() time.Time             { return time.Now() }
-func (saysRunning) DockerUnreadableSince() time.Time { return time.Time{} }
-func (saysRunning) Changed() <-chan struct{}         { return nil }
+func (saysRunning) ScannedAt() time.Time               { return time.Now() }
+func (s saysRunning) DockerUnreadableSince() time.Time { return s.blind }
+func (saysRunning) Changed() <-chan struct{}           { return nil }
 
 // lookout reads, again and again, how web is, whether its server's agent is there
 // to say how a domain is, and whether its server is connected, and keeps when each
@@ -216,4 +219,34 @@ func TestAServerThatDoesntReturnFromAMoveReadsGoneInTime(t *testing.T) {
 		})
 	}
 	t.Logf("all read as gone %s after the agent went", time.Since(gone))
+}
+
+// An agent that can't read Docker says so with what it says of health, and its
+// server says it too, so the panel's top bar isn't green for it; a new stream that
+// can says so as well.
+func TestAServerSaysItsAgentCantReadDocker(t *testing.T) {
+	m := startMoveRig(t, nil)
+	scope := m.scope(t)
+	m.server.stop()
+	waitConnected(t, m.f, m.server.id.ServerID, false)
+	blind := time.Now().Add(-time.Minute).Truncate(time.Second)
+	m.server.health = saysRunning{project: docker.Project(scope), blind: blind}
+	m.server.connect(t, m.f)
+	servers := dockwellv1connect.NewServerServiceClient(m.signedIn, m.signedIn.origin)
+	since := func() *timestamppb.Timestamp {
+		res, err := servers.GetServer(t.Context(), connect.NewRequest(&dockwellv1.GetServerRequest{Id: m.server.id.ServerID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetServer().GetDockerUnreadableSince()
+	}
+	eventually(t, "the server to say its agent can't read Docker", func() bool { return since() != nil })
+	if got := since().AsTime(); !got.Equal(blind) {
+		t.Errorf("the server says its agent can't read Docker since %s, want %s", got, blind)
+	}
+	m.server.stop()
+	waitConnected(t, m.f, m.server.id.ServerID, false)
+	m.server.health = saysRunning{project: docker.Project(scope)}
+	m.server.connect(t, m.f)
+	eventually(t, "the server to say its agent reads Docker again", func() bool { return since() == nil })
 }

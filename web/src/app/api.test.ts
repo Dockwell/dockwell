@@ -7,7 +7,7 @@ import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
 import { authState } from "../test/auth";
-import { recheckAuth } from "./api";
+import { recheckAuth, withCallTimeout } from "./api";
 
 /** A query client whose sign-in state is on screen, read from a control plane that answers when asked to. */
 function watched() {
@@ -57,5 +57,31 @@ describe("recheckAuth", () => {
     await answer();
     expect(getAuthState).toHaveBeenCalledTimes(3);
     stop();
+  });
+});
+
+describe("withCallTimeout", () => {
+  it("gives a call with one answer a timeout, unless it has its own, and a stream none", async () => {
+    const seen: Array<{ kind: string; timeoutMs: number | undefined }> = [];
+    const inner = {
+      unary: async (_m: unknown, _s: unknown, timeoutMs: number | undefined) => {
+        seen.push({ kind: "unary", timeoutMs });
+        return undefined as never;
+      },
+      stream: async (_m: unknown, _s: unknown, timeoutMs: number | undefined) => {
+        seen.push({ kind: "stream", timeoutMs });
+        return undefined as never;
+      },
+    } as unknown as Parameters<typeof withCallTimeout>[0];
+    const t = withCallTimeout(inner, 1_000);
+    const method = AuthService.method.getAuthState;
+    await t.unary(method, undefined, undefined, undefined, {} as never, undefined);
+    await t.unary(method, undefined, 50, undefined, {} as never, undefined);
+    await t.stream(method as never, undefined, undefined, undefined, (async function* () {})() as never, undefined);
+    expect(seen).toEqual([
+      { kind: "unary", timeoutMs: 1_000 },
+      { kind: "unary", timeoutMs: 50 },
+      { kind: "stream", timeoutMs: undefined },
+    ]);
   });
 });

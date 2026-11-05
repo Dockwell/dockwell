@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { keepTrying } from "./retry";
+import { keepTrying, OFFLINE } from "./retry";
 
 afterEach(() => vi.useRealTimers());
 
@@ -24,6 +24,31 @@ describe("keepTrying", () => {
     await done;
     // 100, 200, then the most, 400; then from the start once connected.
     expect(tries).toEqual([0, 100, 300, 700, 800, 1000]);
+  });
+
+  it("ends a try as the browser goes offline, as a stream that stays open says nothing then", async () => {
+    const abort = new AbortController();
+    const heard: unknown[] = [];
+    let tries = 0;
+    const done = keepTrying(
+      abort.signal,
+      { minMs: 1, maxMs: 1 },
+      async (_connected, attempt) => {
+        tries++;
+        if (tries > 1) return "done";
+        await new Promise((_resolve, refuse) => attempt.addEventListener("abort", () => refuse(attempt.reason)));
+        return undefined;
+      },
+      (err) => {
+        heard.push(err);
+        return undefined;
+      },
+    );
+    await vi.waitFor(() => expect(tries).toBe(1));
+    window.dispatchEvent(new Event("offline"));
+    await done;
+    expect(heard).toEqual([OFFLINE]);
+    expect(tries).toBe(2);
   });
 
   it("stops on a failure that trying again won't fix, and when aborted", async () => {

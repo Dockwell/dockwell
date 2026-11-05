@@ -618,6 +618,25 @@ describe("Activity", () => {
   });
 });
 
+describe("Activity's restarts", () => {
+  it("counts what a restart replaces as restarted, not replaced", async () => {
+    const restart = applied(shopPlanned(), new Date(Date.now() - 2 * 60_000));
+    restart.id = "chg_restart";
+    restart.summary = "Restart web";
+    restart.restart = true;
+    if (restart.plan?.summary) {
+      restart.plan.summary.create = 0;
+      restart.plan.summary.replace = 1;
+    }
+    renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([changeEvent(restart)])), listEvents: () => ({}) },
+    });
+    const row = await screen.findByRole("row", { name: /Restart web/ });
+    expect(row).toHaveTextContent("1 to restart");
+    expect(row).not.toHaveTextContent("to replace");
+  });
+});
+
 describe("Activity's health", () => {
   const health = (id: string, state: HealthState, flips = 0, sinceMs?: number) =>
     auditEvent({

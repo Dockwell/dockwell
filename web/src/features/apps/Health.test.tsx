@@ -19,7 +19,7 @@ import {
   type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { onlineManager } from "@tanstack/react-query";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -192,6 +192,26 @@ describe("the list's order", () => {
     expect(screen.queryByRole("button", { name: "Show them first" })).not.toBeInTheDocument();
   });
 
+  it("keeps the revision's column narrow until a row's record has a word to add", async () => {
+    const deploying = anApp(
+      "web",
+      "nginx:1.27",
+      {},
+      {
+        changeId: "chg_1",
+        changeState: ChangeState.APPLYING,
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+      },
+    );
+    const first = renderAt("/apps", api([quiet], running(quiet)));
+    await waitFor(() => expect(rowNames()).toEqual(["quiet"]));
+    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "96px" });
+    first.unmount();
+    renderAt("/apps", api([deploying], running(deploying)));
+    await waitFor(() => expect(screen.getByRole("row", { name: /web/ })).toHaveTextContent("Deploying"));
+    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "176px" });
+  });
+
   it("counts as people do among the calm", async () => {
     const at = { updateTime: { seconds: 1_000n, nanos: 0 } };
     const apps = ["svc-10", "svc-2", "svc-1"].map((n) => anApp(n, "nginx:1.27", {}, at));
@@ -334,6 +354,44 @@ describe("what was read stands by its age, however reads go", () => {
     onlineManager.setOnline(true);
     await waitFor(() => expect(row).toHaveTextContent("Healthy"));
     expect(document.querySelector(".apps-unread")).toBeNull();
+  });
+
+  it("says the browser is offline at the top, and lets the fleet's watch go", async () => {
+    renderAt("/apps", api([web], healthy()));
+    await waitFor(() => expect(document.querySelector(".topbar")).toHaveTextContent("hz-1"));
+    const top = document.querySelector(".topbar") as HTMLElement;
+    onlineManager.setOnline(false);
+    window.dispatchEvent(new Event("offline"));
+    await waitFor(() => expect(top).toHaveTextContent("You're offline"));
+    expect(top.querySelector(".dw-tone-healthy")).toBeNull();
+  });
+
+  it("doesn't say the control plane is gone as a screen comes back, while its first read is under way", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let slow = false;
+    renderAt(
+      "/apps",
+      api([web], {
+        listHealth: async () => {
+          if (slow) await new Promise((r) => setTimeout(r, 3_000));
+          return { services: [aHealth("svc_web", { state: HealthState.HEALTHY, passed: true, said: "200 OK" })] };
+        },
+      }),
+    );
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    // In the background nothing reads, so what was read gets old.
+    focusManager.setFocused(false);
+    await vi.advanceTimersByTimeAsync(40_000);
+    slow = true;
+    focusManager.setFocused(true);
+    await vi.advanceTimersByTimeAsync(1_000);
+    // Its read back is under way: nothing says the control plane is gone, as it isn't known to be.
+    expect(document.querySelector(".apps-unread")).toBeNull();
+    expect(row).not.toHaveTextContent("Unknown");
+    await vi.advanceTimersByTimeAsync(3_000);
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    focusManager.setFocused(undefined);
   });
 
   it("says on an app's page and in its head that it can't say, once what it read is too old", async () => {
