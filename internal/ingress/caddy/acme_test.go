@@ -31,7 +31,7 @@ import (
 // envPebble names a directory with the pebble and pebble-challtestsrv
 // binaries: Let's Encrypt's test CA, and the DNS server it asks. With it and
 // envCaddy, these tests get real certificates, and real failures, on high
-// ports, with no root and no Docker. CI's Docker job sets both.
+// ports, with no root and no Docker. CI's Go on Caddy job sets both.
 const envPebble = "DOCKWELL_TEST_PEBBLE"
 
 // pebble is a test CA, and the DNS it asks.

@@ -4,7 +4,7 @@
 // with a small HTTP interface to make its containers write, for measuring logs
 // end to end on a machine without Docker: point dockwell at the socket with
 // DOCKER_HOST=unix://<socket>. web/e2e/logs.ts drives it. It is never part of a
-// release. CI's Docker job reads real containers' logs.
+// release. CI's jobs on Docker read real containers' logs.
 //
 //	go run ./scripts/logload /tmp/load 127.0.0.1:7699
 //

@@ -84,21 +84,16 @@ jobs:
       - name: The agent build joins the full build
         run: scripts/smoke-agent.sh bin/dockwell-linux-amd64 bin/dockwell-agent-linux-amd64
 
-  docker:
-    name: Docker
+  # What needs a real Docker Engine or a real Caddy, in four jobs that run side by
+  # side. Each limit is twice what the job takes, so a slow runner doesn't fail it.
+  docker-go:
+    name: Go on Docker
     runs-on: ubuntu-24.04
-    # It takes about 22 minutes: real Docker, real Caddy, then all of a server's flows on
-    # them, so this leaves room for a slow runner rather than failing at random.
-    timeout-minutes: 30
-    # The drivers' tests against the runner's Docker Engine, and a service
-    # through the CLI end to end, beside docker compose (ADR 0021). The ingress
-    # against real Caddy and Pebble, on high ports, and then in its container on
-    # 80 and 443, with a real certificate (ADR 0024).
+    timeout-minutes: 10
+    # The drivers' tests against the runner's Docker Engine, beside docker compose
+    # (ADR 0021).
     env:
       DOCKWELL_TEST_DOCKER: "1"
-      E2E_INGRESS_TOOLS: ${{ github.workspace }}/.ingress-tools
-      E2E_PANEL: "1"
-      E2E_ROOT: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -120,18 +115,83 @@ jobs:
         run: |
           docker version
           docker compose version
-      - name: Caddy and Pebble, pinned by SHA-256
-        run: |
-          scripts/ingress-tools.sh "$E2E_INGRESS_TOOLS"
-          echo "DOCKWELL_TEST_CADDY=$E2E_INGRESS_TOOLS/caddy" >> "$GITHUB_ENV"
-          echo "DOCKWELL_TEST_PEBBLE=$E2E_INGRESS_TOOLS" >> "$GITHUB_ENV"
       - name: Tests against Docker
         run: go test -race -run 'OnRealDocker' -v ./internal/...
+
+  caddy-go:
+    name: Go on Caddy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    # The ingress against real Caddy and Pebble, on high ports, with no root and no
+    # Docker (ADR 0024).
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: Caddy and Pebble, pinned by SHA-256
+        run: |
+          scripts/ingress-tools.sh "$RUNNER_TEMP/ingress-tools"
+          echo "DOCKWELL_TEST_CADDY=$RUNNER_TEMP/ingress-tools/caddy" >> "$GITHUB_ENV"
+          echo "DOCKWELL_TEST_PEBBLE=$RUNNER_TEMP/ingress-tools" >> "$GITHUB_ENV"
       - name: Tests against Caddy
         run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/...
+
+  docker-e2e:
+    name: Service end to end on Docker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    # A service through the CLI end to end, beside docker compose (ADR 0021), and
+    # the ingress in its container on 80 and 443, with a real certificate from
+    # Pebble, which the script fetches (ADR 0024), with Dockwell as root, as on a
+    # server.
+    env:
+      E2E_PANEL: "1"
+      E2E_ROOT: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: Docker Compose v2.38.2
+        run: |
+          mkdir -p ~/.docker/cli-plugins
+          curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
+            https://github.com/docker/compose/releases/download/v2.38.2/docker-compose-linux-x86_64
+          echo "486b3ffc0f806ca2efbc430cef89955386011662f0c76bad17c103d059cfa9cf  $HOME/.docker/cli-plugins/docker-compose" | sha256sum -c -
+          chmod +x ~/.docker/cli-plugins/docker-compose
+      - name: Docker
+        run: |
+          docker version
+          docker compose version
       - name: A service end to end
         run: make docker-e2e
-      # The app screens on real Docker. The runner image has Chrome.
+
+  docker-panel:
+    name: Panel end to end on Docker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    # The app screens on real Docker, in headless Chrome, which the runner image
+    # has, with certificates from Pebble.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      # The script fetches Caddy too, which this doesn't use.
+      - name: Caddy and Pebble, pinned by SHA-256
+        run: |
+          scripts/ingress-tools.sh "$RUNNER_TEMP/ingress-tools"
+          echo "DOCKWELL_TEST_PEBBLE=$RUNNER_TEMP/ingress-tools" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

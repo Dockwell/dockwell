@@ -14,8 +14,8 @@
 //     check the agent makes reaches what the test listens with on those addresses;
 //   - a server path under /readonly can't be mounted.
 //
-// It is never part of a release. CI's Docker job runs the same flows on real
-// Docker.
+// It is never part of a release. CI's Panel end to end on Docker job runs the
+// same flows on real Docker.
 //
 //	go run ./scripts/fakedocker /tmp/fake/docker.sock
 package main

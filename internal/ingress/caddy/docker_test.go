@@ -25,7 +25,7 @@ func onEngine(t *testing.T) (*Container, *dockertest.Engine) {
 }
 
 // Everything the ADR says of the container, as Docker is asked for it: what is
-// real on Docker is CI's Docker job's to prove.
+// real on Docker is for CI's Service end to end on Docker job to prove.
 func TestCaddysContainerIsAsTheADRSays(t *testing.T) {
 	c, e := onEngine(t)
 	if err := c.Run(t.Context(), "/config/bootstrap.json"); err != nil {

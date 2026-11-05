@@ -16,8 +16,8 @@ import (
 )
 
 // EnvReal turns on the tests against a real Docker Engine: "1" for the
-// one at docker.DefaultSocket, or a socket's path. CI's Docker job sets
-// it.
+// one at docker.DefaultSocket, or a socket's path. CI's Go on Docker job
+// sets it.
 const EnvReal = "DOCKWELL_TEST_DOCKER"
 
 // Real returns a client for a real Docker Engine, or skips the test, with

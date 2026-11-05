@@ -33,7 +33,7 @@ import (
 
 // envCaddy names a Caddy binary of the pinned version, which these tests run
 // on high ports, with its admin API on a unix socket, to prove that the JSON
-// and the reload behaviour are real. CI's Docker job sets it. A test here ends
+// and the reload behaviour are real. CI's Go on Caddy job sets it. A test here ends
 // OnRealCaddy, so -run OnRealCaddy runs them all.
 const envCaddy = "DOCKWELL_TEST_CADDY"
 
