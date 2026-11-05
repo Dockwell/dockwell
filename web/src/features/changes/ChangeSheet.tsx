@@ -48,7 +48,7 @@ import { formatDay } from "../../lib/format";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
 import { appOf, unreached } from "../apps/app";
-import { lookOf, useDomainsReaching } from "../apps/domains";
+import { asksNoCertificate, lookOf, useDomainsReaching } from "../apps/domains";
 import { useServices } from "../apps/useServices";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
@@ -1345,7 +1345,10 @@ function DomainReach({ domain }: { domain: Domain }) {
       {look.noCertificate ? (
         <span className="plan-reach-how">{t`TLS ends before this server`}</span>
       ) : serving ? null : (
-        <span className="plan-reach-how">{look.message || t`Getting its certificate`}</span>
+        <span className="plan-reach-how">
+          {look.message ||
+            (asksNoCertificate(domain) ? t`Waiting to hear from the server` : t`Getting its certificate`)}
+        </span>
       )}
       {serving ? <CopyButton text={look.noCertificate ? name : domain.url} label={t`Copy ${name}`} /> : null}
     </li>

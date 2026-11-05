@@ -50,6 +50,11 @@ export interface DomainLook {
   noCertificate?: boolean;
 }
 
+/** True when a domain asks for no certificate, as TLS ends before its server: there's none to say it's getting, whatever the server has yet to report. */
+export function asksNoCertificate(domain: Domain): boolean {
+  return domain.routes.length > 0 && domain.routes.every((route) => route.tls === "off");
+}
+
 /** The worst of what a domain's servers say, as it needs them all. */
 export function lookOf(domain: Domain): DomainLook {
   for (const server of domain.servers) {

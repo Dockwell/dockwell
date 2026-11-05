@@ -1199,6 +1199,35 @@ describe("the plan sheet, once it runs", () => {
       });
     });
 
+    it("doesn't say a tunnel's domain is getting a certificate, and lets you go, if its server never reports", async () => {
+      const user = userEvent.setup();
+      const silent = {
+        name: "app.example.com",
+        url: "http://app.example.com",
+        routes: [{ id: "res_route", name: "app-example-com", service: "web", port: 80, tls: "off" }],
+        servers: [{ serverName: "hz-1", stale: true }],
+      };
+      const change = applied(aServicePlan());
+      const planned = change.plan?.resources[0]?.resource;
+      if (planned) planned.scope = "env_1";
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        {
+          services: { listServices: () => ({ services: [aService([])] }) },
+          domains: { listDomains: () => ({ domains: [silent] }) },
+          changes: { watchChange: feed<WatchChangeResponse>().stream },
+        },
+      );
+      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const name = await within(done).findByText("app.example.com");
+      const row = name.closest(".plan-reach-row");
+      expect(row).toHaveTextContent("Waiting to hear from the server");
+      expect(row).not.toHaveTextContent("certificate");
+      expect(within(done).queryByRole("link", { name: /app\.example\.com/ })).toBeNull();
+      await user.click(within(done).getByRole("button", { name: /Done/ }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "web is live" })).toBeNull());
+    });
+
     it("says nothing of a route the change took away", async () => {
       arrivedWith([aDomain("app.example.com", CertificateState.ISSUED, "", "web")], [], aRoutePlan(PlanAction.DELETE));
       await screen.findByRole("dialog");

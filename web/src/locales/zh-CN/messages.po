@@ -5686,6 +5686,11 @@ msgstr "等待代理连接"
 msgid "Waiting for server"
 msgstr "正在等待服务器"
 
+#: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Waiting to hear from the server"
+msgstr "正在等待服务器回复"
+
 #: src/app/Providers.tsx
 msgid "Warning"
 msgstr "警告"

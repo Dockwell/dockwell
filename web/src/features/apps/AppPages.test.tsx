@@ -1050,6 +1050,32 @@ describe("an app's overview", () => {
     expect(route.trustedProxies ?? []).toEqual([]);
   });
 
+  it("doesn't say a tunnel's domain is getting a certificate while its server hasn't reported", async () => {
+    const alone = anApp("alone", "nginx:1.5", {}, {});
+    renderAt(
+      "/apps/svc_alone",
+      api([alone], {
+        services: { listServices: () => ({ services: [alone] }), listServiceRevisions: () => ({ revisions }) },
+        domains: {
+          listDomains: () => ({
+            domains: [
+              {
+                name: "app.example.com",
+                url: "http://app.example.com",
+                routes: [{ id: "res_1", name: "app-example-com", service: "alone", port: 80, tls: "off" }],
+                servers: [{ serverName: "hz-1", stale: true }],
+              },
+            ],
+          }),
+        },
+      }),
+    );
+    const running = await screen.findByRole("region", { name: "Running" });
+    expect(await within(running).findByText("Waiting to hear from the server")).toBeVisible();
+    expect(within(running).queryByText("Getting its certificate")).toBeNull();
+    expect(within(running).queryByRole("link", { name: "Open app.example.com" })).toBeNull();
+  });
+
   it("says a domain behind a tunnel has no certificate here, and doesn't wait for one", async () => {
     const alone = anApp("alone", "nginx:1.5", {}, {});
     const listDomains = vi.fn(() => ({

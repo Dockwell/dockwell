@@ -58,7 +58,7 @@ import {
   revisionName,
   valuesOf,
 } from "./app";
-import { lookOf, useAppDomains } from "./domains";
+import { asksNoCertificate, lookOf, useAppDomains } from "./domains";
 import { ExportSheet } from "./ExportSheet";
 import { ImageName, WholeImage } from "./ImageName";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
@@ -408,7 +408,12 @@ function DomainRow({ domain }: { domain: Domain }) {
         ) : look.state === "serving" ? (
           <Trans>HTTPS</Trans>
         ) : (
-          look.message || <Trans>Getting its certificate</Trans>
+          look.message ||
+          (asksNoCertificate(domain) ? (
+            <Trans>Waiting to hear from the server</Trans>
+          ) : (
+            <Trans>Getting its certificate</Trans>
+          ))
         )}
       </span>
       {look.state === "serving" ? (

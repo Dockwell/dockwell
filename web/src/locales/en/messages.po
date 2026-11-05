@@ -5686,6 +5686,11 @@ msgstr "Waiting for its agent"
 msgid "Waiting for server"
 msgstr "Waiting for server"
 
+#: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "Waiting to hear from the server"
+msgstr "Waiting to hear from the server"
+
 #: src/app/Providers.tsx
 msgid "Warning"
 msgstr "Warning"
