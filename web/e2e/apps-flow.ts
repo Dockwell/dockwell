@@ -307,6 +307,8 @@ export async function appsFlow(
   await shoot(page, "apps-phone");
 
   step("apps: a domain behind a tunnel is one switch away, and fits the narrowest phone");
+  // A screenshot above ends at another width, when it takes one.
+  await page.setViewportSize({ width: 360, height: 780 });
   await page.getByRole("button", { name: "Add a domain" }).first().click();
   const addDomain = page.getByRole("dialog", { name: /^Add a domain to / });
   await addDomain.getByLabel("Domain").fill("app.example.com");
