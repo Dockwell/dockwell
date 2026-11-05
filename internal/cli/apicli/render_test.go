@@ -738,6 +738,17 @@ func TestRolloutWordsSayWhatFollows(t *testing.T) {
 		"a restart that stops first": {
 			plan: &dockwellv1.RolloutPlan{ImageData: []string{"/data"}}, restart: true, want: []string{"a restart has nothing to go back to"},
 		},
+		// What nothing checks is healthy as it runs, so how long it must is all there is to it.
+		"a restart of what someone stopped, which nothing checks": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, Soak: soak, HealthyWithin: durationpb.New(2 * time.Second), NoCheck: true}, stopped: true, restart: true,
+			want: []string{"Nothing checks it, so it has to keep running for 5 s. If it doesn't, the new one goes, and what was stopped stays stopped."},
+			not:  []string{"healthy", "within"},
+		},
+		"a deploy that rolls, which nothing checks": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, HealthyWithin: durationpb.New(2 * time.Second), NoCheck: true},
+			want: []string{"Nothing checks it, so it only has to start, and what runs goes on serving until then. If it doesn't, Dockwell rolls this back."},
+			not:  []string{"healthy", "within"},
+		},
 		"what it can't read":     {plan: &dockwellv1.RolloutPlan{CantTell: []string{"nfs-share"}}, want: []string{"can't read where nfs-share really lands"}},
 		"a route edited by hand": {plan: &dockwellv1.RolloutPlan{EditedRoutes: []string{"www"}}, want: []string{"The route www was edited by hand", "keep the old one's address"}},
 		"two writers, as chosen": {

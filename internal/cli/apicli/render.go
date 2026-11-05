@@ -788,6 +788,24 @@ func startsStopped(st *dockwellv1.PlanStep) bool {
 	return slices.ContainsFunc(st.GetChanges(), func(c *dockwellv1.FieldChange) bool { return c.GetPath() == "state" && c.GetTo() == "running" })
 }
 
+// unchecked says how a container that nothing checks takes over: once it has run for
+// soak, as healthy is only that it runs.
+func unchecked(soak time.Duration, restart, stopped bool) string {
+	runs := "Nothing checks it, so it only has to start"
+	if soak > 0 {
+		runs = "Nothing checks it, so it has to keep running for " + human.Duration(soak)
+	}
+	switch {
+	case stopped && restart:
+		return runs + ". If it doesn't, the new one goes, and what was stopped stays stopped."
+	case stopped:
+		return runs + ". If it doesn't, Dockwell rolls this back."
+	case restart:
+		return runs + ", and what runs goes on serving until then. If it doesn't, the new one goes, and what runs stays."
+	}
+	return runs + ", and what runs goes on serving until then. If it doesn't, Dockwell rolls this back."
+}
+
 func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
 	if r == nil {
 		return nil
@@ -796,7 +814,10 @@ func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
 	say := func(format string, args ...any) { out = append(out, fmt.Sprintf(format, args...)) }
 	shared := slices.Concat(r.GetVolumes(), r.GetPaths(), r.GetImageData())
 	if r.GetRolling() {
-		if d := r.GetHealthyWithin().AsDuration(); stopped {
+		if d := r.GetHealthyWithin().AsDuration(); r.GetNoCheck() && d > 0 {
+			// What nothing checks is healthy as it runs: how long it must is all there is to say.
+			say("%s", unchecked(r.GetSoak().AsDuration(), restart, stopped))
+		} else if stopped {
 			// Nothing runs, so nothing goes on serving, and nothing is in flight.
 			if restart {
 				say("It has to stay healthy for %s. If it isn't healthy within %s, the new one goes, and what was stopped stays stopped.", human.Duration(r.GetSoak().AsDuration()), human.Duration(d))

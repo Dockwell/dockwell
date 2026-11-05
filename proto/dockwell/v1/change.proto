@@ -1090,6 +1090,9 @@ message RolloutPlan {
   // How long a new container must stay healthy before anything moves to it or
   // the old one goes.
   google.protobuf.Duration soak = 16;
+  // True when nothing checks the new container, neither its spec nor its image,
+  // so healthy is only that it runs, and keeps running for soak.
+  bool no_check = 19;
 }
 
 // DroppedMount is something the old container mounts and the new one won't.

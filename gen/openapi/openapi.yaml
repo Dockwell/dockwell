@@ -5272,6 +5272,11 @@ components:
                     description: |-
                         How long a new container must stay healthy before anything moves to it or
                          the old one goes.
+                noCheck:
+                    type: boolean
+                    description: |-
+                        True when nothing checks the new container, neither its spec nor its image,
+                         so healthy is only that it runs, and keeps running for soak.
             description: RolloutPlan is how a step replaces a running service, and why.
         Route:
             type: object

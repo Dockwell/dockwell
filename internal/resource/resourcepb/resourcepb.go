@@ -174,7 +174,7 @@ func rollout(r *resource.RolloutPlan) *dockwellv1.RolloutPlan {
 	}
 	return &dockwellv1.RolloutPlan{
 		Rolling: r.Rolling, Ports: r.Ports, Volumes: r.Volumes, Paths: r.Paths, ImageData: r.ImageData, Chosen: r.Chosen,
-		Drain: Duration(r.Drain), HealthyWithin: Duration(r.HealthyWithin), StopGrace: Duration(r.StopGrace), Soak: Duration(r.Soak),
+		Drain: Duration(r.Drain), HealthyWithin: Duration(r.HealthyWithin), StopGrace: Duration(r.StopGrace), Soak: Duration(r.Soak), NoCheck: r.NoCheck,
 		Others: r.Others, CantTell: r.CantTell, EditedRoutes: r.EditedRoutes, EarlyNetworks: r.EarlyNetworks, EarlyNames: r.EarlyNames, HostNetwork: r.HostNetwork,
 		Dropped: dropped(r.Dropped),
 	}
@@ -209,7 +209,7 @@ func fromRollout(r *dockwellv1.RolloutPlan) *resource.RolloutPlan {
 	}
 	return &resource.RolloutPlan{
 		Rolling: r.GetRolling(), Ports: r.GetPorts(), Volumes: r.GetVolumes(), Paths: r.GetPaths(), ImageData: r.GetImageData(), Chosen: r.GetChosen(),
-		Drain: d(r.GetDrain()), HealthyWithin: d(r.GetHealthyWithin()), StopGrace: d(r.GetStopGrace()), Soak: d(r.GetSoak()),
+		Drain: d(r.GetDrain()), HealthyWithin: d(r.GetHealthyWithin()), StopGrace: d(r.GetStopGrace()), Soak: d(r.GetSoak()), NoCheck: r.GetNoCheck(),
 		Others: r.GetOthers(), CantTell: r.GetCantTell(), EditedRoutes: r.GetEditedRoutes(), EarlyNetworks: r.GetEarlyNetworks(), EarlyNames: r.GetEarlyNames(), HostNetwork: r.GetHostNetwork(),
 		Dropped: fromDropped(r.GetDropped()),
 	}

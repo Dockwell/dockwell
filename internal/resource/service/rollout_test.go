@@ -1176,12 +1176,12 @@ func TestAPlanSaysHowLongANewContainerReallyGets(t *testing.T) {
 	s.deploy(t, webRef, app("nginx:1.27"))
 	next := app("nginx:1.27")
 	next.GetApp().Env = map[string]string{"A": "1"}
-	if got := s.plan(t, webRef, next, "").Rollout.HealthyWithin; got != 2*time.Second {
-		t.Errorf("with no route and no check, it says %s", got)
+	if got := s.plan(t, webRef, next, "").Rollout; got.HealthyWithin != 2*time.Second || !got.NoCheck {
+		t.Errorf("with no route and no check, it says %s, no check %t", got.HealthyWithin, got.NoCheck)
 	}
 	s.ing.hasRoutes = true
-	if got := s.plan(t, webRef, next, "").Rollout.HealthyWithin; got != 2*time.Minute {
-		t.Errorf("with a route and no check, it says %s", got)
+	if got := s.plan(t, webRef, next, "").Rollout; got.HealthyWithin != 2*time.Minute || got.NoCheck {
+		t.Errorf("with a route and no check, it says %s, no check %t, when it waits for it to listen", got.HealthyWithin, got.NoCheck)
 	}
 	s.engine.Registry["not-pulled:1"] = dockertest.Image{Config: docker.Config{Cmd: []string{"app"}}}
 	step := s.plan(t, webRef, app("not-pulled:1"), "")

@@ -541,6 +541,7 @@ func (d *Docker) judgeRollout(ctx context.Context, t Target, desired *resourcev1
 		p.HealthyWithin = max(p.HealthyWithin, or(d.HealthWait, DefaultHealthWait))
 	case p.HealthyWithin > 0:
 	default:
+		p.NoCheck = true
 		p.HealthyWithin = or(d.Settle, DefaultSettle)
 		if d.Ingress != nil && t.Scoped {
 			routing, err := d.Ingress.Routing(ctx, ingress.Service{Project: t.Project, Name: t.Service})
@@ -548,7 +549,8 @@ func (d *Docker) judgeRollout(ctx context.Context, t Target, desired *resourcev1
 				return err
 			}
 			if routing.Routed {
-				p.HealthyWithin = or(d.ListenWait, ListenWait)
+				// What it waits for then is that it listens, which is a check of a kind.
+				p.HealthyWithin, p.NoCheck = or(d.ListenWait, ListenWait), false
 			}
 		}
 	}
