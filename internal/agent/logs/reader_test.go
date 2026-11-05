@@ -250,6 +250,12 @@ func TestAFloodIsDroppedAndCountedExactly(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	r := newReader(t, e)
+	// A limit any build's flood passes. Under -race with coverage, as CI runs it,
+	// atomic counters in the loops over a kept line's bytes hold a stream that
+	// drops nothing to about 1 MiB/s, under the real limit, so nothing would ever
+	// drop. make logs-load measures the real limit, on a build without them.
+	const rate = 64 << 10
+	r.LiveRate = rate
 	c := newCollector()
 	done := follow(ctx, r, &agentv1.LogsCall{Tail: -1}, c)
 	waitFor(t, "being caught up", c.isCaughtUp)
@@ -278,7 +284,7 @@ func TestAFloodIsDroppedAndCountedExactly(t *testing.T) {
 	if dropped == 0 || gaps == 0 {
 		t.Errorf("dropped %d lines in %d markers, want some of each: the fake writes far past the limit", dropped, gaps)
 	}
-	limit := uint64(1.5*float64(logs.LiveBytesPerSecond))/232 + uint64(logs.LiveBytesPerSecond/4)/232 + 100
+	limit := uint64(1.5*float64(rate))/232 + uint64(rate/4)/232 + 100
 	if kept > limit {
 		t.Errorf("delivered %d lines, past the %d the rate limit allows", kept, limit)
 	}
