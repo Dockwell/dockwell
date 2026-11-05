@@ -405,14 +405,14 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		}
 		for _, want := range []string{
 			"On hz-2, offline", "+ firewall.rule block-ssh", "May cut off remote access to hz-2, such as SSH.",
-			"It destroys data or may cut off access",
+			"It destroys data, may cut off access, or lets two containers write to one place",
 		} {
 			if !strings.Contains(r.out, want) {
 				t.Errorf("the plan doesn't say %q:\n%s", want, r.out)
 			}
 		}
 		id := changeRE.FindString(r.out)
-		if !strings.Contains(r.err, id+" destroys data or may cut off access, so it needs a person") || !strings.Contains(r.err, "http://localhost:") ||
+		if !strings.Contains(r.err, id+" destroys data, may cut off access, or lets two containers write to one place, so it needs a person") || !strings.Contains(r.err, "http://localhost:") ||
 			!strings.Contains(r.err, "/changes/"+id) {
 			t.Errorf("the refusal = %q", r.err)
 		}

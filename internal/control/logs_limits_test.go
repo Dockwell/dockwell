@@ -442,19 +442,38 @@ func TestUnreadPagesDontPinTheControlPlane(t *testing.T) {
 		_ = w.Flush()
 		time.Sleep(50 * time.Millisecond)
 	}
-	time.Sleep(time.Second)
-	held := heapNow() - base
+	// Each answers once its page is built and on its way, or says it was refused, and
+	// reading that much of it lets nothing else through.
 	for _, conn := range conns {
-		_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		_ = conn.SetReadDeadline(time.Now().Add(time.Minute))
 		head := make([]byte, 40)
-		if n, _ := conn.Read(head); strings.Contains(string(head[:n]), "429") {
+		n, err := conn.Read(head)
+		if err != nil {
+			t.Fatalf("a page asked for hasn't answered in a minute: %v", err)
+		}
+		if strings.Contains(string(head[:n]), "429") {
 			refused++
 		}
 	}
+	// A page takes far more for a moment, as it is built and turned into JSON, than it
+	// pins once that is done, and how far each has got by any one moment is only how busy
+	// the machine is: 113 MiB and then 28, a second apart, on a busy core. What it pins is
+	// what stays, so this waits for it to stay within that, for a second. Pages that really
+	// do pile up don't, until the writes to their readers give up, 30 s on, so this waits
+	// for less than that.
+	const most = 48 // One reader's 4 places, of pages of about 7.4 MiB.
+	held, within := heapNow()-base, 0
+	for deadline := time.Now().Add(20 * time.Second); within < 10 && time.Now().Before(deadline); {
+		time.Sleep(100 * time.Millisecond)
+		if held = heapNow() - base; held > most {
+			within = 0
+		} else {
+			within++
+		}
+	}
 	t.Logf("%d pages asked for and not read hold %.0f MiB; %d were refused", unread, held, refused)
-	// One reader's 4 places, of pages of about 7.4 MiB.
-	if held > 48 {
-		t.Errorf("%d unread pages pin %.0f MiB", unread, held)
+	if within < 10 {
+		t.Errorf("%d unread pages pin %.0f MiB, and it hasn't stayed under %d MiB in 20 s", unread, held, most)
 	}
 	if refused == 0 {
 		t.Error("no page was refused")

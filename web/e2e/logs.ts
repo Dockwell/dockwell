@@ -380,17 +380,17 @@ async function main() {
   await post("/replica");
   await post(
     "/print",
-    "2026-11-04 14:20:01 INFO a line that both replicas print\n2026-11-04 14:20:02 WARN and a warning",
+    "2026-11-04 14:20:01 INFO a line that both containers print\n2026-11-04 14:20:02 WARN and a warning",
   );
   await page.locator(".dw-log-src").first().waitFor({ timeout: 5000 });
-  await page.getByRole("radio", { name: "All replicas" }).waitFor();
+  await page.getByRole("radio", { name: "All containers" }).waitFor();
   await shoot(page, "two-sources");
   await page.getByRole("radio", { name: /-2$/ }).click();
   await until(
-    "the column to go with one replica showing",
+    "the column to go with one container showing",
     async () => (await page.locator(".dw-log-src").count()) === 0,
   );
-  await page.getByRole("radio", { name: "All replicas" }).click();
+  await page.getByRole("radio", { name: "All containers" }).click();
 
   step("following stops when the reader scrolls up, and resumes on request");
   await post("/rate?lines=200&size=120");
@@ -499,6 +499,70 @@ async function main() {
   ]);
   const saved = readFileSync((await download.path()) ?? fail("no download"), "utf8");
   if (!saved.includes("connection reset by peer") || saved.includes("\u001b")) fail("the download isn't what shows");
+
+  step("a rolling deploy shows both containers, by their names, for the seconds both run, and the head says what runs");
+  // What the log has its head say of how many run, and never of replicas, as there are none.
+  const logHead = async () => {
+    const text = await page.locator(".dw-log-name").innerText();
+    if (/replica/i.test(await page.locator("main").innerText())) fail(`the page speaks of replicas: ${text}`);
+    return text;
+  };
+  const names = () =>
+    (
+      JSON.parse(dockwell("logs", "sources", "web", "--json")) as {
+        sources: { containerName?: string; state: string }[];
+      }
+    ).sources;
+  const ranBefore = new Set(names().map((s) => (s.containerName ?? "").replace(/^[^-]*-/, "")));
+  const deploying = (image: string) =>
+    new Promise<void>((resolve, reject) => {
+      spawn(bin, ["services", "update", "web", "--app-image", image, "--yes"], { env: env(), stdio: "ignore" }).on(
+        "exit",
+        (code) => (code === 0 ? resolve() : reject(new Error(`the deploy of ${image} exited ${code}`))),
+      );
+    });
+  const rolled = deploying("ghcr.io/acme/shop:next");
+  // The new one has the next number, whatever that is by now.
+  let newOne = "";
+  await until("lines from what ran and from the new one, side by side", async () => {
+    await post("/print", "2026-11-04 14:21:01 INFO both of them say so");
+    const shown = await page.locator(".dw-log-src").allInnerTexts();
+    newOne = shown.find((n) => !ranBefore.has(n)) ?? "";
+    return newOne !== "" && shown.some((n) => ranBefore.has(n));
+  });
+  const during = await logHead();
+  if (!/\d containers/.test(during)) fail(`during the move, the head says: ${during}`);
+  await shoot(page, "rolling-two-sources");
+  const shownNames = await page.locator(".dw-log-src").allInnerTexts();
+  if (shownNames.some((n) => n.includes("stopping_"))) fail(`a source reads ${shownNames.join(", ")}`);
+  await rolled;
+  const headSettles = async (when: string) => {
+    const end = Date.now() + 20_000;
+    while (/containers/.test(await logHead())) {
+      if (Date.now() > end)
+        fail(`${when}, the head says: ${await logHead()}. The server lists:\n${dockwell("logs", "sources", "web")}`);
+      await sleep(100);
+    }
+  };
+  await headSettles("once the move is over");
+  if (await page.getByRole("radio", { name: "All containers" }).count())
+    fail("a filter is offered, with one container");
+  await shoot(page, "rolled-one-running");
+  // Where the new one began, by the name it goes by. In the whole of what's loaded, as
+  // only the rows on screen are drawn, and that one has scrolled away by now.
+  const [marked] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download these lines" }).click(),
+  ]);
+  const loaded = readFileSync((await marked.path()) ?? fail("no download"), "utf8");
+  if (!loaded.includes(`-- new container ${newOne} of `)) fail(`what's loaded doesn't say where ${newOne} began`);
+  // However many it has read that have gone.
+  for (const image of ["ghcr.io/acme/shop:next2", "ghcr.io/acme/shop:next3"]) await deploying(image);
+  await headSettles("after several deploys");
+  await post("/print", "2026-11-04 14:22:01 INFO only the one says this");
+  await page.getByText("only the one says this").first().waitFor();
+  if (/containers/.test(await logHead())) fail(`after several deploys, the head says: ${await logHead()}`);
+  await shoot(page, "after-several-deploys");
 
   step("a failed deploy leaves its logs, and Activity links to them");
   try {

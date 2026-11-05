@@ -6,6 +6,7 @@ package dockwell.agent.v1;
 
 import "dockwell/v1/change.proto";
 import "dockwell/v1/domain.proto";
+import "dockwell/v1/health.proto";
 import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/server.proto";
@@ -74,7 +75,25 @@ message ConnectRequest {
     // Where the certificates of the server's routes stand: all of them, when
     // the stream opens and whenever one changes.
     Domains domains = 7;
+    // How the server's services are: all of them, when the stream opens,
+    // whenever a state changes, and every so often while checks run.
+    Health health = 8;
   }
+}
+
+// Health is how each container of a server's services is, as far as anything
+// checked.
+message Health {
+  // Each container, by project, service and number. Empty with scanned_at set
+  // means the server runs none. With no scanned_at, the agent hasn't read Docker
+  // yet, so it hasn't said anything.
+  repeated dockwell.v1.InstanceHealth instances = 1;
+  // When the agent last read the list of containers from Docker, on the server's
+  // clock.
+  google.protobuf.Timestamp scanned_at = 2;
+  // When it sent this, on the same clock, so the control plane can tell how old
+  // something in it is without their clocks agreeing.
+  google.protobuf.Timestamp reported_at = 3;
 }
 
 // Domains is where the certificate and DNS of each of a server's routes'
@@ -430,6 +449,9 @@ message ApplyCall {
   // Which deploy the step is part of, if any, which what it makes is labelled
   // with.
   Deploy deploy = 5;
+  // True when a run stopped partway took the step as far as it can be seen to have
+  // gone, so all the agent does is its check.
+  bool finishing = 6;
 }
 
 // Deploy says which revision and change a step carries out.
@@ -468,6 +490,12 @@ message DesiredResource {
   // Says the change asks it to run, so one that's there and isn't running is
   // started. A stop by hand stays otherwise, unless the change replaces it anyway.
   bool run = 4;
+  // Names a restart this resource is to have, though its spec hasn't changed:
+  // the change's ID. A resource that had this restart has no step to take.
+  string restart = 5;
+  // Says a rollback is planning it, which runs before anyone reads its plan, so it
+  // takes nothing only a person may approve.
+  bool rollback = 6;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.

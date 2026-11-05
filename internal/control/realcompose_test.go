@@ -174,7 +174,6 @@ func testATokenCantWidenWhatAPersonApproved(t *testing.T, backend store.Backend)
 	}
 	applyConfirmed(t, c, first)
 	env := first.GetPlan().GetResources()[0].GetResource().GetScope()
-	name := service.ContainerName(resource.Ref{Scope: env, Name: "shop"})
 
 	// An image swap keeps what was approved, so a token deploys it.
 	tag := importIn(t, scc, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(shop(approved), "shop:1.4", "shop:1.5", 1) + edgeNetwork})
@@ -184,8 +183,11 @@ func testATokenCantWidenWhatAPersonApproved(t *testing.T, backend store.Backend)
 	if got := apply(t, script, tag); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("a token's new image = %v: %s", got.GetState(), got.GetError())
 	}
-	// Limits change in place, and aren't access.
-	id := e.Container(name).ID
+	// Limits change in place, and aren't access. A new image rolls, so what runs now
+	// has the next number.
+	running := e.Newest(docker.Project(env), "shop")
+	name := strings.TrimPrefix(running.Name, "/")
+	id := running.ID
 	limit := importIn(t, scc, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(shop(approved), "shop:1.4", "shop:1.5", 1) + "    mem_limit: 512M\n" + edgeNetwork})
 	if limit.GetPlan().GetHostAccess() {
 		t.Errorf("a limit plans host access: %v", limit.GetPlan())

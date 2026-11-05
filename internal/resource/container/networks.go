@@ -12,7 +12,6 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
-	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -84,6 +83,8 @@ func validateNetworking(c *resourcev1.Container) error {
 	switch {
 	case c.GetHostNetwork() && len(c.GetNetworks())+len(c.GetExternalNetworks()) > 0:
 		return errors.New("a service on the server's own network joins no others. Leave out host_network, or its networks")
+	case c.GetHostNetwork() && AgentCheck(c.GetHealthcheck()) != nil:
+		return errors.New("a service on the server's own network has no address of its own, so the agent can't tell it from whatever else listens there. Use a command check, which runs inside the container")
 	case c.GetHostNetwork() && len(c.GetPorts()) > 0:
 		return errors.New("a service on the server's own network listens on the server's ports itself, and Docker publishes none for it. Leave out its ports")
 	case len(c.GetAliases()) > 0 && len(c.GetNetworks())+len(c.GetExternalNetworks()) == 0:
@@ -235,7 +236,7 @@ func (d *Docker) checkRouted(ctx context.Context, t Target, spec *resourcev1.Con
 	if !spec.GetHostNetwork() || d.Ingress == nil || !t.Scoped || desired == nil {
 		return nil
 	}
-	routed, err := d.Ingress.RoutedAfter(ctx, ingress.Instance{Project: t.Project, Service: t.Service, Number: 1}, desired)
+	routed, err := d.Ingress.RoutedAfter(ctx, t.instance(max(t.Number, 1)), desired)
 	if err != nil || !routed {
 		return err
 	}

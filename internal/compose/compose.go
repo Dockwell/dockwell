@@ -155,17 +155,18 @@ func Message(err error) string {
 var (
 	topKeys     = keys("name", "version", "services", "volumes", "networks")
 	serviceKeys = keys("image", "command", "entrypoint", "environment", "ports", "restart", "labels", "volumes",
-		"networks", "network_mode", "user", "working_dir", "healthcheck", "depends_on", "expose",
+		"networks", "network_mode", "user", "working_dir", "healthcheck", "depends_on", "expose", "stop_grace_period",
 		"container_name", "build", "deploy", "cpus", "mem_limit", "mem_reservation",
 		"cap_add", "cap_drop", "group_add", "privileged", "logging")
 	volumeKeys  = keys("driver", "driver_opts", "labels")
 	networkKeys = keys("driver", "driver_opts", "internal", "labels", "external", "name")
 	healthKeys  = keys("test", "interval", "timeout", "start_period", "retries", "disable")
+	deployKeys  = keys("resources", "replicas", "update_config")
+	updateKeys  = keys("order", "parallelism", "failure_action")
 	portKeys    = keys("target", "published", "host_ip", "protocol", "mode")
 	mountKeys   = keys("type", "source", "target", "read_only", "bind", "consistency")
 	bindKeys    = keys("selinux")
 	dependsKeys = keys("condition", "required", "restart")
-	deployKeys  = keys("resources")
 	limitsKeys  = keys("limits", "reservations")
 	amountKeys  = keys("cpus", "memory")
 	joinKeys    = keys("aliases")
@@ -259,14 +260,26 @@ func checkRaw(file []byte) (map[string]any, error) {
 	if err := check("the Compose file", raw, topKeys); err != nil {
 		return nil, err
 	}
+	// Dockwell's own extension is read, so it counts, as what it holds does.
+	ours := map[string]any{}
+	services, _ := raw["services"].(map[string]any)
+	for name, v := range services {
+		if svc, ok := v.(map[string]any); ok {
+			if e, ok := svc[extensionKey]; ok {
+				ours[name] = e
+			}
+		}
+	}
 	dropExtensions(raw)
+	for name, e := range ours {
+		services[name].(map[string]any)[extensionKey] = e
+	}
 	if err := measure(raw); err != nil {
 		return nil, err
 	}
 	if err := conform(place{owner: fileOwner}, raw, fileShape()); err != nil {
 		return nil, err
 	}
-	services, _ := raw["services"].(map[string]any)
 	for _, name := range slices.Sorted(maps.Keys(services)) {
 		what := "the service " + name
 		svc, ok := services[name].(map[string]any)
@@ -447,6 +460,8 @@ type model struct {
 	limits map[string]*resourcev1.Resources
 	// notices are what the plan should say of the file.
 	notices []Notice
+	// extensions are what each service's x-dockwell says.
+	extensions map[string]*extension `yaml:"-"`
 }
 
 // MaxFile is the largest Compose file Parse reads: 256 KiB, far more than
@@ -573,6 +588,10 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if err := checkPortRanges(dict); err != nil {
 		return nil, err
 	}
+	extensions, err := takeExtensions(dict)
+	if err != nil {
+		return nil, err
+	}
 	if dict, err = transform.Canonical(dict, false); err != nil {
 		return nil, invalid("the Compose file isn't valid: %v", err)
 	}
@@ -586,7 +605,7 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if ctx.Err() != nil {
 		return nil, stopped(ctx)
 	}
-	m.limits, m.notices = limits, unkept
+	m.limits, m.notices, m.extensions = limits, unkept, extensions
 	if err := m.resolve(variables, in.Directory); err != nil {
 		return nil, err
 	}
@@ -771,6 +790,9 @@ func stack(p *model) (*Stack, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := p.extensions[name].apply("the service "+name, c); err != nil {
+			return nil, err
+		}
 		specs[name] = &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}
 		for _, u := range uses {
 			binding.Use(specs[name], u)
@@ -933,6 +955,12 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 	if err := joinNetworks(name, s, c, p); err != nil {
 		return nil, err
 	}
+	if g := s.StopGracePeriod; g != nil && *g > 0 {
+		c.StopGracePeriod = time.Duration(*g).String()
+	}
+	if err := deploy(what, s, c); err != nil {
+		return nil, err
+	}
 	if hc := s.HealthCheck; hc != nil {
 		if hc.Disable {
 			c.Healthcheck = &resourcev1.Healthcheck{Test: []string{"NONE"}}
@@ -972,6 +1000,42 @@ func readRestart(what, restart string) (resourcev1.RestartPolicy, uint32, error)
 		return 0, 0, invalidAt(place{what, "restart"}, "%s restarts %q, and on-failure's count is a number of times, such as on-failure:5", what, restart)
 	}
 	return policy, uint32(n), nil
+}
+
+// deploy reads what a Compose file's deploy section says that Dockwell can run,
+// which is how it replaces a container: docker compose up reads none of it, and
+// a swarm reads it all, so it means the same in both places it can mean anything.
+// Anything else in it is refused by name.
+func deploy(what string, s *types.ServiceConfig, c *resourcev1.Container) error {
+	d := s.Deploy
+	if d == nil {
+		return nil
+	}
+	if r := d.Replicas; r != nil && *r != 1 {
+		return invalid("%s asks for %d replicas, and Dockwell runs one container of a service on each server it is placed on for now. Set replicas to 1, or remove it", what, *r)
+	}
+	u := d.UpdateConfig
+	if u == nil {
+		return nil
+	}
+	if p := u.Parallelism; p != nil && *p != 1 {
+		return invalid("%s updates %d containers at a time, and it has one. Set parallelism to 1, or remove it", what, *p)
+	}
+	switch u.FailureAction {
+	case "", "rollback":
+	default:
+		return invalid("%s has failure_action %s, and Dockwell rolls a failed deploy back. Set it to rollback, or remove it", what, u.FailureAction)
+	}
+	switch u.Order {
+	case "":
+	case "start-first":
+		c.Rollout = &resourcev1.Rollout{Order: resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST}
+	case "stop-first":
+		c.Rollout = &resourcev1.Rollout{Order: resourcev1.RolloutOrder_ROLLOUT_ORDER_STOP_FIRST}
+	default:
+		return invalid("%s has the update order %s, which Docker doesn't take. Use start-first or stop-first", what, u.Order)
+	}
+	return nil
 }
 
 // mountBind reads what a mount says of binding a server path: relabelling

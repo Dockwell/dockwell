@@ -25,6 +25,12 @@ type Desired struct {
 	// stop by hand isn't drift (ADR 0021), so nothing else starts it, but for a
 	// change that replaces it anyway.
 	Run bool
+	// Restart names a restart the resource is to have, though its spec hasn't
+	// changed: the change's ID. Its kind is a Settler.
+	Restart string
+	// Rollback says a rollback is planning this, which runs before anyone reads its
+	// plan, so it takes nothing only a person may approve.
+	Rollback bool
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -137,6 +143,15 @@ type Judge interface {
 	Judge(ctx context.Context, ref Ref, actual, desired proto.Message, changes []Change) (Decision, error)
 }
 
+type pullingKey struct{}
+
+// Pulling says a plan is judging a step that asks for its image again, so what
+// reads as the spec by its tag may not be what the tag names by the time it runs.
+func Pulling(ctx context.Context) bool {
+	pulling, _ := ctx.Value(pullingKey{}).(bool)
+	return pulling
+}
+
 // Runner is a driver whose resources run, and so can be there without running.
 type Runner interface {
 	// NotRunning says in a word how a resource that's there isn't running, such
@@ -156,6 +171,18 @@ var notRunningWords = []string{"created", "exited", "dead", "paused", "removing"
 // value someone should not see.
 func IsStateChange(c Change) bool {
 	return c.Path == StatePath && c.To == "running" && slices.Contains(notRunningWords, c.From)
+}
+
+// Settler is a driver whose resource can read back as its spec and still have
+// work left, as a service whose rollout stopped partway reads as its new
+// container with the old one still there. Planning asks it what is left when
+// the specs are equal, so what a crash left finds its way to an end. It also
+// restarts a resource, which changes no spec.
+type Settler interface {
+	// Settle judges what is left of a resource that reads back as desired, and
+	// reports false when nothing is. restart names a restart it is to have, if
+	// it hasn't had that one yet.
+	Settle(ctx context.Context, ref Ref, desired proto.Message, restart string) (Decision, bool, error)
 }
 
 // desiredKey is where a plan's context holds all it touches on the server.
@@ -194,10 +221,12 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback}, d
 	}
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
+		// As the step it plans will have it, once it applies.
+		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback})
 		if c, ok := d.(Checker); ok && spec != nil {
 			if err := c.Check(ctx, want.Ref, spec); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
@@ -216,20 +245,34 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
+		// An in-place update doesn't restart anything, so a restart replaces it.
+		settling := false
+		if s, ok := d.(Settler); ok && spec != nil && (step.Action == ActionNone || want.Restart != "" && step.Action == ActionUpdate) {
+			dec, left, err := s.Settle(ctx, want.Ref, spec, want.Restart)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.Decision, settling = dec, true
+			}
+		}
 		// A spec can't say it should be running, so nothing differs. What's there and
 		// isn't running stays so, unless this change asks it to run, which a replace
-		// does, or is replacing it anyway. The plan says which, and nothing is up for
-		// that to take down.
-		if r, ok := d.(Runner); ok && spec != nil && actual != nil && (want.Run || step.Action == ActionReplace) {
+		// or a restart does, or is replacing it anyway. The plan says which, and nothing
+		// is up for that to take down. What a crash left is work to finish, not
+		// something stopped, so it has no such word.
+		if r, ok := d.(Runner); ok && spec != nil && actual != nil && (want.Run || want.Restart != "" || step.Action == ActionReplace && !settling) {
 			state, err := r.NotRunning(ctx, want.Ref)
 			if err != nil {
 				return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
 			}
 			if state != "" {
 				changes := append(slices.Clone(step.Changes), Change{Path: StatePath, Op: OpModified, From: state, To: "running"})
-				dec, err := decide(ctx, d, want.Ref, actual, spec, changes)
-				if err != nil {
-					return nil, err
+				dec := step.Decision
+				if dec.Action != ActionReplace {
+					if dec, err = decide(ctx, d, want.Ref, actual, spec, changes); err != nil {
+						return nil, err
+					}
 				}
 				dec.Downtime = 0
 				step.Decision, step.Changes = dec, changes
@@ -240,7 +283,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			// does, but what its tag points at may. What that would take is what
 			// another image takes, as far as anyone can tell before it pulls.
 			if step.Action == ActionNone || step.Action == ActionUpdate {
-				dec, err := decide(ctx, d, want.Ref, actual, spec, append(slices.Clone(step.Changes), Change{Path: "image"}))
+				dec, err := decide(context.WithValue(ctx, pullingKey{}, true), d, want.Ref, actual, spec, append(slices.Clone(step.Changes), Change{Path: "image"}))
 				if err != nil {
 					return nil, err
 				}
@@ -259,6 +302,9 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			if err := c.CheckPlan(ctx, want, normal); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 			}
+		}
+		if step.Action == ActionCreate || step.Action == ActionReplace {
+			step.Restart = want.Restart
 		}
 		steps = append(steps, step)
 	}
@@ -325,14 +371,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		ctx = WithValues(ctx, values)
 	}
-	if err := d.Apply(ctx, step, desired); errors.Is(err, ErrAlreadySo) {
-		// Nothing changed, and a step that reads done still says it's running.
-		if err := d.Verify(ctx, step.Ref, desired); err != nil {
-			return fmt.Errorf("%s is as asked, but it isn't healthy: %w", step.Ref, err)
+	if !step.Finishing {
+		if err := d.Apply(ctx, step, desired); errors.Is(err, ErrAlreadySo) {
+			// Nothing changed, and a step that reads done still says it's running.
+			if err := d.Verify(ctx, step.Ref, desired); err != nil {
+				return fmt.Errorf("%s is as asked, but it isn't healthy: %w", step.Ref, err)
+			}
+			return nil
+		} else if err != nil {
+			return cantApply(step, err)
 		}
-		return nil
-	} else if err != nil {
-		return cantApply(step, err)
 	}
 	actual, err := Observe(ctx, d, step.Ref)
 	if err != nil {
@@ -358,6 +406,12 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 	}
 	if err := d.Verify(ctx, step.Ref, desired); err != nil {
+		if step.Restart != "" && step.Rollout != nil && !step.Rollout.Rolling {
+			// The old one went before the new one started, and a restart has no
+			// revision to go back to.
+			return Plainly(fmt.Sprintf("%s restarted, and it isn't healthy, and the old container stopped first, so nothing of it runs now: %s. Fix what this says, then restart it again, or deploy it.", step.Ref.Name, clause(err)),
+				fmt.Errorf("restarted %s, and it isn't healthy, and the old container stopped first, so nothing of it runs now: %w. Fix what this says, then restart it again, or deploy it", step.Ref, err))
+		}
 		return Plainly(fmt.Sprintf("%s isn't healthy: %s. Check it on this server, then try again.", step.Ref.Name, clause(err)),
 			fmt.Errorf("applied %s, but it isn't healthy: %w", step.Ref, err))
 	}

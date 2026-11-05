@@ -16,21 +16,23 @@
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
-# certificate serve over plain HTTP on port 80 alone, to what they name. It uses throwaway data
-# directories and removes what it made, so it never touches a real install. It
-# needs Docker with the compose plugin, Go, curl, jq, openssl and iproute2's ss,
-# a free port (E2E_WEB_PORT, 18080 by default), and ports 80 and 443 free, for
-# the ingress's own part. With E2E_PANEL set, as in CI, it also moves the panel's
-# own domain behind Caddy and back, which needs sudo to let this user bind ports
-# 80 and 443. With E2E_ROOT set, as in CI, Dockwell runs as root through sudo, as
-# it does on a server, so Caddy runs as its own user and its directories are given
-# to it, and it restarts Docker itself along the way.
+# certificate serve over plain HTTP on port 80 alone, to what they name. A rollout
+# runs under load through that Caddy, with an app slow to turn healthy and one that
+# never does, counting every request. It uses throwaway data directories and removes
+# what it made, so it never touches a real install. It needs Docker with the compose
+# plugin, Go, curl, jq, openssl, pgrep and iproute2's ss, a free port (E2E_WEB_PORT,
+# 18080 by default), and ports 80 and 443 free, for the ingress's own part. With
+# E2E_PANEL set, as in CI, it also moves the panel's own domain behind Caddy and
+# back, which needs sudo to let this user bind ports 80 and 443. With E2E_ROOT set,
+# as in CI, Dockwell runs as root through sudo, as it does on a server, so Caddy runs
+# as its own user and its directories are given to it, and it restarts Docker itself
+# along the way.
 #
 #   scripts/docker-e2e.sh bin/dockwell bin/dockwell-agent
 set -euo pipefail
 
 usage="usage: scripts/docker-e2e.sh path/to/dockwell path/to/dockwell-agent"
-for tool in docker curl go jq openssl ss; do
+for tool in docker curl go jq openssl pgrep ss; do
   command -v "$tool" >/dev/null || {
     echo "docker-e2e: $tool isn't installed, and the script needs it. Install it, such as with apt-get install $tool, then run it again" >&2
     exit 1
@@ -62,6 +64,8 @@ cookie=$(mktemp)
 # container may mount, and Docker makes what's in it as root.
 real_dir=$(mktemp -d)
 
+load_pid=""
+rollout_dir=$(mktemp -d)
 pebble_dir=$(mktemp -d)
 tools=${E2E_INGRESS_TOOLS:-$(mktemp -d)}
 pebble_pids=()
@@ -120,12 +124,14 @@ cleanup() {
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-tunnel >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
+  [[ -z "$load_pid" ]] || kill "$load_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
   for p in "${pebble_pids[@]:-}"; do
     [[ -z "$p" ]] || kill "$p" 2>/dev/null || true
   done
   wait 2>/dev/null || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir" "$real_dir"
+  docker image rm --force dockwell-e2e-app:slow dockwell-e2e-app:never >/dev/null 2>&1 || true
+  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir" "$real_dir" "$rollout_dir"
 }
 trap cleanup EXIT
 
@@ -153,8 +159,34 @@ ingress_state() {
 }
 in_ingress=""
 
+# rollout_state says where the rollout under test stands, for a failure in that
+# part: what Docker runs, what the API says of it, what changed, and what the load
+# has counted so far.
+rollout_state() {
+  echo "--- the app's containers, newest first" >&2
+  docker ps -a --filter "label=com.docker.compose.service=app" --format '{{.Names}} {{.State}} {{.Status}} {{.Image}} {{.Label "com.docker.compose.container-number"}}' >&2 || true
+  echo "--- its health, as the API has it" >&2
+  dw health list --service app --json >&2 2>/dev/null || true
+  echo "--- the last changes, newest first" >&2
+  dw changes list --json 2>/dev/null | jq -c '.changes[:6][]? | {id, summary, state, error, because, restart, rolledBackBy}' >&2 || true
+  echo "--- the app's last events, newest first" >&2
+  dw events list --page-size 12 --json 2>/dev/null | jq -c '.events[]? | {time, action, summary, health}' >&2 || true
+  echo "--- what Caddy dials for it" >&2
+  priv cat "$data/ingress/run/upstreams/dockwell.$project.roll" >&2 2>/dev/null || true
+  echo >&2
+  if [[ -n "$load_pid" ]]; then
+    echo "--- the load is still running, so what it counted isn't here" >&2
+  elif [[ -s "$rollout_dir/load.json" ]]; then
+    echo "--- what the load counted" >&2
+    cat "$rollout_dir/load.json" >&2
+    echo >&2
+  fi
+}
+in_rollout=""
+
 fail() {
   echo "docker-e2e: $*" >&2
+  [[ -z "$in_rollout" ]] || rollout_state
   [[ -z "$in_ingress" ]] || ingress_state
   echo "--- dockwell log" >&2
   cat "$log" >&2
@@ -429,6 +461,10 @@ step "A rotation still reaches it, so the import kept the reference"
 secret_next=e2e-s3cret-next
 printf '%s' "$secret_next" >"$data/secret-value"
 dw secrets update DB_PASSWORD --value-file "$data/secret-value" --yes || fail "secrets update failed"
+# It rolls as any change does, to the next number.
+api=$(docker ps -a --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=api --format '{{.Names}}') ||
+  fail "docker ps failed"
+[[ "$api" == "$project-api-2" ]] || fail "after the rotation, Docker has '$api' for api, want only $project-api-2"
 api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
 grep -qx "DATABASE_PASSWORD=$secret_next" <<<"$api_env" || fail "the rotation didn't reach api"
 
@@ -706,16 +742,20 @@ docker rm --force "$(moving_id)" >/dev/null || fail "can't remove the app's cont
 moving_comes_back "was removed"
 [[ "$(moving_revisions | jq '.revisions | length')" == "$written" ]] || fail "bringing back the same image wrote a revision: $(moving_revisions)"
 
-step "A moving tag: with its registry back, a deploy and a rollback each replace what's stopped, and it runs"
+step "A moving tag: with its registry back and nothing newer, a deploy and a rollback each run what's stopped"
 docker start e2e-registry >/dev/null || fail "can't start the registry again"
 registry_up
 docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
 before=$(moving_id)
 said=$(dw services deploy moving --image "$moving" --yes 2>&1) || fail "deploying what's stopped failed: $said"
 if grep -qF "stays as it is" <<<"$said"; then fail "it says it stays as it is, and it wasn't running: $said"; fi
-[[ "$(moving_id)" != "$before" ]] || fail "what's stopped wasn't replaced"
 moving_running
 moving_serves second
+# It's already what this asks for, so it's the same container that starts, as under
+# docker compose up, and the step says that, rather than that it replaced it.
+[[ "$(moving_id)" == "$before" ]] || fail "what's stopped was replaced, with nothing newer to replace it with: $said"
+grep -qF "so the same container started" <<<"$said" || fail "it doesn't say the same container started: $said"
+if grep -qF "Replaced service moving" <<<"$said"; then fail "it says it replaced what it only started: $said"; fi
 docker stop --time 1 "$(moving_id)" >/dev/null || fail "can't stop the app's container"
 same=$(moving_revisions | jq -r '[.revisions[1:][] | select(.matchesLatest)][0].number') || fail "services revisions failed"
 [[ "$same" != null ]] || fail "no revision matches the latest: $(moving_revisions)"
@@ -951,11 +991,15 @@ else
   echo "This machine has no IPv6 on loopback, so the client's real address over IPv6 wasn't checked"
 fi
 
-step "Ingress: a replaced service keeps its address, and goes on serving"
+step "Ingress: a replaced service moves to a container and an address of its own, and goes on serving"
 dw services update web --app-image nginx:1.27-alpine --app-env GREETING=hi --yes || fail "services update web failed"
-[[ "$(docker inspect --format '{{.Id}}' "$web")" != "$web_id" ]] || fail "the update didn't replace web's container"
+replaced=$web
+web=$(docker ps -a --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=web --format '{{.Names}}') || fail "docker ps failed"
+[[ "$web" == "$project-web-2" ]] || fail "after the update, Docker has '$web' for web, want only $project-web-2: a rolling replace takes the next number, as docker compose would give it"
+if docker inspect "$replaced" >/dev/null 2>&1; then fail "the update left the old container, $replaced"; fi
 now=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAMConfig.IPv4Address}}' "$web") || fail "the new container isn't on dockwell_ingress"
-[[ "$now" == "$static" ]] || fail "the new container is at $now, want the instance's address, $static"
+[[ -n "$now" && "$now" != "$static" ]] || fail "the new container is at '$now', want an address of its own, not the old one's, $static, which a connection that outlives the rollout may still dial"
+static=$now
 says nginx over_https || fail "after the update, https://$domain/ doesn't serve web"
 listed=$(docker compose -p "$project" ps --format '{{.Service}}') || fail "docker compose -p $project ps failed"
 grep -qx web <<<"$listed" || fail "docker compose doesn't list web on the ingress network: $listed"
@@ -1128,6 +1172,309 @@ says 'by hand' over_https || fail "Dockwell reverted a hand edit on its own: dri
 server=$(jq -r '.drift[] | select(.resource.kind == "route") | .serverId' <<<"$drift")
 dw drift revert --server-id "$server" --resource-id "$drifted" --yes || fail "drift revert failed"
 says nginx over_https || fail "after reverting, https://$domain/ doesn't serve web"
+
+in_rollout=1
+# A step says when, to read against when the load says a request failed.
+rollout_step() { step "Rollouts ($(date +%T)): $*"; }
+
+# The network prune above took the imported file's network, as nothing was on it by
+# then, and it rightly stays as drift. So a rollout is held to what it adds.
+drifted() { dw drift list --json | jq -c '[(.drift // [])[] | .resource] | sort_by(.kind, .name)'; }
+drift_before=$(drifted) || fail "drift list failed"
+# What it holds is that network, and nothing else, or this would let through drift
+# from something it never looked at.
+jq -e 'length == 1 and .[0].kind == "network" and .[0].name == "back"' <<<"$drift_before" >/dev/null ||
+  fail "before the rollouts, the drift should be the network back alone, and is: $drift_before"
+
+rollout_step "One app, in an image slow to turn healthy and in one that never does"
+(cd "$(dirname "$0")/.." && CGO_ENABLED=0 go build -o "$rollout_dir/e2e-load" ./scripts/e2e-load) || fail "can't build scripts/e2e-load"
+build_app() {
+  cat >"$rollout_dir/Dockerfile" <<DOCKERFILE
+FROM scratch
+COPY e2e-load /e2e-load
+ENV $2
+ENTRYPOINT ["/e2e-load", "serve"]
+DOCKERFILE
+  docker build --quiet --tag "dockwell-e2e-app:$1" "$rollout_dir" >/dev/null || fail "can't build the image dockwell-e2e-app:$1"
+}
+# It answers 503 for this long, so a check has to wait for it.
+slow_for=8
+never_says="the database refuses connections"
+build_app slow "E2E_READY_AFTER=${slow_for}s"
+build_app never "E2E_NEVER_READY=\"$never_says\""
+
+# The check the agent makes. The start period is longer than the slow image takes,
+# so its failures before then don't count.
+http_check=(--app-healthcheck-http-port 8080 --app-healthcheck-http-path /healthz --app-healthcheck-interval 1s --app-healthcheck-timeout 2s --app-healthcheck-retries 3 --app-healthcheck-start-period 15s)
+# The one Docker runs, inside the container, as a Compose file has it.
+docker_check=(--app-healthcheck-test CMD --app-healthcheck-test /e2e-load --app-healthcheck-test check --app-healthcheck-interval 1s --app-healthcheck-timeout 3s --app-healthcheck-retries 3 --app-healthcheck-start-period 1s)
+# app_spec is the whole spec of a deploy: its image, what makes it different from
+# the last, and its check, which is the agent's unless it is given another.
+app_spec() {
+  local image=$1 deploy=$2
+  shift 2
+  if [[ $# == 0 ]]; then set -- "${http_check[@]}"; fi
+  printf '%s\n' --app-image "dockwell-e2e-app:$image" --app-env "DEPLOY=$deploy" --app-rollout-drain 10s "$@"
+}
+deploy_app() {
+  local spec=()
+  mapfile -t spec < <(app_spec "$@")
+  dw services update app "${spec[@]}" --yes
+}
+app_containers() {
+  docker ps -a --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=app --format '{{.Names}} {{.State}} {{.Image}}'
+}
+# one_app checks that all there is of the app is one running container of an
+# image, by the names docker compose reads, and sets app to its name.
+one_app() {
+  local list state image
+  list=$(app_containers) || fail "docker ps failed"
+  [[ "$(wc -l <<<"$list")" == 1 ]] || fail "$1: Docker has more than one container of app, or none: $list"
+  read -r app state image <<<"$list"
+  [[ "$state" == running ]] || fail "$1: $app is $state, want running"
+  [[ "$image" == "dockwell-e2e-app:$2" ]] || fail "$1: $app runs $image, want dockwell-e2e-app:$2"
+  [[ "$app" =~ ^$project-app-[0-9]+$ ]] || fail "$1: the container is called $app, want $project-app-<number>, as docker compose names it"
+  [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.container-number"}}' "$app")" == "${app##*-}" ]] ||
+    fail "$1: $app's number label isn't what its name says: $(docker inspect --format '{{json .Config.Labels}}' "$app")"
+  [[ "$(docker compose -p "$project" ps --format '{{.Service}} {{.Name}}' | grep '^app ')" == "app $app" ]] ||
+    fail "$1: docker compose reads something else: $(docker compose -p "$project" ps --format '{{.Service}} {{.Name}}')"
+}
+app_env() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$1"; }
+# newest_change prints the newest change as JSON.
+newest_change() { dw changes list --json | jq -c '.changes[0]'; }
+changes_count() { dw changes list --page-size 200 --json | jq '.changes | length'; }
+# rolled_back waits for the rollback a failed deploy started, as the CLI returns
+# with it still going, and prints it.
+rolled_back() {
+  local change=""
+  for _ in $(seq 240); do
+    change=$(newest_change) || change=""
+    if jq -e '(.summary | startswith("Roll back")) and .state != "CHANGE_STATE_APPLYING" and .state != "CHANGE_STATE_PLANNED"' <<<"$change" >/dev/null 2>&1; then
+      echo "$change"
+      return 0
+    fi
+    sleep 0.5
+  done
+  fail "120 s after a deploy failed, the newest change isn't a finished rollback: $change"
+}
+
+rollout_step "The first deploy waits for the check, through the API"
+start=$SECONDS
+mapfile -t spec < <(app_spec slow 1)
+dw services create app "${spec[@]}" --yes || fail "services create app failed"
+((SECONDS - start >= slow_for)) || fail "the first deploy took $((SECONDS - start)) s, and the app takes $slow_for s to pass its check, so it didn't wait"
+one_app "the first deploy" slow
+first_app=$app
+state=""
+for _ in $(seq 60); do
+  health=$(dw health list --service app --json) || fail "health list failed"
+  state=$(jq -r '.services[0].state // empty' <<<"$health")
+  [[ "$state" == HEALTH_STATE_HEALTHY ]] && break
+  sleep 0.5
+done
+[[ "$state" == HEALTH_STATE_HEALTHY ]] || fail "the API says app is '$state' after 30 s, want healthy: $health"
+jq -e '.services[0].servers[0].instances[0] | .check == "HEALTH_CHECK_KIND_HTTP" and .last.passed == true and (.last.output | contains("200"))' <<<"$health" >/dev/null ||
+  fail "the API should say an HTTP check passed, answering 200, and says: $health"
+
+rollout_step "A route, and its own certificate"
+roll_domain=roll.e2e-dockwell.example.net
+dw routes create roll --domain "$roll_domain" --service app --port 8080 --yes || fail "routes create roll failed"
+[[ "$(app_containers)" == "$first_app "* ]] || fail "adding a route replaced the container, which is downtime: $(app_containers)"
+serving=""
+for _ in $(seq 120); do
+  if curl -fsS --max-time 5 --cacert "$pebble_dir/root.pem" --resolve "$roll_domain:443:127.0.0.1" "https://$roll_domain/who" 2>/dev/null | grep -q name; then
+    serving=1
+    break
+  fi
+  sleep 0.5
+done
+[[ -n "$serving" ]] || fail "https://$roll_domain/ didn't serve app within 60 s"
+
+rollout_step "Requests of every kind start, and go on until the end of this part"
+# A rollout moves traffic by writing a file, so from here Caddy never reloads, and
+# no other site on this server pays for it.
+reloads() { docker logs dockwell-ingress 2>&1 | grep -c 'autosaved config' || true; }
+reloads_before=$(reloads)
+"$rollout_dir/e2e-load" drive --domain "$roll_domain" --addr 127.0.0.1:443 --roots "$pebble_dir/root.pem" --report "$rollout_dir/load.json" >>"$rollout_dir/load.log" 2>&1 &
+load_pid=$!
+sleep 3
+kill -0 "$load_pid" 2>/dev/null || fail "the load stopped as it started: $(cat "$rollout_dir/load.log")"
+
+rollout_step "A rolling deploy: the new one starts, turns healthy, and only then takes over"
+start=$SECONDS
+deploy_app slow 2 &
+deploying=$!
+both=""
+for _ in $(seq 100); do
+  [[ "$(app_containers | grep -c running)" == 2 ]] && both=1 && break
+  sleep 0.1
+done
+[[ -n "$both" ]] || fail "two containers of app never ran at once, so this deploy didn't roll: $(app_containers)"
+[[ "$(app_containers | grep "^$first_app ")" == "$first_app running "* ]] || fail "the old container isn't running beside the new one: $(app_containers)"
+wait "$deploying" || fail "the rolling deploy failed"
+((SECONDS - start >= slow_for)) || fail "the deploy took $((SECONDS - start)) s, and the app takes $slow_for s to pass its check, so it didn't wait"
+one_app "after a rolling deploy" slow
+[[ "$app" != "$first_app" ]] || fail "the deploy kept $app"
+[[ "${app##*-}" -gt "${first_app##*-}" ]] || fail "the new container is $app and the old was $first_app, and a number only goes up"
+app_env "$app" | grep -qx DEPLOY=2 || fail "$app's environment is $(app_env "$app")"
+jq -e '.state == "CHANGE_STATE_APPLIED"' <<<"$(newest_change)" >/dev/null || fail "the deploy reads as: $(newest_change)"
+
+rollout_step "An image that never turns healthy: it fails, rolls back, and says why"
+kept=$app
+kept_id=$(docker inspect --format '{{.Id}}' "$kept") || fail "docker inspect $kept failed"
+count=$(changes_count) || fail "changes list failed"
+if said=$(deploy_app never 3 2>&1); then fail "the CLI says a deploy that never turned healthy went through: $said"; fi
+check_said="app runs, but fails its health check: GET /healthz on port 8080 answered 503 Service Unavailable. Fix what it answers, or the check, then try again."
+grep -qF "$check_said" <<<"$said" || fail "the CLI should say what the check answered, as '$check_said', and says: $said"
+back=$(rolled_back)
+one_app "after the rollback" slow
+[[ "$(docker inspect --format '{{.Id}}' "$app")" == "$kept_id" ]] || fail "the rollback replaced what ran, $kept, with $app, and should have left it alone"
+jq -e '.state == "CHANGE_STATE_APPLIED"' <<<"$back" >/dev/null || fail "the rollback should have applied, and is: $back"
+jq -e --arg said "$check_said" '.because == $said' <<<"$back" >/dev/null || fail "the rollback should say why, as '$check_said', and says: $back"
+said=$(dw changes get "$(jq -r .id <<<"$back")" 2>&1) || fail "changes get failed: $said"
+grep -qF "Dockwell made this change because of what failed: $check_said" <<<"$said" || fail "the CLI's rollback should say why, as '$check_said', and says: $said"
+failed=$(dw changes list --json | jq -c '.changes[1]')
+jq -e --arg back "$(jq -r .id <<<"$back")" --arg said "$check_said" '.state == "CHANGE_STATE_FAILED" and .rolledBackBy == $back and .error == $said' <<<"$failed" >/dev/null ||
+  fail "the failed deploy should stay on record as failed and rolled back, saying '$check_said', and is: $failed"
+said=$(dw changes get "$(jq -r .id <<<"$failed")" 2>&1) || fail "changes get failed: $said"
+grep -qF "It failed: $check_said" <<<"$said" || fail "the CLI's failed deploy should say '$check_said', and says: $said"
+dw compose export >"$rollout_dir/after-rollback.yaml" || fail "compose export failed"
+grep -q 'dockwell-e2e-app:slow' "$rollout_dir/after-rollback.yaml" || fail "the spec isn't back on the image that ran: $(cat "$rollout_dir/after-rollback.yaml")"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a rollback: $(dw drift list --json), and before the rollouts it was $drift_before"
+
+rollout_step "A rollback doesn't go round again"
+sleep 8
+[[ "$(changes_count)" == "$((count + 2))" ]] || fail "there were $count changes, and after a deploy and its rollback, and 8 s, there are $(changes_count), want $((count + 2))"
+[[ "$(docker inspect --format '{{.Id}}' "$kept")" == "$kept_id" ]] || fail "$kept was replaced after the rollback"
+
+rollout_step "A check Docker runs fails the same, with what it printed"
+# The app prints a fixed sentence with a value from its environment inside it. The
+# image set the sentence, and the spec set the value, so the words are quoted and
+# the value is masked, as the reason is read by more people than the container is.
+database=db.e2e-dockwell.internal
+if deploy_app never 4 --app-env "E2E_DATABASE=$database" "${docker_check[@]}" >/dev/null 2>&1; then fail "the CLI says a deploy whose command check never passed went through"; fi
+back=$(rolled_back)
+one_app "after a command check's rollback" slow
+[[ "$(docker inspect --format '{{.Id}}' "$app")" == "$kept_id" ]] || fail "the rollback from a command check replaced what ran, $kept, with $app"
+check_printed="app runs, but fails its health check: the command exited with 1: \"e2e-load: 503: $never_says: •••\". Fix what it reports, or the check, then try again."
+jq -e --arg said "$check_printed" '(.summary | startswith("Roll back")) and .because == $said' <<<"$back" >/dev/null ||
+  fail "the rollback should quote what the command printed, as '$check_printed', and says: $back"
+jq -e --arg value "$database" '.because | contains($value) | not' <<<"$back" >/dev/null ||
+  fail "the rollback's reason shows a value from what the spec set: $back"
+
+rollout_step "A deploy with the check Docker runs turns healthy by it, and a slow image waits"
+start=$SECONDS
+deploy_app slow 5 --app-healthcheck-test CMD --app-healthcheck-test /e2e-load --app-healthcheck-test check --app-healthcheck-interval 1s --app-healthcheck-timeout 3s --app-healthcheck-retries 3 --app-healthcheck-start-period 15s ||
+  fail "a deploy with a command check failed"
+((SECONDS - start >= slow_for)) || fail "the deploy took $((SECONDS - start)) s, and the app takes $slow_for s to pass its check, so it didn't wait"
+one_app "after a deploy by Docker's check" slow
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "$app")" == healthy ]] || fail "Docker doesn't say $app is healthy: $(docker inspect --format '{{json .State.Health}}' "$app")"
+
+rollout_step "A restart rolls, records itself, and leaves the spec alone"
+before=$app
+restart_output=$(dw services restart app --yes) || fail "services restart app failed: $restart_output"
+one_app "after a restart" slow
+[[ "$app" != "$before" ]] || fail "the restart left $app as it was"
+app_env "$app" | grep -qx DEPLOY=5 || fail "the restart changed the spec: $(app_env "$app")"
+restarted=$(newest_change) || fail "changes list failed"
+jq -e '.restart == true and .state == "CHANGE_STATE_APPLIED"' <<<"$restarted" >/dev/null || fail "the restart reads as: $restarted"
+if dw changes undo "$(jq -r .id <<<"$restarted")" --yes >/dev/null 2>&1; then fail "a restart was undone, with nothing to undo"; fi
+plan=$(dw changes get "$(jq -r .id <<<"$restarted")" --json | jq -c '.change.plan.servers[0].steps[0]') || fail "changes get failed"
+jq -e '.restart != "" and .restart != null and .rollout.rolling == true' <<<"$plan" >/dev/null || fail "the restart's plan should name itself and roll, and is: $plan"
+
+rollout_step "The whole of Dockwell is killed mid-rollout, and it goes on when it is back"
+before=$app
+before_id=$(docker inspect --format '{{.Id}}' "$before") || fail "docker inspect $before failed"
+deploy_app slow 6 "${http_check[@]}" >/dev/null 2>&1 &
+deploying=$!
+both=""
+for _ in $(seq 100); do
+  [[ "$(app_containers | grep -c running)" == 2 ]] && both=1 && break
+  sleep 0.1
+done
+[[ -n "$both" ]] || fail "the deploy to kill never started a second container: $(app_containers)"
+kill_dockwell
+wait "$deploying" 2>/dev/null || true
+echo "Killed with $(app_containers | grep -c running) of app running: $(app_containers | tr '\n' ';')"
+[[ "$(docker inspect --format '{{.State.Running}}' "$before")" == true ]] || fail "$before stopped as Dockwell died"
+start_dockwell
+wait_for_dockwell
+settled=""
+for _ in $(seq 240); do
+  if [[ "$(app_containers | wc -l)" == 1 ]] && [[ "$(newest_change | jq -r .state)" == CHANGE_STATE_APPLIED ]]; then
+    settled=1
+    break
+  fi
+  sleep 0.5
+done
+[[ -n "$settled" ]] || fail "120 s after Dockwell came back, the rollout hasn't ended in one container and an applied change"
+one_app "after the kill" slow
+app_env "$app" | grep -qx DEPLOY=6 || fail "after the kill, what runs is deploy $(app_env "$app" | grep DEPLOY), and the rollout should have gone on to 6"
+[[ "$(docker inspect --format '{{.Id}}' "$app")" != "$before_id" ]] || fail "after the kill, what runs is the old container, and the change says it applied"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a kill: $(dw drift list --json), and before the rollouts it was $drift_before"
+
+rollout_step "A plain docker compose up reads what's there, and the next rollout reads what that leaves"
+dw compose export >"$rollout_dir/compose.yaml" || fail "compose export failed"
+GREETING=hello docker compose -f "$rollout_dir/compose.yaml" up --detach --no-recreate app ||
+  fail "docker compose up on the export failed: $(cat "$rollout_dir/compose.yaml")"
+before=$app
+one_app "after docker compose up" slow
+[[ "$app" == "$before" ]] || fail "docker compose up --no-recreate made $app of what was $before"
+deploy_app slow 7 || fail "the rollout after docker compose up failed"
+one_app "after the rollout after docker compose up" slow
+[[ "${app##*-}" -gt "${before##*-}" ]] || fail "the rollout after docker compose up made $app, after $before"
+
+rollout_step "What the load counted"
+kill -TERM "$load_pid" || fail "the load had already stopped: $(cat "$rollout_dir/load.log")"
+wait "$load_pid" || fail "the load ended badly: $(cat "$rollout_dir/load.log")"
+load_pid=""
+report=$(cat "$rollout_dir/load.json") || fail "the load wrote no report"
+jq -r .summary <<<"$report"
+echo "Served by $(jq '.servedBy | length' <<<"$report") containers: $(jq -c .servedBy <<<"$report")"
+jq -e '.failed == 0' <<<"$report" >/dev/null || fail "requests failed during the rollouts. Read when each did against the times on the steps above: $(jq -c '.errors' <<<"$report")"
+# Only a reload of Caddy cuts a new connection on its way in (ADR 0027), and nothing
+# here reloads it.
+[[ "$(reloads)" == "$reloads_before" ]] || fail "Caddy reloaded $(($(reloads) - reloads_before)) times during the rollouts, and a rollout should cost it none"
+jq -e '.reset == 0' <<<"$report" >/dev/null || fail "$(jq .reset <<<"$report") new connections were cut on the way in, with no reload to cut them: $(jq -r .summary <<<"$report")"
+for kind in short fresh browser post-http1 post-http2 slow stream websocket; do
+  jq -e --arg kind "$kind" '.passed[$kind] >= 5' <<<"$report" >/dev/null || fail "only $(jq --arg kind "$kind" '.passed[$kind]' <<<"$report") of the $kind requests passed, too few to mean anything"
+done
+jq -e '.servedBy | length >= 5' <<<"$report" >/dev/null || fail "only $(jq '.servedBy | length' <<<"$report") containers served requests, so traffic didn't move: $(jq -c .servedBy <<<"$report")"
+
+rollout_step "Killed while a stop-first deploy waits for its check: it still has to pass it, and it rolls back"
+count=$(changes_count) || fail "changes list failed"
+deploy_app never 8 "${http_check[@]}" --app-rollout-order stop-first >/dev/null 2>&1 &
+deploying=$!
+# The old one has gone, the new one has its start period to go, and nothing else of the
+# app is left to say the step hasn't ended.
+waiting=""
+for _ in $(seq 300); do
+  list=$(app_containers) || fail "docker ps failed"
+  if [[ "$(wc -l <<<"$list")" == 1 && "$list" == *" running dockwell-e2e-app:never" ]]; then
+    waiting=1
+    break
+  fi
+  sleep 0.1
+done
+[[ -n "$waiting" ]] || fail "the stop-first deploy to kill never got as far as its check: $(app_containers)"
+kill_dockwell
+wait "$deploying" 2>/dev/null || true
+start_dockwell
+wait_for_dockwell
+back=$(rolled_back)
+jq -e '.state == "CHANGE_STATE_APPLIED"' <<<"$back" >/dev/null || fail "the rollback of a deploy killed as it waited should have applied, and is: $back"
+failed=$(dw changes list --json | jq -c '.changes[1]')
+jq -e --arg said "$check_said" '.state == "CHANGE_STATE_FAILED" and .error == $said' <<<"$failed" >/dev/null ||
+  fail "a deploy killed as it waited for a check it never passes should read as failed, saying '$check_said', and is: $failed"
+[[ "$(changes_count)" == "$((count + 2))" ]] || fail "there were $count changes, and after a deploy killed as it waited and its rollback, there are $(changes_count)"
+one_app "after a deploy killed as it waited" slow
+app_env "$app" | grep -qx DEPLOY=7 || fail "after the rollback, what runs is deploy $(app_env "$app" | grep DEPLOY), and should be the one before"
+
+rollout_step "The app goes, leaving no container behind"
+dw routes delete roll --yes || fail "routes delete roll failed"
+dw services delete app --yes || fail "services delete app failed"
+[[ -z "$(app_containers)" ]] || fail "containers are left after deleting the app: $(app_containers)"
+in_rollout=""
 
 step "Ingress: the last route stops Caddy and frees the ports, and its certificate stays"
 certificate=$(priv find "$data/ingress/data/caddy/certificates" -name "$domain.crt") || fail "can't look for the certificate"

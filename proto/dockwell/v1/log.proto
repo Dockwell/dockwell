@@ -242,9 +242,13 @@ message LogSource {
   string server_id = 2;
   // The server's name, such as "hz-1".
   string server_name = 3;
-  // The replica it is, from 1, within the service on that server.
+  // The replica it is, from 1, within the service on that server. A service has
+  // one for now: the containers a rollout moves between take turns as it, and
+  // container_name says which of them this is.
   int32 replica = 4;
-  // The container's name in Docker, such as "env_01kat…-web-1".
+  // The name a person knows the container by, such as "env_01kat…-web-3". It goes up
+  // with each rolling deploy. Docker has another for a moment as a rollout stops it,
+  // which this leaves out.
   string container_name = 5;
   // The revision that made this container: 0 when nothing says, as for one
   // made with docker compose. A later revision that didn't recreate it,
@@ -291,6 +295,9 @@ enum LogSourceState {
   LOG_SOURCE_STATE_STOPPED = 4;
   // Removed from Docker. The server kept its log.
   LOG_SOURCE_STATE_KEPT = 5;
+  // Removed from Docker, and the server didn't keep its log. A follow says so of one
+  // it was reading, so a reader doesn't go on counting it as running.
+  LOG_SOURCE_STATE_GONE = 6;
 }
 
 // LogKept says why a server kept a removed container's log.

@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
@@ -166,14 +167,18 @@ func (r *Reader) sources(ctx context.Context, project, service string, kept bool
 	return out, nil
 }
 
+// theReplica is the replica of every container of a service, as a service has one on
+// a server. A rollout gives each new container the next number (ADR 0027), and they
+// take turns as that one replica, so a number isn't what tells replicas apart.
+const theReplica = 1
+
 func dockerSource(c *docker.Container) *dockwellv1.LogSource {
 	l := c.Config.Labels
-	number, _ := strconv.Atoi(l[docker.LabelNumber])
 	revision, _ := strconv.ParseInt(l[container.LabelRevision], 10, 64)
 	s := &dockwellv1.LogSource{
 		Id:            shortID(c.ID),
-		Replica:       int32(max(number, 1)), //nolint:gosec // a replica's number is small
-		ContainerName: strings.TrimPrefix(c.Name, "/"),
+		Replica:       theReplica,
+		ContainerName: container.PlainName(c.Name),
 		Revision:      revision,
 		ChangeId:      l[container.LabelChange],
 		Image:         c.Config.Image,
@@ -206,7 +211,7 @@ func dockerState(s docker.State) dockwellv1.LogSourceState {
 func keptSource(k *Kept) *dockwellv1.LogSource {
 	s := &dockwellv1.LogSource{
 		Id:            k.ContainerID,
-		Replica:       int32(k.Number), //nolint:gosec // a replica's number is small
+		Replica:       theReplica,
 		ContainerName: k.Name,
 		Revision:      k.Revision,
 		ChangeId:      k.Change,
@@ -526,6 +531,15 @@ func (s *stream) scan(first bool) error {
 			s.goneSaid[id] = true
 			s.gone(id, st.after.GetTime(), nil)
 		}
+		// And it isn't running, whatever the reader last heard of it.
+		if st.src != nil {
+			left := proto.Clone(st.src.proto).(*dockwellv1.LogSource)
+			left.State = dockwellv1.LogSourceState_LOG_SOURCE_STATE_GONE
+			if text := describe(left); text != s.said[id] {
+				s.said[id] = text
+				changed = append(changed, left)
+			}
+		}
 		// So a follow that outlives many deploys doesn't remember them all.
 		if st.src != nil && !st.reading.Load() {
 			delete(s.states, id)
@@ -834,7 +848,8 @@ func (s *stream) readFailed(st *sourceState, src *source, err error) {
 		return
 	}
 	s.r.logger().Warn("can't read a container's log", slog.String("container", src.proto.GetContainerName()), slog.String("error", err.Error()))
-	why := fmt.Sprintf("Docker can't read this container's log: %v. Check its logging driver with docker inspect %s", err, src.proto.GetContainerName())
+	// By its ID, as Docker may have it under another name for now, as a rollout stops it.
+	why := fmt.Sprintf("Docker can't read this container's log: %v. Check its logging driver with docker inspect %s", err, src.proto.GetId())
 	st.problem.Store(&why)
 }
 

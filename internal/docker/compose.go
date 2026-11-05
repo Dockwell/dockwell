@@ -2,7 +2,10 @@
 
 package docker
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // The labels Docker Compose puts on what it makes, which Dockwell puts on
 // what it makes too, so docker compose sees and manages it.
@@ -38,7 +41,13 @@ func Project(scope string) string { return strings.ToLower(scope) }
 
 // ContainerName is what Compose names the first container of a service,
 // such as "env_01kat…-web-1".
-func ContainerName(project, service string) string { return project + "-" + service + "-1" }
+func ContainerName(project, service string) string { return InstanceName(project, service, 1) }
+
+// InstanceName is what Compose names a service's container of a number, such
+// as "env_01kat…-web-3".
+func InstanceName(project, service string, number int) string {
+	return project + "-" + service + "-" + strconv.Itoa(number)
+}
 
 // ScopedName is what Compose names a project's volume or network, such as
 // "env_01kat…_data".

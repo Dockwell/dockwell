@@ -213,10 +213,6 @@ msgstr "{count, plural, other {# 行新日志}}"
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保持不变。}}"
 
-#: src/features/logs/LogsPage.tsx
-msgid "{count, plural, one {# replica} other {# replicas}}"
-msgstr "{count, plural, other {# 个副本}}"
-
 #: src/app/Providers.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
@@ -473,6 +469,12 @@ msgstr "{name}，{status}"
 msgid "{name}, {status}, CPU {cpu}%"
 msgstr "{name}，{status}，CPU {cpu}%"
 
+#. placeholder {0}: line.lead
+#. placeholder {0}: line.text
+#: src/features/changes/notices.tsx
+msgid "{name}: {0}"
+msgstr "{name}：{0}"
+
 #: src/features/changes/notices.tsx
 msgid "{name}'s {where} holds the value of {variable}"
 msgstr "{name} 的 {where} 中含有 {variable} 的值"
@@ -480,6 +482,10 @@ msgstr "{name} 的 {where} 中含有 {variable} 的值"
 #: src/features/changes/notices.tsx
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
+
+#: src/features/changes/notices.tsx
+msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
+msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里，这可能损坏数据库。只有在应用能够承受时才应用此计划。"
 
 #: src/features/changes/words.ts
 msgid "{networks, plural, one {a network} other {# networks}}"
@@ -549,6 +555,10 @@ msgstr "{revision} 由 Dockwell 回滚于 {when}"
 #: src/features/apps/AppOverview.tsx
 msgid "{revision} started deploying {when}"
 msgstr "{revision} 开始部署于 {when}"
+
+#: src/features/logs/LogsPage.tsx
+msgid "{runningNow, plural, one {# container} other {# containers}}"
+msgstr "{runningNow, plural, other {# 个容器}}"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "{rx} in · {tx} out"
@@ -620,8 +630,20 @@ msgid "{size} more not kept"
 msgstr "另有 {size} 未保留"
 
 #: src/features/logs/draw.ts
+msgid "{source} started {revision}"
+msgstr "{source} 启动了 {revision}"
+
+#: src/features/logs/draw.ts
 msgid "{source} started {revision}, in container {container}"
 msgstr "{source} 启动了 {revision}，容器为 {container}"
+
+#: src/features/changes/words.ts
+msgid "{source} stays on the server, as it was"
+msgstr "{source} 原样保留在服务器上"
+
+#: src/features/changes/words.ts
+msgid "{source} stops being what the service sees at {target}"
+msgstr "{source} 不再是服务在 {target} 看到的内容"
 
 #: src/features/logs/LogFoot.tsx
 msgid "{speed} lines/s"
@@ -849,6 +871,10 @@ msgstr "一个 {type} 挂载（{reads}）"
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
 
+#: src/features/changes/words.ts
+msgid "A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first"
+msgstr "服务器自身网络上的容器直接监听服务器的端口，因此两个容器不能同时运行，旧容器会先停止"
+
 #: src/features/logs/LogsPage.tsx
 msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 msgstr "容器被移除时，它的日志也会一并移除。每台服务器为每个应用保留最近一个失败和最近一个被替换的容器的日志，保留 30 天，总量不超过 256 MB；已删除应用的日志保留 7 天。"
@@ -856,6 +882,14 @@ msgstr "容器被移除时，它的日志也会一并移除。每台服务器为
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
+
+#: src/features/changes/words.ts
+msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
+msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果它在 {healthyWithin} 内未变为健康，Dockwell 会回滚此更改"
+
+#: src/features/changes/words.ts
+msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
+msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果它在 {healthyWithin} 内未变为健康，新容器会被移除，正在运行的容器保留"
 
 #: src/features/changes/notices.tsx
 msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't."
@@ -1084,6 +1118,10 @@ msgstr "全部"
 msgid "All actors"
 msgstr "所有执行者"
 
+#: src/features/logs/LogsPage.tsx
+msgid "All containers"
+msgstr "全部容器"
+
 #: src/features/apps/AppOverview.tsx
 msgid "All deployments"
 msgstr "全部部署"
@@ -1099,10 +1137,6 @@ msgstr "全部健康"
 #: src/features/logs/LogsPage.tsx
 msgid "All levels"
 msgstr "全部级别"
-
-#: src/features/logs/LogsPage.tsx
-msgid "All replicas"
-msgstr "全部副本"
 
 #: src/features/apps/AppsPage.tsx
 msgid "All servers"
@@ -1642,6 +1676,10 @@ msgstr "连接"
 msgid "container"
 msgstr "容器"
 
+#: src/features/logs/LogsPage.tsx
+msgid "Container"
+msgstr "容器"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
@@ -2109,6 +2147,10 @@ msgstr "Dockwell {short}：控制平面状态"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
+#: src/features/changes/words.ts
+msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
+msgstr "Dockwell 无法读取 {cantTell} 的实际位置，因此无法确定两个容器不会写入同一处，所以旧容器先停止。如果应用支持，请将其发布顺序设置为先启动"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell can't tell whether <0>{next}</0> started"
 msgstr "Dockwell 无法确定 <0>{next}</0> 是否已启动"
@@ -2153,6 +2195,10 @@ msgstr "Dockwell 会继续尝试。"
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell made a rollback of this, and can't say yet how it went."
 msgstr "Dockwell 已为此创建回滚，但暂时无法确定结果。"
+
+#: src/features/changes/FailureNotice.tsx
+msgid "Dockwell made this change because of what failed"
+msgstr "Dockwell 因为失败的内容做了这次变更"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Dockwell made this change to roll back a failed one."
@@ -2628,6 +2674,14 @@ msgstr "https:// 地址将报错，已看到其 HSTS 的浏览器在 HSTS 过期
 msgid "I saved them"
 msgstr "我已保存"
 
+#: src/features/changes/notices.tsx
+msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
+msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
+
+#: src/features/changes/words.ts
+msgid "If the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to"
+msgstr "如果新容器无法启动，此服务将没有任何容器运行，而重启没有可回退的版本"
+
 #: src/features/auth/ProfilePage.tsx
 msgid "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
 msgstr "如果你丢了保存唯一通行密钥的设备，就需要在服务器上运行 <0>dockwell recover</0>。请再添加一个通行密钥，或设置身份验证器应用。"
@@ -2719,6 +2773,10 @@ msgid "Issuing"
 msgstr "签发中"
 
 #: src/features/changes/words.ts
+msgid "It also removes {extra} more containers of this service, which a rollout that stopped partway or docker compose up --scale left"
+msgstr "它还会移除此服务的另外 {extra} 个容器，它们是中途停止的发布或 docker compose up --scale 留下的"
+
+#: src/features/changes/words.ts
 msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
 msgstr "它通过纯 HTTP 响应任何能访问 {server} 80 端口的人，绕过它前面的任何东西"
 
@@ -2762,6 +2820,14 @@ msgstr "在此之前，无法确定那里正在运行什么。请检查服务器
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
 
+#: src/features/changes/words.ts
+msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
+msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健康，Dockwell 会回滚此更改"
+
+#: src/features/changes/words.ts
+msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
+msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健康，新容器会被移除，已停止的容器保持停止"
+
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
 msgstr "它已加入，但代理尚未连接，所以还没有数据。请在该服务器上运行 <0>dockwell run</0> 启动代理。"
@@ -2797,6 +2863,14 @@ msgstr "它的访问地址可能不止这里所示。没有任何内容发生变
 #: src/features/logs/LogsPage.tsx
 msgid "It may have been deleted. Dockwell has no logs under this address."
 msgstr "它可能已被删除。Dockwell 在此地址下没有日志。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "It never stopped. Dockwell removed what this made after it failed."
+msgstr "它从未停止。这次变更失败后,Dockwell 移除了它创建的内容。"
+
+#: src/features/logs/LogNote.tsx
+msgid "It ran as <0>{ranAs}</0>."
+msgstr "它曾以 <0>{ranAs}</0> 运行。"
 
 #: src/features/changes/notices.tsx
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
@@ -2870,6 +2944,14 @@ msgstr "其中的应用会以这个名称显示为一行，并使用独立的网
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
 
+#: src/features/changes/words.ts
+msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgstr "其镜像将数据保存在 {imageData}，两个容器不能同时写入，因此旧容器会先停止。如果应用支持同时写入，请将其发布顺序设置为先启动"
+
+#: src/features/changes/words.ts
+msgid "Its image puts an empty volume there. {source} stays on the server, as it was"
+msgstr "其镜像会在那里放置一个空卷。{source} 原样保留在服务器上"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"
@@ -2877,6 +2959,10 @@ msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除
 #: src/features/logs/LogsPage.tsx
 msgid "Its logs show here once they can be read."
 msgstr "能读取时，它的日志就会显示在这里。"
+
+#: src/features/changes/words.ts
+msgid "Its rollout order says to stop first, so there are never two"
+msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器"
 
 #: src/features/changes/notices.tsx
 msgid "its server"
@@ -3524,6 +3610,14 @@ msgstr "离线"
 #: src/features/auth/TotpPanel.tsx
 msgid "On"
 msgstr "开启"
+
+#: src/features/changes/words.ts
+msgid "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
+msgstr "在 {networks} 上，新容器通过检查之前，其他服务就可以通过其服务名称和 {names} 与旧容器一样访问到它，因为 Docker 无法在之后为容器添加名称"
+
+#: src/features/changes/words.ts
+msgid "On {networks}, other services can reach the new container by its service's name before it has passed its check, beside the old one, as Docker can't add a name to a container later"
+msgstr "在 {networks} 上，其他服务可以在新容器通过检查之前通过服务名访问到它，与旧容器并存，因为 Docker 无法在之后为容器添加名称"
 
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -4241,10 +4335,6 @@ msgstr "已替换"
 msgid "Replacing"
 msgstr "正在替换"
 
-#: src/features/logs/LogsPage.tsx
-msgid "Replica"
-msgstr "副本"
-
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"
 msgstr "必填"
@@ -4433,6 +4523,14 @@ msgstr "回滚失败于 {when}"
 #: src/features/changes/words.ts
 msgid "Rolling back to {revision}"
 msgstr "正在回滚到 {revision}"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "rolling, with nothing stopped"
+msgstr "滚动发布，不停止任何内容"
+
+#: src/features/changes/words.ts
+msgid "Rolling, with nothing stopped"
+msgstr "滚动更新，不停止任何服务"
 
 #: src/features/apps/AppDeployments.tsx
 msgid "Rollout"
@@ -5148,6 +5246,10 @@ msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称�
 msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
 
+#: src/features/changes/words.ts
+msgid "The old container stops first"
+msgstr "旧容器先停止"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "The old value stays in this variable's history"
 msgstr "旧值仍保留在该变量的历史中"
@@ -5199,6 +5301,10 @@ msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {
 #: src/features/activity/ActivityPage.tsx
 msgid "the resource filter"
 msgstr "资源筛选"
+
+#: src/features/changes/words.ts
+msgid "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
+msgstr "路由 {edited} 已被手动修改，Dockwell 不会改动它，因此新容器必须沿用旧容器的地址，旧容器先停止。还原或采纳该修改后即可滚动发布"
 
 #: src/features/logs/LogsPage.tsx
 msgid "The search failed"
@@ -5392,12 +5498,16 @@ msgid "This path crosses the open internet unencrypted, between Cloudflare and t
 msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
 
 #: src/features/changes/notices.tsx
-msgid "This plan destroys data or may cut off access"
-msgstr "这个计划会销毁数据，或可能切断访问"
+msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
+msgstr "此计划会销毁数据、可能切断访问，或让两个容器写入同一处"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
 msgstr "这会访问服务器上的 <0>{source}</0>。需要你在计划中批准，API 令牌无法批准。"
+
+#: src/features/changes/words.ts
+msgid "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
+msgstr "这会重新加载 {server} 上的代理，可能重置正在进入该服务器上任何站点的连接，并可能丢失保持连接的 HTTP/1.1 上的 POST 请求。浏览器会再次发送此类请求，而应用自身的客户端可能不会"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
@@ -5560,6 +5670,22 @@ msgstr "关闭了身份验证器应用验证码"
 #: src/features/activity/describe.ts
 msgid "Turned on codes from an authenticator app"
 msgstr "开启了身份验证器应用验证码"
+
+#: src/features/changes/words.ts
+msgid "Two containers can't publish {ports} at once, so the old one stops first"
+msgstr "两个容器不能同时发布 {ports}，因此旧容器会先停止"
+
+#: src/features/changes/notices.tsx
+msgid "Two containers may write to {shared}"
+msgstr "两个容器可能同时写入 {shared}"
+
+#: src/features/changes/words.ts
+msgid "Two containers mustn't write to the server path {paths} at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgstr "两个容器不能同时写入服务器路径 {paths}，因此旧容器会先停止。如果应用支持同时写入，请将其发布顺序设置为先启动"
+
+#: src/features/changes/words.ts
+msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgstr "两个容器不能同时写入卷 {volumes}，因此旧容器会先停止。如果应用支持同时写入，请将其发布顺序设置为先启动"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Type <0>{confirmWith}</0> to apply it"
@@ -5901,6 +6027,10 @@ msgstr "连接此服务器的来源"
 msgid "What happens next"
 msgstr "接下来"
 
+#: src/features/changes/words.ts
+msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
+msgstr "正在处理的请求最多有 {drain} 的时间完成。超过此时间的连接（如长连接）会随旧容器一起结束"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "What it set out to do"
 msgstr "原定计划"
@@ -5945,6 +6075,10 @@ msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，�
 #: src/features/apps/NewAppSheet.tsx
 msgid "What this file makes"
 msgstr "此文件会创建的内容"
+
+#: src/features/changes/words.ts
+msgid "What this step wants already runs, so nothing stops for it"
+msgstr "此步骤需要的容器已在运行，因此无需停止任何服务"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "What to export"

@@ -20,9 +20,11 @@ import (
 )
 
 const (
-	shopImage   = "ghcr.io/acme/shop:1.4"
-	shopBroken  = "ghcr.io/acme/shop:broken"
-	recoverFile = "name: shop\nservices:\n  web:\n    image: " + shopImage + "\n"
+	shopImage  = "ghcr.io/acme/shop:1.4"
+	shopBroken = "ghcr.io/acme/shop:broken"
+	// It publishes a port, so a replace stops what runs first. That's where a rollback
+	// can fail partway: one that rolls has what ran still running.
+	recoverFile = "name: shop\nservices:\n  web:\n    image: " + shopImage + "\n    ports: [\"18090:80\"]\n"
 )
 
 // aFailedRollback leaves what a deploy of a broken image and its own rollback
@@ -37,7 +39,8 @@ func aFailedRollback(suffix string) func(t *testing.T, b *bench) (string, *dockw
 		b.e.Registry[shopBroken] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"shop"}}}
 		var fail atomic.Bool
 		b.e.Intercept(func(r *http.Request) error {
-			if fail.Load() && r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, suffix) {
+			// A rename that marks what a rollout stops isn't the one that gives a name.
+			if fail.Load() && r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, suffix) && !strings.HasPrefix(r.URL.Query().Get("name"), "stopping_") {
 				return errors.New("no space left on device")
 			}
 			return nil
@@ -51,7 +54,7 @@ func aFailedRollback(suffix string) func(t *testing.T, b *bench) (string, *dockw
 					return
 				default:
 				}
-				if c := b.e.Container(name); c != nil && c.Config.Image == shopBroken {
+				if c := b.e.Serving(name); c != nil && c.Config.Image == shopBroken {
 					fail.Store(true)
 					return
 				}
@@ -122,13 +125,13 @@ func TestARollbackThatFailedCanBeRecovered(t *testing.T) {
 		{name: "a rollback that failed giving it its name", make: aFailedRollback("/rename")},
 		{name: "a container removed by hand", make: byHand(func(t *testing.T, b *bench, name string) {
 			t.Helper()
-			if err := b.e.Client().RemoveContainer(t.Context(), b.e.Container(name).ID, true); err != nil {
+			if err := b.e.Client().RemoveContainer(t.Context(), b.e.Serving(name).ID, true); err != nil {
 				t.Fatal(err)
 			}
 		})},
 		{name: "a container stopped by hand", plansState: "exited", make: byHand(func(t *testing.T, b *bench, name string) {
 			t.Helper()
-			if err := b.e.Client().StopContainer(t.Context(), b.e.Container(name).ID, time.Second); err != nil {
+			if err := b.e.Client().StopContainer(t.Context(), b.e.Serving(name).ID, time.Second); err != nil {
 				t.Fatal(err)
 			}
 		})},
@@ -166,7 +169,7 @@ func TestARollbackThatFailedCanBeRecovered(t *testing.T) {
 				b := newBench(t, store.SQLite)
 				name, web := state.make(t, b)
 				written := len(b.revisions(t, web.GetId()))
-				if c := b.e.Container(name); c != nil && c.State.Running && !c.State.Restarting && !c.State.Paused {
+				if c := b.e.Serving(name); c != nil && c.State.Running && !c.State.Restarting && !c.State.Paused {
 					t.Fatalf("the scenario left it running: %+v", c.State)
 				}
 				plan := way.plan(t, b, web.GetId())
@@ -187,7 +190,7 @@ func TestARollbackThatFailedCanBeRecovered(t *testing.T) {
 						t.Errorf("the step says %q, and it wasn't running", s.GetMessage())
 					}
 				}
-				c := b.e.Container(name)
+				c := b.e.Serving(name)
 				if c == nil || !c.State.Running || c.State.Restarting || c.State.Paused {
 					t.Fatalf("after recovering, the container is %+v", c)
 				}
@@ -245,11 +248,41 @@ func TestRecoveringWhatWontStayUpFails(t *testing.T) {
 	}
 }
 
+// Through the API, a failed deploy and its rollback each say what the check said, with
+// what to do, and a person's way to read it needs nothing else.
+func TestAFailedCheckSaysWhatItSaidThroughTheAPI(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	b.e.Registry["ghcr.io/acme/shop:sick"] = dockertest.Image{
+		Unhealthy: true, CheckSays: "the database refuses connections",
+		Config: docker.Config{Cmd: []string{"app"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "check"}}},
+	}
+	_, web := runLatest(t, b)
+	const said = `web runs, but fails its health check: the command exited with 1: "the database refuses connections". Fix what it reports, or the check, then try again.`
+	got := applied(t, b.c, b.deploy(t, web.GetId(), "ghcr.io/acme/shop:sick"))
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetError() != said {
+		t.Fatalf("the deploy ended %v, saying %q, want %q", got.GetState(), got.GetError(), said)
+	}
+	step := got.GetSteps()[0]
+	if step.GetMessage() != said || step.GetReason() != "unhealthy" {
+		t.Errorf("its step says %q, as %q", step.GetMessage(), step.GetReason())
+	}
+	if got.GetRolledBackBy() == "" {
+		t.Fatal("nothing rolled it back")
+	}
+	back, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if because := back.Msg.GetChange().GetBecause(); because != said {
+		t.Errorf("the rollback says it is because %q, want %q", because, said)
+	}
+}
+
 // Nothing newer doesn't make it healthy: a step that reads done says it is.
 func TestAPullWithNothingNewerStillVerifies(t *testing.T) {
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
-	before := b.e.Container(name).ID
+	before := b.e.Serving(name).ID
 	b.e.Edit(name, func(c *docker.Container) { c.State.Health = &docker.Health{Status: "unhealthy", FailingStreak: 3} })
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "fails its health check") {
@@ -258,7 +291,7 @@ func TestAPullWithNothingNewerStillVerifies(t *testing.T) {
 	if detail := got.GetSteps()[0].GetDetail(); !strings.Contains(detail, "is as asked, but it isn't healthy") {
 		t.Errorf("the step's detail is %q", detail)
 	}
-	if b.e.Container(name).ID != before {
+	if b.e.Serving(name).ID != before {
 		t.Error("with nothing newer, the container was replaced")
 	}
 }
@@ -268,12 +301,12 @@ func TestAPullWithNothingNewerStillVerifies(t *testing.T) {
 func TestARemovedContainerComesBackWithItsRegistryDown(t *testing.T) {
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
-	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Container(name).ID, true); err != nil {
+	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Serving(name).ID, true); err != nil {
 		t.Fatal(err)
 	}
 	delete(b.e.Registry, latest)
 	got := b.done(t, b.deploy(t, web.GetId(), latest))
-	c := b.e.Container(name)
+	c := b.e.Serving(name)
 	if c == nil || !c.State.Running {
 		t.Fatalf("the image is on the server, and the container is %+v", c)
 	}
@@ -293,7 +326,7 @@ func TestAStoppedContainerStartsWithItsRegistryDown(t *testing.T) {
 	b.e.Stop(name)
 	delete(b.e.Registry, latest)
 	b.done(t, b.deploy(t, web.GetId(), latest))
-	if c := b.e.Container(name); c == nil || !c.State.Running {
+	if c := b.e.Serving(name); c == nil || !c.State.Running {
 		t.Fatalf("the image is on the server, and the container is %+v", c)
 	}
 }
@@ -303,7 +336,7 @@ func TestAStoppedContainerStartsWithItsRegistryDown(t *testing.T) {
 func TestARemovedContainerWithNoImageSaysNothingRuns(t *testing.T) {
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
-	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Container(name).ID, true); err != nil {
+	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Serving(name).ID, true); err != nil {
 		t.Fatal(err)
 	}
 	b.e.Forget(digestA)
@@ -341,7 +374,7 @@ func TestDeployingTheTagAfterARollbackSaysItReplaced(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.done(t, back.Msg.GetChange())
-	pinned := b.e.Container(name)
+	pinned := b.e.Serving(name)
 
 	plan := b.deploy(t, web.GetId(), latest)
 	if kind := plan.GetPlan().GetIntent().GetKind(); kind != dockwellv1.IntentKind_INTENT_KIND_DEPLOY {
@@ -351,7 +384,7 @@ func TestDeployingTheTagAfterARollbackSaysItReplaced(t *testing.T) {
 		t.Errorf("the plan claims only if newer: %v", plan.GetPlan().GetNotes())
 	}
 	done := b.done(t, plan)
-	if b.e.Container(name).ID == pinned.ID {
+	if b.e.Serving(name).ID == pinned.ID {
 		t.Fatal("the container still names the pin")
 	}
 	stays := true
@@ -372,7 +405,7 @@ func TestLeavingAPinSaysItReplaces(t *testing.T) {
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
 	b.done(t, b.deploy(t, web.GetId(), latest+"@"+digestA))
-	before := b.e.Container(name).ID
+	before := b.e.Serving(name).ID
 	plan := b.deploy(t, web.GetId(), latest)
 	note := noteOf(plan, "leaves_pin").GetMessage()
 	if !strings.Contains(note, "replaces web with what that names now, in place of the digest it's pinned to") || strings.Contains(note, "only if") {
@@ -386,7 +419,7 @@ func TestLeavingAPinSaysItReplaces(t *testing.T) {
 		t.Errorf("the plan is for %v", kind)
 	}
 	got := b.done(t, plan)
-	if b.e.Container(name).ID == before {
+	if b.e.Serving(name).ID == before {
 		t.Fatal("the container still names the pin")
 	}
 	// The step says it replaced it, which is what the panel reads, whatever words come with it.
@@ -415,10 +448,10 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 	t.Run("a pull with nothing newer stayed", func(t *testing.T) {
 		b := newBench(t, store.SQLite)
 		name, web := runLatest(t, b)
-		before := b.e.Container(name).ID
+		before := b.e.Serving(name).ID
 		got := b.done(t, b.deploy(t, web.GetId(), latest))
-		if b.e.Container(name).ID != before || !slices.Equal(didOf(got), []dockwellv1.PlanAction{none}) {
-			t.Errorf("replaced %t, did %v", b.e.Container(name).ID != before, didOf(got))
+		if b.e.Serving(name).ID != before || !slices.Equal(didOf(got), []dockwellv1.PlanAction{none}) {
+			t.Errorf("replaced %t, did %v", b.e.Serving(name).ID != before, didOf(got))
 		}
 		if a := got.GetSteps()[0].GetAction(); a != replace {
 			t.Errorf("the step's action says %v, which is what was planned", a)
@@ -428,11 +461,11 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 	t.Run("a pull with something newer replaced", func(t *testing.T) {
 		b := newBench(t, store.SQLite)
 		name, web := runLatest(t, b)
-		before := b.e.Container(name).ID
+		before := b.e.Serving(name).ID
 		moveLatest(b.e, digestB)
 		got := b.done(t, b.deploy(t, web.GetId(), latest))
-		if b.e.Container(name).ID == before || !slices.Equal(didOf(got), []dockwellv1.PlanAction{replace}) {
-			t.Errorf("replaced %t, did %v", b.e.Container(name).ID != before, didOf(got))
+		if b.e.Serving(name).ID == before || !slices.Equal(didOf(got), []dockwellv1.PlanAction{replace}) {
+			t.Errorf("replaced %t, did %v", b.e.Serving(name).ID != before, didOf(got))
 		}
 	})
 
@@ -448,7 +481,7 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 			t.Fatal(err)
 		}
 		b.done(t, back.Msg.GetChange())
-		pinned := b.e.Container(name)
+		pinned := b.e.Serving(name)
 		if pinned.Config.Image != latest+"@"+digestA {
 			t.Fatalf("the rollback runs %s", pinned.Config.Image)
 		}
@@ -458,7 +491,7 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 			t.Errorf("the plan says %v", plan.GetPlan().GetNotes())
 		}
 		got := b.done(t, plan)
-		if b.e.Container(name).ID == pinned.ID {
+		if b.e.Serving(name).ID == pinned.ID {
 			t.Fatal("the container still names the pin")
 		}
 		if !slices.Equal(didOf(got), []dockwellv1.PlanAction{replace}) {
@@ -475,13 +508,13 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 	t.Run("a restart policy put right with nothing newer changed in place", func(t *testing.T) {
 		b := newBench(t, store.SQLite)
 		name, web := runLatest(t, b)
-		before := b.e.Container(name).ID
+		before := b.e.Serving(name).ID
 		if err := b.e.Client().UpdateRestartPolicy(t.Context(), before, docker.RestartPolicy{Name: "always"}); err != nil {
 			t.Fatal(err)
 		}
 		got := b.done(t, b.deploy(t, web.GetId(), latest))
-		if b.e.Container(name).ID != before || !slices.Equal(didOf(got), []dockwellv1.PlanAction{update}) {
-			t.Errorf("replaced %t, did %v", b.e.Container(name).ID != before, didOf(got))
+		if b.e.Serving(name).ID != before || !slices.Equal(didOf(got), []dockwellv1.PlanAction{update}) {
+			t.Errorf("replaced %t, did %v", b.e.Serving(name).ID != before, didOf(got))
 		}
 	})
 
@@ -571,7 +604,7 @@ func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
 	const two = "name: shop\nservices:\n  web:\n    image: ghcr.io/acme/shop:1.4\n  api:\n    image: ghcr.io/acme/shop:1.4\n"
 	wantLeft := func(t *testing.T, b *bench, name, id string, plan *dockwellv1.Change) {
 		t.Helper()
-		if c := b.e.Container(name); c == nil || c.ID != id || c.State.Running {
+		if c := b.e.Serving(name); c == nil || c.ID != id || c.State.Running {
 			t.Errorf("the stopped container is now %+v", c)
 		}
 		if note := noteOf(plan, "starts_stopped"); note != nil {
@@ -591,7 +624,7 @@ func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
 		env := b.run(t, &dockwellv1.ImportComposeRequest{Compose: two})
 		name = docker.ContainerName(docker.Project(env), "web")
 		b.e.Stop(name)
-		return b, name, b.e.Container(name).ID
+		return b, name, b.e.Serving(name).ID
 	}
 
 	t.Run("re-importing a file that changes nothing", func(t *testing.T) {
@@ -635,7 +668,7 @@ func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
 		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(two, "web:\n    image: ghcr.io/acme/shop:1.4", "web:\n    image: ghcr.io/acme/shop:1.4\n    restart: always", 1)})
 		b.done(t, plan)
 		wantLeft(t, b, name, id, plan)
-		if got := b.e.Container(name).HostConfig.RestartPolicy.Name; got != "always" {
+		if got := b.e.Serving(name).HostConfig.RestartPolicy.Name; got != "always" {
 			t.Errorf("the restart policy is %q", got)
 		}
 	})
@@ -654,7 +687,7 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 		b.done(t, b.deploy(t, web.GetId(), "ghcr.io/acme/shop:1.5"))
 		b.done(t, b.deploy(t, web.GetId(), image))
 		name := docker.ContainerName(docker.Project(env), "web")
-		b.e.Stop(name)
+		b.e.Stop(strings.TrimPrefix(b.e.Serving(name).Name, "/"))
 		return b, name, web
 	}
 	rollback := func(revision int64) func(t *testing.T, b *bench, id string) *dockwellv1.Change {
@@ -667,6 +700,8 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 			return back.Msg.GetChange()
 		}
 	}
+	// Where nothing about it would change, the same container starts, and says so.
+	startsTheSame := map[string]bool{"deploying the same tag": true, "rolling back to what matches": true}
 	for name, plan := range map[string]func(t *testing.T, b *bench, id string) *dockwellv1.Change{
 		"deploying another tag": func(t *testing.T, b *bench, id string) *dockwellv1.Change {
 			t.Helper()
@@ -689,7 +724,7 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			b, container, web := setUp(t)
-			before := b.e.Container(container).ID
+			before := b.e.Serving(container).ID
 			c := plan(t, b, web.GetId())
 			note := noteOf(c, "starts_stopped")
 			if note == nil || note.GetMessage() != "web is stopped, so this starts it" {
@@ -702,15 +737,25 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 				t.Errorf("the plan's steps are %v", steps)
 			}
 			got := b.done(t, c)
-			ctr := b.e.Container(container)
-			if ctr == nil || ctr.ID == before || !ctr.State.Running {
+			ctr := b.e.Serving(container)
+			if ctr == nil || !ctr.State.Running {
 				t.Errorf("after it, the container is %+v", ctr)
 			}
 			if said := got.GetSteps()[0].GetMessage(); strings.Contains(said, "stays as it is") || strings.Contains(said, "already") {
 				t.Errorf("the step says %q, of what wasn't running", said)
 			}
-			if did := got.GetSteps()[0].GetDid(); did != dockwellv1.PlanAction_PLAN_ACTION_REPLACE {
-				t.Errorf("the step did %v", did)
+			did, want := got.GetSteps()[0].GetDid(), dockwellv1.PlanAction_PLAN_ACTION_REPLACE
+			if startsTheSame[name] {
+				want = dockwellv1.PlanAction_PLAN_ACTION_UPDATE
+			}
+			if did != want {
+				t.Errorf("the step did %v, want %v", did, want)
+			}
+			if said := got.GetSteps()[0].GetMessage(); strings.Contains(said, "the same container started") != startsTheSame[name] {
+				t.Errorf("the step says %q", said)
+			}
+			if ctr != nil && (ctr.ID == before) != startsTheSame[name] {
+				t.Errorf("it was %s and is %s", before, ctr.ID)
 			}
 		})
 	}
@@ -720,7 +765,7 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 func TestDeployingWhatSomeoneRemovedSaysItStartsIt(t *testing.T) {
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
-	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Container(name).ID, true); err != nil {
+	if err := b.e.Client().RemoveContainer(t.Context(), b.e.Serving(name).ID, true); err != nil {
 		t.Fatal(err)
 	}
 	c := b.deploy(t, web.GetId(), latest)

@@ -36,7 +36,7 @@ import { parseArgs } from "node:util";
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 
 import { appsFlow } from "./apps-flow.ts";
-import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
+import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
 import { planFlow } from "./plan-flow.ts";
 
 const { values, positionals } = parseArgs({
@@ -763,7 +763,15 @@ async function main() {
   if (fakeSocket !== "") {
     const before = await dockerMade(fakeSocket);
     await appsFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), failing: "nginx:broken" });
-    await planFlow(page, { origin, browser, context, step, shoot, docker: dockerProbe(fakeSocket) });
+    await planFlow(page, {
+      origin,
+      browser,
+      context,
+      step,
+      shoot,
+      stopByHand: (id) => dockerStop(fakeSocket, id),
+      docker: dockerProbe(fakeSocket),
+    });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
     const made = await dockerMade(fakeSocket);

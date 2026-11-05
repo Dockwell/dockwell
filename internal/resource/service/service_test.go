@@ -3,9 +3,11 @@
 package service_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
@@ -31,6 +33,20 @@ func TestServiceNamesAreDNSLabels(t *testing.T) {
 		if err != nil && !strings.Contains(err.Error(), "such as api-v2") {
 			t.Errorf("CheckName(%q) should give an example: %v", name, err)
 		}
+	}
+}
+
+// What a service only reads, a new version can't have changed, so it's left out of
+// what a plan says a rollback doesn't undo.
+func TestKeptDataIsWhatAServiceWritesTo(t *testing.T) {
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Mounts: []*resourcev1.Mount{
+		{Source: &resourcev1.Mount_Volume{Volume: "uploads"}, Target: "/uploads"},
+		{Source: &resourcev1.Mount_Volume{Volume: "assets"}, Target: "/assets", ReadOnly: true},
+		{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/state"}, Target: "/state"},
+		{Source: &resourcev1.Mount_HostPath{HostPath: "/etc/app"}, Target: "/etc/app", ReadOnly: true},
+	}}}}
+	if got, want := (&service.Driver{}).KeptData(spec), []string{"uploads", "/srv/state"}; !slices.Equal(got, want) {
+		t.Errorf("KeptData = %v, want %v", got, want)
 	}
 }
 

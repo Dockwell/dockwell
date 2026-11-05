@@ -7,6 +7,7 @@ import {
   FieldOp,
   type HostAccess,
   HostAccessKind,
+  IngressChange,
   type Intent,
   IntentKind,
   type Plan,
@@ -36,6 +37,18 @@ const ACTIONS: Readonly<Record<Exclude<PlanAction, PlanAction.NONE>, DiffAction>
   [PlanAction.REPLACE]: "replace",
   [PlanAction.DELETE]: "destroy",
 };
+
+/** A step that starts what's there and isn't running, so nothing serves while it does. */
+export function startsStopped(step: PlanStep): boolean {
+  return step.changes.some((c) => c.path === "state" && c.to === "running");
+}
+
+/** A step that changes a route on a proxy that stays up, which reloads it. A rollout doesn't. */
+export function reloadsProxy(step: PlanStep): boolean {
+  if (step.resource?.kind !== "route" || step.action === PlanAction.NONE) return false;
+  const change = step.ingress?.change;
+  return change !== IngressChange.STARTS && change !== IngressChange.STOPS && change !== IngressChange.RESTARTS;
+}
 
 /**
  * The kind PlanDiff draws a resource of the API's kind as; one it doesn't know
@@ -325,7 +338,7 @@ export function foundNothingNewer(change: Change | undefined): string {
  * Whether a step replaces what runs only if its pull finds a newer image: it has
  * nothing to change that a container can't change in place. Anything else it
  * changes, such as a container that has stopped or a limit it no longer has, it
- * replaces whatever the pull finds. The CLI's replacesIfNewer is the same rule.
+ * changes whatever the pull finds. The CLI's replacesIfNewer is the same rule.
  */
 export function replacesIfNewer(step: PlanStep): boolean {
   if (!step.pull || step.action !== PlanAction.REPLACE) return false;
@@ -407,9 +420,12 @@ export function factAndRest(message: string): [string, string] {
   const text = message.trim().replace(/^(the|a|an|another|this|there|can't)\b/, (word) => {
     return word.charAt(0).toUpperCase() + word.slice(1);
   });
-  const end = /[.!?](\s+|$)|。/.exec(text);
-  if (!end) return [text, ""];
-  const fact = text.slice(0, end.index);
-  const rest = text.slice(end.index + end[0].length).trim();
-  return [fact, rest];
+  // What a health check's command printed comes in quotes, and its full stops aren't the server's.
+  let quoted = false;
+  for (const mark of text.matchAll(/\\.|"|[.!?](\s+|$)|。/g)) {
+    if (mark[0] === '"') quoted = !quoted;
+    if (quoted || mark[0] === '"' || mark[0].startsWith("\\")) continue;
+    return [text.slice(0, mark.index), text.slice(mark.index + mark[0].length).trim()];
+  }
+  return [text, ""];
 }

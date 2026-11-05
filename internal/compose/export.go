@@ -47,6 +47,7 @@ type (
 		Restart     string            `yaml:"restart"`
 		Healthcheck *healthEntry      `yaml:"healthcheck,omitempty"`
 		Labels      map[string]string `yaml:"labels,omitempty"`
+		StopGrace   string            `yaml:"stop_grace_period,omitempty"`
 		Deploy      *deployEntry      `yaml:"deploy,omitempty"`
 		CapAdd      []string          `yaml:"cap_add,omitempty"`
 		CapDrop     []string          `yaml:"cap_drop,omitempty"`
@@ -56,12 +57,15 @@ type (
 		// from the file, which it would otherwise leave without a limit, except on
 		// a server whose Docker logs elsewhere by default, which keeps its choice.
 		Logging *loggingEntry `yaml:"logging,omitempty"`
+		// Dockwell is what Compose has no field for: x-dockwell.
+		Dockwell *dockwellEntry `yaml:"x-dockwell,omitempty"`
 	}
 	joinEntry struct {
 		Aliases []string `yaml:"aliases,omitempty"`
 	}
 	deployEntry struct {
-		Resources limitsEntry `yaml:"resources"`
+		Resources    *limitsEntry `yaml:"resources,omitempty"`
+		UpdateConfig *updateEntry `yaml:"update_config,omitempty"`
 	}
 	limitsEntry struct {
 		Limits       *amountEntry `yaml:"limits,omitempty"`
@@ -74,6 +78,29 @@ type (
 	loggingEntry struct {
 		Driver  string            `yaml:"driver"`
 		Options map[string]string `yaml:"options"`
+	}
+	updateEntry struct {
+		Order string `yaml:"order"`
+	}
+	dockwellEntry struct {
+		Healthcheck *agentCheckEntry `yaml:"healthcheck,omitempty"`
+		Drain       string           `yaml:"drain,omitempty"`
+	}
+	agentCheckEntry struct {
+		HTTP        *httpCheckEntry `yaml:"http,omitempty"`
+		TCP         *tcpCheckEntry  `yaml:"tcp,omitempty"`
+		Interval    string          `yaml:"interval,omitempty"`
+		Timeout     string          `yaml:"timeout,omitempty"`
+		StartPeriod string          `yaml:"start_period,omitempty"`
+		Retries     uint32          `yaml:"retries,omitempty"`
+	}
+	httpCheckEntry struct {
+		Port uint32 `yaml:"port"`
+		Path string `yaml:"path,omitempty"`
+		Host string `yaml:"host,omitempty"`
+	}
+	tcpCheckEntry struct {
+		Port uint32 `yaml:"port"`
 	}
 	healthEntry struct {
 		Test        []string `yaml:"test,omitempty"`
@@ -210,10 +237,43 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		if n := c.GetRestartRetries(); n > 0 {
 			entry.Restart += ":" + strconv.FormatUint(uint64(n), 10)
 		}
+		entry.StopGrace = c.GetStopGracePeriod()
+		var order string
+		switch c.GetRollout().GetOrder() {
+		case resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST:
+			order = "start-first"
+		case resourcev1.RolloutOrder_ROLLOUT_ORDER_STOP_FIRST:
+			order = "stop-first"
+		case resourcev1.RolloutOrder_ROLLOUT_ORDER_UNSPECIFIED:
+		}
+		if order != "" {
+			if entry.Deploy == nil {
+				entry.Deploy = &deployEntry{}
+			}
+			entry.Deploy.UpdateConfig = &updateEntry{Order: order}
+		}
+		if d := c.GetRollout().GetDrain(); d != "" {
+			entry.Dockwell = &dockwellEntry{Drain: d}
+		}
 		if hc := c.GetHealthcheck(); hc != nil {
-			if slices.Equal(hc.GetTest(), []string{"NONE"}) {
+			switch {
+			case container.AgentCheck(hc) != nil:
+				// Compose has no form for it, so it has no check of its own to
+				// run, and Dockwell's goes beside it.
 				entry.Healthcheck = &healthEntry{Disable: true}
-			} else {
+				if entry.Dockwell == nil {
+					entry.Dockwell = &dockwellEntry{}
+				}
+				check := &agentCheckEntry{Interval: hc.GetInterval(), Timeout: hc.GetTimeout(), StartPeriod: hc.GetStartPeriod(), Retries: hc.GetRetries()}
+				if h := hc.GetHttp(); h != nil {
+					check.HTTP = &httpCheckEntry{Port: h.GetPort(), Path: escape(h.GetPath()), Host: escape(h.GetHost())}
+				} else {
+					check.TCP = &tcpCheckEntry{Port: hc.GetTcp().GetPort()}
+				}
+				entry.Dockwell.Healthcheck = check
+			case slices.Equal(hc.GetTest(), []string{"NONE"}):
+				entry.Healthcheck = &healthEntry{Disable: true}
+			default:
 				entry.Healthcheck = &healthEntry{
 					Test: escapeAll(hc.GetTest()), Interval: hc.GetInterval(), Timeout: hc.GetTimeout(),
 					StartPeriod: hc.GetStartPeriod(), Retries: hc.GetRetries(),
@@ -325,14 +385,14 @@ func exportResources(r *resourcev1.Resources) *deployEntry {
 	if r == nil {
 		return nil
 	}
-	var out deployEntry
+	var out limitsEntry
 	if r.GetCpus() != "" || r.GetMemory() != "" {
-		out.Resources.Limits = &amountEntry{CPUs: r.GetCpus(), Memory: r.GetMemory()}
+		out.Limits = &amountEntry{CPUs: r.GetCpus(), Memory: r.GetMemory()}
 	}
 	if r.GetMemoryReservation() != "" {
-		out.Resources.Reservations = &amountEntry{Memory: r.GetMemoryReservation()}
+		out.Reservations = &amountEntry{Memory: r.GetMemoryReservation()}
 	}
-	return &out
+	return &deployEntry{Resources: &out}
 }
 
 // environment is a container's own environment for a Compose file, and

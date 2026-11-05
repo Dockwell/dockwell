@@ -191,6 +191,8 @@ func (e *Engine) Kinds() *resource.Registry { return e.kinds }
 type Edit struct {
 	Ref  resource.Ref
 	Spec proto.Message
+	// Restart asks for the resource to restart, with its spec as it is.
+	Restart bool
 	// Servers places a resource of an environment-level kind, such as a
 	// service, by server ID. Nil keeps it where it runs now, on the
 	// servers still in the fleet; a new one runs on the only server when
@@ -286,6 +288,9 @@ type Plan struct {
 	Change  string // the planned change's ID, to apply or discard
 	Summary string
 	Reverts string // the change this undoes or rolls back, if any
+	// Because says why Dockwell made this change on its own: for a rollback,
+	// what failed in the change it rolls back.
+	Because string `json:",omitempty"`
 	// Resources says what the change does to each resource as a whole, in
 	// proposal order.
 	Resources []ResourcePlan
@@ -328,6 +333,8 @@ const (
 type ResourcePlan struct {
 	ID  string
 	Ref resource.Ref
+	// Restart says the change restarts it, which makes no revision.
+	Restart bool `json:",omitempty"`
 	// Action is what its steps on every server add up to (see
 	// item.resourcePlan), or for a kind that runs on no server, what its
 	// revision does: create, update or delete. None means nothing changes.
@@ -412,12 +419,13 @@ func (p *Plan) HostAccess() bool {
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return len(r.HostAccess) > 0 })
 }
 
-// Destructive reports a plan with a step that destroys data or may cut
-// off access, which applying can't fully undo.
+// Destructive reports a plan with a step that destroys data, may cut off access,
+// or lets two containers write to one place, as a spec chose: two writers can
+// corrupt a database, and applying can't undo that.
 func (p *Plan) Destructive() bool {
 	steps := p.Steps()
 	for i := range steps {
-		if steps[i].Destroys || len(steps[i].Warnings) > 0 {
+		if steps[i].Destroys || len(steps[i].Warnings) > 0 || steps[i].Rollout.TwoWriters() {
 			return true
 		}
 	}
@@ -455,6 +463,10 @@ type item struct {
 	// makes its container, which may not have got as far as starting it. That isn't
 	// a stop by hand.
 	madeOn []string
+	// unfinished are the steps a run of the change stopped partway had planned on each
+	// server and didn't see end. One that now has nothing left to do still has its
+	// check to pass.
+	unfinished map[string]*resource.Step
 	// id names the resource. A new one gets its ID when the change is
 	// planned, so another item in the change can live in it.
 	id      string
@@ -472,6 +484,12 @@ type item struct {
 	// rev is the revision applying runs toward: the new one, once
 	// committed, or base when the item makes none.
 	rev int
+	// rollback says a rollback is what plans it.
+	rollback bool
+	// restart names the restart the item is to have: the change's ID. It makes
+	// no revision, so it isn't a difference between specs, and what a step makes
+	// carries it, so planning again finds it done or not.
+	restart string
 }
 
 // changes reports whether the item makes a new revision: its spec, or
@@ -534,6 +552,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, err
 	}
 	changeID := id.New(id.Change)
+	for i := range items {
+		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Restart && ed.Ref == items[i].ref }) {
+			items[i].restart = changeID
+		}
+	}
 	plan, err := e.plan(ctx, changeID, items, false)
 	if err != nil {
 		return nil, err
@@ -544,7 +567,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if p.IfNothing != nil && plan.Empty() {
 		return nil, e.nothingToDo(ctx, items, p.IfNothing)
 	}
-	p.Notes = startingNotes(plan, p.Notes)
+	p.Notes = e.dataNotes(plan, items, startingNotes(plan, p.Notes))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -636,6 +659,44 @@ func (e *Engine) awayServers(ctx context.Context, tx *store.Tx, resourceID strin
 		}
 	}
 	return away, nil
+}
+
+// dataNotes are a plan's notes, saying what stays of what it replaces: the volumes
+// and server paths a service writes to, and what its image keeps. A rollback puts
+// back a spec, not data, so code that has been rolled back can meet data migrated
+// forward, which is for a person to know. The control plane reads it from the spec,
+// so it says so for a server that isn't connected too, and what the image keeps
+// comes from a server that is. A restart changes no spec, and has nothing to roll
+// back.
+func (e *Engine) dataNotes(plan *Plan, items []item, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		var names []string
+		replaces := false
+		for s := range plan.Servers {
+			step := plan.step(plan.Servers[s].Server, it.ref)
+			if step == nil || step.Action != resource.ActionReplace || it.restart != "" {
+				continue
+			}
+			replaces = true
+			names = append(names, e.kinds.KeptData(it.ref, it.desiredOn(plan.Servers[s].Server))...)
+			if step.Rollout != nil {
+				names = append(names, step.Rollout.ImageData...)
+			}
+		}
+		slices.Sort(names)
+		names = slices.Compact(names)
+		if !replaces || len(names) == 0 {
+			continue
+		}
+		out = append(out, Note{
+			Reason: "volumes_stay", Ref: it.ref, Names: names,
+			Message: fmt.Sprintf("%s keeps what is in %s as it is. A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't",
+				it.ref.Name, human.List(names)),
+		})
+	}
+	return out
 }
 
 // startingNotes are a plan's notes, saying what it starts that isn't running. That
@@ -859,7 +920,8 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 	items := make([]item, 0, len(edits))
 	seen := map[resource.Ref]bool{}
 	err := e.db.View(ctx, func(tx *store.Tx) error {
-		for _, ed := range edits {
+		for i := range edits {
+			ed := &edits[i]
 			if seen[ed.Ref] {
 				return fault.New(ErrInvalid, "the change edits %s twice. Combine the edits into one", ed.Ref)
 			}
@@ -1429,6 +1491,14 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 					}
 					step.Pull = step.Action != resource.ActionNone
 				}
+				if it.restart != "" && step.Action == resource.ActionNone {
+					// As the agent would, were it there to say, at the most it
+					// could cost: a plan from a last known state can't tell.
+					if step.Decision, err = d.Plan(it.currentOn(server), it.desiredOn(server), nil); err != nil {
+						return nil, err
+					}
+				}
+				step.Restart = it.restart
 				steps = append(steps, step)
 			}
 		}
@@ -1461,7 +1531,12 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		for i := range steps {
 			s := &steps[i]
 			if s.Action == resource.ActionNone {
-				continue
+				was := unfinishedOn(its, s.Ref, server)
+				if was == nil {
+					continue
+				}
+				*s = *was
+				s.Finishing = true
 			}
 			gained := gains[s.Ref]
 			// The panel's domain moving behind a proxy is the agent's to know,
@@ -1485,6 +1560,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			// What DNS says, s.Domain, stays out, as people often set it after.
 			if i := s.Ingress; i != nil {
 				fmt.Fprintf(fp, "  ingress %d|%s|%v|%s\n", i.Change, i.Proxy, i.Ports, i.PanelDomain)
+			}
+			if r := s.Rollout; r != nil {
+				fmt.Fprintf(fp, "  rollout %t|%v|%v|%v|%v|%t|%d|%d|%d|%v|%v|%v|%v|%v|%d|%v|%t\n", r.Rolling, r.Ports, r.Volumes, r.Paths, r.ImageData, r.Chosen,
+					r.Drain, r.StopGrace, r.HealthyWithin, r.Others, r.CantTell, r.EditedRoutes, r.EarlyNetworks, r.Dropped, r.Soak, r.EarlyNames, r.HostNetwork)
 			}
 		}
 		if sp.UntilHealthy == sp.Downtime {
@@ -1515,6 +1594,17 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	plan.Fingerprint = hex.EncodeToString(keyed.Sum(nil)[:16])
 	plan.plain = hex.EncodeToString(plain.Sum(nil)[:16])
 	return plan, nil
+}
+
+// unfinishedOn is the step of a resource that a run stopped partway didn't see end on
+// a server, if it is still to be there.
+func unfinishedOn(its []*item, ref resource.Ref, server string) *resource.Step {
+	for _, it := range its {
+		if it.ref == ref && it.desiredOn(server) != nil {
+			return it.unfinished[server]
+		}
+	}
+	return nil
 }
 
 // reach lists what a resource reaches on its server, from its spec: what
@@ -1596,7 +1686,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server)}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -1626,7 +1716,7 @@ func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
 	}
 	rp := ResourcePlan{
 		ID: it.id, Ref: it.ref, Base: it.base, Changes: diff(it.current, it.spec),
-		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed),
+		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "",
 	}
 	switch {
 	case slices.Contains(steps, resource.ActionReplace):
@@ -1980,7 +2070,7 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		e.letGo(ctx, changeID)
 		return nil, err
 	}
-	r, err := e.commitOwned(ctx, c, items, by, false)
+	r, err := e.commitOwned(ctx, c, items, by, false, "")
 	if err != nil {
 		e.letGo(ctx, changeID)
 	}
@@ -1994,7 +2084,7 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 // is planned from its last known state, like an offline one. What it
 // records as its plan is the plan that runs. So a rollback is never left
 // planned: it is on record applying, or not at all.
-func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit) (*committed, error) {
+func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit, because string) (*committed, error) {
 	items, err := e.items(ctx, edits, true)
 	if err != nil {
 		return nil, err
@@ -2010,7 +2100,7 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 		e.letGo(ctx, c.ID)
 		return nil, err
 	}
-	r, err := e.commitOwned(ctx, c, items, system, true)
+	r, err := e.commitOwned(ctx, c, items, system, true, because)
 	if err != nil {
 		e.letGo(ctx, c.ID)
 	}
@@ -2069,8 +2159,11 @@ func (p *Plan) step(server string, ref resource.Ref) *resource.Step {
 // claimed, and commits it. A person's change must plan as it did when it
 // was reviewed; a rollback isn't, and with create it is put on record here
 // too, with the plan that runs.
-func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, by By, create bool) (*committed, error) {
+func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, by By, create bool, because string) (*committed, error) {
 	rollback := IsRollback(c)
+	for i := range items {
+		items[i].rollback = rollback
+	}
 	plan, err := e.plan(ctx, c.ID, items, rollback)
 	if err != nil {
 		return nil, err
@@ -2079,9 +2172,10 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 		if err := e.expectRestores(ctx, c, plan); err != nil {
 			return nil, err
 		}
+		plan.Notes = e.dataNotes(plan, items, plan.Notes)
 	}
 	if create {
-		plan.Change, plan.Summary, plan.Reverts = c.ID, c.Summary, c.Reverts
+		plan.Change, plan.Summary, plan.Reverts, plan.Because = c.ID, c.Summary, c.Reverts, because
 		if c.Plan, err = json.Marshal(plan); err != nil {
 			return nil, err
 		}
@@ -2282,7 +2376,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			e.announce(c.ID, u)
 		}
 		for _, rest := range queue[qi+1:] {
-			e.step(c.ID, rest.index, StepSkipped, message(StepSkipped, rest.step.Action, rest.step.Ref, rest.name))
+			e.step(c.ID, rest.index, StepSkipped, stepMessage(StepSkipped, rest.step, rest.name))
 		}
 		// A change's error stands on its own, so once there is more than
 		// one server it says which, unless the message has already.
@@ -2296,7 +2390,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	// server when the control plane starts again, and finds it done or not.
 	interrupt := func(qi int) error {
 		q := queue[qi]
-		_, u := e.step(c.ID, q.index, StepQueued, message(StepQueued, q.step.Action, q.step.Ref, q.name))
+		_, u := e.step(c.ID, q.index, StepQueued, stepMessage(StepQueued, q.step, q.name))
 		if e.recordProgress(ctx, c.ID) {
 			e.announce(c.ID, u)
 		}
@@ -2316,12 +2410,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	}
 	pending := map[string]string{} // server ID → name
 	var waits []*Update
-	// wait leaves a step of a rollback waiting for its server: to
+	// wait leaves a step of a rollback or a restart waiting for its server: to
 	// reconnect, or, where it is connected and its agent couldn't plan, to
 	// plan it.
 	wait := func(q queued, couldntPlan string) {
 		pending[q.server] = q.name
-		msg := message(StepWaiting, q.step.Action, q.step.Ref, q.name)
+		msg := stepMessage(StepWaiting, q.step, q.name)
 		if couldntPlan != "" {
 			msg = fmt.Sprintf("Waiting for %s's agent, which couldn't plan this step: %s", q.name, couldntPlan)
 		}
@@ -2349,7 +2443,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			}
 			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run. Try again once its agent reconnects", q.name), false)
 		}
-		running := message(StepRunning, q.step.Action, q.step.Ref, q.name)
+		running := stepMessage(StepRunning, q.step, q.name)
 		_, u := e.step(c.ID, q.index, StepRunning, running)
 		e.announce(c.ID, u)
 		callCtx, called := e.calling(ctx)
@@ -2357,7 +2451,8 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, m) })
 		var told resource.Outcome
 		callCtx = resource.WithOutcome(callCtx, func(o resource.Outcome) {
-			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(o.Note, told.Note), told.Untouched || o.Untouched
+			// The first note stands: that a pull failed says more than what came of it.
+			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(told.Note, o.Note), told.Untouched || o.Untouched
 			told.Did = cmp.Or(o.Did, told.Did)
 			if o.Replacing {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
@@ -2370,11 +2465,14 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		case err == nil:
 		case e.stoppedBy(err):
 			return interrupt(qi)
-		case IsRollback(c) && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
+		case (IsRollback(c) || it.restart != "") && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
 			// The agent went away: the call never reached it, or it may
 			// have run. Either way a rollback waits for the server, as for
 			// one that isn't connected, and Resume plans the step against
-			// it again, to find it done or not.
+			// it again, to find it done or not. So does a restart: nothing
+			// follows one that fails, so nothing else would finish what the
+			// agent was doing when it went, and its token means it can't
+			// happen twice.
 			wait(q, "")
 			continue
 		default:
@@ -2384,7 +2482,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		if told.Did != nil {
 			did = *told.Did
 		}
-		p, u := e.finished(c.ID, q.index, cmp.Or(told.Note, message(StepDone, q.step.Action, q.step.Ref, q.name)), did)
+		p, u := e.finished(c.ID, q.index, cmp.Or(told.Note, stepMessage(StepDone, q.step, q.name)), did)
 		digests[at{q.server, it.ref}] = told.Digest
 		if e.deployedImage(ctx, c.ID, it, q.server, nil, p, told.Digest) {
 			e.announce(c.ID, u)
@@ -2511,6 +2609,10 @@ func (e *Engine) deployedImage(ctx context.Context, changeID string, it *item, s
 			return err
 		}
 		switch {
+		case failed != nil && it.restart != "":
+			// A restart that failed leaves the revision where it was: it isn't
+			// the revision's deployment that failed.
+			return nil
 		case failed != nil && slices.Contains(it.servers, server):
 			plain, _ := resource.Explain(failed)
 			return tx.SetDeploymentState(ctx, store.Deployment{
@@ -2668,6 +2770,9 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if it.placed, err = e.placement(ctx, tx, it, ci.BaseRevision); err != nil {
 				return err
 			}
+			if restarts(c, ref) {
+				it.restart = c.ID
+			}
 			if err := markGone(ctx, tx, &it); err != nil {
 				return err
 			}
@@ -2709,11 +2814,30 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		e.letGo(ctx, changeID)
 		return nil, err
 	}
-	// What its own steps made may not have got as far as starting.
+	before, err := decodeProgress(c.Progress)
+	if err != nil {
+		e.letGo(ctx, changeID)
+		return nil, err
+	}
+	// What its own steps made may not have got as far as starting. And a step can be
+	// cut short once what it makes reads as asked for, while it waits for its check,
+	// with nothing left over to say so: only the record knows it didn't end.
 	for i := range items {
-		for _, server := range items[i].targets() {
-			if was := recorded.step(server, items[i].ref); was != nil && (was.Action == resource.ActionCreate || was.Action == resource.ActionReplace) {
-				items[i].madeOn = append(items[i].madeOn, server)
+		it := &items[i]
+		it.rollback = IsRollback(c)
+		for _, server := range it.targets() {
+			was := recorded.step(server, it.ref)
+			if was == nil {
+				continue
+			}
+			if was.Action == resource.ActionCreate || was.Action == resource.ActionReplace {
+				it.madeOn = append(it.madeOn, server)
+			}
+			if !before.ended(server, it.id) {
+				if it.unfinished == nil {
+					it.unfinished = map[string]*resource.Step{}
+				}
+				it.unfinished[server] = was
 			}
 		}
 	}
@@ -2729,18 +2853,20 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		s := &plan.Servers[si]
 		for i := range s.Steps {
 			step := &s.Steps[i]
-			if was := recorded.step(s.Server, step.Ref); was != nil && step.Action != resource.ActionDelete {
+			was := recorded.step(s.Server, step.Ref)
+			if was != nil && step.Action != resource.ActionDelete {
 				step.Restores = step.Restores || was.Restores
+			}
+			// Planning again may find two writers the first plan couldn't read, as what
+			// it shares may be a volume this change made. Nobody approved that, and it
+			// stays so, so the step stops at it, as it does in a run that isn't cut short.
+			if step.Rollout.TwoWriters() && (was == nil || !was.Rollout.TwoWriters()) {
+				step.Rollout.Chosen = false
 			}
 			for j := range items {
 				step.Pulled = step.Pulled || step.Pull && items[j].ref == step.Ref && slices.Contains(items[j].pulled, s.Server)
 			}
 		}
-	}
-	before, err := decodeProgress(c.Progress)
-	if err != nil {
-		e.letGo(ctx, changeID)
-		return nil, err
 	}
 	e.track(changeID, resumed(before, plan, items))
 	e.published(changeID, store.ChangeApplying)
@@ -2814,6 +2940,9 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				return nil, err
 			}
 		}
+		if restarts(c, ref) {
+			it.restart = c.ID
+		}
 		items = append(items, it)
 	}
 	if err := e.check(ctx, tx, items); err != nil {
@@ -2870,7 +2999,9 @@ func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, caus
 		e.published(c.ID, store.ChangeFailed)
 		return ferr
 	}
-	r, err := e.rollBack(ctx, c, edits)
+	askedToRun(c, edits)
+	// Why, in the words a person read on the deploy: the chain stays on its step.
+	r, err := e.rollBack(ctx, c, edits, plain)
 	if err != nil {
 		ferr.RollbackErr = err
 		e.published(c.ID, store.ChangeFailed)
@@ -2880,6 +3011,14 @@ func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, caus
 	e.published(c.ID, store.ChangeFailed)
 	if err := e.run(ctx, r); err != nil {
 		ferr.RollbackErr = err
+		// Nothing else tries again, as a rollback that failed isn't rolled back
+		// in turn, so whoever reads the server's log hears what is left to do.
+		// Waiting for a server, or for the control plane to start again, isn't
+		// failing.
+		if !errors.Is(err, ErrPending) && !errors.Is(err, ErrInterrupted) {
+			e.logger.ErrorContext(ctx, "a rollback failed too, and nothing tries it again. What runs stays as it is: propose a change, or restart the service, which settles what the failed steps left",
+				slog.String("change", c.ID), slog.String("rollback", r.c.ID), slog.String("at", at.String()), slog.String("error", err.Error()))
+		}
 	}
 	return ferr
 }
@@ -2901,6 +3040,59 @@ func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, eve
 		}
 		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: actor, Action: event, Subject: c.ID, Detail: c.Summary, Surface: via})
 	})
+}
+
+// restarts reports a change that restarts a resource, as its plan says: a
+// restart isn't in the spec the store keeps for the change's item.
+func restarts(c store.Change, ref resource.Ref) bool {
+	if len(c.Plan) == 0 {
+		return false
+	}
+	var p struct {
+		Resources []struct {
+			Ref     resource.Ref
+			Restart bool
+		}
+	}
+	if json.Unmarshal(c.Plan, &p) != nil {
+		return false
+	}
+	return slices.ContainsFunc(p.Resources, func(r struct {
+		Ref     resource.Ref
+		Restart bool
+	},
+	) bool {
+		return r.Restart && r.Ref == ref
+	})
+}
+
+// Restart plans restarting a resource on every server it runs on, with its spec
+// as it is: a change with a plan, which makes no revision, as a restart changes
+// no spec. So it has nothing to undo, and if it fails there is nothing to roll
+// back. A kind that can't restart is refused.
+func (e *Engine) Restart(ctx context.Context, ref resource.Ref, by By, summary string) (*Plan, error) {
+	t, err := e.kinds.Type(ref.Kind)
+	if err != nil {
+		return nil, fault.New(ErrInvalid, "%w", err)
+	}
+	if _, ok := t.(resource.Settler); !ok {
+		return nil, fault.New(ErrInvalid, "a %s can't be restarted. Only a service can: edit it, or make it again", ref.Kind)
+	}
+	var it item
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		it, err = e.load(ctx, tx, ref)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	if it.current == nil {
+		return nil, fault.New(ErrInvalid, "there's no %s to restart. Check its name and environment", ref)
+	}
+	if summary == "" {
+		summary = "Restart " + ref.Name
+	}
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: ref, Spec: it.current, Restart: true}}}, "", false)
 }
 
 // Discard drops a planned change without applying it. It stays on record
@@ -2928,6 +3120,25 @@ func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
 	}
 	e.published(changeID, store.ChangeDiscarded)
 	return nil
+}
+
+// askedToRun marks what a rollback asks to run: what the failed change was
+// replacing, as that asked it to run, whether or not it got as far as making
+// anything. A stop by hand isn't drift (ADR 0021), so what the failed change only
+// changed in place stays as it was. What it left alone has no edit here at all.
+func askedToRun(c store.Change, edits []Edit) {
+	took, err := DecodePlan(c.Plan)
+	if err != nil {
+		return
+	}
+	for i := range edits {
+		for s := range took.Servers {
+			for j := range took.Servers[s].Steps {
+				step := &took.Servers[s].Steps[j]
+				edits[i].Run = edits[i].Run || step.Ref == edits[i].Ref && step.Action == resource.ActionReplace
+			}
+		}
+	}
 }
 
 // reverse returns the edits that put back what a change's revisions

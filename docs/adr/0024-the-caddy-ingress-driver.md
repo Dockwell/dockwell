@@ -1,6 +1,6 @@
 # 0024. The Caddy ingress driver, on the server's own network
 
-- Status: Accepted. It changes who holds ports 80 and 443 on a control server with a domain, from [0011](0011-claim-and-sign-in.md), once that server has a route. [0030](0030-routes-behind-a-tunnel-or-a-proxy.md) adds routes behind a tunnel or a proxy.
+- Status: Accepted. It changes who holds ports 80 and 443 on a control server with a domain, from [0011](0011-claim-and-sign-in.md), once that server has a route. [0030](0030-routes-behind-a-tunnel-or-a-proxy.md) adds routes behind a tunnel or a proxy. [0027](0027-health-checks-rollouts-and-rollback.md) settles what it left to #28, adds `Move`, `Reachable`, `Hold` and `Routing` to `ingress.Upstreams`, has a route with one upstream dial through a file, so a rollout reloads nothing, and corrects "Reloads drop nothing": that holds for requests in flight and for kept HTTP/2 and HTTP/3 connections. A POST on a kept HTTP/1.1 connection can be lost, about 1 a reload under load, and a connection on its way in can be reset, about 4 a reload at 4,700 new connections a second.
 - Date: 2026-11-04
 
 ## Context

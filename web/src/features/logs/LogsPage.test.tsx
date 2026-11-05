@@ -8,6 +8,7 @@ import {
   LogGapReason,
   LogKept,
   LogLevel,
+  type LogSource,
   LogSourceSchema,
   LogSourceState,
   ServerLogState,
@@ -23,6 +24,7 @@ import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { type Api, onPhone, renderAt, untilAborted } from "../../test/render";
 import { deploysOf, replicaLabel } from "./LogsPage";
+import { instanceName, withLabels } from "./words";
 
 const SERVICE = "svc_01TEST";
 const URL = `/apps/${SERVICE}/logs`;
@@ -152,6 +154,153 @@ describe("LogsPage", () => {
     await expectAccessible(container);
   });
 
+  it("names both containers of a rolling deploy for as long as it reads both, and where the new one begins", async () => {
+    const before = create(LogSourceSchema, { ...running, id: "dddddddddddd", containerName: "env-web-2" });
+    const after = create(LogSourceSchema, { ...running, id: "eeeeeeeeeeee", revision: 4n, containerName: "env-web-3" });
+    const { logs, stream } = api(sourcesOf(before));
+    const { container } = renderAt(URL, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          sources: [before],
+          chunks: [{ sourceId: before.id, lines: [line("what ran says")] }],
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("what ran says");
+    // One container, whatever number it has reached: its server says which.
+    expect(container.querySelector(".dw-log-src")).toBeNull();
+    await act(() =>
+      stream.send(
+        message({ sources: [before, after], chunks: [{ sourceId: after.id, lines: [line("the new one says", 1)] }] }),
+      ),
+    );
+    await screen.findByText("the new one says");
+    await waitFor(() => expect(container.querySelector(".dw-log-src")).not.toBeNull());
+    expect(screen.getAllByText("web-2").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("web-3").length).toBeGreaterThan(0);
+    await screen.findByText("web-3 started r4");
+    expect(screen.queryByText(/stopping_/)).toBeNull();
+  });
+
+  it("says how many run now, before, during and after a rolling deploy, and after several", async () => {
+    const web = (id: string, n: number, state = LogSourceState.RUNNING) =>
+      create(LogSourceSchema, { ...running, id, revision: BigInt(n), state, containerName: `env-web-${n}` });
+    const { logs, stream } = api(sourcesOf(web("aaaa00000002", 2)));
+    const { container } = renderAt(URL, { logs });
+    await screen.findByRole("log");
+    const head = () => container.querySelector(".dw-log-title")?.textContent ?? "";
+    const hear = (sources: LogSource[], text?: string) =>
+      act(() =>
+        stream.send(
+          message({
+            sources,
+            chunks: text ? [{ sourceId: sources[sources.length - 1]?.id ?? "", lines: [line(text)] }] : [],
+            caughtUp: true,
+          }),
+        ),
+      );
+    await hear([web("aaaa00000002", 2)], "before");
+    await screen.findByText("before");
+    expect(head()).toContain("web · production");
+    expect(head()).not.toMatch(/container|replica/);
+
+    // During the move, both run, and it says so.
+    await hear([web("aaaa00000002", 2), web("aaaa00000003", 3)], "during");
+    await screen.findByText("during");
+    await waitFor(() => expect(head()).toContain("2 containers"));
+    expect(head()).not.toMatch(/replica/);
+    expect(screen.getByRole("radio", { name: "All containers" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "web-3" })).toBeVisible();
+
+    // After it, one runs, though this view read two, and a filter has nothing to choose.
+    await hear([web("aaaa00000002", 2, LogSourceState.KEPT), web("aaaa00000003", 3)], "after");
+    await screen.findByText("after");
+    await waitFor(() => expect(head()).not.toMatch(/container/));
+    expect(screen.queryByRole("radio", { name: "All containers" })).toBeNull();
+    // What it read of the one that went still says which wrote it.
+    expect(container.querySelector(".dw-log-src")).not.toBeNull();
+
+    // After several, one that went with nothing kept among them, it's still only what runs.
+    await hear(
+      [
+        web("aaaa00000003", 3, LogSourceState.GONE),
+        web("aaaa00000004", 4, LogSourceState.KEPT),
+        web("aaaa00000005", 5, LogSourceState.KEPT),
+        web("aaaa00000006", 6),
+      ],
+      "several later",
+    );
+    await screen.findByText("several later");
+    await waitFor(() => expect(head()).not.toMatch(/container/));
+    expect(head()).not.toMatch(/replica/);
+    expect(screen.queryByRole("radio", { name: "All containers" })).toBeNull();
+  });
+
+  it("doesn't count what a search found as running, once what's read live says otherwise", async () => {
+    const web = (id: string, n: number, state = LogSourceState.RUNNING) =>
+      create(LogSourceSchema, { ...running, id, state, containerName: `env-web-${n}` });
+    const was = web("aaaa00000001", 1);
+    const lost = web("aaaa00000002", 2);
+    const { logs, stream } = api(sourcesOf(was));
+    const readLogs = vi.fn(() => ({ sources: [was, lost], chunks: [] }));
+    const user = userEvent.setup();
+    const { container } = renderAt(URL, { logs: { ...logs, readLogs } });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(message({ sources: [was], chunks: [{ sourceId: was.id, lines: [line("before")] }], caughtUp: true })),
+    );
+    await screen.findByText("before");
+    const field = screen.getByRole("textbox", { name: "Search logs" });
+    await user.type(field, "far");
+    await user.click(await screen.findByRole("button", { name: "Search all the servers keep" }));
+    await waitFor(() => expect(readLogs).toHaveBeenCalled());
+    await user.click(screen.getByRole("radio", { name: "Lines loaded" }));
+    await user.clear(field);
+    const head = () => container.querySelector(".dw-log-name")?.textContent ?? "";
+    // What the search saw and still runs goes on counting, as what's read live says so.
+    const now = web("aaaa00000003", 3);
+    await act(() =>
+      stream.send(
+        message({ sources: [was, now], chunks: [{ sourceId: now.id, lines: [line("during")] }], caughtUp: true }),
+      ),
+    );
+    await screen.findByText("during");
+    await waitFor(() => expect(head()).toContain("2 containers"));
+    // Since, one the search saw has gone with nothing said of it, and the other was kept.
+    await act(() =>
+      stream.send(
+        message({
+          sources: [web("aaaa00000001", 1, LogSourceState.KEPT), now],
+          chunks: [{ sourceId: now.id, lines: [line("after")] }],
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("after");
+    await waitFor(() => expect(head()).toContain("web · production"));
+    await waitFor(() => expect(head()).not.toMatch(/container/));
+    expect(screen.queryByRole("radio", { name: "All containers" })).toBeNull();
+  });
+
+  it("forgets a filter on a name that has gone, as a deploy moves on from it", async () => {
+    const { logs, stream } = api(sourcesOf(running));
+    renderAt(`${URL}?replica=web-9`, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          sources: [running],
+          chunks: [{ sourceId: running.id, lines: [line("still here")] }],
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("still here");
+  });
+
   it("has a source column once there are two sources", async () => {
     const { logs, stream } = api(sourcesOf(running, second));
     const { container } = renderAt(URL, { logs });
@@ -172,7 +321,7 @@ describe("LogsPage", () => {
     await waitFor(() => expect(container.querySelector(".dw-log-src")).not.toBeNull());
     expect(screen.getAllByText("hz-2").length).toBeGreaterThan(0);
     // Two replicas give a choice of them.
-    expect(screen.getByRole("radio", { name: "All replicas" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "All containers" })).toBeChecked();
     await userEvent.setup().click(screen.getByRole("radio", { name: "hz-2" }));
     await waitFor(() => expect(screen.queryByText("from one")).toBeNull());
     expect(container.querySelector(".dw-log-src")).toBeNull();
@@ -351,6 +500,8 @@ describe("LogsPage", () => {
     await waitFor(() => expect(requests[0]?.changeId).toBe("chg_2"));
     expect(requests[0]?.once).toBe(true);
     await screen.findByText("failed at", { exact: false });
+    // By the name it had, as Docker has forgotten it.
+    expect(screen.getByRole("alert")).toHaveTextContent("It ran as web-1.");
     await act(() =>
       stream.send(
         message({
@@ -874,7 +1025,39 @@ describe("deploysOf", () => {
   });
 });
 
+describe("withLabels", () => {
+  const web = (id: string, n: number, state = LogSourceState.RUNNING, serverId = "srv_1", serverName = "hz-1") =>
+    create(LogSourceSchema, { id, serverId, serverName, replica: 1, state, containerName: `env_01kat-web-${n}` });
+  const of = (...sources: LogSource[]) => new Map(sources.map((s) => [s.id, s]));
+  const named = (all: Map<string, LogSource>, read = all) =>
+    [...withLabels(all, read).values()].map((s) => replicaLabel(s));
+
+  it("names the server at rest, whatever number a deploy has reached", () => {
+    expect(named(of(web("a", 7)))).toEqual(["hz-1"]);
+  });
+  it("names each container while more than one on a server is read, as through a rolling deploy", () => {
+    expect(named(of(web("a", 2), web("b", 3)))).toEqual(["web-2", "web-3"]);
+  });
+  it("goes on naming what this view read of one that has gone, as it wrote those lines", () => {
+    const all = of(web("a", 2, LogSourceState.KEPT), web("b", 3));
+    expect(named(all)).toEqual(["web-2", "web-3"]);
+  });
+  it("leaves out what was only kept, and isn't being read", () => {
+    const all = of(web("a", 2, LogSourceState.KEPT), web("b", 3));
+    expect(named(all, of(web("b", 3)))).toEqual(["hz-1", "hz-1"]);
+  });
+  it("says the server too where there are several, and only of the one that has two", () => {
+    const all = of(web("a", 2), web("b", 3), web("c", 1, LogSourceState.RUNNING, "srv_2", "hz-2"));
+    expect(named(all)).toEqual(["hz-1/web-2", "hz-1/web-3", "hz-2"]);
+  });
+});
+
 describe("replicaLabel", () => {
+  it("goes by the name a person knows a container by", () => {
+    expect(instanceName({ containerName: "env_01kat-web-3" })).toBe("web-3");
+    expect(instanceName({ containerName: "env_01kat-my-api-12" })).toBe("my-api-12");
+    expect(instanceName({ containerName: "" })).toBe("");
+  });
   it("names a server, and which of its replicas past the first", () => {
     expect(replicaLabel({ serverName: "hz-1", replica: 1 })).toBe("hz-1");
     expect(replicaLabel({ serverName: "hz-1", replica: 2 })).toBe("hz-1-2");

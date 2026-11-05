@@ -7,6 +7,7 @@
 package caddy
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/x509"
@@ -17,6 +18,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -132,6 +134,9 @@ type Caddy struct {
 	// issuerForTest replaces the issuer in tests that need a certificate and
 	// no certificate authority.
 	issuerForTest map[string]any
+	// procNetTCP is where the server's connections are read. Empty means
+	// /proc/net/tcp.
+	procNetTCP string
 
 	once  sync.Once
 	admin *http.Client
@@ -275,8 +280,25 @@ type loadBalancing struct {
 }
 
 type transport struct {
-	Protocol string   `json:"protocol"`
-	Versions []string `json:"versions,omitempty"`
+	Protocol  string     `json:"protocol"`
+	Versions  []string   `json:"versions,omitempty"`
+	KeepAlive *keepAlive `json:"keep_alive,omitempty"`
+}
+
+// keepAlive is how long Caddy keeps a connection to an upstream it isn't using.
+type keepAlive struct {
+	IdleConnTimeout string `json:"idle_timeout,omitempty"`
+}
+
+// upstreamIdle is how long Caddy keeps a connection to an upstream with no request
+// on it. A drain counts connections, so that is how long one takes to read as clear
+// once nothing is on its way there. It costs an app a new connection after that
+// long with no requests, over the server's own bridge.
+const upstreamIdle = "2s"
+
+// upstreamTransport is how a route reaches its upstream.
+func upstreamTransport() *transport {
+	return &transport{Protocol: "http", KeepAlive: &keepAlive{IdleConnTimeout: upstreamIdle}}
 }
 
 type handler struct {
@@ -510,6 +532,7 @@ func routeJSON(r ingress.Route) route {
 	h := handler{
 		Handler: "reverse_proxy", Upstreams: ups, FlushInterval: -1, StreamCloseDelay: streamClose,
 		LoadBalancing: &loadBalancing{TryDuration: tryDuration, TryInterval: tryInterval},
+		Transport:     upstreamTransport(),
 		Headers:       ownName(clientAddress(), r.Domain),
 	}
 	handle := []handler{h}
@@ -893,6 +916,7 @@ func routesIn(servers map[string]json.RawMessage) (all, others []json.RawMessage
 	if all, err = read(serverName); err != nil {
 		return nil, nil, err
 	}
+	all = slices.DeleteFunc(all, func(raw json.RawMessage) bool { return isGeneration(routeID(raw)) })
 	plain, err := read(httpServerName)
 	if err != nil {
 		return nil, nil, err
@@ -900,7 +924,7 @@ func routesIn(servers map[string]json.RawMessage) (all, others []json.RawMessage
 	for _, raw := range plain {
 		id := routeID(raw)
 		switch {
-		case strings.HasPrefix(id, derivedPrefix):
+		case strings.HasPrefix(id, derivedPrefix), isGeneration(id):
 		case strings.HasPrefix(id, "dockwell."):
 			all = append(all, raw)
 		default:
@@ -945,10 +969,83 @@ func (c *Caddy) Routes(ctx context.Context) ([]ingress.Route, error) {
 	var out []ingress.Route
 	for _, r := range raw {
 		if read, ok := readRoute(r); ok {
-			out = append(out, read)
+			out = append(out, c.dialed(read))
 		}
 	}
 	return out, nil
+}
+
+// upstreamsDir holds, in Caddy's run directory, what each route dials.
+const upstreamsDir = "upstreams"
+
+// maxUpstreamFile bounds what is read of one: an address and a port.
+const maxUpstreamFile = 1 << 10
+
+// throughFile makes a route that sends to one upstream dial through a file, which
+// Caddy reads for each request. So moving it is writing the file: nothing reloads,
+// and no connection to any site on the server is touched by it, whichever protocol
+// it speaks. Caddy needs to be there for none of this, and starts with what the file
+// says (ADR 0027). A route with several upstreams dials them as they are.
+func (c *Caddy) throughFile(r ingress.Route) (ingress.Route, error) {
+	if len(r.Upstreams) != 1 {
+		return r, nil
+	}
+	name := filepath.Join(upstreamsDir, r.ID)
+	if err := writeIn(c.runDir(), name, []byte(r.Upstreams[0]), 0o644, proxyOwns()); err != nil {
+		return r, fmt.Errorf("can't write what the route %s dials: %w. Check that %s is writable", r.ID, err, c.runDir())
+	}
+	r.Upstreams = []string{dialFile(c.Runtime.Paths().Run, r.ID)}
+	return r, nil
+}
+
+// dialFile is what a route that dials through a file says to dial.
+func dialFile(run, id string) string {
+	return "{file." + filepath.Join(run, upstreamsDir, id) + "}"
+}
+
+// dialed reads what a route dials through its file. That is Caddy's directory, so
+// what isn't an address reads as a hand edit, as drift, and a revert writes it again.
+func (c *Caddy) dialed(r ingress.Route) ingress.Route {
+	for i, up := range r.Upstreams {
+		if !strings.HasPrefix(up, "{file.") {
+			continue
+		}
+		if up != dialFile(c.Runtime.Paths().Run, r.ID) {
+			r.Edited = true
+			continue
+		}
+		b, err := readIn(c.runDir(), filepath.Join(upstreamsDir, r.ID), maxUpstreamFile)
+		address := strings.TrimSpace(string(b))
+		if _, _, splitErr := net.SplitHostPort(address); err != nil || splitErr != nil {
+			r.Edited, r.Upstreams = true, slices.Delete(slices.Clone(r.Upstreams), i, i+1)
+			return r
+		}
+		r.Upstreams[i] = address
+	}
+	return r
+}
+
+// alreadySo reports routes that Caddy has as they are, as they would come out of
+// its last config if it is down, so what changes only what a file says reloads
+// nothing and needs nothing of Caddy.
+func (c *Caddy) alreadySo(ctx context.Context, bodies map[string]json.RawMessage) bool {
+	raw, _, err := c.rawRoutes(ctx)
+	if err != nil {
+		return false
+	}
+	// A server that trusts a proxy changes what its other routes do with a header
+	// as it writes them (withTrust), so that isn't a difference to reload for.
+	trusts := len(trustedRanges(raw)) > 0
+	found := 0
+	for _, r := range raw {
+		if body, ok := bodies[routeID(r)]; ok {
+			if !sameJSON(r, withTrust([]json.RawMessage{body}, trusts)[0]) {
+				return false
+			}
+			found++
+		}
+	}
+	return found == len(bodies)
 }
 
 // routeID reads a raw route's ID.
@@ -966,14 +1063,14 @@ func routeID(raw json.RawMessage) string {
 var (
 	knownRouteKeys   = []string{"@id", "match", "handle", "terminal"}
 	knownMatchKeys   = []string{"host", "path", "protocol", "remote_ip"}
-	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers"}
+	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers", "transport"}
 )
 
 // readRoute reads one of Dockwell's routes; ok is false for another's, which
 // Dockwell leaves alone.
 func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	id := routeID(raw)
-	if !strings.HasPrefix(id, "dockwell.") || strings.HasPrefix(id, panelRouteID) || strings.HasPrefix(id, derivedPrefix) || id == closedRouteID {
+	if !strings.HasPrefix(id, "dockwell.") || strings.HasPrefix(id, panelRouteID) || strings.HasPrefix(id, derivedPrefix) || id == closedRouteID || isGeneration(id) {
 		return ingress.Route{}, false
 	}
 	out := ingress.Route{ID: id}
@@ -1005,7 +1102,7 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 		out.TrustedProxies, out.EdgeProxies = readBelief(r.Handle[0])
 	}
 	out.PlainForAnyone = out.Plain && r.Match[0].RemoteIP == nil
-	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, len(r.Handle) == 2, out.Domain) || !beliefAndReachAreOurs(r, out)
+	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, len(r.Handle) == 2, out.Domain) || !beliefAndReachAreOurs(r, out) || !transportIsOurs(raw)
 	return out, true
 }
 
@@ -1058,6 +1155,26 @@ func headersAreOurs(raw json.RawMessage, trusts bool, domain string) bool {
 	})
 }
 
+// transportIsOurs reports a route that reaches its upstream as Dockwell has it do,
+// or, as an older config may, as Caddy does by default.
+func transportIsOurs(raw json.RawMessage) bool {
+	var r struct {
+		Handle []struct {
+			Transport json.RawMessage `json:"transport"`
+		} `json:"handle"`
+	}
+	if json.Unmarshal(raw, &r) != nil || len(r.Handle) == 0 {
+		return false
+	}
+	// A route that believes a proxy has a step ahead of the one that sends it on.
+	transport := r.Handle[len(r.Handle)-1].Transport
+	if len(transport) == 0 {
+		return true
+	}
+	ours, err := json.Marshal(upstreamTransport())
+	return err == nil && sameJSON(transport, ours)
+}
+
 func onlyKnownKeys(raw json.RawMessage) bool {
 	var r struct {
 		Match  []map[string]json.RawMessage `json:"match"`
@@ -1090,11 +1207,17 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 		if !up {
 			return fmt.Errorf("%w, so it can't change its routes. Start it with docker start %s; the agent starts it within a minute", errDown, ingress.ContainerName)
 		}
-		if err := c.editServers(servers, edit); err != nil {
+		generation, err := c.newGeneration()
+		if err != nil {
+			return err
+		}
+		if err := c.editServers(servers, edit, generation); err != nil {
+			c.forgetGeneration(generation)
 			return err
 		}
 		body, err := json.Marshal(servers)
 		if err != nil {
+			c.forgetGeneration(generation)
 			return err
 		}
 		header := http.Header{}
@@ -1104,12 +1227,96 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 		_, _, err = c.call(ctx, http.MethodPatch, serversPath, body, header)
 		var ae *adminError
 		if errors.As(err, &ae) && ae.Status == http.StatusPreconditionFailed && try < 3 {
+			c.forgetGeneration(generation)
 			continue
 		}
-		if err == nil {
-			c.keepRunning(ctx)
+		if err != nil {
+			c.forgetGeneration(generation)
+			return err
 		}
+		c.keepOnlyGeneration(generation)
+		c.keepRunning(ctx)
+		return nil
+	}
+}
+
+// generationRouteID names the route that tells a config it is out of date, and
+// plainGenerationRouteID the same route on the plain HTTP server, as Caddy refuses
+// two of one ID in a config, across its servers.
+const (
+	generationRouteID      = "dockwell-generation"
+	plainGenerationRouteID = generationRouteID + "-http"
+)
+
+// isGeneration reports one of those.
+func isGeneration(id string) bool { return id == generationRouteID || id == plainGenerationRouteID }
+
+// generationPrefix starts the name of the file each config looks for, in the
+// proxy's run directory.
+const generationPrefix = "generation-"
+
+// newGeneration gives a config a file of its own to look for, and a first route
+// that says Connection: close on every response once the file is gone.
+//
+// A reload makes the old config's connections leave: Go's HTTP/2 server sends
+// each a GOAWAY as it shuts down. But it only tells those it has registered, and
+// it registers one after its TLS handshake, so one mid-handshake as the reload
+// comes is never told. It goes on with the old config for as long as its client
+// keeps it busy, and Caddy's old config, with its context cancelled, answers 502
+// at once on an upstream that has gone, with no retry. Measured under load, that
+// is one connection in about 3 rollouts at 30 new connections a second. So the
+// old config can't be told by Caddy, and tells itself: the file goes as the
+// reload ends, and its next response sends the connection to the new config,
+// while the old upstream is still there to answer it (ADR 0027).
+func (c *Caddy) newGeneration() (string, error) {
+	name := generationPrefix + strconv.FormatInt(time.Now().UnixNano(), 36)
+	dir := c.generationDir()
+	if err := touchNew(filepath.Join(dir, name)); err != nil {
+		return "", fmt.Errorf("can't write %s in %s, which Caddy reads to tell its old config from its new: %w. Check that directory is writable", name, dir, err)
+	}
+	return name, nil
+}
+
+// touchNew makes an empty file that wasn't there. Nothing in Caddy's directories
+// is to be trusted, so this neither follows a link planted at the name, which
+// would make the agent write where Caddy can't, nor takes a file already there.
+func touchNew(path string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // it's empty, in a directory only Caddy's user can enter, and that user has to find it
+	if err != nil {
 		return err
+	}
+	return f.Close()
+}
+
+func generationRoute(id, run, name string) map[string]any {
+	return map[string]any{
+		"@id": id,
+		"match": []map[string]any{{"not": []map[string]any{{
+			"file": map[string]any{"root": run, "try_files": []string{"/" + name}},
+		}}}},
+		"handle": []map[string]any{{"handler": "headers", "response": map[string]any{"set": map[string][]string{"Connection": {"close"}}}}},
+	}
+}
+
+// generationDir is the run directory on the server's side of the mounts.
+func (c *Caddy) generationDir() string { return filepath.Join(c.Dir, "run") }
+
+func (c *Caddy) forgetGeneration(name string) {
+	_ = os.Remove(filepath.Join(c.generationDir(), name))
+}
+
+// keepOnlyGeneration removes every generation file but the one the config now
+// loaded looks for: what was left behind goes too, as a crash can leave one, and
+// the configs before it read as out of date from here on.
+func (c *Caddy) keepOnlyGeneration(name string) {
+	entries, err := os.ReadDir(c.generationDir())
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), generationPrefix) && e.Name() != name {
+			_ = os.Remove(filepath.Join(c.generationDir(), e.Name()))
+		}
 	}
 }
 
@@ -1122,7 +1329,7 @@ var errNoServer = errors.New("caddy isn't running Dockwell's config, so its rout
 // so it can't fall out of step with them: whether HTTPS listens at all, what the
 // plain HTTP server derives, and which proxies the servers trust. Everything else
 // in them is left as it is.
-func (c *Caddy) editServers(servers map[string]json.RawMessage, edit func([]json.RawMessage) ([]json.RawMessage, error)) error {
+func (c *Caddy) editServers(servers map[string]json.RawMessage, edit func([]json.RawMessage) ([]json.RawMessage, error), generation string) error {
 	if len(servers[serverName]) == 0 {
 		return errNoServer
 	}
@@ -1153,6 +1360,13 @@ func (c *Caddy) editServers(servers map[string]json.RawMessage, edit func([]json
 	if err := c.setListen(tlsServer, secure); err != nil {
 		return err
 	}
+	// The generation route goes on both, as a config on either can outlive a reload.
+	// It names no host, so it doesn't make HTTPS listen.
+	route, err := json.Marshal(generationRoute(generationRouteID, c.Runtime.Paths().Run, generation))
+	if err != nil {
+		return err
+	}
+	secure = append(secure, route)
 	if err := setServerRoutes(tlsServer, secure, trusted); err != nil {
 		return err
 	}
@@ -1166,6 +1380,10 @@ func (c *Caddy) editServers(servers map[string]json.RawMessage, edit func([]json
 		delete(servers, httpServerName)
 		return nil
 	}
+	if route, err = json.Marshal(generationRoute(plainGenerationRouteID, c.Runtime.Paths().Run, generation)); err != nil {
+		return err
+	}
+	plain = append(plain, route)
 	plainServer := map[string]json.RawMessage{}
 	if err := unmarshalIf(servers[httpServerName], &plainServer); err != nil {
 		return err
@@ -1366,6 +1584,8 @@ func sortRoutes(routes []json.RawMessage) {
 	keyOf := func(raw json.RawMessage) key {
 		id := routeID(raw)
 		switch {
+		case isGeneration(id):
+			return key{rank: -1}
 		case strings.HasPrefix(id, panelRouteID):
 			return key{rank: 0}
 		case !strings.HasPrefix(id, "dockwell."):
@@ -1432,9 +1652,16 @@ func replacedBy(raw json.RawMessage, r ingress.Route) bool {
 // PutRoute adds a route, or changes the one with its ID, in one reload, and
 // takes out any left from before that it can't stand beside.
 func (c *Caddy) PutRoute(ctx context.Context, r ingress.Route) error {
+	r, err := c.throughFile(r)
+	if err != nil {
+		return err
+	}
 	body, err := json.Marshal(routeJSON(r))
 	if err != nil {
 		return err
+	}
+	if c.alreadySo(ctx, map[string]json.RawMessage{r.ID: body}) {
+		return nil
 	}
 	return c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
 		routes = slices.DeleteFunc(routes, func(raw json.RawMessage) bool { return replacedBy(raw, r) })
@@ -1448,12 +1675,59 @@ func (c *Caddy) PutRoute(ctx context.Context, r ingress.Route) error {
 	})
 }
 
+// PutRoutes changes several routes as one change. A rollout's changes only what
+// each dials, which reloads nothing. Anything else is one reload, as reloads close
+// together are what the next catches clients coming back from (newGeneration).
+func (c *Caddy) PutRoutes(ctx context.Context, list []ingress.Route) error {
+	bodies := make(map[string]json.RawMessage, len(list))
+	order := make([]string, 0, len(list))
+	for i := range list {
+		r, err := c.throughFile(list[i])
+		if err != nil {
+			return err
+		}
+		body, err := json.Marshal(routeJSON(r))
+		if err != nil {
+			return err
+		}
+		bodies[r.ID] = body
+		order = append(order, r.ID)
+	}
+	if c.alreadySo(ctx, bodies) {
+		return nil
+	}
+	return c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
+		done := map[string]bool{}
+		for i := range routes {
+			if body, ok := bodies[routeID(routes[i])]; ok {
+				routes[i] = body
+				done[routeID(routes[i])] = true
+			}
+		}
+		for _, id := range order {
+			if !done[id] {
+				routes = append(routes, bodies[id])
+			}
+		}
+		return routes, nil
+	})
+}
+
 // DeleteRoute removes a route, if Caddy has it. With Caddy down it comes out of
 // the last config, which is what Caddy serves when it starts again, so a route
 // can always be removed: starting Caddy for it may be just what another proxy on
 // the ports stops. A Caddy that runs and doesn't answer, as under docker pause,
 // would write its own config back over that, so that says what to do instead.
 func (c *Caddy) DeleteRoute(ctx context.Context, id string) error {
+	err := c.deleteRoute(ctx, id)
+	if err == nil {
+		// Nothing dials it now, and a route of its name writes it anew.
+		_ = os.Remove(filepath.Join(c.runDir(), upstreamsDir, id))
+	}
+	return err
+}
+
+func (c *Caddy) deleteRoute(ctx context.Context, id string) error {
 	err := c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
 		return slices.DeleteFunc(routes, func(raw json.RawMessage) bool { return routeID(raw) == id }), nil
 	})
@@ -1647,26 +1921,52 @@ func sameJSON(a, b []byte) bool {
 	return bytes.Equal(ca, cb)
 }
 
-// InFlight says how many requests an upstream has now, across configs.
-func (c *Caddy) InFlight(ctx context.Context, up string) (int, error) {
-	b, _, err := c.call(ctx, http.MethodGet, "/reverse_proxy/upstreams", nil, nil)
+// InFlight says how many connections are open to an upstream, as the kernel has
+// them, from the server's own network namespace, which is Caddy's: it runs on the
+// host's network, as this agent does. Caddy's own count is by what a config says to
+// dial, which for a route that dials through a file is every container it has ever
+// sent to. A connection with no request on it closes within upstreamIdle, so what is
+// left is what is on its way. A request's connection may open a moment after a
+// route moves, which is why Drain reads twice.
+func (c *Caddy) InFlight(_ context.Context, up string) (int, error) {
+	host, port, err := net.SplitHostPort(up)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("%s isn't an address and a port: %w", up, err)
 	}
-	var list []struct {
-		Address     string `json:"address"`
-		NumRequests int    `json:"num_requests"`
+	address, err := netip.ParseAddr(host)
+	if err != nil || !address.Is4() {
+		return 0, fmt.Errorf("%s isn't an IPv4 address, which is all the ingress network has", host)
 	}
-	if err := json.Unmarshal(b, &list); err != nil {
-		return 0, fmt.Errorf("can't read what Caddy says of its upstreams: %w", err)
+	number, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("%s isn't a port: %w", port, err)
 	}
-	total := 0
-	for _, u := range list {
-		if u.Address == up {
-			total += u.NumRequests
+	// The kernel writes an address in the host's order: little-endian here, as on
+	// every architecture Dockwell ships for.
+	b := address.As4()
+	remote := fmt.Sprintf("%02X%02X%02X%02X:%04X", b[3], b[2], b[1], b[0], number)
+	table := c.procNetTCP
+	if table == "" {
+		table = "/proc/net/tcp"
+	}
+	f, err := os.Open(table) //nolint:gosec // the kernel's own table, or a test's
+	if err != nil {
+		return 0, fmt.Errorf("can't read the server's connections: %w", err)
+	}
+	defer f.Close()
+	const established = "01"
+	n := 0
+	scan := bufio.NewScanner(f)
+	for scan.Scan() {
+		fields := strings.Fields(scan.Text())
+		if len(fields) > 3 && fields[2] == remote && fields[3] == established {
+			n++
 		}
 	}
-	return total, nil
+	if err := scan.Err(); err != nil {
+		return 0, fmt.Errorf("can't read the server's connections: %w", err)
+	}
+	return n, nil
 }
 
 // Retry starts a pending or failed certificate's next try now. Caddy takes

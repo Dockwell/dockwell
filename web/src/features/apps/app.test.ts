@@ -24,7 +24,6 @@ import {
   bareImage,
   canRollBackTo,
   companions,
-  containerName,
   fieldName,
   groupApps,
   groupState,
@@ -237,11 +236,6 @@ describe("the words an app goes by", () => {
     expect(toLabel("1panel-wordpress")).toBe("panel-wordpress");
     expect(toLabel("Shop")).toBe("shop");
     expect(toLabel("___")).toBe("");
-  });
-
-  it("names a service's container as Compose does", () => {
-    const app = anApp("web", "a", {}, { resource: { kind: "service", scope: "env_01KAT", name: "web" } });
-    expect(containerName(app)).toBe("env_01kat-web-1");
   });
 
   it("reads a plan's path as the service's own field", () => {

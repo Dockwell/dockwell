@@ -83,8 +83,9 @@ type Kept struct {
 }
 
 // slot names what a kept log competes with to stay: a service keeps one for
-// each slot. Rollouts (#28) will run several replicas of a service at once, and
-// then this names the replica too, or what is kept is only one replica's.
+// each slot. A rollout has two containers only while it moves, and one at rest, so
+// this holds through one. Replicas, when they come, run several, and then this names
+// the replica too, or what is kept is only one replica's.
 func (k *Kept) slot() string {
 	if k.Failed {
 		return "failed"
@@ -266,7 +267,7 @@ func keptOf(c *docker.Container, failed bool) Kept {
 	revision, _ := strconv.ParseInt(l[container.LabelRevision], 10, 64)
 	return Kept{
 		ContainerID: shortID(c.ID),
-		Name:        strings.TrimPrefix(c.Name, "/"),
+		Name:        container.PlainName(c.Name),
 		Project:     l[docker.LabelProject],
 		Service:     l[docker.LabelService],
 		Number:      max(number, 1),

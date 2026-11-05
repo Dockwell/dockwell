@@ -58,6 +58,33 @@ func TestACallOutOfTimeSaysSoWhicheverEndComesFirst(t *testing.T) {
 	}
 }
 
+// A rollout's call gets what its plan says it may take, on top of what any step
+// gets, or a long start period would read as an agent that didn't answer, and the
+// agent would stop a step that was going as it should.
+func TestACallGetsTheTimeItsPlanTakes(t *testing.T) {
+	kinds := resource.NewRegistry(&firewall.Driver{})
+	step := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: "srv_1", Name: "slow"}, Decision: resource.Decision{
+		Action: resource.ActionReplace, Rollout: &resource.RolloutPlan{Rolling: true, HealthyWithin: 30 * time.Minute, Drain: time.Minute, StopGrace: 10 * time.Second},
+	}}
+	a := NewAgents(kinds, slog.New(slog.DiscardHandler))
+	var s *Session
+	var timeout time.Duration
+	s = a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}}, func(msg *agentv1.ConnectResponse) error {
+		if c := msg.GetCall(); c != nil {
+			timeout = c.GetTimeout().AsDuration()
+			s.deliver(&agentv1.CallResult{Id: c.GetId(), Result: &agentv1.CallResult_Apply{Apply: &agentv1.ApplyResult{}}})
+		}
+		return nil
+	})
+	defer s.close()
+	if err := s.Apply(t.Context(), step, &resourcev1.FirewallRule{Port: 8080}); err != nil {
+		t.Fatal(err)
+	}
+	if want := ApplyTimeout + step.Budget() - time.Minute; timeout < want {
+		t.Errorf("the agent got %s for a step that may take %s beyond the %s any step gets", timeout, step.Budget(), ApplyTimeout)
+	}
+}
+
 // fresh copies a result, so each call gets its own.
 func fresh(r *agentv1.CallResult) *agentv1.CallResult {
 	return &agentv1.CallResult{Result: r.GetResult()}

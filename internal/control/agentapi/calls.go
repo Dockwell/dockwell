@@ -21,6 +21,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -75,6 +76,10 @@ type Agents struct {
 	domains map[string][]*dockwellv1.DomainStatus
 	// ingress is what each server last said of its ingress.
 	ingress map[string]*dockwellv1.IngressStatus
+	// health is what each server last said of its services, and health hears
+	// each report. It outlives the stream as domains does.
+	health       map[string]health.Report
+	healthHearer func(server string, instances []*dockwellv1.InstanceHealth)
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
@@ -82,8 +87,66 @@ type Agents struct {
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
 		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, opened: make(chan struct{}),
-		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{},
+		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
 	}
+}
+
+// OnHealth calls fn with each report of how a server's services are, in the
+// order they come on one stream.
+func (a *Agents) OnHealth(fn func(server string, instances []*dockwellv1.InstanceHealth)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.healthHearer = fn
+}
+
+// ReportHealth keeps what a server says of its services. An agent is trusted with
+// its own server and nothing more, so what it says is made fit to show before it
+// goes further, as an agent that has been taken over could say anything: it reaches
+// a timeline and a terminal. With no time it read Docker, it has said nothing, which
+// isn't that nothing runs.
+func (a *Agents) ReportHealth(server string, h *agentv1.Health) {
+	if h.GetScannedAt() == nil {
+		return
+	}
+	instances := fitToShow(h.GetInstances())
+	a.mu.Lock()
+	a.health[server] = health.Report{
+		Said: true, Instances: instances, ScannedAt: h.GetScannedAt().AsTime(), ReportedAt: h.GetReportedAt().AsTime(), ReceivedAt: time.Now(),
+	}
+	hear := a.healthHearer
+	a.mu.Unlock()
+	if hear != nil {
+		hear(server, instances)
+	}
+}
+
+// fitToShow holds what an agent reports to what its own monitor would send: as many
+// containers as it watches, each in one short printable line, and a state the API
+// has a name for.
+func fitToShow(instances []*dockwellv1.InstanceHealth) []*dockwellv1.InstanceHealth {
+	instances = instances[:min(len(instances), health.MaxInstances)]
+	for _, i := range instances {
+		if i == nil {
+			continue
+		}
+		if _, known := dockwellv1.HealthState_name[int32(i.GetState())]; !known {
+			i.State = dockwellv1.HealthState_HEALTH_STATE_UNKNOWN
+		}
+		i.Container = health.Clean(i.GetContainer(), nil)
+		if i.GetLast() != nil {
+			i.Last.Output = health.Clean(i.GetLast().GetOutput(), nil)
+		}
+	}
+	return slices.DeleteFunc(instances, func(i *dockwellv1.InstanceHealth) bool { return i == nil })
+}
+
+// Health is what a server last said of its services, and whether its agent is
+// connected to say more.
+func (a *Agents) Health(server string) (report health.Report, connected bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, connected = a.sessions[server]
+	return a.health[server], connected
 }
 
 // Report keeps what a server says of its routes' domains.
@@ -587,6 +650,8 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			return nil, err
 		}
 		dr.Pull, dr.Run = d.Pull, d.Run
+		dr.Restart = d.Restart
+		dr.Rollback = d.Rollback
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)
@@ -641,7 +706,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		return err
 	}
 	defer clear(values)
-	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled}
+	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled, Finishing: step.Finishing}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
 		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback}
 	}
@@ -653,7 +718,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 			return err
 		}
 	}
-	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout, seal)
+	// What a step waits on by design, such as a health check with a long start
+	// period, comes on top of the time any step gets.
+	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
 	return err
 }
 

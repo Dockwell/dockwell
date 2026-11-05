@@ -40,6 +40,9 @@ const (
 	// sign-in and claim links, and join tickets. Refusals, such as a wrong
 	// code, stay in the audit log.
 	EventKind_EVENT_KIND_ACCESS EventKind = 3
+	// A service turned unhealthy, stopped running, or came back, as its server's
+	// agent saw, outside any change.
+	EventKind_EVENT_KIND_HEALTH EventKind = 4
 )
 
 // Enum value maps for EventKind.
@@ -49,12 +52,14 @@ var (
 		1: "EVENT_KIND_CHANGE",
 		2: "EVENT_KIND_SERVER",
 		3: "EVENT_KIND_ACCESS",
+		4: "EVENT_KIND_HEALTH",
 	}
 	EventKind_value = map[string]int32{
 		"EVENT_KIND_UNSPECIFIED": 0,
 		"EVENT_KIND_CHANGE":      1,
 		"EVENT_KIND_SERVER":      2,
 		"EVENT_KIND_ACCESS":      3,
+		"EVENT_KIND_HEALTH":      4,
 	}
 )
 
@@ -453,7 +458,10 @@ type Event struct {
 	// or was removed, the API token or passkey made or removed, the person a
 	// sign-in link is for, or the secret revealed. Unset when there is
 	// nothing more to name.
-	Subject       *EventSubject `protobuf:"bytes,8,opt,name=subject,proto3" json:"subject,omitempty"`
+	Subject *EventSubject `protobuf:"bytes,8,opt,name=subject,proto3" json:"subject,omitempty"`
+	// How a service's health changed, for a health event. Its subject is the
+	// service.
+	Health        *EventHealth `protobuf:"bytes,9,opt,name=health,proto3" json:"health,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -544,6 +552,109 @@ func (x *Event) GetSubject() *EventSubject {
 	return nil
 }
 
+func (x *Event) GetHealth() *EventHealth {
+	if x != nil {
+		return x.Health
+	}
+	return nil
+}
+
+// EventHealth is how a service's health changed on a server, as far as the
+// timeline tells of it: when it turned unhealthy or stopped running, and when
+// it came back. A state that lasts under 30 s isn't told, and at most one event
+// is, for a service on a server, every 5 minutes: flips counts what came between.
+type EventHealth struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID.
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// The server's name, such as "hz-1".
+	ServerName string `protobuf:"bytes,2,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	// How it is now.
+	State HealthState `protobuf:"varint,3,opt,name=state,proto3,enum=dockwell.v1.HealthState" json:"state,omitempty"`
+	// How it was as the timeline last told of it.
+	Previous HealthState `protobuf:"varint,4,opt,name=previous,proto3,enum=dockwell.v1.HealthState" json:"previous,omitempty"`
+	// What the last check said, in one short line, with the values of the
+	// container's environment masked.
+	Output string `protobuf:"bytes,5,opt,name=output,proto3" json:"output,omitempty"`
+	// How many other times the state changed since the last event of this
+	// service on this server.
+	Flips         int32 `protobuf:"varint,6,opt,name=flips,proto3" json:"flips,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EventHealth) Reset() {
+	*x = EventHealth{}
+	mi := &file_dockwell_v1_event_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EventHealth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EventHealth) ProtoMessage() {}
+
+func (x *EventHealth) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_event_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EventHealth.ProtoReflect.Descriptor instead.
+func (*EventHealth) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *EventHealth) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *EventHealth) GetServerName() string {
+	if x != nil {
+		return x.ServerName
+	}
+	return ""
+}
+
+func (x *EventHealth) GetState() HealthState {
+	if x != nil {
+		return x.State
+	}
+	return HealthState_HEALTH_STATE_UNSPECIFIED
+}
+
+func (x *EventHealth) GetPrevious() HealthState {
+	if x != nil {
+		return x.Previous
+	}
+	return HealthState_HEALTH_STATE_UNSPECIFIED
+}
+
+func (x *EventHealth) GetOutput() string {
+	if x != nil {
+		return x.Output
+	}
+	return ""
+}
+
+func (x *EventHealth) GetFlips() int32 {
+	if x != nil {
+		return x.Flips
+	}
+	return 0
+}
+
 // EventSubject names what an event is about.
 type EventSubject struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -563,7 +674,7 @@ type EventSubject struct {
 
 func (x *EventSubject) Reset() {
 	*x = EventSubject{}
-	mi := &file_dockwell_v1_event_proto_msgTypes[5]
+	mi := &file_dockwell_v1_event_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -575,7 +686,7 @@ func (x *EventSubject) String() string {
 func (*EventSubject) ProtoMessage() {}
 
 func (x *EventSubject) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_event_proto_msgTypes[5]
+	mi := &file_dockwell_v1_event_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -588,7 +699,7 @@ func (x *EventSubject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventSubject.ProtoReflect.Descriptor instead.
 func (*EventSubject) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_event_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *EventSubject) GetId() string {
@@ -616,7 +727,7 @@ var File_dockwell_v1_event_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/event.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x02\n" +
+	"\x17dockwell/v1/event.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x18dockwell/v1/health.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x02\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -644,7 +755,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x06events\x18\x01 \x03(\v2\x12.dockwell.v1.EventR\x06events\x12\x18\n" +
 	"\aremoved\x18\x02 \x03(\tR\aremoved\x12\x1a\n" +
 	"\bsnapshot\x18\x03 \x01(\bR\bsnapshot\x12&\n" +
-	"\x0fnext_page_token\x18\x04 \x01(\tR\rnextPageToken\"\xc7\x02\n" +
+	"\x0fnext_page_token\x18\x04 \x01(\tR\rnextPageToken\"\xf9\x02\n" +
 	"\x05Event\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12*\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x16.dockwell.v1.EventKindR\x04kind\x12\x16\n" +
@@ -653,16 +764,26 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x05actor\x18\x05 \x01(\v2\x12.dockwell.v1.ActorR\x05actor\x12.\n" +
 	"\asurface\x18\x06 \x01(\x0e2\x14.dockwell.v1.SurfaceR\asurface\x12+\n" +
 	"\x06change\x18\a \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x123\n" +
-	"\asubject\x18\b \x01(\v2\x19.dockwell.v1.EventSubjectR\asubject\"H\n" +
+	"\asubject\x18\b \x01(\v2\x19.dockwell.v1.EventSubjectR\asubject\x120\n" +
+	"\x06health\x18\t \x01(\v2\x18.dockwell.v1.EventHealthR\x06health\"\xdf\x01\n" +
+	"\vEventHealth\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
+	"\vserver_name\x18\x02 \x01(\tR\n" +
+	"serverName\x12.\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x18.dockwell.v1.HealthStateR\x05state\x124\n" +
+	"\bprevious\x18\x04 \x01(\x0e2\x18.dockwell.v1.HealthStateR\bprevious\x12\x16\n" +
+	"\x06output\x18\x05 \x01(\tR\x06output\x12\x14\n" +
+	"\x05flips\x18\x06 \x01(\x05R\x05flips\"H\n" +
 	"\fEventSubject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
-	"\x05scope\x18\x03 \x01(\tR\x05scope*l\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope*\x83\x01\n" +
 	"\tEventKind\x12\x1a\n" +
 	"\x16EVENT_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11EVENT_KIND_CHANGE\x10\x01\x12\x15\n" +
 	"\x11EVENT_KIND_SERVER\x10\x02\x12\x15\n" +
-	"\x11EVENT_KIND_ACCESS\x10\x032\xd2\x01\n" +
+	"\x11EVENT_KIND_ACCESS\x10\x03\x12\x15\n" +
+	"\x11EVENT_KIND_HEALTH\x10\x042\xd2\x01\n" +
 	"\fEventService\x12h\n" +
 	"\n" +
 	"ListEvents\x12\x1e.dockwell.v1.ListEventsRequest\x1a\x1f.dockwell.v1.ListEventsResponse\"\x19\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\f\x12\n" +
@@ -684,7 +805,7 @@ func file_dockwell_v1_event_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_event_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_event_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_dockwell_v1_event_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_dockwell_v1_event_proto_goTypes = []any{
 	(EventKind)(0),                // 0: dockwell.v1.EventKind
 	(*ListEventsRequest)(nil),     // 1: dockwell.v1.ListEventsRequest
@@ -692,35 +813,40 @@ var file_dockwell_v1_event_proto_goTypes = []any{
 	(*WatchEventsRequest)(nil),    // 3: dockwell.v1.WatchEventsRequest
 	(*WatchEventsResponse)(nil),   // 4: dockwell.v1.WatchEventsResponse
 	(*Event)(nil),                 // 5: dockwell.v1.Event
-	(*EventSubject)(nil),          // 6: dockwell.v1.EventSubject
-	(ActorKind)(0),                // 7: dockwell.v1.ActorKind
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
-	(*Actor)(nil),                 // 9: dockwell.v1.Actor
-	(Surface)(0),                  // 10: dockwell.v1.Surface
-	(*Change)(nil),                // 11: dockwell.v1.Change
+	(*EventHealth)(nil),           // 6: dockwell.v1.EventHealth
+	(*EventSubject)(nil),          // 7: dockwell.v1.EventSubject
+	(ActorKind)(0),                // 8: dockwell.v1.ActorKind
+	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
+	(*Actor)(nil),                 // 10: dockwell.v1.Actor
+	(Surface)(0),                  // 11: dockwell.v1.Surface
+	(*Change)(nil),                // 12: dockwell.v1.Change
+	(HealthState)(0),              // 13: dockwell.v1.HealthState
 }
 var file_dockwell_v1_event_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.ListEventsRequest.kinds:type_name -> dockwell.v1.EventKind
-	7,  // 1: dockwell.v1.ListEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
+	8,  // 1: dockwell.v1.ListEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
 	5,  // 2: dockwell.v1.ListEventsResponse.events:type_name -> dockwell.v1.Event
 	0,  // 3: dockwell.v1.WatchEventsRequest.kinds:type_name -> dockwell.v1.EventKind
-	7,  // 4: dockwell.v1.WatchEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
+	8,  // 4: dockwell.v1.WatchEventsRequest.actor_kind:type_name -> dockwell.v1.ActorKind
 	5,  // 5: dockwell.v1.WatchEventsResponse.events:type_name -> dockwell.v1.Event
 	0,  // 6: dockwell.v1.Event.kind:type_name -> dockwell.v1.EventKind
-	8,  // 7: dockwell.v1.Event.time:type_name -> google.protobuf.Timestamp
-	9,  // 8: dockwell.v1.Event.actor:type_name -> dockwell.v1.Actor
-	10, // 9: dockwell.v1.Event.surface:type_name -> dockwell.v1.Surface
-	11, // 10: dockwell.v1.Event.change:type_name -> dockwell.v1.Change
-	6,  // 11: dockwell.v1.Event.subject:type_name -> dockwell.v1.EventSubject
-	1,  // 12: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
-	3,  // 13: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
-	2,  // 14: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
-	4,  // 15: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
-	14, // [14:16] is the sub-list for method output_type
-	12, // [12:14] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	9,  // 7: dockwell.v1.Event.time:type_name -> google.protobuf.Timestamp
+	10, // 8: dockwell.v1.Event.actor:type_name -> dockwell.v1.Actor
+	11, // 9: dockwell.v1.Event.surface:type_name -> dockwell.v1.Surface
+	12, // 10: dockwell.v1.Event.change:type_name -> dockwell.v1.Change
+	7,  // 11: dockwell.v1.Event.subject:type_name -> dockwell.v1.EventSubject
+	6,  // 12: dockwell.v1.Event.health:type_name -> dockwell.v1.EventHealth
+	13, // 13: dockwell.v1.EventHealth.state:type_name -> dockwell.v1.HealthState
+	13, // 14: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
+	1,  // 15: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
+	3,  // 16: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
+	2,  // 17: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
+	4,  // 18: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
+	17, // [17:19] is the sub-list for method output_type
+	15, // [15:17] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_event_proto_init() }
@@ -729,6 +855,7 @@ func file_dockwell_v1_event_proto_init() {
 		return
 	}
 	file_dockwell_v1_change_proto_init()
+	file_dockwell_v1_health_proto_init()
 	file_dockwell_v1_options_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -736,7 +863,7 @@ func file_dockwell_v1_event_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_event_proto_rawDesc), len(file_dockwell_v1_event_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

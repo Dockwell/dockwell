@@ -5,6 +5,7 @@ package control
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -632,4 +635,37 @@ func testAWatchSaysWhatWasDiscarded(t *testing.T, backend store.Backend) {
 		}
 	case <-time.After(500 * time.Millisecond):
 	}
+}
+
+// What the timeline says of a change that failed is when it failed, and not when it
+// began, which can be minutes before, for one that waited on a health check.
+func TestTheTimelineSaysWhenAChangeFailed(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	ev := dockwellv1connect.NewEventServiceClient(b.b, b.b.origin, connect.WithProtoJSON())
+	b.e.Registry["ghcr.io/acme/shop:bad"] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"shop"}}}
+	const took = 200 * time.Millisecond
+	first := b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
+	_ = first
+	web := b.service(t, "shop", "web")
+	b.e.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
+			time.Sleep(took)
+		}
+		return nil
+	})
+	defer b.e.Intercept(nil)
+	got := applied(t, b.c, b.deploy(t, web.GetId(), "ghcr.io/acme/shop:bad"))
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+		t.Fatalf("the deploy ended %v", got.GetState())
+	}
+	for _, e := range listEvents(t, ev, &dockwellv1.ListEventsRequest{}) {
+		if e.GetId() != got.GetId() {
+			continue
+		}
+		if at, began := e.GetTime().AsTime(), got.GetApplyTime().AsTime(); at.Before(began.Add(took)) {
+			t.Errorf("the timeline says it failed at %s, and it began at %s, and took at least %s", at, began, took)
+		}
+		return
+	}
+	t.Errorf("the timeline has no event of %s", got.GetId())
 }

@@ -26,7 +26,7 @@ func shapesEngine(t *testing.T) (*dockertest.Engine, resource.Local) {
 	e.Registry["nginx:1.28"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
 	e.AddNetwork(docker.Network{Name: "edge", Driver: "bridge"})
 	e.AddNetwork(docker.Network{Name: docker.ScopedName(shapesEnv, "back"), Driver: "bridge"})
-	rt := &container.Docker{Client: e.Client(), Settle: 1, Poll: 1}
+	rt := &container.Docker{Client: e.Client(), Settle: 1, Poll: 1, Soak: -1}
 	d := &service.Driver{Containers: container.Driver{Runtime: rt}}
 	return e, resource.Local{Drivers: resource.NewRegistry(d)}
 }
@@ -122,6 +122,9 @@ func TestDockersOwnNamesAreNotDrift(t *testing.T) {
 		t.Errorf("Compose's rounding down reads as drift: %v, %v", resource.Diff(limited, got[0]), err)
 	}
 	planAndApply(t, l, webRef(), spec)
+	// Lifting a limit makes a new container, under the next number.
+	name = e.Newest(docker.Project(webRef().Scope), webRef().Name).Name
+	name = strings.TrimPrefix(name, "/")
 	// Being on the ingress network is the ingress's doing, and no spec's.
 	e.Edit(name, func(c *docker.Container) {
 		c.NetworkSettings.Networks[docker.IngressNetwork] = &docker.EndpointSettings{Aliases: []string{"web"}}
@@ -266,7 +269,7 @@ func TestWhatChangesInPlace(t *testing.T) {
 			if step.Action != c.action {
 				t.Fatalf("planned %v, want %v", step.Action, c.action)
 			}
-			now := e.Container(service.ContainerName(webRef()))
+			now := e.Newest(docker.Project(webRef().Scope), webRef().Name)
 			if (now.ID == id) != (c.action == resource.ActionUpdate) {
 				t.Errorf("%v, and the container's ID went from %s to %s", c.action, id, now.ID)
 			}

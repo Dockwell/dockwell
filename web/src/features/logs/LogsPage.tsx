@@ -59,6 +59,7 @@ import {
   replicaLabel,
   selectionText,
   textOf,
+  withLabels,
   zoneName,
   zoneOffset,
 } from "./words";
@@ -205,12 +206,20 @@ export function LogsPage({
     const merged = new Map<string, LogSource>();
     for (const s of allSources ?? []) merged.set(s.id, s);
     for (const [id, s] of stream.sources) merged.set(id, s);
-    for (const s of deep.sources) merged.set(s.id, s);
-    for (const [id, s] of merged) {
+    // A search says how things were as it ran, so what's read live goes over it, and what
+    // it found that nothing lists now has gone, however it read then.
+    for (const s of deep.sources) {
+      if (merged.has(s.id)) continue;
+      merged.set(s.id, allSources && s.state !== LogSourceState.KEPT ? { ...s, state: LogSourceState.GONE } : s);
+    }
+    const read = new Map(stream.sources);
+    for (const s of deep.sources) read.set(s.id, s);
+    const labelled = withLabels(merged, read);
+    for (const [id, s] of labelled) {
       store.setSource(id, replicaLabel(s), `${s.serverId}/${s.replica}`);
       deepStore.setSource(id, replicaLabel(s), `${s.serverId}/${s.replica}`);
     }
-    setSourceMap(merged);
+    setSourceMap(labelled);
   }, [allSources, stream.sources, deep.sources, store, deepStore]);
 
   useEffect(() => {
@@ -221,7 +230,8 @@ export function LogsPage({
 
   // Filters, from the URL. Typing in the search waits a moment for the next key,
   // and the URL follows. A search of all the servers keep waits for Enter.
-  const label = search.replica ?? "";
+  // A name is only so for as long as what it picks out is here: a deploy moves on from it.
+  const label = [...sourceMap.values()].some((s) => replicaLabel(s) === search.replica) ? (search.replica ?? "") : "";
   const [typed, setTyped] = useState(search.q ?? "");
   useEffect(() => setTyped(search.q ?? ""), [search.q]);
   const query = search.deep ? "" : (search.q ?? "");
@@ -360,9 +370,12 @@ export function LogsPage({
   const replicas = useMemo(() => {
     const seen = new Set<string>();
     for (const s of chosen ? chosen.sources : sourceMap.values())
-      if (chosen || s.state !== LogSourceState.KEPT) seen.add(replicaLabel(s));
+      if (chosen || (s.state !== LogSourceState.KEPT && s.state !== LogSourceState.GONE)) seen.add(replicaLabel(s));
     return [...seen].sort();
   }, [chosen, sourceMap]);
+  // How many run now, which is what a head can say: what this view has read of those
+  // that have gone is another matter, and a service has one but for a rolling deploy.
+  const runningNow = reading ? 0 : [...sourceMap.values()].filter((s) => s.state === LogSourceState.RUNNING).length;
 
   const setLevels = (next: ReadonlySet<LogLevel>) => {
     const { levels: _l, ...rest } = search;
@@ -494,7 +507,6 @@ export function LogsPage({
 
   const name = service?.name ?? "";
   const environment = service?.environment ?? "";
-  const count = replicas.length;
   const levelFiltered = levels.size > 0;
   const showsErrors = levels.size === 0 || levels.has(LogLevel.ERROR);
   const currentDeploy = deploys.find((d) => d.current);
@@ -516,7 +528,7 @@ export function LogsPage({
       ) : environment ? (
         ` · ${environment}`
       ) : null}
-      {count > 1 ? ` · ${plural(count, { one: "# replica", other: "# replicas" })}` : ""}
+      {runningNow > 1 ? ` · ${plural(runningNow, { one: "# container", other: "# containers" })}` : ""}
     </>
   );
   const download = () =>
@@ -526,9 +538,9 @@ export function LogsPage({
   const replicasControl =
     replicas.length > 4 ? (
       <label className="dw-input dw-input-sm logs-select">
-        <span className="dw-sr">{t`Replica`}</span>
+        <span className="dw-sr">{t`Container`}</span>
         <select value={label || "all"} onChange={(e) => setReplica(e.target.value)} className="dw-input-control">
-          <option value="all">{t`All replicas`}</option>
+          <option value="all">{t`All containers`}</option>
           {replicas.map((r) => (
             <option key={r} value={r}>
               {r}
@@ -540,11 +552,11 @@ export function LogsPage({
     ) : replicas.length > 1 ? (
       <SegmentedControl
         size="sm"
-        label={t`Replica`}
+        label={t`Container`}
         value={label || "all"}
         onChange={setReplica}
         options={[
-          { value: "all", label: t`All replicas` },
+          { value: "all", label: t`All containers` },
           ...replicas.map((r) => ({ value: r, label: <span className="logs-mono">{r}</span> })),
         ]}
       />

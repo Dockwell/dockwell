@@ -289,6 +289,20 @@ func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
 	return nil
 }
 
+// LatestEvent reads the newest audit event of an action, about a subject and a
+// target, and whether there is one.
+func (t *Tx) LatestEvent(ctx context.Context, action, subject, target string) (Event, bool, error) {
+	row := t.queryRow(ctx, `SELECT `+eventColumns+` FROM audit_events WHERE action = ? AND subject = ? AND target = ? ORDER BY at DESC, id DESC LIMIT 1`, action, subject, target)
+	e, err := scanEvent(row)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return Event{}, false, nil
+	case err != nil:
+		return Event{}, false, fmt.Errorf("can't read an audit event: %w", err)
+	}
+	return e, true, nil
+}
+
 const eventColumns = `id, at, actor, action, subject, detail, surface, target`
 
 func scanEvent(row interface{ Scan(...any) error }) (Event, error) {

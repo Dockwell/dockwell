@@ -48,6 +48,12 @@ type shop struct {
 	before map[string]string // each server's container, by ID, before the pull
 }
 
+// running is what runs of the service on a server: its newest, as a rollout moves a
+// service up its numbers.
+func (s *shop) running(on *dockertest.Engine) *docker.Container {
+	return on.Newest(docker.Project(s.ref.Scope), s.ref.Name)
+}
+
 func runShop(t *testing.T, b store.Backend, servers ...string) *shop {
 	t.Helper()
 	e, on, db := setupDocker(t, b, servers...)
@@ -59,7 +65,7 @@ func runShop(t *testing.T, b store.Backend, servers ...string) *shop {
 	apply(t, e, propose(t, e, "Make", Edit{Ref: ref, Spec: shopSpec(), Servers: servers}))
 	s := &shop{e: e, db: db, ref: ref, name: docker.ContainerName(docker.Project(env), "web"), on: on, before: map[string]string{}}
 	for id, eng := range on {
-		s.before[id] = eng.Container(s.name).ID
+		s.before[id] = s.running(eng).ID
 		moveShop(eng, shopNewer)
 	}
 	return s
@@ -157,7 +163,7 @@ func (s *shop) id(t *testing.T) string {
 func (s *shop) runs(t *testing.T, server string) (digest string, running bool) {
 	t.Helper()
 	eng := s.on[server]
-	c := eng.Container(s.name)
+	c := s.running(eng)
 	if c == nil {
 		t.Fatalf("%s has no container %s", server, s.name)
 	}
@@ -237,7 +243,7 @@ func atStoppingTheOld(r *http.Request) bool {
 func diedBeforeItStarted(t *testing.T, s *shop, change string) {
 	t.Helper()
 	s.stopAfterTheStep(t, change, "srv_A")
-	s.on["srv_A"].Edit(s.name, func(c *docker.Container) { c.State = docker.State{Status: "created"} })
+	s.on["srv_A"].Edit(strings.TrimPrefix(s.running(s.on["srv_A"]).Name, "/"), func(c *docker.Container) { c.State = docker.State{Status: "created"} })
 }
 
 // afterThePull is the read of the tag that follows the pull. A plan reads it too,
@@ -328,7 +334,7 @@ func TestAPullStoppedPartwayFinishesOnce(t *testing.T) {
 				tc.stop(t, s, plan.Change)
 				s.resume(t)
 				s.wantNewerRunning(t, plan.Change)
-				if got := s.on["srv_A"].Container(s.name).ID; got == s.before["srv_A"] {
+				if got := s.running(s.on["srv_A"]).ID; got == s.before["srv_A"] {
 					t.Error("the old container still runs")
 				}
 			})
@@ -410,7 +416,7 @@ func TestAPullWithNothingOnRecordResumesByAskingAgain(t *testing.T) {
 	if c.State != store.ChangeFailed || !strings.Contains(c.Error, "can't pull "+shopTag+" again") {
 		t.Fatalf("the change ended %s: %s", c.State, c.Error)
 	}
-	if got := eng.Container(s.name); got.ID != s.before["srv_A"] || !got.State.Running {
+	if got := s.running(eng); got.ID != s.before["srv_A"] || !got.State.Running {
 		t.Error("a pull that failed touched what runs")
 	}
 	latest, deployments := s.record(t)
@@ -439,7 +445,7 @@ func TestAPullStoppedWithNothingNewerStaysAsItIs(t *testing.T) {
 	if st := &progress.Steps[0]; st.Did == nil || *st.Did != resource.ActionNone {
 		t.Errorf("the step did %v, and it stayed", st.Did)
 	}
-	if got := eng.Container(s.name); got.ID != s.before["srv_A"] {
+	if got := s.running(eng); got.ID != s.before["srv_A"] {
 		t.Error("with nothing newer, the container was replaced")
 	}
 	if latest, _ := s.record(t); latest.Revision != 1 {
@@ -453,7 +459,7 @@ func TestAPullStoppedBetweenServersFinishesOnce(t *testing.T) {
 	s := runShop(t, store.SQLite, "srv_A", "srv_B")
 	plan := s.pull(t)
 	s.stopAt(t, plan.Change, s.on["srv_B"], atTheCreate)
-	onA := s.on["srv_A"].Container(s.name).ID
+	onA := s.running(s.on["srv_A"]).ID
 	if onA == s.before["srv_A"] {
 		t.Fatal("the stop came before srv_A was replaced")
 	}
@@ -461,7 +467,7 @@ func TestAPullStoppedBetweenServersFinishesOnce(t *testing.T) {
 
 	s.resume(t)
 	s.wantNewerRunning(t, plan.Change)
-	if got := s.on["srv_A"].Container(s.name).ID; got != onA {
+	if got := s.running(s.on["srv_A"]).ID; got != onA {
 		t.Error("srv_A was replaced twice")
 	}
 	if s.on["srv_A"].Pulls != pulls {
@@ -559,7 +565,7 @@ func TestAResumeLeavesWhatSomeoneStoppedStopped(t *testing.T) {
 		if c := stored(t, db, plan.Change); c.State != store.ChangeApplied {
 			t.Fatalf("the change ended %s: %s", c.State, c.Error)
 		}
-		if got := eng.Container(api); got.ID == before || !got.State.Running {
+		if got := eng.Newest(docker.Project(env), "api"); got.ID == before || !got.State.Running {
 			t.Errorf("api is %+v", got)
 		}
 		if got := eng.Container(web); got.ID != stopped || got.State.Running {
@@ -607,14 +613,14 @@ func TestAChangeThatDiedBeforeItsContainerStartedStartsIt(t *testing.T) {
 	newer.GetApp().Image = "ghcr.io/acme/shop:new"
 	plan := propose(t, s.e, "Change the image", Edit{Ref: s.ref, Spec: newer, Base: 1})
 	diedBeforeItStarted(t, s, plan.Change)
-	if got := eng.Container(s.name); got.State.Running {
+	if got := s.running(eng); got.State.Running {
 		t.Fatal("the stop left it running")
 	}
 	s.resume(t)
 	if c := stored(t, s.db, plan.Change); c.State != store.ChangeApplied {
 		t.Fatalf("the change ended %s: %s", c.State, c.Error)
 	}
-	if got := eng.Container(s.name); got == nil || !got.State.Running || got.Config.Image != "ghcr.io/acme/shop:new" {
+	if got := s.running(eng); got == nil || !got.State.Running || got.Config.Image != "ghcr.io/acme/shop:new" {
 		t.Errorf("after the resume, it's %+v", got)
 	}
 }
@@ -649,7 +655,7 @@ func TestAPullALaterChangeMovedOnDoesNothingMore(t *testing.T) {
 	next := s.again()
 	s.e = next
 	apply(t, next, s.pull(t))
-	onLater := eng.Container(s.name).ID
+	onLater := s.running(eng).ID
 	pulls := eng.Pulls
 	moveShop(eng, "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 	if err := next.Resume(t.Context()); err != nil {
@@ -660,7 +666,7 @@ func TestAPullALaterChangeMovedOnDoesNothingMore(t *testing.T) {
 	if c := stored(t, s.db, first.Change); c.State != store.ChangeApplied {
 		t.Errorf("the first change ended %s: %s", c.State, c.Error)
 	}
-	if got := eng.Container(s.name).ID; got != onLater || eng.Pulls != pulls {
+	if got := s.running(eng).ID; got != onLater || eng.Pulls != pulls {
 		t.Errorf("the first change went on: replaced %t, %d more pulls", got != onLater, eng.Pulls-pulls)
 	}
 	if latest, _ := s.record(t); latest.Revision != 2 {
@@ -694,20 +700,25 @@ func TestAPullIsRefusedForAServerThatIsntConnected(t *testing.T) {
 		if c := stored(t, s.db, plan.Change); c.State != store.ChangePlanned {
 			t.Errorf("the refused change is %s", c.State)
 		}
-		if got := s.on["srv_A"].Container(s.name).ID; got != s.before["srv_A"] {
+		if got := s.running(s.on["srv_A"]).ID; got != s.before["srv_A"] {
 			t.Error("srv_A was replaced by a change that couldn't apply")
 		}
 		if latest, _ := s.record(t); latest.Revision != 1 {
 			t.Errorf("the latest revision is r%d, on a change that couldn't apply", latest.Revision)
 		}
 
-		// As it says: once it's back, the same plan applies.
+		// As it says: once it's back, its server can say what a plan made without it
+		// couldn't, as how a service rolls can need a person, so that's reviewed again.
 		s.e.agents = all
-		if err := s.e.ApplyBy(t.Context(), plan.Change, By{Actor: "person", Via: ViaPanel}); err != nil {
+		if err := s.e.ApplyBy(t.Context(), plan.Change, By{Actor: "person", Via: ViaPanel}); !errors.Is(err, ErrPlanChanged) {
+			t.Fatalf("applying what was planned without srv_B = %v", err)
+		}
+		again := s.pull(t)
+		if err := s.e.ApplyBy(t.Context(), again.Change, By{Actor: "person", Via: ViaPanel}); err != nil {
 			t.Fatal(err)
 		}
 		s.e.Wait()
-		s.wantNewerRunning(t, plan.Change)
+		s.wantNewerRunning(t, again.Change)
 	})
 }
 
@@ -725,7 +736,7 @@ func TestAPullWithARestartPolicyThatDrifted(t *testing.T) {
 	wantPlan := func(t *testing.T, plan *Plan) {
 		t.Helper()
 		steps := plan.Steps()
-		if len(steps) != 1 || !steps[0].Pull || steps[0].Action != resource.ActionReplace || steps[0].Downtime == 0 {
+		if len(steps) != 1 || !steps[0].Pull || steps[0].Action != resource.ActionReplace || steps[0].Rollout == nil || !steps[0].Rollout.Rolling {
 			t.Fatalf("the plan's steps are %+v", steps)
 		}
 		if len(steps[0].Changes) != 1 || !strings.HasSuffix(steps[0].Changes[0].Path, "restart") {
@@ -744,7 +755,7 @@ func TestAPullWithARestartPolicyThatDrifted(t *testing.T) {
 			t.Error("the plan said it pulls, and it didn't")
 		}
 		s.wantNewerRunning(t, plan.Change)
-		if got := eng.Container(s.name).HostConfig.RestartPolicy.Name; got == "always" {
+		if got := s.running(eng).HostConfig.RestartPolicy.Name; got == "always" {
 			t.Errorf("the restart policy is still %s", got)
 		}
 	})
@@ -760,7 +771,7 @@ func TestAPullWithARestartPolicyThatDrifted(t *testing.T) {
 		if eng.Pulls == pulls {
 			t.Error("the plan said it pulls, and it didn't")
 		}
-		got := eng.Container(s.name)
+		got := s.running(eng)
 		if got.ID != s.before["srv_A"] {
 			t.Error("with nothing newer, a change Docker can make in place replaced the container")
 		}

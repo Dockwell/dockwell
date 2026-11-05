@@ -84,7 +84,7 @@ func TestAContainerDockwellDidntMakeIsLeftAlone(t *testing.T) {
 func keptDrivers(e *dockertest.Engine, now *time.Time) (*resource.Registry, *volume.Docker) {
 	clock := func() time.Time { return *now }
 	kept := &volume.Kept{Now: clock}
-	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, HealthWait: time.Second, Deleted: kept}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, HealthWait: time.Second, Deleted: kept}
 	c := container.Driver{Runtime: rt}
 	vols := &volume.Docker{Client: e.Client(), Kept: kept, Now: clock}
 	return resource.NewRegistry(&c, &service.Driver{Containers: c}, &volume.Driver{Runtime: vols}), vols
@@ -175,7 +175,7 @@ func TestANewContainerHasRotationAndItsDeploy(t *testing.T) {
 	target := container.Target{Name: "web", Project: "p", Service: "web"}
 	spec := &resourcev1.Container{Image: "app:1", Restart: resourcev1.RestartPolicy_RESTART_POLICY_NO}
 	ctx := resource.WithDeploy(t.Context(), resource.Deploy{Revision: 12, Change: "chg_12"})
-	if err := rt.Run(ctx, target, spec, false); err != nil {
+	if err := rt.Run(ctx, target, spec, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
 	c := e.Container("web")
@@ -213,7 +213,7 @@ func TestAnotherLogDriverStands(t *testing.T) {
 	e.LoggingDriver = "journald"
 	e.Registry["app:1"] = dockertest.Image{}
 	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond}
-	if err := rt.Run(t.Context(), container.Target{Name: "web", Project: "p", Service: "web"}, &resourcev1.Container{Image: "app:1"}, false); err != nil {
+	if err := rt.Run(t.Context(), container.Target{Name: "web", Project: "p", Service: "web"}, &resourcev1.Container{Image: "app:1"}, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
 	if lc := e.Container("web").HostConfig.LogConfig; lc != nil {
@@ -244,7 +244,8 @@ func (k keeping) Finish(_ context.Context, c *docker.Container) {
 
 // A replace keeps the old container's log: most of it while it still runs, so
 // downtime doesn't wait for that, and the rest once it has stopped, before it is
-// removed. What a rollback replaces, or what wasn't well, counts as failed.
+// removed. What the deploy a rollback rolls back made, or what wasn't well, counts as
+// failed.
 func TestAReplaceKeepsTheOldContainersLog(t *testing.T) {
 	e := dockertest.New(t)
 	e.Registry["app:1"] = dockertest.Image{}
@@ -255,7 +256,7 @@ func TestAReplaceKeepsTheOldContainersLog(t *testing.T) {
 	target := container.Target{Name: "web", Project: "p", Service: "web"}
 	run := func(ctx context.Context, image string) string {
 		t.Helper()
-		if err := rt.Run(ctx, target, &resourcev1.Container{Image: image}, false); err != nil {
+		if err := rt.Run(ctx, target, &resourcev1.Container{Image: image}, resource.Decision{}); err != nil {
 			t.Fatal(err)
 		}
 		return e.Container("web").ID
@@ -264,7 +265,7 @@ func TestAReplaceKeepsTheOldContainersLog(t *testing.T) {
 	if len(keeper.began) != 0 {
 		t.Fatalf("kept a log with nothing replaced: %v", keeper.began)
 	}
-	run(t.Context(), "app:2")
+	run(resource.WithDeploy(t.Context(), resource.Deploy{Revision: 2, Change: "chg_2"}), "app:2")
 	if len(keeper.began) != 1 || keeper.began[0] != first || keeper.finished[0] != first {
 		t.Fatalf("began %v and finished %v, want the old container's", keeper.began, keeper.finished)
 	}
@@ -275,16 +276,23 @@ func TestAReplaceKeepsTheOldContainersLog(t *testing.T) {
 		t.Errorf("running at begin and finish = %v, want running, then stopped", keeper.running)
 	}
 
-	// A rollback's replace: what it replaces failed, whatever its state.
-	run(resource.WithDeploy(t.Context(), resource.Deploy{Revision: 3, Change: "chg", Rollback: true}), "app:1")
+	// A rollback's replace: what the deploy it rolls back made failed, whatever its state.
+	run(resource.WithDeploy(t.Context(), resource.Deploy{Revision: 3, Change: "chg_3", Rollback: true}), "app:1")
 	if !keeper.failed[1] {
 		t.Error("what a rollback replaced didn't count as failed")
+	}
+
+	// What ran before that deploy didn't fail, though a rollback can replace it too, as
+	// one pinned to a digest does: its log mustn't take the failed one's place.
+	run(resource.WithDeploy(t.Context(), resource.Deploy{Revision: 5, Change: "chg_5", Rollback: true}), "app:2")
+	if keeper.failed[2] {
+		t.Error("what a deploy didn't make, replaced by a rollback, counted as failed")
 	}
 
 	// One that exited with an error counts as failed by itself.
 	run(t.Context(), "app:bad")
 	run(t.Context(), "app:1")
-	if !keeper.failed[3] {
+	if !keeper.failed[len(keeper.failed)-1] {
 		t.Error("a container that had exited with an error didn't count as failed")
 	}
 
@@ -304,7 +312,7 @@ func TestAPlanToDeleteSaysWhatHappensToKeptLogs(t *testing.T) {
 	e.Registry["app:1"] = dockertest.Image{}
 	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Logs: &logKeeper{}}
 	target := container.Target{Name: "web", Project: "p", Service: "web", Scoped: true}
-	if err := rt.Run(t.Context(), target, &resourcev1.Container{Image: "app:1"}, false); err != nil {
+	if err := rt.Run(t.Context(), target, &resourcev1.Container{Image: "app:1"}, resource.Decision{}); err != nil {
 		t.Fatal(err)
 	}
 	dec := resource.Decision{Action: resource.ActionDelete}

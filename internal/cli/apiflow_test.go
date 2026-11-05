@@ -299,7 +299,7 @@ func TestAMistypedVerbIsAUsageError(t *testing.T) {
 // discarding one is a plain command.
 func TestOnlyProposalsOfferToApply(t *testing.T) {
 	env := map[string]string{"XDG_CONFIG_HOME": t.TempDir()}
-	for _, args := range [][]string{{"changes", "propose"}, {"changes", "undo"}, {"drift", "revert"}, {"drift", "adopt"}} {
+	for _, args := range [][]string{{"changes", "propose"}, {"changes", "undo"}, {"drift", "revert"}, {"drift", "adopt"}, {"services", "restart"}} {
 		r := run(t, env, append(args, "--help")...)
 		if r.code != exitOK || !strings.Contains(r.out, "It shows the plan and asks before applying it") || !strings.Contains(r.out, "--plan-only") || !strings.Contains(r.out, "--yes") {
 			t.Errorf("dockwell %s --help doesn't offer to apply:\n%s", strings.Join(args, " "), r.out)

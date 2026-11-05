@@ -387,11 +387,6 @@ export function toLabel(name: string): string {
   return label.slice(0, 63).replace(/-+$/, "");
 }
 
-/** The name Docker gives a service's first container, as Compose does (ADR 0021). */
-export function containerName(service: ServiceInfo): string {
-  return `${environmentOf(service).toLowerCase()}-${nameOf(service)}-1`;
-}
-
 /**
  * The name an image's app takes unless you say otherwise: the last part of
  * its name, without its tag or digest, made into a DNS label. Empty when

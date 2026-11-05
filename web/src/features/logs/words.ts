@@ -9,9 +9,40 @@ import { msg, plural } from "@lingui/core/macro";
 import { dateLocale } from "../../lib/format";
 import type { Entry } from "./store";
 
+/** A source, with what the log calls it where those around it decide that. */
+export type LabelledSource = LogSource & { label?: string | undefined };
+
 /** A replica as a person reads it: its server, and which one it is there when there are more. */
-export function replicaLabel(s: Pick<LogSource, "serverName" | "replica">): string {
-  return s.replica > 1 ? `${s.serverName}-${s.replica}` : s.serverName;
+export function replicaLabel(s: Pick<LogSource, "serverName" | "replica"> & { label?: string | undefined }): string {
+  return s.label ?? (s.replica > 1 ? `${s.serverName}-${s.replica}` : s.serverName);
+}
+
+/** The name a person knows a container by: web-3, of Docker's env_01kat-web-3. */
+export function instanceName(s: Pick<LogSource, "containerName">): string {
+  return s.containerName.replace(/^[^-]*-/, "");
+}
+
+/**
+ * What the log calls each source. A service has one container on a server at rest, so
+ * its server says which, however many deploys it has had. Where more than one has been
+ * read here, as both run through a rolling deploy, each goes by its own name, so the
+ * log can say which wrote what. What was only kept, and isn't being read, doesn't count.
+ */
+export function withLabels(
+  all: ReadonlyMap<string, LogSource>,
+  read: ReadonlyMap<string, LogSource>,
+): Map<string, LabelledSource> {
+  const reading = [...all.values()].filter((s) => s.state !== LogSourceState.KEPT || read.has(s.id));
+  const servers = new Set(reading.map((s) => s.serverId));
+  const names = new Map<string, Set<string>>();
+  for (const s of reading) names.set(s.serverId, (names.get(s.serverId) ?? new Set()).add(instanceName(s)));
+  const out = new Map<string, LabelledSource>();
+  for (const [id, s] of all) {
+    const several = reading.includes(s) && (names.get(s.serverId)?.size ?? 0) > 1;
+    const name = instanceName(s);
+    out.set(id, several ? { ...s, label: servers.size > 1 ? `${s.serverName}/${name}` : name } : s);
+  }
+  return out;
 }
 
 function pad(n: number, width = 2): string {
@@ -168,7 +199,7 @@ export function textOf(e: Entry, sources: ReadonlyMap<string, LogSource>): strin
   const time = localIso(e.ms);
   if (e.gap) return `${time} -- ${Number(e.gap.lines)} lines from ${source} not shown --`;
   if (e.left !== undefined) return `${time} -- ${e.left} lines left this view while it was paused --`;
-  if (e.started) return `${time} -- new container ${e.source} of ${source} --`;
+  if (e.started) return `${time} -- new container ${(s && instanceName(s)) || e.source} of ${source} --`;
   const plain = plainText(e.text);
   const named = NAMES_ITS_LEVEL.test(plain.slice(0, 120));
   const level = named ? "" : e.level === LogLevel.ERROR ? "ERROR " : e.level === LogLevel.WARN ? "WARN " : "";

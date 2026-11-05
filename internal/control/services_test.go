@@ -108,7 +108,7 @@ func testServicesThroughTheAPI(t *testing.T, backend store.Backend) {
 	if got := applied(t, c, deployed.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
 	}
-	ct := e.Container(docker.Project(info.GetResource().GetScope()) + "-shop-1")
+	ct := e.Serving(docker.Project(info.GetResource().GetScope()) + "-shop-1")
 	if ct == nil || ct.Config.Image != "ghcr.io/acme/shop:1.5" {
 		t.Fatalf("Docker runs %+v", ct)
 	}
@@ -161,13 +161,13 @@ func testServicesThroughTheAPI(t *testing.T, backend store.Backend) {
 	if got := back.Msg.GetChange(); got.GetSummary() != "Roll back shop to r1" || got.GetReverts() != deployed.Msg.GetChange().GetId() || got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
 		t.Errorf("the rollback is %v", got)
 	}
-	if ct := e.Container(docker.Project(info.GetResource().GetScope()) + "-shop-1"); ct.Config.Image != "ghcr.io/acme/shop:1.5" {
+	if ct := e.Serving(docker.Project(info.GetResource().GetScope()) + "-shop-1"); ct.Config.Image != "ghcr.io/acme/shop:1.5" {
 		t.Errorf("planning a rollback changed Docker: %v", ct.Config.Image)
 	}
 	if got := applied(t, c, back.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the rollback ended %v: %s", got.GetState(), got.GetError())
 	}
-	ct = e.Container(docker.Project(info.GetResource().GetScope()) + "-shop-1")
+	ct = e.Serving(docker.Project(info.GetResource().GetScope()) + "-shop-1")
 	if resource.BareImage(ct.Config.Image) != "ghcr.io/acme/shop:1.4" || !hasEnv(ct.Config.Env, "API_KEY="+secret) {
 		t.Errorf("after the rollback Docker runs %v with %v", ct.Config.Image, ct.Config.Env)
 	}
@@ -272,13 +272,14 @@ func TestAFailedDeployShowsAsRolledBack(t *testing.T) {
 		if after := onlyService(t, s); after.GetRolledBackChangeId() != deployed.Msg.GetChange().GetId() || after.GetSpec().GetApp().GetImage() != "ghcr.io/acme/shop:1.4" {
 			t.Errorf("after the rollback the service is %v", after)
 		}
-		// The API says how it went, and what it put back, for a panel and a CLI that won't guess.
+		// The API says how it went, and what it put back, for a panel and a CLI that won't guess:
+		// nothing, as this one rolled, so what ran never stopped.
 		read, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: deployed.Msg.GetChange().GetId()}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		status := read.Msg.GetChange().GetRollbackStatus()
-		if status.GetId() != got.GetRolledBackBy() || status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED || !slices.Contains(status.GetRestored(), "shop") {
+		if status.GetId() != got.GetRolledBackBy() || status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED || status.GetSteps() != 1 || len(status.GetRestored()) != 0 {
 			t.Errorf("the rollback's status is %v", status)
 		}
 		list, err := s.ListServiceRevisions(t.Context(), connect.NewRequest(&dockwellv1.ListServiceRevisionsRequest{Id: info.GetId()}))

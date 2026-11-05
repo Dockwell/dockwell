@@ -58,12 +58,48 @@ func Require(t testing.TB, b store.Backend) {
 func Open(t testing.TB, b store.Backend) (*store.DB, string) {
 	t.Helper()
 	location := New(t, b)
+	if b == store.SQLite {
+		migrated(t, location)
+	}
 	db, err := store.Open(context.Background(), location)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return db, location
+}
+
+// template is a store that has run every migration, once for a test process. Running
+// them all again for each test is most of what a test costs under the race detector,
+// as SQLite here is pure Go, and a loop over each step of a change opens a store for
+// each. A test of the migrations themselves starts from New, which is empty.
+var template = sync.OnceValues(func() ([]byte, error) {
+	dir, err := os.MkdirTemp("", "dockwell-store-")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	file := filepath.Join(dir, "state.db")
+	db, err := store.Open(context.Background(), file)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Close(); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(file) //nolint:gosec // the file it just made
+})
+
+// migrated puts a store that has run every migration at location.
+func migrated(t testing.TB, location string) {
+	t.Helper()
+	b, err := template()
+	if err != nil {
+		t.Fatalf("can't make a store to start tests from: %v", err)
+	}
+	if err := os.WriteFile(location, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // New returns the location of a new, empty database on b, without opening

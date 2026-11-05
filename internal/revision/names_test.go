@@ -42,12 +42,14 @@ func testANameCantTakeOneThatIsStored(t *testing.T, backend store.Backend) {
 		claimant(env, "db", &resourcev1.Container{Networks: []string{"back"}}, "srv_A"),
 		claimant(env, "web", &resourcev1.Container{Networks: []string{"back"}, Aliases: []string{"site"}}, "srv_A"),
 	))
-	for name, edit := range map[string]Edit{
+	refused := map[string]Edit{
 		"another's name":                  claimant(env, "web", &resourcev1.Container{Networks: []string{"back"}, Aliases: []string{"db"}}, "srv_A"),
 		"another's name, in another case": claimant(env, "web", &resourcev1.Container{Networks: []string{"back"}, Aliases: []string{"DB"}}, "srv_A"),
 		"another's alias":                 claimant(env, "api", &resourcev1.Container{Networks: []string{"back"}, Aliases: []string{"site"}}, "srv_A"),
 		"a new service's own name":        claimant(env, "site", &resourcev1.Container{Networks: []string{"back"}}, "srv_A"),
-	} {
+	}
+	for name := range refused {
+		edit := refused[name]
 		t.Run(name, func(t *testing.T) {
 			_, err := e.Propose(t.Context(), Proposal{Summary: name, Edits: []Edit{edit}})
 			if err == nil || !strings.Contains(err.Error(), "would both answer to") {

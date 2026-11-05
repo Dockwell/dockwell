@@ -8,7 +8,9 @@
 // in both themes, and axe finds nothing.
 
 import { mkdtempSync, readFileSync, symlinkSync } from "node:fs";
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -26,6 +28,8 @@ export interface PlanFlowOptions {
   shoot: (page: Page, name: string) => Promise<void>;
   /** What Docker is really running, on the fake engine. */
   docker: DockerProbe;
+  /** Stops a container on the fake engine, as someone at the server would. */
+  stopByHand: (id: string) => Promise<void>;
 }
 
 const axeSource = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
@@ -232,7 +236,10 @@ async function watchShell(page: Page) {
     });
 }
 
-export async function planFlow(page: Page, { origin, browser, context, step, shoot, docker }: PlanFlowOptions) {
+export async function planFlow(
+  page: Page,
+  { origin, browser, context, step, shoot, docker, stopByHand }: PlanFlowOptions,
+) {
   const light = () => page.emulateMedia({ colorScheme: "light", reducedMotion: "no-preference" });
   const dark = () => page.emulateMedia({ colorScheme: "dark" });
 
@@ -432,8 +439,18 @@ export async function planFlow(page: Page, { origin, browser, context, step, sho
     await details.locator("summary").click();
     const raw = await details.locator("pre").innerText();
     if (!raw.includes("env_") && !raw.includes("can't")) fail(`${name}'s details read: ${raw}`);
+    if (name === "sick") {
+      // What the command printed, in quotes, so its own full stop doesn't end the fact.
+      const quoted =
+        'sick runs, but fails its health check: the command exited with 1: "the database refuses connections. Check its password"';
+      if (!said.includes(quoted)) fail(`what the command printed reads: ${said}`);
+      if (!said.includes("Fix what it reports, or the check, then try again.")) fail(`its fix reads: ${said}`);
+      await shoot(page, "plan-check-quoted");
+    }
     if (name === "tagged") {
       await page.setViewportSize({ width: 390, height: 844 });
+      // The sheet changes for a phone once the browser says the width changed.
+      await page.locator(".plan-view.is-phone").waitFor();
       const summary = await details.locator("summary").boundingBox();
       if (!summary || summary.height < 44 || summary.width < 44) {
         fail(`Details is ${summary?.width} by ${summary?.height} px on a phone, too small for a thumb`);
@@ -500,7 +517,7 @@ export async function planFlow(page: Page, { origin, browser, context, step, sho
   await page.getByRole("button", { name: /Open fixme/ }).click();
   await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();
 
-  step("plan: a failed deploy of a running app says the old version is running again, and it is");
+  step("plan: a failed deploy that rolled says what ran never stopped, and it didn't");
   const deployFixme = async (image: string) => {
     await page.getByRole("button", { name: "Deploy", exact: true }).click();
     const form = page.getByRole("dialog", { name: "Deploy fixme" });
@@ -518,12 +535,16 @@ export async function planFlow(page: Page, { origin, browser, context, step, sho
     }
   };
   await fixmeRuns("nginx:1.27-alpine", "before the deploy");
+  const fixmeAt = page.url();
   await deployFixme("acme/app:broken");
   const rollback = page.locator(".plan-rollback");
-  await rollback.getByText("fixme runs nginx:1.27-alpine again").waitFor({ timeout: 40_000 });
-  await fixmeRuns("nginx:1.27-alpine", "once it says the old version is back");
+  await rollback.getByText("fixme stays on nginx:1.27-alpine").waitFor({ timeout: 40_000 });
+  await fixmeRuns("nginx:1.27-alpine", "once it says it never stopped");
   const brokenText = await sheetText(page);
-  if (!brokenText.includes("so it was down while that happened")) fail(`the outage goes unsaid: ${brokenText}`);
+  if (!brokenText.includes("It never stopped. Dockwell removed what this made after it failed.")) {
+    fail(`what ran going on running goes unsaid: ${brokenText}`);
+  }
+  if (brokenText.includes("was down")) fail(`it says there was an outage, and it rolled: ${brokenText}`);
   if (!brokenText.includes("fixme stopped right after it started, with exit code 1")) fail(`it reads: ${brokenText}`);
   // In what the form in front of you has: it has an image, and no command or variables.
   if (!brokenText.includes("Check the image and tag, then deploy again.")) fail(`its fix reads: ${brokenText}`);
@@ -541,6 +562,26 @@ export async function planFlow(page: Page, { origin, browser, context, step, sho
   await light();
   await page.getByRole("button", { name: /Edit and try again/ }).click();
   await page.getByRole("dialog", { name: "Deploy fixme" }).getByRole("button", { name: "Cancel" }).click();
+
+  step("plan: a failed deploy that stopped first says the old version runs again, and that it was down");
+  const stopsFirst = await reviewNew(page, origin, "nginx:1.27-alpine", "stopper", addPort(8095));
+  await stopsFirst.getByRole("button", { name: /Apply plan/ }).click();
+  await page.getByRole("heading", { name: "stopper is live" }).waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: /^Open stopper/ }).click();
+  await page.getByRole("heading", { level: 1, name: "stopper" }).waitFor();
+  await page.getByRole("button", { name: "Deploy", exact: true }).click();
+  const stopperForm = page.getByRole("dialog", { name: "Deploy stopper" });
+  await stopperForm.getByLabel("Image").fill("acme/app:broken");
+  await stopperForm.getByRole("button", { name: /Review plan/ }).click();
+  await plan.waitFor({ timeout: 30_000 });
+  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await page.getByRole("heading", { name: "Couldn't deploy acme/app:broken" }).waitFor({ timeout: 40_000 });
+  await rollback.getByText("stopper runs nginx:1.27-alpine again").waitFor({ timeout: 40_000 });
+  const stoppedText = await sheetText(page);
+  if (!stoppedText.includes("so it was down while that happened")) fail(`the outage goes unsaid: ${stoppedText}`);
+  await page.getByRole("button", { name: /^Done/ }).click();
+  await page.goto(fixmeAt);
+  await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();
 
   step("plan: a pull that fails before anything changed says nothing moved, and not that it runs");
   await deployFixme("nginx:nosuchtag");
@@ -575,7 +616,7 @@ export async function planFlow(page: Page, { origin, browser, context, step, sho
   await plan.getByText("to update").waitFor();
   const reviewText = await sheetText(page);
   if (/replace/i.test(reviewText)) fail(`a deploy reads as a replace: ${reviewText}`);
-  if (!reviewText.includes("down")) fail(`a deploy leaves out its downtime: ${reviewText}`);
+  if (!/ down|rolling, with nothing stopped/.test(reviewText)) fail(`a deploy leaves out its downtime: ${reviewText}`);
   if (!/Rolls back to r\d+ if it fails/.test(reviewText)) fail(`a deploy leaves out its safety net: ${reviewText}`);
   const atReview = await planRowTop(page);
   await plan.getByRole("button", { name: /Apply plan/ }).click();
@@ -781,6 +822,190 @@ volumes:
   await page.getByRole("heading", { name: "fixme is deleted" }).waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: /Done/ }).click();
   await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor();
+
+  step(
+    "plan: a rollout says how it goes: rolling, what a drain ends, why one stops first, data that stays, what it starts",
+  );
+  const live = async (name: string, more?: (form: ReturnType<Page["getByRole"]>) => Promise<void>) => {
+    const first = await reviewNew(page, origin, `acme/${name}:1`, name, more);
+    await first.getByRole("button", { name: /Apply plan/ }).click();
+    await page.getByRole("heading", { name: `${name} is live` }).waitFor({ timeout: 30_000 });
+    await page.getByRole("button", { name: new RegExp(`^Open ${name}`) }).click();
+    await page.getByRole("heading", { level: 1, name }).waitFor();
+  };
+  const deployNext = async (name: string) => {
+    await page.getByRole("button", { name: "Deploy", exact: true }).click();
+    const form = page.getByRole("dialog", { name: /^Deploy / });
+    await form.getByLabel("Image").fill(`acme/${name}:2`);
+    await form.getByRole("button", { name: /Review plan/ }).click();
+    await plan.waitFor({ timeout: 30_000 });
+    await plan.getByText("to update").waitFor();
+    return sheetText(page);
+  };
+  const says = (what: string, text: string, words: string[]) => {
+    for (const w of words) if (!text.includes(w)) fail(`${what} doesn't say "${w}": ${text}`);
+    if (/env_|chg_/.test(text)) fail(`${what} leaks an ID: ${text}`);
+  };
+  await live("rolls");
+  const rollingText = await deployNext("rolls");
+  says("a rolling deploy", rollingText, [
+    "rolling, with nothing stopped",
+    "A new container takes over once it has been healthy for",
+    "Dockwell rolls this back",
+    "What is in flight gets up to",
+    "ends with the old container",
+  ]);
+  await shoot(page, "plan-rolling");
+  await expectAxe(page, "a rolling plan");
+  await expectContrast(page, "a rolling plan");
+  await plan.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("dialog", { name: "Deploy rolls" }).getByRole("button", { name: "Cancel" }).click();
+
+  const rolls = (await docker()).find((c) => c.service === "rolls" && c.running);
+  if (!rolls) fail("rolls isn't running to be stopped");
+  await stopByHand(rolls.id);
+  const startsText = await deployNext("rolls");
+  says("a deploy of what someone stopped", startsText, [
+    "rolls is stopped, so this starts it",
+    "It has to stay healthy for",
+    "Dockwell rolls this back",
+  ]);
+  for (const untrue of ["rolling, with nothing stopped", "goes on serving", "in flight"]) {
+    if (startsText.includes(untrue)) fail(`a deploy of what someone stopped says "${untrue}": ${startsText}`);
+  }
+  await shoot(page, "plan-starts-stopped");
+  await plan.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("dialog", { name: "Deploy rolls" }).getByRole("button", { name: "Cancel" }).click();
+
+  await live("keeps", async (form) => {
+    await form.getByRole("button", { name: "Add volume" }).click();
+    await form.getByLabel("Volume or server path").fill("keeps-data");
+    await form.getByLabel("Path in the app").fill("/data");
+  });
+  const stoppingText = await deployNext("keeps");
+  says("a deploy that stops first", stoppingText, [
+    " down",
+    "Two containers mustn't write to the volume keeps-data at once, so the old one stops first",
+    "If keeps is rolled back, keeps-data stays as it is",
+  ]);
+  await shoot(page, "plan-stops-first");
+  await expectAxe(page, "a plan that stops first");
+  await expectContrast(page, "a plan that stops first");
+  await plan.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("dialog", { name: "Deploy keeps" }).getByRole("button", { name: "Cancel" }).click();
+
+  await page.goto(`${origin}/apps/new`);
+  const writing = page.getByRole("dialog", { name: "New app" });
+  await writing.waitFor();
+  await writing.getByRole("radio", { name: "Compose" }).click();
+  await writing.getByLabel("Compose file").fill(`services:
+  both:
+    image: acme/both:1
+    volumes: ["both-data:/data"]
+    deploy:
+      update_config:
+        order: start-first
+volumes:
+  both-data: {}
+`);
+  await writing.getByRole("textbox", { name: /^Project name/ }).fill("writers");
+  await writing.getByRole("button", { name: /Review plan/ }).click();
+  await plan.waitFor({ timeout: 30_000 });
+  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await page.getByRole("heading", { name: "both is live" }).waitFor({ timeout: 30_000 });
+  await page.goto(`${origin}/apps`);
+  // A file of one service reads as its project in the list.
+  await page.getByRole("link", { name: "writers", exact: true }).click();
+  await page.getByRole("button", { name: "Deploy", exact: true }).waitFor();
+  const writersText = await deployNext("both");
+  says("two writers", writersText, ["Two containers may write to both-data", "which can corrupt a database"]);
+  await plan.locator(".plan-risk").waitFor();
+  await shoot(page, "plan-two-writers");
+  await expectAxe(page, "two writers");
+  await expectContrast(page, "two writers");
+  await plan.getByRole("button", { name: "Cancel" }).click();
+  await page
+    .getByRole("dialog", { name: /^Deploy / })
+    .getByRole("button", { name: "Cancel" })
+    .click();
+
+  step("plan: a failed check says what it answered, with what to do, on the deploy and on its rollback");
+  // A real check the agent makes, answered from the addresses the fake engine says each tag runs at.
+  const answers = createServer((request, response) => {
+    response.statusCode = request.socket.localAddress === "127.0.0.2" ? 503 : 200;
+    response.end();
+  });
+  await new Promise<void>((listening) => answers.listen(0, "0.0.0.0", listening));
+  try {
+    const { port } = answers.address() as AddressInfo;
+    await page.goto(`${origin}/apps/new`);
+    const checking = page.getByRole("dialog", { name: "New app" });
+    await checking.waitFor();
+    await checking.getByRole("radio", { name: "Compose" }).click();
+    await checking.getByLabel("Compose file").fill(`services:
+  checked:
+    image: acme/app:answers-ok
+    x-dockwell:
+      healthcheck:
+        http: {port: ${port}, path: /healthz}
+        interval: 1s
+        timeout: 1s
+        retries: 1
+`);
+    await checking.getByRole("textbox", { name: /^Project name/ }).fill("checks");
+    await checking.getByRole("button", { name: /Review plan/ }).click();
+    await plan.waitFor({ timeout: 30_000 });
+    await plan.getByRole("button", { name: /Apply plan/ }).click();
+    await page.getByRole("heading", { name: /is live$/ }).waitFor({ timeout: 40_000 });
+    await page.getByRole("button", { name: /^Open checked/ }).click();
+    await page.getByRole("heading", { level: 1, name: "checked" }).waitFor();
+    await page.getByRole("button", { name: "Deploy", exact: true }).click();
+    const nextOne = page.getByRole("dialog", { name: /^Deploy / });
+    await nextOne.getByLabel("Image").fill("acme/app:answers-503");
+    await nextOne.getByRole("button", { name: /Review plan/ }).click();
+    await plan.waitFor({ timeout: 30_000 });
+    await plan.getByRole("button", { name: /Apply plan/ }).click();
+    await page.getByRole("heading", { name: "Couldn't deploy acme/app:answers-503" }).waitFor({ timeout: 40_000 });
+    // It rolled, so what ran never stopped, and the sheet says that.
+    await page.locator(".plan-rollback").getByText("checked stays on acme/app:answers-ok").waitFor({ timeout: 40_000 });
+    await page.locator(".plan-rollback").getByText("It never stopped.").waitFor();
+    const answered = `checked runs, but fails its health check: GET /healthz on port ${port} answered 503 Service Unavailable`;
+    const toDo = "Fix what it answers, or the check, then try again.";
+    const onTheDeploy = await page.locator(".plan-failure").innerText();
+    if (!onTheDeploy.includes(answered) || !onTheDeploy.includes(toDo)) fail(`a failed deploy reads: ${onTheDeploy}`);
+    await shoot(page, "plan-check-failed");
+    await expectAxe(page, "a failed check");
+    await expectContrast(page, "a failed check, light");
+    await dark();
+    await expectContrast(page, "a failed check, dark");
+    await light();
+    await page.goto(`${origin}/activity`);
+    await page
+      .getByText(/^Roll back: /)
+      .first()
+      .click();
+    const inActivity = page.locator(".plan-because");
+    await inActivity.waitFor({ timeout: 30_000 });
+    if (!(await inActivity.innerText()).includes(`${answered}. ${toDo}`)) {
+      fail(`Activity's rollback reads: ${await inActivity.innerText()}`);
+    }
+    await shoot(page, "activity-rollback-why");
+    await page.getByRole("button", { name: "Open plan" }).click();
+    const why = page.locator(".plan-body > .plan-because");
+    await why.waitFor({ timeout: 30_000 });
+    const onTheRollback = await why.innerText();
+    if (!onTheRollback.includes(`${answered}. ${toDo}`)) fail(`its rollback reads: ${onTheRollback}`);
+    if (/env_|chg_/.test(onTheRollback)) fail(`its rollback leaks an ID: ${onTheRollback}`);
+    await shoot(page, "plan-rollback-why");
+    await expectAxe(page, "a rollback's reason");
+    await expectContrast(page, "a rollback's reason, light");
+    await dark();
+    await expectContrast(page, "a rollback's reason, dark");
+    await light();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+  } finally {
+    answers.close();
+  }
 
   step("plan: on a phone, the actions are in reach of a thumb, and a confirmation sits with them");
   await page.setViewportSize({ width: 390, height: 844 });

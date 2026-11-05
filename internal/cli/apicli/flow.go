@@ -404,7 +404,7 @@ func (r *runner) needsPerson(c *dockwellv1.Change) error {
 func whyPerson(p *dockwellv1.Plan) string {
 	var why []string
 	if p.GetDestructive() {
-		why = append(why, "destroys data or may cut off access")
+		why = append(why, "destroys data, may cut off access, or lets two containers write to one place")
 	}
 	add := func(w string) {
 		if !slices.Contains(why, w) {

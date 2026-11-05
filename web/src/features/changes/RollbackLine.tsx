@@ -18,7 +18,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { keepTrying } from "../../lib/retry";
 import { MachineWords } from "./FailureNotice";
 import { followChange } from "./follow";
-import { changing, failedStep, onlyCreates, runs, wentOffline } from "./plan";
+import { changing, failedStep, onlyCreates, runs, startsStopped, wentOffline } from "./plan";
 import "./ChangeSheet.css";
 
 const BACKOFF = { minMs: 500, maxMs: 8_000 };
@@ -87,6 +87,8 @@ export interface RollbackSubject {
   serves: boolean;
   /** True for a first deploy: nothing ran before, so there is nothing to put back. */
   first: boolean;
+  /** True when what it set out to do rolled, so what ran went on serving until the new one was healthy. */
+  rolled: boolean;
 }
 
 /** The image a change moved a resource from and to, under the name a plan or a revision gives it. */
@@ -104,11 +106,15 @@ export function rollbackSubject(
   known?: { name: string; changes: readonly FieldChange[] },
 ): RollbackSubject {
   const first = onlyCreates(plan);
-  if (known) return { name: known.name, ...imageChange(known.changes), serves: true, first };
+  const steps = (plan?.servers ?? [])
+    .flatMap((server) => server.steps)
+    .filter((step) => step.resource?.kind === "service" || step.resource?.kind === "container");
+  const rolled = steps.length > 0 && steps.every((step) => step.rollout?.rolling && !startsStopped(step));
+  if (known) return { name: known.name, ...imageChange(known.changes), serves: true, first, rolled };
   const all = changing(plan);
   const serving = all.filter(runs);
   const only = serving.length === 1 ? serving[0] : all.length === 1 ? all[0] : undefined;
-  return { name: only?.resource?.name, ...imageChange(only?.changes), serves: serving.length > 0, first };
+  return { name: only?.resource?.name, ...imageChange(only?.changes), serves: serving.length > 0, first, rolled };
 }
 
 /** How a rollback reads: a fact that says what runs now, then what follows from it. */
@@ -127,7 +133,7 @@ function useLine() {
       offline: boolean,
       record: boolean,
     ): Line | undefined => {
-      const { name, previous, next, serves, first } = subject;
+      const { name, previous, next, serves, first, rolled } = subject;
       const servers = status?.waitingFor.join(", ") ?? "";
       switch (status?.state) {
         case RollbackState.APPLIED: {
@@ -173,7 +179,7 @@ function useLine() {
               title,
               text: offline ? (
                 <Trans>Dockwell put it back once it could reach the server.</Trans>
-              ) : !serves ? (
+              ) : !serves || rolled ? (
                 <Trans>Dockwell put it back after this failed.</Trans>
               ) : name ? (
                 <Trans>Dockwell put it back after this failed, so it was down while that happened.</Trans>
@@ -214,7 +220,9 @@ function useLine() {
             shape: "ring",
             title,
             text:
-              status.steps > 0 ? (
+              status.steps > 0 && status.restored.length === 0 ? (
+                <Trans>It never stopped. Dockwell removed what this made after it failed.</Trans>
+              ) : status.steps > 0 ? (
                 <Trans>This stopped before it reached that, and Dockwell put back the rest.</Trans>
               ) : (
                 <Trans>This stopped before it changed anything on the server.</Trans>

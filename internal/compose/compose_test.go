@@ -12,6 +12,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/compose"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -149,31 +150,43 @@ func TestParse(t *testing.T) {
 // than quietly dropped; and the control plane never reads a file for one.
 func TestParseRefuses(t *testing.T) {
 	for name, tc := range map[string]struct{ file, want string }{
-		"build":           {"services: {web: {build: .}}", "the service web builds an image, which Dockwell can't do yet"},
-		"env_file":        {"services: {web: {image: a, env_file: /etc/shadow}}", "the service web reads `env_file`"},
-		"extends":         {"services: {web: {image: a, extends: {file: /etc/passwd, service: x}}}", "the service web extends another service"},
-		"include":         {"include: [/etc/passwd]\nservices: {web: {image: a}}", "the Compose file includes other files"},
-		"unknown":         {"services: {web: {image: a, sysctls: [a=b]}}", "the service web uses `sysctls`, which Dockwell can't run yet. Remove it from the Compose file to import it"},
-		"relative bind":   {"services: {web: {image: a, volumes: ['./data:/data']}}", "the service web mounts ./data, a path relative to the Compose file"},
-		"anonymous":       {"services: {web: {image: a, volumes: ['/data']}}", "the service web mounts an unnamed volume at /data"},
-		"random port":     {"services: {web: {image: a, ports: ['80']}}", "the service web publishes port 80 on a server port Docker would pick"},
-		"unset":           {"services: {web: {image: 'a:${TAG}'}}", "the Compose file uses TAG, with no value"},
-		"bad name":        {"services: {my_app: {image: a}}", `"my_app" isn't a valid service name`},
-		"external":        {"services: {web: {image: a}}\nvolumes: {data: {external: true}}", "the volume data is `external`"},
-		"network options": {"services: {web: {image: a, networks: {n: {ipv4_address: 10.0.0.2}}}}\nnetworks: {n: {}}", "the service web's network n uses `ipv4_address`, which Dockwell can't run yet"},
-		"no network":      {"services: {web: {image: a, network_mode: none}}", "the service web has network_mode none, no network at all"},
-		"no value":        {"services: {web: {image: a, environment: [SECRET]}}", "the service web's variable SECRET has no value"},
-		"restart count":   {"services: {web: {image: a, restart: 'always:3'}}", `the service web restarts "always:3", and only on-failure takes a count`},
-		"no services":     {"volumes: {data: {}}", "the Compose file has no services"},
-		"not yaml":        {"services: [", "line 1: a bracket doesn't close"},
-		"no volume":       {"services: {web: {image: a, volumes: ['data:/data']}}", "the service web mounts the volume data, which the file doesn't list under volumes"},
-		"no such network": {"services: {web: {image: a, networks: [back]}}", "the service web joins the network back, which the file doesn't list under networks"},
-		"no dependency":   {"services: {web: {image: a, depends_on: [db]}}", "the service web depends on db, which isn't a service in the file"},
-		"cycle":           {"services: {a: {image: x, depends_on: [b]}, b: {image: x, depends_on: [a]}}", "the services depend on each other in a circle, a → b → a"},
-		"bad port":        {"services: {web: {image: a, ports: ['eighty:80']}}", "the Compose file isn't valid"},
-		"propagation":     {"services: {web: {image: a, volumes: ['/srv:/data:ro,rshared']}}", "the service web mounts /srv at /data with rshared propagation, which Dockwell can't run yet. Remove :rshared"},
-		"nocopy":          {"services: {web: {image: a, volumes: ['data:/data:nocopy']}}\nvolumes: {data: {}}", "the service web mounts data at /data with nocopy, which Dockwell can't run yet"},
-		"no such option":  {"services: {web: {image: a, volumes: ['/srv:/data:rx']}}", `the service web mounts /srv at /data with the option "rx", which Docker doesn't take`},
+		"build":            {"services: {web: {build: .}}", "the service web builds an image, which Dockwell can't do yet"},
+		"env_file":         {"services: {web: {image: a, env_file: /etc/shadow}}", "the service web reads `env_file`"},
+		"extends":          {"services: {web: {image: a, extends: {file: /etc/passwd, service: x}}}", "the service web extends another service"},
+		"include":          {"include: [/etc/passwd]\nservices: {web: {image: a}}", "the Compose file includes other files"},
+		"unknown":          {"services: {web: {image: a, sysctls: [a=b]}}", "the service web uses `sysctls`, which Dockwell can't run yet. Remove it from the Compose file to import it"},
+		"relative bind":    {"services: {web: {image: a, volumes: ['./data:/data']}}", "the service web mounts ./data, a path relative to the Compose file"},
+		"anonymous":        {"services: {web: {image: a, volumes: ['/data']}}", "the service web mounts an unnamed volume at /data"},
+		"random port":      {"services: {web: {image: a, ports: ['80']}}", "the service web publishes port 80 on a server port Docker would pick"},
+		"unset":            {"services: {web: {image: 'a:${TAG}'}}", "the Compose file uses TAG, with no value"},
+		"bad name":         {"services: {my_app: {image: a}}", `"my_app" isn't a valid service name`},
+		"external":         {"services: {web: {image: a}}\nvolumes: {data: {external: true}}", "the volume data is `external`"},
+		"network options":  {"services: {web: {image: a, networks: {n: {ipv4_address: 10.0.0.2}}}}\nnetworks: {n: {}}", "the service web's network n uses `ipv4_address`, which Dockwell can't run yet"},
+		"no network":       {"services: {web: {image: a, network_mode: none}}", "the service web has network_mode none, no network at all"},
+		"no value":         {"services: {web: {image: a, environment: [SECRET]}}", "the service web's variable SECRET has no value"},
+		"restart count":    {"services: {web: {image: a, restart: 'always:3'}}", `the service web restarts "always:3", and only on-failure takes a count`},
+		"no services":      {"volumes: {data: {}}", "the Compose file has no services"},
+		"not yaml":         {"services: [", "line 1: a bracket doesn't close"},
+		"no volume":        {"services: {web: {image: a, volumes: ['data:/data']}}", "the service web mounts the volume data, which the file doesn't list under volumes"},
+		"no such network":  {"services: {web: {image: a, networks: [back]}}", "the service web joins the network back, which the file doesn't list under networks"},
+		"no dependency":    {"services: {web: {image: a, depends_on: [db]}}", "the service web depends on db, which isn't a service in the file"},
+		"cycle":            {"services: {a: {image: x, depends_on: [b]}, b: {image: x, depends_on: [a]}}", "the services depend on each other in a circle, a → b → a"},
+		"bad port":         {"services: {web: {image: a, ports: ['eighty:80']}}", "the Compose file isn't valid"},
+		"propagation":      {"services: {web: {image: a, volumes: ['/srv:/data:ro,rshared']}}", "the service web mounts /srv at /data with rshared propagation, which Dockwell can't run yet. Remove :rshared"},
+		"nocopy":           {"services: {web: {image: a, volumes: ['data:/data:nocopy']}}\nvolumes: {data: {}}", "the service web mounts data at /data with nocopy, which Dockwell can't run yet"},
+		"no such option":   {"services: {web: {image: a, volumes: ['/srv:/data:rx']}}", `the service web mounts /srv at /data with the option "rx", which Docker doesn't take`},
+		"replicas":         {"services: {web: {image: a, deploy: {replicas: 3}}}", "the service web asks for 3 replicas"},
+		"parallelism":      {"services: {web: {image: a, deploy: {update_config: {parallelism: 2}}}}", "the service web updates 2 containers at a time"},
+		"failure action":   {"services: {web: {image: a, deploy: {update_config: {failure_action: continue}}}}", "the service web has failure_action continue, and Dockwell rolls a failed deploy back"},
+		"update order":     {"services: {web: {image: a, deploy: {update_config: {order: sideways}}}}", "the service web has the update order sideways"},
+		"deploy keys":      {"services: {web: {image: a, deploy: {mode: global}}}", "the service web's deploy uses `mode`, which Dockwell can't run yet"},
+		"update keys":      {"services: {web: {image: a, deploy: {update_config: {monitor: 5s}}}}", "the service web's deploy.update_config uses `monitor`, which Dockwell can't run yet"},
+		"extension keys":   {"services: {web: {image: a, x-dockwell: {nope: 1}}}", "the service web's x-dockwell uses `nope`, which Dockwell can't run yet"},
+		"extension kind":   {"services: {web: {image: a, x-dockwell: nope}}", "the service web's x-dockwell should be a mapping"},
+		"check keys":       {"services: {web: {image: a, x-dockwell: {healthcheck: {test: [CMD, 'true']}}}}", "the service web's x-dockwell's healthcheck uses `test`, which Dockwell can't run yet"},
+		"check of neither": {"services: {web: {image: a, x-dockwell: {healthcheck: {interval: 5s}}}}", "needs http or tcp"},
+		"http keys":        {"services: {web: {image: a, x-dockwell: {healthcheck: {http: {url: 'http://169.254.169.254/'}}}}}", "the service web's x-dockwell's healthcheck's http uses `url`, which Dockwell can't run yet"},
+		"two checks":       {"services: {web: {image: a, healthcheck: {test: [CMD, 'true']}, x-dockwell: {healthcheck: {tcp: {port: 80}}}}}", "a service has one check"},
 		"long propagation": {
 			"services: {web: {image: a, volumes: [{type: bind, source: /srv, target: /data, bind: {propagation: rshared}}]}}",
 			"the service web's volume's bind uses `propagation`, which Dockwell can't run yet",
@@ -199,6 +212,80 @@ func TestParseRefuses(t *testing.T) {
 
 // An exported file reads back as what was exported, so docker compose
 // runs what Dockwell runs, and it never holds a secret.
+// What Compose has a field for comes from there, and what it hasn't from
+// x-dockwell, and both read back from an export as what they were.
+func TestRolloutSettingsRoundTrip(t *testing.T) {
+	const file = `
+services:
+  web:
+    image: nginx:1.27
+    stop_grace_period: 1m30s
+    deploy:
+      replicas: 1
+      update_config: {order: start-first, parallelism: 1, failure_action: rollback}
+    healthcheck: {disable: true}
+    x-dockwell:
+      drain: ${DRAIN:-45s}
+      healthcheck:
+        http: {port: 8080, path: /healthz, host: app.example.com}
+        interval: 5s
+        timeout: 2s
+        start_period: 30s
+        retries: 4
+  db:
+    image: postgres:17
+    deploy: {update_config: {order: stop-first}}
+    x-dockwell:
+      healthcheck: {tcp: {port: 5432}}
+`
+	parsed, err := compose.Parse(t.Context(), []byte(file), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg := resource.NewRegistry(&service.Driver{})
+	byName := func(s *compose.Stack) map[string]*resourcev1.Container {
+		out := map[string]*resourcev1.Container{}
+		for _, i := range s.Services {
+			if err := reg.Validate(service.Kind, i.Spec); err != nil {
+				t.Fatalf("%s: %v", i.Name, err)
+			}
+			out[i.Name] = i.Spec.GetApp()
+		}
+		return out
+	}
+	got := byName(parsed)
+	web, db := got["web"], got["db"]
+	if web.GetStopGracePeriod() != "1m30s" || web.GetRollout().GetOrder() != resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST || web.GetRollout().GetDrain() != "45s" {
+		t.Errorf("web reads %v", web)
+	}
+	hc := web.GetHealthcheck()
+	if h := hc.GetHttp(); h.GetPort() != 8080 || h.GetPath() != "/healthz" || h.GetHost() != "app.example.com" || hc.GetInterval() != "5s" || hc.GetTimeout() != "2s" || hc.GetStartPeriod() != "30s" || hc.GetRetries() != 4 || len(hc.GetTest()) != 0 {
+		t.Errorf("web's check reads %v", hc)
+	}
+	if db.GetRollout().GetOrder() != resourcev1.RolloutOrder_ROLLOUT_ORDER_STOP_FIRST || db.GetHealthcheck().GetTcp().GetPort() != 5432 {
+		t.Errorf("db reads %v", db)
+	}
+	out, err := compose.Export(project, parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out.File)
+	for _, want := range []string{"stop_grace_period: 1m30s", "order: start-first", "x-dockwell:", "disable: true", health.Label} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the export doesn't have %q:\n%s", want, text)
+		}
+	}
+	again, err := compose.Parse(t.Context(), out.File, map[string]string{})
+	if err != nil {
+		t.Fatalf("reading the export back: %v\n%s", err, text)
+	}
+	for name, c := range byName(again) {
+		if !proto.Equal(c.GetHealthcheck(), got[name].GetHealthcheck()) || !proto.Equal(c.GetRollout(), got[name].GetRollout()) || c.GetStopGracePeriod() != got[name].GetStopGracePeriod() {
+			t.Errorf("%s reads back as %v, want %v", name, c, got[name])
+		}
+	}
+}
+
 func TestExportRoundTrips(t *testing.T) {
 	s, err := compose.Parse(t.Context(), []byte(shop), map[string]string{"API_KEY": "s3cret"})
 	if err != nil {

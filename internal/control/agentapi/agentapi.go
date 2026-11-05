@@ -253,6 +253,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 			case msg.GetDomains() != nil && h.agents != nil:
 				h.agents.Report(peer.ServerID, msg.GetDomains().GetDomains(), msg.GetDomains().GetIngress())
 				h.fleet.RecordIngress(peer.ServerID, msg.GetDomains().GetIngress())
+			case msg.GetHealth() != nil && h.agents != nil:
+				h.agents.ReportHealth(peer.ServerID, msg.GetHealth())
 			case msg.GetDraining() != nil && session != nil:
 				session.drain()
 			case msg.GetDraining() != nil:

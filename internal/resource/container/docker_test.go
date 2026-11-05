@@ -28,6 +28,9 @@ import (
 const env = "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M"
 
 // images are what the fake registry has, as Docker Hub's images look.
+// sickSays is what the check of the image sick:1 prints.
+const sickSays = "curl: (22) The requested URL returned error: 500. It says so"
+
 func images(e *dockertest.Engine) {
 	e.Registry["nginx:1.27"] = dockertest.Image{Size: 48 << 20, Config: docker.Config{
 		Cmd: []string{"nginx", "-g", "daemon off;"}, Entrypoint: []string{"/docker-entrypoint.sh"},
@@ -42,7 +45,7 @@ func images(e *dockertest.Engine) {
 	}}
 	e.Registry["crash:1"] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"false"}}}
 	e.Registry["busybox:1.37"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
-	e.Registry["sick:1"] = dockertest.Image{Unhealthy: true, Config: docker.Config{
+	e.Registry["sick:1"] = dockertest.Image{Unhealthy: true, CheckSays: sickSays, Config: docker.Config{
 		Cmd: []string{"sleep", "inf"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "false"}},
 	}}
 	e.Registry["slow:1"] = dockertest.Image{Starting: true, Config: docker.Config{
@@ -52,7 +55,7 @@ func images(e *dockertest.Engine) {
 
 func drivers(e *dockertest.Engine) *resource.Registry {
 	kept := &volume.Kept{}
-	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, HealthWait: time.Second, Deleted: kept}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, HealthWait: time.Second, Deleted: kept}
 	c := container.Driver{Runtime: rt}
 	return resource.NewRegistry(&c, &service.Driver{Containers: c},
 		&volume.Driver{Runtime: &volume.Docker{Client: rt.Client, Kept: kept}})
@@ -411,7 +414,7 @@ func TestFailuresReadPlainly(t *testing.T) {
 		{"ghost", &resourcev1.Container{Image: "ghost:1"}, "ghost:1 can't be pulled. The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again."},
 		{"tagged", &resourcev1.Container{Image: "ghost:nosuchtag"}, "ghost:nosuchtag isn't on its registry, so it can't be pulled. The tag may be wrong. Check the name and tag, then try again."},
 		{"crash", &resourcev1.Container{Image: "crash:1"}, "crash stopped right after it started, with exit code 1. Check its command and variables, then try again."},
-		{"sick", &resourcev1.Container{Image: "sick:1"}, "sick runs, but fails its health check. Check the command its health check runs, then try again."},
+		{"sick", &resourcev1.Container{Image: "sick:1"}, `sick runs, but fails its health check: the command exited with 1: "` + sickSays + `". Fix what it reports, or the check, then try again.`},
 		{"second", &resourcev1.Container{Image: "nginx:1.27", Ports: port(8080)}, "Port 8080 is already in use on this server. Choose another port, or stop what uses it, then try again."},
 		{"mounted", &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/readonly/uploads"}, Target: "/u"}}}, "mounted can't mount /readonly/uploads (read-only file system). Check the path on this server, then try again."},
 	} {
@@ -475,7 +478,8 @@ func TestAFailedRenameIsFinished(t *testing.T) {
 	var once sync.Once
 	e.Intercept(func(r *http.Request) error {
 		var err error
-		if strings.HasSuffix(r.URL.Path, "/rename") {
+		// The one that gives the new one its name, not the old one its mark.
+		if strings.HasSuffix(r.URL.Path, "/rename") && r.URL.Query().Get("name") == name {
 			once.Do(func() { err = errors.New("Error when allocating new name: the daemon is restarting") })
 		}
 		return err
@@ -485,15 +489,15 @@ func TestAFailedRenameIsFinished(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := l.Apply(t.Context(), resource.Step{Ref: db, Decision: resource.Decision{Action: resource.ActionReplace}}, spec)
-	if err == nil || !strings.Contains(err.Error(), "removed the old "+name+", but can't give the new one its name") {
+	if err == nil || !strings.Contains(err.Error(), "removed the old db, but can't give the new one its name") {
 		t.Fatalf("a replace whose rename fails = %v", err)
 	}
 	if got := e.Containers(); len(got) != 1 || got[0] == name {
 		t.Fatalf("Docker has %v, want the new container left under the name it was made with", got)
 	}
 
-	if step := apply(t, l, db, spec); step.Action != resource.ActionCreate {
-		t.Errorf("planning db again = %s, want a create, as nothing has its name", step.Action)
+	if step := apply(t, l, db, spec); step.Action != resource.ActionReplace || len(step.Changes) != 0 {
+		t.Errorf("planning db again = %s with %v, want it to finish the swap, with no change to its spec", step.Action, step.Changes)
 	}
 	if got := e.Containers(); len(got) != 1 || got[0] != name {
 		t.Errorf("Docker has %v, want %s alone", got, name)
@@ -502,6 +506,34 @@ func TestAFailedRenameIsFinished(t *testing.T) {
 		t.Errorf("%s mounts %+v and runs %t, want the image's volume %s and running", name, c.Mounts, c.State.Running, data)
 	}
 	unchanged(t, l, db, spec)
+}
+
+// Docker stops the checks of a paused container, so what it last said of one is as it
+// left it, and the container serves nothing. Waiting for it passes nothing.
+func TestAPausedContainerPassesNoCheck(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	reg := drivers(e)
+	l := resource.Local{Drivers: reg}
+	web := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+	spec := &resourcev1.Container{Image: "nginx:1.27"}
+	_ = container.Validate(spec)
+	if err := l.Apply(t.Context(), resource.Step{Ref: web, Decision: resource.Decision{Action: resource.ActionCreate}}, spec); err != nil {
+		t.Fatal(err)
+	}
+	e.SetHealth("web", "healthy", "ok")
+	e.Edit("web", func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
+	d, err := reg.Driver(container.Kind)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = d.Verify(t.Context(), web, spec)
+	if err == nil {
+		t.Fatal("a paused container passed its check")
+	}
+	if plain, _ := resource.Explain(err); !strings.Contains(plain, "web is paused") || !strings.Contains(plain, "Unpause it") {
+		t.Errorf("it says %q", plain)
+	}
 }
 
 // Waiting for health is bounded twice: by HealthWait, and by the step's
@@ -522,7 +554,7 @@ func TestHealthWaitsAreTold(t *testing.T) {
 		"the step's": {time.Minute, 100 * time.Millisecond, "the step's time ran out before slow passed its health check"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			rt := &container.Docker{Client: e.Client(), Poll: time.Millisecond, HealthWait: tc.wait}
+			rt := &container.Docker{Client: e.Client(), Poll: time.Millisecond, Soak: -1, HealthWait: tc.wait}
 			d := &container.Driver{Runtime: rt}
 			ctx, cancel := context.WithTimeout(t.Context(), tc.step)
 			defer cancel()
@@ -680,7 +712,7 @@ func TestCleaningUpAFailedReplaceIsBounded(t *testing.T) {
 	images(e)
 	var log lockedBuffer
 	rt := &container.Docker{
-		Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, HealthWait: time.Second,
+		Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, HealthWait: time.Second,
 		CleanupWait: 50 * time.Millisecond, Logger: slog.New(slog.NewTextHandler(&log, nil)),
 	}
 	l := resource.Local{Drivers: resource.NewRegistry(&container.Driver{Runtime: rt})}

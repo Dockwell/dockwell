@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -376,7 +375,7 @@ func (h *Handler) RollBackService(ctx context.Context, req *connect.Request[dock
 	c, err := h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
 		return h.engine.RollBackTo(ctx, target.ID, int(m.GetRevision()), func(latest store.Resource, spec proto.Message) (string, []revision.Note) {
 			summary := cmp.Or(m.GetSummary(), fmt.Sprintf("Roll back %s to r%d", latest.Name, m.GetRevision()))
-			return summary, slices.Concat(keptData(latest, spec), latestValues(latest, spec))
+			return summary, latestValues(latest, spec)
 		}, who)
 	})
 	if err != nil {
@@ -405,32 +404,6 @@ func latestValues(latest store.Resource, spec proto.Message) []revision.Note {
 		Message: fmt.Sprintf("%s runs with the latest value of %s. A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets",
 			latest.Name, human.List(names)),
 		Ref:   resource.Ref{Kind: service.Kind, Scope: latest.Scope, Name: latest.Name},
-		Names: names,
-	}}
-}
-
-// keptData is what a plan says of a rollback of a service that keeps data: its
-// volumes and server paths stay as they are, whatever the revision it goes back
-// to did with them.
-func keptData(latest store.Resource, spec proto.Message) []revision.Note {
-	s, ok := spec.(*resourcev1.Service)
-	if !ok {
-		return nil
-	}
-	var names []string
-	for _, m := range s.GetApp().GetMounts() {
-		names = append(names, cmp.Or(m.GetVolume(), m.GetHostPath()))
-	}
-	if len(names) == 0 {
-		return nil
-	}
-	slices.Sort(names)
-	names = slices.Compact(names)
-	return []revision.Note{{
-		Reason: "volumes_stay",
-		Message: fmt.Sprintf("%s keeps what is in %s as it is. A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't",
-			latest.Name, human.List(names)),
-		Ref:   resource.Ref{Kind: resource.Kind(latest.Kind), Scope: latest.Scope, Name: latest.Name},
 		Names: names,
 	}}
 }

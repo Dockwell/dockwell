@@ -7,6 +7,7 @@ import (
 	"maps"
 	"reflect"
 	"testing"
+	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -23,6 +24,38 @@ func TestAStepReadsBack(t *testing.T) {
 	got, err := FromStep(Step(s, ""))
 	if err != nil || got.Action != s.Action || got.Effect != s.Effect || !got.Destroys || len(got.Warnings) != 1 || got.Ref != s.Ref {
 		t.Errorf("FromStep(Step(%+v)) = %+v, %v", s, got, err)
+	}
+}
+
+// How a step replaces what runs, and the restart it is, survive the trip to the
+// agent and back, or the agent would stop first where a plan said it wouldn't.
+func TestARolloutReadsBack(t *testing.T) {
+	s := resource.Step{
+		Ref: resource.Ref{Kind: "service", Scope: "env_1", Name: "web"},
+		Decision: resource.Decision{
+			Action: resource.ActionReplace, Effect: resource.EffectRoll, Restart: "chg_1",
+			Rollout: &resource.RolloutPlan{
+				Rolling: true, Ports: []string{"8080/tcp"}, Volumes: []string{"data"}, Paths: []string{"/srv/a"}, ImageData: []string{"/var/lib/x"}, Chosen: true,
+				Drain: 30 * time.Second, StopGrace: time.Minute, HealthyWithin: 2 * time.Minute, Others: []string{"env_1-web-2"},
+			},
+		},
+	}
+	got, err := FromStep(Step(s, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Effect != resource.EffectRoll || got.Restart != "chg_1" {
+		t.Errorf("read back as %+v", got)
+	}
+	if !reflect.DeepEqual(got.Rollout, s.Rollout) {
+		t.Errorf("the rollout read back as %+v, want %+v", got.Rollout, s.Rollout)
+	}
+	none, err := FromStep(Step(resource.Step{Decision: resource.Decision{Action: resource.ActionCreate}}, ""))
+	if err != nil || none.Rollout != nil {
+		t.Errorf("a step with no rollout read back with %+v, %v", none.Rollout, err)
+	}
+	if b := (resource.Decision{Downtime: time.Second, UntilHealthy: time.Minute, Rollout: s.Rollout}).Budget(); b != time.Minute+2*time.Minute+30*time.Second+time.Minute {
+		t.Errorf("the step's budget is %s", b)
 	}
 }
 

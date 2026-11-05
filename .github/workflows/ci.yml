@@ -21,7 +21,9 @@ jobs:
   go:
     name: Go
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # It takes 10 to 14 minutes under the race detector, depending on the runner, so this leaves room for a slow
+    # runner rather than failing at random.
+    timeout-minutes: 20
     # The store's tests run on SQLite and on this Postgres (ADR 0014).
     services:
       postgres:
@@ -85,7 +87,9 @@ jobs:
   docker:
     name: Docker
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # It takes about 22 minutes: real Docker, real Caddy, then all of a server's flows on
+    # them, so this leaves room for a slow runner rather than failing at random.
+    timeout-minutes: 30
     # The drivers' tests against the runner's Docker Engine, and a service
     # through the CLI end to end, beside docker compose (ADR 0021). The ingress
     # against real Caddy and Pebble, on high ports, and then in its container on

@@ -330,7 +330,7 @@ func TestHandEditsOfAPlainRouteReadAsThemselvesOnRealCaddy(t *testing.T) {
 	c := startPlain(t)
 	up := backend(t, "web")
 	put(t, c, plainRoute("dockwell.env.www", "app.example.net", up))
-	path := serversPath + "/" + httpServerName + "/routes/0"
+	path := serversPath + "/" + httpServerName + "/routes/1"
 	edited, err := json.Marshal(map[string]any{
 		"@id": "dockwell.env.www", "terminal": true,
 		"match":  []map[string]any{{"host": []string{"app.example.net"}, "protocol": "https"}},
@@ -339,7 +339,7 @@ func TestHandEditsOfAPlainRouteReadAsThemselvesOnRealCaddy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := c.call(t.Context(), http.MethodPatch, "/config/apps/http/servers/"+httpServerName+"/routes/0", edited, nil); err != nil {
+	if _, _, err := c.call(t.Context(), http.MethodPatch, "/config/apps/http/servers/"+httpServerName+"/routes/1", edited, nil); err != nil {
 		t.Fatalf("PATCH %s: %v", path, err)
 	}
 	routes, err := c.Routes(t.Context())
@@ -1064,7 +1064,7 @@ func TestHandEditsOfWhatARouteBelievesReadAsThemselvesOnRealCaddy(t *testing.T) 
 	r := plainRoute("dockwell.env.www", "app.example.net", up)
 	r.TrustedProxies = []string{"127.0.0.1/32"}
 	put(t, c, r)
-	path := "/config/apps/http/servers/" + httpServerName + "/routes/0"
+	path := "/config/apps/http/servers/" + httpServerName + "/routes/1"
 	for name, edit := range map[string]func(route) route{
 		"its reach": func(rt route) route {
 			rt.Match[0].RemoteIP = &remoteIP{Ranges: []string{"0.0.0.0/0"}}
@@ -1424,7 +1424,7 @@ func TestAnOlderRouteGetsItsOwnNameAtTheNextChangeOnRealCaddy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, _, err := c.call(t.Context(), http.MethodPatch, "/config/apps/http/servers/"+httpServerName+"/routes/0", b, nil); err != nil {
+			if _, _, err := c.call(t.Context(), http.MethodPatch, "/config/apps/http/servers/"+httpServerName+"/routes/1", b, nil); err != nil {
 				t.Fatal(err)
 			}
 			routes, err := c.Routes(t.Context())

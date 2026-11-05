@@ -12,16 +12,18 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -41,6 +43,9 @@ type Docker struct {
 	// Settle is how long a container without a health check must keep
 	// running after it starts to count as healthy. Zero means 2 s.
 	Settle time.Duration
+	// ListenWait is how long a new instance with no health check gets to take
+	// connections on the ports its routes send to. Zero means 2 minutes.
+	ListenWait time.Duration
 	// HealthWait bounds waiting for a health check to pass. Zero means 5
 	// minutes.
 	HealthWait time.Duration
@@ -66,14 +71,27 @@ type Docker struct {
 	// Logs keeps the logs of the containers a change removes, which Docker
 	// removes with them. Nil keeps none.
 	Logs LogKeeper
+	// Probe makes a check the agent makes of a container. Nil means health.Run,
+	// on the container's own address.
+	Probe func(ctx context.Context, c *health.Check, address string) (health.Result, error)
+	// Soak is how long a new container must stay healthy before anything moves to
+	// it: DefaultSoak when zero, and none when negative.
+	Soak time.Duration
+	// ResolvePath says where a server path leads. Nil follows its links on this
+	// server.
+	ResolvePath func(path string) (string, error)
+	// soaked holds the containers a rollout has held to Soak, for Healthy, which
+	// then has no need to again.
+	soaked sync.Map
+	// Points hears each step of a rollout, for a test to stop it there. Nil
+	// hears nothing.
+	Points fault.Points
 }
 
 // Ingress is what the container driver needs of a server's ingress
 // (internal/ingress).
 type Ingress interface {
-	// Endpoint says how a new container of a service's first instance joins
-	// the ingress network, and whether it does.
-	Endpoint(ctx context.Context, instance ingress.Instance) (network string, ep docker.EndpointSettings, ok bool, err error)
+	ingress.Upstreams
 	// PublicPort reports a port the ingress holds while it has routes.
 	PublicPort(ctx context.Context, port uint32, udp bool) (bool, error)
 	// RoutedAfter reports a route that still sends to an instance's service once
@@ -141,7 +159,7 @@ func Labels(t Target, spec *resourcev1.Container) map[string]string {
 	}
 	l[docker.LabelProject] = t.Project
 	l[docker.LabelService] = t.Service
-	l[docker.LabelNumber] = "1"
+	l[docker.LabelNumber] = numberLabel(t)
 	l[docker.LabelOneoff] = "False"
 	l[docker.LabelConfigHash] = ConfigHash(spec)
 	maps.Copy(l, OwnLabels(spec))
@@ -169,6 +187,13 @@ func ConfigHash(spec *resourcev1.Container) string {
 // file carries too, so a container docker compose makes from it reads
 // back the same. A spec that sets nothing its image could needs none.
 func OwnLabels(spec *resourcev1.Container) map[string]string {
+	out := map[string]string{}
+	if c := AgentCheck(spec.GetHealthcheck()); c != nil {
+		out[health.Label] = c.Encode()
+	}
+	if r := rolloutLabel(spec.GetRollout()); r != "" {
+		out[LabelRollout] = r
+	}
 	var set []string
 	add := func(name string, ok bool) {
 		if ok {
@@ -193,12 +218,96 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	for k := range spec.GetLabels() {
 		set = append(set, "label:"+k)
 	}
-	if len(set) == 0 {
+	if len(set) > 0 {
+		slices.Sort(set)
+		b, _ := json.Marshal(set)
+		out[LabelSet] = string(b)
+	}
+	if len(out) == 0 {
 		return nil
 	}
-	slices.Sort(set)
-	b, _ := json.Marshal(set)
-	return map[string]string{LabelSet: string(b)}
+	return out
+}
+
+// rolloutSetting is a spec's rollout settings, as LabelRollout holds them.
+type rolloutSetting struct {
+	Order string `json:"order,omitempty"`
+	Drain string `json:"drain,omitempty"`
+}
+
+var rolloutOrders = map[resourcev1.RolloutOrder]string{
+	resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST: "start-first",
+	resourcev1.RolloutOrder_ROLLOUT_ORDER_STOP_FIRST:  "stop-first",
+}
+
+func rolloutLabel(r *resourcev1.Rollout) string {
+	if r == nil {
+		return ""
+	}
+	b, _ := json.Marshal(rolloutSetting{Order: rolloutOrders[r.GetOrder()], Drain: r.GetDrain()})
+	return string(b)
+}
+
+// projectRollout reads a container's rollout settings back from its label.
+func projectRollout(label string) *resourcev1.Rollout {
+	if label == "" {
+		return nil
+	}
+	var s rolloutSetting
+	if err := json.Unmarshal([]byte(label), &s); err != nil {
+		return nil
+	}
+	out := &resourcev1.Rollout{Drain: s.Drain}
+	for order, name := range rolloutOrders {
+		if name == s.Order {
+			out.Order = order
+		}
+	}
+	return out
+}
+
+// AgentCheck is a spec's check as the agent makes it, or nil for a check Docker
+// makes, or none.
+func AgentCheck(hc *resourcev1.Healthcheck) *health.Check {
+	if hc.GetHttp() == nil && hc.GetTcp() == nil {
+		return nil
+	}
+	d := func(s string) time.Duration {
+		v, _ := time.ParseDuration(s)
+		return v
+	}
+	c := &health.Check{
+		Interval: d(hc.GetInterval()), Timeout: d(hc.GetTimeout()), StartPeriod: d(hc.GetStartPeriod()), Retries: int(hc.GetRetries()),
+	}
+	if h := hc.GetHttp(); h != nil {
+		c.HTTP = &health.HTTP{Port: int(h.GetPort()), Path: h.GetPath(), Host: h.GetHost()}
+	} else {
+		c.TCP = &health.TCP{Port: int(hc.GetTcp().GetPort())}
+	}
+	return c
+}
+
+// projectAgentCheck reads a check the agent makes back from a container's label.
+func projectAgentCheck(label string) *resourcev1.Healthcheck {
+	c, err := health.Parse(label)
+	if err != nil {
+		return nil
+	}
+	dur := func(d time.Duration) string {
+		if d <= 0 {
+			return ""
+		}
+		return d.String()
+	}
+	out := &resourcev1.Healthcheck{
+		Interval: dur(c.Interval), Timeout: dur(c.Timeout), StartPeriod: dur(c.StartPeriod), Retries: uint32(max(c.Retries, 0)), //nolint:gosec // retries are few
+	}
+	if c.HTTP != nil {
+		out.Http = &resourcev1.HttpCheck{Port: uint32(c.HTTP.Port), Path: c.HTTP.Path, Host: c.HTTP.Host} //nolint:gosec // a port
+	} else {
+		out.Tcp = &resourcev1.TcpCheck{Port: uint32(c.TCP.Port)} //nolint:gosec // a port
+	}
+	return out
 }
 
 func setOf(labels map[string]string) map[string]bool {
@@ -247,6 +356,11 @@ func healthcheck(hc *resourcev1.Healthcheck) *docker.Healthcheck {
 	if hc == nil {
 		return nil
 	}
+	if AgentCheck(hc) != nil {
+		// The agent makes it, and it stands in for the image's, as a spec's
+		// command does. Docker has nothing to run.
+		return &docker.Healthcheck{Test: []string{"NONE"}}
+	}
 	d := func(s string) time.Duration {
 		v, _ := time.ParseDuration(s)
 		return v
@@ -292,6 +406,10 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 		req.Entrypoint = []string{}
 	}
 	req.Env = environment(spec)
+	if v, err := time.ParseDuration(spec.GetStopGracePeriod()); err == nil && v > 0 {
+		seconds := int(v / time.Second)
+		req.StopTimeout = &seconds
+	}
 	req.HostConfig.RestartPolicy = restartOf(spec)
 	req.HostConfig.Privileged, req.HostConfig.CapAdd, req.HostConfig.CapDrop, req.HostConfig.GroupAdd =
 		spec.GetPrivileged(), spec.GetCapAdd(), spec.GetCapDrop(), spec.GetGroupAdd()
@@ -382,12 +500,21 @@ func failedBefore(c *docker.Container) bool {
 }
 
 // beginKeepingLogs starts keeping the log of a container a step is about to
-// remove. Dockwell's rollback removes what failed, whatever its state says.
+// remove. Dockwell's rollback removes what failed, whatever its state says. It can
+// remove what ran too, as one pinned to a digest does, and that didn't fail.
 func (d *Docker) beginKeepingLogs(ctx context.Context, c *docker.Container) LogKeep {
 	if d.Logs == nil {
 		return nil
 	}
-	return d.Logs.Begin(ctx, c, resource.DeployOf(ctx).Rollback || failedBefore(c))
+	return d.Logs.Begin(ctx, c, madeByWhatFailed(ctx, c) || failedBefore(c))
+}
+
+// madeByWhatFailed reports a container the deploy a rollback rolls back made: a
+// rollback's revision is the one after that deploy's.
+func madeByWhatFailed(ctx context.Context, c *docker.Container) bool {
+	deploy := resource.DeployOf(ctx)
+	revision, _ := strconv.Atoi(c.Config.Labels[LabelRevision])
+	return deploy.Rollback && revision == deploy.Revision-1
 }
 
 // finishKeepingLogs takes in a stopped container's last lines, and how it
@@ -564,7 +691,15 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 			out.Labels[k] = v
 		}
 	}
-	out.Healthcheck = projectHealthcheck(c.Config.Healthcheck, img.Healthcheck, set)
+	if label := c.Config.Labels[health.Label]; label != "" {
+		out.Healthcheck = projectAgentCheck(label)
+	} else {
+		out.Healthcheck = projectHealthcheck(c.Config.Healthcheck, img.Healthcheck, set)
+	}
+	out.Rollout = projectRollout(c.Config.Labels[LabelRollout])
+	if s := c.Config.StopTimeout; s != nil {
+		out.StopGracePeriod = (time.Duration(*s) * time.Second).String()
+	}
 	for key, bindings := range c.HostConfig.PortBindings {
 		port, transport, _ := strings.Cut(key, "/")
 		cp, _ := strconv.ParseUint(port, 10, 16)
@@ -679,12 +814,18 @@ func (d *Docker) find(ctx context.Context, name string) (*docker.Container, erro
 	return c, err
 }
 
-// Inspect reads the container at t, and its image's defaults.
+// Inspect reads the container at t, and its image's defaults: its newest, which
+// a rollout under way, or one that stopped partway, is moving toward.
 func (d *Docker) Inspect(ctx context.Context, t Target) (*resourcev1.Container, error) {
-	c, err := d.find(ctx, t.Name)
+	c, err := d.current(ctx, t)
 	if err != nil || c == nil {
 		return nil, err
 	}
+	return d.projected(ctx, t, c)
+}
+
+// projected reads a container back into a spec, with its image's defaults.
+func (d *Docker) projected(ctx context.Context, t Target, c *docker.Container) (*resourcev1.Container, error) {
 	var defaults *docker.Config
 	img, err := d.Client.InspectImage(ctx, c.Image)
 	switch {
@@ -743,7 +884,14 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 		return false, fmt.Errorf("pulled %s, but can't read it back: %w", ref, err)
 	}
 	digest := img.Digest(ref)
-	if old != nil && old.Image == img.ID && notRunning(old) == "" {
+	all, err := d.instances(ctx, t)
+	if err != nil {
+		return false, err
+	}
+	// A rollout stopped partway reads as its new container, with the old one still
+	// there or a name still to give: that isn't done, however it reads.
+	finished := len(all) == 1 && !all[0].temp && !all[0].stopping
+	if finished && old.Image == img.ID && notRunning(old) == "" {
 		resource.Report(ctx, resource.Outcome{Digest: digest})
 		return true, nil
 	}
@@ -756,8 +904,8 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 // server has will do, which is how someone gets a service back while its registry
 // is down.
 func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container, ref string) error {
-	resource.Progress(ctx, "pulling "+ref+" again")
-	err := d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "pulling "+ref+" again, "+p) })
+	resource.Progress(ctx, "Pulling "+ref+" again")
+	err := d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+" again, "+p) })
 	if err == nil || docker.IsUnavailable(err) || ctx.Err() != nil {
 		return err
 	}
@@ -778,7 +926,7 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 
 // NotRunning says how the container at t isn't running, in a word.
 func (d *Docker) NotRunning(ctx context.Context, t Target) (string, error) {
-	c, err := d.find(ctx, t.Name)
+	c, err := d.current(ctx, t)
 	if err != nil || c == nil {
 		return "", err
 	}
@@ -891,18 +1039,19 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 	return nil
 }
 
-// Run creates and starts the container, replacing the one of the name,
-// which must be Dockwell's. The new one is made, under a name of its own,
-// before the old one stops, so only stopping one and starting the other is
-// downtime. The volumes Docker made for the old one's image move to the
-// new one, and those a mount now covers are kept for 7 days, as a deleted
-// container's are; a container made again mounts those kept for it. What it
-// fails with is in plain words.
-func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, restore bool) error {
-	return explained(t, d.run(ctx, t, spec, restore))
+// Run makes what runs at t match spec, from whatever it finds. A service goes
+// through a rollout (rollout.go), and a container on its own is replaced under
+// its name: the new one is made first, under a name of its own, before the old
+// one stops, so only stopping one and starting the other is downtime. The
+// volumes Docker made for the old one's image move to the new one, and those a
+// mount now covers are kept for 7 days, as a deleted container's are; a
+// container made again mounts those kept for it. What it fails with is in plain
+// words.
+func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
+	return explained(t, d.run(ctx, t, spec, dec))
 }
 
-func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, restore bool) error {
+func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
 	if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
 		return err
 	}
@@ -912,91 +1061,15 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	if err := d.checkRefs(ctx, t, spec); err != nil {
 		return err
 	}
-	old, err := d.find(ctx, t.Name)
-	if err != nil {
+	if c, err := d.find(ctx, t.Name); err != nil {
 		return err
-	}
-	if old != nil {
-		if err := owned(t, old); err != nil {
-			return err
-		}
-	} else if old, err = d.unfinished(ctx, t); err != nil {
-		return err
-	}
-	kept, err := d.keptVolumes(ctx, t)
-	if err != nil {
-		return err
-	}
-	req, later, restored := d.createRequest(ctx, t, spec, old, kept)
-	if restore && len(restored) == 0 {
-		return fmt.Errorf("the data %s's image kept, which this change was to mount again, is gone: the server keeps it for 7 days after a change takes it out of use, then removes it. "+
-			"Plan the change again: it makes %s with its image's volumes empty", t.Name, t.Name)
-	}
-	undo := func() {}
-	if len(restored) > 0 {
-		if undo, err = d.Deleted.TakeImageVolumes(t.Name, slices.Collect(maps.Keys(restored))); err != nil {
+	} else if c != nil {
+		if err := owned(t, c); err != nil {
 			return err
 		}
 	}
-	name := t.Name
-	if old != nil {
-		// As Compose names a container it is about to swap in.
-		name = old.ID[:12] + "_" + t.Name
-		left, err := d.find(ctx, name)
-		if err == nil && left != nil {
-			err = owned(Target{Name: name, Project: t.Project, Service: t.Service}, left)
-		}
-		if err != nil {
-			undo()
-			return err
-		}
-		if left != nil {
-			_ = d.Client.RemoveContainer(ctx, left.ID, true) // a try that failed before
-		}
-	}
-	id, err := d.Client.CreateContainer(ctx, name, req)
-	if err != nil {
-		undo()
-		return fmt.Errorf("docker can't create %s: %w", t.Name, err)
-	}
-	discard := func(err error) error {
-		d.discard(ctx, id, name)
-		undo()
+	if err := d.roll(ctx, t, spec, dec); err != nil {
 		return err
-	}
-	for _, n := range later {
-		if err := d.Client.ConnectNetwork(ctx, n, id, endpointAliases(t, spec)); err != nil {
-			return discard(fmt.Errorf("can't put %s on the network %s: %w", t.Name, n, err))
-		}
-	}
-	if err := d.joinIngress(ctx, t, spec, id); err != nil {
-		return discard(err)
-	}
-	if old != nil {
-		keep := d.beginKeepingLogs(ctx, old)
-		resource.Progress(ctx, "Stopping the old container")
-		if err := d.Client.StopContainer(ctx, old.ID, StopTimeout); err != nil && !docker.IsNotFound(err) {
-			return discard(fmt.Errorf("can't stop the old %s: %w", t.Name, err))
-		}
-		d.finishKeepingLogs(ctx, keep, old)
-		if err := d.Client.RemoveContainer(ctx, old.ID, true); err != nil && !docker.IsNotFound(err) {
-			return discard(fmt.Errorf("can't remove the old %s: %w", t.Name, err))
-		}
-		d.keep(t, covered(old, spec))
-		// The old one is gone: finish the swap even if the caller stops
-		// waiting, as a service left with no container is worse than a
-		// step that ends late. If the new one can't take the name, the
-		// next Run finishes it (unfinished).
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), finishWait)
-		defer cancel()
-		if err := d.Client.RenameContainer(ctx, id, t.Name); err != nil {
-			return fmt.Errorf("removed the old %s, but can't give the new one its name: %w. The next change to it finishes the swap, as the rollback that follows does", t.Name, err)
-		}
-	}
-	resource.Progress(ctx, "Starting "+t.Service)
-	if err := d.Client.StartContainer(ctx, id); err != nil {
-		return fmt.Errorf("docker can't start %s: %w", t.Name, err)
 	}
 	d.reportRan(ctx, spec.GetImage())
 	return nil
@@ -1012,7 +1085,7 @@ func (d *Docker) joinIngress(ctx context.Context, t Target, spec *resourcev1.Con
 	if d.Ingress == nil || !t.Scoped || spec.GetHostNetwork() {
 		return nil
 	}
-	network, ep, ok, err := d.Ingress.Endpoint(ctx, ingress.Instance{Project: t.Project, Service: t.Service, Number: 1})
+	network, ep, ok, err := d.Ingress.Endpoint(ctx, t.instance(max(t.Number, 1)))
 	if err != nil || !ok {
 		return err
 	}
@@ -1036,28 +1109,36 @@ func owned(t Target, c *docker.Container) error {
 		t.Name, docker.LabelProject, t.Project, docker.LabelService, t.Service, t.Name, t.Name)
 }
 
-// Judge says what a step does on this server beyond what the specs say:
-// it refuses a container at the name that Dockwell didn't make; a step
-// that takes data the image keeps out of use destroys it, as the server
-// keeps it for 7 days; a step that mounts such data again restores it;
-// and a recreated container's health check, its image's included, says
-// how long it may take to be healthy.
+// Judge says what a step does on this server beyond what the specs say: it
+// refuses a container at the name that Dockwell didn't make; a step that takes
+// data the image keeps out of use destroys it, as the server keeps it for 7
+// days; a step that mounts such data again restores it; a step on a service says
+// how it replaces what runs, and why; and a recreated container's health check,
+// its image's included, says how long it may take to be healthy.
 func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Container, dec *resource.Decision) error {
 	if dec.Action == resource.ActionDelete && d.Logs != nil && t.Scoped {
 		dec.HidesLogs = true
 	}
-	c, err := d.current(ctx, t)
+	stranger, err := d.find(ctx, t.Name)
 	if err != nil {
 		return err
 	}
-	if c != nil {
-		if err := owned(t, c); err != nil {
+	if stranger != nil {
+		if err := owned(t, stranger); err != nil {
 			return err
 		}
-		if dec.Action == resource.ActionReplace {
+	}
+	all, err := d.instances(ctx, t)
+	if err != nil {
+		return err
+	}
+	var c *docker.Container
+	if len(all) > 0 {
+		c = all[0].Container
+		if dec.Action == resource.ActionReplace && !all[0].temp && !all[0].stopping {
 			// A replace makes the new one under this name, and a try that
 			// failed before leaves one there, but it may be someone's.
-			swap := c.ID[:12] + "_" + t.Name
+			swap := c.ID[:12] + "_" + all[0].name()
 			left, err := d.find(ctx, swap)
 			if err == nil && left != nil {
 				err = owned(Target{Name: swap, Project: t.Project, Service: t.Service}, left)
@@ -1066,11 +1147,16 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 				return err
 			}
 		}
+	} else if stranger != nil {
+		c = stranger
 	}
 	var out map[string]string
 	switch dec.Action {
 	case resource.ActionDelete:
-		out = imageVolumes(c)
+		out = map[string]string{}
+		for _, i := range all {
+			maps.Copy(out, imageVolumes(i.Container))
+		}
 	case resource.ActionCreate, resource.ActionReplace:
 		// A pinned image that is gone says so below, as a rollback has somewhere
 		// else to go.
@@ -1101,6 +1187,24 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 			dec.ImageGone = true
 		}
 	}
+	if t.Scoped && dec.Action == resource.ActionReplace {
+		keep, others, err := d.pick(ctx, t, desired, dec.Restart, all)
+		if err != nil {
+			return err
+		}
+		// What its tag names now is for the step to find out, so this is what it takes
+		// if that's newer: a new container beside what runs, which reads as the spec
+		// only by its tag.
+		if keep != nil && (resource.Pulling(ctx) || stuck(keep)) {
+			others, keep = withNewestFirst(others, keep), nil
+		}
+		if err := d.judgeRollout(ctx, t, desired, keep, others, dec); err != nil {
+			return err
+		}
+		if dec.Rollout.Rolling {
+			return nil
+		}
+	}
 	if hc := desired.GetHealthcheck(); dec.Action == resource.ActionReplace && !complete(hc) {
 		img, err := d.Client.InspectImage(ctx, docker.WithTag(desired.GetImage()))
 		switch {
@@ -1114,6 +1218,8 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 		default:
 			return err
 		}
+	} else if b := HealthBound(hc, nil); dec.Action == resource.ActionReplace && b > 0 {
+		dec.UntilHealthy = dec.Downtime + b
 	}
 	return nil
 }
@@ -1121,26 +1227,24 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 // complete reports a health check that says all HealthBound reads, so
 // the image's can't change it.
 func complete(hc *resourcev1.Healthcheck) bool {
+	if AgentCheck(hc) != nil {
+		return true
+	}
 	t := hc.GetTest()
 	return len(t) > 0 && (t[0] == "NONE" || hc.GetInterval() != "" && hc.GetTimeout() != "" && hc.GetStartPeriod() != "" && hc.GetRetries() > 0)
 }
 
-// current is the container at t: the one of its name, or the newest a
-// replace left under another, which the next Run takes as the old one.
+// current is what reads as the container at t: the newest of its service's, or
+// one of its name that Dockwell didn't make, for Judge to refuse.
 func (d *Docker) current(ctx context.Context, t Target) (*docker.Container, error) {
-	c, err := d.find(ctx, t.Name)
-	if err != nil || c != nil {
-		return c, err
-	}
-	left, err := d.leftovers(ctx, t)
-	if err != nil || len(left) == 0 {
+	all, err := d.instances(ctx, t)
+	if err != nil {
 		return nil, err
 	}
-	c, err = d.Client.InspectContainer(ctx, left[0].ID)
-	if docker.IsNotFound(err) {
-		return nil, nil
+	if len(all) > 0 {
+		return all[0].Container, nil
 	}
-	return c, err
+	return d.find(ctx, t.Name)
 }
 
 // finishWait bounds finishing a replace once the old container is gone.
@@ -1159,6 +1263,22 @@ func (d *Docker) discard(ctx context.Context, id, name string) {
 	}
 }
 
+// discardFailed removes a container that ran and failed with nothing to follow it,
+// as a restart's does, keeping what it said, which is all that says why.
+func (d *Docker) discardFailed(ctx context.Context, i *instance) {
+	if d.Logs != nil {
+		wait, cancel := context.WithTimeout(context.WithoutCancel(ctx), or(d.CleanupWait, cleanupWait))
+		defer cancel()
+		keep := d.Logs.Begin(wait, i.Container, true)
+		if err := d.Client.StopContainer(wait, i.ID, stopGrace(i.Container)); err != nil && !docker.IsNotFound(err) {
+			d.logger().Warn("can't stop a container a change that failed made, so its last lines may not be kept",
+				slog.String("container", i.name()), slog.String("error", err.Error()))
+		}
+		d.finishKeepingLogs(wait, keep, i.Container)
+	}
+	d.discard(ctx, i.ID, i.name())
+}
+
 // cleanupWait bounds removing a container a failed change made.
 const cleanupWait = 30 * time.Second
 
@@ -1169,66 +1289,44 @@ func (d *Docker) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// leftovers lists the containers made for t that never got its name: a
-// replace makes the new one as <the old one's ID, 12 digits>_<name>, as
-// Compose does, and renames it once the old one is gone. Newest first.
-func (d *Docker) leftovers(ctx context.Context, t Target) ([]docker.ContainerSummary, error) {
-	list, err := d.Client.ListContainers(ctx, map[string][]string{
-		"name":  {"^/[0-9a-f]{12}_" + regexp.QuoteMeta(t.Name) + "$"},
-		"label": {docker.LabelProject + "=" + t.Project, docker.LabelService + "=" + t.Service},
-	})
-	slices.SortStableFunc(list, func(a, b docker.ContainerSummary) int { return cmp.Compare(b.Created, a.Created) })
-	return list, err
-}
-
-// unfinished finds a replace that removed the old container at t, but
-// couldn't give the new one its name: the new one is taken as the old one,
-// so the volumes Docker made for its image, which moved to it with their
-// data, move on again. Any others left over are removed.
-func (d *Docker) unfinished(ctx context.Context, t Target) (*docker.Container, error) {
-	left, err := d.leftovers(ctx, t)
-	if err != nil || len(left) == 0 {
-		return nil, err
-	}
-	for _, l := range left[1:] {
-		if err := d.Client.RemoveContainer(ctx, l.ID, true); err != nil && !docker.IsNotFound(err) {
-			return nil, err
-		}
-	}
-	c, err := d.Client.InspectContainer(ctx, left[0].ID)
-	if docker.IsNotFound(err) {
-		return nil, nil
-	}
-	return c, err
-}
-
-// Update changes the restart policy and the limits in place.
+// Update changes the restart policy and the limits in place, on each container
+// of t.
 func (d *Docker) Update(ctx context.Context, t Target, spec *resourcev1.Container) error {
-	c, err := d.find(ctx, t.Name)
+	all, err := d.instances(ctx, t)
 	switch {
 	case err != nil:
 		return err
-	case c == nil:
+	case len(all) == 0:
+		c, err := d.find(ctx, t.Name)
+		if err != nil {
+			return err
+		}
+		if c != nil {
+			return owned(t, c)
+		}
 		return fmt.Errorf("there's no container %s on this server to change. Plan the change again, which makes it", t.Name)
-	}
-	if err := owned(t, c); err != nil {
-		return err
 	}
 	if err := d.checkCPUs(ctx, t, spec); err != nil {
 		return err
 	}
-	return d.Client.UpdateContainer(ctx, c.ID, docker.ContainerUpdate{
-		RestartPolicy:     restartOf(spec),
-		NanoCPUs:          cpuNanos(spec.GetResources().GetCpus()),
-		Memory:            memoryBytes(spec.GetResources().GetMemory()),
-		MemoryReservation: memoryBytes(spec.GetResources().GetMemoryReservation()),
-	})
+	for _, c := range all {
+		err := d.Client.UpdateContainer(ctx, c.ID, docker.ContainerUpdate{
+			RestartPolicy:     restartOf(spec),
+			NanoCPUs:          cpuNanos(spec.GetResources().GetCpus()),
+			Memory:            memoryBytes(spec.GetResources().GetMemory()),
+			MemoryReservation: memoryBytes(spec.GetResources().GetMemoryReservation()),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// Remove stops the container, giving it StopTimeout, and removes it, if
-// it is Dockwell's. Its volumes stay: an environment's are resources of
-// their own, and those Docker made for its image are kept for 7 days, so
-// a container of the name made again in that time, as undoing the
+// Remove stops each container of t, giving it the time it was made with, and
+// removes it, if it is Dockwell's. Its volumes stay: an environment's are
+// resources of their own, and those Docker made for its image are kept for 7
+// days, so a container of the name made again in that time, as undoing the
 // deletion does, mounts them again.
 func (d *Docker) Remove(ctx context.Context, t Target) error {
 	c, err := d.find(ctx, t.Name)
@@ -1239,29 +1337,22 @@ func (d *Docker) Remove(ctx context.Context, t Target) error {
 		if err := owned(t, c); err != nil {
 			return err
 		}
-		left, err := d.leftovers(ctx, t)
-		if err != nil {
+	}
+	all, err := d.instances(ctx, t)
+	if err != nil {
+		return err
+	}
+	for _, i := range all {
+		keep := d.beginKeepingLogs(ctx, i.Container)
+		if err := d.Client.StopContainer(ctx, i.ID, stopGrace(i.Container)); err != nil && !docker.IsNotFound(err) {
 			return err
 		}
-		for _, l := range left {
-			if err := d.Client.RemoveContainer(ctx, l.ID, true); err != nil && !docker.IsNotFound(err) {
-				return err
-			}
+		d.finishKeepingLogs(ctx, keep, i.Container)
+		if err := d.Client.RemoveContainer(ctx, i.ID, true); err != nil && !docker.IsNotFound(err) {
+			return err
 		}
-	} else if c, err = d.unfinished(ctx, t); err != nil {
-		return err
-	} else if c == nil {
-		return nil
+		d.keep(t, imageVolumes(i.Container))
 	}
-	keep := d.beginKeepingLogs(ctx, c)
-	if err := d.Client.StopContainer(ctx, c.ID, StopTimeout); err != nil && !docker.IsNotFound(err) {
-		return err
-	}
-	d.finishKeepingLogs(ctx, keep, c)
-	if err := d.Client.RemoveContainer(ctx, c.ID, true); err != nil && !docker.IsNotFound(err) {
-		return err
-	}
-	d.keep(t, imageVolumes(c))
 	return nil
 }
 
@@ -1272,38 +1363,92 @@ func or(d, def time.Duration) time.Duration {
 	return def
 }
 
-// Healthy waits for the container to pass its health check, or, without
-// one, to keep running for Settle. One that exits, keeps restarting or
-// fails its check isn't healthy. Messages name the container and how to
-// see why, never what it printed, which may hold secrets; the plain words
-// name what it runs as, and what to look at.
+// Healthy waits for the newest container of t to pass its health check, or,
+// without one, to keep running for Settle. One that exits, keeps restarting or
+// fails its check isn't healthy. The plain words name what it runs as, and what to
+// look at, and the detail names the container, and what its check printed, cut short
+// and masked (health.Clean).
 func (d *Docker) Healthy(ctx context.Context, t Target) error {
+	all, err := d.instances(ctx, t)
+	if err != nil {
+		return err
+	}
+	if len(all) == 0 {
+		return fmt.Errorf("%s isn't on this server, though it was just started. See if someone removed it with docker ps -a", t.Name)
+	}
+	soak := d.soak()
+	if _, done := d.soaked.LoadAndDelete(all[0].ID); done || !all[0].State.StartedAt.IsZero() && time.Since(all[0].State.StartedAt) >= settled {
+		soak = 0 // a step held it to that already, or it isn't new
+	}
+	if err := d.waitHealthy(ctx, t, all[0], soak); err != nil {
+		return err
+	}
+	// A step cut short before it could say what it ran comes here with nothing else.
+	d.reportRan(ctx, all[0].Config.Image)
+	return nil
+}
+
+// healthWait is how long a container gets to pass its check, as it was made:
+// HealthWait, or what its check takes to give up, if that is longer.
+func (d *Docker) healthWait(c *docker.Container) time.Duration {
 	wait := or(d.HealthWait, DefaultHealthWait)
+	if d.HealthWait > 0 {
+		return wait
+	}
+	if label := c.Config.Labels[health.Label]; label != "" {
+		if check, err := health.Parse(label); err == nil {
+			return max(wait, min(check.Bound(), MaxHealthWait))
+		}
+	}
+	if hc := c.Config.Healthcheck; hc != nil {
+		return max(wait, HealthBound(nil, hc))
+	}
+	return wait
+}
+
+// waitHealthy waits for one container to pass its check, for what its routes send
+// to to take a connection, and for that to last for soak. A check runs inside the
+// container, or on a port of its own, so its passing says nothing of a route's
+// port. Messages name the container and say how to see more. What a check printed
+// goes in them cut short and with what the container's environment holds masked
+// (health.Clean), as it is what a person needs first, and what it prints is rarely
+// what a log is.
+func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak time.Duration) error {
+	wait := d.healthWait(i.Container) + soak
 	ctx, cancel := context.WithTimeoutCause(ctx, wait, errWaited)
 	defer cancel()
-	settle := or(d.Settle, 2*time.Second)
+	name := i.name()
+	settle := or(d.Settle, DefaultSettle)
 	poll := time.NewTicker(or(d.Poll, 250*time.Millisecond))
 	defer poll.Stop()
 	start := time.Now()
 	restarts := -1
-	// Watch the container of the name, by its ID.
-	found, err := d.find(ctx, t.Name)
-	switch {
-	case err != nil && ctx.Err() == nil:
-		return err
-	case err == nil && found == nil:
-		return resource.Plainly(t.Service+" isn't on this server, though it was just started. See if someone removed it with docker ps -a, then try again.",
-			fmt.Errorf("%s isn't on this server, though it was just started. See if someone removed it with docker ps -a", t.Name))
+	var check *health.Check
+	if label := i.Config.Labels[health.Label]; label != "" {
+		var err error
+		if check, err = health.Parse(label); err != nil {
+			return fmt.Errorf("%s has a health check Dockwell can't read: %w. Plan the change again, which makes it anew", name, err)
+		}
 	}
-	for found != nil {
-		c, err := d.Client.InspectContainer(ctx, found.ID)
+	needPasses := 1
+	pace := probeEvery
+	if soak > 0 {
+		needPasses = soakPasses
+		pace = min(pace, soak/soakPasses)
+	}
+	var last string
+	var nextProbe, lastCounted, nextReach time.Time
+	var passedAt, holdingSince time.Time // zero while it isn't passing, and while its routes' ports aren't answering
+	failures, passes := 0, 0
+	for {
+		c, err := d.Client.InspectContainer(ctx, i.ID)
 		if err != nil {
 			if ctx.Err() != nil {
 				break
 			}
 			if docker.IsNotFound(err) {
 				return resource.Plainly(t.Service+" was removed while Dockwell waited for it to start. See who removed it with docker events, then try again.",
-					fmt.Errorf("%s was removed while Dockwell waited for it to start. See who removed it with docker events", t.Name))
+					fmt.Errorf("%s was removed while Dockwell waited for it to start. See who removed it with docker events", name))
 			}
 			return err
 		}
@@ -1318,18 +1463,87 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 		}
 		switch {
 		case s.Restarting || c.RestartCount > restarts:
-			// No word of docker logs: a rollback takes this container away.
+			// No word of docker logs in the plain words: a rollback takes this container away.
 			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s keeps restarting: it exited with code %d. Check its command and variables, then try again.", t.Service, s.ExitCode),
-				fmt.Errorf("%s keeps restarting: it exited with code %d", t.Name, s.ExitCode))
+				fmt.Errorf("%s keeps restarting: it exited with code %d", name, s.ExitCode))
 		case !s.Running:
 			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s stopped right after it started, with exit code %d. Check its command and variables, then try again.", t.Service, s.ExitCode),
-				fmt.Errorf("%s stopped right after it started, with exit code %d", t.Name, s.ExitCode))
+				fmt.Errorf("%s stopped right after it started, with exit code %d", name, s.ExitCode))
+		case s.Paused:
+			// Docker stops its checks, so what the last one said is as it left it.
+			return resource.Plainly(t.Service+" is paused, so it serves nothing and its health check doesn't run. Unpause it on this server, then try again.",
+				fmt.Errorf("%s is paused, so it serves nothing and its health check doesn't run. Unpause it with docker unpause %s", name, name))
+		case check != nil:
+			if now := time.Now(); !now.Before(nextProbe) {
+				r, err := d.probe(ctx, check, health.Address(c.NetworkSettings.Networks))
+				if err != nil {
+					if ctx.Err() != nil {
+						break
+					}
+					return err
+				}
+				if r.Passed {
+					passes, failures = passes+1, 0
+					if passedAt.IsZero() {
+						passedAt = now
+					}
+				} else {
+					last = health.Clean(r.Output, health.SpecEnv(c.Config.Env, c.Config.Labels))
+					passes, passedAt, holdingSince = 0, time.Time{}, time.Time{}
+					// Failures count only once the start period is over, and one for
+					// each interval, though the agent looks again sooner, so a
+					// container that comes up early takes traffic early.
+					if now.Sub(startedAt(c, start)) >= check.StartPeriod && now.Sub(lastCounted) >= check.IntervalOr() {
+						failures++
+						lastCounted = now
+					}
+					if failures >= check.RetriesOr() {
+						return resource.PlainlyBecause(resource.ReasonUnhealthy, t.Service+" runs, but fails its health check: "+health.WithFix(last),
+							fmt.Errorf("%s runs, but fails its health check: %s", name, last))
+					}
+				}
+				nextProbe = time.Now().Add(min(pace, check.IntervalOr()))
+			}
 		case s.Health != nil && s.Health.Status == "healthy":
-			return nil
+			if passedAt.IsZero() {
+				passedAt = time.Now()
+			}
+			passes = needPasses // Docker's own check runs at its own pace, and says if that changes
 		case s.Health != nil && s.Health.Status == "unhealthy":
+			if r, ok := health.FromDocker(s.Health, health.SpecEnv(c.Config.Env, c.Config.Labels)); ok {
+				return resource.PlainlyBecause(resource.ReasonUnhealthy, t.Service+" runs, but fails its health check: "+health.WithFix(r.Output),
+					fmt.Errorf("%s runs, but fails its health check: %s", name, r.Output))
+			}
 			return resource.PlainlyBecause(resource.ReasonUnhealthy, t.Service+" runs, but fails its health check. Check the command its health check runs, then try again.",
-				fmt.Errorf("%s runs, but fails its health check", t.Name))
-		case s.Health == nil && time.Since(start) >= settle:
+				fmt.Errorf("%s runs, but fails its health check", name))
+		case s.Health != nil:
+			passes, passedAt, holdingSince = 0, time.Time{}, time.Time{}
+			if r, ok := health.FromDocker(s.Health, health.SpecEnv(c.Config.Env, c.Config.Labels)); ok {
+				last = r.Output
+			}
+		case time.Since(start) >= settle:
+			if passedAt.IsZero() {
+				passedAt = time.Now()
+			}
+			passes = needPasses
+		}
+		if !passedAt.IsZero() && time.Now().After(nextReach) {
+			reach := error(nil)
+			if d.Ingress != nil && t.Scoped {
+				reach = d.Ingress.Reachable(ctx, t.instance(i.number))
+				nextReach = time.Now().Add(min(probeEvery, or(d.ListenWait, ListenWait)/4))
+			}
+			switch {
+			case reach != nil:
+				last, holdingSince = reach.Error(), time.Time{}
+				if time.Since(passedAt) >= or(d.ListenWait, ListenWait) {
+					return notTakingTraffic(t, name, check != nil || s.Health != nil, or(d.ListenWait, ListenWait), reach)
+				}
+			case holdingSince.IsZero():
+				holdingSince = time.Now()
+			}
+		}
+		if !holdingSince.IsZero() && passes >= needPasses && time.Since(holdingSince) >= soak {
 			return nil
 		}
 		select {
@@ -1341,17 +1555,69 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	}
 	// The caller's deadline may come first, such as the step's own time
 	// running out after a long pull: that isn't the health check's doing.
+	said := ""
+	if last != "" {
+		said = ": " + last
+	}
 	switch cause := context.Cause(ctx); {
 	case errors.Is(cause, errWaited):
-		return resource.PlainlyBecause(resource.ReasonUnhealthy, fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting. Check the command its health check runs and how long the app takes to start, then try again.", t.Service, human.Duration(wait)),
-			fmt.Errorf("%s didn't pass its health check within %s", t.Name, human.Duration(wait)))
+		plain := fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting. Check the command its health check runs and how long the app takes to start, then try again.", t.Service, human.Duration(wait))
+		if last != "" {
+			plain = fmt.Sprintf("%s didn't pass its health check within %s, so Dockwell stopped waiting: %s If it only takes longer than that to start, give its check a start period.", t.Service, human.Duration(wait), health.WithFix(last))
+		}
+		return resource.PlainlyBecause(resource.ReasonUnhealthy, plain,
+			fmt.Errorf("%s didn't pass its health check within %s%s", name, human.Duration(wait), said))
 	case errors.Is(cause, context.DeadlineExceeded):
-		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s passed its health check, so Dockwell stopped waiting. A long pull may have used it up, so try again.", t.Service),
-			fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w. "+
-				"See how it is with docker inspect --format '{{json .State.Health}}' %s", t.Name, cause, t.Name))
+		lastSaid := ""
+		if last != "" {
+			lastSaid = " Its check last said: " + last + "."
+		}
+		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s passed its health check, so Dockwell stopped waiting.%s A long pull may have used it up, so try again.", t.Service, lastSaid),
+			fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w%s. "+
+				"See how it is with docker inspect --format '{{json .State.Health}}' %s", name, cause, said, name))
 	default:
 		return cause
 	}
+}
+
+// notTakingTraffic says a container's routes' port doesn't answer, what that means,
+// and what to do about it, which is different for one with no check, as it may
+// only be slow to start.
+func notTakingTraffic(t Target, name string, checked bool, wait time.Duration, reach error) error {
+	if checked {
+		const fix = "A check says nothing of the port a route sends to, as it runs inside the container or on a port of its own"
+		return resource.PlainlyBecause(resource.ReasonUnhealthy, fmt.Sprintf("%s passes its health check, but isn't ready for its traffic after %s: %s. "+fix+".", t.Service, human.Duration(wait), reach),
+			fmt.Errorf("%s passes its health check, but isn't ready for its traffic after %s: %w. "+fix, name, human.Duration(wait), reach))
+	}
+	return resource.PlainlyBecause(resource.ReasonUnhealthy, fmt.Sprintf("%s runs, but isn't ready for its traffic after %s: %s. If it only takes longer than that to start, give it a health check with a start period, which can wait for up to %s.", t.Service, human.Duration(wait), reach, human.Duration(MaxHealthWait)),
+		fmt.Errorf("%s runs, but isn't ready for its traffic after %s: %w. If it only takes longer than that to start, give it a health check with a start period, which can wait for up to %s", name, human.Duration(wait), reach, human.Duration(MaxHealthWait)))
+}
+
+// probeEvery is how often the agent looks at a container it waits on, whatever
+// the check's own interval, which goes on counting the failures.
+const probeEvery = time.Second
+
+// MaxHealthWait is the most a container gets to pass its check, however long a
+// start period its spec asks for.
+const MaxHealthWait = 30 * time.Minute
+
+// startedAt is when a container started, or failing that when waiting began.
+func startedAt(c *docker.Container, fallback time.Time) time.Time {
+	if c.State.StartedAt.IsZero() {
+		return fallback
+	}
+	return c.State.StartedAt
+}
+
+// probe makes a check the agent makes.
+func (d *Docker) probe(ctx context.Context, c *health.Check, address string) (health.Result, error) {
+	if address == "" {
+		return health.Result{Output: "the container has no address on any network, so the agent can't reach it. Use a command check, which Docker runs inside the container"}, nil
+	}
+	if d.Probe != nil {
+		return d.Probe(ctx, c, address)
+	}
+	return health.Run(ctx, c, address)
 }
 
 // errWaited ends waiting for a health check that took HealthWait.

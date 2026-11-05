@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -32,8 +33,8 @@ func TestAMountOverAnImagesDataKeepsIt(t *testing.T) {
 	l := resource.Local{Drivers: reg}
 	ref := resource.Ref{Kind: service.Kind, Scope: env, Name: "db"}
 	apply(t, l, ref, postgres())
-	name := service.ContainerName(ref)
-	first := mountedAt(e.Container(name))
+	project := docker.Project(env)
+	first := mountedAt(e.Newest(project, "db"))
 
 	tagged := postgres()
 	tagged.GetApp().Env = map[string]string{"POSTGRES_DB": "app"}
@@ -41,7 +42,7 @@ func TestAMountOverAnImagesDataKeepsIt(t *testing.T) {
 	if step.Action != resource.ActionReplace || step.Destroys {
 		t.Errorf("changing the environment = %s, destroys %v; want a replace that keeps the data", step.Action, step.Destroys)
 	}
-	if got := mountedAt(e.Container(name)); got != first {
+	if got := mountedAt(e.Newest(project, "db")); got != first {
 		t.Errorf("the replace mounts %s at %s, not %s", got, pgdata, first)
 	}
 
@@ -60,7 +61,7 @@ func TestAMountOverAnImagesDataKeepsIt(t *testing.T) {
 	if !step.Restores {
 		t.Error("undoing the mount doesn't say it brings the image's data back")
 	}
-	if got := mountedAt(e.Container(name)); got != first {
+	if got := mountedAt(e.Newest(project, "db")); got != first {
 		t.Errorf("undoing the mount mounts %s at %s, not %s, which has the data", got, pgdata, first)
 	}
 }
@@ -106,10 +107,11 @@ func TestDowntimeCountsTheHealthCheck(t *testing.T) {
 	if step := apply(t, l, ref, other); !step.HealthUnknown || step.UntilHealthy != 0 {
 		t.Errorf("recreating it on an image the server hasn't = unknown %v, healthy within %s; want it to say so", step.HealthUnknown, step.UntilHealthy)
 	}
-	// Verify waits 5 minutes at most, and so does the estimate.
-	long := &resourcev1.Healthcheck{Test: []string{"CMD", "true"}, Interval: "10m"}
-	if b := container.HealthBound(long, nil); b != container.DefaultHealthWait {
-		t.Errorf("a check every 10 minutes = %s, want %s, as long as Verify waits", b, container.DefaultHealthWait)
+	// Verify waits as long as a check takes to give up, up to its limit, and so
+	// does the estimate.
+	long := &resourcev1.Healthcheck{Test: []string{"CMD", "true"}, Interval: "20m"}
+	if b := container.HealthBound(long, nil); b != container.MaxHealthWait {
+		t.Errorf("a check every 20 minutes = %s, want %s, as long as Verify waits", b, container.MaxHealthWait)
 	}
 }
 
@@ -215,7 +217,7 @@ func TestTheAgentFollowsSymlinks(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Paths: &container.Paths{Client: e.Client(), DataDir: data}}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Paths: &container.Paths{Client: e.Client(), DataDir: data}}
 	c := container.Driver{Runtime: rt}
 	l := resource.Local{Drivers: resource.NewRegistry(&c)}
 	ref := resource.Ref{Kind: container.Kind, Scope: srv, Name: "web"}
@@ -283,7 +285,7 @@ func TestABindVolumesSymlinksAreCheckedWhenMounted(t *testing.T) {
 		t.Fatal(err)
 	}
 	paths := &container.Paths{Client: e.Client(), DataDir: data}
-	c := container.Driver{Runtime: &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Paths: paths}}
+	c := container.Driver{Runtime: &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Paths: paths}}
 	vols := &volume.Docker{Client: e.Client(), Kept: &volume.Kept{}, Paths: paths}
 	l := resource.Local{Drivers: resource.NewRegistry(&service.Driver{Containers: c}, &volume.Driver{Runtime: vols})}
 	v := &resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": link}}
@@ -461,5 +463,69 @@ func TestAPathReadsAsWrittenWithoutAnAgent(t *testing.T) {
 	}
 	if !a.Leading("/etc").AsGoodAsRoot() {
 		t.Error("told it leads to /etc, it doesn't count as root")
+	}
+}
+
+// A check the agent can't make is refused when it is planned, by what is in the
+// way, and says what to use: the agent reaches a container by the address Docker
+// reports, which a server can't always do.
+func TestACheckTheAgentCantMakeIsRefusedAtPlanTime(t *testing.T) {
+	httpCheck := &resourcev1.Healthcheck{Http: &resourcev1.HttpCheck{Port: 8080, Path: "/healthz"}}
+	tcpCheck := &resourcev1.Healthcheck{Tcp: &resourcev1.TcpCheck{Port: 5432}}
+	command := &resourcev1.Healthcheck{Test: []string{"CMD", "true"}}
+	target := container.Target{Project: "env_x", Name: "web", Scoped: true}
+	for name, tc := range map[string]struct {
+		rootless bool
+		driver   string
+		check    *resourcev1.Healthcheck
+		want     string
+	}{
+		"an HTTP check on a bridge":   {driver: "bridge", check: httpCheck},
+		"a TCP check on a bridge":     {driver: "bridge", check: tcpCheck},
+		"a network not yet made":      {check: httpCheck},
+		"no check":                    {rootless: true, driver: "macvlan"},
+		"a command check, rootless":   {rootless: true, check: command},
+		"a command check, on macvlan": {driver: "macvlan", check: command},
+		"an HTTP check, rootless":     {rootless: true, check: httpCheck, want: "this server's Docker runs rootless, so the agent can't reach a container's address. An HTTP check can't run here. Use a command check"},
+		"a TCP check, rootless":       {rootless: true, check: tcpCheck, want: "A TCP check can't run here. Use a command check"},
+		"an HTTP check on macvlan":    {driver: "macvlan", check: httpCheck, want: "the network front uses the macvlan driver, so the agent can't reach a container's address on it. An HTTP check can't run here. Use a command check"},
+		"a TCP check on an overlay":   {driver: "overlay", check: tcpCheck, want: "the overlay driver"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			e.Rootless = tc.rootless
+			if tc.driver != "" {
+				e.AddNetwork(docker.Network{Name: target.DockerName("front"), Driver: tc.driver})
+			}
+			d := &container.Docker{Client: e.Client()}
+			err := d.CheckHost(t.Context(), target, &resourcev1.Container{Image: "app:1", Networks: []string{"front"}, Healthcheck: tc.check})
+			switch {
+			case tc.want == "" && err != nil:
+				t.Errorf("it is refused: %v", err)
+			case tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)):
+				t.Errorf("it says %v, want it refused with %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// A network the server has is reached like any other, so a check the agent can't
+// make on one is refused the same way, by the name the spec has for it.
+func TestACheckOnANetworkTheServerHasIsHeldToTheSameReach(t *testing.T) {
+	target := container.Target{Project: "env_x", Service: "web", Name: "web", Scoped: true}
+	httpCheck := &resourcev1.Healthcheck{Http: &resourcev1.HttpCheck{Port: 8080, Path: "/healthz"}}
+	for driver, want := range map[string]string{"bridge": "", "macvlan": "the network edge uses the macvlan driver", "overlay": "the network edge uses the overlay driver"} {
+		t.Run(driver, func(t *testing.T) {
+			e := dockertest.New(t)
+			e.AddNetwork(docker.Network{Name: "edge", Driver: driver})
+			d := &container.Docker{Client: e.Client()}
+			err := d.CheckHost(t.Context(), target, &resourcev1.Container{Image: "app:1", ExternalNetworks: []string{"edge"}, Healthcheck: httpCheck})
+			switch {
+			case want == "" && err != nil:
+				t.Errorf("it is refused: %v", err)
+			case want != "" && (err == nil || !strings.Contains(err.Error(), want)):
+				t.Errorf("it says %v, want it refused with %q", err, want)
+			}
+		})
 	}
 }

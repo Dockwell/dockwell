@@ -10,6 +10,8 @@
 //   - the tag "broken" exits as soon as it starts;
 //   - the tag "unhealthy" runs, and fails its health check;
 //   - the tag "slow" takes 3 s to pull, for a deploy seen in flight;
+//   - the tags "answers-ok" and "answers-503" run at 127.0.0.1 and 127.0.0.2, so a
+//     check the agent makes reaches what the test listens with on those addresses;
 //   - a server path under /readonly can't be mounted.
 //
 // It is never part of a release. CI's Docker job runs the same flows on real
@@ -82,7 +84,12 @@ func main() {
 			img.PullTime = 3 * time.Second
 		case strings.HasSuffix(ref, ":unhealthy"):
 			img.Unhealthy = true
+			img.CheckSays = "the database refuses connections. Check its password"
 			img.Config.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "false"}}
+		case strings.HasSuffix(ref, ":answers-ok"):
+			img.Address = "127.0.0.1"
+		case strings.HasSuffix(ref, ":answers-503"):
+			img.Address = "127.0.0.2"
 		}
 		return img, true
 	}

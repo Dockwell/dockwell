@@ -1,0 +1,162 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// HealthService says how services are, as far as anything checked, from what
+// each server's agent last said. It never claims health nobody checked: a
+// service with no check is HEALTH_STATE_NO_CHECK, and a server whose agent
+// isn't connected is HEALTH_STATE_UNKNOWN, with what it last said marked stale.
+// See docs/adr/0027-health-checks-rollouts-and-rollback.md.
+//
+// Reading it needs the read scope alone, as what a check printed is cut short
+// and has what the container's environment holds masked. It isn't a log.
+service HealthService {
+  // ListHealth returns how each service that exists now is, in every
+  // environment or one, a page at a time.
+  rpc ListHealth(ListHealthRequest) returns (ListHealthResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/health"};
+  }
+}
+
+// ListHealthRequest asks for a page of services' health.
+message ListHealthRequest {
+  // The project of the environment, by name or ID, when environment is a name
+  // and there are several projects.
+  string project = 1;
+  // Only the services of this environment, by name or ID. Empty means every
+  // environment.
+  string environment = 2;
+  // Only this service, by name, with its environment, or by ID alone.
+  string service = 3;
+  // How many services to return: 200 when unset, and at most 1000.
+  int32 page_size = 4;
+  // Where to start: the next_page_token of the page before. Pass the same
+  // filters with it.
+  string page_token = 5;
+}
+
+// ListHealthResponse is a page of services' health.
+message ListHealthResponse {
+  // The services, oldest first.
+  repeated ServiceHealth services = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// ServiceHealth is how one service is, on every server it is placed on.
+message ServiceHealth {
+  // Its ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // Its kind, its environment's ID, and its name.
+  ResourceRef resource = 2;
+  // How it is as a whole: the worst of its servers. Show "Healthy" only for
+  // HEALTH_STATE_HEALTHY.
+  HealthState state = 3;
+  // Each server it is placed on.
+  repeated ServerHealth servers = 4;
+}
+
+// ServerHealth is how a service is on one server.
+message ServerHealth {
+  // The server's ID.
+  string server_id = 1;
+  // The server's name, such as "hz-1".
+  string server_name = 2;
+  // How it is there. While a container takes over from another, it is how the
+  // better of the two is, as that one serves.
+  HealthState state = 3;
+  // True when the server's agent isn't connected, or what it said is too old to
+  // stand, so state is HEALTH_STATE_UNKNOWN, and instances are what it last said.
+  bool stale = 4;
+  // Since when it has been in this state, as far as this control plane knows.
+  google.protobuf.Timestamp since = 5;
+  // Each container of the service there: one, or two while a deploy rolls.
+  repeated InstanceHealth instances = 6;
+  // When its agent last read the list of containers from Docker, on the server's
+  // clock. Unset until it has.
+  google.protobuf.Timestamp scanned_at = 7;
+}
+
+// InstanceHealth is how one container of a service is.
+message InstanceHealth {
+  // Its Compose project, its environment's ID in lowercase.
+  string project = 1;
+  // Its service's name.
+  string service = 2;
+  // Its number, as Compose's container-number label has it.
+  int32 number = 3;
+  // Its name in Docker, such as "env_01kat…-web-3".
+  string container = 4;
+  // How it is.
+  HealthState state = 5;
+  // What checks it.
+  HealthCheckKind check = 6;
+  // The last check's result. Unset when no check has finished yet.
+  HealthResult last = 7;
+  // How many checks in a row have failed.
+  int32 failing = 8;
+  // When it came to this state, on the server's clock.
+  google.protobuf.Timestamp since = 9;
+  // When this state was last known to hold, on the server's clock: the last check
+  // the agent made, or the last time it read what Docker says.
+  google.protobuf.Timestamp confirmed_at = 10;
+  // How old that may be and the state still stand. Past it, nobody can say.
+  google.protobuf.Duration good_for = 11;
+}
+
+// HealthResult is one check's result.
+message HealthResult {
+  // True when it passed.
+  bool passed = 1;
+  // What it said, in one short line: such as "GET /healthz on port 8080
+  // answered 503 Service Unavailable", or what a command printed, cut short,
+  // with the values of the container's environment masked.
+  string output = 2;
+  // When it finished, on the server's clock.
+  google.protobuf.Timestamp time = 3;
+  // How long it took, where the agent ran it.
+  google.protobuf.Duration took = 4;
+}
+
+// HealthState is how something is, as far as anything checked.
+enum HealthState {
+  HEALTH_STATE_UNSPECIFIED = 0;
+  // Nobody can say now: its server's agent isn't connected, or hasn't said yet.
+  HEALTH_STATE_UNKNOWN = 1;
+  // It runs, and nothing checks it, so all that is known is that it runs. Show
+  // "Running", never "Healthy".
+  HEALTH_STATE_NO_CHECK = 2;
+  // It has started, and its check hasn't passed or failed for good yet.
+  HEALTH_STATE_STARTING = 3;
+  // Its check passed last time.
+  HEALTH_STATE_HEALTHY = 4;
+  // Its check failed as many times in a row as it allows, or it keeps
+  // restarting.
+  HEALTH_STATE_UNHEALTHY = 5;
+  // It isn't running: stopped, exited, paused, or not on the server at all. A
+  // paused container counts as running to Docker, which stops its checks.
+  HEALTH_STATE_NOT_RUNNING = 6;
+}
+
+// HealthCheckKind is what checks a container.
+enum HealthCheckKind {
+  HEALTH_CHECK_KIND_UNSPECIFIED = 0;
+  // Nothing checks it.
+  HEALTH_CHECK_KIND_NONE = 1;
+  // A command Docker runs in the container, its spec's or its image's.
+  HEALTH_CHECK_KIND_COMMAND = 2;
+  // A GET the agent sends to it.
+  HEALTH_CHECK_KIND_HTTP = 3;
+  // A connection the agent makes to it.
+  HEALTH_CHECK_KIND_TCP = 4;
+}

@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.v1;
 
 import "dockwell/v1/change.proto";
+import "dockwell/v1/health.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
@@ -147,6 +148,30 @@ message Event {
   // sign-in link is for, or the secret revealed. Unset when there is
   // nothing more to name.
   EventSubject subject = 8;
+  // How a service's health changed, for a health event. Its subject is the
+  // service.
+  EventHealth health = 9;
+}
+
+// EventHealth is how a service's health changed on a server, as far as the
+// timeline tells of it: when it turned unhealthy or stopped running, and when
+// it came back. A state that lasts under 30 s isn't told, and at most one event
+// is, for a service on a server, every 5 minutes: flips counts what came between.
+message EventHealth {
+  // The server's ID.
+  string server_id = 1;
+  // The server's name, such as "hz-1".
+  string server_name = 2;
+  // How it is now.
+  HealthState state = 3;
+  // How it was as the timeline last told of it.
+  HealthState previous = 4;
+  // What the last check said, in one short line, with the values of the
+  // container's environment masked.
+  string output = 5;
+  // How many other times the state changed since the last event of this
+  // service on this server.
+  int32 flips = 6;
 }
 
 // EventSubject names what an event is about.
@@ -176,4 +201,7 @@ enum EventKind {
   // sign-in and claim links, and join tickets. Refusals, such as a wrong
   // code, stay in the audit log.
   EVENT_KIND_ACCESS = 3;
+  // A service turned unhealthy, stopped running, or came back, as its server's
+  // agent saw, outside any change.
+  EVENT_KIND_HEALTH = 4;
 }

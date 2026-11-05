@@ -82,7 +82,7 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		name, web := runLatest(t, b)
-		before := b.e.Container(name).ID
+		before := b.e.Serving(name).ID
 		pulls := b.e.Pulls
 
 		// Planning touches nothing, and says what it means.
@@ -95,7 +95,7 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 			t.Errorf("the plan's notes = %v", plan.GetPlan().GetNotes())
 		}
 		steps := plan.GetPlan().GetServers()[0].GetSteps()
-		if len(steps) != 1 || !steps[0].GetPull() || steps[0].GetDowntime().AsDuration() == 0 {
+		if len(steps) != 1 || !steps[0].GetPull() || !steps[0].GetRollout().GetRolling() {
 			t.Errorf("the plan's step = %v, want a pull that says what it may take", steps)
 		}
 
@@ -108,7 +108,7 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 		if b.e.Pulls != pulls+1 {
 			t.Errorf("applying pulled %d times", b.e.Pulls-pulls)
 		}
-		if got := b.e.Container(name); got.ID != before || !got.State.Running {
+		if got := b.e.Serving(name); got.ID != before || !got.State.Running {
 			t.Error("with nothing newer, the container was replaced")
 		}
 		if got := applied.GetSteps(); len(got) != 1 || got[0].GetDid() != dockwellv1.PlanAction_PLAN_ACTION_NONE {
@@ -131,7 +131,7 @@ func TestDeployingTheSameTagPullsAgain(t *testing.T) {
 		// The tag moves: it's replaced, with a revision saying what ran each time.
 		moveLatest(b.e, digestB)
 		b.done(t, b.deploy(t, web.GetId(), latest))
-		if got := b.e.Container(name); got.ID == before || !got.State.Running {
+		if got := b.e.Serving(name); got.ID == before || !got.State.Running {
 			t.Error("with a newer image, the container wasn't replaced")
 		}
 		revs := b.revisions(t, web.GetId())
@@ -173,7 +173,7 @@ func TestARollbackOfAMovingTagPutsBackWhatRan(t *testing.T) {
 			t.Errorf("the plan's notes = %v", c.GetPlan().GetNotes())
 		}
 		b.done(t, c)
-		ctr := b.e.Container(name)
+		ctr := b.e.Serving(name)
 		if ctr.Config.Image != latest+"@"+digestA || !ctr.State.Running {
 			t.Errorf("it runs %s", ctr.Config.Image)
 		}
@@ -192,7 +192,7 @@ func TestARollbackOfAMovingTagPutsBackWhatRan(t *testing.T) {
 
 		// Deploying the tag again leaves the pin behind, whatever the tag is now.
 		b.done(t, b.deploy(t, web.GetId(), latest))
-		if got := b.e.Container(name).Config.Image; got != latest {
+		if got := b.e.Serving(name).Config.Image; got != latest {
 			t.Errorf("after deploying the tag again, it runs %s", got)
 		}
 
@@ -218,7 +218,7 @@ func TestARollbackOfAMovingTagPutsBackWhatRan(t *testing.T) {
 			t.Error("the plan says it pins what it can't")
 		}
 		b.done(t, c)
-		if got := b.e.Container(name).Config.Image; got != latest {
+		if got := b.e.Serving(name).Config.Image; got != latest {
 			t.Errorf("it runs %s, want the tag", got)
 		}
 		// Now that is what it runs, so there's nothing to go back to, which says why.
@@ -232,7 +232,7 @@ func TestARollbackOfAMovingTagPutsBackWhatRan(t *testing.T) {
 		pin = latest + "@" + digestB
 		b.done(t, b.deploy(t, web.GetId(), pin))
 		b.done(t, b.deploy(t, web.GetId(), latest))
-		if got := b.e.Container(name).Config.Image; got != latest {
+		if got := b.e.Serving(name).Config.Image; got != latest {
 			t.Errorf("after leaving a pin the tag already matches, it runs %s", got)
 		}
 	})
@@ -253,7 +253,7 @@ func TestANewerImageThatFailsGoesBackToTheOneBefore(t *testing.T) {
 			c, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
 			return err == nil && c.Msg.GetChange().GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED
 		})
-		ctr := b.e.Container(name)
+		ctr := b.e.Serving(name)
 		if ctr.Config.Image != latest+"@"+digestA || !ctr.State.Running {
 			t.Errorf("after the rollback it runs %s, running %t", ctr.Config.Image, ctr.State.Running)
 		}
@@ -269,7 +269,7 @@ func TestANewerImageThatFailsGoesBackToTheOneBefore(t *testing.T) {
 func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	b := newBench(t, store.SQLite)
 	name, web := runLatest(t, b)
-	before := b.e.Container(name).ID
+	before := b.e.Serving(name).ID
 	delete(b.e.Registry, latest)
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "can't pull "+latest+" again") ||
@@ -277,7 +277,7 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 		!strings.Contains(got.GetError(), "Check that its registry answers") {
 		t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
 	}
-	if ctr := b.e.Container(name); ctr.ID != before || !ctr.State.Running {
+	if ctr := b.e.Serving(name); ctr.ID != before || !ctr.State.Running {
 		t.Error("a failed pull touched what runs")
 	}
 	// What runs is untouched, so the revision it runs doesn't read as failed. The
@@ -304,7 +304,7 @@ func TestAPullThatFailsLeavesAPinnedApp(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.done(t, back.Msg.GetChange())
-	before := b.e.Container(name).ID
+	before := b.e.Serving(name).ID
 
 	delete(b.e.Registry, latest)
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
@@ -316,7 +316,7 @@ func TestAPullThatFailsLeavesAPinnedApp(t *testing.T) {
 		c, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
 		return err == nil && c.Msg.GetChange().GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED
 	})
-	ctr := b.e.Container(name)
+	ctr := b.e.Serving(name)
 	if ctr.ID != before || !ctr.State.Running || ctr.Config.Image != latest+"@"+digestA {
 		t.Errorf("after a pull that failed, it's %s running %s, running %t; it was %s", ctr.ID, ctr.Config.Image, ctr.State.Running, before)
 	}
@@ -341,7 +341,7 @@ func TestUndoingAPullPutsBackWhatRan(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.done(t, undo.Msg.GetChange())
-	if got := b.e.Container(name).Config.Image; got != latest+"@"+digestA {
+	if got := b.e.Serving(name).Config.Image; got != latest+"@"+digestA {
 		t.Errorf("after the undo it runs %s", got)
 	}
 }
@@ -384,7 +384,7 @@ func TestAPullSaysWhatItReplaces(t *testing.T) {
 		c, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: got.GetRolledBackBy()}))
 		return err == nil && c.Msg.GetChange().GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED
 	})
-	if ctr := b.e.Container(name); ctr.Config.Image != latest+"@"+digestA {
+	if ctr := b.e.Serving(name); ctr.Config.Image != latest+"@"+digestA {
 		t.Errorf("after the rollback it runs %s, want what ran before the pull", ctr.Config.Image)
 	}
 }

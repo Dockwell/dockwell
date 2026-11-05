@@ -12,6 +12,7 @@ import {
   type Intent,
   IntentKind,
   PlanAction,
+  type RolloutPlan,
   type RouteAnswers,
   type RouteGoes,
   RouteReach,
@@ -62,6 +63,8 @@ export interface ChangeWords {
   access(access: HostAccess): string;
   /** What a route's step does to its server's ingress, a sentence each. Empty for nothing. */
   ingress(effect: IngressEffect | undefined, server: string): string[];
+  /** What changing a route costs the sites on a proxy that stays up, as it reloads. */
+  reload(server: string): string;
   /** What would take the proxy's ports back at the next reboot, and how to keep it from happening. It never stops a plan. */
   returning(names: string[], server: string): string;
   /** What DNS said of a route's domain as this was planned, if that is worth saying. It never stops a plan. */
@@ -72,6 +75,28 @@ export interface ChangeWords {
   goes(goes: RouteGoes): string;
   /** Who a route answers, when it isn't anyone over HTTPS sent to a service, a sentence each. */
   answers(answers: RouteAnswers | undefined, port: ServerPortCheck | undefined, server: string): string[];
+  /** How a step replaces what runs, and what that means, a sentence each. `span` words a duration in milliseconds. */
+  rollout(
+    plan: RolloutPlan | undefined,
+    span: (ms: number) => string,
+    restart?: boolean,
+    stopped?: boolean,
+  ): RolloutLine[];
+}
+
+/** One thing a plan says of a rollout. */
+export interface RolloutLine {
+  text: string;
+  /** Worth reading before applying, so it goes with the plan's warnings. */
+  warn: boolean;
+  /** The fact, short, where a warning leads with one and goes on with `text`. */
+  lead?: string;
+  /** Something to know that stands out, and isn't an alarm. */
+  notice?: boolean;
+}
+
+function millis(d: { seconds: bigint; nanos: number } | undefined): number {
+  return d ? Number(d.seconds) * 1000 + d.nanos / 1e6 : 0;
 }
 
 /** Quotes what could read as the plan's own words, as AccessWords does on the server. */
@@ -175,6 +200,8 @@ export function useChangeWords(): ChangeWords {
             return t`Restarts`;
           case StepEffect.RECREATE:
             return t`Recreates its container`;
+          case StepEffect.ROLL:
+            return t`Rolling, with nothing stopped`;
         }
         return "";
       },
@@ -301,6 +328,9 @@ export function useChangeWords(): ChangeWords {
         }
         return t`something else on the server`;
       },
+      reload(server) {
+        return t`This reloads the proxy on ${server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not`;
+      },
       ingress(effect, server) {
         if (!effect) return [];
         const { proxy, panelDomain } = effect;
@@ -417,6 +447,117 @@ export function useChangeWords(): ChangeWords {
         if (listening !== "") out.push(t`Listening there now: ${listening}`);
         else if (port.nothingListening)
           out.push(t`Nothing listens on port ${number} yet, so this answers 502 until something does`);
+        return out;
+      },
+      rollout(plan, span, restart = false, stopped = false) {
+        if (!plan) return [];
+        const out: RolloutLine[] = [];
+        const say = (text: string, how: Partial<RolloutLine> = {}) => out.push({ text, warn: false, ...how });
+        const ports = plan.ports.join(", ");
+        const volumes = plan.volumes.join(", ");
+        const paths = plan.paths.join(", ");
+        const imageData = plan.imageData.join(", ");
+        const cantTell = plan.cantTell.join(", ");
+        const edited = plan.editedRoutes.join(", ");
+        const networks = plan.earlyNetworks.join(", ");
+        const names = plan.earlyNames.join(", ");
+        const healthyWithin = span(millis(plan.healthyWithin));
+        const soak = span(millis(plan.soak));
+        const drain = span(millis(plan.drain));
+        const shared = [...plan.volumes, ...plan.paths, ...plan.imageData, ...plan.cantTell].join(", ");
+        if (plan.rolling) {
+          if (stopped) {
+            // Nothing runs, so nothing goes on serving, and nothing is in flight.
+            say(
+              restart
+                ? t`It has to stay healthy for ${soak}. If it isn't healthy within ${healthyWithin}, the new one goes, and what was stopped stays stopped`
+                : t`It has to stay healthy for ${soak}. If it isn't healthy within ${healthyWithin}, Dockwell rolls this back`,
+            );
+          } else if (millis(plan.healthyWithin) > 0) {
+            if (restart) {
+              say(
+                t`A new container takes over once it has been healthy for ${soak}, and what runs goes on serving until then. If it isn't healthy within ${healthyWithin}, the new one goes, and what runs stays`,
+              );
+            } else {
+              say(
+                t`A new container takes over once it has been healthy for ${soak}, and what runs goes on serving until then. If it isn't healthy within ${healthyWithin}, Dockwell rolls this back`,
+              );
+            }
+          } else {
+            say(t`What this step wants already runs, so nothing stops for it`);
+          }
+          if (plan.others.length > 0 && !stopped) {
+            say(
+              t`What is in flight gets up to ${drain} to finish. What outlasts that, such as a long connection, ends with the old container`,
+            );
+          }
+          if (networks !== "" && !stopped) {
+            say(
+              names === ""
+                ? t`On ${networks}, other services can reach the new container by its service's name before it has passed its check, beside the old one, as Docker can't add a name to a container later`
+                : t`On ${networks}, other services can reach the new container by its service's name and by ${names} before it has passed its check, beside the old one, as Docker can't add a name to a container later`,
+              { notice: true },
+            );
+          }
+        } else if (!stopped) {
+          // Nothing runs, so nothing stops first.
+          if (ports !== "") say(t`Two containers can't publish ${ports} at once, so the old one stops first`);
+          if (plan.hostNetwork) {
+            say(
+              t`A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first`,
+            );
+          }
+          if (volumes !== "") {
+            say(
+              t`Two containers mustn't write to the volume ${volumes} at once, so the old one stops first. If the app can, set its rollout order to start first`,
+            );
+          }
+          if (paths !== "") {
+            say(
+              t`Two containers mustn't write to the server path ${paths} at once, so the old one stops first. If the app can, set its rollout order to start first`,
+            );
+          }
+          if (imageData !== "") {
+            say(
+              t`Its image keeps data at ${imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first`,
+            );
+          }
+          if (cantTell !== "") {
+            say(
+              t`Dockwell can't read where ${cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first`,
+            );
+          }
+          if (edited !== "") {
+            say(
+              t`The route ${edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll`,
+            );
+          }
+          if (ports === "" && shared === "" && edited === "" && !plan.hostNetwork && plan.chosen)
+            say(t`Its rollout order says to stop first, so there are never two`);
+          if (restart) {
+            say(t`If the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to`, {
+              warn: true,
+              lead: t`The old container stops first`,
+            });
+          }
+        }
+        for (const m of plan.dropped) {
+          const source = m.source;
+          const target = m.target;
+          say(
+            m.emptyVolume
+              ? t`Its image puts an empty volume there. ${source} stays on the server, as it was`
+              : t`${source} stays on the server, as it was`,
+            { warn: true, lead: t`${source} stops being what the service sees at ${target}` },
+          );
+        }
+        // Only what a rollout left, or someone made by hand: one old container is what any replace removes.
+        if (plan.others.length > 1) {
+          const extra = String(plan.others.length - 1);
+          say(
+            t`It also removes ${extra} more containers of this service, which a rollout that stopped partway or docker compose up --scale left`,
+          );
+        }
         return out;
       },
       actorKind(kind) {

@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 )
 
@@ -26,11 +27,13 @@ type Fake struct {
 	Broken map[string]bool
 	// Runs counts containers started, to see what was recreated.
 	Runs int
+	// restarted says which restart each container last had.
+	restarted map[string]string
 }
 
 // NewFake returns an empty Fake.
 func NewFake() *Fake {
-	return &Fake{containers: map[string]*resourcev1.Container{}, Broken: map[string]bool{}}
+	return &Fake{containers: map[string]*resourcev1.Container{}, Broken: map[string]bool{}, restarted: map[string]string{}}
 }
 
 var _ container.Runtime = (*Fake)(nil)
@@ -47,12 +50,26 @@ func (f *Fake) Inspect(_ context.Context, t container.Target) (*resourcev1.Conta
 }
 
 // Run replaces any container with the name.
-func (f *Fake) Run(_ context.Context, t container.Target, spec *resourcev1.Container, _ bool) error {
+func (f *Fake) Run(_ context.Context, t container.Target, spec *resourcev1.Container, dec resource.Decision) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.containers[t.Name] = proto.Clone(spec).(*resourcev1.Container)
 	f.Runs++
+	if dec.Restart != "" {
+		f.restarted[t.Name] = dec.Restart
+	}
 	return nil
+}
+
+// Left has a restart to do, unless it has been done: a Fake has nothing left
+// over otherwise.
+func (f *Fake) Left(_ context.Context, t container.Target, _ *resourcev1.Container, restart string) (resource.Decision, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if restart == "" || f.restarted[t.Name] == restart {
+		return resource.Decision{}, false, nil
+	}
+	return resource.Decision{Action: resource.ActionReplace, Effect: resource.EffectRoll}, true, nil
 }
 
 // Update changes the restart policy and the limits in place.

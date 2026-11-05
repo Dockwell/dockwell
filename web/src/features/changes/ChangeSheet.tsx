@@ -65,7 +65,7 @@ import { useServices } from "../apps/useServices";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
-import { FailureNotice, MachineWords } from "./FailureNotice";
+import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
 import { type Notice, needsConfirming, useAsides, useRisks, useWarnings } from "./notices";
@@ -94,6 +94,7 @@ import {
   routeWhereOf,
   shortFingerprint,
   shownName,
+  startsStopped,
   wentOffline,
   withoutIds,
 } from "./plan";
@@ -939,6 +940,8 @@ function PlanBody({
           <MachineWords>{refusal(failure, plan)}</MachineWords>
         </Callout>
       ) : null}
+      {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
+      {change?.because ? <BecauseNotice because={change.because} /> : null}
       {/* What it reaches stays said while it runs and once it has, so nothing moves as it lands. */}
       {phase === "review" || phase === "applying" || phase === "arrived" ? (
         <TopNotice risks={risks} warnings={warnings} offline={phase === "review" ? offline : []} phase={phase} />
@@ -1194,13 +1197,18 @@ function Impact({ plan }: { plan: Plan | undefined }) {
     .every(replacesIfNewer);
   const going = servers.flatMap((s) => s.steps).flatMap((s) => (s.goes ? [s.goes] : []));
   const lost = going[0]?.where ?? "";
+  const rolling = servers.flatMap((s) => s.steps).some((s) => s.rollout?.rolling && !startsStopped(s));
   const running =
     going.length > 1 ? (
       <Trans>visitors lose {going.length} addresses</Trans>
     ) : going.length === 1 ? (
       <Trans>visitors lose {lost}</Trans>
     ) : down === 0 ? (
-      <Trans>no downtime expected</Trans>
+      rolling ? (
+        <Trans>rolling, with nothing stopped</Trans>
+      ) : (
+        <Trans>no downtime expected</Trans>
+      )
     ) : ifNewer ? (
       <Trans>about {span} down, if there is a newer image</Trans>
     ) : healthy > down ? (
@@ -1817,7 +1825,11 @@ function Effects({
   const rows: { icon?: IconName; warn?: boolean; title: ReactNode; detail?: ReactNode; key: string }[] = [];
   if (phone) rows.push({ key: "reach", icon: "activity", title: <Impact plan={plan} /> });
   // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves and their checks are #28.
-  const serving = changing(plan).filter((r) => r.resource?.kind === "service" && r.action !== PlanAction.DELETE);
+  // A restart changes no spec, so it has nothing to roll back to.
+  const restarting = (plan?.servers ?? []).some((s) => s.steps.some((step) => step.restart !== ""));
+  const serving = restarting
+    ? []
+    : changing(plan).filter((r) => r.resource?.kind === "service" && r.action !== PlanAction.DELETE);
   const only = serving.length === 1 ? serving[0] : undefined;
   if (only && only.baseRevision > 0n) {
     const back = `r${only.baseRevision}`;

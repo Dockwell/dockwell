@@ -41,6 +41,9 @@ const (
 	LogSourceState_LOG_SOURCE_STATE_STOPPED LogSourceState = 4
 	// Removed from Docker. The server kept its log.
 	LogSourceState_LOG_SOURCE_STATE_KEPT LogSourceState = 5
+	// Removed from Docker, and the server didn't keep its log. A follow says so of one
+	// it was reading, so a reader doesn't go on counting it as running.
+	LogSourceState_LOG_SOURCE_STATE_GONE LogSourceState = 6
 )
 
 // Enum value maps for LogSourceState.
@@ -52,6 +55,7 @@ var (
 		3: "LOG_SOURCE_STATE_RESTARTING",
 		4: "LOG_SOURCE_STATE_STOPPED",
 		5: "LOG_SOURCE_STATE_KEPT",
+		6: "LOG_SOURCE_STATE_GONE",
 	}
 	LogSourceState_value = map[string]int32{
 		"LOG_SOURCE_STATE_UNSPECIFIED": 0,
@@ -60,6 +64,7 @@ var (
 		"LOG_SOURCE_STATE_RESTARTING":  3,
 		"LOG_SOURCE_STATE_STOPPED":     4,
 		"LOG_SOURCE_STATE_KEPT":        5,
+		"LOG_SOURCE_STATE_GONE":        6,
 	}
 )
 
@@ -1144,9 +1149,13 @@ type LogSource struct {
 	ServerId string `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// The server's name, such as "hz-1".
 	ServerName string `protobuf:"bytes,3,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
-	// The replica it is, from 1, within the service on that server.
+	// The replica it is, from 1, within the service on that server. A service has
+	// one for now: the containers a rollout moves between take turns as it, and
+	// container_name says which of them this is.
 	Replica int32 `protobuf:"varint,4,opt,name=replica,proto3" json:"replica,omitempty"`
-	// The container's name in Docker, such as "env_01kat…-web-1".
+	// The name a person knows the container by, such as "env_01kat…-web-3". It goes up
+	// with each rolling deploy. Docker has another for a moment as a rollout stops it,
+	// which this leaves out.
 	ContainerName string `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
 	// The revision that made this container: 0 when nothing says, as for one
 	// made with docker compose. A later revision that didn't recreate it,
@@ -1749,14 +1758,15 @@ const file_dockwell_v1_log_proto_rawDesc = "" +
 	"\x05bytes\x18\x03 \x01(\x04R\x05bytes\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
-	"\bend_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime*\xc8\x01\n" +
+	"\bend_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime*\xe3\x01\n" +
 	"\x0eLogSourceState\x12 \n" +
 	"\x1cLOG_SOURCE_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18LOG_SOURCE_STATE_CREATED\x10\x01\x12\x1c\n" +
 	"\x18LOG_SOURCE_STATE_RUNNING\x10\x02\x12\x1f\n" +
 	"\x1bLOG_SOURCE_STATE_RESTARTING\x10\x03\x12\x1c\n" +
 	"\x18LOG_SOURCE_STATE_STOPPED\x10\x04\x12\x19\n" +
-	"\x15LOG_SOURCE_STATE_KEPT\x10\x05*O\n" +
+	"\x15LOG_SOURCE_STATE_KEPT\x10\x05\x12\x19\n" +
+	"\x15LOG_SOURCE_STATE_GONE\x10\x06*O\n" +
 	"\aLogKept\x12\x18\n" +
 	"\x14LOG_KEPT_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11LOG_KEPT_REPLACED\x10\x01\x12\x13\n" +

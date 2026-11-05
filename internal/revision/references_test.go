@@ -48,7 +48,7 @@ func setupDocker(t *testing.T, b store.Backend, ids ...string) (*Engine, map[str
 			e.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
 			e.Registry["nginx:1.28"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
 			client, kept := e.Client(), &volume.Kept{}
-			containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Deleted: kept}}
+			containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Deleted: kept}}
 			agents[id] = resource.Local{Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 				&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: kept}}, &network.Driver{Client: client})}
 			engines[id] = e

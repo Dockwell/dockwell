@@ -55,6 +55,9 @@ const (
 	// ChangeServiceDiscardChangeProcedure is the fully-qualified name of the ChangeService's
 	// DiscardChange RPC.
 	ChangeServiceDiscardChangeProcedure = "/dockwell.v1.ChangeService/DiscardChange"
+	// ChangeServiceRestartServiceProcedure is the fully-qualified name of the ChangeService's
+	// RestartService RPC.
+	ChangeServiceRestartServiceProcedure = "/dockwell.v1.ChangeService/RestartService"
 	// ChangeServiceListDriftProcedure is the fully-qualified name of the ChangeService's ListDrift RPC.
 	ChangeServiceListDriftProcedure = "/dockwell.v1.ChangeService/ListDrift"
 	// ChangeServiceRevertDriftProcedure is the fully-qualified name of the ChangeService's RevertDrift
@@ -98,9 +101,9 @@ type ChangeServiceClient interface {
 	// this change has failed, may wait for a server, and may fail too, so read
 	// rollback_status for how it went.
 	//
-	// A plan that destroys data or may cut off access needs the fingerprint
-	// of the plan you reviewed, and a signed-in session: no API token may
-	// apply one.
+	// A plan that destroys data, may cut off access, or lets two containers
+	// write to one place needs the fingerprint of the plan you reviewed, and a
+	// signed-in session: no API token may apply one.
 	ApplyChange(context.Context, *connect.Request[v1.ApplyChangeRequest]) (*connect.Response[v1.ApplyChangeResponse], error)
 	// WatchChange streams a change: first the change as it stands, then each
 	// step's progress as it moves on, and the change again whenever its state
@@ -116,6 +119,13 @@ type ChangeServiceClient interface {
 	// DiscardChange drops a planned change without applying it. The change
 	// stays on record as discarded.
 	DiscardChange(context.Context, *connect.Request[v1.DiscardChangeRequest]) (*connect.Response[v1.DiscardChangeResponse], error)
+	// RestartService plans restarting a service on every server it runs on: as
+	// a deploy does, a new container takes over once it is healthy, where the
+	// service can have two at once, and otherwise the old one stops first, and
+	// the plan says for how long. It is a change, with a plan to apply or
+	// discard. It makes no revision, as the spec stays as it is, so it has
+	// nothing to undo, and a restart that fails leaves the revision where it was.
+	RestartService(context.Context, *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
 	// resource they should have, and returns every difference. It asks each
 	// connected server's agent, and changes nothing.
@@ -184,6 +194,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("DiscardChange")),
 			connect.WithClientOptions(opts...),
 		),
+		restartService: connect.NewClient[v1.RestartServiceRequest, v1.RestartServiceResponse](
+			httpClient,
+			baseURL+ChangeServiceRestartServiceProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("RestartService")),
+			connect.WithClientOptions(opts...),
+		),
 		listDrift: connect.NewClient[v1.ListDriftRequest, v1.ListDriftResponse](
 			httpClient,
 			baseURL+ChangeServiceListDriftProcedure,
@@ -208,16 +224,17 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // changeServiceClient implements ChangeServiceClient.
 type changeServiceClient struct {
-	proposeChange *connect.Client[v1.ProposeChangeRequest, v1.ProposeChangeResponse]
-	getChange     *connect.Client[v1.GetChangeRequest, v1.GetChangeResponse]
-	listChanges   *connect.Client[v1.ListChangesRequest, v1.ListChangesResponse]
-	applyChange   *connect.Client[v1.ApplyChangeRequest, v1.ApplyChangeResponse]
-	watchChange   *connect.Client[v1.WatchChangeRequest, v1.WatchChangeResponse]
-	undoChange    *connect.Client[v1.UndoChangeRequest, v1.UndoChangeResponse]
-	discardChange *connect.Client[v1.DiscardChangeRequest, v1.DiscardChangeResponse]
-	listDrift     *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
-	revertDrift   *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
-	adoptDrift    *connect.Client[v1.AdoptDriftRequest, v1.AdoptDriftResponse]
+	proposeChange  *connect.Client[v1.ProposeChangeRequest, v1.ProposeChangeResponse]
+	getChange      *connect.Client[v1.GetChangeRequest, v1.GetChangeResponse]
+	listChanges    *connect.Client[v1.ListChangesRequest, v1.ListChangesResponse]
+	applyChange    *connect.Client[v1.ApplyChangeRequest, v1.ApplyChangeResponse]
+	watchChange    *connect.Client[v1.WatchChangeRequest, v1.WatchChangeResponse]
+	undoChange     *connect.Client[v1.UndoChangeRequest, v1.UndoChangeResponse]
+	discardChange  *connect.Client[v1.DiscardChangeRequest, v1.DiscardChangeResponse]
+	restartService *connect.Client[v1.RestartServiceRequest, v1.RestartServiceResponse]
+	listDrift      *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
+	revertDrift    *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
+	adoptDrift     *connect.Client[v1.AdoptDriftRequest, v1.AdoptDriftResponse]
 }
 
 // ProposeChange calls dockwell.v1.ChangeService.ProposeChange.
@@ -253,6 +270,11 @@ func (c *changeServiceClient) UndoChange(ctx context.Context, req *connect.Reque
 // DiscardChange calls dockwell.v1.ChangeService.DiscardChange.
 func (c *changeServiceClient) DiscardChange(ctx context.Context, req *connect.Request[v1.DiscardChangeRequest]) (*connect.Response[v1.DiscardChangeResponse], error) {
 	return c.discardChange.CallUnary(ctx, req)
+}
+
+// RestartService calls dockwell.v1.ChangeService.RestartService.
+func (c *changeServiceClient) RestartService(ctx context.Context, req *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error) {
+	return c.restartService.CallUnary(ctx, req)
 }
 
 // ListDrift calls dockwell.v1.ChangeService.ListDrift.
@@ -303,9 +325,9 @@ type ChangeServiceHandler interface {
 	// this change has failed, may wait for a server, and may fail too, so read
 	// rollback_status for how it went.
 	//
-	// A plan that destroys data or may cut off access needs the fingerprint
-	// of the plan you reviewed, and a signed-in session: no API token may
-	// apply one.
+	// A plan that destroys data, may cut off access, or lets two containers
+	// write to one place needs the fingerprint of the plan you reviewed, and a
+	// signed-in session: no API token may apply one.
 	ApplyChange(context.Context, *connect.Request[v1.ApplyChangeRequest]) (*connect.Response[v1.ApplyChangeResponse], error)
 	// WatchChange streams a change: first the change as it stands, then each
 	// step's progress as it moves on, and the change again whenever its state
@@ -321,6 +343,13 @@ type ChangeServiceHandler interface {
 	// DiscardChange drops a planned change without applying it. The change
 	// stays on record as discarded.
 	DiscardChange(context.Context, *connect.Request[v1.DiscardChangeRequest]) (*connect.Response[v1.DiscardChangeResponse], error)
+	// RestartService plans restarting a service on every server it runs on: as
+	// a deploy does, a new container takes over once it is healthy, where the
+	// service can have two at once, and otherwise the old one stops first, and
+	// the plan says for how long. It is a change, with a plan to apply or
+	// discard. It makes no revision, as the spec stays as it is, so it has
+	// nothing to undo, and a restart that fails leaves the revision where it was.
+	RestartService(context.Context, *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
 	// resource they should have, and returns every difference. It asks each
 	// connected server's agent, and changes nothing.
@@ -385,6 +414,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("DiscardChange")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServiceRestartServiceHandler := connect.NewUnaryHandler(
+		ChangeServiceRestartServiceProcedure,
+		svc.RestartService,
+		connect.WithSchema(changeServiceMethods.ByName("RestartService")),
+		connect.WithHandlerOptions(opts...),
+	)
 	changeServiceListDriftHandler := connect.NewUnaryHandler(
 		ChangeServiceListDriftProcedure,
 		svc.ListDrift,
@@ -420,6 +455,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServiceUndoChangeHandler.ServeHTTP(w, r)
 		case ChangeServiceDiscardChangeProcedure:
 			changeServiceDiscardChangeHandler.ServeHTTP(w, r)
+		case ChangeServiceRestartServiceProcedure:
+			changeServiceRestartServiceHandler.ServeHTTP(w, r)
 		case ChangeServiceListDriftProcedure:
 			changeServiceListDriftHandler.ServeHTTP(w, r)
 		case ChangeServiceRevertDriftProcedure:
@@ -461,6 +498,10 @@ func (UnimplementedChangeServiceHandler) UndoChange(context.Context, *connect.Re
 
 func (UnimplementedChangeServiceHandler) DiscardChange(context.Context, *connect.Request[v1.DiscardChangeRequest]) (*connect.Response[v1.DiscardChangeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.DiscardChange is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) RestartService(context.Context, *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.RestartService is not implemented"))
 }
 
 func (UnimplementedChangeServiceHandler) ListDrift(context.Context, *connect.Request[v1.ListDriftRequest]) (*connect.Response[v1.ListDriftResponse], error) {

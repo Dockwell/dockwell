@@ -68,3 +68,19 @@ export function FailureNotice({
     </Callout>
   );
 }
+
+/**
+ * Why Dockwell made a change on its own, as nobody asked for it: what failed, in the
+ * words the failed change has, with what its health check said where one failed.
+ */
+export function BecauseNotice({ because }: { because: string }) {
+  return (
+    <Callout
+      tone="info"
+      title={<Trans>Dockwell made this change because of what failed</Trans>}
+      className="plan-because"
+    >
+      <MachineWords>{withoutIds(because)}</MachineWords>
+    </Callout>
+  );
+}

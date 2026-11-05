@@ -163,7 +163,7 @@ func TestAnExportGoesToTheEnvironmentAsked(t *testing.T) {
 		}
 		b.done(t, asked)
 		image := func(env string) string {
-			return b.e.Container(docker.ContainerName(docker.Project(env), "web")).Config.Image
+			return b.e.Newest(docker.Project(env), "web").Config.Image
 		}
 		if got := image(production); got != "ghcr.io/acme/shop:1.4" {
 			t.Errorf("production now runs %s", got)
@@ -244,7 +244,7 @@ func TestRecoveringIsNeverRefused(t *testing.T) {
 			t.Errorf("rolling back to what runs = %v", err)
 		}
 		// Someone removes the container by hand.
-		if err := b.e.Client().RemoveContainer(t.Context(), b.e.Container(name).ID, true); err != nil {
+		if err := b.e.Client().RemoveContainer(t.Context(), b.e.Serving(name).ID, true); err != nil {
 			t.Fatal(err)
 		}
 		again, err := b.s.RollBackService(t.Context(), connect.NewRequest(&dockwellv1.RollBackServiceRequest{Id: web.GetId(), Revision: 1}))
@@ -262,7 +262,7 @@ func TestRecoveringIsNeverRefused(t *testing.T) {
 			t.Fatal(err)
 		}
 		b.done(t, deploy.Msg.GetChange())
-		if ctr := b.e.Container(name); ctr == nil || !ctr.State.Running || ctr.Config.Image != "ghcr.io/acme/shop:1.4" {
+		if ctr := b.e.Serving(name); ctr == nil || !ctr.State.Running || ctr.Config.Image != "ghcr.io/acme/shop:1.4" {
 			t.Errorf("after deploying again, the container is %+v", ctr)
 		}
 		got, err := b.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: last.GetId()}))
@@ -280,16 +280,23 @@ func TestPortsAddedTogetherAreNeverLost(t *testing.T) {
 	b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
 	web := b.service(t, "shop", "web")
 	port := uint32(10000)
-	stale := 0
+	stale, proposed := 0, 0
 	for range 30 {
 		port += 2
 		first, err := b.s.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: web.GetId(), HostPort: port, ContainerPort: 80}))
 		if err != nil {
 			t.Fatal(err)
 		}
+		applying := make(chan struct{})
 		var wg sync.WaitGroup
-		wg.Go(func() { applied(t, b.c, first.Msg.GetChange()) })
+		wg.Go(func() {
+			defer close(applying)
+			applied(t, b.c, first.Msg.GetChange())
+		})
+		// While it applies, as a plan made after that can't lose what it added.
+	proposing:
 		for range 40 {
+			proposed++
 			second, err := b.s.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: web.GetId(), HostPort: port + 1, ContainerPort: 80}))
 			if reasonOf(err) == "plan_stale" {
 				stale++
@@ -309,10 +316,15 @@ func TestPortsAddedTogetherAreNeverLost(t *testing.T) {
 			if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: second.Msg.GetChange().GetId()})); err != nil {
 				t.Fatal(err)
 			}
+			select {
+			case <-applying:
+				break proposing
+			default:
+			}
 		}
 		wg.Wait()
 	}
-	t.Logf("%d plans were refused as stale", stale)
+	t.Logf("of %d plans made as others applied, %d were refused as stale", proposed, stale)
 }
 
 // To the API and CLI an update of what runs used to read as a new app, and a
@@ -378,7 +390,7 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		two := b.run(t, &dockwellv1.ImportComposeRequest{Compose: "name: two\nservices:\n  asker:\n    image: ghcr.io/acme/shop:1.4\n"})
 		asker := b.service(t, "two", "asker")
 		askerName := docker.ContainerName(docker.Project(two), "asker")
-		before := b.e.Container(askerName).ID
+		before := b.e.Serving(askerName).ID
 		refused := func(t *testing.T, err error, words ...string) {
 			t.Helper()
 			if reasonOf(err) != "agent_failed" {
@@ -389,7 +401,7 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 					t.Errorf("%q doesn't say %q", err.Error(), w)
 				}
 			}
-			if got := b.e.Container(askerName); got == nil || got.ID != before || !got.State.Running {
+			if got := b.e.Serving(askerName); got == nil || got.ID != before || !got.State.Running {
 				t.Errorf("planning touched what runs: %+v", got)
 			}
 		}
@@ -463,7 +475,7 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		// port something took since is no one's plan to refuse until it starts.
 		stale := "name: five\nservices:\n  still:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"6000:80\"]\n"
 		five := b.run(t, &dockwellv1.ImportComposeRequest{Compose: stale})
-		if err := client.StopContainer(t.Context(), b.e.Container(docker.ContainerName(docker.Project(five), "still")).ID, time.Second); err != nil {
+		if err := client.StopContainer(t.Context(), b.e.Newest(docker.Project(five), "still").ID, time.Second); err != nil {
 			t.Fatal(err)
 		}
 		other, err := client.CreateContainer(t.Context(), "took-it", &docker.CreateRequest{
@@ -496,7 +508,7 @@ func TestAPortSomethingElseHoldsIsRefused(t *testing.T) {
 		}
 		_, err = b.cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: "name: four\nservices:\n  a:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"7000:80\"]\n  b:\n    image: ghcr.io/acme/shop:1.4\n    ports: [\"7000:80\"]\n"}))
 		refused(t, err, "also publishes port 7000 in this same change")
-		if b.e.Container(docker.ContainerName(docker.Project(one), "holder")) == nil {
+		if b.e.Newest(docker.Project(one), "holder") == nil {
 			t.Error("the holder is gone")
 		}
 	})
