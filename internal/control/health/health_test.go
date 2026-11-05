@@ -316,17 +316,18 @@ func (w *world) eventsAt(t *testing.T) ([]Told, []time.Time) {
 	if err := w.db.View(t.Context(), func(tx *store.Tx) error {
 		list, err := tx.ListEvents(t.Context(), 1000)
 		for i := len(list) - 1; i >= 0; i-- {
-			if list[i].Action == Action && list[i].Subject == w.webID && list[i].Target == "srv_A" {
-				told, ok := ReadTold(list[i].Detail)
-				if !ok {
-					t.Errorf("an event's detail reads %q", list[i].Detail)
-				}
-				if list[i].Actor != "dockwell" || list[i].Surface != store.SurfaceAutomatic {
-					t.Errorf("an event is by %s, from %s", list[i].Actor, list[i].Surface)
-				}
-				out = append(out, told)
-				at = append(at, list[i].At)
+			if list[i].Action != Action || list[i].Subject != w.webID || list[i].Target != "srv_A" {
+				continue
 			}
+			told, ok := ReadTold(list[i].Detail)
+			if !ok {
+				t.Errorf("an event's detail reads %q", list[i].Detail)
+			}
+			if list[i].Actor != "dockwell" || list[i].Surface != store.SurfaceAutomatic {
+				t.Errorf("an event is by %s, from %s", list[i].Actor, list[i].Surface)
+			}
+			out = append(out, told)
+			at = append(at, list[i].At)
 		}
 		return err
 	}); err != nil {

@@ -819,17 +819,19 @@ func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
 	say := func(format string, args ...any) { out = append(out, fmt.Sprintf(format, args...)) }
 	shared := slices.Concat(r.GetVolumes(), r.GetPaths(), r.GetImageData())
 	if r.GetRolling() {
-		if d := r.GetHealthyWithin().AsDuration(); r.GetNoCheck() && d > 0 {
+		d := r.GetHealthyWithin().AsDuration()
+		switch {
+		case r.GetNoCheck() && d > 0:
 			// What nothing checks is healthy as it runs: how long it must is all there is to say.
 			say("%s", unchecked(r.GetSoak().AsDuration(), restart, stopped))
-		} else if stopped {
+		case stopped:
 			// Nothing runs, so nothing goes on serving, and nothing is in flight.
 			if restart {
 				say("It has to stay healthy for %s. If it isn't healthy within %s, the new one goes, and what was stopped stays stopped.", human.Duration(r.GetSoak().AsDuration()), human.Duration(d))
 			} else {
 				say("It has to stay healthy for %s. If it isn't healthy within %s, Dockwell rolls this back.", human.Duration(r.GetSoak().AsDuration()), human.Duration(d))
 			}
-		} else if d > 0 {
+		case d > 0:
 			soak := ""
 			if s := r.GetSoak().AsDuration(); s > 0 {
 				soak = " and has stayed so for " + human.Duration(s)
@@ -839,7 +841,7 @@ func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
 			} else {
 				say("A new container takes over once it is healthy%s, and what runs goes on serving until then. If it isn't healthy within %s, Dockwell rolls this back.", soak, human.Duration(d))
 			}
-		} else {
+		default:
 			say("What this step wants already runs, so nothing stops for it.")
 		}
 		if r.GetChosen() && len(shared)+len(r.GetCantTell()) > 0 {

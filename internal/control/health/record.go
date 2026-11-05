@@ -400,7 +400,8 @@ func (t *track) next(now time.Time) (due, bool) {
 	}
 	if recent >= flapsToTell {
 		since := t.flips[len(t.flips)-recent]
-		told := Told{Previous: t.told, Output: t.output, Flips: int32(recent), Since: &since}
+		// recent is at most flipsKept, which an int32 holds.
+		told := Told{Previous: t.told, Output: t.output, Flips: int32(min(recent, flipsKept)), Since: &since}
 		told.State, told.Output = t.fellTo(told)
 		return due{told: told}, true
 	}
