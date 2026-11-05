@@ -159,7 +159,11 @@ describe("what a failed change says of its rollback", () => {
     expect(sheet.querySelector(".plan-rollback")).not.toHaveClass("dw-tone-healthy");
     cleanup();
 
-    sheet = await inTheSheet(aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: [] }), name, said(HealthState.PAUSED));
+    sheet = await inTheSheet(
+      aFailedDeploy({ state: RollbackState.APPLIED, steps: 1, restored: [] }),
+      name,
+      said(HealthState.PAUSED),
+    );
     await waitFor(() => expect(sheet).toHaveTextContent("web is paused now, so it serves nothing."));
     expect(sheet).toHaveTextContent("web stayed on nginx:1.27");
     expect(sheet).not.toHaveTextContent("web stays on");
@@ -187,7 +191,9 @@ describe("what a failed change says of its rollback", () => {
     cleanup();
 
     sheet = await inTheSheet(failed, name, runningWeb);
-    await waitFor(() => expect(sheet).toHaveTextContent("Something of web runs, and Dockwell can't say which version."));
+    await waitFor(() =>
+      expect(sheet).toHaveTextContent("Something of web runs, and Dockwell can't say which version."),
+    );
     cleanup();
 
     // Until it has read, what it can't say stays that.

@@ -53,7 +53,6 @@ import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
 import { appOf, unreached } from "../apps/app";
 import { DomainFacts, DomainNote, useSilent } from "../apps/DomainNote";
-import { readHealthSoon, useHealth } from "../apps/health";
 import {
   type EnvironmentReach,
   lookOf,
@@ -62,6 +61,7 @@ import {
   useDomainsReaching,
   visitorUrl,
 } from "../apps/domains";
+import { readHealthSoon, useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
@@ -90,8 +90,8 @@ import {
   madeProject,
   onlyDeletes,
   onlyIfNewer,
-  restarts,
   replacesIfNewer,
+  restarts,
   routeDomain,
   routeWhereOf,
   shortFingerprint,

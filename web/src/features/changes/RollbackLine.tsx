@@ -118,7 +118,14 @@ export function rollbackSubject(
   const all = changing(plan);
   const serving = all.filter(runs);
   const only = serving.length === 1 ? serving[0] : all.length === 1 ? all[0] : undefined;
-  return { name: only?.resource?.name, id: only?.id, ...imageChange(only?.changes), serves: serving.length > 0, first, rolled };
+  return {
+    name: only?.resource?.name,
+    id: only?.id,
+    ...imageChange(only?.changes),
+    serves: serving.length > 0,
+    first,
+    rolled,
+  };
 }
 
 /** How a rollback that has ended looks: as what runs now, where that's been read, and otherwise as nothing at all. */

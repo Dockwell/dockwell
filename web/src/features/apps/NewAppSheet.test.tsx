@@ -1056,7 +1056,9 @@ describe("what a Compose file reads beside it", () => {
     const asked: { env: string; directory: string }[] = [];
     renderAt("/apps/new?source=compose", {
       ...api({
-        compose: checking(asked, { message: "line 2 of the .env file has a $ before a name with no value. To write a $ of your own, use $$" }),
+        compose: checking(asked, {
+          message: "line 2 of the .env file has a $ before a name with no value. To write a $ of your own, use $$",
+        }),
       }),
     });
     const sheet = await screen.findByRole("dialog", { name: "New app" });
@@ -1106,7 +1108,12 @@ describe("what a Compose file reads beside it", () => {
           checkCompose: (req) =>
             create(CheckComposeResponseSchema, {
               ...(req.directory === "opt/shop"
-                ? { refusal: { message: 'the directory "opt/shop" isn\'t an absolute path, and a server has nowhere else to start from. Give the one the Compose file is in, such as /opt/shop' } }
+                ? {
+                    refusal: {
+                      message:
+                        'the directory "opt/shop" isn\'t an absolute path, and a server has nowhere else to start from. Give the one the Compose file is in, such as /opt/shop',
+                    },
+                  }
                 : {}),
               services: [anApp("db", "postgres:17")],
             }),

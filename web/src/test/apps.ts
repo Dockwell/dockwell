@@ -10,10 +10,10 @@ import {
   FieldOp,
   HealthCheckKind,
   HealthState,
-  type ServiceHealth,
-  ServiceHealthSchema,
   type Resource,
   ResourceSchema,
+  type ServiceHealth,
+  ServiceHealthSchema,
   type ServiceInfo,
   ServiceInfoSchema,
   type ServiceRevision,
@@ -103,7 +103,13 @@ export function aHealth(id: string, ...on: HealthOn[]): ServiceHealth {
                 confirmedAt: since,
                 ...(o.said === undefined
                   ? {}
-                  : { last: { output: o.said, passed: o.passed ?? false, time: timestampFromDate(new Date(now - 4_000)) } }),
+                  : {
+                      last: {
+                        output: o.said,
+                        passed: o.passed ?? false,
+                        time: timestampFromDate(new Date(now - 4_000)),
+                      },
+                    }),
               },
             ],
       };

@@ -5,11 +5,9 @@ import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ChangeState,
-  Connection,
   type Container,
   type Domain,
   type DomainRoute,
-  DeploymentState,
   EventKind,
   EventService,
   HealthCheckKind,
@@ -25,9 +23,6 @@ import {
   Icon,
   Panel,
   PHONE_QUERY,
-  StatusBadge,
-  Table,
-  type TableColumn,
   Tag,
   Timeline,
   type TimelineEvent,
@@ -41,8 +36,8 @@ import { type CSSProperties, useEffect, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
-import { useChangeSheet } from "../changes/ChangeSheet";
 import { useDescribe, useHealthEventWords } from "../activity/describe";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
 import { CopyButton } from "../servers/CopyButton";
@@ -52,7 +47,6 @@ import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
 import {
   appOf,
-  appState,
   bareImage,
   canRollBackTo,
   companions,
@@ -138,13 +132,17 @@ function HealthNotice({ health, name, serviceId }: { health: AppHealth; name: st
           title={fleet ? t`${name} fails its health check on ${where}` : t`${name} fails its health check`}
           actions={logs}
         >
-          <Trans>It stays up until someone changes something. Fix what its check reports, or the check, then deploy.</Trans>
+          <Trans>
+            It stays up until someone changes something. Fix what its check reports, or the check, then deploy.
+          </Trans>
         </Callout>
       );
     case "paused":
       return (
         <Callout tone="warning" title={fleet ? t`${name} is paused on ${where}` : t`${name} is paused`}>
-          <Trans>It serves nothing until someone unpauses it, and restarting or deploying it also puts that right.</Trans>
+          <Trans>
+            It serves nothing until someone unpauses it, and restarting or deploying it also puts that right.
+          </Trans>
         </Callout>
       );
     case "unknown":
@@ -294,8 +292,7 @@ function AppNotice() {
               <Trans>
                 Dockwell put <code>{image}</code> back, as it was before that deploy.
               </Trans>{" "}
-              {runsNow}{" "}
-              <Trans>Fix what stopped the deploy, then deploy again.</Trans>
+              {runsNow} <Trans>Fix what stopped the deploy, then deploy again.</Trans>
             </>
           )}
         </Callout>
@@ -861,7 +858,7 @@ function ConfigurationPanel() {
         <dt>{t`Restarts`}</dt>
         <dd>{words.restart(app?.restart ?? 0)}</dd>
         <dt>{t`Health check`}</dt>
-        <dd className="app-check">
+        <dd className="app-health-check">
           {check?.http ? (
             <span>
               <code>GET {check.http.path || "/"}</code> <Trans>on port {check.http.port}</Trans>

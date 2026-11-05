@@ -317,7 +317,9 @@ export async function planFlow(
 
   step("plan: the keyboard goes all the way: Ctrl+Enter applies, focus never drops, and it ends on the way on");
   await page.keyboard.press("Control+Enter");
-  await page.getByRole("heading", { name: /^first is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^first is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   await page.waitForFunction(() => document.activeElement?.textContent?.startsWith("Open first"));
   await shoot(page, "plan-arrived");
   const arrived = await sheetText(page);
@@ -351,7 +353,9 @@ export async function planFlow(
     fail("the step says done while it runs");
   await expectContrast(page, "a plan applying, light");
   await shoot(page, "plan-applying");
-  await page.getByRole("heading", { name: /^holder is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^holder is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   const address = page.locator(".plan-reach a");
   await address.waitFor();
   const topOnArrival = await planRowTop(page);
@@ -504,7 +508,9 @@ export async function planFlow(
   await again.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
 
   step("plan: an undo is a plan in the same sheet, Cancel goes back to the arrival, and applying it reads the same");
   await page.getByRole("button", { name: /Undo until/ }).click();
@@ -566,7 +572,9 @@ export async function planFlow(
   step("plan: a failed deploy that stopped first says the old version runs again, and that it was down");
   const stopsFirst = await reviewNew(page, origin, "nginx:1.27-alpine", "stopper", addPort(8095));
   await stopsFirst.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("heading", { name: /^stopper is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^stopper is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: /^Open stopper/ }).click();
   await page.getByRole("heading", { level: 1, name: "stopper" }).waitFor();
   await page.getByRole("button", { name: "Deploy", exact: true }).click();
@@ -622,7 +630,9 @@ export async function planFlow(
   await plan.getByRole("button", { name: /Apply plan/ }).click();
   await page.getByRole("heading", { name: "Deploying nginx:1.28-alpine" }).waitFor({ timeout: 10_000 });
   const whileApplying = await planRowTop(page);
-  await page.getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   const atArrival = await planRowTop(page);
   if (Math.abs(whileApplying - atReview) > 0.5 || Math.abs(atArrival - atReview) > 0.5) {
     fail(`the plan moves as it runs: ${atReview}, then ${whileApplying}, then ${atArrival}`);
@@ -647,7 +657,9 @@ export async function planFlow(
   await plan.locator(".plan-room-held .is-domain .plan-reach-how").waitFor({ state: "attached" });
   const heldAtReview = await planRowTop(page);
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   await page.locator(".plan-reach-row.is-domain", { hasText: "held.example.com" }).waitFor();
   const heldOnArrival = await planRowTop(page);
   if (Math.abs(heldOnArrival - heldAtReview) > 0.5) {
@@ -785,7 +797,9 @@ volumes:
   await light();
   await shoot(page, "plan-compose");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("heading", { name: /^journal is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 40_000 });
+  await page
+    .getByRole("heading", { name: /^journal is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 40_000 });
   await plan.waitFor({ state: "detached" }).catch(() => {});
   await shoot(page, "plan-compose-arrived");
   // Closing it goes to the page's heading: what opened it was the page before.
@@ -800,7 +814,9 @@ volumes:
     await f.getByLabel("Path in the app").fill("/data");
   });
   await keeper.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("heading", { name: /^keeper is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^keeper is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: /Open keeper/ }).click();
   await page.getByRole("heading", { level: 1, name: "keeper", exact: true }).waitFor();
   await page.getByRole("button", { name: "Deploy", exact: true }).click();
@@ -809,7 +825,9 @@ volumes:
   await deploy.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("heading", { name: /^keeper is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^keeper is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: /Done/ }).click();
   await page.getByRole("link", { name: /Deployments/ }).click();
   await page.getByRole("button", { name: "Roll back to r1" }).click();
@@ -832,7 +850,8 @@ volumes:
   await plan.getByRole("button", { name: /Apply plan/ }).click();
   await page.getByRole("heading", { name: "Rolled back to r1" }).waitFor({ timeout: 30_000 });
   const rolledText = await sheetText(page);
-  if (/ is (deployed|running|healthy)$|replaced|before you apply/im.test(rolledText)) fail(`a rollback arrives as: ${rolledText}`);
+  if (/ is (deployed|running|healthy)$|replaced|before you apply/im.test(rolledText))
+    fail(`a rollback arrives as: ${rolledText}`);
   await page.getByRole("button", { name: /^Done/ }).click();
 
   step("plan: deleting says it stops for good, with Delete all the way and the danger button");
@@ -864,7 +883,9 @@ volumes:
   const live = async (name: string, more?: (form: ReturnType<Page["getByRole"]>) => Promise<void>) => {
     const first = await reviewNew(page, origin, `acme/${name}:1`, name, more);
     await first.getByRole("button", { name: /Apply plan/ }).click();
-    await page.getByRole("heading", { name: new RegExp(`^${name} is (deployed|running|healthy|starting)$`) }).waitFor({ timeout: 30_000 });
+    await page
+      .getByRole("heading", { name: new RegExp(`^${name} is (deployed|running|healthy|starting)$`) })
+      .waitFor({ timeout: 30_000 });
     await page.getByRole("button", { name: new RegExp(`^Open ${name}`) }).click();
     await page.getByRole("heading", { level: 1, name }).waitFor();
   };
@@ -947,7 +968,9 @@ volumes:
   await writing.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("heading", { name: /^both is (deployed|running|healthy|starting)$/ }).waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("heading", { name: /^both is (deployed|running|healthy|starting)$/ })
+    .waitFor({ timeout: 30_000 });
   await page.goto(`${origin}/apps`);
   // A file of one service reads as its project in the list.
   await page.getByRole("link", { name: "writers", exact: true }).click();

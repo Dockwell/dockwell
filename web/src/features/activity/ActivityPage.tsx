@@ -776,7 +776,12 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             <div className="activity-detail-actions">{toVariables}</div>
           ) : event.health && event.subject?.id ? (
             <div className="activity-detail-actions">
-              <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: event.subject.id }} variant="ghost" icon="service">
+              <RouterButtonLink
+                to="/apps/$serviceId"
+                params={{ serviceId: event.subject.id }}
+                variant="ghost"
+                icon="service"
+              >
                 <Trans>Open the app</Trans>
               </RouterButtonLink>
             </div>

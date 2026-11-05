@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 import type { Browser, BrowserContext, Page } from "playwright-core";
 
-import { dockerAct, dockerExec, dockerHealth, type DockerProbe } from "./docker-probe.ts";
+import { type DockerProbe, dockerAct, dockerExec, dockerHealth } from "./docker-probe.ts";
 
 export interface HealthFlowOptions {
   origin: string;
@@ -98,7 +98,10 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   await form.getByRole("button", { name: /Review plan/ }).click();
   await apply(page);
   await page.getByRole("heading", { name: "checked is healthy" }).waitFor({ timeout: 90_000 });
-  await page.getByRole("button", { name: /^Open checked|^Done|^Show/ }).first().click();
+  await page
+    .getByRole("button", { name: /^Open checked|^Done|^Show/ })
+    .first()
+    .click();
   const checked = await only("checked");
   await everywhere("checked", "Healthy", "healthy");
   const config = page.getByRole("region", { name: "Configuration" });
@@ -188,7 +191,10 @@ services:
   await plainForm.getByText(/Line 2 of the \.env file/).waitFor({ timeout: 15_000 });
   await shoot(page, "health-env-refused");
   await plainForm.getByLabel(".env file").fill(`TAG=1.27-alpine\nGREETING=${secret}`);
-  await plainForm.getByRole("region", { name: "What this file makes" }).getByText("This makes 1 app").waitFor({ timeout: 15_000 });
+  await plainForm
+    .getByRole("region", { name: "What this file makes" })
+    .getByText("This makes 1 app")
+    .waitFor({ timeout: 15_000 });
   const stored = await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }));
   if (stored.includes(secret)) fail("an .env's value is in this browser's storage");
   if (page.url().includes(secret)) fail("an .env's value is in the address");
@@ -200,16 +206,28 @@ services:
   await shoot(page, "health-env-note");
   await plainPlan.getByRole("button", { name: /Apply plan/ }).click();
   await page.getByRole("heading", { name: "plain is running" }).waitFor({ timeout: 90_000 });
-  await page.getByRole("button", { name: /^Open plain|^Done|^Show/ }).first().click();
+  await page
+    .getByRole("button", { name: /^Open plain|^Done|^Show/ })
+    .first()
+    .click();
   await everywhere("plain", "Running", "running");
-  await page.getByRole("region", { name: "What runs" }).getByText("Nothing checks it, so this only means it started.").waitFor();
-  await page.getByRole("region", { name: "Configuration" }).getByText(/^None\./).waitFor();
+  await page
+    .getByRole("region", { name: "What runs" })
+    .getByText("Nothing checks it, so this only means it started.")
+    .waitFor();
+  await page
+    .getByRole("region", { name: "Configuration" })
+    .getByText(/^None\./)
+    .waitFor();
 
   step("health: killed, it reads as not running, and says how it went");
   const plain = await only("plain");
   await dockerAct(socket, plain.id, "kill");
   await pageSays("Not running");
-  await page.getByRole("region", { name: "What runs" }).getByText(/exit code 137/).waitFor();
+  await page
+    .getByRole("region", { name: "What runs" })
+    .getByText(/exit code 137/)
+    .waitFor();
 
   step("health: it reads in Chinese too");
   const zh = await browser.newContext({
@@ -219,7 +237,10 @@ services:
   });
   const zhPage = await zh.newPage();
   await zhPage.goto(`${origin}/apps`);
-  await zhPage.getByRole("row", { name: /plain/ }).getByText("没有运行", { exact: true }).waitFor({ timeout: SEEN_WITHIN });
+  await zhPage
+    .getByRole("row", { name: /plain/ })
+    .getByText("没有运行", { exact: true })
+    .waitFor({ timeout: SEEN_WITHIN });
   await shoot(zhPage, "health-zh-list");
   await zhPage.getByRole("link", { name: "plain", exact: true }).first().click();
   await zhPage.getByRole("region", { name: "运行内容" }).waitFor();
@@ -230,10 +251,18 @@ services:
   const cli = (...args: string[]) =>
     execFileSync(bin, [...args, "--data-dir", data, "--log-format", "json"], {
       encoding: "utf8",
-      env: { ...process.env, ...env, USER: "mira", DOCKWELL_URL: "", DOCKWELL_TOKEN: "", XDG_CONFIG_HOME: join(data, "cli-config") },
+      env: {
+        ...process.env,
+        ...env,
+        USER: "mira",
+        DOCKWELL_URL: "",
+        DOCKWELL_TOKEN: "",
+        XDG_CONFIG_HOME: join(data, "cli-config"),
+      },
     });
   cli("login", "--local");
-  const ticket = /dockwell join (\S+)/.exec(cli("token", "create"))?.[1] ?? fail("dockwell token create printed no ticket");
+  const ticket =
+    /dockwell join (\S+)/.exec(cli("token", "create"))?.[1] ?? fail("dockwell token create printed no ticket");
   const agentData = join(data, "second-agent");
   const clean = { ...process.env, ...env, DOCKWELL_DATA_DIR: "", DOCKWELL_URL: "", DOCKWELL_TOKEN: "" };
   execFileSync(bin, ["join", "--data-dir", agentData, "--name", "second", ticket], { encoding: "utf8", env: clean });
@@ -242,14 +271,29 @@ services:
   let agent = startAgent();
   try {
     await page.goto(`${origin}/apps`);
-    const servers = JSON.parse(cli("servers", "list", "--json")) as { servers?: { id?: string; name?: string; connection?: string }[] };
-    const second = servers.servers?.find((s) => s.name === "second")?.id ?? fail(`the second server isn't listed: ${JSON.stringify(servers)}`);
+    const servers = JSON.parse(cli("servers", "list", "--json")) as {
+      servers?: { id?: string; name?: string; connection?: string }[];
+    };
+    const second =
+      servers.servers?.find((s) => s.name === "second")?.id ??
+      fail(`the second server isn't listed: ${JSON.stringify(servers)}`);
     for (let i = 0; i < 100; i++) {
       const now = JSON.parse(cli("servers", "get", second, "--json")) as { server?: { connection?: string } };
       if (now.server?.connection === "CONNECTION_CONNECTED") break;
       await page.waitForTimeout(300);
     }
-    cli("services", "create", "afar", "--project", "default", "--on", second, "--app-image", "nginx:1.27-alpine", "--yes");
+    cli(
+      "services",
+      "create",
+      "afar",
+      "--project",
+      "default",
+      "--on",
+      second,
+      "--app-image",
+      "nginx:1.27-alpine",
+      "--yes",
+    );
     await goToList();
     await listSays("afar", "Running");
     await goToApp("afar");
@@ -260,7 +304,10 @@ services:
     // What it last read may be said, as that: only what it reads as now counts.
     const reads = await page.getByRole("region", { name: "What runs" }).locator(".dw-status-label").allInnerTexts();
     if (reads.join() !== "Unknown") fail(`with its agent gone, the page reads: ${reads.join()}`);
-    await page.locator(".dw-callout").getByText(/It may well be running/).waitFor({ timeout: SEEN_WITHIN });
+    await page
+      .locator(".dw-callout")
+      .getByText(/It may well be running/)
+      .waitFor({ timeout: SEEN_WITHIN });
     await shoot(page, "health-unknown");
     await goToList();
     await listSays("afar", "Unknown");

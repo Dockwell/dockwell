@@ -161,7 +161,10 @@ export async function appsFlow(
   await shoot(page, "apps-arrival-nothing-reaches-it");
 
   step("apps: nothing reaches it yet, so its arrival offers a port, and that opens the form on the app's page");
-  await page.getByRole("dialog", { name: /^nginx is (deployed|running)$/ }).getByRole("button", { name: "Add a port" }).click();
+  await page
+    .getByRole("dialog", { name: /^nginx is (deployed|running)$/ })
+    .getByRole("button", { name: "Add a port" })
+    .click();
   await page.getByRole("heading", { level: 1, name: "nginx", exact: true }).waitFor();
   const offered = page.getByRole("dialog", { name: "Add a port to nginx" });
   await offered.waitFor();
@@ -227,7 +230,8 @@ export async function appsFlow(
   const r3 = page.getByRole("row", { name: /r3/ });
   await r3.waitFor();
   await r3.getByText("Deployed", { exact: true }).waitFor();
-  if ((await r3.innerText()).includes("Live")) fail(`a revision says it's live, which its record can't: ${await r3.innerText()}`);
+  if ((await r3.innerText()).includes("Live"))
+    fail(`a revision says it's live, which its record can't: ${await r3.innerText()}`);
   await r3.getByText("Mira Chen").waitFor();
   await r3.getByText("From the panel").waitFor();
   await page.getByRole("row", { name: /r2/ }).getByText("Replaced").waitFor();

@@ -189,7 +189,9 @@ export function healthNeedsALook(health: AppHealth): boolean {
 
 /** Whether it runs and serves, as far as anyone can say, so what the record says of what it runs stands. */
 export function runsAsFarAsAnyoneKnows(health: AppHealth): boolean {
-  return health.read === "read" && (health.kind === "healthy" || health.kind === "running" || health.kind === "starting");
+  return (
+    health.read === "read" && (health.kind === "healthy" || health.kind === "running" || health.kind === "starting")
+  );
 }
 
 const soonUntil = new WeakMap<QueryClient, number>();
@@ -197,7 +199,9 @@ const soonUntil = new WeakMap<QueryClient, number>();
 /** Reads how everything runs now, and often for a while, as a change moved on and what runs is what it changes. */
 export function readHealthSoon(queryClient: QueryClient): void {
   soonUntil.set(queryClient, Date.now() + SOON_FOR_MS);
-  void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema: HealthService, cardinality: undefined }) });
+  void queryClient.invalidateQueries({
+    queryKey: createConnectQueryKey({ schema: HealthService, cardinality: undefined }),
+  });
 }
 
 /** How long an agent gets to report on what a change has just made, before what it says counts. */

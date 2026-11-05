@@ -173,7 +173,15 @@ describe("what the list shows as one thing", () => {
     const groups = groupApps([quiet, ...stack], placeOf);
     const stackGroup = groups.find((g) => g.stack);
     expect(stackGroup && groupState(stackGroup, [online]).kind).toBe("failed");
-    expect(sortGroups(groups, [online], () => ({ kind: "unknown", status: "unknown", read: "reading", servers: [], check: 0 }))[0]?.stack).toBe(true);
+    expect(
+      sortGroups(groups, [online], () => ({
+        kind: "unknown",
+        status: "unknown",
+        read: "reading",
+        servers: [],
+        check: 0,
+      }))[0]?.stack,
+    ).toBe(true);
   });
 });
 

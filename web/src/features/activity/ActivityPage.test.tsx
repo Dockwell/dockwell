@@ -626,7 +626,14 @@ describe("Activity's health", () => {
       action: "service.health",
       time: timestampFromDate(new Date(Date.now() - HOUR)),
       subject: { id: "svc_web", name: "web" },
-      health: { serverId: "srv_1", serverName: "hz-1", state, previous: HealthState.HEALTHY, flips, output: "GET / answered 503" },
+      health: {
+        serverId: "srv_1",
+        serverName: "hz-1",
+        state,
+        previous: HealthState.HEALTHY,
+        flips,
+        output: "GET / answered 503",
+      },
     });
 
   it.each([

@@ -30,12 +30,20 @@ const hz1 = aServer({ id: SERVER, name: "hz-1", inventory: { addresses: ["49.12.
 const hz2 = aServer({ id: "srv_2", name: "hz-2", inventory: { addresses: ["49.12.33.8"] } });
 const web = anApp("web", "ghcr.io/acme/web:1.5");
 
-function api(services = [web], health: Api["health"] = running(web), more: Api = {}, ...servers: ReturnType<typeof aServer>[]): Api {
+function api(
+  services = [web],
+  health: Api["health"] = running(web),
+  more: Api = {},
+  ...servers: ReturnType<typeof aServer>[]
+): Api {
   const watch = feed<WatchServersResponse>();
   watch.push(...(servers.length ? servers : [hz1]).map(changed), snapshotComplete);
   return {
     resources: places(),
-    services: { listServices: () => ({ services }), listServiceRevisions: () => ({ revisions: [aRevision(3n, "web:1.5")] }) },
+    services: {
+      listServices: () => ({ services }),
+      listServiceRevisions: () => ({ revisions: [aRevision(3n, "web:1.5")] }),
+    },
     servers: { watchServers: watch.stream },
     changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
     health,
@@ -43,7 +51,9 @@ function api(services = [web], health: Api["health"] = running(web), more: Api =
   };
 }
 
-const reading = (...on: HealthOn[]): Api["health"] => ({ listHealth: () => ({ services: [aHealth("svc_web", ...on)] }) });
+const reading = (...on: HealthOn[]): Api["health"] => ({
+  listHealth: () => ({ services: [aHealth("svc_web", ...on)] }),
+});
 
 /** Each state, with its word, its tone, what it says, and whether it asks for a look. */
 const STATES: readonly {
@@ -72,7 +82,11 @@ const STATES: readonly {
     says: /Its check hasn't finished yet/,
   },
   {
-    on: { state: HealthState.UNHEALTHY, said: "GET /healthz on port 8080 answered 503 Service Unavailable", failing: 3 },
+    on: {
+      state: HealthState.UNHEALTHY,
+      said: "GET /healthz on port 8080 answered 503 Service Unavailable",
+      failing: 3,
+    },
     word: "Unhealthy",
     tone: "dw-tone-warning",
     says: /answered 503 Service Unavailable/,
@@ -107,41 +121,47 @@ afterEach(() => {
 });
 
 describe("what runs, from what the server says", () => {
-  it.each(STATES)("reads $word on the list, its overview and a phone, kept apart from the record", async ({ on, word, tone, says, notice }) => {
-    const first = renderAt("/apps", api([web], reading(on)));
-    const row = await screen.findByRole("row", { name: /web/ });
-    await waitFor(() => expect(row).toHaveTextContent(word));
-    expect(row.querySelector(".apps-status")).toHaveClass(tone);
-    // The record isn't what runs, and says nothing while it has nothing to add.
-    expect(row).not.toHaveTextContent("Live");
-    expect(row).toHaveTextContent("r3");
-    // Only a check that passed is green.
-    if (word !== "Healthy") expect(row.querySelector(".dw-tone-healthy")).toBeNull();
-    await expectAccessible(first.container);
-    first.unmount();
+  it.each(STATES)(
+    "reads $word on the list, its overview and a phone, kept apart from the record",
+    async ({ on, word, tone, says, notice }) => {
+      const first = renderAt("/apps", api([web], reading(on)));
+      const row = await screen.findByRole("row", { name: /web/ });
+      await waitFor(() => expect(row).toHaveTextContent(word));
+      expect(row.querySelector(".apps-status")).toHaveClass(tone);
+      // The record isn't what runs, and says nothing while it has nothing to add.
+      expect(row).not.toHaveTextContent("Live");
+      expect(row).toHaveTextContent("r3");
+      // Only a check that passed is green.
+      if (word !== "Healthy") expect(row.querySelector(".dw-tone-healthy")).toBeNull();
+      await expectAccessible(first.container);
+      first.unmount();
 
-    const page = renderAt("/apps/svc_web", api([web], reading(on)));
-    const panel = await screen.findByRole("region", { name: "What runs" });
-    await waitFor(() => expect(panel).toHaveTextContent(word));
-    expect(panel).toHaveTextContent(says);
-    const lead = page.container.querySelector(".page-head, .page") as HTMLElement;
-    expect(lead).toHaveTextContent(word);
-    if (notice) expect(page.container.querySelector(".dw-callout")).toHaveTextContent(notice);
-    else expect(page.container.querySelector(".dw-callout")).toBeNull();
-    await expectAccessible(page.container);
-    page.unmount();
+      const page = renderAt("/apps/svc_web", api([web], reading(on)));
+      const panel = await screen.findByRole("region", { name: "What runs" });
+      await waitFor(() => expect(panel).toHaveTextContent(word));
+      expect(panel).toHaveTextContent(says);
+      const lead = page.container.querySelector(".page-head, .page") as HTMLElement;
+      expect(lead).toHaveTextContent(word);
+      if (notice) expect(page.container.querySelector(".dw-callout")).toHaveTextContent(notice);
+      else expect(page.container.querySelector(".dw-callout")).toBeNull();
+      await expectAccessible(page.container);
+      page.unmount();
 
-    onPhone();
-    renderAt("/apps", api([web], reading(on)));
-    const link = await screen.findByRole("link", { name: /web/ });
-    await waitFor(() => expect(link).toHaveTextContent(word));
-    expect(link.querySelector(".apps-phone-glyph")).toHaveClass(tone);
-  });
+      onPhone();
+      renderAt("/apps", api([web], reading(on)));
+      const link = await screen.findByRole("link", { name: /web/ });
+      await waitFor(() => expect(link).toHaveTextContent(word));
+      expect(link.querySelector(".apps-phone-glyph")).toHaveClass(tone);
+    },
+  );
 
   it("says how long it has been so, and when its check last said so", async () => {
     renderAt(
       "/apps/svc_web",
-      api([web], reading({ state: HealthState.HEALTHY, said: "GET / on port 80 answered 200 OK", passed: true, forMs: 180_000 })),
+      api(
+        [web],
+        reading({ state: HealthState.HEALTHY, said: "GET / on port 80 answered 200 OK", passed: true, forMs: 180_000 }),
+      ),
     );
     const panel = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() => expect(panel).toHaveTextContent("for 3 min"));
@@ -166,7 +186,12 @@ describe("what runs, from what the server says", () => {
         [both],
         reading(
           { state: HealthState.HEALTHY, said: "GET / on port 80 answered 200 OK", passed: true },
-          { state: HealthState.NOT_RUNNING, server: "srv_2", serverName: "hz-2", said: "the container isn't running: it is exited" },
+          {
+            state: HealthState.NOT_RUNNING,
+            server: "srv_2",
+            serverName: "hz-2",
+            said: "the container isn't running: it is exited",
+          },
         ),
         {},
         hz1,
@@ -186,11 +211,14 @@ describe("what runs, from what the server says", () => {
   });
 
   it("never reads a failed read as not running, and never as green", async () => {
-    renderAt("/apps", api([web], {
-      listHealth: () => {
-        throw new ConnectError("the control plane is restarting", Code.Unavailable);
-      },
-    }));
+    renderAt(
+      "/apps",
+      api([web], {
+        listHealth: () => {
+          throw new ConnectError("the control plane is restarting", Code.Unavailable);
+        },
+      }),
+    );
     const row = await screen.findByRole("row", { name: /web/ });
     await waitFor(() => expect(row).toHaveTextContent("Unknown"));
     expect(row).not.toHaveTextContent("Not running");
@@ -201,11 +229,14 @@ describe("what runs, from what the server says", () => {
   });
 
   it("says on an app's page that it can't read, with no notice of what's wrong with the app", async () => {
-    const { container } = renderAt("/apps/svc_web", api([web], {
-      listHealth: () => {
-        throw new ConnectError("no", Code.Unavailable);
-      },
-    }));
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api([web], {
+        listHealth: () => {
+          throw new ConnectError("no", Code.Unavailable);
+        },
+      }),
+    );
     const panel = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() => expect(panel).toHaveTextContent("Dockwell can't read how this runs right now"));
     expect(panel).toHaveTextContent("That says nothing about the app.");
@@ -217,7 +248,16 @@ describe("what runs, from what the server says", () => {
       "web",
       "nginx",
       {},
-      { deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE, updateTime: { seconds: BigInt(Math.floor(Date.now() / 1000)), nanos: 0 } }] },
+      {
+        deployments: [
+          {
+            serverId: SERVER,
+            serverName: "hz-1",
+            state: DeploymentState.LIVE,
+            updateTime: { seconds: BigInt(Math.floor(Date.now() / 1000)), nanos: 0 },
+          },
+        ],
+      },
     );
     renderAt("/apps", api([fresh], reading({ state: HealthState.NOT_RUNNING, scannedMsAgo: 5_000 })));
     const row = await screen.findByRole("row", { name: /web/ });
@@ -228,12 +268,15 @@ describe("what runs, from what the server says", () => {
   it("reads once for a list of many apps, and shares it with what's open", async () => {
     let reads = 0;
     const many = Array.from({ length: 40 }, (_, i) => anApp(`app-${i}`, "nginx"));
-    renderAt("/apps", api(many, {
-      listHealth: () => {
-        reads += 1;
-        return { services: many.map((s) => aHealth(s.id, { state: HealthState.NO_CHECK })) };
-      },
-    }));
+    renderAt(
+      "/apps",
+      api(many, {
+        listHealth: () => {
+          reads += 1;
+          return { services: many.map((s) => aHealth(s.id, { state: HealthState.NO_CHECK })) };
+        },
+      }),
+    );
     await waitFor(() => expect(screen.getAllByText("Running").length).toBeGreaterThan(30));
     expect(reads).toBe(1);
   });
@@ -241,11 +284,17 @@ describe("what runs, from what the server says", () => {
   it("comes first when it needs a look, whatever its record says, and counts in the line under the title", async () => {
     const quiet = anApp("quiet", "a");
     const broken = anApp("broken", "b", {}, { updateTime: { seconds: 1n, nanos: 0 } });
-    renderAt("/apps", api([quiet, broken], {
-      listHealth: () => ({
-        services: [aHealth("svc_quiet", { state: HealthState.NO_CHECK }), aHealth("svc_broken", { state: HealthState.NOT_RUNNING })],
+    renderAt(
+      "/apps",
+      api([quiet, broken], {
+        listHealth: () => ({
+          services: [
+            aHealth("svc_quiet", { state: HealthState.NO_CHECK }),
+            aHealth("svc_broken", { state: HealthState.NOT_RUNNING }),
+          ],
+        }),
       }),
-    }));
+    );
     expect(await screen.findByText(/1 needs a look/)).toBeVisible();
     const rows = screen.getAllByRole("row");
     expect(rows[1]).toHaveTextContent("broken");
@@ -260,7 +309,9 @@ describe("what runs, from what the server says", () => {
 
     renderAt("/apps/svc_web", api([back], reading({ state: HealthState.NOT_RUNNING })));
     const stopped = await screen.findByRole("status");
-    await waitFor(() => expect(stopped).toHaveTextContent("Dockwell put nginx:1.4 back, as it was before that deploy."));
+    await waitFor(() =>
+      expect(stopped).toHaveTextContent("Dockwell put nginx:1.4 back, as it was before that deploy."),
+    );
     expect(stopped).toHaveTextContent("web isn't running now.");
     expect(stopped).not.toHaveTextContent("web is on nginx:1.4");
   });
@@ -273,7 +324,9 @@ describe("what runs, from what the server says", () => {
       {
         rolledBackChangeId: "chg_failed",
         changeState: ChangeState.FAILED,
-        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.FAILED, error: "hz-1: no daemon" }],
+        deployments: [
+          { serverId: SERVER, serverName: "hz-1", state: DeploymentState.FAILED, error: "hz-1: no daemon" },
+        ],
       },
     );
     renderAt("/apps/svc_web", api([stuck], reading({ state: HealthState.NOT_RUNNING })));
@@ -354,7 +407,14 @@ describe("restarting an app", () => {
         fingerprint: "feedfacefeedfacefeedfacefeedface",
         summary: { replace: 1 },
         undoWindow: { seconds: 604_800n, nanos: 0 },
-        resources: [{ id: "svc_web", resource: { kind: "service", scope: "env_prod", name: "web" }, action: PlanAction.REPLACE, restart: true }],
+        resources: [
+          {
+            id: "svc_web",
+            resource: { kind: "service", scope: "env_prod", name: "web" },
+            action: PlanAction.REPLACE,
+            restart: true,
+          },
+        ],
         servers: [
           {
             serverId: SERVER,
@@ -367,7 +427,11 @@ describe("restarting an app", () => {
                 action: PlanAction.REPLACE,
                 restart: "chg_restart",
                 ...(rolling ? {} : { downtime: { seconds: 13n, nanos: 0 } }),
-                rollout: { rolling, healthyWithin: { seconds: 60n, nanos: 0 }, ...(rolling ? {} : { ports: ["8080/tcp"] }) },
+                rollout: {
+                  rolling,
+                  healthyWithin: { seconds: 60n, nanos: 0 },
+                  ...(rolling ? {} : { ports: ["8080/tcp"] }),
+                },
               },
             ],
           },
@@ -378,35 +442,45 @@ describe("restarting an app", () => {
   it.each([
     { rolling: true, reads: /A new container takes over/ },
     { rolling: false, reads: /about 13 s/ },
-  ])("asks for a plan, says what it does for this app, and has no undo (rolling: $rolling)", async ({ rolling, reads }) => {
-    const user = userEvent.setup();
-    const asked: RestartServiceRequest[] = [];
-    renderAt("/apps/svc_web", api([web], running(web), {
-      changes: {
-        watchChange: feed<WatchChangeResponse>().stream,
-        discardChange: () => ({}),
-        restartService: (req) => {
-          asked.push(req);
-          return { change: plan(rolling) };
-        },
-      },
-    }));
-    await user.click(await screen.findByRole("button", { name: "Restart" }));
-    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
-    expect(asked[0]?.id).toBe("svc_web");
-    expect(sheet).toHaveTextContent(reads);
-    expect(sheet).toHaveTextContent("A restart has no undo, as it changes nothing to go back to.");
-    expect(sheet.querySelector(".dw-sheet-note")).toHaveTextContent("No undo");
-    expect(sheet).not.toHaveTextContent(/Undo for \d+ days/);
-    await expectAccessible(document.body);
-  });
+  ])(
+    "asks for a plan, says what it does for this app, and has no undo (rolling: $rolling)",
+    async ({ rolling, reads }) => {
+      const user = userEvent.setup();
+      const asked: RestartServiceRequest[] = [];
+      renderAt(
+        "/apps/svc_web",
+        api([web], running(web), {
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            restartService: (req) => {
+              asked.push(req);
+              return { change: plan(rolling) };
+            },
+          },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Restart" }));
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(asked[0]?.id).toBe("svc_web");
+      expect(sheet).toHaveTextContent(reads);
+      expect(sheet).toHaveTextContent("A restart has no undo, as it changes nothing to go back to.");
+      expect(sheet.querySelector(".dw-sheet-note")).toHaveTextContent("No undo");
+      expect(sheet).not.toHaveTextContent(/Undo for \d+ days/);
+      await expectAccessible(document.body);
+    },
+  );
 
   it("isn't offered while it's moving, or where it has no server", async () => {
     const moving = anApp(
       "web",
       "nginx",
       {},
-      { changeId: "chg_1", changeState: ChangeState.APPLYING, deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }] },
+      {
+        changeId: "chg_1",
+        changeState: ChangeState.APPLYING,
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+      },
     );
     const page = renderAt("/apps/svc_web", api([moving]));
     await screen.findByRole("heading", { level: 1, name: "web" });
@@ -431,14 +505,17 @@ describe("how it has run lately, on its page", () => {
 
   it("asks for this app's health alone, a few at a time, and says how a flapping app has gone in one line", async () => {
     const asked: ListEventsRequest[] = [];
-    const { container } = renderAt("/apps/svc_web", api([web], running(web), {
-      events: {
-        listEvents: (req) => {
-          asked.push(req);
-          return { events: [event("evt_1", HealthState.UNHEALTHY, 7, "GET / answered 503")] };
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api([web], running(web), {
+        events: {
+          listEvents: (req) => {
+            asked.push(req);
+            return { events: [event("evt_1", HealthState.UNHEALTHY, 7, "GET / answered 503")] };
+          },
         },
-      },
-    }));
+      }),
+    );
     const panel = await screen.findByRole("region", { name: "Recent health" });
     const health = asked.find((r) => r.kinds.includes(EventKind.HEALTH));
     expect(health?.resourceId).toBe("svc_web");

@@ -1881,7 +1881,7 @@
   font-family: var(--font-sans);
 }
 
-.app-check {
+.app-health-check {
   overflow-wrap: anywhere;
 }
 

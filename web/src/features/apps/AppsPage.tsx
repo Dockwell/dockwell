@@ -50,7 +50,7 @@ import {
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, useHealthWords } from "./Health";
-import { type AppHealth, healthNeedsALook, type HealthView, useHealth, worstHealth } from "./health";
+import { type AppHealth, type HealthView, healthNeedsALook, useHealth, worstHealth } from "./health";
 import { ImageName } from "./ImageName";
 import { usePlaces, useServices, useServicesLive } from "./useServices";
 import { useAppWords } from "./words";
@@ -659,11 +659,15 @@ function PhoneList({
               <span className="apps-phone-text">
                 <span className="apps-phone-name">{row.group.name}</span>
                 <span className="apps-phone-sub">
-                  <span className={`apps-phone-word dw-tone-${STATUS[runs.status].tone}`}>{healthWords.word(runs)}</span>
+                  <span className={`apps-phone-word dw-tone-${STATUS[runs.status].tone}`}>
+                    {healthWords.word(runs)}
+                  </span>
                   {recordSaysMore(state) ? (
                     <>
                       <span aria-hidden="true">·</span>
-                      <span className={`apps-phone-word dw-tone-${STATUS[state.status].tone}`}>{words.state(state)}</span>
+                      <span className={`apps-phone-word dw-tone-${STATUS[state.status].tone}`}>
+                        {words.state(state)}
+                      </span>
                     </>
                   ) : null}
                   <span aria-hidden="true">·</span>

@@ -619,7 +619,10 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
   return (
     <div className="deploy-body">
       {change?.state === ChangeState.FAILED ? (
-        <RollbackLine change={change} subject={rollbackSubject(change.plan, { id: service.id, name: appName, changes: rev.changes })} />
+        <RollbackLine
+          change={change}
+          subject={rollbackSubject(change.plan, { id: service.id, name: appName, changes: rev.changes })}
+        />
       ) : null}
       {(change?.state === ChangeState.FAILED || failed) && !wentOffline(change) ? (
         <FailureNotice message={failed?.error || change?.error || ""} detail={failedStep(change)?.detail} />

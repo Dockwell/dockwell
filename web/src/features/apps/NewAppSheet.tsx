@@ -1276,7 +1276,13 @@ function BesideTheFile({
                 <Button variant="ghost" size="sm" icon="upload" onClick={() => input.current?.click()}>
                   <Trans>Choose a file</Trans>
                 </Button>
-                <Button variant="ghost" size="sm" icon="eye" aria-pressed={shown} onClick={() => setShown((was) => !was)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="eye"
+                  aria-pressed={shown}
+                  onClick={() => setShown((was) => !was)}
+                >
                   {shown ? <Trans>Hide</Trans> : <Trans>Show</Trans>}
                 </Button>
               </>

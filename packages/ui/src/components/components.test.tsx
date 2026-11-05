@@ -41,7 +41,16 @@ describe("Icon", () => {
 
 describe("Glyph", () => {
   it("draws each status shape, hidden from assistive technology", () => {
-    for (const shape of ["circle", "triangle", "square", "spinner", "ring", "dotted-ring", "dashed-ring", "info"] as const) {
+    for (const shape of [
+      "circle",
+      "triangle",
+      "square",
+      "spinner",
+      "ring",
+      "dotted-ring",
+      "dashed-ring",
+      "info",
+    ] as const) {
       const { container, unmount } = render(<Glyph shape={shape} />);
       const svg = container.querySelector("svg");
       expect(svg).toHaveAttribute("aria-hidden", "true");
