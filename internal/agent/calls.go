@@ -82,7 +82,13 @@ func (c *calls) start(call *agentv1.Call) {
 	go func() {
 		defer c.wg.Done()
 		defer c.done(call.GetId())
-		c.reply(call.GetId(), c.run(ctx, call))
+		result := c.run(ctx, call)
+		// A step cut short because this stream is ending can only say it was
+		// cancelled. Sending nothing lets the control plane say what's true:
+		// the agent disconnected, and the step may or may not have run.
+		if c.ctx.Err() == nil || result.GetError() == nil {
+			c.reply(call.GetId(), result)
+		}
 	}()
 }
 
