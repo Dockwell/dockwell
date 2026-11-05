@@ -1435,9 +1435,10 @@ type Route struct {
 	// a public range wider than /12, or /28 in IPv6, or a private one wider than /8,
 	// isn't taken.
 	TrustedProxies []string `protobuf:"bytes,6,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
-	// A port on the server itself, such as 8080, for something that isn't a
-	// container, in place of service and port. The proxy dials 127.0.0.1 on it, so
-	// what's there sees every caller as local. It reaches past containers, so a
+	// A port on the server itself, such as 8080, in place of service and port, for
+	// something that isn't a Dockwell service, or a service on the server's own
+	// network, which a route can't send to by name. The proxy dials 127.0.0.1 on it,
+	// so what's there sees every caller as local. It reaches past containers, so a
 	// person approves it, and any change to where it answers. Dockwell's own ports,
 	// and Docker's API on 2375 and 2376, aren't taken.
 	HostPort uint32 `protobuf:"varint,7,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`

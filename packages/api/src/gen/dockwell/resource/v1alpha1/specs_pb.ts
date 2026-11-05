@@ -784,9 +784,10 @@ export type Route = Message<"dockwell.resource.v1alpha1.Route"> & {
   trustedProxies: string[];
 
   /**
-   * A port on the server itself, such as 8080, for something that isn't a
-   * container, in place of service and port. The proxy dials 127.0.0.1 on it, so
-   * what's there sees every caller as local. It reaches past containers, so a
+   * A port on the server itself, such as 8080, in place of service and port, for
+   * something that isn't a Dockwell service, or a service on the server's own
+   * network, which a route can't send to by name. The proxy dials 127.0.0.1 on it,
+   * so what's there sees every caller as local. It reaches past containers, so a
    * person approves it, and any change to where it answers. Dockwell's own ports,
    * and Docker's API on 2375 and 2376, aren't taken.
    *
