@@ -168,6 +168,13 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Changes != nil && (cfg.Agents == nil || cfg.Store == nil) {
 		return nil, errors.New("control: Config.Changes needs Config.Agents and Config.Store")
 	}
+	// Each stream sends a step the keeper's values it needs, and asks the keeper
+	// what on a server names one, of an agent that doesn't write them in. Without a
+	// keeper, such an agent is refused all it would read (agentapi.Agents.CheckNaming).
+	if cfg.Agents != nil && cfg.Secrets != nil {
+		cfg.Agents.SendValues(cfg.Secrets)
+		cfg.Agents.CheckNaming(cfg.Secrets)
+	}
 	if cfg.Identity != nil {
 		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, agentapi.WithAgents(cfg.Agents))
 		s.agentTLS = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)

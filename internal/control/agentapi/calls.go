@@ -201,8 +201,8 @@ type Naming interface {
 
 // CheckNaming has each stream ask naming, of an agent that doesn't say it writes a
 // container's references in, which of what it reads, plans and applies names values,
-// and refuse those (Session.checkReads). Without it, nothing is asked, as in tests
-// that run no keeper.
+// and refuse those (Session.checkReads). Without it, such an agent is refused all of
+// them.
 func (a *Agents) CheckNaming(naming Naming) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -855,7 +855,10 @@ func (s *Session) checkWrites(ref resource.Ref, spec proto.Message) error {
 // refs that names values on this server, now or in what the server was given. Such an
 // agent reads a container's command as Docker has it, so what it reports of one,
 // whatever the spec it is asked about, would carry a value into drift and plans. The
-// whole call is refused, so drift reports the server as unchecked, and says why.
+// whole call is refused, so drift reports the server as unchecked, and says why. With
+// nothing to ask, as when CheckNaming was never called, everything counts as naming
+// values, so a control plane that forgot it reads nothing of such an agent's rather
+// than everything.
 func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 	if s.writesReferences || len(refs) == 0 {
 		return nil
@@ -864,7 +867,8 @@ func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 	naming := s.agents.naming
 	s.agents.mu.Unlock()
 	if naming == nil {
-		return nil
+		return fmt.Errorf("%w: the agent on %s is from before a command could name a value, and this control plane can't tell what on %s names one, so it reads, plans and applies nothing there. "+
+			"Update the agent on %s", resource.ErrAgentTooOld, s.name, s.name, s.name)
 	}
 	named, err := naming.NamingValues(ctx, s.server, refs)
 	if err != nil {

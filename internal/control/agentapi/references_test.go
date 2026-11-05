@@ -20,7 +20,7 @@ import (
 // who can read the plan knows. So one that doesn't say it writes them in gets no such
 // spec, to plan or to apply, and is told to update.
 func TestAnAgentThatDoesntWriteReferencesGetsNone(t *testing.T) {
-	naming := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+	names := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
 		Image: "redis:8", Command: []string{"redis-server", "--requirepass", "${PW}"},
 		Env: map[string]string{"PW": "x"}, References: []string{"command"},
 	}}}
@@ -29,6 +29,8 @@ func TestAnAgentThatDoesntWriteReferencesGetsNone(t *testing.T) {
 	errSent := errors.New("the test stops the call here")
 	open := func(writes bool) *Session {
 		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
+		// Nothing on the server names values yet, so only what goes out is checked.
+		a.CheckNaming(&naming{})
 		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: writes}, func(*agentv1.ConnectResponse) error { return errSent })
 	}
 	calls := map[string]func(*Session, proto.Message) error{
@@ -49,13 +51,13 @@ func TestAnAgentThatDoesntWriteReferencesGetsNone(t *testing.T) {
 				err := call(on, spec)
 				return err != nil && strings.Contains(err.Error(), says)
 			}
-			if !refused(open(false), naming) {
+			if !refused(open(false), names) {
 				t.Error("an old agent got a spec that names values")
 			}
-			if refused(open(false), plain) {
-				t.Error("an old agent was refused a spec that names nothing")
+			if err := call(open(false), plain); !errors.Is(err, resource.ErrNotConnected) {
+				t.Errorf("an old agent was refused a spec that names nothing: %v", err)
 			}
-			if refused(open(true), naming) {
+			if refused(open(true), names) {
 				t.Error("a new agent was refused a spec that names values")
 			}
 		})

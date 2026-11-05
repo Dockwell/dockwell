@@ -31,7 +31,7 @@ func TestACallOutOfTimeSaysSoWhicheverEndComesFirst(t *testing.T) {
 		var s *Session
 		// The agent answers once the call's time has run out, before the
 		// call goes on to wait for its result: both are ready at once.
-		s = a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}}, func(msg *agentv1.ConnectResponse) error {
+		s = a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}, WritesReferences: true}, func(msg *agentv1.ConnectResponse) error {
 			if c := msg.GetCall(); c != nil {
 				<-ctx.Done()
 				r := fresh(answer)
@@ -68,7 +68,7 @@ func TestALogsCallTakesTheAgentsAnswerAsItsStreamEnds(t *testing.T) {
 	run := func(answer *agentv1.CallResult, moving bool) error {
 		a := NewAgents(kinds, slog.New(slog.DiscardHandler))
 		calls := make(chan *agentv1.Call, 1)
-		s := a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}}, func(msg *agentv1.ConnectResponse) error {
+		s := a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}, WritesReferences: true}, func(msg *agentv1.ConnectResponse) error {
 			if c := msg.GetCall(); c != nil {
 				calls <- c
 			}
@@ -287,7 +287,7 @@ func TestACallGetsTheTimeItsPlanTakes(t *testing.T) {
 	a := NewAgents(kinds, slog.New(slog.DiscardHandler))
 	var s *Session
 	var timeout time.Duration
-	s = a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}}, func(msg *agentv1.ConnectResponse) error {
+	s = a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}, WritesReferences: true}, func(msg *agentv1.ConnectResponse) error {
 		if c := msg.GetCall(); c != nil {
 			timeout = c.GetTimeout().AsDuration()
 			s.deliver(&agentv1.CallResult{Id: c.GetId(), Result: &agentv1.CallResult_Apply{Apply: &agentv1.ApplyResult{}}})

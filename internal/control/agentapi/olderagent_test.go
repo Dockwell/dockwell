@@ -76,3 +76,35 @@ func TestAnOlderAgentIsRefusedWhatNamesAValueAtEveryEntry(t *testing.T) {
 		})
 	}
 }
+
+// With nothing wired to say what names values, an older agent is refused all of it,
+// what names nothing included, rather than given it: a control plane that forgot
+// CheckNaming fails closed. An agent that writes references in is never asked.
+func TestAnOlderAgentIsRefusedEverythingWhenNothingCanSay(t *testing.T) {
+	web := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "web"}
+	plain := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "redis:8", Command: []string{"redis-server"}}}}
+	errSent := errors.New("the test stops the call here")
+	open := func(writes bool) *Session {
+		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: writes}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	for name, entry := range map[string]func(*Session) error{
+		"reading back": func(s *Session) error {
+			_, err := s.Observe(t.Context(), []resource.Ref{web})
+			return err
+		},
+		"planning": func(s *Session) error {
+			_, err := s.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: plain}})
+			return err
+		},
+		"applying": func(s *Session) error { return s.Apply(t.Context(), resource.Step{Ref: web}, plain) },
+	} {
+		if err := entry(open(false)); !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "Update the agent on hz-1") {
+			t.Errorf("%s, an older agent with nothing to say what names values = %v", name, err)
+		}
+		// What goes out fails as the stream does, which a refusal comes before.
+		if err := entry(open(true)); !errors.Is(err, resource.ErrNotConnected) {
+			t.Errorf("%s, an agent that writes references in, with nothing to say what names values = %v", name, err)
+		}
+	}
+}
