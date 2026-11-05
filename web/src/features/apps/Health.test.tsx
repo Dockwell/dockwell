@@ -192,7 +192,7 @@ describe("the list's order", () => {
     expect(screen.queryByRole("button", { name: "Show them first" })).not.toBeInTheDocument();
   });
 
-  it("keeps the revision's column narrow until a row's record has a word to add", async () => {
+  it("keeps the revision's column as it is whatever a row's record says, and narrow", async () => {
     const deploying = anApp(
       "web",
       "nginx:1.27",
@@ -205,11 +205,11 @@ describe("the list's order", () => {
     );
     const first = renderAt("/apps", api([quiet], running(quiet)));
     await waitFor(() => expect(rowNames()).toEqual(["quiet"]));
-    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "96px" });
+    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "128px" });
     first.unmount();
     renderAt("/apps", api([deploying], running(deploying)));
     await waitFor(() => expect(screen.getByRole("row", { name: /web/ })).toHaveTextContent("Deploying"));
-    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "176px" });
+    expect(screen.getByRole("columnheader", { name: "Revision" })).toHaveStyle({ width: "128px" });
   });
 
   it("counts as people do among the calm", async () => {

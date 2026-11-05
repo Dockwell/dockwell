@@ -73,6 +73,9 @@ const ORDER_WAIT_MS = 3_000;
 /** The most rows the list holds the place of while it waits. */
 const HELD_ROWS = 12;
 
+/** Room for a revision, such as r1284, and for most of what a record says beside it on one line. */
+const REVISION_WIDTH = 128;
+
 /** A SegmentedControl holds up to five; past that, a select. */
 const SEGMENTS = 5;
 
@@ -495,8 +498,12 @@ function useLead(
   return { lead: going ? `${total} · ${going}` : total, total, going };
 }
 
-/** The columns' heads, which the list and its skeleton share so nothing moves when it lands. A revision alone is short; with what its record says, it needs room. */
-function useColumnHeads(fleet: boolean, wide: boolean, recordWords = false) {
+/**
+ * The columns' heads, which the list and its skeleton share so nothing moves when it
+ * lands. Nothing a row says moves them either: a revision is short, and what its record
+ * says beside it wraps under it rather than widen the column.
+ */
+function useColumnHeads(fleet: boolean, wide: boolean) {
   const { t } = useLingui();
   return useMemo(() => {
     const heads: { key: string; header: string; width?: number | string; align?: "right" }[] = [
@@ -505,12 +512,12 @@ function useColumnHeads(fleet: boolean, wide: boolean, recordWords = false) {
     if (wide) heads.push({ key: "image", header: t`Image`, width: "42%" });
     heads.push(
       { key: "status", header: t`Status`, width: 128 },
-      { key: "revision", header: t`Revision`, width: recordWords ? 176 : 96 },
+      { key: "revision", header: t`Revision`, width: REVISION_WIDTH },
     );
     if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 168 });
     heads.push({ key: "deployed", header: t`Deployed`, width: 104, align: "right" });
     return heads;
-  }, [t, fleet, wide, recordWords]);
+  }, [t, fleet, wide]);
 }
 
 interface TableProps {
@@ -545,12 +552,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
   const titleOf = useRowTitle();
   const time = useTimeWords();
   const wide = useMediaQuery(IMAGE_COLUMN_QUERY);
-  const recordWords = useMemo(
-    () =>
-      rows.some((row) => recordSaysMore(row.service ? appState(row.service, servers) : groupState(row.group, servers))),
-    [rows, servers],
-  );
-  const heads = useColumnHeads(fleet, wide, recordWords);
+  const heads = useColumnHeads(fleet, wide);
   const newest = useMemo(() => {
     let out: Date | undefined;
     for (const row of rows) {
