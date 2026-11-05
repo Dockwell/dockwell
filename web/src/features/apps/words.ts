@@ -38,7 +38,7 @@ export function useAppWords(): AppWords {
           case "unplaced":
             return t`Not placed`;
           case "unknown":
-            return t`Deployed`;
+            return t({ message: "Deployed", context: "An app whose servers the fleet hasn't said anything about yet" });
         }
       },
       deployment(state) {

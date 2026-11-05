@@ -94,8 +94,28 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
     fail("New app asks where to run with one server");
   await shoot(page, "apps-new");
 
+  step(
+    `apps: an image that won't run (${failing}) fails, Dockwell takes it away again, and the form comes back as you left it`,
+  );
+  await sheet.getByLabel("Image", { exact: true }).fill(failing);
+  await sheet.getByLabel("Name").fill("doomed");
+  await sheet.getByRole("button", { name: /Review plan/ }).click();
+  await page
+    .getByRole("dialog", { name: "Review plan" })
+    .getByRole("button", { name: /Apply plan/ })
+    .click();
+  const refused = page.getByRole("dialog", { name: "The change failed" });
+  await refused.waitFor({ timeout: 120_000 });
+  await shoot(page, "apps-first-failed");
+  await refused.getByRole("button", { name: "Done", exact: true }).click();
+  await sheet.waitFor();
+  if ((await sheet.getByLabel("Image", { exact: true }).inputValue()) !== failing) fail("the form lost what you typed");
+  for (let i = 0; i < 100 && (await docker()).some((c) => c.running); i++) await page.waitForTimeout(100);
+  if ((await docker()).some((c) => c.running)) fail(`Docker still runs what failed: ${JSON.stringify(await docker())}`);
+
   step(`apps: run ${FIRST}, review its plan, apply it with its progress in the sheet, and land on the app`);
   await sheet.getByLabel("Image", { exact: true }).fill(FIRST);
+  await sheet.getByLabel("Name").fill("");
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   const plan = page.getByRole("dialog", { name: "Review plan" });
   await plan.waitFor({ timeout: 30_000 });
@@ -192,6 +212,41 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
     if ((await page.getByRole("button", { name: `Roll back to ${same}` }).count()) > 0)
       fail(`it offers to roll back to ${same}, which matches what runs`);
   }
+
+  step("apps: on the narrowest phone nothing widens the page, the tabs fit, and the address reads whole");
+  const wideAt = page.url();
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto(wideAt);
+  await page.getByText("The last deploy failed, so Dockwell rolled it back").waitFor();
+  const fits = await page.evaluate(() => {
+    const at = document.querySelector(".app-reach-at");
+    const tabs = document.querySelector(".dw-tabs");
+    const callout = document.querySelector(".dw-callout code");
+    const actions = document.querySelector(".dw-callout-actions");
+    const body = document.querySelector(".dw-callout-body");
+    return {
+      page: document.documentElement.scrollWidth - window.innerWidth,
+      address: at ? at.scrollWidth - at.clientWidth : -1,
+      tabs: tabs ? tabs.scrollWidth - tabs.clientWidth : -1,
+      // What the flow's short image can't show by itself: a long one would wrap,
+      // and the actions sit under the text, so it keeps the width.
+      callout: {
+        wraps: callout ? getComputedStyle(callout).overflowWrap : "",
+        stacked: (actions?.getBoundingClientRect().top ?? 0) >= (body?.getBoundingClientRect().bottom ?? 1),
+      },
+      offers: [...document.querySelectorAll(".app-actionbar .dw-btn")].map((b) => b.textContent),
+    };
+  });
+  if (fits.page > 0) fail(`at 360 px the page is ${fits.page} px too wide`);
+  if (fits.address !== 0) fail(`at 360 px the address is clipped by ${fits.address} px`);
+  if (fits.tabs > 0) fail(`at 360 px the tabs overflow by ${fits.tabs} px`);
+  if (fits.offers.join() !== "Deploy") fail(`the thumb bar offers ${fits.offers.join()}`);
+  if (fits.callout.wraps !== "anywhere") fail(`a callout's image wraps as ${fits.callout.wraps}`);
+  if (!fits.callout.stacked) fail("at 360 px a callout's actions don't sit under its text");
+  await shoot(page, "apps-phone");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(wideAt);
+
   await page.getByRole("link", { name: /Deployments/ }).click();
   await page.getByRole("row", { name: /r5/ }).getByText("Failed").waitFor();
   await page.getByRole("row", { name: /r6/ }).getByText("Rolled back after a failed deploy").waitFor();
@@ -203,6 +258,26 @@ export async function appsFlow(page: Page, { origin, step, shoot, docker, port, 
   await page.getByRole("row", { name: /nginx/ }).getByText("Rolled back").waitFor();
   const columnNow = await statusColumn(page);
   if (columnNow !== columnAt) fail(`"Rolled back" moved the Status column from ${columnAt} to ${columnNow}`);
+  // A word that isn't as short as these would still leave them where they are.
+  const layout = await page.locator(".apps-table table").evaluate((table) => getComputedStyle(table).tableLayout);
+  if (layout !== "fixed") fail(`the list's columns follow their content: table-layout is ${layout}`);
+  // A status word is ink, and its shape carries the tone.
+  const colours = await page
+    .getByRole("row", { name: /nginx/ })
+    .locator(".dw-status")
+    .evaluate((badge) => {
+      const glyph = badge.querySelector(".dw-glyph");
+      const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();
+      const probe = document.createElement("span");
+      probe.style.color = ink;
+      document.body.append(probe);
+      const inkColour = getComputedStyle(probe).color;
+      probe.remove();
+      return { word: getComputedStyle(badge).color, glyph: glyph ? getComputedStyle(glyph).color : "", ink: inkColour };
+    });
+  if (colours.word !== colours.ink || colours.glyph === colours.ink) {
+    fail(`a status badge's word is ${colours.word} and its shape ${colours.glyph}, with ink at ${colours.ink}`);
+  }
   await page.getByRole("row", { name: /nginx/ }).getByRole("link", { name: "nginx" }).click();
 
   step("apps: export it as a Compose file, with no secrets in it");

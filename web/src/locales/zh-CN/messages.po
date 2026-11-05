@@ -285,9 +285,17 @@ msgstr "{reads}，按 SELinux 重新标记为私有"
 msgid "{reads}, relabelled for SELinux as shared"
 msgstr "{reads}，按 SELinux 重新标记为共享"
 
-#: src/features/apps/AppOverview.tsx
+#: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
 msgstr "{revision} 部署于 {when}"
+
+#: src/features/apps/revision.ts
+msgid "{revision} deployed {when} by {name}"
+msgstr "{revision} 于 {when}由 {name} 部署"
+
+#: src/features/apps/revision.ts
+msgid "{revision} deployed {when} from the CLI on {local}"
+msgstr "{revision} 于 {when}通过 {local} 上的命令行部署"
 
 #: src/features/apps/AppOverview.tsx
 msgid "{revision} started deploying {when}"
@@ -719,10 +727,6 @@ msgstr "恢复服务器保留的数据"
 msgid "By"
 msgstr "执行者"
 
-#: src/features/apps/revision.ts
-msgid "by {name}"
-msgstr "由 {name} 部署"
-
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
 msgstr "无法检查你的会话"
@@ -1049,11 +1053,11 @@ msgstr "无法更改 {field} 等 {more} 项"
 
 #: src/features/apps/revision.ts
 msgid "Couldn't create from"
-msgstr "无法创建，镜像："
+msgstr "未能创建自"
 
 #: src/features/apps/revision.ts
 msgid "Couldn't deploy"
-msgstr "无法部署"
+msgstr "未能部署"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -1112,7 +1116,7 @@ msgstr "创建了 API 令牌"
 
 #: src/features/apps/revision.ts
 msgid "Created from"
-msgstr "已创建，镜像："
+msgstr "创建自"
 
 #: src/features/activity/describe.ts
 msgid "Created the API token {name}"
@@ -1120,7 +1124,7 @@ msgstr "创建了 API 令牌 {name}"
 
 #: src/features/apps/revision.ts
 msgid "Creating from"
-msgstr "正在创建，镜像："
+msgstr "正在创建自"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Creating passkey"
@@ -1182,14 +1186,30 @@ msgstr "部署你的第一个应用"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
-#: src/features/apps/revision.ts
-#: src/features/apps/words.ts
 msgid "Deployed"
 msgstr "部署时间"
 
-#: src/features/apps/AppLayout.tsx
+#: src/features/apps/words.ts
+msgctxt "An app whose servers the fleet hasn't said anything about yet"
+msgid "Deployed"
+msgstr "已部署"
+
+#: src/features/apps/revision.ts
+msgctxt "What a revision did, before the image it deployed"
+msgid "Deployed"
+msgstr "已部署"
+
+#: src/features/apps/revision.ts
 msgid "deployed {ago}"
 msgstr "部署于 {ago}"
+
+#: src/features/apps/revision.ts
+msgid "deployed {ago} by {name}"
+msgstr "{ago}由 {name} 部署"
+
+#: src/features/apps/revision.ts
+msgid "deployed {ago} from the CLI on {local}"
+msgstr "{ago}通过 {local} 上的命令行部署"
 
 #: src/app/Providers.tsx
 #: src/features/apps/revision.ts
@@ -1528,10 +1548,6 @@ msgstr "来自 API"
 #: src/features/changes/words.ts
 msgid "From the CLI"
 msgstr "来自 CLI"
-
-#: src/features/apps/revision.ts
-msgid "from the CLI on {local}"
-msgstr "来自 {local} 上的命令行"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
@@ -2337,10 +2353,6 @@ msgstr "这里已有其他应用，因此需要单独的名称，例如 <0>shop<
 msgid "Other apps on its network reach it by this name."
 msgstr "同一网络上的其他应用通过此名称访问它。"
 
-#: src/features/apps/AddPortSheet.tsx
-msgid "Outside the server, people reach the app through it"
-msgstr "服务器外部通过它访问这个应用"
-
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
 #: src/features/shell/Rail.tsx
@@ -2413,9 +2425,9 @@ msgstr "暂停"
 msgid "Paused"
 msgstr "已暂停"
 
-#: src/features/changes/words.ts
-msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
-msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它前面的任何东西"
+#: src/features/apps/AddPortSheet.tsx
+msgid "People outside the server reach the app through this port"
+msgstr "服务器外部的用户通过这个端口访问应用"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
@@ -2672,12 +2684,9 @@ msgid "Resources"
 msgstr "资源"
 
 #: src/features/apps/AppOverview.tsx
-msgid "Restart policy"
-msgstr "重启策略"
-
 #: src/features/changes/words.ts
 msgid "Restarts"
-msgstr "会重启"
+msgstr "重启策略"
 
 #: src/app/Providers.tsx
 msgid "Results"

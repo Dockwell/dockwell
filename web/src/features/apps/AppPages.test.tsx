@@ -446,7 +446,7 @@ describe("an app's overview", () => {
     const second = renderAt("/apps/svc_web", api([failed]));
     const alert = await second.findByRole("alert");
     expect(alert).toHaveTextContent("The last deploy of web failed");
-    expect(alert).toHaveTextContent("Hz-1: applied web, but it isn't healthy");
+    expect(alert).toHaveTextContent("hz-1: applied web, but it isn't healthy");
     expect(alert).not.toHaveTextContent("env_1");
     second.unmount();
 
@@ -808,7 +808,7 @@ describe("an app's deployments", () => {
     );
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Why it failed");
-    expect(alert).toHaveTextContent("Hz-1: it exits");
+    expect(alert).toHaveTextContent("hz-1: it exits");
     expect(alert).toHaveTextContent("Dockwell rolled back the steps already done.");
     expect(screen.queryByRole("button", { name: /Roll back to/ })).not.toBeInTheDocument();
     expect(screen.getByRole("row", { name: /r5/ })).toHaveTextContent("Rolled back after a failed deploy");

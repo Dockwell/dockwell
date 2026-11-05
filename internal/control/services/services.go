@@ -238,7 +238,7 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 	}
 	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (string, error) {
 		if app.GetImage() == m.GetImage() {
-			return "", authapi.Invalid(fmt.Errorf("%s already runs %s. Name another image, such as a new tag", name, m.GetImage()))
+			return "", authapi.Invalid(fmt.Errorf("the service %s already runs %s. Name another image, such as a new tag", name, m.GetImage()))
 		}
 		app.Image = m.GetImage()
 		return cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", m.GetImage(), name)), nil
@@ -262,7 +262,7 @@ func (h *Handler) AddServicePort(ctx context.Context, req *connect.Request[dockw
 	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), func(name string, app *resourcev1.Container) (string, error) {
 		for _, p := range app.GetPorts() {
 			if p.GetHostPort() == m.GetHostPort() && p.GetProtocol() == protocol && p.GetHostIp() == m.GetHostIp() {
-				return "", authapi.Invalid(fmt.Errorf("%s already publishes port %d. Choose another port on the server", name, m.GetHostPort()))
+				return "", authapi.Invalid(fmt.Errorf("the service %s already publishes port %d. Choose another port on the server", name, m.GetHostPort()))
 			}
 		}
 		app.Ports = append(app.Ports, &resourcev1.PortMapping{

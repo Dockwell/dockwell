@@ -254,7 +254,8 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		f.Volumes[v.Name] = entry
 	}
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "# Written by Dockwell. Its project, %s, is the\n# environment's, so docker compose sees what Dockwell runs.\n", project)
+	buf.WriteString("# Written by Dockwell. Its name is the Compose project Dockwell runs it in, so\n" +
+		"# docker compose sees what Dockwell runs.\n")
 	if len(omitted) > 0 {
 		buf.WriteString("# A variable written as NAME: null is there on purpose. Its value may be a secret,\n" +
 			"# so it is left out: set it in your shell, or in an .env file beside this one,\n" +

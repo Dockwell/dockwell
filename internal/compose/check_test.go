@@ -3,6 +3,7 @@
 package compose
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -99,5 +100,23 @@ func TestVariablesLeavesAFileThatComesToTooMuch(t *testing.T) {
 	}
 	if got := Inspect(t.Context(), []byte(b.String()), nil).Variables; got != nil {
 		t.Errorf("Variables = %+v, want none", got)
+	}
+}
+
+// A file that isn't YAML is said at the line the parser gave up on, the last it
+// names, in words for people.
+func TestNotYAML(t *testing.T) {
+	err := notYAML(errors.New("yaml: while parsing a block mapping at line 1, did not find expected key at line 6"))
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("notYAML = %v, want it invalid", err)
+	}
+	if got := Message(err); got != "line 6: check the indentation, and that quotes and brackets close" {
+		t.Errorf("it says %q", got)
+	}
+	if got := Line(t.Context(), []byte("a: [\n"), err); got != 6 {
+		t.Errorf("Line = %d, want the last line it names, 6", got)
+	}
+	if got := Message(notYAML(errors.New("yaml: no line here"))); strings.Contains(got, "yaml:") {
+		t.Errorf("with no line, it says the parser's words: %q", got)
 	}
 }

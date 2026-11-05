@@ -51,6 +51,9 @@ const DEPLOYMENT_LOOKS: Partial<Record<DeploymentState, Status>> = {
   [DeploymentState.PENDING]: "deploying",
 };
 
+/** From this wide, the list has room for how long each revision took. */
+const ROOMY_QUERY = "(min-width: 900px)";
+
 /** Where a change came from, by its mark: a person, a token, or Dockwell. */
 function triggerIcon(rev: ServiceRevision): IconName {
   if (rev.change?.reverts || rev.rolledBackTo > 0n) return "undo";
@@ -81,6 +84,7 @@ export function AppDeployments() {
   const { t, i18n } = useLingui();
   const { service, state } = useApp();
   const phone = useMediaQuery(PHONE_QUERY);
+  const roomy = useMediaQuery(ROOMY_QUERY);
   const time = useTimeWords();
   const look = useRevisionLook();
   const revisionTitle = useRevisionTitle();
@@ -122,13 +126,13 @@ export function AppDeployments() {
       {
         key: "number",
         header: t`Revision`,
-        width: 80,
+        width: 72,
         render: (rev) => <code className="deploy-number">{revisionName(rev.number)}</code>,
       },
       {
         key: "status",
         header: t`Status`,
-        width: 116,
+        width: 112,
         render: (rev) => {
           const { status, word } = look(rev, latest, state);
           return <StatusBadge status={status} label={word} labelIsState title={word} className="apps-status" />;
@@ -137,19 +141,24 @@ export function AppDeployments() {
       {
         key: "what",
         header: t`What changed`,
-        render: (rev) => (
-          <span className="dw-cell">
-            <span className="dw-cell-title deploy-clip">{revisionTitle(rev)}</span>
-            <span className="deploy-what">
-              <ChangedLine rev={rev} />
+        render: (rev) => {
+          const title = revisionTitle(rev);
+          return (
+            <span className="dw-cell">
+              <span className="dw-cell-title deploy-clip" title={title.text}>
+                {title.node}
+              </span>
+              <span className="deploy-what">
+                <ChangedLine rev={rev} />
+              </span>
             </span>
-          </span>
-        ),
+          );
+        },
       },
       {
         key: "who",
         header: t`By`,
-        width: 164,
+        width: 136,
         render: (rev) => {
           const name = who.name(rev.change);
           const via = rev.change ? words.via(rev.change.appliedVia || rev.change.proposedVia) : "";
@@ -167,17 +176,20 @@ export function AppDeployments() {
         },
       },
     ];
-    out.push({
-      key: "took",
-      header: t`Took`,
-      width: 76,
-      align: "right",
-      muted: true,
-      render: (rev) => {
-        const ms = took(rev);
-        return ms === undefined ? "" : time.bound(ms);
-      },
-    });
+    // How long it took waits in the revision's panel on a screen with no room for it.
+    if (roomy) {
+      out.push({
+        key: "took",
+        header: t`Took`,
+        width: 76,
+        align: "right",
+        muted: true,
+        render: (rev) => {
+          const ms = took(rev);
+          return ms === undefined ? "" : time.bound(ms);
+        },
+      });
+    }
     out.push({
       key: "at",
       header: t`Deployed`,
@@ -194,7 +206,7 @@ export function AppDeployments() {
       },
     });
     return out;
-  }, [t, i18n, latest, look, state, revisionTitle, words, who, time, now]);
+  }, [t, i18n, latest, look, state, revisionTitle, words, who, time, now, roomy]);
 
   const newest = revisions?.[0] ? revisionName(revisions[0].number) : undefined;
   const lastShown = revisions?.[revisions.length - 1];
@@ -243,7 +255,7 @@ export function AppDeployments() {
                       <StatusBadge status={status} label={word} labelIsState />
                       <span className="deploy-phone-time">{time.ago(when, now)}</span>
                     </span>
-                    <span className="deploy-phone-summary">{revisionTitle(rev)}</span>
+                    <span className="deploy-phone-summary">{revisionTitle(rev).node}</span>
                     <span className="deploy-phone-by">{who.name(rev.change)}</span>
                   </button>
                 </li>
@@ -298,7 +310,7 @@ export function AppDeployments() {
         <Sheet
           open
           title={revisionName(selected.number)}
-          subtitle={revisionTitle(selected)}
+          subtitle={revisionTitle(selected).node}
           onClose={() => select(undefined)}
           className="app-sheet is-phone"
           footer={
@@ -357,7 +369,7 @@ function ChangedLine({ rev }: { rev: ServiceRevision }) {
   const changes = rev.changes;
   const [first] = changes;
   if (rev.deleted) return <span>{t`Deleted`}</span>;
-  if (!first || rev.number === 1n) return <ImageName image={rev.image} />;
+  if (!first || rev.number === 1n) return <ImageName image={rev.image} className="deploy-image-name" />;
   const more = changes.length - 1;
   const name = fieldName(first.path);
   const secret = first.sensitive;
@@ -367,7 +379,10 @@ function ChangedLine({ rev }: { rev: ServiceRevision }) {
       {secret ? (
         <span>{t`changed`}</span>
       ) : first.from || first.to ? (
-        <code className="deploy-clip">
+        <code
+          className="deploy-clip"
+          title={first.from && first.to ? `${first.from} → ${first.to}` : first.to || first.from}
+        >
           {first.op === FieldOp.ADDED
             ? first.to
             : first.op === FieldOp.REMOVED
@@ -581,7 +596,8 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
             <dd>{time.bound(duration)}</dd>
           </>
         ) : null}
-        {change?.summary ? (
+        {/* Dockwell's own rollback is said in the title; its plan's words are only for itself. */}
+        {change?.summary && !change.rollback ? (
           <>
             <dt>{t`Plan`}</dt>
             <dd>{change.summary}</dd>

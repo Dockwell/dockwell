@@ -64,15 +64,16 @@
 }
 
 .image-name-path {
-  flex: 0 999 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* It gives up its width only once the path has none left. */
 .image-name-end {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: none;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -164,17 +165,18 @@
 
 /* The filter stays in reach down a long list, and the table's heads below it. */
 .apps-section {
-  --apps-sticky-top: 0px;
+  --apps-sticky-top: var(--scopebar-height);
 }
 
 .apps-section.has-filters {
-  --apps-sticky-top: calc(var(--control-sm) + 2 * var(--space-2));
+  --apps-sticky-top: calc(var(--scopebar-height) + var(--control-sm) + 2 * var(--space-2));
 }
 
+/* Under the top bar, which is sticky too. */
 .apps-filters {
   position: sticky;
-  top: 0;
-  z-index: calc(var(--z-sticky) + 1);
+  top: var(--scopebar-height);
+  z-index: var(--z-sticky);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -413,8 +415,20 @@
   padding: 0 2px;
 }
 
+/* How many, then what is going on with them, quietly, as M-Apps has it. */
 .apps-phone-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
   min-width: 0;
+}
+
+.apps-phone-trouble {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--ink-muted);
 }
 
 .apps-phone-head .apps-new {
@@ -966,6 +980,11 @@
   gap: var(--space-3);
 }
 
+/* The field grows with its file, and leaves room for what is said under it. */
+.new-app .dw-code-input {
+  max-height: 56dvh;
+}
+
 .app-var-label {
   display: inline-flex;
   align-items: baseline;
@@ -1424,6 +1443,11 @@
 
 .app-sheet.is-phone .app-check {
   min-height: 44px;
+}
+
+/* A row of two stacked fields holds together; the next row is apart from it. */
+.app-sheet.is-phone .app-row-group + .app-row-group {
+  margin-top: var(--space-2);
 }
 
 .app-sheet.is-phone .app-port {

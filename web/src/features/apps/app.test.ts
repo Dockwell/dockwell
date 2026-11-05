@@ -182,7 +182,7 @@ describe("the words an app goes by", () => {
       tidyMessage("Service web in env_01M6M9 isn't valid: the server path / mounted at /host is the whole file system"),
     ).toBe("The server path / mounted at /host is the whole file system");
     expect(tidyMessage("hz-1: applied service web in env_01M6M9, but it isn't healthy")).toBe(
-      "Hz-1: applied web, but it isn't healthy",
+      "hz-1: applied web, but it isn't healthy",
     );
   });
 

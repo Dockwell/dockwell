@@ -119,7 +119,6 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const image = imageOf(service);
   const revision = revisionName(service.revision);
   const latest = useRevisions(serviceId).revisions?.[0];
-  const by = who.phrase(latest?.change);
   const ago = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
   const stateWord = words.state(state);
   const moving = isMoving(state);
@@ -144,7 +143,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           <>
             <code>{image}</code>
             {" · "}
-            <Trans>deployed {ago}</Trans> {by}
+            {who.deployed(latest?.change, ago)}
           </>
         )
       }

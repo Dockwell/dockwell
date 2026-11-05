@@ -285,9 +285,17 @@ msgstr "{reads}, relabelled for SELinux as private"
 msgid "{reads}, relabelled for SELinux as shared"
 msgstr "{reads}, relabelled for SELinux as shared"
 
-#: src/features/apps/AppOverview.tsx
+#: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
 msgstr "{revision} deployed {when}"
+
+#: src/features/apps/revision.ts
+msgid "{revision} deployed {when} by {name}"
+msgstr "{revision} deployed {when} by {name}"
+
+#: src/features/apps/revision.ts
+msgid "{revision} deployed {when} from the CLI on {local}"
+msgstr "{revision} deployed {when} from the CLI on {local}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "{revision} started deploying {when}"
@@ -718,10 +726,6 @@ msgstr "Brings back the data the server kept"
 #: src/features/apps/AppDeployments.tsx
 msgid "By"
 msgstr "By"
-
-#: src/features/apps/revision.ts
-msgid "by {name}"
-msgstr "by {name}"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
@@ -1182,14 +1186,30 @@ msgstr "Deploy your first app"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
-#: src/features/apps/revision.ts
-#: src/features/apps/words.ts
 msgid "Deployed"
 msgstr "Deployed"
 
-#: src/features/apps/AppLayout.tsx
+#: src/features/apps/words.ts
+msgctxt "An app whose servers the fleet hasn't said anything about yet"
+msgid "Deployed"
+msgstr "Deployed"
+
+#: src/features/apps/revision.ts
+msgctxt "What a revision did, before the image it deployed"
+msgid "Deployed"
+msgstr "Deployed"
+
+#: src/features/apps/revision.ts
 msgid "deployed {ago}"
 msgstr "deployed {ago}"
+
+#: src/features/apps/revision.ts
+msgid "deployed {ago} by {name}"
+msgstr "deployed {ago} by {name}"
+
+#: src/features/apps/revision.ts
+msgid "deployed {ago} from the CLI on {local}"
+msgstr "deployed {ago} from the CLI on {local}"
 
 #: src/app/Providers.tsx
 #: src/features/apps/revision.ts
@@ -1528,10 +1548,6 @@ msgstr "From the API"
 #: src/features/changes/words.ts
 msgid "From the CLI"
 msgstr "From the CLI"
-
-#: src/features/apps/revision.ts
-msgid "from the CLI on {local}"
-msgstr "from the CLI on {local}"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
@@ -2337,10 +2353,6 @@ msgstr "Other apps are here, so it needs a name of its own, such as <0>shop</0>.
 msgid "Other apps on its network reach it by this name."
 msgstr "Other apps on its network reach it by this name."
 
-#: src/features/apps/AddPortSheet.tsx
-msgid "Outside the server, people reach the app through it"
-msgstr "Outside the server, people reach the app through it"
-
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
 #: src/features/shell/Rail.tsx
@@ -2413,9 +2425,9 @@ msgstr "Pause"
 msgid "Paused"
 msgstr "Paused"
 
-#: src/features/changes/words.ts
-msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
-msgstr "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
+#: src/features/apps/AddPortSheet.tsx
+msgid "People outside the server reach the app through this port"
+msgstr "People outside the server reach the app through this port"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
@@ -2672,9 +2684,6 @@ msgid "Resources"
 msgstr "Resources"
 
 #: src/features/apps/AppOverview.tsx
-msgid "Restart policy"
-msgstr "Restart policy"
-
 #: src/features/changes/words.ts
 msgid "Restarts"
 msgstr "Restarts"

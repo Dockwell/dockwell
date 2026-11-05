@@ -211,7 +211,7 @@ export function AppsPage({
   }, [all]);
   const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM;
   const elsewhere = count - shown.length;
-  const lead = useLead(shown, environment ? places.label(environment) : "");
+  const { lead, total, going } = useLead(shown, environment ? places.label(environment) : "");
   const newApp = (
     <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="apps-new">
       <Trans>New app</Trans>
@@ -349,7 +349,16 @@ export function AppsPage({
         ) : null}
         {phone && (pending || count > 0) ? (
           <div className="apps-phone-head">
-            <h2 className="dw-text-heading apps-phone-count">{pending ? <>&nbsp;</> : lead}</h2>
+            <h2 className="dw-text-heading apps-phone-count">
+              {pending ? (
+                <>&nbsp;</>
+              ) : (
+                <>
+                  <span>{total}</span>
+                  {going ? <span className="apps-phone-trouble">{going}</span> : null}
+                </>
+              )}
+            </h2>
             {pending ? null : newApp}
           </div>
         ) : null}
@@ -375,7 +384,7 @@ export function AppsPage({
 }
 
 /** The line under the title: how many, and what is going on with them. */
-function useLead(services: readonly ServiceInfo[], where: string): string {
+function useLead(services: readonly ServiceInfo[], where: string): { lead: string; total: string; going: string } {
   const { servers } = useFleetView();
   const { t } = useLingui();
   const count = services.length;
@@ -389,13 +398,13 @@ function useLead(services: readonly ServiceInfo[], where: string): string {
     if (state.kind === "deploying") moving++;
     else if (needsALook(state)) trouble++;
   }
-  return [
-    total,
+  const going = [
     trouble > 0 ? plural(trouble, { one: "# needs a look", other: "# need a look" }) : "",
     moving > 0 ? t`${moving} deploying` : "",
   ]
     .filter(Boolean)
     .join(" · ");
+  return { lead: going ? `${total} · ${going}` : total, total, going };
 }
 
 /** The columns' heads, which the list and its skeleton share so nothing moves when it lands. */

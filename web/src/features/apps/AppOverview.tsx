@@ -210,7 +210,6 @@ function RunningPanel() {
   const when = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
   const stateWord = words.state(state);
   const moving = isMoving(state);
-  const by = who.phrase(revisions?.[0]?.change);
   const [addingPort, setAddingPort] = useState(false);
   // While it deploys, what runs is the revision before it, if there is one.
   const before = moving
@@ -264,12 +263,7 @@ function RunningPanel() {
               {revision} started deploying {when}
             </Trans>
           ) : (
-            <>
-              <Trans>
-                {revision} deployed {when}
-              </Trans>{" "}
-              {by}
-            </>
+            who.revisionDeployed(revisions?.[0]?.change, revision, when)
           )}
         </p>
       ) : null}
@@ -411,7 +405,7 @@ function RecentDeployments() {
       ...(failed ? { tone: "critical" as const } : {}),
       // The state shows where it says something: on the one that is live, and on what didn't work.
       ...(i === 0 || failed ? { status: look.status, statusLabel: look.word } : {}),
-      title: revisionTitle(rev),
+      title: revisionTitle(rev).node,
       revision: revisionName(rev.number),
       actor: who.name(change),
       time: time.ago(when, now),
@@ -522,7 +516,7 @@ function ConfigurationPanel() {
             </dd>
           </>
         ) : null}
-        <dt>{t`Restart policy`}</dt>
+        <dt>{t`Restarts`}</dt>
         <dd>{words.restart(app?.restart ?? 0)}</dd>
         {health.length > 0 ? (
           <>

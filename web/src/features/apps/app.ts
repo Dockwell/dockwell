@@ -282,6 +282,8 @@ export function tidyMessage(message: string): string {
     .replace(/^.*?\bisn't valid: /, "")
     .replace(/\bservice (\S+) in env_[0-9A-Za-z]+/g, "$1")
     .replace(/ in env_[0-9A-Za-z]+/g, "");
+  // A message that starts with a server's name keeps it as it is written.
+  if (/^[a-z0-9-]+:\s/.test(bare)) return bare;
   return bare.charAt(0).toUpperCase() + bare.slice(1);
 }
 

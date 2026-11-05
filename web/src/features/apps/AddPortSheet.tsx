@@ -82,7 +82,7 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
       open={!hidden}
       initialFocusRef={field}
       title={t`Add a port to ${name}`}
-      subtitle={t`Outside the server, people reach the app through it`}
+      subtitle={t`People outside the server reach the app through this port`}
       onClose={onClose}
       className={cx("app-sheet", phone && "is-phone")}
       footer={

@@ -46,6 +46,12 @@ export function useRevisionLook() {
   );
 }
 
+/** What a revision did: to show, and as plain words for what clips it. */
+export interface RevisionTitle {
+  node: ReactNode;
+  text: string;
+}
+
 /**
  * What a revision did, for its history: in the past tense, or the present for
  * work in flight, as the content rules have it, and without the app's name, as
@@ -54,37 +60,44 @@ export function useRevisionLook() {
 export function useRevisionTitle() {
   const { t } = useLingui();
   return useCallback(
-    (rev: ServiceRevision): ReactNode => {
+    (rev: ServiceRevision): RevisionTitle => {
+      const plain = (text: string): RevisionTitle => ({ node: text, text });
       const change = rev.change;
-      if (rev.deleted) return t`Deleted`;
-      if (change?.rollback) return t`Rolled back after a failed deploy`;
+      if (rev.deleted) return plain(t`Deleted`);
+      if (change?.rollback) return plain(t`Rolled back after a failed deploy`);
       if (rev.rolledBackTo > 0n) {
         const target = `r${rev.rolledBackTo}`;
-        return t`Rolled back to ${target}`;
+        return plain(t`Rolled back to ${target}`);
       }
       const failed =
         change?.state === ChangeState.FAILED || rev.deployments.some((d) => d.state === DeploymentState.FAILED);
       const moving =
         !failed &&
         (change?.state === ChangeState.APPLYING || rev.deployments.some((d) => d.state === DeploymentState.PENDING));
-      const image = createElement("code", { className: "app-title-code", title: rev.image }, shortImage(rev.image));
       const imageField = rev.changes.find((c) => fieldName(c.path) === "image");
       const created = rev.number === 1n || imageField?.op === FieldOp.ADDED;
-      const redeployed = !created && imageField !== undefined;
-      if (created || redeployed) {
+      if (created || imageField) {
+        const image = shortImage(rev.image);
         const parts = created
           ? { past: t`Created from`, now: t`Creating from`, tried: t`Couldn't create from` }
-          : { past: t`Deployed`, now: t`Deploying`, tried: t`Couldn't deploy` };
+          : {
+              past: t({ message: "Deployed", context: "What a revision did, before the image it deployed" }),
+              now: t`Deploying`,
+              tried: t`Couldn't deploy`,
+            };
         const words = failed ? parts.tried : moving ? parts.now : parts.past;
-        return createElement("span", null, words, " ", image);
+        return {
+          node: createElement("span", null, words, " ", createElement("code", { className: "app-title-code" }, image)),
+          text: `${words} ${image}`,
+        };
       }
       const [first] = rev.changes;
-      if (!first) return moving ? t`Moving` : t`Moved`;
+      if (!first) return plain(moving ? t`Moving` : t`Moved`);
       const field = fieldName(first.path).replace(/\[.*$/, "");
       const more = rev.changes.length - 1;
-      if (failed) return more > 0 ? t`Couldn't change ${field} and ${more} more` : t`Couldn't change ${field}`;
-      if (moving) return more > 0 ? t`Changing ${field} and ${more} more` : t`Changing ${field}`;
-      return more > 0 ? t`Changed ${field} and ${more} more` : t`Changed ${field}`;
+      if (failed) return plain(more > 0 ? t`Couldn't change ${field} and ${more} more` : t`Couldn't change ${field}`);
+      if (moving) return plain(more > 0 ? t`Changing ${field} and ${more} more` : t`Changing ${field}`);
+      return plain(more > 0 ? t`Changed ${field} and ${more} more` : t`Changed ${field}`);
     },
     [t],
   );
@@ -94,9 +107,9 @@ export function useRevisionTitle() {
 const LOCAL_ACCESS = /^Local access on (.+?)(?:, read-(?:write|only))?$/;
 
 /**
- * Who did a change, in words that read after a time, as "by Mira Chen". A
- * token isn't a person, so what comes from local access reads as where it was
- * run, "from the CLI on hz-1".
+ * Who did a change, in words that read: a person by name, and what comes from
+ * local access, as a token isn't a person, by where it was run, "from the CLI
+ * on hz-1".
  */
 export function useWhoWords() {
   const { t } = useLingui();
@@ -109,13 +122,21 @@ export function useWhoWords() {
         const local = actor?.kind === ActorKind.TOKEN ? LOCAL_ACCESS.exec(name)?.[1] : undefined;
         return local ? t`the CLI on ${local}` : name;
       },
-      /** The whole phrase, after a time: "by Mira Chen", "from the CLI on hz-1". Empty when no one is named. */
-      phrase(change: Change | undefined): string {
+      /** That it deployed, how long ago, and who did it: "deployed 3 min ago by Mira Chen", said whole for other languages. */
+      deployed(change: Change | undefined, ago: string): string {
         const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;
         const name = actor?.name ?? "";
-        if (name === "") return "";
         const local = actor?.kind === ActorKind.TOKEN ? LOCAL_ACCESS.exec(name)?.[1] : undefined;
-        return local ? t`from the CLI on ${local}` : t`by ${name}`;
+        if (local) return t`deployed ${ago} from the CLI on ${local}`;
+        return name ? t`deployed ${ago} by ${name}` : t`deployed ${ago}`;
+      },
+      /** The same on a phone's panel, which says which revision. */
+      revisionDeployed(change: Change | undefined, revision: string, when: string): string {
+        const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;
+        const name = actor?.name ?? "";
+        const local = actor?.kind === ActorKind.TOKEN ? LOCAL_ACCESS.exec(name)?.[1] : undefined;
+        if (local) return t`${revision} deployed ${when} from the CLI on ${local}`;
+        return name ? t`${revision} deployed ${when} by ${name}` : t`${revision} deployed ${when}`;
       },
     }),
     [t],
