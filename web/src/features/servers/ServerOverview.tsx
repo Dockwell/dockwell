@@ -85,7 +85,7 @@ function ServerPage({ server, fleet, status }: { server: Server; fleet: boolean;
       machineTitle
       badge={server.controlServer ? <Tag>{t`Runs the control plane`}</Tag> : null}
       lead={lead}
-      phoneSub={phoneSub}
+      phoneSub={unread ? t`Unknown` : phoneSub}
       back={fleet ? "/servers" : undefined}
       status={status}
     >

@@ -370,7 +370,8 @@ describe("what the fleet last said stands by its age too", () => {
   it("says so in the browser's words when it's the browser that went offline", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const fleet = quietFleet(true);
-    const page = renderAt("/apps", { ...api([web], running(web)), servers: { watchServers: fleet.watchServers } });
+    const page = renderAt("/", { ...api([web], running(web)), servers: { watchServers: fleet.watchServers } });
+    await screen.findByRole("heading", { level: 1, name: "Overview" });
     await waitFor(() => expect(page.container.querySelector(".topbar")).toHaveTextContent("Healthy"));
     fleet.state.answering = false;
     onlineManager.setOnline(false);
@@ -381,6 +382,34 @@ describe("what the fleet last said stands by its age too", () => {
       "title",
       expect.stringMatching(/^This browser is offline, so the panel can't say how your servers are\./),
     );
+    // The overview of the one server says so, in place of what it last said of it.
+    expect(page.container.querySelector(".fleet-unread")).toHaveTextContent(
+      /This browser is offline, so the panel can't say how this server is\./,
+    );
+  });
+
+  it("reads Unknown in a list of servers too", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let answering = true;
+    renderAt("/servers", {
+      ...api([web], running(web)),
+      servers: {
+        async *watchServers(_req: unknown, ctx: { signal: AbortSignal }) {
+          if (answering) {
+            yield changed(hz1);
+            yield changed(hz2);
+            yield snapshotComplete;
+          }
+          await untilAborted(ctx.signal);
+        },
+      },
+    });
+    const list = await screen.findByRole("region", { name: "Servers" });
+    await waitFor(() => expect(list.querySelector(".servers-row .dw-tone-healthy")).not.toBeNull());
+    answering = false;
+    await vi.advanceTimersByTimeAsync(35_000);
+    await waitFor(() => expect(list.querySelector(".servers-row .dw-tone-unknown")).not.toBeNull());
+    expect(list.querySelector(".dw-tone-healthy")).toBeNull();
   });
 });
 

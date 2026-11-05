@@ -6244,7 +6244,9 @@ msgstr "Unhealthy"
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
+#: src/features/overview/Overview.tsx
 #: src/features/servers/FleetNotes.tsx
+#: src/features/servers/ServerOverview.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Unknown"
 msgstr "Unknown"
