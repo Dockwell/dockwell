@@ -132,6 +132,40 @@ func TestNamedAsText(t *testing.T) {
 		"a shell with no -c":        {&resourcev1.Container{Command: []string{"sh", "/run.sh", "${PW}"}}, map[string][]string{"command": {"PW"}}},
 		"a test in a shell":         {&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "redis-cli -a ${PW} ping"}}}, nil},
 		"a dollar of its own":       {&resourcev1.Container{Command: []string{"$PW", "$HOME"}}, nil},
+		// What follows a shell's script are its $0, $1 and so on, which it passes on
+		// as they are.
+		"a shell's arguments": {
+			&resourcev1.Container{Command: []string{"sh", "-c", `exec "$@"`, "--", "redis-server", "--requirepass", "${PW}"}},
+			map[string][]string{"command": {"PW"}},
+		},
+		"a wrapper entrypoint": {
+			&resourcev1.Container{Entrypoint: []string{"/bin/sh", "-c", `set -e; exec "$@"`, "--"}, Command: []string{"redis-server", "--requirepass", "${PW}"}},
+			map[string][]string{"command": {"PW"}},
+		},
+		"a shell's $0": {
+			&resourcev1.Container{Command: []string{"bash", "-c", `exec redis-server --requirepass "$0"`, "${PW}"}},
+			map[string][]string{"command": {"PW"}},
+		},
+		"a script beside and an argument": {
+			&resourcev1.Container{Entrypoint: []string{"sh", "-c"}, Command: []string{"exec run ${PW} \"$0\"", "${TOKEN}"}},
+			map[string][]string{"command": {"TOKEN"}},
+		},
+		// And a shell's options, wherever its -c is among them.
+		"a shell with an option's word":   {&resourcev1.Container{Command: []string{"bash", "-o", "pipefail", "-c", "redis-cli -a ${PW} ping"}}, nil},
+		"a cluster with an option's word": {&resourcev1.Container{Command: []string{"bash", "-eo", "pipefail", "-c", "run ${PW}"}}, nil},
+		"a shell with a long option":      {&resourcev1.Container{Command: []string{"bash", "--login", "-c", "run ${PW}"}}, nil},
+		"a long option's word":            {&resourcev1.Container{Command: []string{"bash", "--rcfile", "/etc/rc", "-c", "run ${PW}"}}, nil},
+		"an option after -c":              {&resourcev1.Container{Command: []string{"sh", "-c", "-e", "run ${PW}"}}, nil},
+		"a script after --":               {&resourcev1.Container{Command: []string{"sh", "-c", "--", "run ${PW}"}}, nil},
+		"busybox's shell":                 {&resourcev1.Container{Command: []string{"busybox", "sh", "-c", "run ${PW}"}}, nil},
+		"no -c before --":                 {&resourcev1.Container{Command: []string{"sh", "--", "/run.sh", "${PW}"}}, map[string][]string{"command": {"PW"}}},
+		"+c":                              {&resourcev1.Container{Command: []string{"sh", "+c", "run ${PW}"}}, map[string][]string{"command": {"PW"}}},
+		"a test that runs a shell":        {&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "sh", "-c", "redis-cli -a ${PW} ping"}}}, nil},
+		"a test's shell's argument": {
+			&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "sh", "-c", `redis-cli -a "$1" ping`, "sh", "${PW}"}}},
+			map[string][]string{"healthcheck.test": {"PW"}},
+		},
+		"a test with -c and no shell": {&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "-c", "${PW}"}}}, map[string][]string{"healthcheck.test": {"PW"}}},
 	} {
 		got := binding.NamedAsText(c.c, known)
 		if len(got) != len(c.want) {

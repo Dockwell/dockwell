@@ -188,13 +188,17 @@ func CheckWords(c *resourcev1.Container, known func(string) bool) error {
 
 // NamedAsText says, by field, the names that read as ${NAME} in a container's fields
 // that don't name values, for which known has a value: those run as the words
-// ${NAME}, a password among them, which anyone who reads the spec knows. A shell that
-// reads it for itself, as with sh -c or CMD-SHELL, gets it from the environment as
-// it runs, which is what it is for, so that isn't counted.
+// ${NAME}, a password among them, which anyone who reads the spec knows. A shell's
+// script, the word sh -c reads or a CMD-SHELL test, gets it from the environment as
+// it runs, which is what it is for, so that isn't counted. The words after a script
+// are its $0, $1 and so on, which the shell passes on as they are, so they are.
 func NamedAsText(c *resourcev1.Container, known func(string) bool) map[string][]string {
 	out := map[string][]string{}
-	note := func(field string, words []string, from int) {
-		for _, w := range words[min(from, len(words)):] {
+	note := func(field string, words []string, script int) {
+		for i, w := range words {
+			if i == script {
+				continue
+			}
 			for _, m := range spelledName.FindAllStringSubmatch(w, -1) {
 				if known(m[1]) && !slices.Contains(out[field], m[1]) {
 					out[field] = append(out[field], m[1])
@@ -203,18 +207,18 @@ func NamedAsText(c *resourcev1.Container, known func(string) bool) map[string][]
 		}
 	}
 	listed := func(field string) bool { return slices.Contains(c.GetReferences(), field) }
-	// A shell's script is what follows its -c, wherever in the entrypoint and the
-	// command that comes.
+	// A shell's script can be in the entrypoint or in the command, as Docker runs
+	// one after the other.
 	entrypoint, command := c.GetEntrypoint(), c.GetCommand()
 	script := shellScript(slices.Concat(entrypoint, command))
 	if !listed(FieldEntrypoint) {
-		note(FieldEntrypoint, entrypoint[:min(script, len(entrypoint))], 0)
+		note(FieldEntrypoint, entrypoint, script)
 	}
 	if !listed(FieldCommand) {
-		note(FieldCommand, command[:max(0, min(script-len(entrypoint), len(command)))], 0)
+		note(FieldCommand, command, script-len(entrypoint))
 	}
 	if test := c.GetHealthcheck().GetTest(); !listed(FieldTest) && len(test) > 1 && test[0] == "CMD" {
-		note(FieldTest, test, 1)
+		note(FieldTest, test[1:], shellScript(test[1:]))
 	}
 	for field := range out {
 		slices.Sort(out[field])
@@ -228,27 +232,64 @@ func NamedAsText(c *resourcev1.Container, known func(string) bool) map[string][]
 // spelledName is ${NAME}, as a word that doesn't name values can spell it.
 var spelledName = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
-// shells are what reads a script with -c, by the name of their program.
-var shells = []string{"sh", "bash", "ash", "dash", "zsh", "ksh", "busybox"}
+// shells are what reads a script with -c, by the name of their program. busybox
+// runs one by the name after it.
+var shells = []string{"sh", "bash", "ash", "dash", "zsh", "ksh", "mksh", "busybox"}
 
-// shellScript is where a shell's script starts in argv, past its -c, or len(argv)
-// when no shell reads one there.
+// shellScript is where in argv a shell's script is, the word it reads with -c, or
+// -1 when no shell reads one.
 func shellScript(argv []string) int {
-	for i := 0; i+1 < len(argv); i++ {
-		if !slices.Contains(shells, path.Base(argv[i])) {
+	for i := 0; i < len(argv); i++ {
+		name := path.Base(argv[i])
+		if name == "busybox" && i+1 < len(argv) {
+			i, name = i+1, argv[i+1]
+		}
+		if !slices.Contains(shells, name) {
 			continue
 		}
-		for j := i + 1; j < len(argv); j++ {
-			flag := argv[j]
-			if !strings.HasPrefix(flag, "-") || strings.HasPrefix(flag, "--") {
-				break
-			}
-			if strings.Contains(flag, "c") {
-				return j + 1
-			}
+		if script := scriptAfter(argv, i+1); script >= 0 {
+			return script
 		}
 	}
-	return len(argv)
+	return -1
+}
+
+// scriptAfter reads a shell's options from argv[from:] as sh and bash do, and says
+// where its script is: the first word after them, when they include -c, as in
+// sh -ec, bash -o pipefail -c, bash --login -c, or -1 when they don't. -o and -O
+// each take the next word, as --rcfile, --init-file and zsh's --emulate do, and --
+// or - ends them.
+func scriptAfter(argv []string, from int) int {
+	reads := false
+	for i := from; i < len(argv); i++ {
+		word := argv[i]
+		switch {
+		case word == "--" || word == "-":
+			if reads && i+1 < len(argv) {
+				return i + 1
+			}
+			return -1
+		case strings.HasPrefix(word, "--"):
+			if slices.Contains([]string{"--rcfile", "--init-file", "--emulate"}, word) {
+				i++
+			}
+		case len(word) > 1 && (word[0] == '-' || word[0] == '+'):
+			for _, flag := range word[1:] {
+				switch flag {
+				case 'c':
+					reads = reads || word[0] == '-'
+				case 'o', 'O':
+					i++
+				}
+			}
+		default:
+			if reads {
+				return i
+			}
+			return -1
+		}
+	}
+	return -1
 }
 
 // WritesReferences reports a spec that needs an agent to write its references in:
