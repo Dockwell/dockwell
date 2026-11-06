@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -211,6 +212,141 @@ func TestTheTLSLogCantHangOrFillTheAgent(t *testing.T) {
 	}
 	if n := len(fresh.last); n > logNames {
 		t.Errorf("it remembers %d names, over its bound of %d", n, logNames)
+	}
+
+	// Nor can names longer than any domain: 4,096 of 4 MB each would be 16 GB.
+	b.Reset()
+	long := strings.Repeat("a", 1<<20) + ".example.com"
+	fmt.Fprintf(&b, `{"msg":"certificate obtained successfully","identifier":%q}`+"\n", long)
+	fmt.Fprintf(&b, `{"msg":"certificate obtained successfully","identifier":%q}`+"\n", strings.Repeat("b", 63)+"."+strings.Repeat("c", 63)+"."+strings.Repeat("d", 63)+"."+strings.Repeat("e", 49)+".com")
+	if err := os.WriteFile(path, b.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var named logReader
+	if err := named.read(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := named.last[long]; ok {
+		t.Errorf("it remembers a name of %d bytes, longer than DNS allows", len(long))
+	}
+	if n := len(named.last); n != 1 {
+		t.Errorf("it remembers %d names, want the one of 253 bytes", n)
+	}
+}
+
+// Caddy's data directory is its own, so where its certificates go may be a FIFO,
+// which would hold up the agent with its lock held, and again after a restart.
+func TestAFIFOForTheCertificatesDoesntHangTheAgent(t *testing.T) {
+	dir := shortDir(t)
+	if err := EnsureDirs(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "data", "caddy"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(filepath.Join(dir, "data", "caddy", "certificates"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := &Caddy{Dir: dir, Runtime: &process{dir: dir}}
+	done := make(chan bool, 1)
+	go func() {
+		_, ok := c.issued("a.example.com")
+		done <- ok
+	}()
+	select {
+	case ok := <-done:
+		if ok {
+			t.Error("a FIFO read as a directory with a certificate in it")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("reading certificates from a FIFO hangs")
+	}
+}
+
+// What isn't Caddy answering on its admin socket reads as Caddy being down, and that
+// mustn't be all anyone hears. The agent logs what Recover says each time it looks,
+// and a step that needs Caddy says who answered, not to start a Caddy that's running.
+func TestWhoAnswersTheAdminSocketIsSaid(t *testing.T) {
+	dir := shortDir(t)
+	if err := EnsureDirs(dir); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", filepath.Join(dir, "run", adminSocketName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{ReadHeaderTimeout: time.Second, Handler: http.NotFoundHandler()}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	stranger := os.Geteuid() + 1
+	c := &Caddy{Dir: dir, Runtime: &process{dir: dir}, adminUIDForTest: &stranger}
+
+	if recovered, err := c.Recover(t.Context()); err == nil || recovered || !strings.Contains(err.Error(), "answers as uid") {
+		t.Errorf("Recover = %v, %v, want it to say who answered", recovered, err)
+	}
+	for name, try := range map[string]func() error{
+		"a route going in": func() error {
+			return c.PutRoute(t.Context(), aRoute("dockwell.env.a", "a.example.net", "", "127.0.0.1:1"))
+		},
+		"a route going": func() error { return c.DeleteRoute(t.Context(), "dockwell.env.a") },
+	} {
+		err := try()
+		if err == nil || !strings.Contains(err.Error(), "answers as uid") {
+			t.Errorf("%s: %v, want it to say who answered", name, err)
+		} else if strings.Contains(err.Error(), "docker start") || strings.Contains(err.Error(), "is running and isn't answering") {
+			t.Errorf("%s says to do what doesn't help: %v", name, err)
+		}
+	}
+}
+
+// The admin socket is in Caddy's run directory, and connect follows a link, so a
+// compromised Caddy could leave one there to another socket on the server, such
+// as Docker's. What answers has to be Caddy's user.
+func TestALinkAtTheAdminSocketLeadsNowhere(t *testing.T) {
+	dir := shortDir(t)
+	if err := EnsureDirs(dir); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(shortDir(t), "other.sock")
+	ln, err := net.Listen("unix", other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asked := make(chan string, 8)
+	srv := &http.Server{ReadHeaderTimeout: time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked <- r.URL.Path
+		_, _ = w.Write([]byte(`{"admin":{}}`))
+	})}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	if err := os.Symlink(other, filepath.Join(dir, "run", adminSocketName)); err != nil {
+		t.Fatal(err)
+	}
+
+	// As root, Caddy is ProxyUID, and the socket a link leads to is someone else's.
+	caddys := ProxyUID
+	if os.Geteuid() == caddys {
+		caddys++
+	}
+	c := &Caddy{Dir: dir, Runtime: &process{dir: dir}, adminUIDForTest: &caddys}
+	_, _, err = c.call(t.Context(), http.MethodGet, "/config/", nil, nil)
+	if err == nil {
+		t.Fatal("the agent took an answer from the socket a link at the admin socket leads to")
+	}
+	if !errors.Is(err, errDown) || !strings.Contains(err.Error(), "answers as uid") {
+		t.Errorf("the error is %q, want Caddy down, saying who answered", err)
+	}
+	select {
+	case path := <-asked:
+		t.Errorf("the agent asked the other socket for %s", path)
+	default:
+	}
+
+	// The same socket, answering as Caddy's user, is Caddy.
+	own := os.Geteuid()
+	c = &Caddy{Dir: dir, Runtime: &process{dir: dir}, adminUIDForTest: &own}
+	if _, _, err := c.call(t.Context(), http.MethodGet, "/config/", nil, nil); err != nil {
+		t.Errorf("a socket answering as Caddy's user is refused: %v", err)
 	}
 }
 

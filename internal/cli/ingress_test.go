@@ -6,12 +6,14 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -94,6 +96,156 @@ func TestRunLeavesThePortsToItsProxy(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "SSH tunnel") || !strings.Contains(logs.String(), "ssh -L ") {
 		t.Errorf("the log doesn't say how to reach the panel if the proxy is down:\n%s", logs.String())
+	}
+}
+
+// The panel's socket is in a directory Caddy owns, so a compromised Caddy can
+// leave anything at its name. None of it may stop the control plane starting, as
+// that takes the SSH tunnel to the panel with it, and none of it is followed.
+func TestWhatStandsAtThePanelsSocketDoesntStopTheControlPlane(t *testing.T) {
+	dir, err := os.MkdirTemp("", "dws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	d := datadir.Dir{Root: dir}
+	if err := caddy.EnsureDirs(d.Ingress()); err != nil {
+		t.Fatal(err)
+	}
+	path := caddy.PanelSocket(d.Ingress())
+	outside := t.TempDir()
+	kept := filepath.Join(outside, "kept")
+	if err := os.WriteFile(kept, []byte("root's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, leave := range map[string]func() error{
+		"a directory with something in it": func() error {
+			if err := os.MkdirAll(filepath.Join(path, "deeper"), 0o700); err != nil {
+				return err
+			}
+			return os.WriteFile(filepath.Join(path, "deeper", "file"), nil, 0o600)
+		},
+		"a link to a directory outside": func() error { return os.Symlink(outside, path) },
+		"a file":                        func() error { return os.WriteFile(path, nil, 0o600) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := leave(); err != nil {
+				t.Fatal(err)
+			}
+			ln, err := listenForIngress(t.Context(), d)
+			if err != nil {
+				t.Fatalf("with %s at the panel's socket, the control plane can't start: %v", name, err)
+			}
+			_ = ln.Close()
+			if _, err := os.Stat(kept); err != nil {
+				t.Errorf("what a link led to went: %v", err)
+			}
+			_ = os.RemoveAll(path)
+		})
+	}
+}
+
+// A real failed listen, as a path too long for a socket is: dockwell run starts all
+// the same, so the SSH tunnel to the panel is there whatever Caddy keeps doing.
+func TestRunStartsWithoutThePanelsSocket(t *testing.T) {
+	top, err := os.MkdirTemp("", "dwl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(top) })
+	dir := filepath.Join(top, strings.Repeat("d", 120))
+	d := datadir.Dir{Root: dir}
+	if err := caddy.EnsureDirs(d.Ingress()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d.Ingress(), "active"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := listenForIngress(t.Context(), d); err == nil {
+		t.Fatal("that socket can be listened on, so this proves nothing")
+	}
+	_, logs, stop := startRunWithLogs(t, dir, "/claim#",
+		"--domain", "panel.example.com", "--https-listen", "127.0.0.1:443", "--http-listen", "127.0.0.1:80",
+		"--acme-directory-url", "https://acme.invalid/directory")
+	defer stop()
+	if !strings.Contains(logs.String(), "can't listen for what the ingress sends the panel") {
+		t.Errorf("it doesn't say the panel's domain is down:\n%s", logs.String())
+	}
+}
+
+// Once it can listen, what was waiting to serve on it does, and it says so.
+func TestThePanelsSocketIsTriedAgain(t *testing.T) {
+	dir, err := os.MkdirTemp("", "dwt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	path := filepath.Join(dir, "panel.sock")
+	logs := &syncBuffer{}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
+	var tries atomic.Int32
+	l := listenForIngressWhenItCan(logger, path, time.Millisecond, func() (net.Listener, error) {
+		if tries.Add(1) < 4 {
+			return nil, errors.New("something took it")
+		}
+		return (&net.ListenConfig{}).Listen(t.Context(), "unix", path)
+	})
+	defer l.Close()
+	if l.Addr().String() != path {
+		t.Errorf("Addr = %s", l.Addr())
+	}
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if conn, err := l.Accept(); err == nil {
+			accepted <- conn
+		}
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	var conn net.Conn
+	for {
+		if conn, err = (&net.Dialer{}).DialContext(t.Context(), "unix", path); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("it never listened: %v", err)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	defer conn.Close()
+	select {
+	case got := <-accepted:
+		_ = got.Close()
+	case <-time.After(5 * time.Second):
+		t.Fatal("what was waiting on it was never given the connection")
+	}
+	for _, want := range []string{"can't listen for what the ingress sends the panel", "something took it", "SSH tunnel", "answers on its domain again"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Errorf("the log doesn't say %q:\n%s", want, logs.String())
+		}
+	}
+}
+
+// Stopping doesn't wait for a socket that never comes.
+func TestAWaitForThePanelsSocketStops(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	l := listenForIngressWhenItCan(logger, "/nowhere/panel.sock", time.Millisecond, func() (net.Listener, error) {
+		return nil, errors.New("something took it")
+	})
+	failed := make(chan error, 1)
+	go func() {
+		_, err := l.Accept()
+		failed <- err
+	}()
+	if err := l.Close(); err != nil {
+		t.Errorf("Close = %v", err)
+	}
+	select {
+	case err := <-failed:
+		if !errors.Is(err, net.ErrClosed) {
+			t.Errorf("Accept = %v, want it closed", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Accept went on waiting after Close")
 	}
 }
 

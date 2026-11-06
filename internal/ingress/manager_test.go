@@ -853,6 +853,10 @@ func TestReconcileRecoversFirstAndSaysSo(t *testing.T) {
 	if !s.proxy.status.Running {
 		t.Error("a failure to keep a copy of the config kept the proxy from starting")
 	}
+	// What Recover said reaches the log, as who answered the admin socket does.
+	if !strings.Contains(logs.String(), "disk full") {
+		t.Errorf("the log doesn't say what Recover did: %s", logs.String())
+	}
 }
 
 func TestAPanelOnOtherPortsStaysAsItIs(t *testing.T) {
