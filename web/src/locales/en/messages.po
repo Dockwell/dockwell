@@ -155,8 +155,8 @@ msgid "{0} is offline"
 msgstr "{0} is offline"
 
 #. placeholder {0}: step.toLocaleString(i18n.locale)
-#. placeholder {1}: active.matches.toLocaleString(i18n.locale)
-#: src/features/logs/LogsPage.tsx
+#. placeholder {1}: store.matches.toLocaleString(i18n.locale)
+#: src/features/logs/LogFoot.tsx
 msgid "{0} of {1}"
 msgstr "{0} of {1}"
 

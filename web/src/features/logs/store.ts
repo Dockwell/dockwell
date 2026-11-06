@@ -226,6 +226,11 @@ export class LogStore implements LogLines {
     this.bump();
   }
 
+  /** What it searches for now, which what it counts goes by. */
+  get query(): string {
+    return this.filter.query;
+  }
+
   /** How many entries show: what the filter keeps. */
   get length(): number {
     return this.kept ? this.kept.length - this.keptHead : this.entries.length - this.head;
