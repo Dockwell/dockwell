@@ -922,6 +922,162 @@ func testAVolumesPasswordGoesNowhereElse(t *testing.T, backend store.Backend) {
 	}
 }
 
+// An undo puts back the revision a change replaced, on the servers that revision ran
+// on, so what it holds goes nowhere it hasn't been, and nothing a caller said is in
+// it. The check of #140 found Keep refused both of these: a move, as the volume there
+// now has options of its own, and a server taken off, as adding one back looked like
+// what TestAVolumesPasswordGoesNowhereElse stops, though it had the volume all along.
+func TestUndoPutsAVolumeBackWhereItRan(t *testing.T) {
+	storetest.Each(t, testUndoPutsAVolumeBackWhereItRan)
+}
+
+func testUndoPutsAVolumeBackWhereItRan(t *testing.T, backend store.Backend) {
+	const password, there = "cifs-pw-7Hq2mXv9Lc4Tz1Sd", "addr=10.0.0.2,username=svc,password="
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	heard := map[string]*planHeard{"hz-1": {}, "hz-2": {}, "hz-3": {}}
+	engines, ids := map[string]*dockertest.Engine{}, map[string]string{}
+	for _, name := range []string{"hz-1", "hz-2", "hz-3"} {
+		f.volumes = func(d *volume.Driver) resource.Type {
+			heard[name].Driver = d
+			return heard[name]
+		}
+		engines[name] = f.addServerNamed(t, name, nil, nil)
+		ids[name] = f.lastDocker.id.ServerID
+	}
+	f.volumes = nil
+	c := changeClient(b, b.origin)
+	edit := func(volumeName string, options map[string]string, servers ...string) *dockwellv1.ProposeChangeRequest {
+		named := make([]string, len(servers))
+		for i, s := range servers {
+			named[i] = ids[s]
+		}
+		return &dockwellv1.ProposeChangeRequest{Summary: "Share", Edits: []*dockwellv1.Edit{{
+			Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: volumeName},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: options}}},
+			Servers:  named,
+		}}}
+	}
+	cifs := func(device, o string) map[string]string {
+		return map[string]string{"type": "cifs", "device": device, "o": o}
+	}
+	propose := func(t *testing.T, req *dockwellv1.ProposeChangeRequest) *dockwellv1.Change {
+		t.Helper()
+		res, err := c.ProposeChange(t.Context(), connect.NewRequest(req))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetChange()
+	}
+	undo := func(t *testing.T, ch *dockwellv1.Change) *dockwellv1.Change {
+		t.Helper()
+		res, err := c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: ch.GetId()}))
+		if err != nil {
+			t.Fatalf("undoing it = %v, want it planned", err)
+		}
+		return res.Msg.GetChange()
+	}
+	name := func(v string) string { return docker.Project(listedEnv(t, b)) + "_" + v }
+	holds := func(server, v string) bool {
+		got := engines[server].Volume(name(v))
+		return got != nil && strings.Contains(got.Options["o"], password)
+	}
+	stillOffAt := func(t *testing.T, server string, before int) {
+		t.Helper()
+		if got := heard[server].options()[before:]; slices.ContainsFunc(got, func(o string) bool { return strings.Contains(o, password) }) {
+			t.Errorf("a plan call brought %s the password: %q", server, got)
+		}
+	}
+
+	t.Run("a move, with options of its own", func(t *testing.T) {
+		made := propose(t, edit("moved", cifs("//nas/share", there+password), "hz-1"))
+		applyConfirmed(t, c, made)
+		moved := propose(t, edit("moved", cifs("//10.0.0.9/share", "addr=10.0.0.9,username=svc"), "hz-2"))
+		applyConfirmed(t, c, moved)
+		two, three := len(heard["hz-2"].options()), len(heard["hz-3"].options())
+		back := undo(t, moved)
+		stillOffAt(t, "hz-2", two)
+		stillOffAt(t, "hz-3", three)
+		if !back.GetPlan().GetDestructive() {
+			t.Error("undoing a move takes the volume off hz-2, and its plan doesn't say that destroys data")
+		}
+		restores := false
+		for _, s := range back.GetPlan().GetServers() {
+			for _, step := range s.GetSteps() {
+				restores = restores || step.GetRestores()
+			}
+		}
+		if !restores {
+			t.Errorf("the plan doesn't say hz-1 brings back the data it kept: %v", back.GetPlan().GetServers())
+		}
+		applyConfirmed(t, c, back)
+		if !holds("hz-1", "moved") {
+			t.Errorf("hz-1 has %+v after the undo", engines["hz-1"].Volume(name("moved")))
+		}
+	})
+
+	t.Run("a server taken off", func(t *testing.T) {
+		applyConfirmed(t, c, propose(t, edit("both", cifs("//nas/share", there+password), "hz-1", "hz-2")))
+		off := propose(t, edit("both", nil, "hz-1"))
+		applyConfirmed(t, c, off)
+		three := len(heard["hz-3"].options())
+		back := undo(t, off)
+		stillOffAt(t, "hz-3", three)
+		applyConfirmed(t, c, back)
+		for _, server := range []string{"hz-1", "hz-2"} {
+			if !holds(server, "both") {
+				t.Errorf("%s has %+v after the undo", server, engines[server].Volume(name("both")))
+			}
+		}
+	})
+
+	t.Run("a volume with no options", func(t *testing.T) {
+		applyConfirmed(t, c, propose(t, edit("plain", nil, "hz-1")))
+		moved := propose(t, edit("plain", cifs("//10.0.0.9/share", "addr=10.0.0.9,username=svc"), "hz-2"))
+		applyConfirmed(t, c, moved)
+		applyConfirmed(t, c, undo(t, moved))
+		if got := engines["hz-1"].Volume(name("plain")); got == nil || len(got.Options) != 0 {
+			t.Errorf("hz-1 has %+v after the undo, want the volume as it was", got)
+		}
+	})
+
+	t.Run("a move that fails", func(t *testing.T) {
+		applyConfirmed(t, c, propose(t, edit("failed", cifs("//nas/share", there+password), "hz-1")))
+		// hz-1 lets go of it first, so the rollback has something to put back.
+		engines["hz-2"].Intercept(func(r *http.Request) error {
+			if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/volumes/create") {
+				return errors.New("no space left on device")
+			}
+			return nil
+		})
+		defer engines["hz-2"].Intercept(nil)
+		moved := propose(t, edit("failed", cifs("//10.0.0.9/share", "addr=10.0.0.9,username=svc"), "hz-2"))
+		w := watch(t, c, moved.GetId())
+		if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: moved.GetId(), Fingerprint: moved.GetPlan().GetFingerprint()})); err != nil {
+			t.Fatal(err)
+		}
+		if last := waitWatch(t, w).last(); last.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+			t.Fatalf("the move ended %v, so this proves nothing", last.GetState())
+		}
+		var rolled *dockwellv1.RollbackStatus
+		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+			res, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: moved.GetId()}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rolled = res.Msg.GetChange().GetRollbackStatus(); rolled.GetState() == dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED {
+				break
+			}
+		}
+		if rolled.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED {
+			t.Fatalf("the failed move's rollback reads %v, want it applied", rolled)
+		}
+		if !holds("hz-1", "failed") {
+			t.Errorf("hz-1 has %+v after the rollback", engines["hz-1"].Volume(name("failed")))
+		}
+	})
+}
+
 // Someone remakes a volume by hand with a new password, and drift shows it. Adopting
 // that takes what the server has, which no caller said, so nothing is kept of what's
 // stored: Docker has what's adopted, so nothing changes there. The review of #140
@@ -974,6 +1130,16 @@ func testAVolumeRemadeByHandCanBeAdopted(t *testing.T, backend store.Backend) {
 	}
 	if got := e.Volume(name); got == nil || got.Options["o"] != remade.Options["o"] {
 		t.Errorf("Docker has %+v after adopting what it had", got)
+	}
+
+	// Undoing that asks Docker for what it can't do, and says so. Keeping what's
+	// there would plan nothing, and read as undone with nothing changed.
+	_, err = c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: adopted.Msg.GetChange().GetId()}))
+	if err == nil || !strings.Contains(err.Error(), "can't change a volume") {
+		t.Errorf("undoing the adopt = %v, want it refused, as Docker can't change a volume", err)
+	}
+	if err != nil && (strings.Contains(err.Error(), "first-pw-5Tn2") || strings.Contains(err.Error(), "second-pw-8Kw3")) {
+		t.Errorf("the refusal holds a password: %v", err)
 	}
 }
 

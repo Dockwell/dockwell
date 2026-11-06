@@ -730,7 +730,8 @@ func plain(s string) string {
 // it kept for a plan's note, or nothing where the edit had nothing of it. It refuses
 // an edit it can't keep from, where what it keeps would go somewhere it hasn't been.
 // What it says, and whether it refuses, depend on what the edit gave, never on
-// whether that is the same as what current keeps.
+// whether that is the same as what current keeps. It's for what a caller wrote, so
+// adopting drift and putting back a revision don't ask it (ADR 0022).
 type Keeper interface {
 	Keep(current, desired proto.Message) (Kept, error)
 }

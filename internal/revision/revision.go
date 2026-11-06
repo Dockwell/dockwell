@@ -223,6 +223,11 @@ type Edit struct {
 	// Observed says Spec is what a server has, as adopting drift reads it, and not
 	// what a caller said, so nothing is kept of what's stored (resource.Keeper).
 	Observed bool
+	// Reverses says Spec is the revision a change replaced, going back to the servers
+	// that revision ran on, as an undo and a failed change's rollback put it, and not
+	// what a caller said. So nothing is kept of what's stored (resource.Keeper): it
+	// holds what those servers were given, and nothing goes anywhere it hasn't been.
+	Reverses bool
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -1005,7 +1010,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
 				// Before anything compares it with what is there.
-				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil && !ed.Observed {
+				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil && !ed.Observed && !ed.Reverses {
 					if it.kept, err = k.Keep(it.current, it.spec); err != nil {
 						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
 					}
@@ -3257,7 +3262,7 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 			if latest.Revision != rev.Revision {
 				return fault.New(ErrCantUndo, "%s changed again in %s, so %s can't be undone whole. Undo %s first, or edit %s directly", ref, latest.ChangeID, changeID, latest.ChangeID, rev.Name)
 			}
-			ed := Edit{Ref: ref}
+			ed := Edit{Ref: ref, Reverses: true}
 			if rev.Revision > 1 {
 				prev, err := tx.GetRevision(ctx, rev.ID, rev.Revision-1)
 				if err != nil {
