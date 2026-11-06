@@ -165,6 +165,10 @@ e2e: build ## Claim, sign in, run the panel's flows and follow logs in headless 
 docker-panel-e2e: build ## Create, deploy, roll back and export an app in the panel on this machine's Docker, in headless Chromium
 	node web/e2e/apps.ts $(BIN)
 
+.PHONY: containers-load
+containers-load: build-go build-agent ## Measure an agent's memory on a server of hundreds of containers, on a fake Docker
+	scripts/containers-load.sh $(BIN) $(AGENT_BIN)
+
 .PHONY: logs-load
 logs-load: build-go build-agent ## Measure an agent's memory while a container floods its log, on a fake Docker
 	scripts/logs-load.sh $(BIN) $(AGENT_BIN)

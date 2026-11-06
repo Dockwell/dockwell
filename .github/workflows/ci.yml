@@ -233,6 +233,23 @@ jobs:
       - name: An agent's memory and CPU under load
         run: make logs-load
 
+  containers-load:
+    name: Hundreds of containers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      # The agent build with 500 containers, listed again and again, on a fake
+      # Docker, held to its memory budget (ADR 0031).
+      - name: An agent's memory with hundreds of containers
+        run: make containers-load
+
   e2e:
     name: Panel end to end
     runs-on: ubuntu-24.04
