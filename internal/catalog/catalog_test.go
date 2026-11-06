@@ -58,22 +58,6 @@ func TestTheBuiltInEntries(t *testing.T) {
 			if w := e.GetWeb().GetService(); w != "" && !slices.ContainsFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == w }) {
 				t.Errorf("it opens %s, which it doesn't run", w)
 			}
-			// A secret must be a whole value, as a rotation otherwise can't reach it.
-			for name, value := range filled.Secrets {
-				whole := false
-				for _, s := range stack.Services {
-					for k, v := range s.Spec.GetApp().GetEnv() {
-						if v == value {
-							whole = true
-						} else if strings.Contains(v, value) {
-							t.Errorf("%s holds %s inside a longer value", k, name)
-						}
-					}
-				}
-				if !whole {
-					t.Errorf("no service has %s as a whole environment value", name)
-				}
-			}
 		})
 	}
 	// The first set: a database with its admin tool, a reverse proxy's
@@ -176,7 +160,13 @@ func TestCheckRefuses(t *testing.T) {
 		"no release":    {func(e *catalogv1.Entry) { e.Release = 0 }, "no release"},
 		"unused input":  {func(e *catalogv1.Entry) { e.Inputs[0].Name = "NOT_USED" }, "doesn't use the input NOT_USED"},
 		"shared secret": {func(e *catalogv1.Entry) { e.Inputs[1].DefaultValue = "hunter2" }, "everyone who installs it would share"},
-		"short secret":  {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
+		"a secret inside a longer value": {func(e *catalogv1.Entry) {
+			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n      URL: postgres://u:${POSTGRES_PASSWORD}@db/x", 1)
+		}, "inside a longer value"},
+		"a secret inside one word of a command": {func(e *catalogv1.Entry) {
+			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"--key=${POSTGRES_PASSWORD}\"]", 1)
+		}, "inside a longer value"},
+		"short secret": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := proto.CloneOf(base)
@@ -185,6 +175,26 @@ func TestCheckRefuses(t *testing.T) {
 				t.Errorf("Check = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// A secret stands alone: as an environment value in either form, or a word of a command.
+func TestCheckTakesASecretThatStandsAlone(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := c.Entry("postgres")
+	for name, compose := range map[string]string{
+		"a value":      "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}",
+		"a list entry": "- POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
+		"a word":       "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"${POSTGRES_PASSWORD}\"]",
+	} {
+		e := proto.CloneOf(base)
+		e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", compose, 1)
+		if err := catalog.Check(e); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }
 

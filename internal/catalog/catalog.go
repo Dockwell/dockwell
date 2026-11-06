@@ -195,8 +195,48 @@ func Check(e *catalogv1.Entry) error {
 			return fmt.Errorf("the secret %s generates %d characters. Generate at least 16", name, in.GetGenerate())
 		}
 		seen[name] = true
+		if Secret(in) {
+			if err := standsAlone(e.GetCompose(), name); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+// standsAlone refuses a secret inside a longer value. An upgrade stands something in for
+// a secret it never opens, which reaches a service only as a whole value, by reference,
+// so in a longer one it would write that in place of the secret, and a rotation couldn't
+// reach it either. It reads the file's YAML, as text can't tell "a ${X} b" from "${X}".
+func standsAlone(file, name string) error {
+	var tree any
+	if err := yaml.Unmarshal([]byte(file), &tree); err != nil {
+		return fmt.Errorf("its Compose file isn't YAML: %w", err)
+	}
+	whole := regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*=)?\$\{` + regexp.QuoteMeta(name) + `\}$`)
+	var walk func(any) error
+	walk = func(v any) error {
+		switch v := v.(type) {
+		case string:
+			if strings.Contains(v, "${"+name) && !whole.MatchString(v) {
+				return fmt.Errorf("the secret %s is inside a longer value, %q, which an upgrade and a rotation couldn't reach. Give the app the secret as a value of its own", name, strings.ReplaceAll(v, "\n", " "))
+			}
+		case []any:
+			for _, item := range v {
+				if err := walk(item); err != nil {
+					return err
+				}
+			}
+		case map[string]any:
+			for _, key := range slices.Sorted(maps.Keys(v)) {
+				if err := walk(v[key]); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	return walk(tree)
 }
 
 // Asks reports an input a person gives: one Dockwell generates isn't.
