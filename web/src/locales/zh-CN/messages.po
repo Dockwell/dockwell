@@ -6756,6 +6756,11 @@ msgstr "此文件会创建的内容"
 msgid "What this step wants already runs, so nothing stops for it"
 msgstr "此步骤需要的容器已在运行，因此无需停止任何服务"
 
+#: src/features/catalog/InstallSheet.tsx
+#: src/features/changes/notices.tsx
+msgid "What to do first"
+msgstr "首先要做的事"
+
 #: src/features/apps/ExportSheet.tsx
 msgid "What to export"
 msgstr "要导出的内容"

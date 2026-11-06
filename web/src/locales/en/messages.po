@@ -6756,6 +6756,11 @@ msgstr "What this file makes"
 msgid "What this step wants already runs, so nothing stops for it"
 msgstr "What this step wants already runs, so nothing stops for it"
 
+#: src/features/catalog/InstallSheet.tsx
+#: src/features/changes/notices.tsx
+msgid "What to do first"
+msgstr "What to do first"
+
 #: src/features/apps/ExportSheet.tsx
 msgid "What to export"
 msgstr "What to export"

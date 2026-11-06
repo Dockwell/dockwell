@@ -81,6 +81,17 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	if slices.Index(order, "service db") > slices.Index(order, "service adminer") {
 		t.Errorf("planned %v: adminer before the database it depends on", order)
 	}
+	// What a person needs to know is in the plan, so it's there before they apply it,
+	// from the panel and the CLI alike.
+	var steps string
+	for _, n := range planned.GetPlan().GetNotes() {
+		if n.GetReason() == "first_steps" {
+			steps = n.GetMessage()
+		}
+	}
+	if !strings.Contains(steps, "POSTGRES_PASSWORD") {
+		t.Errorf("the plan doesn't say what to do first: %v", planned.GetPlan().GetNotes())
+	}
 	if planned.GetPlan().GetDestructive() || planned.GetPlan().GetHostAccess() {
 		t.Errorf("destructive %t, host access %t, for an app that reaches nothing", planned.GetPlan().GetDestructive(), planned.GetPlan().GetHostAccess())
 	}

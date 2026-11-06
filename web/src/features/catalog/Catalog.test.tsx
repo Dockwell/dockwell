@@ -28,6 +28,7 @@ const postgres = create(EntrySchema, {
   category: "databases",
   version: "17.11",
   appLicense: "PostgreSQL",
+  firstSteps: "Add a domain first, then sign in with the POSTGRES_PASSWORD secret.",
   homepage: "https://www.postgresql.org",
   web: { service: "adminer" },
   inputs: [
@@ -153,6 +154,8 @@ describe("Installing from the catalog", () => {
     // A password no one types has no field: it's made and sealed where it runs.
     expect(within(sheet).queryByLabelText("Database password")).not.toBeInTheDocument();
     expect(within(sheet).getByText(/Dockwell generates Database password and keeps it sealed/)).toBeVisible();
+    // What to do first is here, before anyone reviews a plan, let alone applies it.
+    expect(within(sheet).getByText(/Add a domain first, then sign in/)).toBeVisible();
     await expectAccessible(container);
 
     await user.clear(within(sheet).getByLabelText("Adminer port"));

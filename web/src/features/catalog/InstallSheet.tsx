@@ -171,6 +171,11 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
                 {entry.hostAccess}
               </Callout>
             ) : null}
+            {entry.firstSteps ? (
+              <Callout tone="warning" title={t`What to do first`}>
+                {entry.firstSteps}
+              </Callout>
+            ) : null}
             <TextField
               label={t`Name`}
               mono

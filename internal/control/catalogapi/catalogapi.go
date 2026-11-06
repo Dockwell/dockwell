@@ -88,13 +88,14 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
 	change, err := h.imports.PlanInstall(ctx, composeapi.Install{
-		Project:   project,
-		Summary:   fmt.Sprintf("Install %s %s as %s", entry.GetName(), entry.GetVersion(), project),
-		Name:      entry.GetName(),
-		File:      []byte(entry.GetCompose()),
-		Variables: filled.Variables,
-		Secrets:   filled.Secrets,
-		Servers:   m.GetServers(),
+		Project:    project,
+		Summary:    fmt.Sprintf("Install %s %s as %s", entry.GetName(), entry.GetVersion(), project),
+		Name:       entry.GetName(),
+		File:       []byte(entry.GetCompose()),
+		Variables:  filled.Variables,
+		Secrets:    filled.Secrets,
+		Servers:    m.GetServers(),
+		FirstSteps: entry.GetFirstSteps(),
 		Pin: &resourcev1.CatalogPin{
 			Entry:      entry.GetId(),
 			Version:    entry.GetVersion(),

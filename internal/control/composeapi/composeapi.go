@@ -75,7 +75,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	c, err := h.plan(ctx, m, stack, place, nil)
+	c, err := h.plan(ctx, m, stack, place, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +108,9 @@ type Install struct {
 	Secrets map[string]string
 	Pin     *resourcev1.CatalogPin
 	Servers []string
+	// FirstSteps is what a person needs to know, which the plan says before they
+	// apply it.
+	FirstSteps string
 }
 
 // PlanInstall plans an entry into a project of its own, as an import does, with
@@ -148,7 +151,15 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
 	useSecrets(stack, in.Secrets)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
-	return h.plan(ctx, req, stack, place, in.Secrets)
+	var notes []revision.Note
+	if in.FirstSteps != "" {
+		notes = []revision.Note{{
+			Reason:  "first_steps",
+			Message: in.FirstSteps,
+			Ref:     resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project},
+		}}
+	}
+	return h.plan(ctx, req, stack, place, in.Secrets, notes)
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -170,8 +181,9 @@ func useSecrets(stack *compose.Stack, values map[string]string) {
 	}
 }
 
-// plan proposes a file read for a place, with these secrets beside it.
-func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, stack *compose.Stack, place destination, sealed map[string]string) (*dockwellv1.Change, error) {
+// plan proposes a file read for a place, with these secrets beside it, and these
+// notes ahead of what it says of the file.
+func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, stack *compose.Stack, place destination, sealed map[string]string, notes []revision.Note) (*dockwellv1.Change, error) {
 	env := place.environment
 	if err := h.useVariables(ctx, env, stack); err != nil {
 		return nil, h.internal(ctx, err)
@@ -246,7 +258,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Notes: slices.Concat(place.updates(running, deleted), planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, Notes: slices.Concat(notes, place.updates(running, deleted), planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // servicesIn names what an environment runs now.
