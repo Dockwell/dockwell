@@ -76,6 +76,15 @@ describe("the apps list", () => {
     await expectAccessible(container);
   });
 
+  it("lists an app it can't read beside the rest, and says so", async () => {
+    const unreadable = anApp("web", "", {}, { spec: undefined, specUnreadable: "service svc_web: can't open it" });
+    renderAt("/apps", api([unreadable, anApp("api", "ghcr.io/acme/api:1.0")]));
+    expect(await screen.findByRole("row", { name: /web/ })).toHaveTextContent("Can't be read");
+    const beside = screen.getByRole("row", { name: /api/ });
+    expect(beside).toHaveTextContent("ghcr.io/acme/api:1.0");
+    expect(beside).not.toHaveTextContent("Can't be read");
+  });
+
   it("shows the table's heads while it loads, with nothing to jump when it lands", async () => {
     const { container } = renderAt("/apps", {
       ...api([]),

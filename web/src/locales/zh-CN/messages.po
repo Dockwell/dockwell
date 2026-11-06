@@ -1602,6 +1602,10 @@ msgstr "执行者"
 msgid "Can read logs"
 msgstr "可以读取日志"
 
+#: src/features/apps/words.ts
+msgid "Can't be read"
+msgstr "无法读取"
+
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
 msgstr "无法检查你的会话"
@@ -2465,6 +2469,14 @@ msgstr "Dockwell {short}：控制平面状态"
 #: src/features/system/StatusPage.tsx
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Dockwell can't read what {name} runs"
+msgstr "Dockwell 无法读取 {name} 运行的内容"
+
+#: src/features/apps/AppLayout.tsx
+msgid "Dockwell can't read what this runs"
+msgstr "Dockwell 无法读取它运行的内容"
 
 #: src/features/changes/words.ts
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
@@ -6921,6 +6933,10 @@ msgstr "服务器上运行的内容不受影响。"
 #: src/features/apps/AddPortSheet.tsx
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the key file from the same backup."
+msgstr "控制平面为它存储的内容已被改动，或是用此安装没有的密钥加密的，所以 Dockwell 不会使用它，也无法更改 {name}。它的容器会继续照常运行。请从同一份备份恢复数据库和密钥文件。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "What the servers keep goes back further than what is loaded here."

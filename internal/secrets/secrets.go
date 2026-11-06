@@ -300,28 +300,56 @@ func openUnder(at store.SpecAt, sealed []byte, d store.DataKey, kek cipher.AEAD)
 
 // OpenAll is Open for many specs, in order, as a list reads them: one read of
 // their data keys, and one of each key-encryption key, however many there are.
+// One that can't be opened fails them all. A list of what runs takes DecodeEach.
 func (k *Keeper) OpenAll(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) ([][]byte, error) {
-	out := make([][]byte, len(specs))
+	out, failed, err := k.openEach(ctx, tx, specs)
+	if err != nil {
+		return nil, err
+	}
+	for _, err := range failed {
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// openEach opens many specs as OpenAll does, and gives one that can't be opened an
+// error of its own, in failed, at its place. Any other error, such as the store's
+// own, says nothing of one spec, so it is the whole answer.
+func (k *Keeper) openEach(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) (out [][]byte, failed []error, err error) {
+	out, failed = make([][]byte, len(specs)), make([]error, len(specs))
 	dekIDs := make([]string, len(specs))
 	sealed := make([][]byte, len(specs))
 	ids := make([]string, 0, len(specs))
+	// couldnt keeps err for the spec at i, or says it isn't about that spec.
+	couldnt := func(i int, err error) error {
+		if !errors.Is(err, ErrOpen) {
+			return err
+		}
+		failed[i] = unopened(specs[i].At, err)
+		return nil
+	}
 	for i, s := range specs {
 		if !Sealed(s.Spec) {
 			if k.sealedKind(resource.Kind(s.At.Kind)) {
-				return nil, unsealed(s.At)
+				failed[i] = unsealed(s.At)
+				continue
 			}
 			out[i] = s.Spec
 			continue
 		}
-		var err error
 		if dekIDs[i], sealed[i], err = sealedParts(s.Spec); err != nil {
-			return nil, unopened(s.At, err)
+			if err := couldnt(i, err); err != nil {
+				return nil, nil, err
+			}
+			continue
 		}
 		ids = append(ids, dekIDs[i])
 	}
 	keys, err := tx.GetDataKeys(ctx, ids)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	keks := map[string]cipher.AEAD{}
 	for i, s := range specs {
@@ -330,20 +358,28 @@ func (k *Keeper) OpenAll(ctx context.Context, tx *store.Tx, specs []store.Stored
 		}
 		d, ok := keys[dekIDs[i]]
 		if !ok {
-			return nil, unopened(s.At, fmt.Errorf("data key %s is gone: %w", dekIDs[i], ErrOpen))
+			if err := couldnt(i, fmt.Errorf("data key %s is gone: %w", dekIDs[i], ErrOpen)); err != nil {
+				return nil, nil, err
+			}
+			continue
 		}
 		kek, ok := keks[d.KEKID]
 		if !ok {
 			if kek, err = k.kek(ctx, tx, d.KEKID); err != nil {
-				return nil, unopened(s.At, err)
+				if err := couldnt(i, err); err != nil {
+					return nil, nil, err
+				}
+				continue
 			}
 			keks[d.KEKID] = kek
 		}
 		if out[i], err = openUnder(s.At, sealed[i], d, kek); err != nil {
-			return nil, unopened(s.At, err)
+			if err := couldnt(i, err); err != nil {
+				return nil, nil, err
+			}
 		}
 	}
-	return out, nil
+	return out, failed, nil
 }
 
 // sealedKind reports a kind whose specs are kept sealed. One this keeper
@@ -362,19 +398,25 @@ func (k *Keeper) Decode(ctx context.Context, tx *store.Tx, at store.SpecAt, stor
 	return k.kinds.Decode(resource.Kind(at.Kind), plain)
 }
 
-// DecodeAll is Decode for many specs, in order, as a list reads them.
-func (k *Keeper) DecodeAll(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) ([]proto.Message, error) {
-	plain, err := k.OpenAll(ctx, tx, specs)
+// DecodeEach is Decode for many specs, in order, as a list of what runs reads
+// them, where one row that can't be read shouldn't hide the rest: failed holds
+// why, at that row's place, and it has no message. Any other error, such as the
+// store's own, is the whole answer.
+func (k *Keeper) DecodeEach(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) (out []proto.Message, failed []error, err error) {
+	plain, failed, err := k.openEach(ctx, tx, specs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	out := make([]proto.Message, len(specs))
+	out = make([]proto.Message, len(specs))
 	for i := range specs {
+		if failed[i] != nil {
+			continue
+		}
 		if out[i], err = k.kinds.Decode(resource.Kind(specs[i].At.Kind), plain[i]); err != nil {
-			return nil, err
+			failed[i] = fmt.Errorf("%s %s opens, and can't be read as one: %w. Restore the database and the key file from the same backup", specs[i].At.Kind, specs[i].At.ResourceID, err)
 		}
 	}
-	return out, nil
+	return out, failed, nil
 }
 
 // Digest is a keyed hash of a spec's encoding, for the fingerprint of the

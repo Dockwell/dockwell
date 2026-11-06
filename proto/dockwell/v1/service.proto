@@ -135,6 +135,11 @@ message ServiceInfo {
   // How the change that made its latest revision stands. A deployment still
   // pending under a change that has failed will not move again.
   ChangeState change_state = 9;
+  // Why its latest revision's spec can't be read, in plain words, with what to
+  // do: it was changed, moved to another row, or sealed with keys this install
+  // hasn't got. Then spec is unset, and the rest of this message and the rest of
+  // the list stand.
+  string spec_unreadable = 10;
 }
 
 // ServiceDeployment is one revision of a service placed on one server.

@@ -356,6 +356,16 @@ function AppNotice() {
           </Trans>
         </Callout>
       );
+    case "unreadable":
+      return (
+        <Callout tone="critical" title={t`Dockwell can't read what ${name} runs`}>
+          <Trans>
+            What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell
+            won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the
+            key file from the same backup.
+          </Trans>
+        </Callout>
+      );
     case "unplaced":
       return (
         <Callout tone="warning" title={t`${name} has no server in the fleet`}>

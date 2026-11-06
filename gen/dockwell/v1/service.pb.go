@@ -247,9 +247,14 @@ type ServiceInfo struct {
 	RolledBackChangeId string `protobuf:"bytes,8,opt,name=rolled_back_change_id,json=rolledBackChangeId,proto3" json:"rolled_back_change_id,omitempty"`
 	// How the change that made its latest revision stands. A deployment still
 	// pending under a change that has failed will not move again.
-	ChangeState   ChangeState `protobuf:"varint,9,opt,name=change_state,json=changeState,proto3,enum=dockwell.v1.ChangeState" json:"change_state,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ChangeState ChangeState `protobuf:"varint,9,opt,name=change_state,json=changeState,proto3,enum=dockwell.v1.ChangeState" json:"change_state,omitempty"`
+	// Why its latest revision's spec can't be read, in plain words, with what to
+	// do: it was changed, moved to another row, or sealed with keys this install
+	// hasn't got. Then spec is unset, and the rest of this message and the rest of
+	// the list stand.
+	SpecUnreadable string `protobuf:"bytes,10,opt,name=spec_unreadable,json=specUnreadable,proto3" json:"spec_unreadable,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ServiceInfo) Reset() {
@@ -343,6 +348,13 @@ func (x *ServiceInfo) GetChangeState() ChangeState {
 		return x.ChangeState
 	}
 	return ChangeState_CHANGE_STATE_UNSPECIFIED
+}
+
+func (x *ServiceInfo) GetSpecUnreadable() string {
+	if x != nil {
+		return x.SpecUnreadable
+	}
+	return ""
 }
 
 // ServiceDeployment is one revision of a service placed on one server.
@@ -1133,7 +1145,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"page_token\x18\x04 \x01(\tR\tpageToken\"t\n" +
 	"\x14ListServicesResponse\x124\n" +
 	"\bservices\x18\x01 \x03(\v2\x18.dockwell.v1.ServiceInfoR\bservices\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xb4\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xdd\x03\n" +
 	"\vServiceInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x1a\n" +
@@ -1144,7 +1156,9 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\vdeployments\x18\x06 \x03(\v2\x1e.dockwell.v1.ServiceDeploymentR\vdeployments\x12\x1b\n" +
 	"\tchange_id\x18\a \x01(\tR\bchangeId\x121\n" +
 	"\x15rolled_back_change_id\x18\b \x01(\tR\x12rolledBackChangeId\x12;\n" +
-	"\fchange_state\x18\t \x01(\x0e2\x18.dockwell.v1.ChangeStateR\vchangeState\"\xf0\x01\n" +
+	"\fchange_state\x18\t \x01(\x0e2\x18.dockwell.v1.ChangeStateR\vchangeState\x12'\n" +
+	"\x0fspec_unreadable\x18\n" +
+	" \x01(\tR\x0especUnreadable\"\xf0\x01\n" +
 	"\x11ServiceDeployment\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +

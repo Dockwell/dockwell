@@ -74,7 +74,9 @@ export type AppStateKind =
   /** No server has it: each it ran on has left the fleet. */
   | "unplaced"
   /** It deployed, and the fleet hasn't said yet whether its servers are there. */
-  | "unknown";
+  | "unknown"
+  /** What the control plane stores of it can't be read, so nothing here can say what it runs. */
+  | "unreadable";
 
 export interface AppState {
   kind: AppStateKind;
@@ -96,6 +98,7 @@ const LOOKS: Readonly<Record<AppStateKind, Status>> = {
   "rolled-back": "degraded",
   unplaced: "stopped",
   unknown: "stopped",
+  unreadable: "down",
 };
 
 /**
@@ -106,7 +109,7 @@ const LOOKS: Readonly<Record<AppStateKind, Status>> = {
  * still in it, so one it doesn't list has left.
  */
 export function appState(
-  service: Pick<ServiceInfo, "deployments" | "rolledBackChangeId" | "changeState">,
+  service: Pick<ServiceInfo, "deployments" | "rolledBackChangeId" | "changeState" | "specUnreadable">,
   servers: readonly ServerSummary[] | undefined,
 ): AppState {
   const placed = service.deployments;
@@ -121,6 +124,7 @@ export function appState(
     servers: on.map((d) => d.serverName),
     error,
   });
+  if (service.specUnreadable !== "") return state("unreadable", placed);
   if (placed.length === 0) return state("unplaced");
   const failed = placed.filter((d) => d.state === DeploymentState.FAILED);
   // Its latest revision is a rollback, and that failed: nothing says what is there now.
@@ -158,6 +162,7 @@ export function isMoving(state: AppState): boolean {
 
 /** The order of concern: what needs you first, what is moving next, then the calm. */
 const CONCERN: Readonly<Record<AppStateKind, number>> = {
+  unreadable: 0,
   "rollback-failed": 0,
   failed: 0,
   waiting: 1,

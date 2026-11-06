@@ -98,6 +98,15 @@ afterEach(() => {
 });
 
 describe("an app's frame", () => {
+  it("says what to do about an app it can't read, and offers nothing it would refuse", async () => {
+    const web = anApp("web", "", {}, { spec: undefined, specUnreadable: "service svc_web: can't open it" });
+    renderAt("/apps/svc_web", api([web]));
+    expect(await screen.findByText("Dockwell can't read what web runs")).toBeVisible();
+    expect(screen.getByText(/Restore the database and the key file from the same backup/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Deploy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restart" })).not.toBeInTheDocument();
+  });
+
   it("shows its name, state, revision, and tabs that are places", async () => {
     const { container } = renderAt("/apps/svc_web", api());
     expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();

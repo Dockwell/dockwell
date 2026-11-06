@@ -118,7 +118,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		for i := range list {
 			specs[i] = store.StoredSpec{At: store.InRevision(list[i].ID, list[i].Kind, list[i].Revision), Spec: list[i].Spec}
 		}
-		decoded, err := h.keeper.DecodeAll(ctx, tx, specs)
+		decoded, unreadable, err := h.keeper.DecodeEach(ctx, tx, specs)
 		if err != nil {
 			return err
 		}
@@ -132,11 +132,19 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 				UpdateTime: timestamppb.New(r.UpdatedAt),
 				ChangeId:   r.ChangeID,
 			}
-			spec, err := asService(decoded[i])
-			if err != nil {
-				return err
+			// One row that can't be read costs that row, which says so, and not the list,
+			// as every other app still has to be seen, and to be put right.
+			if why := unreadable[i]; why != nil {
+				h.logger.ErrorContext(ctx, "a service's spec can't be read", slog.String("service", r.ID), slog.String("error", why.Error()))
+				info.SpecUnreadable = why.Error()
+			} else {
+				spec, err := asService(decoded[i])
+				if err != nil {
+					return err
+				}
+				info.Spec = Blanked(spec)
 			}
-			info.Spec = Blanked(spec)
+			var err error
 			if info.Deployments, err = names.deployments(ctx, deployments[r.ID]); err != nil {
 				return err
 			}
