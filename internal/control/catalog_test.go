@@ -3,6 +3,9 @@
 package control
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -12,6 +15,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
@@ -285,4 +289,224 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 	if vars := list.Msg.GetVariables(); len(vars) != 1 || !vars[0].GetSecret() || vars[0].GetName() != "TUNNEL_TOKEN" {
 		t.Errorf("the project's secrets: %v", vars)
 	}
+}
+
+// testEntry is an entry a test can move on, as a newer release of the catalog would.
+func testEntry(release int, version, image, extra string) string {
+	return fmt.Sprintf(`id: thing
+name: Thing
+summary: Something to upgrade
+category: storage
+version: %q
+release: %d
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+web:
+  service: web
+inputs:
+  - name: PORT
+    label: Port
+    type: INPUT_TYPE_PORT
+    defaultValue: "18100"
+  - name: PASSWORD
+    label: Password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    web:
+      image: %s
+      environment:
+        PASSWORD: ${PASSWORD}
+      ports:
+        - "${PORT}:80"
+      volumes:
+        - data:/data
+%s  volumes:
+    data: {}
+`, version, release, image, extra)
+}
+
+// A newer release shows as one, and upgrading is a plan that says no backup is taken,
+// keeps the password and what a person added, and takes the pin along. An undo puts
+// it all back, and an install that's up to date has nothing to upgrade.
+func TestUpgradingAnInstall(t *testing.T) { storetest.Each(t, testUpgradingAnInstall) }
+
+func testUpgradingAnInstall(t *testing.T, backend store.Backend) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	write := func(release int, version, image, extra string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "thing.yaml"), []byte(testEntry(release, version, image, extra)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const first, second = "thing:1@sha256:" + digest1, "thing:2@sha256:" + digest2
+	write(1, "1.0", first, "")
+
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	installed := func() *dockwellv1.CatalogInstall {
+		t.Helper()
+		res, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Msg.GetInstalls()) != 1 {
+			t.Fatalf("installs: %v", res.Msg.GetInstalls())
+		}
+		return res.Msg.GetInstalls()[0]
+	}
+	apply(t, c, installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "thing"}))
+	var env string
+	for _, r := range mustList(t, b).GetResources() {
+		env = r.GetId()
+	}
+	web := e.Newest(docker.Project(env), "web")
+	var password string
+	for _, kv := range web.Config.Env {
+		if v, ok := strings.CutPrefix(kv, "PASSWORD="); ok {
+			password = v
+		}
+	}
+	if len(password) != 32 {
+		t.Fatalf("a password of %d characters", len(password))
+	}
+
+	if installed().GetUpgrade() != nil {
+		t.Error("an install of the newest release has an upgrade")
+	}
+	_, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "up_to_date" {
+		t.Errorf("upgrading what's up to date = %v", err)
+	}
+
+	// A person adds a port, which the entry doesn't know of.
+	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	added, err := services.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: "web", HostPort: 18200, ContainerPort: 8080, Project: "thing"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, c, added.Msg.GetChange())
+
+	write(2, "2.0", second, "")
+	if got := installed().GetUpgrade(); got.GetVersion() != "2.0" || got.GetRelease() != 2 {
+		t.Errorf("a newer release reads as %v", got)
+	}
+	res, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned := res.Msg.GetChange()
+	if want := "Upgrade thing from 1.0 to 2.0"; planned.GetSummary() != want {
+		t.Errorf("summary %q, want %q", planned.GetSummary(), want)
+	}
+	var said string
+	for _, n := range planned.GetPlan().GetNotes() {
+		if n.GetReason() == "no_backup" {
+			said = n.GetMessage()
+		}
+		if n.GetReason() == "updates_project" {
+			t.Errorf("an upgrade reads as a file landing on a project: %s", n.GetMessage())
+		}
+	}
+	if !strings.Contains(said, "takes no backup") {
+		t.Errorf("the plan doesn't say no backup is taken: %v", planned.GetPlan().GetNotes())
+	}
+	if strings.Contains(planned.String(), password) {
+		t.Error("the plan holds the password")
+	}
+	if planned.GetPlan().GetDestructive() {
+		t.Errorf("an upgrade that keeps its volume is destructive: %v", planned.GetPlan())
+	}
+	if got := apply(t, c, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the upgrade ended %v: %s", got.GetState(), got.GetError())
+	}
+	web = e.Newest(docker.Project(env), "web")
+	if web.Config.Image != second {
+		t.Errorf("after the upgrade it runs %s", web.Config.Image)
+	}
+	if !slices.Contains(web.Config.Env, "PASSWORD="+password) {
+		t.Errorf("the upgrade changed the password: %v", web.Config.Env)
+	}
+	for port, want := range map[string]string{"80/tcp": "18100", "8080/tcp": "18200"} {
+		if got := web.HostConfig.PortBindings[port]; len(got) != 1 || got[0].HostPort != want {
+			t.Errorf("after the upgrade, port %s is %+v, want %s", port, got, want)
+		}
+	}
+	if got := installed(); got.GetUpgrade() != nil || got.GetPin().GetVersion() != "2.0" || got.GetPin().GetRelease() != 2 || got.GetPin().GetValues()["PORT"] != "18100" {
+		t.Errorf("after the upgrade, the install reads %v", got)
+	}
+
+	// An undo puts back the version and the pin, so it offers the upgrade again.
+	undo, err := c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: planned.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := apply(t, c, undo.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the undo ended %v: %s", got.GetState(), got.GetError())
+	}
+	if web = e.Newest(docker.Project(env), "web"); web.Config.Image != first {
+		t.Errorf("after the undo it runs %s", web.Config.Image)
+	}
+	if got := installed(); got.GetPin().GetRelease() != 1 || got.GetUpgrade().GetRelease() != 2 {
+		t.Errorf("after the undo, the install reads %v", got)
+	}
+
+	// A release that adds a service runs it.
+	write(3, "3.0", second, "    cache:\n      image: cache:1@sha256:"+digest1+"\n")
+	res, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := apply(t, c, res.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the upgrade ended %v: %s", got.GetState(), got.GetError())
+	}
+	if e.Newest(docker.Project(env), "cache") == nil {
+		t.Errorf("the upgrade didn't add the service its release adds: %v", e.Containers())
+	}
+	// And one that drops it takes it away, and leaves the data.
+	write(4, "4.0", second, "")
+	res, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Msg.GetChange().GetPlan().GetDestructive() {
+		t.Errorf("an upgrade that drops a service with no data is destructive: %v", res.Msg.GetChange().GetPlan())
+	}
+	if got := apply(t, c, res.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the upgrade ended %v: %s", got.GetState(), got.GetError())
+	}
+}
+
+const (
+	digest1 = "1111111111111111111111111111111111111111111111111111111111111111"
+	digest2 = "2222222222222222222222222222222222222222222222222222222222222222"
+)
+
+// mustList lists the one environment of the project "thing".
+func mustList(t *testing.T, b *browser) *dockwellv1.ListResourcesResponse {
+	t.Helper()
+	r := dockwellv1connect.NewResourceServiceClient(b, b.origin, connect.WithProtoJSON())
+	projects, err := r.ListResources(t.Context(), connect.NewRequest(&dockwellv1.ListResourcesRequest{Kind: "project"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range projects.Msg.GetResources() {
+		if p.GetResource().GetName() == "thing" {
+			envs, err := r.ListResources(t.Context(), connect.NewRequest(&dockwellv1.ListResourcesRequest{Kind: "environment", Scope: p.GetId()}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return envs.Msg
+		}
+	}
+	t.Fatal("no project thing")
+	return nil
 }

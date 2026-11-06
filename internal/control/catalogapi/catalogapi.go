@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
@@ -96,14 +97,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Secrets:    filled.Secrets,
 		Servers:    m.GetServers(),
 		FirstSteps: entry.GetFirstSteps(),
-		Pin: &resourcev1.CatalogPin{
-			Entry:      entry.GetId(),
-			Version:    entry.GetVersion(),
-			Release:    entry.GetRelease(),
-			Repository: entry.GetSource().GetRepository(),
-			Commit:     entry.GetSource().GetCommit(),
-			Values:     filled.Plain,
-		},
+		Pin:        pinTo(entry, filled),
 	})
 	if err != nil {
 		return nil, err
@@ -111,57 +105,154 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	return connect.NewResponse(&dockwellv1.InstallCatalogEntryResponse{Change: change}), nil
 }
 
-// ListCatalogInstalls reads each project's pin, and leaves out a project whose
-// services have all gone, which isn't installed any more, though it stays.
+// ListCatalogInstalls says what's installed, and what each can move to.
 func (h *Handler) ListCatalogInstalls(ctx context.Context, _ *connect.Request[dockwellv1.ListCatalogInstallsRequest]) (*connect.Response[dockwellv1.ListCatalogInstallsResponse], error) {
 	c, err := h.catalog(ctx)
 	if err != nil {
 		return nil, err
 	}
-	res := &dockwellv1.ListCatalogInstallsResponse{}
+	var installs []*dockwellv1.CatalogInstall
+	err = h.db.View(ctx, func(tx *store.Tx) (err error) {
+		installs, err = h.installs(ctx, tx, c)
+		return err
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.ListCatalogInstallsResponse{Installs: installs}), nil
+}
+
+// installs reads each project's pin, by project, and leaves out a project whose
+// services have all gone, which isn't installed any more, though it stays.
+func (h *Handler) installs(ctx context.Context, tx *store.Tx, c *catalog.Catalog) ([]*dockwellv1.CatalogInstall, error) {
+	tree, err := scope.Load(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	var out []*dockwellv1.CatalogInstall
+	for _, p := range tree.Projects {
+		pin, err := h.pinOf(ctx, tx, tree.Organization.ID, p.Name)
+		if err != nil {
+			return nil, err
+		}
+		if pin == nil {
+			continue
+		}
+		install := &dockwellv1.CatalogInstall{ProjectId: p.ID, Project: p.Name, Pin: pin}
+		entry, known := c.Entry(pin.GetEntry())
+		if known {
+			install.Name, install.FirstSteps = entry.GetName(), entry.GetFirstSteps()
+			if entry.GetRelease() > pin.GetRelease() {
+				install.Upgrade = &dockwellv1.CatalogUpgrade{Version: entry.GetVersion(), Release: entry.GetRelease()}
+			}
+		}
+		for _, env := range p.Environments {
+			list, err := tx.ListResources(ctx, env.ID, string(service.Kind))
+			if err != nil {
+				return nil, err
+			}
+			for i := range list {
+				install.EnvironmentId = cmp.Or(install.EnvironmentId, env.ID)
+				install.WebServiceId = cmp.Or(install.WebServiceId, list[i].ID)
+				if known && list[i].Name == entry.GetWeb().GetService() {
+					install.WebServiceId = list[i].ID
+				}
+			}
+		}
+		if install.GetEnvironmentId() != "" {
+			out = append(out, install)
+		}
+	}
+	slices.SortFunc(out, func(a, b *dockwellv1.CatalogInstall) int { return cmp.Compare(a.GetProject(), b.GetProject()) })
+	return out, nil
+}
+
+// UpgradeCatalogInstall plans an install's newest release.
+func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Request[dockwellv1.UpgradeCatalogInstallRequest]) (*connect.Response[dockwellv1.UpgradeCatalogInstallResponse], error) {
+	m := req.Msg
+	c, err := h.catalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var install *dockwellv1.CatalogInstall
+	var display string
+	held := map[string]bool{}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
+		all, err := h.installs(ctx, tx, c)
+		if err != nil {
+			return err
+		}
+		i := slices.IndexFunc(all, func(in *dockwellv1.CatalogInstall) bool {
+			return in.GetProject() == m.GetId() || in.GetProjectId() == m.GetId()
+		})
+		if i < 0 {
+			return nil
+		}
+		install = all[i]
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
 			return err
 		}
 		for _, p := range tree.Projects {
-			pin, err := h.pinOf(ctx, tx, tree.Organization.ID, p.Name)
-			if err != nil {
-				return err
-			}
-			if pin == nil {
-				continue
-			}
-			install := &dockwellv1.CatalogInstall{ProjectId: p.ID, Project: p.Name, Pin: pin}
-			entry, known := c.Entry(pin.GetEntry())
-			if known {
-				install.Name, install.FirstSteps = entry.GetName(), entry.GetFirstSteps()
-			}
-			running := false
-			for _, env := range p.Environments {
-				list, err := tx.ListResources(ctx, env.ID, string(service.Kind))
-				if err != nil {
-					return err
-				}
-				for i := range list {
-					running = true
-					install.EnvironmentId = cmp.Or(install.EnvironmentId, env.ID)
-					if known && list[i].Name == entry.GetWeb().GetService() {
-						install.WebServiceId = list[i].ID
-					}
-				}
-			}
-			if running {
-				res.Installs = append(res.Installs, install)
+			if p.ID == install.GetProjectId() {
+				display = p.DisplayName
 			}
 		}
-		return nil
+		list, err := tx.ListResources(ctx, install.GetEnvironmentId(), string(variable.SecretKind))
+		for i := range list {
+			held[list[i].Name] = true
+		}
+		return err
 	})
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	slices.SortFunc(res.Installs, func(a, b *dockwellv1.CatalogInstall) int { return cmp.Compare(a.GetProject(), b.GetProject()) })
-	return connect.NewResponse(res), nil
+	if install == nil {
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("nothing installed from the catalog is called %s. Run dockwell catalog installs to see what is", m.GetId()), "not_found")
+	}
+	pin := install.GetPin()
+	entry, ok := c.Entry(pin.GetEntry())
+	switch {
+	case !ok:
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the catalog no longer has %s, so %s stays on %s", pin.GetEntry(), install.GetProject(), pin.GetVersion()), "not_in_catalog")
+	case entry.GetRelease() <= pin.GetRelease():
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
+	}
+	free, err := h.whatsFree(ctx, entry)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	filled, err := catalog.Carry(entry, pin, m.GetValues(), free.values, held)
+	if err != nil {
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
+	}
+	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
+		Project:     install.GetProjectId(),
+		Environment: install.GetEnvironmentId(),
+		Summary:     fmt.Sprintf("Upgrade %s from %s to %s", install.GetProject(), pin.GetVersion(), entry.GetVersion()),
+		Name:        display,
+		File:        []byte(entry.GetCompose()),
+		Variables:   filled.Variables,
+		Secrets:     filled.Secrets,
+		Stands:      filled.Stands(),
+		Pin:         pinTo(entry, filled),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.UpgradeCatalogInstallResponse{Change: change}), nil
+}
+
+// pinTo is what an install of an entry is pinned to.
+func pinTo(e *catalogv1.Entry, filled *catalog.Filled) *resourcev1.CatalogPin {
+	return &resourcev1.CatalogPin{
+		Entry:      e.GetId(),
+		Version:    e.GetVersion(),
+		Release:    e.GetRelease(),
+		Repository: e.GetSource().GetRepository(),
+		Commit:     e.GetSource().GetCommit(),
+		Values:     filled.Plain,
+	}
 }
 
 // pinOf reads what a project is pinned to. Nil for one that isn't an install. A

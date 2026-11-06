@@ -3269,8 +3269,9 @@ type PlanNote struct {
 	// "digest_differs" for one that can't as its servers ran different images,
 	// "kept_password" for a volume that keeps the
 	// password it was made with, whatever an edit gave, and "kept_options" for one
-	// that keeps its options, as an edit gave none, and "first_steps" for what a
-	// catalog app needs a person to know and do. Another reason may come: its
+	// that keeps its options, as an edit gave none, "first_steps" for what a catalog
+	// app needs a person to know and do, and "no_backup" for a catalog upgrade that
+	// runs without a backup first. Another reason may come: its
 	// message says what it means.
 	Reason string `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
 	// What it says, for people: the fact, what it means, and what to do.

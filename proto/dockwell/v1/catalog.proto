@@ -41,6 +41,21 @@ service CatalogService {
     option (google.api.http) = {get: "/v1/catalog/installs"};
   }
 
+  // UpgradeCatalogInstall plans moving an install to the newest release of its
+  // entry, ready to apply or discard. What the entry sets changes, what a person
+  // added to a service since stays, its secrets stay as they are, and the plan says
+  // that no backup is taken, as Dockwell can't take one yet. Undoing it puts the old
+  // version back, but not what the new one changed in its data. It's refused with
+  // the reason up_to_date when there's nothing newer.
+  rpc UpgradeCatalogInstall(UpgradeCatalogInstallRequest) returns (UpgradeCatalogInstallResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.command) = {verb: "upgrade"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:upgrade"
+      body: "*"
+    };
+  }
+
   // InstallCatalogEntry plans installing an app as a project of its own, ready
   // to apply or discard, as ImportCompose does with a file. The plan makes the
   // project, its secrets and what its Compose file runs, and pins the project to
@@ -102,13 +117,24 @@ message CatalogInstall {
   // The app's name, such as "PostgreSQL". Empty once the catalog no longer has
   // the entry, as the install stays pinned to it.
   string name = 4;
-  // The ID of the service a person opens, once it has one. Empty for an app with
-  // nothing to open.
+  // The ID of the service a person opens: what its entry names, or one of its
+  // services when that names none, as a tunnel's.
   string web_service_id = 5;
   // What to do first, as the entry says it. Empty when it says nothing.
   string first_steps = 6;
   // The environment its services run in, by ID, whose secrets it uses.
   string environment_id = 7;
+  // What it can move to, when the catalog has a newer release. Unset when it's up
+  // to date, or the catalog no longer has its entry.
+  CatalogUpgrade upgrade = 8;
+}
+
+// CatalogUpgrade is a newer release of an install's entry.
+message CatalogUpgrade {
+  // The app's version in it, such as "17.12".
+  string version = 1;
+  // The entry's release.
+  uint32 release = 2;
 }
 
 // InstallCatalogEntryRequest is an app to install.
@@ -129,6 +155,21 @@ message InstallCatalogEntryRequest {
 
 // InstallCatalogEntryResponse carries the planned change.
 message InstallCatalogEntryResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// UpgradeCatalogInstallRequest names an install to upgrade.
+message UpgradeCatalogInstallRequest {
+  // Its project, by name or ID.
+  string id = 1;
+  // A value for each input the newer release adds, by name, as InstallCatalogEntry
+  // takes them. What it was installed with carries over, and its secrets stay.
+  map<string, string> values = 2 [(dockwell.resource.v1alpha1.sensitive) = true];
+}
+
+// UpgradeCatalogInstallResponse carries the planned change.
+message UpgradeCatalogInstallResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

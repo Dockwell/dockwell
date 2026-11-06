@@ -15,8 +15,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"math/big"
 	"net/mail"
+	"os"
 	"path"
 	"regexp"
 	"slices"
@@ -29,6 +31,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -41,10 +44,15 @@ type Catalog struct {
 }
 
 // builtIn is what ships in the binary, read once.
-var builtIn = sync.OnceValues(func() (*Catalog, error) { return load(entries) })
+var builtIn = sync.OnceValues(func() (*Catalog, error) { return load(entries, "entries/*.yaml") })
 
-// Load returns the built-in catalog. commit is the build's, which an entry built
-// in takes as the commit it came from.
+// DirEnv names a directory of entries, read each time and taking over from a
+// built-in entry of the same ID. It's what a newer release looks like before a feed
+// can bring one, for trying an entry and for the tests that upgrade one.
+const DirEnv = "DOCKWELL_CATALOG_DIR"
+
+// Load returns the catalog: what's built in, and what DirEnv adds. commit is the
+// build's, which an entry built in takes as the commit it came from.
 func Load(commit string) (*Catalog, error) {
 	c, err := builtIn()
 	if err != nil {
@@ -56,12 +64,29 @@ func Load(commit string) (*Catalog, error) {
 		e.GetSource().Commit = cmp.Or(e.GetSource().GetCommit(), commit)
 		out.entries[i] = e
 	}
+	dir := os.Getenv(DirEnv)
+	if dir == "" {
+		return out, nil
+	}
+	more, err := load(os.DirFS(dir), "*.yaml")
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range more.entries {
+		out.entries = slices.DeleteFunc(out.entries, func(had *catalogv1.Entry) bool { return had.GetId() == e.GetId() })
+		out.entries = append(out.entries, e)
+	}
+	sortEntries(out.entries)
 	return out, nil
 }
 
-// load reads every entry in a directory of them.
-func load(dir fs.FS) (*Catalog, error) {
-	files, err := fs.Glob(dir, "entries/*.yaml")
+func sortEntries(entries []*catalogv1.Entry) {
+	slices.SortFunc(entries, func(a, b *catalogv1.Entry) int { return strings.Compare(a.GetName(), b.GetName()) })
+}
+
+// load reads every entry that matches a pattern.
+func load(dir fs.FS, pattern string) (*Catalog, error) {
+	files, err := fs.Glob(dir, pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +105,7 @@ func load(dir fs.FS) (*Catalog, error) {
 		}
 		c.entries = append(c.entries, e)
 	}
-	slices.SortFunc(c.entries, func(a, b *catalogv1.Entry) int { return strings.Compare(a.GetName(), b.GetName()) })
+	sortEntries(c.entries)
 	return c, nil
 }
 
@@ -217,6 +242,18 @@ type Filled struct {
 	Secrets map[string]string
 	// Plain are the others, which the install's pin keeps.
 	Plain map[string]string
+	// Held stands for secrets the install has already, by name, with a value of no
+	// meaning, so nothing reads them to upgrade it. No service keeps that value: each
+	// uses the secret by reference.
+	Held map[string]string
+}
+
+// Stands is every value that stands for a secret, for what has services use them by
+// reference.
+func (f *Filled) Stands() map[string]string {
+	out := maps.Clone(f.Secrets)
+	maps.Copy(out, f.Held)
+	return out
 }
 
 // Longest is how many bytes a value may hold.
@@ -226,7 +263,27 @@ const longest = 4 << 10
 // secret no one types, one made here. It refuses a value that isn't what its
 // input takes, by the input's label, and a value for no input.
 func Fill(e *catalogv1.Entry, given, suggested map[string]string) (*Filled, error) {
-	out := &Filled{Variables: map[string]string{}, Secrets: map[string]string{}, Plain: map[string]string{}}
+	return fill(e, given, suggested, nil)
+}
+
+// Carry fills an entry's inputs for an upgrade: what's given, then what the install
+// was given, then what's suggested for an input this release adds. A secret in held,
+// which the install has already, stays as it is, unless a new value is given.
+func Carry(e *catalogv1.Entry, pin *resourcev1.CatalogPin, given, suggested map[string]string, held map[string]bool) (*Filled, error) {
+	values := maps.Clone(given)
+	if values == nil {
+		values = map[string]string{}
+	}
+	for _, in := range e.GetInputs() {
+		if v, ok := pin.GetValues()[in.GetName()]; ok && Asks(in) && values[in.GetName()] == "" {
+			values[in.GetName()] = v
+		}
+	}
+	return fill(e, values, suggested, held)
+}
+
+func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[string]bool) (*Filled, error) {
+	out := &Filled{Variables: map[string]string{}, Secrets: map[string]string{}, Plain: map[string]string{}, Held: map[string]string{}}
 	for name := range given {
 		i := slices.IndexFunc(e.GetInputs(), func(in *catalogv1.Input) bool { return in.GetName() == name })
 		if i < 0 {
@@ -239,6 +296,14 @@ func Fill(e *catalogv1.Entry, given, suggested map[string]string) (*Filled, erro
 	for _, in := range e.GetInputs() {
 		name := in.GetName()
 		value := strings.TrimSpace(cmp.Or(given[name], suggested[name]))
+		if Secret(in) && held[name] && value == "" {
+			stands, err := generate(32)
+			if err != nil {
+				return nil, err
+			}
+			out.Variables[name], out.Held[name] = stands, stands
+			continue
+		}
 		if in.GetGenerate() > 0 {
 			var err error
 			if value, err = generate(int(in.GetGenerate())); err != nil {
