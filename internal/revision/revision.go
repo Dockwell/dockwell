@@ -597,7 +597,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))
+	p.Notes = e.newImageNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1442,6 +1442,47 @@ func (e *Engine) NewProject(ctx context.Context, tx *store.Tx, org, name, enviro
 	}, environmentID, nil
 }
 
+// newImage says the item runs another image where one runs now: another name, or
+// whatever its tag points at by now.
+func (e *Engine) newImage(it *item) bool {
+	n, ok := e.imageNamer(it.ref.Kind)
+	if !ok || it.spec == nil || it.current == nil {
+		return false
+	}
+	return it.pull || n.ImageOf(it.current) != n.ImageOf(it.spec)
+}
+
+// newImageNotes are a plan's notes, saying why a new image alone needs a person.
+func (e *Engine) newImageNotes(plan *Plan, items []item, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		if !e.newImage(it) {
+			continue
+		}
+		for j := range plan.Resources {
+			r := &plan.Resources[j]
+			if r.Ref == it.ref && slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot) {
+				out = append(out, Note{Reason: "new_image_as_root", Ref: it.ref, Message: it.ref.Name +
+					" reaches what's as good as root on its server, so a new image is any code at all with that reach. A person approves it, as no token may"})
+			}
+		}
+	}
+	return out
+}
+
+// asRoot is what of list is as good as root on a server, by where its agent says each
+// path leads.
+func asRoot(list []resource.Access, leads map[string]string) []resource.Access {
+	var out []resource.Access
+	for i := range list {
+		if a := list[i].Leading(leads[list[i].Path]); a.AsGoodAsRoot() {
+			out = append(out, list[i])
+		}
+	}
+	return out
+}
+
 // knownID is the ID a resource has from before, or a new one.
 func (e *Engine) knownID(ctx context.Context, tx *store.Tx, ref resource.Ref) (string, error) {
 	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
@@ -1636,6 +1677,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				gained = append(gained, takes[it.ref]...)
 				if it.adopt != "" {
 					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
+				}
+				// A new image is any code at all with what the service reaches, so
+				// where that's as good as root, it's as much as reaching it anew.
+				if e.newImage(it) {
+					gained = append(gained, resource.NewAccess(gained, asRoot(e.reach(it.ref, it.desiredOn(server), after), leads))...)
 				}
 			}
 			for j := range gained {

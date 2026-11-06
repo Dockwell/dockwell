@@ -449,6 +449,59 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 
 // A token that can change things can't bring in a stranger's environment: it could
 // read it through a command of its own, and a stranger's was never in its reach.
+// A token may run a new image on what was taken on, as on any service: that's what a
+// deploy from CI is. Not on what's as good as root, where a new image is any code
+// with root's reach, so a person approves that, whichever way it got there.
+func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	c := changeClient(b, b.origin)
+	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
+	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	takeOn := func(name string, edit func(*docker.CreateRequest)) {
+		t.Helper()
+		runByHand(t, e, name, func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+			edit(r)
+		})
+		applyConfirmed(t, c, adopt(t, cc, name, name))
+	}
+	takeOn("plain", func(*docker.CreateRequest) {})
+	takeOn("runs-docker", func(r *docker.CreateRequest) {
+		r.HostConfig.Binds = []string{"/var/run/docker.sock:/var/run/docker.sock"}
+	})
+	takeOn("runs-privileged", func(r *docker.CreateRequest) { r.HostConfig.Privileged = true })
+
+	deploy := func(name string) *dockwellv1.Change {
+		t.Helper()
+		res, err := services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: name, Image: "nginx:1.27"}))
+		if err != nil {
+			t.Fatalf("deploying %s: %v", name, err)
+		}
+		return res.Msg.GetChange()
+	}
+	if p := deploy("plain"); p.GetPlan().GetHostAccess() {
+		t.Errorf("a new image on an ordinary service needs a person: %v", p.GetPlan())
+	} else {
+		apply(t, script, p)
+	}
+	for _, name := range []string{"runs-docker", "runs-privileged"} {
+		p := deploy(name)
+		if !p.GetPlan().GetHostAccess() {
+			t.Errorf("a new image on %s asks nothing of anyone: %v", name, p.GetPlan())
+		}
+		tokenRefused(t, script, p, name)
+		if !slices.ContainsFunc(p.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "new_image_as_root" }) {
+			t.Errorf("the plan for %s doesn't say why it needs a person: %v", name, p.GetPlan().GetNotes())
+		}
+		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: p.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestATokenCantTakeOnAContainer(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)

@@ -36,7 +36,7 @@ const OwnPrefix = "dev.dockwell."
 const LabelIngress = OwnPrefix + "ingress"
 
 // portainerStack is where Portainer runs a stack, in its own data directory.
-var portainerStack = regexp.MustCompile(`^/data/compose/[0-9]+(/|$)`)
+var portainerStack = regexp.MustCompile(`^/data/compose/\d+(/|$)`)
 
 // ManagedBy names the tool that runs a container's Compose project, as its labels
 // show it, or nothing when they don't.
