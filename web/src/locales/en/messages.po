@@ -328,6 +328,10 @@ msgstr "{first} couldn't be searched"
 msgid "{free} free"
 msgstr "{free} free"
 
+#: src/features/apps/AppsPage.tsx
+msgid "{later}. Show them first puts them at the top of the list."
+msgstr "{later}. Show them first puts them at the top of the list."
+
 #: src/features/auth/ProfilePage.tsx
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
@@ -595,6 +599,10 @@ msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 
+#: src/features/apps/AppsPage.tsx
+msgid "{needing, plural, one {# needs a look} other {# need a look}}"
+msgstr "{needing, plural, one {# needs a look} other {# need a look}}"
+
 #: src/features/changes/words.ts
 msgid "{networks, plural, one {a network} other {# networks}}"
 msgstr "{networks, plural, one {a network} other {# networks}}"
@@ -785,10 +793,6 @@ msgstr "{subject} is replaced"
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
-
-#: src/features/apps/AppsPage.tsx
-msgid "{trouble, plural, one {# needs a look} other {# need a look}}"
-msgstr "{trouble, plural, one {# needs a look} other {# need a look}}"
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."

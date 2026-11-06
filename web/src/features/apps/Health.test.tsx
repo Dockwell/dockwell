@@ -181,16 +181,44 @@ describe("the list's order", () => {
     );
     await waitFor(() => expect(rowNames()).toEqual(["quiet", "broken"]));
     expect(screen.queryByRole("button", { name: "Show them first" })).not.toBeInTheDocument();
+    const live = document.querySelector('[aria-live="polite"].dw-sr');
+    expect(live).toBeEmptyDOMElement();
     down = true;
     await vi.advanceTimersByTimeAsync(11_000);
-    await waitFor(() => expect(screen.getByText(/1 needs a look/)).toBeVisible());
+    await waitFor(() => expect(screen.getByText(/1 needs a look/, { selector: ".page-lead" })).toBeVisible());
     // Nothing moves under the pointer: the lead says so, and offers.
     expect(rowNames()).toEqual(["quiet", "broken"]);
+    // Whoever isn't looking at it hears it.
+    expect(live).toHaveTextContent("1 needs a look. Show them first puts them at the top of the list.");
     await userEvent
       .setup({ advanceTimers: vi.advanceTimersByTime })
       .click(screen.getByRole("button", { name: "Show them first" }));
     await waitFor(() => expect(rowNames()).toEqual(["broken", "quiet"]));
     expect(screen.queryByRole("button", { name: "Show them first" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the button out of the heading on a phone", async () => {
+    onPhone();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let down = false;
+    renderAt(
+      "/apps",
+      api([quiet, broken], {
+        listHealth: () => ({
+          services: [
+            aHealth("svc_quiet", { state: HealthState.NO_CHECK }),
+            aHealth("svc_broken", { state: down ? HealthState.NOT_RUNNING : HealthState.NO_CHECK }),
+          ],
+        }),
+      }),
+    );
+    const heading = await screen.findByRole("heading", { level: 2, name: /2 apps/ });
+    down = true;
+    await vi.advanceTimersByTimeAsync(11_000);
+    const button = await screen.findByRole("button", { name: "Show them first" });
+    expect(within(heading).queryByRole("button")).not.toBeInTheDocument();
+    expect(button.closest("h2")).toBeNull();
+    await expectAccessible(document.body);
   });
 
   it("keeps the revision's column as it is whatever a row's record says, and narrow", async () => {
