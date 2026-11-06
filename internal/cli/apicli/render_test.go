@@ -848,6 +848,15 @@ func TestARouteGoingSaysWhatAVisitorFinds(t *testing.T) {
 	if got := goesWords(nil); got != "" {
 		t.Errorf("no route going says %q", got)
 	}
+	// And it's in the plan, on the step that takes the route away.
+	var out bytes.Buffer
+	PlanView(&out, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{
+		Resource: &dockwellv1.ResourceRef{Kind: "route", Name: "www"}, Action: dockwellv1.PlanAction_PLAN_ACTION_DELETE,
+		Goes: &dockwellv1.RouteGoes{Where: "app.example.com", Domain: "app.example.com", Find: dockwellv1.VisitorsFind_VISITORS_FIND_REFUSED},
+	}}}}})
+	if want := "Anyone visiting app.example.com gets a refused connection"; !strings.Contains(out.String(), want) {
+		t.Errorf("the plan doesn't say %q:\n%s", want, out.String())
+	}
 }
 
 // Changing a route reloads the proxy, and what that costs reaches every site on the

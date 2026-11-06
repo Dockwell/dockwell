@@ -336,6 +336,57 @@ func TestARouteToAPortOnTheServerReadsBackAsWhoseItIs(t *testing.T) {
 	}
 }
 
+// A route that goes by a service's name dials that service, so it needs no owner,
+// and one left from when it dialled a port would say so after it stopped being true.
+func TestARouteByNameKeepsNoOwner(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", &resourcev1.Route{Domain: "app.example.com", Service: "web", HostPort: 8080})
+	if got := s.table.Owners[RouteID(routeRef("www"))]; got != "web" {
+		t.Fatalf("a route to a port on the server belongs to %q, want web", got)
+	}
+	s.apply(t, "www", &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 80})
+	if len(s.table.Owners) != 0 {
+		t.Errorf("a route by name kept an owner: %v", s.table.Owners)
+	}
+	s.table = table{}
+	if err := s.table.load(s.Dir); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.table.Owners) != 0 {
+		t.Errorf("what the agent kept has an owner for a route by name: %v", s.table.Owners)
+	}
+}
+
+// What can't be kept isn't believed, so a route's owner reads as what's on disk, in
+// either direction.
+func TestAnOwnerThatCantBeKeptStaysAsItWas(t *testing.T) {
+	// A file where the directory goes, so nothing can be saved in it.
+	blocked := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(blocked, "ingress")
+	for _, tc := range []struct {
+		name    string
+		owners  map[string]string
+		service string
+	}{
+		{name: "a new owner", service: "web"},
+		{name: "a changed owner", owners: map[string]string{"rte": "api"}, service: "web"},
+		{name: "an owner taken away", owners: map[string]string{"rte": "api"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tbl := table{Owners: maps.Clone(tc.owners)}
+			if err := tbl.own(dir, "rte", tc.service); err == nil {
+				t.Fatal("a save that can't happen passed")
+			}
+			if len(tbl.Owners) != len(tc.owners) || tbl.Owners["rte"] != tc.owners["rte"] {
+				t.Errorf("Owners = %v, want it as it was: %v", tbl.Owners, tc.owners)
+			}
+		})
+	}
+}
+
 // A rollout moves what dials a container. A route that dials a port on the server
 // isn't that, whoever's it is: nothing moves it, drains it, or gives it an address.
 func TestARolloutLeavesARouteToAPortOnTheServerAlone(t *testing.T) {
@@ -819,8 +870,10 @@ func TestWhatAVisitorFindsAsARouteGoes(t *testing.T) {
 		have     map[string]*resourcev1.Route
 		goes     string
 		alsoGoes []string
-		where    string
-		want     resource.VisitorsFind
+		// panel is a panel with a domain, which has the ports once the proxy doesn't.
+		panel bool
+		where string
+		want  resource.VisitorsFind
 	}{
 		{name: "the last route", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80)}, goes: "a", where: "a.example.com", want: resource.VisitorsRefused},
 		{name: "the last route, a tunnel's, where visitors see what's in front", have: map[string]*resourcev1.Route{"a": plain("a.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsNothingBehind},
@@ -829,9 +882,17 @@ func TestWhatAVisitorFindsAsARouteGoes(t *testing.T) {
 		{name: "a tunnel's, with another staying", have: map[string]*resourcev1.Route{"a": plain("a.example.com"), "b": plain("b.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsNotFound},
 		{name: "an HTTPS one, with only tunnels staying, so 443 goes too", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "b": plain("b.example.com")}, goes: "a", where: "a.example.com", want: resource.VisitorsRefused},
 		{name: "every route in one change", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "b": spec("b.example.com", "", "web", 80)}, goes: "a", alsoGoes: []string{"b"}, where: "a.example.com", want: resource.VisitorsRefused},
+		{name: "the last route, with the panel taking the ports back", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80)}, goes: "a", panel: true, where: "a.example.com", want: resource.VisitorsTLSError},
+		{name: "the last route, a tunnel's, with the panel taking the ports back", have: map[string]*resourcev1.Route{"a": plain("a.example.com")}, goes: "a", panel: true, where: "a.example.com", want: resource.VisitorsLoseIt},
+		{name: "an HTTPS one, with only tunnels staying, as the proxy keeps 443 for the panel", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "b": plain("b.example.com")}, goes: "a", panel: true, where: "a.example.com", want: resource.VisitorsTLSError},
+		{name: "a tunnel's, with another staying, with the panel behind the proxy", have: map[string]*resourcev1.Route{"a": plain("a.example.com"), "b": plain("b.example.com")}, goes: "a", panel: true, where: "a.example.com", want: resource.VisitorsNotFound},
+		{name: "a path, with the domain's root staying, with the panel behind the proxy", have: map[string]*resourcev1.Route{"a": spec("a.example.com", "", "web", 80), "api": spec("a.example.com", "/api", "web", 80)}, goes: "api", panel: true, where: "a.example.com/api", want: resource.VisitorsRest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := newSetup(t)
+			if tc.panel {
+				s.Panel = &Panel{Domain: "panel.example.com", Release: func(context.Context) error { return nil }, Retake: func(context.Context) error { return nil }}
+			}
 			for _, name := range slices.Sorted(maps.Keys(tc.have)) {
 				s.apply(t, name, tc.have[name])
 			}

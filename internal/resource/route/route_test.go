@@ -3,6 +3,7 @@
 package route
 
 import (
+	"context"
 	"reflect"
 	"slices"
 	"strings"
@@ -203,6 +204,61 @@ func TestARouteGoingSaysWhereWithNoWordFromTheServer(t *testing.T) {
 	}
 	if dec, _ := (&Driver{}).Plan(nil, spec("a.example.com", ""), nil); dec.Goes != nil {
 		t.Errorf("a route being made goes: %+v", dec.Goes)
+	}
+}
+
+// sayingIngress is a server that has its own word on a route going.
+type sayingIngress struct {
+	Ingress
+	goes   *resource.RouteGoes
+	asked  int
+	seeing []resource.Desired
+}
+
+func (*sayingIngress) Judge(context.Context, resource.Ref, *resourcev1.Route, []resource.Desired) (*resource.IngressEffect, *resource.DomainCheck, error) {
+	return nil, nil, nil
+}
+
+func (*sayingIngress) Returning(context.Context, resource.Ref, *resourcev1.Route, []resource.Desired) []string {
+	return nil
+}
+
+func (i *sayingIngress) Goes(_ context.Context, _ resource.Ref, desired []resource.Desired) *resource.RouteGoes {
+	i.asked++
+	i.seeing = desired
+	return i.goes
+}
+
+// A server's word on what a visitor finds replaces what a plan can say without it,
+// from what the whole plan leaves, and a route that stays isn't asked about.
+func TestARouteGoingTakesTheServersWord(t *testing.T) {
+	ref := resource.Ref{Kind: Kind, Scope: "env_1", Name: "www"}
+	desired := []resource.Desired{{Ref: ref}}
+	ctx := resource.WithDesired(t.Context(), desired)
+	said := &resource.RouteGoes{Where: "a.example.com", Domain: "a.example.com", Find: resource.VisitorsRefused}
+
+	asked := &sayingIngress{goes: said}
+	dec, err := (&Driver{Ingress: asked}).Judge(ctx, ref, spec("a.example.com", ""), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dec.Goes != said {
+		t.Errorf("Goes = %+v, want the server's", dec.Goes)
+	}
+	if len(asked.seeing) != 1 || asked.seeing[0].Ref != ref {
+		t.Errorf("the server was asked with %+v, want what the plan touches", asked.seeing)
+	}
+
+	// A proxy that doesn't have the route has no word on it, so the plan's own stays.
+	dec, err = (&Driver{Ingress: &sayingIngress{}}).Judge(ctx, ref, spec("a.example.com", ""), nil, nil)
+	if err != nil || dec.Goes == nil || dec.Goes.Where != "a.example.com" || dec.Goes.Find != resource.VisitorsLoseIt {
+		t.Errorf("with no word from the server, Goes = %+v, %v", dec.Goes, err)
+	}
+
+	staying := &sayingIngress{goes: said}
+	dec, err = (&Driver{Ingress: staying}).Judge(ctx, ref, spec("a.example.com", ""), spec("a.example.com", ""), nil)
+	if err != nil || dec.Goes != nil || staying.asked != 0 {
+		t.Errorf("a route that stays: Goes = %+v, asked %d, %v", dec.Goes, staying.asked, err)
 	}
 }
 

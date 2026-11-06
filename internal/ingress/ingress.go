@@ -553,16 +553,25 @@ func (m *Manager) Goes(ctx context.Context, ref resource.Ref, desired []resource
 			sameDomain = true
 		}
 	}
+	// A panel with a domain has the ports whatever happens: the proxy keeps them for
+	// it, or it takes them back as the last route goes. It answers only its own name
+	// over HTTPS, and redirects the rest of what comes over plain HTTP to that, so
+	// something does answer, and it isn't what a tunnel's visitors came for.
+	panel := m.Panel.Moves()
 	switch {
+	case left == 0 && gone.Plain && panel:
+		goes.Find = resource.VisitorsLoseIt
 	case left == 0 && gone.Plain:
 		goes.Find = resource.VisitorsNothingBehind
+	case left == 0 && panel:
+		goes.Find = resource.VisitorsTLSError
 	case left == 0:
 		goes.Find = resource.VisitorsRefused
 	case sameDomain:
 		goes.Find = resource.VisitorsRest
 	case gone.Plain:
 		goes.Find = resource.VisitorsNotFound
-	case needsHTTPS(have, desired):
+	case needsHTTPS(have, desired) || panel:
 		goes.Find = resource.VisitorsTLSError
 	default:
 		// What stays takes no certificate, so nothing holds 443 any more.
