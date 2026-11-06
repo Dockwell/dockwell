@@ -297,6 +297,99 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	}
 }
 
+// An image built on the server can be deployed under its own tag with nothing built
+// since, which writes no revision, and stops nothing.
+func TestDeployingAnImageBuiltHereUnderItsOwnTag(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	const built = "acme/built-here:1"
+	b.e.AddLocalImage(built, dockertest.Image{Config: docker.Config{Cmd: []string{"old"}}})
+	env := b.run(t, &dockwellv1.ImportComposeRequest{Compose: "name: shop\nservices:\n  web:\n    image: " + built + "\n"})
+	name := docker.ContainerName(docker.Project(env), "web")
+	web := b.service(t, "shop", "web")
+	before := b.e.Serving(name).ID
+
+	got := applied(t, b.c, b.deploy(t, web.GetId(), built))
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("with nothing built since, the deploy ended %v: %s", got.GetState(), got.GetError())
+	}
+	if step := got.GetSteps()[0]; !strings.Contains(step.GetMessage(), built+" was built or loaded on this server") ||
+		step.GetDid() != dockwellv1.PlanAction_PLAN_ACTION_NONE {
+		t.Errorf("the step did %v, and says %q", step.GetDid(), step.GetMessage())
+	}
+	if b.e.Serving(name).ID != before {
+		t.Error("with nothing built since, the container was replaced")
+	}
+	if revs := b.revisions(t, web.GetId()); len(revs) != 1 {
+		t.Errorf("with nothing built since, the revisions are %v", revs)
+	}
+}
+
+// A new build under the tag that runs has nothing to go back to: it has no digest, and
+// the spec is the same, so a rollback that replaces what ran would fail or say nothing
+// changed, with the build left running and what ran gone. So it's refused before it
+// touches anything, for a service that rolls and one that stops first, and a build that
+// fails its check never gets to fail it. A new tag is the way in.
+func TestABuildUnderTheTagThatRunsIsRefused(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		ports   string
+		rolling bool
+	}{
+		{"a service that rolls", "", true},
+		{"a service that stops first", "    ports: [\"8080:80\"]\n", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b := newBench(t, store.SQLite)
+			const built = "acme/built-here:1"
+			file := func(image string) *dockwellv1.ImportComposeRequest {
+				return &dockwellv1.ImportComposeRequest{Compose: "name: shop\nservices:\n  web:\n    image: " + image + "\n" + c.ports}
+			}
+			b.e.AddLocalImage(built, dockertest.Image{Config: docker.Config{Cmd: []string{"old"}}})
+			env := b.run(t, file(built))
+			name := docker.ContainerName(docker.Project(env), "web")
+			web := b.service(t, "shop", "web")
+			before := b.e.Serving(name).ID
+
+			b.e.AddLocalImage(built, dockertest.Image{Unhealthy: true, CheckSays: "503", Config: docker.Config{
+				Cmd: []string{"new"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "curl", "-f", "http://localhost/healthz"}},
+			}})
+			plan := b.deploy(t, web.GetId(), built)
+			if rolling := plan.GetPlan().GetServers()[0].GetSteps()[0].GetRollout().GetRolling(); rolling != c.rolling {
+				t.Fatalf("the plan's step rolls: %t, want %t, so this isn't the case it says", rolling, c.rolling)
+			}
+			got := applied(t, b.c, plan)
+			if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED ||
+				!strings.Contains(got.GetError(), "a rollback would have nothing to go back to") ||
+				!strings.Contains(got.GetError(), "Give the build a tag of its own, then deploy that") {
+				t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
+			}
+			if step := got.GetSteps()[0]; step.GetReason() != "image" {
+				t.Errorf("the step's reason is %q", step.GetReason())
+			}
+			if got.GetRolledBackBy() != "" {
+				t.Errorf("nothing changed, and %s rolled it back", got.GetRolledBackBy())
+			}
+			if ctr := b.e.Serving(name); ctr == nil || ctr.ID != before || !ctr.State.Running || ctr.Config.Cmd[0] != "old" {
+				t.Fatalf("after the refusal it runs %+v, want what ran", ctr)
+			}
+			revs := b.revisions(t, web.GetId())
+			if len(revs) != 1 || revs[0].GetDeployments()[0].GetState() != dockwellv1.DeploymentState_DEPLOYMENT_STATE_LIVE {
+				t.Fatalf("after the refusal the revisions are %v", revs)
+			}
+
+			// What it says to do works.
+			const next = "acme/built-here:2"
+			b.e.AddLocalImage(next, dockertest.Image{Config: docker.Config{Cmd: []string{"new"}}})
+			if got := applied(t, b.c, b.deploy(t, web.GetId(), next)); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+				t.Fatalf("under a tag of its own, the deploy ended %v: %s", got.GetState(), got.GetError())
+			}
+			if ctr := b.e.Serving(name); ctr == nil || ctr.Config.Cmd[0] != "new" {
+				t.Errorf("under a tag of its own it runs %+v", ctr)
+			}
+		})
+	}
+}
+
 // An app a rollback pinned, going back to its tag with the registry gone, fails
 // the same way. Going back undoes only what the record said, so what runs stays,
 // by the same digest.
@@ -440,6 +533,43 @@ func TestAPullOnTwoServersRecordsBoth(t *testing.T) {
 	if note := noteOf(back.Msg.GetChange(), "digest_differs"); note == nil || !strings.Contains(note.GetMessage(), "ran different images") ||
 		!slices.Equal(note.GetNames(), []string{latest, "2"}) {
 		t.Errorf("the plan's notes = %v", back.Msg.GetChange().GetPlan().GetNotes())
+	}
+}
+
+// A revision that only moves a service between servers changes no field of its
+// spec, and the panel read that as a pull. It says which servers it added or left.
+func TestARevisionSaysWhichServersItAddedOrLeft(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	other := b.f.addServerNamed(t, "hz-2", nil, nil)
+	for _, e := range []*dockertest.Engine{b.e, other} {
+		moveLatest(e, digestA)
+	}
+	res, err := dockwellv1connect.NewServerServiceClient(b.b, b.b.origin, connect.WithProtoJSON()).ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var first, second string
+	for _, s := range res.Msg.GetServers() {
+		if s.GetName() == "hz-2" {
+			second = s.GetId()
+		} else {
+			first = s.GetId()
+		}
+	}
+	const file = "name: shop\nservices:\n  web:\n    image: " + latest + "\n"
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: file, Servers: []string{first}})
+	web := b.service(t, "shop", "web")
+
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: file, Servers: []string{first, second}})
+	added := b.revisions(t, web.GetId())[0]
+	if len(added.GetChanges()) != 0 || !slices.Equal(added.GetServersAdded(), []string{"hz-2"}) || len(added.GetServersLeft()) != 0 {
+		t.Errorf("the revision that added a server changed %v, added %v and left %v", added.GetChanges(), added.GetServersAdded(), added.GetServersLeft())
+	}
+
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: file, Servers: []string{first}})
+	left := b.revisions(t, web.GetId())[0]
+	if len(left.GetChanges()) != 0 || !slices.Equal(left.GetServersLeft(), []string{"hz-2"}) || len(left.GetServersAdded()) != 0 {
+		t.Errorf("the revision that left a server changed %v, added %v and left %v", left.GetChanges(), left.GetServersAdded(), left.GetServersLeft())
 	}
 }
 

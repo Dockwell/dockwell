@@ -190,8 +190,10 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const runsWord = healthWords.word(health);
   const recordWord = recordSaysMore(state) ? words.state(state) : "";
   const moving = isMoving(state);
+  // Nothing changes what can't be read, which the overview says.
+  const changeable = state.kind !== "unreadable";
   // Nothing restarts while it is moving, or where it has no server to do it on.
-  const restartable = !moving && state.kind !== "unplaced";
+  const restartable = !moving && state.kind !== "unplaced" && changeable;
   const restart = () =>
     sheet.open({
       kind: "plan",
@@ -211,7 +213,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
         </>
       }
       lead={
-        state.kind === "rollback-failed" ? (
+        state.kind === "unreadable" ? (
+          <Trans>Dockwell can't read what this runs</Trans>
+        ) : state.kind === "rollback-failed" ? (
           <Trans>
             Putting <code>{image}</code> back failed, {ago}
           </Trans>
@@ -248,9 +252,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans>Restart</Trans>
             </Button>
           ) : null}
-          <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
-            <Trans>Deploy</Trans>
-          </Button>
+          {changeable ? (
+            <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
+              <Trans>Deploy</Trans>
+            </Button>
+          ) : null}
         </>
       }
       {...(phone && onLogs
@@ -287,7 +293,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       )}
       <LogsSearchButton value={searchButton}>{children}</LogsSearchButton>
       {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
-      {phone && !onLogs ? (
+      {phone && !onLogs && changeable ? (
         <div className="app-actionbar">
           {restartable ? (
             <Button icon="refresh" size="lg" onClick={restart}>

@@ -127,6 +127,17 @@ export function useRevisionTitle() {
       }
       const [first] = fields;
       if (first === undefined) {
+        // Where it runs isn't a field of its spec, so this is what it changed.
+        const added = rev.serversAdded.join(", ");
+        const left = rev.serversLeft.join(", ");
+        if (added !== "") {
+          if (failed) return plain(t`Couldn't place it on ${added}`);
+          return plain(moving ? t`Placing it on ${added}` : t`Placed it on ${added}`);
+        }
+        if (left !== "") {
+          if (failed) return plain(t`Couldn't take it off ${left}`);
+          return plain(moving ? t`Taking it off ${left}` : t`Took it off ${left}`);
+        }
         // Nothing but the image its tag names moved, which a pull found.
         if (failed) return plain(t`Couldn't pull ${pulled}`);
         return plain(moving ? t`Pulling ${pulled} again` : t`Pulled ${pulled} again`);

@@ -300,10 +300,11 @@ func (d destination) updates(running, deleted []string) []revision.Note {
 	}
 	message += ". If that isn't what you meant, give the file a project of its own: pass project, or change name: in the file"
 	return []revision.Note{{
-		Reason:  "updates_project",
-		Message: message,
-		Ref:     resource.Ref{Kind: scope.ProjectKind, Scope: d.organization, Name: d.project},
-		Names:   append([]string{d.project}, running...),
+		Reason:      "updates_project",
+		Message:     message,
+		Ref:         resource.Ref{Kind: scope.ProjectKind, Scope: d.organization, Name: d.project},
+		Names:       append([]string{d.project}, running...),
+		IfItChanges: true,
 	}}
 }
 

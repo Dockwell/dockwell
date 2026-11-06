@@ -430,7 +430,12 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 				cfg.Volumes[v] = struct{}{}
 			}
 		}
-		writeJSON(w, http.StatusOK, docker.Image{ID: img.id, Config: &cfg, RepoDigests: []string{img.repo + "@" + img.digest}})
+		out := docker.Image{ID: img.id, Config: &cfg}
+		// An image built here has none.
+		if img.digest != "" {
+			out.RepoDigests = []string{img.repo + "@" + img.digest}
+		}
+		writeJSON(w, http.StatusOK, out)
 	default:
 		fail(w, http.StatusNotFound, "page not found")
 	}

@@ -248,6 +248,9 @@ type Note struct {
 	Named   bool     `json:",omitempty"`
 	// From is where a value came from, as the API's PlanNote says.
 	From string `json:",omitempty"`
+	// IfItChanges is for what's true only of a plan that does something: a plan
+	// that comes to nothing leaves it out.
+	IfItChanges bool `json:"-"`
 }
 
 // Proposal is a set of edits someone wants to make.
@@ -584,6 +587,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	if p.IfNothing != nil && plan.Empty() {
 		return nil, e.nothingToDo(ctx, items, p.IfNothing)
+	}
+	if plan.Empty() {
+		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
 	p.Notes = keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {

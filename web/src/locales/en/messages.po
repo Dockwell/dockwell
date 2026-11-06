@@ -1602,6 +1602,10 @@ msgstr "By"
 msgid "Can read logs"
 msgstr "Can read logs"
 
+#: src/features/apps/words.ts
+msgid "Can't be read"
+msgstr "Can't be read"
+
 #: src/features/auth/AuthGate.tsx
 msgid "Can't check your session"
 msgstr "Can't check your session"
@@ -2084,6 +2088,10 @@ msgid "Couldn't deploy {image}"
 msgstr "Couldn't deploy {image}"
 
 #: src/features/apps/revision.ts
+msgid "Couldn't place it on {added}"
+msgstr "Couldn't place it on {added}"
+
+#: src/features/apps/revision.ts
 msgid "Couldn't publish port {number}"
 msgstr "Couldn't publish port {number}"
 
@@ -2122,6 +2130,10 @@ msgstr "Couldn't replace"
 #: src/features/changes/words.ts
 msgid "Couldn't roll back to {revision}"
 msgstr "Couldn't roll back to {revision}"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't take it off {left}"
+msgstr "Couldn't take it off {left}"
 
 #: src/features/changes/words.ts
 msgid "Couldn't update"
@@ -2465,6 +2477,14 @@ msgstr "Dockwell {short}: control plane status"
 #: src/features/system/StatusPage.tsx
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
+
+#: src/features/apps/AppOverview.tsx
+msgid "Dockwell can't read what {name} runs"
+msgstr "Dockwell can't read what {name} runs"
+
+#: src/features/apps/AppLayout.tsx
+msgid "Dockwell can't read what this runs"
+msgstr "Dockwell can't read what this runs"
 
 #: src/features/changes/words.ts
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
@@ -4472,6 +4492,14 @@ msgstr "People reach the app at this name, over plain HTTP"
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "People reach the app at this name, through what's in front of this server"
 
+#: src/features/apps/revision.ts
+msgid "Placed it on {added}"
+msgstr "Placed it on {added}"
+
+#: src/features/apps/revision.ts
+msgid "Placing it on {added}"
+msgstr "Placing it on {added}"
+
 #: src/features/apps/DomainNote.tsx
 msgid "Plain HTTP"
 msgstr "Plain HTTP"
@@ -5762,6 +5790,10 @@ msgstr "Takes away {stopping}"
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 
+#: src/features/apps/revision.ts
+msgid "Taking it off {left}"
+msgstr "Taking it off {left}"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
 msgstr "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
@@ -6466,6 +6498,10 @@ msgstr "Took {took}"
 msgid "Took {took} on <0>{names}</0>"
 msgstr "Took {took} on <0>{names}</0>"
 
+#: src/features/apps/revision.ts
+msgid "Took it off {left}"
+msgstr "Took it off {left}"
+
 #: src/features/changes/words.ts
 msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
 msgstr "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
@@ -6921,6 +6957,10 @@ msgstr "What runs on your servers isn't affected."
 #: src/features/apps/AddPortSheet.tsx
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."
+
+#: src/features/apps/AppOverview.tsx
+msgid "What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the key file from the same backup."
+msgstr "What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the key file from the same backup."
 
 #: src/features/logs/LogsPage.tsx
 msgid "What the servers keep goes back further than what is loaded here."

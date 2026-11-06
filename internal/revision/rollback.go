@@ -152,6 +152,9 @@ type ResourceRevision struct {
 	Record *Record
 	// Changes are the fields it changed, as its plan says.
 	Changes []resource.Change
+	// ServersAdded and ServersLeft are the servers its plan put it on and took it
+	// off, which change no field of its spec.
+	ServersAdded, ServersLeft []string
 	// Deployments are where it was placed, and how that went.
 	Deployments []store.Deployment
 	// MatchesLatest means going back to it would do nothing.
@@ -235,6 +238,8 @@ func (e *Engine) History(ctx context.Context, resourceID string, before, limit i
 				for j := range p.Resources {
 					if p.Resources[j].ID == resourceID {
 						r.Changes = p.Resources[j].Changes
+						r.ServersAdded = notIn(p.Resources[j].Servers, p.Resources[j].Previous)
+						r.ServersLeft = notIn(p.Resources[j].Previous, p.Resources[j].Servers)
 					}
 				}
 			}
@@ -249,6 +254,17 @@ func (e *Engine) History(ctx context.Context, resourceID string, before, limit i
 		return nil, fault.New(ErrNotFound, "there's no %s. It may have been removed; list what exists with ListResources", resourceID)
 	}
 	return out, err
+}
+
+// notIn lists what's in list and not in others.
+func notIn(list, others []string) []string {
+	var out []string
+	for _, s := range list {
+		if !slices.Contains(others, s) {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // matcher reports whether a revision's spec, with its deployments, matches the

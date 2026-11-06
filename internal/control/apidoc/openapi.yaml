@@ -6465,6 +6465,13 @@ components:
                         How the change that made its latest revision stands. A deployment still
                          pending under a change that has failed will not move again.
                     format: enum
+                specUnreadable:
+                    type: string
+                    description: |-
+                        Why its latest revision's spec can't be read, in plain words, with what to
+                         do: it was changed, moved to another row, or sealed with keys this install
+                         hasn't got. Then spec is unset, and the rest of this message and the rest of
+                         the list stand.
             description: |-
                 ServiceInfo is what a service runs now and how that went, as its latest
                  revision has it.
@@ -6514,6 +6521,18 @@ components:
                     description: |-
                         The revision it put back, for a revision made by RollBackService. 0 for
                          any other.
+                serversAdded:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The servers it put the service on, by name. A revision can do that and
+                         change no field of its spec, so changes is empty.
+                serversLeft:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers it took the service off, by name.
             description: ServiceRevision is one immutable revision of a service.
         Session:
             type: object

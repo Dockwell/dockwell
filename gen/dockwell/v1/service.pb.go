@@ -247,9 +247,14 @@ type ServiceInfo struct {
 	RolledBackChangeId string `protobuf:"bytes,8,opt,name=rolled_back_change_id,json=rolledBackChangeId,proto3" json:"rolled_back_change_id,omitempty"`
 	// How the change that made its latest revision stands. A deployment still
 	// pending under a change that has failed will not move again.
-	ChangeState   ChangeState `protobuf:"varint,9,opt,name=change_state,json=changeState,proto3,enum=dockwell.v1.ChangeState" json:"change_state,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ChangeState ChangeState `protobuf:"varint,9,opt,name=change_state,json=changeState,proto3,enum=dockwell.v1.ChangeState" json:"change_state,omitempty"`
+	// Why its latest revision's spec can't be read, in plain words, with what to
+	// do: it was changed, moved to another row, or sealed with keys this install
+	// hasn't got. Then spec is unset, and the rest of this message and the rest of
+	// the list stand.
+	SpecUnreadable string `protobuf:"bytes,10,opt,name=spec_unreadable,json=specUnreadable,proto3" json:"spec_unreadable,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ServiceInfo) Reset() {
@@ -343,6 +348,13 @@ func (x *ServiceInfo) GetChangeState() ChangeState {
 		return x.ChangeState
 	}
 	return ChangeState_CHANGE_STATE_UNSPECIFIED
+}
+
+func (x *ServiceInfo) GetSpecUnreadable() string {
+	if x != nil {
+		return x.SpecUnreadable
+	}
+	return ""
 }
 
 // ServiceDeployment is one revision of a service placed on one server.
@@ -603,7 +615,12 @@ type ServiceRevision struct {
 	MatchesLatest bool `protobuf:"varint,8,opt,name=matches_latest,json=matchesLatest,proto3" json:"matches_latest,omitempty"`
 	// The revision it put back, for a revision made by RollBackService. 0 for
 	// any other.
-	RolledBackTo  int64 `protobuf:"varint,9,opt,name=rolled_back_to,json=rolledBackTo,proto3" json:"rolled_back_to,omitempty"`
+	RolledBackTo int64 `protobuf:"varint,9,opt,name=rolled_back_to,json=rolledBackTo,proto3" json:"rolled_back_to,omitempty"`
+	// The servers it put the service on, by name. A revision can do that and
+	// change no field of its spec, so changes is empty.
+	ServersAdded []string `protobuf:"bytes,10,rep,name=servers_added,json=serversAdded,proto3" json:"servers_added,omitempty"`
+	// The servers it took the service off, by name.
+	ServersLeft   []string `protobuf:"bytes,11,rep,name=servers_left,json=serversLeft,proto3" json:"servers_left,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -699,6 +716,20 @@ func (x *ServiceRevision) GetRolledBackTo() int64 {
 		return x.RolledBackTo
 	}
 	return 0
+}
+
+func (x *ServiceRevision) GetServersAdded() []string {
+	if x != nil {
+		return x.ServersAdded
+	}
+	return nil
+}
+
+func (x *ServiceRevision) GetServersLeft() []string {
+	if x != nil {
+		return x.ServersLeft
+	}
+	return nil
 }
 
 // DeployServiceRequest names a service and the image to run.
@@ -1133,7 +1164,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"page_token\x18\x04 \x01(\tR\tpageToken\"t\n" +
 	"\x14ListServicesResponse\x124\n" +
 	"\bservices\x18\x01 \x03(\v2\x18.dockwell.v1.ServiceInfoR\bservices\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xb4\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xdd\x03\n" +
 	"\vServiceInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x1a\n" +
@@ -1144,7 +1175,9 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\vdeployments\x18\x06 \x03(\v2\x1e.dockwell.v1.ServiceDeploymentR\vdeployments\x12\x1b\n" +
 	"\tchange_id\x18\a \x01(\tR\bchangeId\x121\n" +
 	"\x15rolled_back_change_id\x18\b \x01(\tR\x12rolledBackChangeId\x12;\n" +
-	"\fchange_state\x18\t \x01(\x0e2\x18.dockwell.v1.ChangeStateR\vchangeState\"\xf0\x01\n" +
+	"\fchange_state\x18\t \x01(\x0e2\x18.dockwell.v1.ChangeStateR\vchangeState\x12'\n" +
+	"\x0fspec_unreadable\x18\n" +
+	" \x01(\tR\x0especUnreadable\"\xf0\x01\n" +
 	"\x11ServiceDeployment\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -1163,7 +1196,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\venvironment\x18\x05 \x01(\tR\venvironment\"\x82\x01\n" +
 	"\x1cListServiceRevisionsResponse\x12:\n" +
 	"\trevisions\x18\x01 \x03(\v2\x1c.dockwell.v1.ServiceRevisionR\trevisions\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x86\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xce\x03\n" +
 	"\x0fServiceRevision\x12\x16\n" +
 	"\x06number\x18\x01 \x01(\x03R\x06number\x12;\n" +
 	"\vcreate_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
@@ -1174,7 +1207,10 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\achanges\x18\x06 \x03(\v2\x18.dockwell.v1.FieldChangeR\achanges\x12@\n" +
 	"\vdeployments\x18\a \x03(\v2\x1e.dockwell.v1.ServiceDeploymentR\vdeployments\x12%\n" +
 	"\x0ematches_latest\x18\b \x01(\bR\rmatchesLatest\x12$\n" +
-	"\x0erolled_back_to\x18\t \x01(\x03R\frolledBackTo\"\x92\x01\n" +
+	"\x0erolled_back_to\x18\t \x01(\x03R\frolledBackTo\x12#\n" +
+	"\rservers_added\x18\n" +
+	" \x03(\tR\fserversAdded\x12!\n" +
+	"\fservers_left\x18\v \x03(\tR\vserversLeft\"\x92\x01\n" +
 	"\x14DeployServiceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x18\n" +

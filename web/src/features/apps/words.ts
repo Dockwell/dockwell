@@ -43,6 +43,8 @@ export function useAppWords(): AppWords {
             return t`Not placed`;
           case "unknown":
             return t({ message: "Deployed", context: "An app whose latest revision is deployed" });
+          case "unreadable":
+            return t`Can't be read`;
         }
       },
       /** A field of a service, as a change names it, in words. */

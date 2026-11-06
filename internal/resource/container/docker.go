@@ -1088,13 +1088,26 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 // pullAgain pulls ref. One that fails leaves what runs running, and fails the
 // step. Where nothing is running there's nothing to keep safe, so the image the
 // server has will do, which is how someone gets a service back while its registry
-// is down.
+// is down. An image that came from no registry isn't waiting on one: a registry
+// that says it hasn't got it has said all there is, so what the server has under
+// that tag stands. Unless that's a new build over what's there, as nothing but the
+// tag it just lost names what ran, so nothing could go back to it, and it's refused.
 func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container, ref string) error {
 	resource.Progress(ctx, "Pulling "+ref+" again")
 	err := d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+" again, "+p) })
 	d.pulled(ref)
 	if err == nil || docker.IsUnavailable(err) || ctx.Err() != nil {
 		return err
+	}
+	if docker.NotPullable(err) {
+		if img, have := d.Client.InspectImage(ctx, docker.WithTag(ref)); have == nil && img.Digest(ref) == "" {
+			if old != nil && resource.BareImage(old.Config.Image) == resource.BareImage(ref) && old.Image != img.ID {
+				resource.Report(ctx, resource.Outcome{Untouched: true})
+				return builtOverFailure(t, old, ref, err)
+			}
+			resource.Report(ctx, resource.Outcome{Note: fmt.Sprintf("%s was built or loaded on this server, and no registry gives it to a pull, so %s runs the image this server has under that tag", ref, t.Service)})
+			return nil
+		}
 	}
 	if old != nil && notRunning(old) == "" {
 		resource.Report(ctx, resource.Outcome{Untouched: true})
@@ -1175,12 +1188,13 @@ func notRunning(c *docker.Container) string {
 	return cmp.Or(c.State.Status, "stopped")
 }
 
-// reportRan puts the image a container now runs on record, by digest. Not
-// knowing it costs a moving tag its rollback, not the deploy, so a failure to
-// read it doesn't fail anything.
-func (d *Docker) reportRan(ctx context.Context, ref string) {
-	if img, err := d.Client.InspectImage(ctx, docker.WithTag(ref)); err == nil {
-		resource.Report(ctx, resource.Outcome{Digest: img.Digest(ref)})
+// reportRan puts the image a container now runs on record, by digest. It reads
+// the container's own image, as its tag may have moved since it was made, by a
+// pull or a build on the server. Not knowing it costs a moving tag its rollback,
+// not the deploy, so a failure to read it doesn't fail anything.
+func (d *Docker) reportRan(ctx context.Context, c *docker.Container) {
+	if img, err := d.Client.InspectImage(ctx, c.Image); err == nil {
+		resource.Report(ctx, resource.Outcome{Digest: img.Digest(c.Config.Image)})
 	}
 }
 
@@ -1604,7 +1618,7 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	}
 	// What it ran goes on record once it passes, as a step does, however far it got
 	// before it was cut short.
-	d.reportRan(ctx, all[0].Config.Image)
+	d.reportRan(ctx, all[0].Container)
 	return nil
 }
 

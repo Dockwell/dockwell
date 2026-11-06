@@ -3,6 +3,7 @@
 package control
 
 import (
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -52,6 +53,84 @@ func onlyService(t *testing.T, s dockwellv1connect.ServiceServiceClient) *dockwe
 		t.Fatalf("ListServices = %v, want one service", res.Msg.GetServices())
 	}
 	return res.Msg.GetServices()[0]
+}
+
+// One row that won't open used to fail the whole list, with "try again", so a
+// damaged service took every app out of the panel, the ones to fix it from
+// included. It costs that row, which says which it is and what to do, and the
+// log has it too. A row in the clear goes the same way.
+func TestARowItWontReadCostsOneServiceAndNotTheList(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		t.Run("sealed for another row", func(t *testing.T) {
+			testARowItWontReadCostsOneService(t, backend, func(other string) string {
+				return `(SELECT r.spec FROM revisions r WHERE r.resource_id = '` + other + `')`
+			}, "Restore the database and the key file from the same backup")
+		})
+		t.Run("not sealed", func(t *testing.T) {
+			spec := `x'0a0a'`
+			if backend == store.Postgres {
+				spec = `'\x0a0a'`
+			}
+			testARowItWontReadCostsOneService(t, backend, func(string) string { return spec },
+				"Restore the database from a backup. On a development install, start again with an empty data directory")
+		})
+	})
+}
+
+func testARowItWontReadCostsOneService(t *testing.T, backend store.Backend, spec func(other string) string, fix string) {
+	logs := &syncBuffer{}
+	f := startFullLogging(t, backend, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelError})))
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.Registry["ghcr.io/acme/web:1.0"] = dockertest.Image{}
+	e.Registry["ghcr.io/acme/api:1.0"] = dockertest.Image{}
+	c := changeClient(b, b.origin)
+	s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	applied(t, c, propose(t, c, "Run web", serviceEdit("web", "ghcr.io/acme/web:1.0", nil)))
+	applied(t, c, propose(t, c, "Run api", serviceEdit("api", "ghcr.io/acme/api:1.0", nil)))
+	list := func() map[string]*dockwellv1.ServiceInfo {
+		t.Helper()
+		res, err := s.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+		if err != nil {
+			t.Fatalf("ListServices with a row it won't read = %v, want the others listed", err)
+		}
+		out := map[string]*dockwellv1.ServiceInfo{}
+		for _, info := range res.Msg.GetServices() {
+			out[info.GetResource().GetName()] = info
+		}
+		return out
+	}
+	before := list()
+	web, api := before["web"], before["api"]
+	if web == nil || api == nil || web.GetSpecUnreadable() != "" {
+		t.Fatalf("before anything is damaged, ListServices = %v", before)
+	}
+
+	drop := `DROP TRIGGER revisions_never_change`
+	if backend == store.Postgres {
+		drop += ` ON revisions`
+	}
+	storetest.Exec(t, f.db, drop)
+	storetest.Exec(t, f.db, `UPDATE revisions SET spec = `+spec(api.GetId())+` WHERE resource_id = '`+web.GetId()+`'`)
+
+	after := list()
+	got := after["web"]
+	if got == nil || !strings.Contains(got.GetSpecUnreadable(), fix) || !strings.Contains(got.GetSpecUnreadable(), web.GetId()) {
+		t.Fatalf("the damaged row = %v, want it saying which it is and what to do", got)
+	}
+	if got.GetSpec() != nil {
+		t.Errorf("the damaged row has a spec: %v", got.GetSpec())
+	}
+	// What the row needs for a person to find it stands: it isn't read from the spec.
+	if got.GetRevision() != web.GetRevision() || len(got.GetDeployments()) != 1 || got.GetChangeId() != web.GetChangeId() {
+		t.Errorf("the damaged row lost what it knows: %v", got)
+	}
+	if other := after["api"]; other == nil || other.GetSpecUnreadable() != "" || other.GetSpec().GetApp().GetImage() != "ghcr.io/acme/api:1.0" {
+		t.Errorf("the row beside it = %v", other)
+	}
+	if !strings.Contains(logs.String(), fix) {
+		t.Errorf("after listing, the log doesn't say what to do: %s", logs.String())
+	}
 }
 
 // A service says what it runs and how that went without its secrets, and
