@@ -2967,7 +2967,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if was != nil && step.Action != resource.ActionDelete {
 				step.Restores = step.Restores || was.Restores
 			}
-			step.NeverBegan = step.Finishing && !before.began(s.Server, step.Ref)
+			step.NeverBegan = step.Finishing && before.neverBegan(s.Server, step.Ref)
 			// Planning again may find two writers the first plan couldn't read, as what
 			// it shares may be a volume this change made. Nobody approved that, and it
 			// stays so, so the step stops at it, as it does in a run that isn't cut short.
@@ -2980,6 +2980,8 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		}
 	}
 	e.track(changeID, resumed(before, plan, items))
+	// A wait on record is what says a step never began, and from here it may.
+	e.recordProgress(ctx, changeID)
 	e.published(changeID, store.ChangeApplying)
 	return &committed{c: c, items: items, plan: plan, resumed: true}, nil
 }

@@ -172,8 +172,9 @@ type Decision struct {
 	// be seen to have gone: what it makes reads as asked for, and nothing else of it
 	// is left. Nothing says its check passed, so that is all this step does.
 	Finishing bool `json:",omitempty"`
-	// NeverBegan is true of a Finishing step that no run got to start, so what it
-	// finds is how the server already was. It stays on the control plane.
+	// NeverBegan is true of a Finishing step the record says no run started, so what
+	// it finds is how the server already was. Where the record can't say, it's false.
+	// It stays on the control plane.
 	NeverBegan bool `json:"-"`
 	// ImageGone is true when the digest its spec pins isn't on the server, and its
 	// registry won't give it, so applying it could only fail. A registry that doesn't

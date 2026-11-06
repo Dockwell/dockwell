@@ -447,10 +447,15 @@ func resumed(before Progress, plan *Plan, items []item) Progress {
 // alreadyHasIt ends a step that found the server as it was to leave it.
 const alreadyHasIt = "The server already has it"
 
-// began reports a step on a server that some run started, which may have got
-// anywhere before it stopped.
-func (p Progress) began(server string, ref resource.Ref) bool {
-	return slices.ContainsFunc(p.Steps, func(s StepProgress) bool { return s.Server == server && s.Ref == ref && !s.Started.IsZero() })
+// neverBegan reports a step on a server that the record says no run started: it
+// waited for its server, which is written down as it happens, and has no start. That's
+// the only thing that can say so. A step's start stays in memory until something
+// records the step, so one that reads as queued after a crash may have got anywhere,
+// and nobody can say.
+func (p Progress) neverBegan(server string, ref resource.Ref) bool {
+	return slices.ContainsFunc(p.Steps, func(s StepProgress) bool {
+		return s.Server == server && s.Ref == ref && s.State == StepWaiting && s.Started.IsZero()
+	})
 }
 
 // verbs words each action for a step's messages: to do, doing, done.
