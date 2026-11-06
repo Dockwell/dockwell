@@ -390,8 +390,8 @@ func (d *Docker) Delete(ctx context.Context, t Target) error {
 	}
 	if len(users) > 0 {
 		var names []string
-		for _, u := range users {
-			for _, n := range u.Names {
+		for i := range users {
+			for _, n := range users[i].Names {
 				names = append(names, strings.TrimPrefix(n, "/"))
 			}
 		}

@@ -615,7 +615,7 @@ func (m *Manager) keepNetwork(ctx context.Context, inStep bool) error {
 	id, err := m.Client.CreateContainer(ctx, KeeperName, &docker.CreateRequest{
 		Config: docker.Config{
 			Image: image, Cmd: []string{"sleep", "infinity"}, User: "65532:65532",
-			Labels: map[string]string{docker.OwnPrefix + "ingress": keeperLabel},
+			Labels: map[string]string{docker.LabelIngress: keeperLabel},
 		},
 		HostConfig: docker.HostConfig{
 			NetworkMode: docker.IngressNetwork, RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},

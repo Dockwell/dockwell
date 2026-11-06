@@ -1116,12 +1116,21 @@ func (s *Session) stoppedToMove() error {
 }
 
 // LogSources asks the agent which containers a service has logs from.
-func (s *Session) LogSources(ctx context.Context, ref *dockwellv1.ResourceRef, forgottenUpTo int64) ([]*dockwellv1.LogSource, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_LogSources{LogSources: &agentv1.LogSourcesCall{Resource: ref, ForgottenUpTo: forgottenUpTo}}}, ObserveTimeout, nil)
+func (s *Session) LogSources(ctx context.Context, call *agentv1.LogSourcesCall) ([]*dockwellv1.LogSource, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_LogSources{LogSources: call}}, ObserveTimeout, nil)
 	if err != nil {
 		return nil, err
 	}
 	return r.GetLogSources().GetSources(), nil
+}
+
+// Containers asks the agent what Docker lists: every container, or the one named.
+func (s *Session) Containers(ctx context.Context, container string) (*agentv1.ContainersResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Containers{Containers: &agentv1.ContainersCall{Container: container}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetContainers(), nil
 }
 
 // Forgotten tells a server which services' kept logs are out of reach.

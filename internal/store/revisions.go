@@ -530,6 +530,32 @@ func (t *Tx) ListKind(ctx context.Context, kind string) ([]Resource, error) {
 		WHERE r.kind = ? AND v.spec IS NOT NULL ORDER BY r.scope, r.name`, kind)
 }
 
+// ScopedName is where a resource lives, and what it is called there.
+type ScopedName struct {
+	Scope, Name string
+}
+
+// EverManaged returns where each resource of a kind lives, and its name: all that
+// were ever managed, deleted ones too, as what a deletion is still removing on a
+// server was made here all the same. It reads no specs, so it costs little however
+// many there are.
+func (t *Tx) EverManaged(ctx context.Context, kind string) ([]ScopedName, error) {
+	rows, err := t.query(ctx, `SELECT scope, name FROM resources WHERE kind = ?`, kind)
+	if err != nil {
+		return nil, fmt.Errorf("can't list %s resources: %w", kind, err)
+	}
+	defer rows.Close()
+	var out []ScopedName
+	for rows.Next() {
+		var n ScopedName
+		if err := rows.Scan(&n.Scope, &n.Name); err != nil {
+			return nil, fmt.Errorf("can't list %s resources: %w", kind, err)
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 // Superseded is a spec a resource had until a later revision replaced or
 // deleted it.
 type Superseded struct {

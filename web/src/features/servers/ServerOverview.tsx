@@ -8,6 +8,7 @@ import { Fragment, type ReactNode } from "react";
 
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { ContainersPanel } from "./ContainersPanel";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "./FleetNotes";
 import { ServerCallout } from "./ServerCallout";
 import { ServerMetrics } from "./ServerMetrics";
@@ -93,6 +94,7 @@ function ServerPage({ server, fleet, status }: { server: Server; fleet: boolean;
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
       <ServerMetrics server={server} fourth="load" compact={phone} />
       <DisksPanel server={server} />
+      <ContainersPanel server={server} />
       <div className="server-panels">
         <SystemPanel server={server} />
         <NetworkPanel server={server} />

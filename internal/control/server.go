@@ -44,6 +44,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/domains"
 	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/fleet"
@@ -234,6 +235,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler) (http.Hand
 		services = append(services, strings.Trim(path, "/"))
 		guardREST = logs.GuardREST
 		handle(dockwellv1connect.NewHealthServiceHandler(health.New(cfg.Store, cfg.Agents, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewContainerServiceHandler(containers.New(cfg.Agents, cfg.Store, cfg.Logger), opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {

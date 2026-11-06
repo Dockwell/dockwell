@@ -5,6 +5,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -239,7 +240,8 @@ func (c *Client) ContainerNamed(ctx context.Context, name string) (*Container, e
 	if err != nil {
 		return nil, err
 	}
-	for _, s := range list {
+	for i := range list {
+		s := &list[i]
 		if !slices.Contains(s.Names, "/"+name) {
 			continue
 		}
@@ -266,9 +268,14 @@ type ContainerSummary struct {
 	Labels map[string]string `json:"Labels"`
 	// Created is when it was made, in seconds since 1970.
 	Created int64 `json:"Created"`
+	// Image is what it was made from, as it was asked for, or the image's ID once
+	// that name means another image, or none.
+	Image string `json:"Image"`
 	// Ports are the ports it publishes, and those it only exposes. Only a port
 	// it has bound on the server now has a PublicPort, so a stopped one holds none.
 	Ports []SummaryPort `json:"Ports"`
+	// Mounts are what is mounted in it, the image's anonymous volumes too.
+	Mounts []MountPoint `json:"Mounts"`
 	// State is created, running, restarting, exited, paused or dead.
 	State string `json:"State"`
 	// Status says it for people, with its health check's state, such as "Up
@@ -286,9 +293,10 @@ type SummaryNetworks struct {
 // SummaryPort is a container's port as the engine lists it. PublicPort is
 // zero for one that isn't published.
 type SummaryPort struct {
-	IP         string `json:"IP"` // the server address, "0.0.0.0" or "::" for every one
-	PublicPort uint16 `json:"PublicPort"`
-	Type       string `json:"Type"` // tcp or udp
+	IP          string `json:"IP"` // the server address, "0.0.0.0" or "::" for every one
+	PrivatePort uint16 `json:"PrivatePort"`
+	PublicPort  uint16 `json:"PublicPort"`
+	Type        string `json:"Type"` // tcp or udp
 }
 
 // ListContainers lists the containers, running or not, that pass
@@ -296,6 +304,54 @@ type SummaryPort struct {
 // on the name with its leading slash; label, a key or key=value; and
 // volume, a volume's name.
 func (c *Client) ListContainers(ctx context.Context, filters map[string][]string) ([]ContainerSummary, error) {
+	q, err := listQuery(filters)
+	if err != nil {
+		return nil, err
+	}
+	var out []ContainerSummary
+	if err := c.do(ctx, http.MethodGet, "/containers/json", q, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// EachContainer is ListContainers one container at a time, as Docker sends them,
+// so a server of hundreds costs what its largest container costs, not all of them
+// at once. The summary is each's alone, and an error from each ends the list.
+func (c *Client) EachContainer(ctx context.Context, filters map[string][]string, each func(*ContainerSummary) error) error {
+	q, err := listQuery(filters)
+	if err != nil {
+		return err
+	}
+	path, err := c.versioned(ctx, "/containers/json")
+	if err != nil {
+		return err
+	}
+	res, err := c.send(ctx, http.MethodGet, path, q, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	defer discard(res.Body)
+	read := func(err error) error { return fmt.Errorf("can't read Docker's list of containers: %w", err) }
+	dec := json.NewDecoder(res.Body)
+	if _, err := dec.Token(); err != nil {
+		return read(err)
+	}
+	for dec.More() {
+		var s ContainerSummary
+		if err := dec.Decode(&s); err != nil {
+			return read(err)
+		}
+		if err := each(&s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// listQuery is the query of a list of containers, stopped ones included.
+func listQuery(filters map[string][]string) (url.Values, error) {
 	q := url.Values{"all": {"1"}}
 	if len(filters) > 0 {
 		// The form every engine takes: {"name": {"^/db$": true}}.
@@ -312,11 +368,7 @@ func (c *Client) ListContainers(ctx context.Context, filters map[string][]string
 		}
 		q.Set("filters", string(b))
 	}
-	var out []ContainerSummary
-	if err := c.do(ctx, http.MethodGet, "/containers/json", q, nil, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return q, nil
 }
 
 // CreateContainer creates a container, and returns its ID.

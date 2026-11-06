@@ -57,10 +57,10 @@ func newestReal(t *testing.T, client *docker.Client, project, service string) *d
 	if len(list) == 0 {
 		t.Fatalf("Docker has no container of %s", service)
 	}
-	newest := list[0]
-	for _, s := range list {
-		if s.Number() > newest.Number() {
-			newest = s
+	newest := &list[0]
+	for i := range list {
+		if list[i].Number() > newest.Number() {
+			newest = &list[i]
 		}
 	}
 	c, err := client.InspectContainer(t.Context(), newest.ID)
@@ -252,7 +252,7 @@ func TestLogsOnRealDocker(t *testing.T) {
 	}
 	cancel5()
 
-	found, err := reader.Sources(t.Context(), ref, 0)
+	found, err := reader.Sources(t.Context(), &agentv1.LogSourcesCall{Resource: ref})
 	if err != nil {
 		t.Fatal(err)
 	}

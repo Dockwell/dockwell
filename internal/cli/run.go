@@ -80,7 +80,7 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
 	drivers, collector, routes, reader, monitor := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	return agent.Run(ctx, agent.Config{
-		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector, Domains: routes, Logs: reader, Health: monitor,
+		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector, Domains: routes, Logs: reader, Docker: reader.Client, Health: monitor,
 	})
 }
 

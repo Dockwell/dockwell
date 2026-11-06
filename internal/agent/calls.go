@@ -378,11 +378,17 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Logs == nil {
 			return fail(errors.New("this agent can't read logs, as it has no Docker driver"))
 		}
-		sources, err := c.cfg.Logs.Sources(ctx, call.GetLogSources().GetResource(), call.GetLogSources().GetForgottenUpTo())
+		sources, err := c.cfg.Logs.Sources(ctx, call.GetLogSources())
 		if err != nil {
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_LogSources{LogSources: &agentv1.LogSourcesResult{Sources: sources}}}
+	case call.GetContainers() != nil:
+		found, err := containers(ctx, c.cfg.Docker, call.GetContainers())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Containers{Containers: found}}
 	}
 	if f := call.GetForgotten(); f != nil {
 		if c.cfg.Logs != nil {

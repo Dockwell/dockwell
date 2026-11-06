@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -63,6 +64,8 @@ type Config struct {
 	Domains DomainReporter
 	// Logs reads what this server's containers print. Nil reads none.
 	Logs LogReader
+	// Docker lists this server's containers. Nil lists none.
+	Docker *docker.Client
 	// Health says how this server's services are, which the agent tells the
 	// control plane as its stream opens, when a state changes, and every so
 	// often while checks run. Nil says nothing.
@@ -101,8 +104,8 @@ type DomainReporter interface {
 // the control plane and the agent's stats, plans and applies.
 type LogReader interface {
 	// Sources lists the containers a service has logs from, leaving out what it
-	// kept of revisions up to forgottenUpTo, which a deletion put out of reach.
-	Sources(ctx context.Context, ref *dockwellv1.ResourceRef, forgottenUpTo int64) ([]*dockwellv1.LogSource, error)
+	// kept of revisions a deletion put out of reach, or the one container named.
+	Sources(ctx context.Context, call *agentv1.LogSourcesCall) ([]*dockwellv1.LogSource, error)
 	// Forgotten says which services' kept logs no reader may see any more.
 	Forgotten(services []*agentv1.ForgottenService)
 	// Stream reads what a call asks for, passing it to send, until it has read

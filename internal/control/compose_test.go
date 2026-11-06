@@ -89,6 +89,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		id:      enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
 		drivers: resource.NewRegistry(drivers...),
 		logs:    &agentlogs.Reader{Client: client, Archive: archive, Logger: slog.New(slog.DiscardHandler)},
+		client:  client,
 	}
 	s.connect(t, f)
 	f.lastDocker = s

@@ -68,7 +68,8 @@ func (s *dockerScene) one(t *testing.T, number int) *docker.Container {
 		t.Fatal(err)
 	}
 	var names []string
-	for _, c := range list {
+	for i := range list {
+		c := &list[i]
 		names = append(names, strings.TrimPrefix(c.Names[0], "/"))
 	}
 	want := docker.InstanceName(s.project, "web", number)

@@ -534,6 +534,33 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/containers:
+        get:
+            tags:
+                - ContainerService
+            description: |-
+                ListContainers returns the containers on a server that Dockwell didn't
+                 make, by name, running or not.
+            operationId: ContainerService_ListContainers
+            parameters:
+                - name: server
+                  in: query
+                  description: The server, by name or ID. It can be left out while there is only one.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListContainersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -1117,6 +1144,13 @@ paths:
                   description: The environment a service's name is in, by name or ID.
                   schema:
                     type: string
+                - name: server
+                  in: query
+                  description: |-
+                    A server's ID or name, to read a container Dockwell didn't make there
+                     instead of a service. id is then the container, by its name or its full ID.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -1233,6 +1267,13 @@ paths:
                      plain text, not a pattern. Each server scans what it still has for it: at
                      most the newest 1,000,000 lines of each container, and for at most 30
                      seconds.
+                  schema:
+                    type: string
+                - name: server
+                  in: query
+                  description: |-
+                    A server's ID or name, to read a container Dockwell didn't make there
+                     instead of a service. id is then the container, by its name or its full ID.
                   schema:
                     type: string
             responses:
@@ -2864,6 +2905,43 @@ components:
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves
                  out, such as its command or working directory, and that isn't drift.
+        ContainerMount:
+            type: object
+            properties:
+                volume:
+                    type: string
+                    description: The volume's name. Empty for a server path.
+                anonymous:
+                    type: boolean
+                    description: True for a volume Docker made for a path in the image, with no name of its own.
+                hostPath:
+                    type: string
+                    description: The server path. Empty for a volume.
+                target:
+                    type: string
+                    description: Where the container sees it, such as "/var/lib/postgresql/data".
+                readOnly:
+                    type: boolean
+                    description: True when the container can't write to it.
+            description: ContainerMount is a volume or a server path mounted in a container.
+        ContainerPort:
+            type: object
+            properties:
+                serverPort:
+                    type: integer
+                    description: The port on the server, such as 8080.
+                    format: uint32
+                containerPort:
+                    type: integer
+                    description: The port in the container, such as 80.
+                    format: uint32
+                address:
+                    type: string
+                    description: The server address it is bound to. Empty means every address.
+                protocol:
+                    type: string
+                    description: '"tcp" or "udp".'
+            description: ContainerPort is a port a container publishes on the server.
         CreateTokenRequest:
             type: object
             properties:
@@ -4317,6 +4395,27 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListChangesResponse is a page of changes.
+        ListContainersResponse:
+            type: object
+            properties:
+                containers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerContainer'
+                    description: The containers, by name.
+                ownContainers:
+                    type: integer
+                    description: |-
+                        How many containers on the server are Dockwell's own, which aren't listed:
+                         those of its services, and what runs its ingress.
+                    format: int32
+                unlisted:
+                    type: integer
+                    description: |-
+                        How many more the server has than fit in a list, which are left out, and may
+                         be Dockwell's own or not. Zero while the list is whole.
+                    format: int32
+            description: ListContainersResponse lists a server's containers that Dockwell didn't make.
         ListDomainsResponse:
             type: object
             properties:
@@ -4661,14 +4760,16 @@ components:
                     description: Its name, such as "web".
                 environment:
                     type: string
-                    description: The name of its environment, such as "production".
+                    description: The name of its environment, such as "production". Empty for a container.
                 deleted:
                     type: boolean
                     description: |-
                         True when the service isn't there now. When its first deploy failed and
                          was rolled back, what its servers kept can still be read. When it was
                          deleted, nothing can, unless undoing the deletion brings it back.
-            description: LoggedService says which service logs are from.
+            description: |-
+                LoggedService says which service logs are from, or which container, for one
+                 Dockwell didn't make.
         Mount:
             type: object
             properties:
@@ -5901,6 +6002,75 @@ components:
                          server that isn't connected.
                     format: date-time
             description: Server is one machine running the agent.
+        ServerContainer:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its full ID.
+                name:
+                    type: string
+                    description: Its name, such as "nginx".
+                image:
+                    type: string
+                    description: |-
+                        The image it was made from, such as "nginx:1.27". Once that name means
+                         another image, or none, this is the ID of the one it runs, such as
+                         "sha256:3f2a…", as Docker lists it.
+                state:
+                    enum:
+                        - CONTAINER_STATE_UNSPECIFIED
+                        - CONTAINER_STATE_CREATED
+                        - CONTAINER_STATE_RUNNING
+                        - CONTAINER_STATE_PAUSED
+                        - CONTAINER_STATE_RESTARTING
+                        - CONTAINER_STATE_REMOVING
+                        - CONTAINER_STATE_EXITED
+                        - CONTAINER_STATE_DEAD
+                    type: string
+                    description: Where it is now.
+                    format: enum
+                status:
+                    type: string
+                    description: |-
+                        How it is, in Docker's own words, such as "Up 3 hours (healthy)" or
+                         "Exited (137) 2 days ago".
+                createTime:
+                    type: string
+                    description: When it was made.
+                    format: date-time
+                ports:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ContainerPort'
+                    description: |-
+                        The ports it publishes on the server now, by port. A stopped container
+                         publishes none, and one on the server's own network needs none.
+                morePorts:
+                    type: integer
+                    description: How many more ports it publishes than are listed.
+                    format: int32
+                mounts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ContainerMount'
+                    description: The volumes and server paths mounted in it, by where it mounts them.
+                moreMounts:
+                    type: integer
+                    description: How many more it mounts than are listed.
+                    format: int32
+                composeProject:
+                    type: string
+                    description: |-
+                        The Compose project it is part of, as its labels say. Empty for a
+                         container on its own.
+                composeService:
+                    type: string
+                    description: Its service in that project.
+                oneOff:
+                    type: boolean
+                    description: True for a container that docker compose run made for one command.
+            description: ServerContainer is a container on a server, as Docker lists it.
         ServerHealth:
             type: object
             properties:
@@ -6875,6 +7045,16 @@ tags:
          Compose gives its own, so docker compose sees them, and an exported file
          runs the same with docker compose alone (PRD principle 6). See
          docs/adr/0021-the-docker-driver.md and docs/adr/0026-the-app-screens.md.
+    - name: ContainerService
+      description: |-
+        ContainerService reads the containers on a server that Dockwell didn't make:
+         those that were there before it, and those someone runs by hand or with a
+         Compose file of their own. Reading them changes nothing, and nothing here
+         comes from a container's environment, which may hold secrets, or its labels
+         and command, which may too. See docs/adr/0031-containers-dockwell-didnt-make.md.
+
+         A service's containers aren't here: they are the service's. ReadLogs and
+         WatchLogs read what one of these prints, given its server.
     - name: DomainService
       description: |-
         DomainService says where the domains of your routes stand: what each sends

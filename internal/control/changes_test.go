@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -70,7 +71,9 @@ type testServer struct {
 	fw      *gate
 	drivers *resource.Registry
 	logs    agent.LogReader
-	stop    func()
+	// client is the Docker its agent lists containers from, when it has one.
+	client *docker.Client
+	stop   func()
 	// hello changes what its agent says of itself, to stand in for another version.
 	hello func(*agentv1.Hello)
 	// health says how its services are, when set.
@@ -116,7 +119,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	go func() {
 		_ = agent.Run(ctx, agent.Config{
 			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-			Hello: s.hello, Health: s.health,
+			Docker: s.client, Hello: s.hello, Health: s.health,
 		})
 		close(done)
 	}()

@@ -210,6 +210,10 @@ msgstr "{count, plural, other {{where} 中有 # 个应用}}"
 msgid "{count, plural, one {# app} other {# apps}}"
 msgstr "{count, plural, other {# 个应用}}"
 
+#: src/features/servers/ContainersPanel.tsx
+msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
+msgstr "{count, plural, other {# 个容器，{running} 个正在运行}}"
+
 #: src/lib/time.ts
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, other {# 天}}"
@@ -651,6 +655,10 @@ msgstr "{out}，可绕过服务器的防火墙"
 msgid "{out}, with {detail}"
 msgstr "{out}，选项为 {detail}"
 
+#: src/features/servers/ContainersPanel.tsx
+msgid "{own, plural, one {Dockwell runs # more container here, which isn't listed.} other {Dockwell runs # more containers here, which aren't listed.}}"
+msgstr "{own, plural, other {Dockwell 在这里还运行着 # 个容器，它们未列出。}}"
+
 #: src/features/changes/words.ts
 msgid "{path} as a proxy it believes on where a request came from"
 msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
@@ -834,6 +842,10 @@ msgstr "{typed} 目前指向 {leavesApp}。继续操作会将它移到这里，�
 msgid "{unknown} in an unknown state"
 msgstr "{unknown} 台状态未知"
 
+#: src/features/servers/ContainersPanel.tsx
+msgid "{unlisted, plural, one {This server has # more container than fit here.} other {This server has # more containers than fit here.}}"
+msgstr "{unlisted, plural, other {此服务器还有 # 个容器无法在此列出。}}"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
@@ -865,6 +877,10 @@ msgstr "{where} 离开 {from}，转到 {to}。"
 #: src/features/changes/words.ts
 msgid "{where} leaves {from}, and goes to port {toPort} on the server."
 msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
+
+#: src/features/servers/ContainersPanel.tsx
+msgid "+{left}"
+msgstr "+{left}"
 
 #. placeholder {0}: window.location.host
 #: src/features/auth/SignInPage.tsx
@@ -1393,6 +1409,14 @@ msgstr "分析"
 msgid "and {more} more"
 msgstr "另外 {more} 项"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "and {moreMounts} more"
+msgstr "还有 {moreMounts} 个"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "and {morePorts} more"
+msgstr "还有 {morePorts} 个"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Another proxy"
 msgstr "其他代理"
@@ -1510,6 +1534,10 @@ msgstr "正在应用"
 msgid "Apps"
 msgstr "应用"
 
+#: src/features/servers/ContainersPanel.tsx
+msgid "Apps you run with Dockwell are under <0>Apps</0>."
+msgstr "你用 Dockwell 运行的应用在<0>应用</0>中。"
+
 #. placeholder {0}: use.name
 #: src/features/variables/VariablesPage.tsx
 msgid "as {0}"
@@ -1532,6 +1560,10 @@ msgstr "自动化"
 msgid "Back"
 msgstr "返回"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Back to the server"
+msgstr "返回服务器"
+
 #: src/app/Providers.tsx
 msgid "backup"
 msgstr "备份"
@@ -1539,6 +1571,10 @@ msgstr "备份"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
+
+#: src/features/servers/containers.ts
+msgid "Being removed"
+msgstr "正在移除"
 
 #: src/features/changes/fields.tsx
 msgid "block <0>{port}</0>, {proto}, from <1>{from}</1>"
@@ -1549,6 +1585,7 @@ msgid "block <0>{port}</0>, {proto}, from anywhere"
 msgstr "阻止 <0>{port}</0>，{proto}，来源不限"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/servers/ContainerPage.tsx
 msgid "Breadcrumb"
 msgstr "面包屑导航"
 
@@ -1877,6 +1914,10 @@ msgstr "Compose"
 msgid "Compose file"
 msgstr "Compose 文件"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Compose project"
+msgstr "Compose 项目"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Configuration"
 msgstr "配置"
@@ -1914,6 +1955,10 @@ msgstr "容器"
 #: src/features/logs/LogsPage.tsx
 msgid "Container"
 msgstr "容器"
+
+#: src/features/servers/ContainersPanel.tsx
+msgid "Containers Dockwell didn't make"
+msgstr "非 Dockwell 创建的容器"
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
@@ -2193,6 +2238,10 @@ msgstr "数据库"
 msgid "Databases"
 msgstr "数据库"
 
+#: src/features/servers/containers.ts
+msgid "Dead"
+msgstr "已失效"
+
 #: src/app/Providers.tsx
 msgid "Degraded"
 msgstr "降级"
@@ -2391,6 +2440,10 @@ msgstr "Docker 只会在它出错退出时重启它，而现在不会。请重�
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy."
 msgstr "Docker 只会在它自行停止时重启它，因此是有人停止了它。请重启或部署。"
+
+#: src/features/servers/ContainersPanel.tsx
+msgid "Docker runs nothing here that Dockwell didn't make."
+msgstr "这里没有非 Dockwell 创建的 Docker 容器。"
 
 #: src/features/changes/words.ts
 msgid "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
@@ -2771,6 +2824,14 @@ msgstr "筛选应用"
 msgid "Filter by name or image"
 msgstr "按名称或镜像筛选"
 
+#: src/features/servers/ContainersPanel.tsx
+msgid "Filter by name, image or project"
+msgstr "按名称、镜像或项目筛选"
+
+#: src/features/servers/ContainersPanel.tsx
+msgid "Filter containers"
+msgstr "筛选容器"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Filter log lines"
 msgstr "筛选日志"
@@ -3030,6 +3091,7 @@ msgstr "镜像"
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/servers/ContainersPanel.tsx
 msgid "Image"
 msgstr "镜像"
 
@@ -3207,13 +3269,25 @@ msgstr "它的访问地址可能不止这里所示。没有任何内容发生变
 msgid "It may have been deleted. Dockwell has no logs under this address."
 msgstr "它可能已被删除。Dockwell 在此地址下没有日志。"
 
+#: src/features/logs/LogsPage.tsx
+msgid "It may have been removed. Docker keeps a container's log only as long as the container."
+msgstr "它可能已被移除。容器的日志只随容器一同保留。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "It may well be running. Check that <0>dockwell run</0> is still running on {server}."
 msgstr "它很可能仍在运行。请检查 {server} 上的 <0>dockwell run</0> 是否仍在运行。"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "It mounts none."
+msgstr "它没有挂载任何内容。"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "它从未停止。这次变更失败后,Dockwell 移除了它创建的内容。"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "It publishes none now."
+msgstr "它现在没有发布任何端口。"
 
 #: src/features/logs/LogNote.tsx
 msgid "It ran as <0>{ranAs}</0>."
@@ -3262,6 +3336,10 @@ msgstr "它会相信该代理所说的请求来源。该范围内的其他任何
 #: src/features/variables/VariablesPage.tsx
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
 msgstr "它原是普通变量，能查看此环境的人仍能看到它。请为密钥输入新值，并在签发旧值的地方轮换它。"
+
+#: src/features/logs/LogNote.tsx
+msgid "It was made without rotation, so its log can fill the disk. Dockwell didn't make it, so it leaves that as it is. Recreate it with a log limit, as <0>docker run --log-opt max-size=10m</0> sets one."
+msgstr "它创建时没有设置日志轮转，因此日志可能占满磁盘。它不是 Dockwell 创建的，所以 Dockwell 不会改动。请重新创建它并设置日志上限，例如 <0>docker run --log-opt max-size=10m</0>。"
 
 #: src/features/logs/LogNote.tsx
 msgid "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
@@ -3566,6 +3644,10 @@ msgstr "丢了通行密钥？请通过 SSH 在服务器上运行这条命令。�
 msgid "Machine"
 msgstr "机器"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Made"
+msgstr "创建时间"
+
 #: src/features/activity/describe.ts
 msgid "Made a join ticket for a new server"
 msgstr "为新服务器生成了加入票据"
@@ -3652,6 +3734,7 @@ msgstr "换到另一个应用"
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/catalog/InstallSheet.tsx
+#: src/features/servers/ContainersPanel.tsx
 msgid "Name"
 msgstr "名称"
 
@@ -3802,6 +3885,10 @@ msgstr "没有此 ID 的应用"
 msgid "No apps yet"
 msgstr "还没有应用"
 
+#: src/features/servers/ContainersPanel.tsx
+msgid "No container matches this filter."
+msgstr "没有符合此筛选条件的容器。"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "No downtime"
 msgstr "不会停机"
@@ -3943,6 +4030,10 @@ msgstr "未部署"
 #: src/features/apps/Health.tsx
 msgid "Not running"
 msgstr "没有运行"
+
+#: src/features/servers/containers.ts
+msgid "Not started"
+msgstr "未启动"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Not used yet"
@@ -4361,6 +4452,7 @@ msgstr "暂停以便阅读"
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/servers/containers.ts
 msgid "Paused"
 msgstr "已暂停"
 
@@ -4473,6 +4565,8 @@ msgid "ports"
 msgstr "端口"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/servers/ContainerPage.tsx
+#: src/features/servers/ContainersPanel.tsx
 msgid "Ports"
 msgstr "端口"
 
@@ -4507,6 +4601,7 @@ msgid "project"
 msgstr "项目"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/servers/ContainersPanel.tsx
 msgid "Project"
 msgstr "项目"
 
@@ -4698,6 +4793,7 @@ msgstr "重新读取此时间范围"
 
 #: src/features/changes/fields.tsx
 #: src/features/changes/words.ts
+#: src/features/servers/ContainerPage.tsx
 msgid "read-only"
 msgstr "只读"
 
@@ -4733,6 +4829,10 @@ msgstr "正在读取它前后的日志"
 #: src/features/catalog/InstallSheet.tsx
 msgid "Reading this app"
 msgstr "正在读取此应用"
+
+#: src/features/servers/ContainersPanel.tsx
+msgid "Reading what Docker runs here"
+msgstr "正在读取 Docker 在这里运行的内容"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads logs"
@@ -4905,6 +5005,10 @@ msgstr "已重启"
 #: src/app/Providers.tsx
 msgid "Restarted"
 msgstr "已重启"
+
+#: src/features/servers/containers.ts
+msgid "Restarting"
+msgstr "正在重启"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/words.ts
@@ -5149,6 +5253,7 @@ msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只�
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
 #: src/features/changes/words.ts
+#: src/features/servers/containers.ts
 msgid "Running"
 msgstr "正在运行"
 
@@ -5233,6 +5338,7 @@ msgstr "搜索日志行"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/servers/ContainerPage.tsx
 msgid "Search logs"
 msgstr "搜索日志"
 
@@ -5272,6 +5378,10 @@ msgstr "查看日志"
 msgid "See the guide"
 msgstr "查看指南"
 
+#: src/features/servers/ContainersPanel.tsx
+msgid "See them all with <0>docker ps -a</0> on the server."
+msgstr "请在服务器上用 <0>docker ps -a</0> 查看全部。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See why"
 msgstr "查看原因"
@@ -5297,6 +5407,7 @@ msgstr "服务器"
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
+#: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ServerOverview.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
@@ -5386,6 +5497,7 @@ msgid "Show less"
 msgstr "收起"
 
 #: src/features/logs/LogNote.tsx
+#: src/features/servers/ContainersPanel.tsx
 msgid "Show more"
 msgstr "展开"
 
@@ -5581,11 +5693,13 @@ msgid "Starting"
 msgstr "正在启动"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/servers/ContainersPanel.tsx
 msgid "State"
 msgstr "状态"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/servers/ContainerPage.tsx
 msgid "Status"
 msgstr "状态"
 
@@ -5606,6 +5720,7 @@ msgid "Stop what uses it on this server, then deploy again."
 msgstr "请停止此服务器上占用它的程序，然后重新部署。"
 
 #: src/app/Providers.tsx
+#: src/features/servers/containers.ts
 msgid "Stopped"
 msgstr "已停止"
 
@@ -6076,6 +6191,14 @@ msgstr "没有可下载的日志"
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
 
+#: src/features/logs/LogsPage.tsx
+msgid "These logs can't be read now"
+msgstr "现在无法读取这些日志"
+
+#: src/features/servers/ContainersPanel.tsx
+msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
+msgstr "这些容器在 Dockwell 之前就已存在，或以其他方式运行。Dockwell 只读取它们，因此在这里查看不会改变任何内容，它们会照常运行。"
+
 #: src/features/apps/ExportSheet.tsx
 msgid "This app"
 msgstr "此应用"
@@ -6135,6 +6258,10 @@ msgstr "这会改变正在运行的内容：文件中的同名服务会替换它
 #: src/features/auth/messages.ts
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
 msgstr "这个认领链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 dockwell claim 获取新链接。"
+
+#: src/features/logs/LogsPage.tsx
+msgid "This container isn't here"
+msgstr "此容器不存在"
 
 #. placeholder {0}: wild.serverName
 #: src/features/logs/LogNote.tsx
@@ -6464,6 +6591,7 @@ msgstr "不健康"
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
 #: src/features/overview/Overview.tsx
+#: src/features/servers/containers.ts
 #: src/features/servers/FleetNotes.tsx
 #: src/features/servers/ServerOverview.tsx
 #: src/features/servers/ServerPanels.tsx
@@ -6701,6 +6829,8 @@ msgstr "卷或服务器路径"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/servers/ContainerPage.tsx
+#: src/features/servers/ContainersPanel.tsx
 msgid "Volumes"
 msgstr "卷"
 
@@ -6746,6 +6876,10 @@ msgstr "变更内容"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What connects to this server"
 msgstr "连接此服务器的来源"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "What Docker says of it"
+msgstr "Docker 显示的信息"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "What happens next"

@@ -18,6 +18,7 @@ import { join, resolve } from "node:path";
 import { type Browser, chromium } from "playwright-core";
 
 import { appsFlow } from "./apps-flow.ts";
+import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
 import { healthFlow } from "./health-flow.ts";
 
@@ -179,6 +180,14 @@ try {
       env: {},
       browser: browser as Browser,
       context,
+    });
+    await containersFlow(page, {
+      origin,
+      step: (what) => console.log(`e2e: ${what}`),
+      shoot: async () => {},
+      socket,
+      docker,
+      image: "nginx:1.27-alpine",
     });
   };
   await Promise.race([flow(), pageThrew]);

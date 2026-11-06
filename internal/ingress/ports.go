@@ -152,7 +152,8 @@ func (h *Holders) published(ctx context.Context, on func(netip.Addr) bool) (map[
 		return nil, err
 	}
 	out := map[Port]string{}
-	for _, c := range list {
+	for i := range list {
+		c := &list[i]
 		for _, p := range c.Ports {
 			if p.PublicPort == 0 || len(c.Names) == 0 {
 				continue
@@ -335,7 +336,8 @@ func (h *Holders) Returning(ctx context.Context, ports []Port) []string {
 		return nil
 	}
 	var out []string
-	for _, c := range list {
+	for i := range list {
+		c := &list[i]
 		if c.State != "exited" || c.Labels[docker.OwnPrefix+"ingress"] != "" {
 			continue
 		}

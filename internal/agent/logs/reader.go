@@ -9,6 +9,7 @@ package logs
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -110,9 +111,17 @@ func (r *Reader) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// Sources lists the containers a service has logs from, newest first.
-func (r *Reader) Sources(ctx context.Context, ref *dockwellv1.ResourceRef, forgottenUpTo int64) ([]*dockwellv1.LogSource, error) {
-	found, err := r.sources(ctx, docker.Project(ref.GetScope()), ref.GetName(), true, forgottenUpTo)
+// Sources lists the containers a service has logs from, newest first, or the one
+// container a call names.
+func (r *Reader) Sources(ctx context.Context, call *agentv1.LogSourcesCall) ([]*dockwellv1.LogSource, error) {
+	var found []*source
+	var err error
+	if call.GetContainer() != "" {
+		found, err = r.container(ctx, call.GetContainer())
+	} else {
+		ref := call.GetResource()
+		found, err = r.sources(ctx, docker.Project(ref.GetScope()), ref.GetName(), true, call.GetForgottenUpTo())
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +160,8 @@ func (r *Reader) sources(ctx context.Context, project, service string, kept bool
 	}
 	out := make([]*source, 0, len(list))
 	have := map[string]bool{}
-	for _, s := range list {
+	for i := range list {
+		s := &list[i]
 		if s.Labels[docker.LabelOneoff] == "True" {
 			continue
 		}
@@ -176,6 +186,19 @@ func (r *Reader) sources(ctx context.Context, project, service string, kept bool
 		return b.proto.GetCreateTime().AsTime().Compare(a.proto.GetCreateTime().AsTime())
 	})
 	return out, nil
+}
+
+// container is the one source of a container Dockwell didn't make, by its full ID.
+// The server keeps nothing of those, so once Docker doesn't have it, there is none.
+func (r *Reader) container(ctx context.Context, id string) ([]*source, error) {
+	c, err := r.Client.InspectContainer(ctx, id)
+	if docker.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return []*source{{proto: dockerSource(c), id: c.ID, tty: c.Config.Tty}}, nil
 }
 
 // theReplica is the replica of every container of a service, as a service has one on
@@ -261,7 +284,7 @@ func (r *Reader) Stream(ctx context.Context, call *agentv1.LogsCall, send func(*
 	defer cancel(nil)
 	s := &stream{
 		r: r, call: call, ctx: ctx, cancel: cancel, start: time.Now(),
-		project: docker.Project(call.GetResource().GetScope()), service: call.GetResource().GetName(), reader: call.GetReader(),
+		project: docker.Project(call.GetResource().GetScope()), service: cmp.Or(call.GetContainer(), call.GetResource().GetName()), reader: call.GetReader(),
 		out:  make(chan *agentv1.SendLogsRequest, queued),
 		rate: newBucket(),
 		shed: &pacer{},
@@ -364,9 +387,12 @@ type stream struct {
 	states   map[string]*sourceState
 	said     map[string]string // what was last said of each source
 	goneSaid map[string]bool   // sources said to be gone
-	ringEach atomic.Int64      // what a search holds of each container, in bytes
-	reading  atomic.Int32      // how many sources are being read now
-	upSaid   atomic.Bool       // caught up has been said
+	// containerGone says the container a call names has gone, so only its name is
+	// asked after, which only the goroutine that scans reads.
+	containerGone bool
+	ringEach      atomic.Int64 // what a search holds of each container, in bytes
+	reading       atomic.Int32 // how many sources are being read now
+	upSaid        atomic.Bool  // caught up has been said
 }
 
 func (s *stream) searchLines() int {
@@ -593,10 +619,42 @@ func readBrokeWords(src *source) string {
 	return "Docker stopped partway through this container's log, so the rest of it doesn't show. Read it on the server with docker logs " + src.proto.GetId()
 }
 
+// found is the sources there are for this stream: a service's, or a container and
+// whatever holds its name now. A reader goes by the name, so one made again under
+// it carries on the log, and a name that's only passed on leaves both to read.
+func (s *stream) found() ([]*source, error) {
+	id := s.call.GetContainer()
+	if id == "" {
+		return s.r.sources(s.ctx, s.project, s.service, true, s.call.GetForgottenUpTo())
+	}
+	var out []*source
+	if !s.containerGone {
+		var err error
+		if out, err = s.r.container(s.ctx, id); err != nil {
+			return nil, err
+		}
+		s.containerGone = len(out) == 0
+	}
+	name := s.call.GetContainerName()
+	if name == "" {
+		return out, nil
+	}
+	c, err := s.r.Client.ContainerNamed(s.ctx, name)
+	switch {
+	case docker.IsNotFound(err):
+		return out, nil
+	case err != nil:
+		return nil, err
+	case c.ID == id:
+		return out, nil
+	}
+	return append(out, &source{proto: dockerSource(c), id: c.ID, tty: c.Config.Tty}), nil
+}
+
 // scan finds the sources there are, says what changed of them, and starts
 // reading those not being read.
 func (s *stream) scan(first bool) error {
-	found, err := s.r.sources(s.ctx, s.project, s.service, true, s.call.GetForgottenUpTo())
+	found, err := s.found()
 	if err != nil {
 		return err
 	}
@@ -632,9 +690,9 @@ func (s *stream) scan(first bool) error {
 		if present[id] {
 			continue
 		}
-		if st.after != nil && !s.goneSaid[id] {
+		if from := leftOff(st); from != nil && !s.goneSaid[id] {
 			s.goneSaid[id] = true
-			s.gone(id, st.after.GetTime(), nil)
+			s.gone(id, from, nil)
 		}
 		// And it isn't running, whatever the reader last heard of it.
 		if st.src != nil {
@@ -663,6 +721,20 @@ func (s *stream) scan(first bool) error {
 		s.flush(false)
 	}
 	return nil
+}
+
+// leftOff is the last line a reader has of a source: what the call says it was sent,
+// or what this stream read of it. Nil when it has none, so has lost nothing it knew of.
+func leftOff(st *sourceState) *timestamppb.Timestamp {
+	if st.after != nil {
+		return st.after.GetTime()
+	}
+	st.cursorMu.Lock()
+	defer st.cursorMu.Unlock()
+	if st.cursor.IsZero() {
+		return nil
+	}
+	return timestamppb.New(st.cursor)
 }
 
 func describe(p *dockwellv1.LogSource) string {

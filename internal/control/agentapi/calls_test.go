@@ -203,7 +203,7 @@ type blockingLogs struct {
 	linger time.Duration
 }
 
-func (*blockingLogs) Sources(context.Context, *dockwellv1.ResourceRef, int64) ([]*dockwellv1.LogSource, error) {
+func (*blockingLogs) Sources(context.Context, *agentv1.LogSourcesCall) ([]*dockwellv1.LogSource, error) {
 	return nil, nil
 }
 

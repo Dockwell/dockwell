@@ -28,6 +28,10 @@ const (
 // OwnPrefix starts the labels that are Dockwell's own.
 const OwnPrefix = "dev.dockwell."
 
+// LabelIngress marks what runs a server's ingress: the proxy, and what keeps its
+// network. They are Dockwell's own, and belong to no project.
+const LabelIngress = OwnPrefix + "ingress"
+
 // IsOwnLabel reports a label Dockwell or Compose sets, which a spec can't.
 func IsOwnLabel(key string) bool {
 	return strings.HasPrefix(key, ComposePrefix) || strings.HasPrefix(key, OwnPrefix)

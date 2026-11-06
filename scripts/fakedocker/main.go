@@ -12,7 +12,9 @@
 //   - the tag "slow" takes 3 s to pull, for a deploy seen in flight;
 //   - the tags "answers-ok" and "answers-503" run at 127.0.0.1 and 127.0.0.2, so a
 //     check the agent makes reaches what the test listens with on those addresses;
-//   - a server path under /readonly can't be mounted.
+//   - a server path under /readonly can't be mounted;
+//   - the tag "prints" writes "legacy says hello" as it starts, as a container
+//     run by hand has something in its log.
 //
 // It is never part of a release. CI's Panel end to end on Docker job runs the
 // same flows on real Docker.
@@ -90,6 +92,8 @@ func main() {
 			img.Address = "127.0.0.1"
 		case strings.HasSuffix(ref, ":answers-503"):
 			img.Address = "127.0.0.2"
+		case strings.HasSuffix(ref, ":prints"):
+			img.Prints = []string{"legacy says hello"}
 		}
 		return img, true
 	}

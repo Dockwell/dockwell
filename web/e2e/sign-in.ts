@@ -37,6 +37,7 @@ import { type Browser, type BrowserContext, chromium, type Page } from "playwrig
 
 import { appsFlow } from "./apps-flow.ts";
 import { catalogFlow } from "./catalog-flow.ts";
+import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
 import { healthFlow } from "./health-flow.ts";
 import { planFlow } from "./plan-flow.ts";
@@ -799,6 +800,14 @@ async function main() {
       },
     });
     await catalogFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket) });
+    await containersFlow(page, {
+      origin,
+      step,
+      shoot,
+      socket: fakeSocket,
+      docker: dockerProbe(fakeSocket),
+      image: "acme/legacy:prints",
+    });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
     const made = await dockerMade(fakeSocket);

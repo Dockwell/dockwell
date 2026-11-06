@@ -77,6 +77,9 @@ message ListLogSourcesRequest {
   string project = 2;
   // The environment a service's name is in, by name or ID.
   string environment = 3;
+  // A server's ID or name, to read a container Dockwell didn't make there
+  // instead of a service. id is then the container, by its name or its full ID.
+  string server = 4;
 }
 
 // ListLogSourcesResponse lists where a service's logs come from.
@@ -89,13 +92,14 @@ message ListLogSourcesResponse {
   repeated ServerLogStatus servers = 3;
 }
 
-// LoggedService says which service logs are from.
+// LoggedService says which service logs are from, or which container, for one
+// Dockwell didn't make.
 message LoggedService {
   // Its ID.
   string id = 1;
   // Its name, such as "web".
   string name = 2;
-  // The name of its environment, such as "production".
+  // The name of its environment, such as "production". Empty for a container.
   string environment = 3;
   // True when the service isn't there now. When its first deploy failed and
   // was rolled back, what its servers kept can still be read. When it was
@@ -140,6 +144,9 @@ message ReadLogsRequest {
   // most the newest 1,000,000 lines of each container, and for at most 30
   // seconds.
   string query = 13;
+  // A server's ID or name, to read a container Dockwell didn't make there
+  // instead of a service. id is then the container, by its name or its full ID.
+  string server = 14;
 }
 
 // ReadLogsResponse is a page of log lines.
@@ -209,6 +216,9 @@ message WatchLogsRequest {
   // still has aren't sent twice or missed, and a marker says so where it
   // no longer has them.
   string resume_token = 14;
+  // A server's ID or name, to read a container Dockwell didn't make there
+  // instead of a service. id is then the container, by its name or its full ID.
+  string server = 15;
 }
 
 // WatchLogsResponse is one message of a stream of log lines.

@@ -39,7 +39,8 @@ const START: State = {
 
 /** Searches all the servers keep, through ReadLogs: what Docker has of each container, and what they kept. */
 export function useDeepSearch(
-  serviceId: string,
+  id: string,
+  server: string,
   on: boolean,
   query: string,
   levels: readonly LogLevel[],
@@ -60,7 +61,7 @@ export function useDeepSearch(
       if (!keep) store.clear();
       setState((was) => ({ ...was, loading: true, error: undefined }));
       void client
-        .readLogs({ id: serviceId, query, levels: wanted, pageSize: 5000, pageToken }, { signal: abort.signal })
+        .readLogs({ id, server, query, levels: wanted, pageSize: 5000, pageToken }, { signal: abort.signal })
         .then((res) => {
           store.addOlder(res.chunks);
           const t = res.searchedBackTo;
@@ -84,7 +85,7 @@ export function useDeepSearch(
     setState({ ...START, loading: true });
     read("", false);
     return () => abort.abort();
-  }, [on, serviceId, query, levelList, store, transport, attempt]);
+  }, [on, id, server, query, levelList, store, transport, attempt]);
   const next = state.next;
   const loadMore = useCallback(() => run.current(next, true), [next]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);

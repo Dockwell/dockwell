@@ -21,7 +21,8 @@
 # certificate serve over plain HTTP on port 80 alone, to what they name. A rollout
 # runs under load through that Caddy, with an app slow to turn healthy and one that
 # never does, counting every request, and an app and its route go to a new port in
-# one change. It uses throwaway data directories and removes
+# one change. A container run by hand lists and reads through the CLI, and nothing
+# touches it. It uses throwaway data directories and removes
 # what it made, so it never touches a real install. It needs Docker with the compose
 # plugin, Go, curl, jq, openssl, pgrep and iproute2's ss, a free port (E2E_WEB_PORT,
 # 18080 by default), and ports 80 and 443 free, for the ingress's own part. With
@@ -124,7 +125,8 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-by-hand e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker volume rm e2e-by-hand-data >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
@@ -338,6 +340,90 @@ docker inspect --format '{{.HostConfig.LogConfig.Type}} {{index .HostConfig.LogC
   fail "web's log isn't rotated: $(docker inspect --format '{{json .HostConfig.LogConfig}}' "$container")"
 docker inspect --format '{{index .Config.Labels "dev.dockwell.revision"}}' "$container" | grep -qx '[0-9][0-9]*' ||
   fail "web's container doesn't say which revision made it"
+
+step "A container run by hand is listed and read, Dockwell's own isn't, and looking touches neither"
+# The value is in its environment, a label and its command, none of which a list holds.
+docker run --detach --name e2e-by-hand --env E2E_BY_HAND=not-for-a-list --label e2e.note=not-for-a-list --publish 127.0.0.1:18095:80 \
+  --volume e2e-by-hand-data:/data nginx:1.27-alpine sh -c ': not-for-a-list; echo e2e-by-hand-says-hello; exec nginx -g "daemon off;"' >/dev/null ||
+  fail "docker run e2e-by-hand failed"
+touched() { docker inspect --format '{{.Id}} {{.RestartCount}} {{.State.StartedAt}}' "$1"; }
+by_hand_before=$(touched e2e-by-hand) || fail "docker inspect e2e-by-hand failed"
+web_before=$(touched "$container") || fail "docker inspect $container failed"
+listed=$(dw containers list --json) || fail "containers list failed"
+[[ "$listed" != *not-for-a-list* ]] || fail "the list shows a value of a container's environment, labels or command: $listed"
+by_hand=$(jq -c '.containers[] | select(.name == "e2e-by-hand")' <<<"$listed") || fail "containers list printed what isn't JSON: $listed"
+[[ -n "$by_hand" ]] || fail "the list has no e2e-by-hand: $listed"
+jq -e '.image == "nginx:1.27-alpine" and .state == "CONTAINER_STATE_RUNNING"
+  and (.ports[0] | .serverPort == 18095 and .containerPort == 80 and .address == "127.0.0.1")
+  and (.mounts[0] | .volume == "e2e-by-hand-data" and .target == "/data")' <<<"$by_hand" >/dev/null ||
+  fail "e2e-by-hand lists as $by_hand"
+own=$(jq -r '[.containers[].name] | index("'"$container"'") // "not listed"' <<<"$listed")
+[[ "$own" == "not listed" ]] || fail "Dockwell's own $container is in the list of what it didn't make: $listed"
+jq -e '.ownContainers >= 1' <<<"$listed" >/dev/null || fail "the list doesn't say it left out Dockwell's own: $listed"
+server_name=$(dw servers list --json | jq -r '.servers[0].name') || fail "servers list failed"
+for _ in $(seq 50); do
+  by_hand_log=$(dw logs read e2e-by-hand --server "$server_name") || fail "logs read of e2e-by-hand failed"
+  [[ "$by_hand_log" == *e2e-by-hand-says-hello* ]] && break
+  sleep 0.1
+done
+[[ "$by_hand_log" == *e2e-by-hand-says-hello* ]] || fail "e2e-by-hand's log reads: $by_hand_log"
+own_log=$(dw logs read "$container" --server "$server_name" 2>&1 || true)
+[[ "$own_log" == *"which Dockwell runs"* ]] || fail "reading Dockwell's own container as one it didn't make said: $own_log"
+[[ "$(touched e2e-by-hand)" == "$by_hand_before" ]] || fail "looking at e2e-by-hand touched it: $by_hand_before, then $(touched e2e-by-hand)"
+[[ "$(touched "$container")" == "$web_before" ]] || fail "looking at e2e-by-hand touched $container"
+
+step "A follow goes on when its container is made again under its name"
+# followed_through NAME SAYS COMMAND... follows a container's log while COMMAND makes
+# it again, and holds that what the new one says arrives, with a marker where the old
+# one's lines stop. It stops the follow as the step above does, for the same reasons.
+followed_through() {
+  local name=$1 says=$2 follow_log follower follower_pid
+  shift 2
+  follow_log=$(mktemp)
+  "${as_dockwell[@]}" env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text bash -c 'echo "$$"; exec "$@"' follow \
+    "$bin" logs follow "$name" --server "$server_name" --tail 5 --json >"$follow_log" 2>&1 &
+  follower=$!
+  for _ in $(seq 100); do
+    (($(wc -l <"$follow_log") >= 2)) && break
+    sleep 0.1
+  done
+  follower_pid=$(head -n 1 "$follow_log" | tr -d '\r')
+  [[ "$follower_pid" =~ ^[0-9]+$ ]] || fail "dockwell logs follow $name didn't start: $(cat "$follow_log")"
+  "$@" || fail "making $name again failed: $*"
+  for _ in $(seq 300); do
+    grep -q "$says" "$follow_log" && break
+    sleep 0.1
+  done
+  grep -q "$says" "$follow_log" || fail "following $name, what the new one says never came: $(cat "$follow_log")"
+  for _ in $(seq 100); do
+    grep -q LOG_GAP_REASON_GONE "$follow_log" && break
+    sleep 0.1
+  done
+  grep -q LOG_GAP_REASON_GONE "$follow_log" || fail "following $name, no marker says the old one's lines stop: $(cat "$follow_log")"
+  priv kill -INT "$follower_pid" || fail "can't interrupt dockwell logs follow: $(cat "$follow_log")"
+  wait "$follower" || true
+  rm -f "$follow_log"
+}
+by_hand_again() {
+  docker rm --force e2e-by-hand >/dev/null &&
+    docker run --detach --name e2e-by-hand nginx:1.27-alpine sh -c 'echo e2e-by-hand-made-again; exec nginx -g "daemon off;"' >/dev/null
+}
+followed_through e2e-by-hand e2e-by-hand-made-again by_hand_again
+real_projects+=(e2e-remade)
+remade_file=$(mktemp)
+cat >"$remade_file" <<'EOF_COMPOSE'
+services:
+  app:
+    image: nginx:1.27-alpine
+    command: ["sh", "-c", "echo e2e-turn-${E2E_TURN}; exec nginx -g 'daemon off;'"]
+EOF_COMPOSE
+compose_turn() { E2E_TURN=$1 docker compose -p e2e-remade -f "$remade_file" up --detach --wait >/dev/null 2>&1; }
+compose_turn first || fail "docker compose up failed"
+followed_through e2e-remade-app-1 e2e-turn-second compose_turn second
+docker compose -p e2e-remade -f "$remade_file" down --volumes --timeout 1 >/dev/null 2>&1 || fail "docker compose down failed"
+rm -f "$remade_file"
+docker rm --force e2e-by-hand >/dev/null || fail "docker rm e2e-by-hand failed"
+docker volume rm e2e-by-hand-data >/dev/null || fail "docker volume rm e2e-by-hand-data failed"
 
 step "It changes, and the change undoes"
 dw services update web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hi --yes ||
@@ -2771,6 +2857,10 @@ owner=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.proj
 [[ "$owner" == srv_* ]] || fail "e2e-agent-web is in the Compose project $owner, want its server's, srv_…"
 running=$(docker inspect --format '{{.State.Running}}' e2e-agent-web) || fail "docker inspect e2e-agent-web failed"
 [[ "$running" == true ]] || fail "e2e-agent-web isn't running"
+# The agent build lists what its server has, and the control plane knows its own.
+on_agent=$(dw containers list --server e2e-agent --json) || fail "containers list on the agent build failed"
+[[ "$on_agent" != *'"e2e-agent-web"'* ]] || fail "the agent build's own container is listed as one Dockwell didn't make: $on_agent"
+jq -e '.ownContainers >= 1' <<<"$on_agent" >/dev/null || fail "the list on the agent build doesn't say what it left out: $on_agent"
 dw containers delete e2e-agent-web --on e2e-agent --yes || fail "containers delete on the agent build failed"
 if docker inspect e2e-agent-web >/dev/null 2>&1; then fail "e2e-agent-web is left after deleting it"; fi
 

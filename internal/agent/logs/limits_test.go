@@ -1331,7 +1331,7 @@ func TestAReadLeavesOutWhatADeletionPutOutOfReach(t *testing.T) {
 	if got := read(0); !slices.Equal(got, []string{"password=hunter2", "the new one"}) {
 		t.Errorf("with nothing out of reach it read %q", got)
 	}
-	listed, err := r.Sources(t.Context(), testRef, 4)
+	listed, err := r.Sources(t.Context(), &agentv1.LogSourcesCall{Resource: testRef, ForgottenUpTo: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
