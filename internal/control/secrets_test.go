@@ -5,6 +5,7 @@ package control
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -19,6 +20,8 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
@@ -579,5 +582,51 @@ func testATokenCantConfirmAGuessByProposingIt(t *testing.T, backend store.Backen
 	}
 	if right.GetSummary().GetChange() != 1 {
 		t.Errorf("setting the value the secret has plans %v, want a change", right.GetSummary())
+	}
+}
+
+// docker compose up from an export, with no value in its shell, sends a secret's name
+// alone. Docker keeps that in the container's Config.Env and takes it out of what
+// runs, so the container hasn't got it, and that's drift. Read as an empty value it
+// wasn't, and #142's step on real Docker found it.
+func TestANameWithNoValueIsntInAContainersEnvironment(t *testing.T) {
+	storetest.Each(t, testANameWithNoValueIsntInAContainersEnvironment)
+}
+
+func testANameWithNoValueIsntInAContainersEnvironment(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddLocalImage("acme/api:1", dockertest.Image{})
+	c := changeClient(b, b.origin)
+	apply(t, c, propose(t, c, "Run api", secretSpec("DB_PASSWORD", "s3cret-value-9Rk2"), serviceSpec("api", map[string]string{"DATABASE_PASSWORD": "DB_PASSWORD"})))
+	name := docker.Project(listedEnv(t, b)) + "-api-1"
+	drift := func() []*dockwellv1.Drift {
+		t.Helper()
+		res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetDrift()
+	}
+	if d := drift(); len(d) != 0 {
+		t.Fatalf("drift with api as asked = %v", d)
+	}
+	e.Edit(name, func(c *docker.Container) {
+		for i, kv := range c.Config.Env {
+			if strings.HasPrefix(kv, "DATABASE_PASSWORD=") {
+				c.Config.Env[i] = "DATABASE_PASSWORD"
+			}
+		}
+	})
+	if got := e.Container(name); got == nil || !slices.Contains(got.Config.Env, "DATABASE_PASSWORD") {
+		t.Fatalf("the test didn't take the value out: %+v", got)
+	}
+	found := drift()
+	if len(found) != 1 || found[0].GetResource().GetName() != "api" {
+		t.Errorf("drift with api without its secret = %v, want api", found)
+	}
+	if strings.Contains(fmt.Sprint(found), "s3cret-value-9Rk2") {
+		t.Errorf("drift holds the value: %v", found)
 	}
 }
