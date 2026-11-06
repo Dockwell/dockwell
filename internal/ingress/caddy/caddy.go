@@ -415,13 +415,14 @@ var forgeableHeaders = []string{
 
 // claimsOfTheRequest say how a request reached the server, by what name or at
 // what path, and frameworks read them to build links, decide what's secure, and
-// route: Symfony and IIS take X-Original-Url and X-Rewrite-Url for the path, past
-// what a proxy in front allows. Nothing says only a proxy wrote them, so a route
-// writes X-Forwarded-Host and X-Forwarded-Proto itself, and these don't reach a
-// service at all.
+// route. X-Original-Url and X-Rewrite-Url come from IIS, and Symfony took them for
+// the path until CVE-2018-14773, past what a proxy in front allows, as its older
+// versions still do. Tornado reads X-Scheme ahead of X-Forwarded-Proto. Nothing says
+// only a proxy wrote them, so a route writes X-Forwarded-Host and X-Forwarded-Proto
+// itself, and these don't reach a service at all.
 var claimsOfTheRequest = []string{
 	"X-Forwarded-Port", "X-Forwarded-Server", "X-Forwarded-Ssl", "X-Forwarded-Scheme", "X-Url-Scheme", "Front-End-Https", "X-Original-Host", "X-Host",
-	"X-Forwarded-Protocol", "X-Forwarded-Prefix", "X-Forwarded-Uri", "X-Original-Url", "X-Rewrite-Url",
+	"X-Forwarded-Protocol", "X-Forwarded-Prefix", "X-Forwarded-Uri", "X-Original-Url", "X-Rewrite-Url", "X-Scheme",
 }
 
 // stripped is every header a route takes out of a request.
@@ -429,8 +430,8 @@ func stripped() []string { return slices.Concat(forgeableHeaders, claimsOfTheReq
 
 // What configs from before these lists grew strip, which read as Dockwell's own, so
 // an upgrade isn't drift, and the next change on a server writes the whole lists
-// over them: strippedFirst from before claimsOfTheRequest, and strippedSecond from
-// before Client-Ip and the rest after it.
+// over them: strippedFirst from before claimsOfTheRequest, strippedSecond from before
+// Client-Ip and the rest after it, and strippedThird from before X-Scheme.
 var (
 	strippedFirst = []string{
 		"Forwarded", "Forwarded-For", "X-Client-Ip", "X-Cluster-Client-Ip", "X-Originating-Ip", "X-Remote-Ip", "X-Remote-Addr",
@@ -440,6 +441,7 @@ var (
 	strippedSecond = slices.Concat(strippedFirst, []string{
 		"X-Forwarded-Port", "X-Forwarded-Server", "X-Forwarded-Ssl", "X-Forwarded-Scheme", "X-Url-Scheme", "Front-End-Https", "X-Original-Host", "X-Host",
 	})
+	strippedThird = slices.DeleteFunc(stripped(), func(h string) bool { return h == "X-Scheme" })
 )
 
 // strippingOnly is h as a config that strips only names has it.
@@ -1282,7 +1284,9 @@ func headersAreOurs(raw json.RawMessage, trusts bool, domain string) bool {
 	}
 	for _, h := range slices.Clone(shapes) {
 		if slices.Equal(h.Request.Delete, stripped()) {
-			shapes = append(shapes, strippingOnly(&headers{Request: &headerOps{Set: h.Request.Set}}, strippedSecond))
+			shapes = append(shapes,
+				strippingOnly(&headers{Request: &headerOps{Set: h.Request.Set}}, strippedSecond),
+				strippingOnly(&headers{Request: &headerOps{Set: h.Request.Set}}, strippedThird))
 		}
 	}
 	return slices.ContainsFunc(shapes, func(h *headers) bool {

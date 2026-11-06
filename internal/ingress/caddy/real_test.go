@@ -510,7 +510,7 @@ func TestNoClientAddressHeaderReachesAServiceOnRealCaddy(t *testing.T) {
 	// By name as well as from the lists, so one dropped from them shows: the check of
 	// #95 found these reaching a service.
 	names := slices.Concat([]string{"X-Forwarded-For", "X-Real-Ip"}, forgeableHeaders, claimsOfTheRequest, []string{
-		"Client-Ip", "X-Forwarded-Protocol", "X-Forwarded-Prefix", "X-Forwarded-Uri", "X-Original-Url", "X-Rewrite-Url", "X-Proxyuser-Ip",
+		"Client-Ip", "X-Forwarded-Protocol", "X-Forwarded-Prefix", "X-Forwarded-Uri", "X-Original-Url", "X-Rewrite-Url", "X-Proxyuser-Ip", "X-Scheme",
 	})
 	for _, h := range names {
 		req.Header.Set(h, "6.6.6.6")

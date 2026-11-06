@@ -1005,6 +1005,7 @@ func TestAVisitorsForwardedHeadersStopAtCaddyOnRealCaddy(t *testing.T) {
 		"X-Forwarded-For": "6.6.6.6, 198.51.100.7", "X-Forwarded-Proto": "https", // as the edge sends them
 		"X-Forwarded-Host": "evil.example.net", "X-Forwarded-Port": "1", "X-Forwarded-Server": "evil", "X-Original-Host": "evil.example.net", // as the visitor wrote them
 		"X-Forwarded-Ssl": "on", "X-Forwarded-Scheme": "https", "Front-End-Https": "on", "X-Url-Scheme": "https", "X-Host": "evil.example.net",
+		"X-Scheme": "https", // Tornado reads this ahead of X-Forwarded-Proto
 	})
 	if got := seen.Get("X-Forwarded-Host"); got != "app.example.net" {
 		t.Errorf("X-Forwarded-Host is %q, want the route's own domain", got)
@@ -1486,6 +1487,11 @@ func TestAnOlderRouteIsWrittenAnewAtTheNextChangeOnRealCaddy(t *testing.T) {
 		},
 		"before Client-Ip, believing a proxy, with its name": {
 			older: named(listed(believingAddress, strippedSecond)), trusts: true, handles: 2, through: "X-Forwarded-Prefix",
+		},
+		"before X-Scheme, with its name":                 {older: named(listed(clientAddress, strippedThird)), handles: 1, through: "X-Scheme"},
+		"before X-Scheme, beside a proxy, with its name": {older: named(listed(distrustingAddress, strippedThird)), handles: 1, through: "X-Scheme"},
+		"before X-Scheme, believing a proxy, with its name": {
+			older: named(listed(believingAddress, strippedThird)), trusts: true, handles: 2, through: "X-Scheme",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
