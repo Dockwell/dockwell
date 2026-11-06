@@ -156,10 +156,11 @@ smoke: build build-agent ## Start the built binaries: the full build serves the 
 	scripts/smoke-agent.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: e2e
-e2e: build ## Claim, sign in, run the panel's flows and follow logs in headless Chromium, with a virtual passkey and a fake Docker Engine (SHOTS=dir saves screenshots)
+e2e: build ## Claim, sign in, run the panel's flows, follow logs and walk a server's files in headless Chromium, with a virtual passkey and a fake Docker Engine (SHOTS=dir saves screenshots)
 	go build -o bin/fakedocker ./scripts/fakedocker
 	node web/e2e/sign-in.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/logs.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
+	node web/e2e/files.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 
 .PHONY: docker-panel-e2e
 docker-panel-e2e: build ## Create, deploy, roll back and export an app in the panel on this machine's Docker, in headless Chromium

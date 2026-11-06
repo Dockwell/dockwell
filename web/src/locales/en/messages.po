@@ -222,6 +222,10 @@ msgstr "{count, plural, one {# day} other {# days}}"
 msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, one {# hour} other {# hours}}"
 
+#: src/features/files/FilesPage.tsx
+msgid "{count, plural, one {# item} other {# items}}"
+msgstr "{count, plural, one {# item} other {# items}}"
+
 #: src/app/Providers.tsx
 msgid "{count, plural, one {# new line} other {# new lines}}"
 msgstr "{count, plural, one {# new line} other {# new lines}}"
@@ -351,6 +355,10 @@ msgstr "{later}. Show them first puts them at the top of the list."
 #: src/features/auth/ProfilePage.tsx
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
+
+#: src/features/files/FileViewer.tsx
+msgid "{lines} lines"
+msgstr "{lines} lines"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "{made} is deployed"
@@ -891,7 +899,7 @@ msgstr "<0>{0}</0> · the panel for {name}"
 msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
 msgstr "<0>{current}</0> is still deploying. You can review this plan once that ends."
 
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
 
@@ -1018,6 +1026,10 @@ msgstr "<0>{source}</0>, read-only"
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
 msgstr "1 h"
+
+#: src/features/files/FileViewer.tsx
+msgid "1 line"
+msgstr "1 line"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
@@ -1482,8 +1494,8 @@ msgid "API tokens"
 msgstr "API tokens"
 
 #: src/features/auth/messages.ts
-msgid "API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
 
 #: src/app/Providers.tsx
 #: src/features/changes/fields.tsx
@@ -1559,6 +1571,10 @@ msgstr "Automation"
 #: src/features/shell/Page.tsx
 msgid "Back"
 msgstr "Back"
+
+#: src/features/files/FilesPage.tsx
+msgid "Back to {folder}"
+msgstr "Back to {folder}"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Back to the server"
@@ -1641,6 +1657,10 @@ msgstr "Can't make a plan"
 msgid "Can't reach the control plane"
 msgstr "Can't reach the control plane"
 
+#: src/features/files/FilesPage.tsx
+msgid "Can't reach this server"
+msgstr "Can't reach this server"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
 #: src/features/shell/Topbar.tsx
@@ -1658,6 +1678,14 @@ msgstr "Can't read the lines around it"
 #: src/features/logs/LogsPage.tsx
 msgid "Can't read these logs now"
 msgstr "Can't read these logs now"
+
+#: src/features/files/FileViewer.tsx
+msgid "Can't read this file"
+msgstr "Can't read this file"
+
+#: src/features/files/FilesPage.tsx
+msgid "Can't read this folder"
+msgstr "Can't read this folder"
 
 #. placeholder {0}: groupSecret(setup.secret)
 #: src/features/auth/TotpPanel.tsx
@@ -1839,6 +1867,10 @@ msgstr "Clearing this away failed too"
 msgid "Close"
 msgstr "Close"
 
+#: src/features/files/FileViewer.tsx
+msgid "Close {name}"
+msgstr "Close {name}"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Close details"
 msgstr "Close details"
@@ -1964,6 +1996,10 @@ msgstr "Container"
 msgid "Containers Dockwell didn't make"
 msgstr "Containers Dockwell didn't make"
 
+#: src/features/files/FileViewer.tsx
+msgid "Contents of {name}"
+msgstr "Contents of {name}"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
@@ -2030,6 +2066,10 @@ msgstr "Copy codes"
 #: src/features/system/CopyCommand.tsx
 msgid "Copy command"
 msgstr "Copy command"
+
+#: src/features/files/FilesPage.tsx
+msgid "Copy path {shown}"
+msgstr "Copy path {shown}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
@@ -2461,6 +2501,10 @@ msgstr "Docker runs nothing here that Dockwell didn't make."
 msgid "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
 msgstr "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
 
+#: src/features/files/FilesPage.tsx
+msgid "Docker volumes"
+msgstr "Docker volumes"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/fields.tsx
 msgid "Docker's socket"
@@ -2509,6 +2553,18 @@ msgstr "Dockwell didn't make that network, and it reaches past the server's fire
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
+
+#: src/features/files/FilesPage.tsx
+msgid "Dockwell doesn't open this"
+msgstr "Dockwell doesn't open this"
+
+#: src/features/files/FileViewer.tsx
+msgid "Dockwell doesn't open this file"
+msgstr "Dockwell doesn't open this file"
+
+#: src/features/files/FilesPage.tsx
+msgid "Dockwell doesn't open this folder"
+msgstr "Dockwell doesn't open this folder"
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
@@ -2836,6 +2892,14 @@ msgstr "failed"
 msgid "Failed"
 msgstr "Failed"
 
+#: src/features/servers/ServerFrame.tsx
+msgid "Files"
+msgstr "Files"
+
+#: src/features/files/FilesPage.tsx
+msgid "Files in {shown}"
+msgstr "Files in {shown}"
+
 #: src/features/apps/AppsPage.tsx
 msgid "Filter apps"
 msgstr "Filter apps"
@@ -2999,10 +3063,15 @@ msgid "Go to the last"
 msgstr "Go to the last"
 
 #: src/features/auth/ClaimPage.tsx
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
 msgstr "Go to the overview"
+
+#. placeholder {0}: parentOf(folder)
+#: src/features/files/FilesPage.tsx
+msgid "Go up to {0}"
+msgstr "Go up to {0}"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Health"
@@ -3369,6 +3438,10 @@ msgstr "It was made without rotation, so its log can fill the disk. Dockwell set
 msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
 msgstr "It wrote more than the server keeps of one container, so not all of its lines are here."
 
+#: src/features/files/FileViewer.tsx
+msgid "It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Connect to the server over SSH to work with it."
+msgstr "It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Connect to the server over SSH to work with it."
+
 #: src/features/apps/AppOverview.tsx
 msgid "It's behind a tunnel or a proxy"
 msgstr "It's behind a tunnel or a proxy"
@@ -3640,6 +3713,7 @@ msgid "Log filters"
 msgstr "Log filters"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/files/FilesPage.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Logs"
 msgstr "Logs"
@@ -3724,6 +3798,10 @@ msgstr "May have been copied; it no longer signs in"
 msgid "Memory"
 msgstr "Memory"
 
+#: src/features/files/FilesPage.tsx
+msgid "Modified"
+msgstr "Modified"
+
 #: src/features/catalog/useCatalog.ts
 msgid "Monitoring"
 msgstr "Monitoring"
@@ -3754,6 +3832,7 @@ msgstr "Move to another app"
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/catalog/InstallSheet.tsx
+#: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "Name"
 msgstr "Name"
@@ -3961,7 +4040,7 @@ msgstr "No server · nothing goes down"
 msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
 msgstr "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
 
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 msgid "No server with this ID"
 msgstr "No server with this ID"
 
@@ -4059,6 +4138,10 @@ msgstr "Not started"
 msgid "Not used yet"
 msgstr "Not used yet"
 
+#: src/features/files/FilesPage.tsx
+msgid "Nothing at this path"
+msgstr "Nothing at this path"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "Nothing changed on the server. Reload the page to try again."
@@ -4111,6 +4194,10 @@ msgstr "Nothing else was written around this line."
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
 msgstr "Nothing here matches these filters."
+
+#: src/features/files/FilesPage.tsx
+msgid "Nothing here matches your search."
+msgstr "Nothing here matches your search."
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing here yet"
@@ -4261,6 +4348,10 @@ msgstr "Once <0>{servers}</0> reconnects, Dockwell puts things back as they were
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 
+#: src/features/files/FilesPage.tsx
+msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
+msgstr "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "Only a variable's value is hidden, so don't pass a secret there."
@@ -4391,12 +4482,18 @@ msgstr "Other apps on its network reach it by this name."
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
+#: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Overview"
 msgstr "Overview"
 
+#: src/features/files/FilesPage.tsx
+msgid "owned by <0>{owner}</0>"
+msgstr "owned by <0>{owner}</0>"
+
 #: src/features/auth/user.ts
+#: src/features/files/FilesPage.tsx
 msgid "Owner"
 msgstr "Owner"
 
@@ -4457,6 +4554,10 @@ msgstr "Paste the claim link or code that dockwell run printed."
 msgid "path"
 msgstr "path"
 
+#: src/features/files/FilesPage.tsx
+msgid "Path"
+msgstr "Path"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Path in the app"
 msgstr "Path in the app"
@@ -4492,9 +4593,17 @@ msgstr "People reach the app at this name, over plain HTTP"
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "People reach the app at this name, through what's in front of this server"
 
+#: src/features/files/FilesPage.tsx
+msgid "Permissions"
+msgstr "Permissions"
+
 #: src/features/apps/revision.ts
 msgid "Placed it on {added}"
 msgstr "Placed it on {added}"
+
+#: src/features/files/FilesPage.tsx
+msgid "Places"
+msgstr "Places"
 
 #: src/features/apps/revision.ts
 msgid "Placing it on {added}"
@@ -4834,6 +4943,10 @@ msgstr "Read-only"
 msgid "read-write"
 msgstr "read-write"
 
+#: src/features/files/FileViewer.tsx
+msgid "Reading {name}"
+msgstr "Reading {name}"
+
 #: src/features/apps/Health.tsx
 msgid "Reading how it runs."
 msgstr "Reading how it runs."
@@ -4857,6 +4970,10 @@ msgstr "Reading the lines around it"
 #: src/features/catalog/InstallSheet.tsx
 msgid "Reading this app"
 msgstr "Reading this app"
+
+#: src/features/files/FilesPage.tsx
+msgid "Reading this folder"
+msgstr "Reading this folder"
 
 #: src/features/servers/ContainersPanel.tsx
 msgid "Reading what Docker runs here"
@@ -5311,7 +5428,7 @@ msgstr "Runs on another server"
 msgid "Runs on this server"
 msgstr "Runs on this server"
 
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 msgid "Runs the control plane"
 msgstr "Runs the control plane"
 
@@ -5359,6 +5476,11 @@ msgstr "Search all the servers keep"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Search apps"
 msgstr "Search apps"
+
+#. placeholder {0}: nameOf(shown)
+#: src/features/files/FilesPage.tsx
+msgid "Search in {0}"
+msgstr "Search in {0}"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Search lines"
@@ -5436,11 +5558,16 @@ msgstr "server"
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
 #: src/features/servers/ContainerPage.tsx
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Server"
 msgstr "Server"
+
+#. placeholder {0}: server.name
+#: src/features/servers/ServerFrame.tsx
+msgid "Server {0}"
+msgstr "Server {0}"
 
 #: src/features/changes/fields.tsx
 msgid "server path"
@@ -5449,6 +5576,10 @@ msgstr "server path"
 #: src/features/apps/AppOverview.tsx
 msgid "Server path"
 msgstr "Server path"
+
+#: src/features/files/FilesPage.tsx
+msgid "Server root"
+msgstr "Server root"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -5566,6 +5697,10 @@ msgstr "Show what happened on {name}"
 msgid "Showing {oldest} to {newest}"
 msgstr "Showing {oldest} to {newest}"
 
+#: src/features/files/FileViewer.tsx
+msgid "Showing the first 1 MB"
+msgstr "Showing the first 1 MB"
+
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
 msgid "Sign in"
@@ -5652,6 +5787,7 @@ msgid "Signing you in with a one-time link"
 msgstr "Signing you in with a one-time link"
 
 #: src/features/auth/ClaimPage.tsx
+#: src/features/files/FilesPage.tsx
 msgid "Size"
 msgstr "Size"
 
@@ -6316,6 +6452,10 @@ msgstr "This device already has a passkey for your account here. Use it, or pick
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 
+#: src/features/files/FileViewer.tsx
+msgid "This file is {size}, so the rest of it stays on the server. Connect to the server over SSH to see it all."
+msgstr "This file is {size}, so the rest of it stays on the server. Connect to the server over SSH to see it all."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file is too large to read"
 msgstr "This file is too large to read"
@@ -6323,6 +6463,14 @@ msgstr "This file is too large to read"
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
 msgstr "This file writes more variables in plain sight than these. Read it before you pass one a secret."
+
+#: src/features/files/FilesPage.tsx
+msgid "This folder holds more than a listing shows"
+msgstr "This folder holds more than a listing shows"
+
+#: src/features/files/FilesPage.tsx
+msgid "This folder is empty."
+msgstr "This folder is empty."
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This install already has an owner"
@@ -6339,6 +6487,10 @@ msgstr "This is the first route on {server} that takes a certificate, so {proxy}
 #: src/features/changes/words.ts
 msgid "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
 msgstr "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
+
+#: src/features/files/FileViewer.tsx
+msgid "This isn't a text file"
+msgstr "This isn't a text file"
 
 #. placeholder {0}: server.serverName
 #: src/features/changes/notices.tsx
@@ -6629,7 +6781,7 @@ msgstr "Unhealthy"
 #: src/features/overview/Overview.tsx
 #: src/features/servers/containers.ts
 #: src/features/servers/FleetNotes.tsx
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Unknown"
 msgstr "Unknown"
@@ -6896,6 +7048,7 @@ msgstr "Warning"
 msgid "Warnings"
 msgstr "Warnings"
 
+#: src/features/files/FilesPage.tsx
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "Websites"
