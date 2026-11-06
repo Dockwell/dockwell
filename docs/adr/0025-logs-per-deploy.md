@@ -154,7 +154,7 @@ Each server's relay reads until there is nothing more, and carries on whenever i
 - **What runs on a real engine, and what doesn't.** CI's Go on Docker job reads the `none`, `local` and `syslog` drivers, the last with Docker's dual logging on and off, and runs replaces on a small real disk that fills, and on one that turns read-only: a replace goes on, nothing half done stays, what was kept reads, and a prune that can't remove anything says so. What Docker does when its own disk fills, and drivers other than `json-file`, `local`, `none` and `syslog`, stay unproven: Dockwell sees only what Docker's log API answers, and takes each answer the same way.
 - **A replace's downtime reads 13 s,** one more than ADR 0021 said, for a stopped container's last lines.
 - **Budget for the wire:** a live stream can carry 2 MiB/s from each server, and a server 4 MiB/s, so a flood is visible on a small link. It is bounded, and a reader who can't take it slows it down.
-- **Only services have logs for now.** A container on its own runs with the same labels, in its server's project, so `LogService` can take it when a screen needs it.
+- **Services have logs, and so do the containers Dockwell didn't make ([ADR 0031](0031-containers-dockwell-didnt-make.md)).** A container on its own runs with the same labels, in its server's project, so `LogService` can take it when a screen needs it.
 - **Search reaches what Docker and the archive hold.** Past that, it would need a log store, which the PRD leaves for later.
 - **Migration 0018** adds `api_tokens.grants`.
 - **`dockwell logs follow` ends with no error on an interrupt,** exit status 0. Everything a reader isn't told by a line goes to standard error, so standard output stays the lines.
