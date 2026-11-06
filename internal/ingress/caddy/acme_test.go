@@ -292,9 +292,23 @@ func TestTheBootstrapNamesItsCA(t *testing.T) {
 // issuerOf reads who signed the certificate a name is served with.
 func issuerOf(t *testing.T, c *realCaddy, name string) string {
 	t.Helper()
-	conn := c.rawConn(t, name)
+	issuer, err := issuerNow(t, c, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return issuer
+}
+
+// issuerNow is issuerOf for a moment when a handshake may fail.
+func issuerNow(t *testing.T, c *realCaddy, name string) (string, error) {
+	t.Helper()
+	d := tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, ServerName: name, NextProtos: []string{"http/1.1"}}}
+	conn, err := d.DialContext(t.Context(), "tcp", fmt.Sprintf("127.0.0.1:%d", c.tls))
+	if err != nil {
+		return "", err
+	}
 	defer conn.Close()
-	return conn.ConnectionState().PeerCertificates[0].Issuer.CommonName
+	return conn.(*tls.Conn).ConnectionState().PeerCertificates[0].Issuer.CommonName, nil
 }
 
 // selfSignedChain is a certificate for a name, as the panel would have from its
@@ -387,12 +401,14 @@ func TestThePanelKeepsItsCertificateUntilCaddysOwnComesOnRealCaddy(t *testing.T)
 	}
 	deadline := time.Now().Add(20 * time.Second)
 	for {
-		issuer := issuerOf(t, c, "panel.example.net")
-		if issuer != "the panel's own CA" {
+		// A handshake can fail as the loaded certificate goes and Caddy's own takes
+		// over, for about a millisecond, which ADR 0024 accepts.
+		issuer, err := issuerNow(t, c, "panel.example.net")
+		if err == nil && issuer != "the panel's own CA" {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("Caddy still serves a certificate from %q", issuer)
+			t.Fatalf("Caddy still serves a certificate from %q, %v", issuer, err)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
