@@ -64,6 +64,9 @@ type Image struct {
 	PullTime time.Duration
 	// Prints is what a container of it writes to stdout as it starts.
 	Prints []string
+	// Exec runs a command in a container of it, and says how it exited. Nil has
+	// no commands, as an image without a shell.
+	Exec func(Exec) int
 }
 
 // Engine is a fake Docker Engine.
@@ -129,10 +132,19 @@ type Engine struct {
 	Requests []string
 	// followers counts the requests following a log now.
 	followers atomic.Int64
+	// Imports counts images made with docker import.
+	Imports int
+	execs   map[string]*execRun
+	helpers []docker.CreateRequest
+	starts  map[string]int
+	// volumeRoot is where what's in each volume is kept, once one is asked for.
+	volumeRoot string
 }
 
 type image struct {
-	id     string
+	// imported says it came from docker import, so a container of it is a helper.
+	imported bool
+	id       string
 	digest string
 	repo   string
 	Image
@@ -149,6 +161,8 @@ type container struct {
 	// reports is what its inspect says besides what the client has a field for, by
 	// section, as a real engine says far more than it reads.
 	reports map[string]map[string]any
+	// started closes as a helper starts, and exited as it ends.
+	started, exited chan struct{}
 }
 
 // reported are what a real engine says of a container nobody asked anything of, key
@@ -231,6 +245,8 @@ func New(t testing.TB) *Engine {
 		images:     map[string]*image{},
 		containers: map[string]*container{},
 		volumes:    map[string]*docker.Volume{},
+		execs:      map[string]*execRun{},
+		starts:     map[string]int{},
 		networks: map[string]*docker.Network{
 			"bridge": {ID: newID(), Name: "bridge", Driver: "bridge", Options: map[string]string{}, Labels: map[string]string{}},
 			"host":   {ID: newID(), Name: "host", Driver: "host", Options: map[string]string{}, Labels: map[string]string{}},
@@ -317,6 +333,9 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	if e.serveLogs(w, r) {
 		return // it may follow for as long as its client reads, so it holds no lock
 	}
+	if e.serveStream(w, r) {
+		return
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	path := r.URL.Path
@@ -354,6 +373,8 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver})
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
+	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "json":
+		e.inspectExec(w, parts[1])
 	case parts[0] == "images":
 		e.serveImages(w, r, path)
 	case parts[0] == "distribution" && len(parts) > 2 && parts[len(parts)-1] == "json":
@@ -422,6 +443,12 @@ func (e *Engine) image(ref string) *image {
 
 func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string) {
 	switch {
+	case r.Method == http.MethodPost && path == "/images/create" && r.URL.Query().Get("fromSrc") == "-":
+		e.importImage(w, r)
+	case r.Method == http.MethodGet && path == "/images/json":
+		e.listImages(w, r)
+	case r.Method == http.MethodDelete:
+		e.removeImage(w, strings.TrimPrefix(path, "/images/"))
 	case r.Method == http.MethodPost && path == "/images/create":
 		ref := r.URL.Query().Get("fromImage")
 		if tag := r.URL.Query().Get("tag"); tag != "" {
@@ -637,9 +664,18 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 	switch {
 	case r.Method == http.MethodGet && action == "json":
 		writeJSON(w, http.StatusOK, c.inspected())
+	case r.Method == http.MethodPost && action == "exec":
+		e.createExec(w, r, c)
 	case r.Method == http.MethodPost && action == "start":
 		if c.State.Running {
 			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		e.starts[strings.TrimPrefix(c.Name, "/")]++
+		if c.img.imported {
+			c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()}
+			close(c.started)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		for name, ep := range c.NetworkSettings.Networks {
@@ -1088,6 +1124,10 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := &container{img: img}
+	if img.imported {
+		c.started, c.exited = make(chan struct{}), make(chan struct{})
+		e.helpers = append(e.helpers, req)
+	}
 	c.ID = newID()
 	c.Created = time.Now().UTC()
 	c.log.ended = true // a follow ends at once until it starts
@@ -1117,6 +1157,10 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	// server's own network is one it has from the start.
 	if mode == "host" {
 		c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{"host": {}}
+		e.finishCreate(w, c, &req)
+		return
+	}
+	if mode == "none" {
 		e.finishCreate(w, c, &req)
 		return
 	}
