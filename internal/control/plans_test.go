@@ -357,6 +357,18 @@ func TestAFileForARunningProjectSaysSo(t *testing.T) {
 			}
 			return notes[0]
 		}
+		// The same file again changes nothing, so the plan can't say it changes what runs.
+		same := b.file(t, &dockwellv1.ImportComposeRequest{Compose: two})
+		if got := same.GetPlan().GetSummary(); got.GetCreate()+got.GetChange()+got.GetReplace()+got.GetDestroy() != 0 {
+			t.Fatalf("the same file plans %v", got)
+		}
+		for _, n := range same.GetPlan().GetNotes() {
+			t.Errorf("a plan that comes to nothing notes %v", n)
+		}
+		if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: same.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+
 		// By the file's name, and by asking for it, alike.
 		const edited = "name: shop\nservices:\n  web:\n    image: ghcr.io/acme/shop:1.5\n"
 		note := update(t, &dockwellv1.ImportComposeRequest{Compose: edited})
