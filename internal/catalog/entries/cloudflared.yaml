@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: cloudflared
+name: Cloudflare Tunnel
+summary: Reach apps on this server with no open port
+category: networking
+version: "2026.10.3"
+release: 1
+homepage: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/cloudflared.yaml
+hostAccess: The server's own network, so the tunnel reaches routes on this server's port 80.
+firstSteps: >-
+  In Cloudflare, add a published application to the tunnel, with your domain as
+  its hostname and http://127.0.0.1:80 as its service. Then add that domain to an
+  app here, as behind a tunnel.
+inputs:
+  - name: TUNNEL_TOKEN
+    label: Tunnel token
+    hint: From Cloudflare, under Networks, in the tunnel's install command. It's kept as a secret.
+    type: INPUT_TYPE_SECRET
+compose: |
+  services:
+    tunnel:
+      image: cloudflare/cloudflared:2026.10.3@sha256:faa8e0a1475f137c910be6025f43c8e4092fdd35461b31e19fd1390657a1ff39
+      restart: unless-stopped
+      network_mode: host
+      command: ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:20241", "run"]
+      environment:
+        TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+      healthcheck:
+        test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready"]
+        interval: 10s
+        timeout: 5s
+        retries: 6

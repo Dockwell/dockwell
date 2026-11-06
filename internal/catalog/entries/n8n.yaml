@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: n8n
+name: n8n
+summary: Run AI agents and automate workflows across your tools
+category: ai
+version: "2.44.6"
+release: 1
+homepage: https://n8n.io
+license: AGPL-3.0-only
+appLicense: Sustainable Use License
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/n8n.yaml
+web:
+  service: n8n
+firstSteps: >-
+  Open n8n now and create its owner account: until you do, whoever reaches this
+  port first can. It runs over plain HTTP, so add a domain before you use it for
+  real.
+inputs:
+  - name: PORT
+    label: Port
+    hint: You open n8n on this port of the server.
+    type: INPUT_TYPE_PORT
+    defaultValue: "5678"
+  - name: N8N_ENCRYPTION_KEY
+    label: Encryption key
+    type: INPUT_TYPE_SECRET
+    generate: 40
+compose: |
+  services:
+    n8n:
+      image: n8nio/n8n:2.44.6@sha256:d02752c6ab446ae9db8deec2f9cc887c378f77cdcad31650814df936b7386dfb
+      restart: unless-stopped
+      environment:
+        N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+        N8N_SECURE_COOKIE: "false"
+      ports:
+        - "${PORT}:5678"
+      volumes:
+        - data:/home/node/.n8n
+      healthcheck:
+        test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5678/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 20s
+  volumes:
+    data: {}
