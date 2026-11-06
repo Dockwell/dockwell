@@ -101,6 +101,45 @@ export async function dockerExec(socket: string, id: string, command: string[]):
   await call(socket, "POST", `/exec/${made.Id}/start`, { Detach: true });
 }
 
+/** Runs a container on Docker directly, as someone at the server would, so Dockwell has no part in it. */
+export async function dockerRun(
+  socket: string,
+  name: string,
+  run: { image: string; command?: string[]; env?: string[]; port?: number; mount?: string },
+): Promise<string> {
+  const [from, tag = "latest"] = run.image.split(":");
+  await call(socket, "POST", `/images/create?${new URLSearchParams({ fromImage: from ?? "", tag })}`);
+  const made = JSON.parse(
+    await call(socket, "POST", `/containers/create?name=${name}`, {
+      Image: run.image,
+      Cmd: run.command,
+      Env: run.env,
+      ExposedPorts: run.port ? { "80/tcp": {} } : undefined,
+      HostConfig: {
+        PortBindings: run.port ? { "80/tcp": [{ HostPort: String(run.port) }] } : undefined,
+        Binds: run.mount ? [run.mount] : undefined,
+      },
+    }),
+  ) as { Id: string };
+  await call(socket, "POST", `/containers/${made.Id}/start`);
+  return made.Id;
+}
+
+/** Whether a container has been touched: anything that restarts or replaces it changes this. */
+export async function dockerStarted(socket: string, id: string): Promise<string> {
+  const seen = await get<{ Id: string; RestartCount: number; State: { StartedAt: string } }>(
+    socket,
+    `/containers/${id}/json`,
+  );
+  return `${seen.Id} ${seen.RestartCount} ${seen.State.StartedAt}`;
+}
+
+/** Removes a container and a volume it was the only one to use, as docker rm -f and docker volume rm do. */
+export async function dockerRemove(socket: string, id: string, volume: string): Promise<void> {
+  await call(socket, "DELETE", `/containers/${id}?force=1`);
+  await call(socket, "DELETE", `/volumes/${volume}`);
+}
+
 /** Tells scripts/fakedocker how a container's check went, as it has none to run. */
 export async function dockerHealth(socket: string, id: string, status: string, output: string): Promise<void> {
   const query = new URLSearchParams({ status, output });

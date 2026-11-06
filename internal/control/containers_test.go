@@ -58,6 +58,10 @@ func testTheListIsWhatDockwellDidntMake(t *testing.T, backend store.Backend) {
 
 	done := apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
 	project := docker.Project(done.GetPlan().GetResources()[0].GetResource().GetScope())
+	alone := webEdit("ghcr.io/acme/worker:1.0", nil)
+	alone.Resource = &dockwellv1.ResourceRef{Name: "alone"}
+	alone.GetSpec().GetContainer().Ports = nil
+	apply(t, c, propose(t, c, "Run alone", alone))
 
 	e.AddContainer(docker.Container{ID: "a1", Name: "/by-hand", Config: docker.Config{Image: "nginx:1.27", Env: []string{"API_KEY=hunter2"}}})
 	e.AddContainer(docker.Container{ID: "a2", Name: "/shop-db-1", Config: docker.Config{Image: "postgres:17", Labels: composeLabels("shop", "db")}})
@@ -77,8 +81,8 @@ func testTheListIsWhatDockwellDidntMake(t *testing.T, backend store.Backend) {
 	if got := names(res.Msg.GetContainers()); !slices.Equal(got, want) {
 		t.Errorf("the list has %v, want %v", got, want)
 	}
-	if got := res.Msg.GetOwnContainers(); got != 2 {
-		t.Errorf("it left out %d of Dockwell's own, want the service's and the ingress's", got)
+	if got := res.Msg.GetOwnContainers(); got != 3 {
+		t.Errorf("it left out %d of Dockwell's own, want the service's, the one on its own and the ingress's", got)
 	}
 	for _, r := range e.Seen()[seen:] {
 		if !strings.HasPrefix(r, "GET ") {
