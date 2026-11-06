@@ -1081,10 +1081,24 @@ volumes:
   const input = phonePlan.locator(".plan-gate input");
   const size = await input.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
   if (size < 16) fail(`the confirmation is ${size} px on a phone, which zooms in as it takes focus`);
+  const typed = await input.boundingBox();
+  if (!typed || typed.height < 44) fail(`the confirmation is ${typed?.height} px tall on a phone`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   if (overflow > 0) fail(`a phone scrolls sideways by ${overflow} px`);
   await shoot(page, "plan-phone");
   await phonePlan.getByRole("button", { name: "Cancel" }).click();
+
+  step("plan: on a phone, an arrival's address is big enough for a thumb");
+  const phoneReach = await reviewNew(page, origin, "nginx:1.27-alpine", "phone-reach", addPort(8096));
+  await phoneReach.getByRole("button", { name: /Apply plan/ }).click();
+  const reachLink = page.locator("a.plan-reach-at").first();
+  await reachLink.waitFor({ timeout: 30_000 });
+  const reachBox = await reachLink.boundingBox();
+  if (!reachBox || reachBox.height < 44) fail(`an arrival's address is ${reachBox?.height} px tall on a phone`);
+  await page
+    .getByRole("button", { name: /^Open phone-reach|^Done/ })
+    .first()
+    .click();
   await page.setViewportSize({ width: 1440, height: 900 });
 
   step("plan: reads in Chinese, and passes axe there too");

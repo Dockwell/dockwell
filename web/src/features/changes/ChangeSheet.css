@@ -622,9 +622,16 @@ a.plan-reach-at:focus-visible {
   justify-self: start;
 }
 
-/* Big enough that a phone doesn't zoom in on it as it takes focus. */
+/* Big enough that a phone doesn't zoom in on it as it takes focus, and for a thumb. */
 .plan-view.is-phone .plan-gate-field input {
+  min-height: 44px;
   font-size: 16px;
+}
+
+.plan-view.is-phone a.plan-reach-at {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 
 .plan-view.is-phone .dw-plan-changes {
