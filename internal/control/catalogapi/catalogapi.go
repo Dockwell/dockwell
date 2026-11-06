@@ -195,20 +195,25 @@ func (h *Handler) whatsFree(ctx context.Context, e *catalogv1.Entry) (free, erro
 		if err != nil {
 			return err
 		}
-		names := map[string]bool{}
 		for _, p := range tree.Projects {
-			names[p.Name] = true
 			for _, env := range p.Environments {
 				if err := h.addPorts(ctx, tx, env.ID, taken); err != nil {
 					return err
 				}
 			}
 		}
+		// A name used before isn't free, as PlanInstall says of it.
 		out.project = e.GetId()
-		for n := 2; names[out.project]; n++ {
+		for n := 2; ; n++ {
+			_, err := tx.GetResource(ctx, string(scope.ProjectKind), tree.Organization.ID, out.project)
+			if errors.Is(err, store.ErrNotFound) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
 			out.project = e.GetId() + "-" + strconv.Itoa(n)
 		}
-		return nil
 	})
 	out.values = catalog.Suggest(e, taken)
 	return out, err

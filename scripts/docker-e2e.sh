@@ -12,7 +12,9 @@
 # have runs on a network the server has, with what it asks for really applied,
 # and reaches another project on it by name, and a route with no certificate
 # reaches it there, as it does a service on the server's own network, by its port
-# alone. Then the agent build joins the
+# alone. Each app in the catalog installs as a project of its own and signs in with
+# a password no one typed, but for the tunnel, which stops at its plan. Then the
+# agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
@@ -2530,6 +2532,133 @@ wiki_after=$(wiki_state) || fail "after importing blog again, wiki's db is gone"
 dw services delete db --project blog --yes || fail "deleting blog's db failed"
 dw services delete db --project wiki --yes || fail "deleting wiki's db failed"
 dw services delete keeper --project default --environment production --yes || fail "deleting keeper failed"
+
+# catalog_install installs an app through the CLI, and says which Compose project it
+# made in catalog_project.
+catalog_install() {
+  local planned change environment
+  planned=$(dw catalog install "$@" --plan-only --json) || fail "planning to install $1 failed"
+  change=$(jq -r '.change.id // empty' <<<"$planned") || fail "planning to install $1 printed what isn't JSON: $planned"
+  [[ "$change" == chg_* ]] || fail "installing $1 planned no change: $planned"
+  environment=$(jq -r '[.change.plan.resources[] | select(.resource.kind == "service")][0].resource.scope' <<<"$planned") ||
+    fail "the plan to install $1 names no service: $planned"
+  catalog_project=${environment,,}
+  real_projects+=("$catalog_project")
+  dw changes apply "$change" --yes >/dev/null || fail "installing $1 failed"
+}
+# catalog_container names what a service of the last install runs in, once it's up.
+catalog_container() {
+  local out
+  out=$(docker ps --filter "label=com.docker.compose.project=$catalog_project" --filter "label=com.docker.compose.service=$1" --format '{{.Names}}') ||
+    fail "docker ps failed"
+  [[ -n "$out" && "$out" != *$'\n'* ]] || fail "Docker runs '$out' for $1, want one container"
+  echo "$out"
+}
+catalog_healthy() {
+  local health
+  health=$(docker inspect --format '{{.State.Health.Status}}' "$1") || fail "docker inspect $1 failed"
+  [[ "$health" == healthy ]] || fail "$1 reads $health once its install has applied, want healthy: $(docker logs --tail 20 "$1" 2>&1)"
+}
+catalog_pinned() {
+  local image
+  image=$(docker inspect --format '{{.Config.Image}}' "$1") || fail "docker inspect $1 failed"
+  [[ "$image" == *@sha256:* ]] || fail "$1 runs $image, not pinned by digest"
+}
+# catalog_value reads what an install's input was given, and catalog_env what a
+# container has, which is how a person's passkey would see a generated secret.
+catalog_value() {
+  local installs value
+  installs=$(dw catalog installs --json) || fail "catalog installs failed"
+  value=$(jq -r --arg p "$1" --arg k "$2" '.installs[] | select(.project == $p) | .pin.values[$k] // empty' <<<"$installs") ||
+    fail "catalog installs printed what isn't JSON: $installs"
+  [[ -n "$value" ]] || fail "the install $1 keeps no $2: $installs"
+  echo "$value"
+}
+catalog_env() {
+  local all
+  all=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$1") || fail "docker inspect $1 failed"
+  sed -n "s/^$2=//p" <<<"$all"
+}
+# catalog_generated reads a generated secret, and says nothing but that shows it.
+catalog_generated() {
+  local value
+  value=$(catalog_env "$1" "$2")
+  [[ ${#value} -ge 32 ]] || fail "$1 got ${#value} characters for $2, want a generated value"
+  echo "$value"
+}
+
+step "Catalog: PostgreSQL installs by digest with a password no one typed, and Adminer signs in with it"
+catalog_install postgres
+postgres_db=$(catalog_container db)
+adminer=$(catalog_container adminer)
+catalog_pinned "$postgres_db"
+catalog_pinned "$adminer"
+catalog_healthy "$postgres_db"
+catalog_healthy "$adminer"
+password=$(catalog_generated "$postgres_db" POSTGRES_PASSWORD)
+seen=$(dw changes list --json; dw catalog installs --json; dw compose export --project postgres) || fail "reading the install back failed"
+[[ "$seen" != *"$password"* ]] || fail "what anyone can read holds the generated password"
+admin_port=$(catalog_value postgres ADMIN_PORT)
+jar=$(mktemp)
+curl -fsS --max-time 10 -c "$jar" -b "$jar" -o /dev/null "http://127.0.0.1:$admin_port/" || fail "Adminer doesn't answer on port $admin_port"
+page=$(curl -sS -L --max-time 30 -c "$jar" -b "$jar" --data-urlencode 'auth[driver]=pgsql' --data-urlencode 'auth[server]=db' \
+  --data-urlencode 'auth[username]=postgres' --data-urlencode "auth[password]=$password" --data-urlencode 'auth[db]=postgres' \
+  "http://127.0.0.1:$admin_port/") || fail "signing in to Adminer failed"
+rm -f "$jar"
+[[ "$page" == *"id='logout'"* ]] || fail "Adminer can't sign in to the database with its password: ${page:0:400}"
+
+step "Catalog: MySQL runs with a password of its own, and phpMyAdmin is on its network"
+catalog_install mysql
+mysql_db=$(catalog_container db)
+phpmyadmin=$(catalog_container phpmyadmin)
+catalog_pinned "$mysql_db"
+catalog_pinned "$phpmyadmin"
+catalog_healthy "$mysql_db"
+catalog_healthy "$phpmyadmin"
+password=$(catalog_generated "$mysql_db" MYSQL_ROOT_PASSWORD)
+answer=$(docker exec "$mysql_db" sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -uroot -h127.0.0.1 -N -e "select 41 + 1"') ||
+  fail "MySQL doesn't take the password it was given"
+[[ "$answer" == 42 ]] || fail "MySQL answered '$answer'"
+docker exec "$phpmyadmin" getent hosts db >/dev/null || fail "phpMyAdmin can't find the database by name"
+admin_port=$(catalog_value mysql ADMIN_PORT)
+page=$(curl -fsS --max-time 10 "http://127.0.0.1:$admin_port/") || fail "phpMyAdmin doesn't answer on port $admin_port"
+[[ "$page" == *phpMyAdmin* ]] || fail "port $admin_port answers something else: ${page:0:300}"
+
+step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"
+catalog_install nginx-proxy-manager --values ADMIN_EMAIL=owner@example.com
+proxy=$(catalog_container proxy)
+catalog_pinned "$proxy"
+catalog_healthy "$proxy"
+password=$(catalog_generated "$proxy" INITIAL_ADMIN_PASSWORD)
+admin_port=$(catalog_value nginx-proxy-manager ADMIN_PORT)
+signed_in=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' -d "{\"identity\":\"owner@example.com\",\"secret\":\"$password\"}" \
+  "http://127.0.0.1:$admin_port/api/tokens") || fail "Nginx Proxy Manager won't sign in with its password"
+jq -e '.token | length > 0' <<<"$signed_in" >/dev/null || fail "signing in to Nginx Proxy Manager gave no token"
+
+step "Catalog: n8n runs, and answers on its port"
+catalog_install n8n
+n8n=$(catalog_container n8n)
+catalog_pinned "$n8n"
+catalog_healthy "$n8n"
+catalog_generated "$n8n" N8N_ENCRYPTION_KEY >/dev/null
+n8n_port=$(catalog_value n8n PORT)
+page=$(curl -fsS --max-time 10 "http://127.0.0.1:$n8n_port/healthz") || fail "n8n doesn't answer on port $n8n_port"
+[[ "$page" == *ok* ]] || fail "n8n's health says: ${page:0:300}"
+
+step "Catalog: a tunnel takes a token, and a person approves what it reaches"
+# Nothing here can reach Cloudflare's edge, as ADR 0030 says, so it stops at the plan,
+# and the one thing a server's own run would read first is its health check's flags.
+planned=$(dw catalog install cloudflared --values TUNNEL_TOKEN=not-a-real-token --plan-only --json) || fail "planning a tunnel failed"
+[[ "$planned" != *not-a-real-token* ]] || fail "the plan holds the tunnel's token"
+jq -e '.change.plan.hostAccess == true' <<<"$planned" >/dev/null || fail "a tunnel on the server's own network plans no host access: $planned"
+change=$(jq -r .change.id <<<"$planned")
+token_refused "$change"
+dw changes discard "$change" >/dev/null || fail "discarding the tunnel's plan failed"
+entry=$(dw catalog get cloudflared --json) || fail "catalog get failed"
+image=$(jq -r '.entry.compose' <<<"$entry" | sed -n 's/^ *image: //p')
+[[ "$image" == cloudflare/cloudflared:*@sha256:* ]] || fail "the tunnel's entry names '$image'"
+said=$(docker run --rm "$image" tunnel --metrics 127.0.0.1:20241 ready 2>&1) && fail "a tunnel with nothing running reads as ready: $said"
+[[ "$said" != *"flag provided but not defined"* && "$said" != *"Incorrect Usage"* ]] || fail "cloudflared doesn't take its health check: $said"
 
 step "The agent build joins with Docker down, says so from the start, and its server isn't healthy"
 made=$(dw token create 2>>"$log") || fail "dockwell token create failed"

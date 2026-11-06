@@ -204,6 +204,20 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	if len(installs.Msg.GetInstalls()) != 1 {
 		t.Errorf("after the undo, installs: %v", installs.Msg.GetInstalls())
 	}
+
+	// Its name stays out of use, as the server keeps its volume for 7 days, which a
+	// new password couldn't open.
+	again, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "postgres"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Msg.GetProject() != "postgres-3" {
+		t.Errorf("after an undo it suggests %q", again.Msg.GetProject())
+	}
+	_, err = cat.InstallCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Project: "postgres-2"}))
+	if connect.CodeOf(err) != connect.CodeAlreadyExists || !strings.Contains(err.Error(), "its data may come back") {
+		t.Errorf("installing over what was undone = %v", err)
+	}
 }
 
 // What a person types is checked before anything is planned, and an app that needs a

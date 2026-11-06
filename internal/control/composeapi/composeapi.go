@@ -127,6 +127,24 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		return nil, authapi.ReasonError(connect.CodeAlreadyExists,
 			fmt.Errorf("a project named %s is here already. Choose another name, so the install doesn't change it", place.project), "project_exists")
 	}
+	// A project deleted before keeps its IDs, so its volumes would come back, for 7
+	// days, with data a password made now can't open.
+	var before bool
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		_, err := tx.GetResource(ctx, string(scope.ProjectKind), place.organization, place.project)
+		before = err == nil
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	if before {
+		return nil, authapi.ReasonError(connect.CodeAlreadyExists,
+			fmt.Errorf("a project named %s was here before, and its data may come back, which a new password can't open. Choose another name", place.project), "project_exists")
+	}
 	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
 	useSecrets(stack, in.Secrets)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}

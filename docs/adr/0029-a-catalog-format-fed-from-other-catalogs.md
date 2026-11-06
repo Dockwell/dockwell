@@ -92,6 +92,23 @@ This is our reading of the licences, not legal advice. Counsel confirms it befor
 - **Switching is a plan too,** and never reads as a simple update. Packagings can keep their data in different paths, so the plan says whether the data carries over, and says so plainly when it can't tell.
 - **Entries have two levels.** *Tested* entries install and pass a health check on real Docker in the catalog's CI. These are the PRD's curated 200+. *Community* entries are converted and checked but not run, and stay behind a setting that's off by default. The plan protects both the same way.
 
+### The first entries, before the index exists
+
+*Added 6 Nov 2026, with #89.*
+
+`Dockwell/catalog` and its signed index don't exist yet, and people need to install apps now. So the first entries ship in the binary, in `internal/catalog/entries`, in the same format the index will carry. When the index arrives it takes over from `catalog.Load`, and nothing else changes.
+
+- **They're ours.** We wrote these entries, so no other catalog's terms reach the binary, which keeps to what this record says. Each file's licence is the repository's, and its `license` says so.
+- **The format is `dockwell.catalog.v1alpha1.Entry`.** It's alpha until backups exist, as above. For now it has typed inputs, generated secrets, what a person opens, what to do first and the host access an app needs. Declared files, what to back up and connection names wait for an app that needs them.
+- **A secret stays a reference.** An entry's Compose file writes `${POSTGRES_PASSWORD}`, as any file would. The control plane generates the value, seals it as the environment's secret, and has the service use it by name, so a rotation reaches it and no response carries it. An entry can't put a secret inside a longer value, which a rotation couldn't reach.
+- **An install is pinned in its project's spec,** as `Project.catalog`: the entry, its release, its source and commit, and every input that isn't a secret. So it's a revision like anything else, and an undo takes it away. `release` is a number that goes up, as a version like `2026.10.3` doesn't order reliably across apps.
+- **An install never changes what's there.** A project of that name is refused, where importing a Compose file would update it, and so is a name used before: a deleted project keeps its IDs, so its volumes would come back, with data a new password can't open. The name and the ports start from what's free among what Dockwell runs. Anything else on a server only its agent can see, so the plan refuses that by name.
+- **A database publishes no port.** Its admin tool runs in the same project, and a person adds a port on the app's page if something else needs one.
+- **A form asks only what it must.** Every app gets a name and its ports. Domains, memory limits and backups in the `Catalog-Install` mock wait: a domain has its own form on the app's page, with what a tunnel needs, and the other two have nothing to set yet.
+- **An entry's text is English for now.** The panel's own words are translated, and an entry's are data, so translations belong in the format once the catalog is big enough to need them.
+
+The first set is what the two real servers ran, with one change. They ran an AI agent runner, and the well-known choice is OpenClaw, but its Control UI needs `openclaw devices approve` run inside the container on first connection, and Dockwell has no way to run a command in one yet. So the first set has n8n, which is ready from its own page. It's under the Sustainable Use License, not an open-source one, so the catalog says "apps", not "open-source apps", and each install sheet names the app's licence. OpenClaw can join once that's possible.
+
 ### What we turned down
 
 - **Running 1Panel's format directly.** It would tie the product to a format that can't express plans, secrets or backups, and it would run scripts on the host.
