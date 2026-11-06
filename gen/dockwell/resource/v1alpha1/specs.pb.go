@@ -389,7 +389,14 @@ type Container struct {
 	// $$ is a $ of its own, as in a Compose file. So a plan, an export and what
 	// an agent reports show the name, a rotation reaches it, and the value is
 	// written in only as the container is made. In any other field, a $ is a $.
-	References    []string `protobuf:"bytes,29,rep,name=references,proto3" json:"references,omitempty"`
+	References []string `protobuf:"bytes,29,rep,name=references,proto3" json:"references,omitempty"`
+	// The size of its /dev/shm, such as "1G", in units of 1024, as Compose's
+	// shm_size. What it holds counts against resources.memory. Empty takes
+	// Docker's default of 64M, which is too little for Chromium on a heavy page.
+	ShmSize string `protobuf:"bytes,30,opt,name=shm_size,json=shmSize,proto3" json:"shm_size,omitempty"`
+	// Filesystems held in memory at paths in the container. What is in one goes
+	// when the container does, so a deploy starts it empty.
+	Tmpfs         []*Tmpfs `protobuf:"bytes,31,rep,name=tmpfs,proto3" json:"tmpfs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -599,6 +606,76 @@ func (x *Container) GetReferences() []string {
 	return nil
 }
 
+func (x *Container) GetShmSize() string {
+	if x != nil {
+		return x.ShmSize
+	}
+	return ""
+}
+
+func (x *Container) GetTmpfs() []*Tmpfs {
+	if x != nil {
+		return x.Tmpfs
+	}
+	return nil
+}
+
+// Tmpfs is a filesystem held in memory, at a path in a container.
+type Tmpfs struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where it appears in the container, as an absolute path.
+	Target string `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
+	// The most it may hold, such as "64M", in units of 1024. Empty sets none, so
+	// it can take half the server's memory, unless resources.memory stops it first.
+	Size          string `protobuf:"bytes,2,opt,name=size,proto3" json:"size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Tmpfs) Reset() {
+	*x = Tmpfs{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Tmpfs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Tmpfs) ProtoMessage() {}
+
+func (x *Tmpfs) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Tmpfs.ProtoReflect.Descriptor instead.
+func (*Tmpfs) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Tmpfs) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *Tmpfs) GetSize() string {
+	if x != nil {
+		return x.Size
+	}
+	return ""
+}
+
 // Resources is what a container may use of its server. Docker changes these on
 // a running container, except to lift one: that recreates it.
 type Resources struct {
@@ -618,7 +695,7 @@ type Resources struct {
 
 func (x *Resources) Reset() {
 	*x = Resources{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[1]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -630,7 +707,7 @@ func (x *Resources) String() string {
 func (*Resources) ProtoMessage() {}
 
 func (x *Resources) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[1]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -643,7 +720,7 @@ func (x *Resources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Resources.ProtoReflect.Descriptor instead.
 func (*Resources) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Resources) GetCpus() string {
@@ -686,7 +763,7 @@ type Rollout struct {
 
 func (x *Rollout) Reset() {
 	*x = Rollout{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[2]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -698,7 +775,7 @@ func (x *Rollout) String() string {
 func (*Rollout) ProtoMessage() {}
 
 func (x *Rollout) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[2]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -711,7 +788,7 @@ func (x *Rollout) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Rollout.ProtoReflect.Descriptor instead.
 func (*Rollout) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Rollout) GetOrder() RolloutOrder {
@@ -752,7 +829,7 @@ type Mount struct {
 
 func (x *Mount) Reset() {
 	*x = Mount{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[3]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -764,7 +841,7 @@ func (x *Mount) String() string {
 func (*Mount) ProtoMessage() {}
 
 func (x *Mount) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[3]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -777,7 +854,7 @@ func (x *Mount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Mount.ProtoReflect.Descriptor instead.
 func (*Mount) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Mount) GetSource() isMount_Source {
@@ -879,7 +956,7 @@ type Healthcheck struct {
 
 func (x *Healthcheck) Reset() {
 	*x = Healthcheck{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[4]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -891,7 +968,7 @@ func (x *Healthcheck) String() string {
 func (*Healthcheck) ProtoMessage() {}
 
 func (x *Healthcheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[4]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -904,7 +981,7 @@ func (x *Healthcheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Healthcheck.ProtoReflect.Descriptor instead.
 func (*Healthcheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Healthcheck) GetTest() []string {
@@ -973,7 +1050,7 @@ type HttpCheck struct {
 
 func (x *HttpCheck) Reset() {
 	*x = HttpCheck{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[5]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -985,7 +1062,7 @@ func (x *HttpCheck) String() string {
 func (*HttpCheck) ProtoMessage() {}
 
 func (x *HttpCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[5]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -998,7 +1075,7 @@ func (x *HttpCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HttpCheck.ProtoReflect.Descriptor instead.
 func (*HttpCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HttpCheck) GetPort() uint32 {
@@ -1033,7 +1110,7 @@ type TcpCheck struct {
 
 func (x *TcpCheck) Reset() {
 	*x = TcpCheck{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[6]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1045,7 +1122,7 @@ func (x *TcpCheck) String() string {
 func (*TcpCheck) ProtoMessage() {}
 
 func (x *TcpCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[6]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1058,7 +1135,7 @@ func (x *TcpCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TcpCheck.ProtoReflect.Descriptor instead.
 func (*TcpCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *TcpCheck) GetPort() uint32 {
@@ -1086,7 +1163,7 @@ type PortMapping struct {
 
 func (x *PortMapping) Reset() {
 	*x = PortMapping{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[7]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1098,7 +1175,7 @@ func (x *PortMapping) String() string {
 func (*PortMapping) ProtoMessage() {}
 
 func (x *PortMapping) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[7]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1111,7 +1188,7 @@ func (x *PortMapping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PortMapping.ProtoReflect.Descriptor instead.
 func (*PortMapping) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PortMapping) GetHostPort() uint32 {
@@ -1162,7 +1239,7 @@ type FirewallRule struct {
 
 func (x *FirewallRule) Reset() {
 	*x = FirewallRule{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[8]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1174,7 +1251,7 @@ func (x *FirewallRule) String() string {
 func (*FirewallRule) ProtoMessage() {}
 
 func (x *FirewallRule) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[8]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1187,7 +1264,7 @@ func (x *FirewallRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FirewallRule.ProtoReflect.Descriptor instead.
 func (*FirewallRule) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *FirewallRule) GetAction() FirewallAction {
@@ -1243,7 +1320,7 @@ type Project struct {
 
 func (x *Project) Reset() {
 	*x = Project{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[9]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1255,7 +1332,7 @@ func (x *Project) String() string {
 func (*Project) ProtoMessage() {}
 
 func (x *Project) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[9]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1268,7 +1345,7 @@ func (x *Project) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Project.ProtoReflect.Descriptor instead.
 func (*Project) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Project) GetDisplayName() string {
@@ -1313,7 +1390,7 @@ type CatalogPin struct {
 
 func (x *CatalogPin) Reset() {
 	*x = CatalogPin{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[10]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1325,7 +1402,7 @@ func (x *CatalogPin) String() string {
 func (*CatalogPin) ProtoMessage() {}
 
 func (x *CatalogPin) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[10]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1338,7 +1415,7 @@ func (x *CatalogPin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CatalogPin.ProtoReflect.Descriptor instead.
 func (*CatalogPin) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CatalogPin) GetEntry() string {
@@ -1403,7 +1480,7 @@ type Environment struct {
 
 func (x *Environment) Reset() {
 	*x = Environment{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[11]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1415,7 +1492,7 @@ func (x *Environment) String() string {
 func (*Environment) ProtoMessage() {}
 
 func (x *Environment) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[11]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1428,7 +1505,7 @@ func (x *Environment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Environment.ProtoReflect.Descriptor instead.
 func (*Environment) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Environment) GetDisplayName() string {
@@ -1477,7 +1554,7 @@ type Service struct {
 
 func (x *Service) Reset() {
 	*x = Service{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[12]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1489,7 +1566,7 @@ func (x *Service) String() string {
 func (*Service) ProtoMessage() {}
 
 func (x *Service) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[12]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1502,7 +1579,7 @@ func (x *Service) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Service.ProtoReflect.Descriptor instead.
 func (*Service) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Service) GetRuns() isService_Runs {
@@ -1566,7 +1643,7 @@ type Variable struct {
 
 func (x *Variable) Reset() {
 	*x = Variable{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[13]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1578,7 +1655,7 @@ func (x *Variable) String() string {
 func (*Variable) ProtoMessage() {}
 
 func (x *Variable) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[13]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1591,7 +1668,7 @@ func (x *Variable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Variable.ProtoReflect.Descriptor instead.
 func (*Variable) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Variable) GetValue() string {
@@ -1616,7 +1693,7 @@ type Secret struct {
 
 func (x *Secret) Reset() {
 	*x = Secret{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[14]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1628,7 +1705,7 @@ func (x *Secret) String() string {
 func (*Secret) ProtoMessage() {}
 
 func (x *Secret) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[14]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1641,7 +1718,7 @@ func (x *Secret) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Secret.ProtoReflect.Descriptor instead.
 func (*Secret) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Secret) GetValue() string {
@@ -1671,7 +1748,7 @@ type Volume struct {
 
 func (x *Volume) Reset() {
 	*x = Volume{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[15]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1683,7 +1760,7 @@ func (x *Volume) String() string {
 func (*Volume) ProtoMessage() {}
 
 func (x *Volume) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[15]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1696,7 +1773,7 @@ func (x *Volume) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Volume.ProtoReflect.Descriptor instead.
 func (*Volume) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Volume) GetDriver() string {
@@ -1741,7 +1818,7 @@ type Network struct {
 
 func (x *Network) Reset() {
 	*x = Network{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[16]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1753,7 +1830,7 @@ func (x *Network) String() string {
 func (*Network) ProtoMessage() {}
 
 func (x *Network) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[16]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1766,7 +1843,7 @@ func (x *Network) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Network.ProtoReflect.Descriptor instead.
 func (*Network) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Network) GetDriver() string {
@@ -1859,7 +1936,7 @@ type Route struct {
 
 func (x *Route) Reset() {
 	*x = Route{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[17]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1871,7 +1948,7 @@ func (x *Route) String() string {
 func (*Route) ProtoMessage() {}
 
 func (x *Route) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[17]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1884,7 +1961,7 @@ func (x *Route) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Route.ProtoReflect.Descriptor instead.
 func (*Route) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Route) GetDomain() string {
@@ -1969,7 +2046,7 @@ type Spec struct {
 
 func (x *Spec) Reset() {
 	*x = Spec{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[18]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1981,7 +2058,7 @@ func (x *Spec) String() string {
 func (*Spec) ProtoMessage() {}
 
 func (x *Spec) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[18]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1994,7 +2071,7 @@ func (x *Spec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Spec.ProtoReflect.Descriptor instead.
 func (*Spec) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Spec) GetKind() isSpec_Kind {
@@ -2193,7 +2270,8 @@ var File_dockwell_resource_v1alpha1_specs_proto protoreflect.FileDescriptor
 
 const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
-	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\xb5\t\n" +
+	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\x89\n" +
+	"\n" +
 	"\tContainer\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x12F\n" +
@@ -2227,13 +2305,18 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x0frestart_retries\x18\x1c \x01(\rR\x0erestartRetries\x12\x1e\n" +
 	"\n" +
 	"references\x18\x1d \x03(\tR\n" +
-	"references\x1a6\n" +
+	"references\x12\x19\n" +
+	"\bshm_size\x18\x1e \x01(\tR\ashmSize\x127\n" +
+	"\x05tmpfs\x18\x1f \x03(\v2!.dockwell.resource.v1alpha1.TmpfsR\x05tmpfs\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"f\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"3\n" +
+	"\x05Tmpfs\x12\x16\n" +
+	"\x06target\x18\x01 \x01(\tR\x06target\x12\x12\n" +
+	"\x04size\x18\x02 \x01(\tR\x04size\"f\n" +
 	"\tResources\x12\x12\n" +
 	"\x04cpus\x18\x01 \x01(\tR\x04cpus\x12\x16\n" +
 	"\x06memory\x18\x02 \x01(\tR\x06memory\x12-\n" +
@@ -2393,7 +2476,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(RolloutOrder)(0),                 // 0: dockwell.resource.v1alpha1.RolloutOrder
 	(Relabel)(0),                      // 1: dockwell.resource.v1alpha1.Relabel
@@ -2401,78 +2484,80 @@ var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(Protocol)(0),                     // 3: dockwell.resource.v1alpha1.Protocol
 	(FirewallAction)(0),               // 4: dockwell.resource.v1alpha1.FirewallAction
 	(*Container)(nil),                 // 5: dockwell.resource.v1alpha1.Container
-	(*Resources)(nil),                 // 6: dockwell.resource.v1alpha1.Resources
-	(*Rollout)(nil),                   // 7: dockwell.resource.v1alpha1.Rollout
-	(*Mount)(nil),                     // 8: dockwell.resource.v1alpha1.Mount
-	(*Healthcheck)(nil),               // 9: dockwell.resource.v1alpha1.Healthcheck
-	(*HttpCheck)(nil),                 // 10: dockwell.resource.v1alpha1.HttpCheck
-	(*TcpCheck)(nil),                  // 11: dockwell.resource.v1alpha1.TcpCheck
-	(*PortMapping)(nil),               // 12: dockwell.resource.v1alpha1.PortMapping
-	(*FirewallRule)(nil),              // 13: dockwell.resource.v1alpha1.FirewallRule
-	(*Project)(nil),                   // 14: dockwell.resource.v1alpha1.Project
-	(*CatalogPin)(nil),                // 15: dockwell.resource.v1alpha1.CatalogPin
-	(*Environment)(nil),               // 16: dockwell.resource.v1alpha1.Environment
-	(*Service)(nil),                   // 17: dockwell.resource.v1alpha1.Service
-	(*Variable)(nil),                  // 18: dockwell.resource.v1alpha1.Variable
-	(*Secret)(nil),                    // 19: dockwell.resource.v1alpha1.Secret
-	(*Volume)(nil),                    // 20: dockwell.resource.v1alpha1.Volume
-	(*Network)(nil),                   // 21: dockwell.resource.v1alpha1.Network
-	(*Route)(nil),                     // 22: dockwell.resource.v1alpha1.Route
-	(*Spec)(nil),                      // 23: dockwell.resource.v1alpha1.Spec
-	nil,                               // 24: dockwell.resource.v1alpha1.Container.EnvEntry
-	nil,                               // 25: dockwell.resource.v1alpha1.Container.LabelsEntry
-	nil,                               // 26: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	nil,                               // 27: dockwell.resource.v1alpha1.Service.VariablesEntry
-	nil,                               // 28: dockwell.resource.v1alpha1.Service.SecretsEntry
-	nil,                               // 29: dockwell.resource.v1alpha1.Service.RevisionsEntry
-	nil,                               // 30: dockwell.resource.v1alpha1.Volume.OptionsEntry
-	nil,                               // 31: dockwell.resource.v1alpha1.Volume.LabelsEntry
-	nil,                               // 32: dockwell.resource.v1alpha1.Network.OptionsEntry
-	nil,                               // 33: dockwell.resource.v1alpha1.Network.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 34: google.protobuf.FieldOptions
+	(*Tmpfs)(nil),                     // 6: dockwell.resource.v1alpha1.Tmpfs
+	(*Resources)(nil),                 // 7: dockwell.resource.v1alpha1.Resources
+	(*Rollout)(nil),                   // 8: dockwell.resource.v1alpha1.Rollout
+	(*Mount)(nil),                     // 9: dockwell.resource.v1alpha1.Mount
+	(*Healthcheck)(nil),               // 10: dockwell.resource.v1alpha1.Healthcheck
+	(*HttpCheck)(nil),                 // 11: dockwell.resource.v1alpha1.HttpCheck
+	(*TcpCheck)(nil),                  // 12: dockwell.resource.v1alpha1.TcpCheck
+	(*PortMapping)(nil),               // 13: dockwell.resource.v1alpha1.PortMapping
+	(*FirewallRule)(nil),              // 14: dockwell.resource.v1alpha1.FirewallRule
+	(*Project)(nil),                   // 15: dockwell.resource.v1alpha1.Project
+	(*CatalogPin)(nil),                // 16: dockwell.resource.v1alpha1.CatalogPin
+	(*Environment)(nil),               // 17: dockwell.resource.v1alpha1.Environment
+	(*Service)(nil),                   // 18: dockwell.resource.v1alpha1.Service
+	(*Variable)(nil),                  // 19: dockwell.resource.v1alpha1.Variable
+	(*Secret)(nil),                    // 20: dockwell.resource.v1alpha1.Secret
+	(*Volume)(nil),                    // 21: dockwell.resource.v1alpha1.Volume
+	(*Network)(nil),                   // 22: dockwell.resource.v1alpha1.Network
+	(*Route)(nil),                     // 23: dockwell.resource.v1alpha1.Route
+	(*Spec)(nil),                      // 24: dockwell.resource.v1alpha1.Spec
+	nil,                               // 25: dockwell.resource.v1alpha1.Container.EnvEntry
+	nil,                               // 26: dockwell.resource.v1alpha1.Container.LabelsEntry
+	nil,                               // 27: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	nil,                               // 28: dockwell.resource.v1alpha1.Service.VariablesEntry
+	nil,                               // 29: dockwell.resource.v1alpha1.Service.SecretsEntry
+	nil,                               // 30: dockwell.resource.v1alpha1.Service.RevisionsEntry
+	nil,                               // 31: dockwell.resource.v1alpha1.Volume.OptionsEntry
+	nil,                               // 32: dockwell.resource.v1alpha1.Volume.LabelsEntry
+	nil,                               // 33: dockwell.resource.v1alpha1.Network.OptionsEntry
+	nil,                               // 34: dockwell.resource.v1alpha1.Network.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 35: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
-	24, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
-	12, // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
+	25, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
+	13, // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
 	2,  // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	25, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
-	8,  // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
-	9,  // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
-	7,  // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
-	6,  // 7: dockwell.resource.v1alpha1.Container.resources:type_name -> dockwell.resource.v1alpha1.Resources
-	0,  // 8: dockwell.resource.v1alpha1.Rollout.order:type_name -> dockwell.resource.v1alpha1.RolloutOrder
-	1,  // 9: dockwell.resource.v1alpha1.Mount.relabel:type_name -> dockwell.resource.v1alpha1.Relabel
-	10, // 10: dockwell.resource.v1alpha1.Healthcheck.http:type_name -> dockwell.resource.v1alpha1.HttpCheck
-	11, // 11: dockwell.resource.v1alpha1.Healthcheck.tcp:type_name -> dockwell.resource.v1alpha1.TcpCheck
-	3,  // 12: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	4,  // 13: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
-	3,  // 14: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	15, // 15: dockwell.resource.v1alpha1.Project.catalog:type_name -> dockwell.resource.v1alpha1.CatalogPin
-	26, // 16: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	5,  // 17: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
-	27, // 18: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
-	28, // 19: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
-	29, // 20: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
-	30, // 21: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
-	31, // 22: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
-	32, // 23: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
-	33, // 24: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
-	14, // 25: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
-	16, // 26: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
-	17, // 27: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
-	5,  // 28: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
-	13, // 29: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
-	20, // 30: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
-	21, // 31: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
-	18, // 32: dockwell.resource.v1alpha1.Spec.variable:type_name -> dockwell.resource.v1alpha1.Variable
-	19, // 33: dockwell.resource.v1alpha1.Spec.secret:type_name -> dockwell.resource.v1alpha1.Secret
-	22, // 34: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
-	34, // 35: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	36, // [36:36] is the sub-list for method output_type
-	36, // [36:36] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	35, // [35:36] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	26, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
+	9,  // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
+	10, // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
+	8,  // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
+	7,  // 7: dockwell.resource.v1alpha1.Container.resources:type_name -> dockwell.resource.v1alpha1.Resources
+	6,  // 8: dockwell.resource.v1alpha1.Container.tmpfs:type_name -> dockwell.resource.v1alpha1.Tmpfs
+	0,  // 9: dockwell.resource.v1alpha1.Rollout.order:type_name -> dockwell.resource.v1alpha1.RolloutOrder
+	1,  // 10: dockwell.resource.v1alpha1.Mount.relabel:type_name -> dockwell.resource.v1alpha1.Relabel
+	11, // 11: dockwell.resource.v1alpha1.Healthcheck.http:type_name -> dockwell.resource.v1alpha1.HttpCheck
+	12, // 12: dockwell.resource.v1alpha1.Healthcheck.tcp:type_name -> dockwell.resource.v1alpha1.TcpCheck
+	3,  // 13: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	4,  // 14: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
+	3,  // 15: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	16, // 16: dockwell.resource.v1alpha1.Project.catalog:type_name -> dockwell.resource.v1alpha1.CatalogPin
+	27, // 17: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	5,  // 18: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
+	28, // 19: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
+	29, // 20: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
+	30, // 21: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
+	31, // 22: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
+	32, // 23: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
+	33, // 24: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
+	34, // 25: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
+	15, // 26: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
+	17, // 27: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
+	18, // 28: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
+	5,  // 29: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
+	14, // 30: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
+	21, // 31: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
+	22, // 32: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
+	19, // 33: dockwell.resource.v1alpha1.Spec.variable:type_name -> dockwell.resource.v1alpha1.Variable
+	20, // 34: dockwell.resource.v1alpha1.Spec.secret:type_name -> dockwell.resource.v1alpha1.Secret
+	23, // 35: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
+	35, // 36: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	37, // [37:37] is the sub-list for method output_type
+	37, // [37:37] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	36, // [36:37] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -2480,14 +2565,14 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 	if File_dockwell_resource_v1alpha1_specs_proto != nil {
 		return
 	}
-	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[3].OneofWrappers = []any{
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[4].OneofWrappers = []any{
 		(*Mount_Volume)(nil),
 		(*Mount_HostPath)(nil),
 	}
-	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[12].OneofWrappers = []any{
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[13].OneofWrappers = []any{
 		(*Service_App)(nil),
 	}
-	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[18].OneofWrappers = []any{
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[19].OneofWrappers = []any{
 		(*Spec_Project)(nil),
 		(*Spec_Environment)(nil),
 		(*Spec_Service)(nil),
@@ -2505,7 +2590,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   29,
+			NumMessages:   30,
 			NumExtensions: 1,
 			NumServices:   0,
 		},

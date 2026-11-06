@@ -218,6 +218,7 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	add("no_entrypoint", spec.GetNoEntrypoint())
 	add("user", spec.GetUser() != "")
 	add("working_dir", spec.GetWorkingDir() != "")
+	add("shm_size", spec.GetShmSize() != "")
 	if hc := spec.GetHealthcheck(); hc != nil {
 		set = append(set, "healthcheck")
 		add("healthcheck.interval", hc.GetInterval() != "")
@@ -595,6 +596,7 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 	req.HostConfig.NanoCPUs = cpuNanos(spec.GetResources().GetCpus())
 	req.HostConfig.Memory = memoryBytes(spec.GetResources().GetMemory())
 	req.HostConfig.MemoryReservation = memoryBytes(spec.GetResources().GetMemoryReservation())
+	req.HostConfig.ShmSize = memoryBytes(spec.GetShmSize())
 	req.HostConfig.LogConfig = d.logConfig(ctx)
 	for _, p := range spec.GetPorts() {
 		key := fmt.Sprintf("%d/%s", p.GetContainerPort(), protocolName(p.GetProtocol()))
@@ -606,9 +608,14 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 		req.HostConfig.PortBindings[key] = append(req.HostConfig.PortBindings[key],
 			docker.PortBinding{HostIP: p.GetHostIp(), HostPort: strconv.Itoa(int(p.GetHostPort()))})
 	}
-	targets := map[string]bool{}
+	for _, m := range spec.GetTmpfs() {
+		if req.HostConfig.Tmpfs == nil {
+			req.HostConfig.Tmpfs = map[string]string{}
+		}
+		req.HostConfig.Tmpfs[m.GetTarget()] = tmpfsOptions(m)
+	}
+	targets := mountTargets(spec)
 	for _, m := range spec.GetMounts() {
-		targets[m.GetTarget()] = true
 		switch src := m.GetSource().(type) {
 		case *resourcev1.Mount_Volume:
 			req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{
@@ -710,6 +717,18 @@ func (d *Docker) finishKeepingLogs(ctx context.Context, keep LogKeep, c *docker.
 	keep.Finish(ctx, c)
 }
 
+// mountTargets are the paths spec mounts something at, in memory or not.
+func mountTargets(spec *resourcev1.Container) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range spec.GetMounts() {
+		out[m.GetTarget()] = true
+	}
+	for _, m := range spec.GetTmpfs() {
+		out[m.GetTarget()] = true
+	}
+	return out
+}
+
 // imageVolumes are the volumes Docker made for c's image, by the path
 // each is mounted at. They hold data, such as a database's, that no spec
 // names.
@@ -730,8 +749,9 @@ func imageVolumes(c *docker.Container) map[string]string {
 // else at, which a replace leaves behind.
 func covered(c *docker.Container, spec *resourcev1.Container) map[string]string {
 	out := map[string]string{}
+	targets := mountTargets(spec)
 	for p, name := range imageVolumes(c) {
-		if slices.ContainsFunc(spec.GetMounts(), func(m *resourcev1.Mount) bool { return m.GetTarget() == p }) {
+		if targets[p] {
 			out[p] = name
 		}
 	}
@@ -827,6 +847,10 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		CapDrop:        c.HostConfig.CapDrop,
 		GroupAdd:       c.HostConfig.GroupAdd,
 		Resources:      projectResources(&c.HostConfig),
+		Tmpfs:          projectTmpfs(&c.HostConfig),
+	}
+	if s := c.HostConfig.ShmSize; set["shm_size"] || s != dockerShmSize {
+		out.ShmSize = FormatMemory(s)
 	}
 	if set["command"] || !slices.Equal(c.Config.Cmd, img.Cmd) {
 		out.Command = c.Config.Cmd
@@ -950,6 +974,43 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	}
 	projectNetworks(c, t, out)
 	readWords(c, out)
+	return out
+}
+
+// tmpfsOptions is a tmpfs as Docker takes it. Docker gives it noexec, nosuid and
+// nodev, as Compose reads it too.
+func tmpfsOptions(t *resourcev1.Tmpfs) string {
+	if n := memoryBytes(t.GetSize()); n > 0 {
+		return "size=" + strconv.FormatInt(n, 10)
+	}
+	return ""
+}
+
+// projectTmpfs reads what a container holds in memory, in either of the two forms
+// docker compose sends: tmpfs as a list, and a volume of type tmpfs. Dockwell makes
+// the first alone, and a file's two forms are one spec.
+func projectTmpfs(h *docker.HostConfig) []*resourcev1.Tmpfs {
+	var out []*resourcev1.Tmpfs
+	for target, options := range h.Tmpfs {
+		t := &resourcev1.Tmpfs{Target: target}
+		for o := range strings.SplitSeq(options, ",") {
+			if size, ok := strings.CutPrefix(o, "size="); ok {
+				n, _ := parseMemory(size)
+				t.Size = FormatMemory(n)
+			}
+		}
+		out = append(out, t)
+	}
+	for _, m := range h.Mounts {
+		if m.Type == "tmpfs" {
+			t := &resourcev1.Tmpfs{Target: m.Target}
+			if m.TmpfsOptions != nil {
+				t.Size = FormatMemory(m.TmpfsOptions.SizeBytes)
+			}
+			out = append(out, t)
+		}
+	}
+	slices.SortFunc(out, func(a, b *resourcev1.Tmpfs) int { return strings.Compare(a.GetTarget(), b.GetTarget()) })
 	return out
 }
 

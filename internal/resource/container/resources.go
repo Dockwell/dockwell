@@ -30,6 +30,11 @@ const (
 	// come to within an int64.
 	maxCPUMillis = 1 << 40
 	maxMemory    = 1 << 60
+	// shmPath is where a container's shared memory is, and dockerShmSize what Docker
+	// gives it unless told otherwise. A server's dockerd can be set to give another,
+	// which reads as drift until it is adopted, as nothing reports that setting.
+	shmPath       = "/dev/shm"
+	dockerShmSize = 64 << 20
 )
 
 // CanonicalCPUs reads a number of CPUs, such as "0.50", in the one form a spec
