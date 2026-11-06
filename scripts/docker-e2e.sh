@@ -2388,7 +2388,9 @@ for _ in $(seq 150); do
   [[ "$(docker inspect --format '{{.State.Health.Status}}' "$shop")" == healthy ]] && break
   sleep 0.2
 done
-[[ "$(docker inspect --format '{{.State.Health.Status}}' "$shop")" == healthy ]] || fail "$shop didn't turn healthy after starting again"
+[[ "$(docker inspect --format '{{.State.Health.Status}}' "$shop")" == healthy ]] ||
+  fail "$shop didn't turn healthy after starting again: $(docker inspect --format '{{.State.Status}}, exit code {{.State.ExitCode}}, health {{json .State.Health}}' "$shop" 2>&1)
+$(docker logs --tail 20 "$shop" 2>&1)"
 
 step "What isn't on the server is refused as it plans, by name"
 missing=$(printf 'services:\n  gone:\n    image: nginx:1.27-alpine\n    networks: [e2e-missing]\nnetworks:\n  e2e-missing:\n    external: true\n')
