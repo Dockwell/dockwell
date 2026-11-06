@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -22,11 +21,6 @@ const (
 	maxLinks = 40
 	// maxPath is the longest path a call takes, as the kernel's limit is.
 	maxPath = 4096
-	// defaultDockerRoot is where Docker keeps its data unless told otherwise.
-	defaultDockerRoot = "/var/lib/docker"
-	// dockerAsks bounds asking Docker where it keeps its data. Docker may not
-	// be running, and files don't need it.
-	dockerAsks = 2 * time.Second
 )
 
 // What each refused place is. A refusal is one of these, then why it says so.
@@ -39,6 +33,7 @@ const (
 	whySys        = "the kernel's devices and settings"
 	whyDev        = "the server's devices, its disks among them"
 	whyRun        = "what running services keep for now, each container's environment among it"
+	whyDockerCopy = "a copy of what Docker keeps of a container or a volume, with the secrets in it"
 )
 
 // shutPlaces are the server's own directories no one reads through here.
@@ -114,27 +109,6 @@ func (s *Server) guard(ctx context.Context) *guard {
 		}
 	}
 	return g
-}
-
-// dockerRoots are where Docker keeps its data: the default, what the engine says
-// now, and what it said last, as a stopped engine says nothing.
-func (s *Server) dockerRoots(ctx context.Context) []string {
-	roots := []string{defaultDockerRoot}
-	if s.dockerRoot != nil {
-		ctx, cancel := context.WithTimeout(ctx, dockerAsks)
-		defer cancel()
-		if root, err := s.dockerRoot(ctx); err == nil && root != "" {
-			s.mu.Lock()
-			s.lastRoot = root
-			s.mu.Unlock()
-		}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.lastRoot != "" && s.lastRoot != defaultDockerRoot {
-		roots = append(roots, s.lastRoot)
-	}
-	return roots
 }
 
 // enter says what stepping from a directory at place at into an entry means:
@@ -294,6 +268,9 @@ func (g *guard) follow(w *walked, todo []string) *agentv1.FileRefusal {
 		if why != "" {
 			_ = unix.Close(fd)
 			return refused(joined(w.path(), name), why)
+		}
+		if into == free && st.Mode&unix.S_IFMT == unix.S_IFDIR && dockerShaped(fd) {
+			into = dockerRoot
 		}
 		w.steps = append(w.steps, step{fd: fd, name: name, place: into})
 		w.st = st

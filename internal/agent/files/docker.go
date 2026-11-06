@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package files
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"time"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/dockwell/dockwell/internal/datadir"
+)
+
+// Docker's data root holds each container's environment, so not knowing where it
+// is must never mean serving it. Three things keep it shut, each covering what the
+// one before can't:
+//   - the engine says where it is, each time it answers;
+//   - what it said is kept on disk, so a restart with Docker away, or a root that
+//     moved, still knows;
+//   - a directory that looks like one is one, and the files it holds are refused
+//     by what they are, for a root no one has named, and for a copy of them.
+
+const (
+	// defaultDockerRoot is where Docker keeps its data unless told otherwise.
+	defaultDockerRoot = "/var/lib/docker"
+	// dockerAsks bounds asking Docker where it keeps its data. Docker may not
+	// be running, and files don't need it.
+	dockerAsks = 2 * time.Second
+	// maxRoots is how many places a server remembers. A root moves once or twice
+	// in a server's life, so this only stops the list growing without end.
+	maxRoots = 16
+	// maxRootsBytes bounds reading the list back.
+	maxRootsBytes = 64 << 10
+)
+
+// rootsFile keeps where Docker has said it keeps its data, one path to a line,
+// oldest first, beside the agent's identity.
+func (s *Server) rootsFile() string {
+	return filepath.Join(datadir.Dir{Root: s.dataDir}.Agent(), "docker-roots")
+}
+
+// loadRoots reads what this server has heard before. A file that's gone or
+// unreadable says nothing, and what looks like Docker's stays shut regardless.
+func (s *Server) loadRoots() []string {
+	f, err := os.Open(s.rootsFile())
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	text, err := io.ReadAll(io.LimitReader(f, maxRootsBytes))
+	if err != nil {
+		return nil
+	}
+	return slices.DeleteFunc(strings.Split(string(text), "\n"), func(line string) bool { return line == "" })
+}
+
+// dockerRoots are where Docker keeps its data, or has: the default, and every
+// place it has said, on this agent's life or an earlier one.
+func (s *Server) dockerRoots(ctx context.Context) []string {
+	if s.dockerRoot != nil {
+		ctx, cancel := context.WithTimeout(ctx, dockerAsks)
+		defer cancel()
+		if root, err := s.dockerRoot(ctx); err == nil && root != "" {
+			s.remember(filepath.Clean(root))
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string{defaultDockerRoot}, s.roots...)
+}
+
+// remember keeps a place Docker said, on disk too, if it's new.
+func (s *Server) remember(root string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if root == defaultDockerRoot || slices.Contains(s.roots, root) || strings.Contains(root, "\n") {
+		return
+	}
+	s.roots = append(s.roots, root)
+	if len(s.roots) > maxRoots {
+		s.roots = s.roots[len(s.roots)-maxRoots:]
+	}
+	if err := s.saveRoots(); err != nil {
+		s.logger.Warn("can't keep where Docker's data is, so after a restart with Docker away it goes by what it looks like", "error", err.Error())
+	}
+}
+
+// saveRoots writes the list whole, so a failure leaves the one before it.
+func (s *Server) saveRoots() error {
+	path := s.rootsFile()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".new"
+	if err := os.WriteFile(tmp, []byte(strings.Join(s.roots, "\n")+"\n"), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// dockerShaped reports a directory that holds what Docker's data root does: a
+// directory for containers and one for volumes, which the engine makes as it
+// first starts. A project that happens to hold both reads as shut, which is the
+// side to be wrong on.
+func dockerShaped(dir int) bool {
+	for _, name := range []string{"containers", "volumes"} {
+		var st unix.Stat_t
+		if unix.Fstatat(dir, name, &st, unix.AT_SYMLINK_NOFOLLOW) != nil || st.Mode&unix.S_IFMT != unix.S_IFDIR {
+			return false
+		}
+	}
+	return true
+}
+
+// holdsDockerState finds what Docker keeps of a container or a volume, by the
+// names it gives them, whatever the file is called now: a volume's options, or a
+// container's configuration, which docker inspect prints too.
+func holdsDockerState(text []byte) bool {
+	return bytes.Contains(text, []byte(`"MountOpts"`)) ||
+		bytes.Contains(text, []byte(`"ResolvConfPath"`)) && bytes.Contains(text, []byte(`"Env"`))
+}

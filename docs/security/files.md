@@ -20,7 +20,8 @@ The agent refuses these whoever asks, over every surface, and no step-up opens t
 | Refused | Why |
 | --- | --- |
 | Dockwell's data directory, as configured and at `/var/lib/dockwell` | It holds the assets above |
-| Docker's data root, as the engine reports it and at `/var/lib/docker`, other than the list of volumes and each volume's `_data` | Each container's `config.v2.json` holds its environment. A volume's `opts.json` holds its options |
+| Docker's data root, other than the list of volumes and each volume's `_data`: at `/var/lib/docker`, where the engine says it is now, wherever it has said before, which the agent keeps on disk, and any directory that holds both `containers` and `volumes` | Each container's `config.v2.json` holds its environment. A volume's `opts.json` holds its options. Not knowing where the data is doesn't open it |
+| `config.v2.json`, `hostconfig.json`, an `opts.json` under a `volumes` directory, and any text with Docker's own keys in it, such as `MountOpts`, or `ResolvConfPath` with `Env`, which `docker inspect` prints | The same files, wherever a copy or a moved root leaves them |
 | `/var/lib/containerd` | It holds what Docker's does, on an engine that keeps images there |
 | `/proc`, `/sys`, `/dev` and `/run` | They aren't files: a process's environment, a container's disk through `/proc/<pid>/root`, the server's disks, and each container's runtime spec, which holds its environment. `/var/run` leads to `/run` |
 | `/etc/shadow`, `/etc/shadow-`, `/etc/gshadow`, `/etc/gshadow-` | The server's password hashes |
@@ -89,4 +90,4 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **Credentials in other forms.** A key that isn't PEM, such as a PuTTY key or one in the body of a config file, isn't refused, and neither is a token in a dotfile, such as the CLI's own.
 - **A file over 1 MiB** is checked for a key only in what is read of it, and only that part goes out.
 - **A hard link to a refused file,** made by root, reads as what it is: a file somewhere else.
-- **A Docker data root that moved while Docker is down.** The agent asks the engine for the root each time, and with no answer uses the default and the last one it heard. A root moved since, with Docker stopped and the agent restarted, isn't known.
+- **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding both `containers` and `volumes`. A backup of `overlay2` alone, or a root that has never answered and holds only one of them, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.

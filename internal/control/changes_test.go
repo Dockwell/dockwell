@@ -108,7 +108,7 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 		docker: containertest.NewFake(), fw: &gate{Fake: firewall.NewFake(), started: make(chan struct{}, 4), release: make(chan struct{})},
 		dataDir: t.TempDir(),
 	}
-	s.disk = agentfiles.New(s.dataDir, nil)
+	s.disk = agentfiles.New(s.dataDir, nil, nil)
 	if withDrivers {
 		containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
 		s.drivers = resource.NewRegistry(&containers, &firewall.Driver{Backend: s.fw}, &service.Driver{Containers: containers})

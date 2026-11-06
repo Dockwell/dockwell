@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/user"
 	"path"
@@ -49,17 +50,23 @@ const (
 // Server reads a server's files.
 type Server struct {
 	dataDir    string
+	logger     *slog.Logger
 	dockerRoot func(context.Context) (string, error)
 	slots      chan struct{}
 
-	mu       sync.Mutex
-	lastRoot string // where Docker last said it keeps its data
+	mu    sync.Mutex
+	roots []string // where Docker has said it keeps its data, oldest first
 }
 
 // New returns a Server. dataDir is Dockwell's data directory, and dockerRoot says
 // where Docker keeps its data, or fails while Docker isn't running.
-func New(dataDir string, dockerRoot func(context.Context) (string, error)) *Server {
-	return &Server{dataDir: dataDir, dockerRoot: dockerRoot, slots: make(chan struct{}, slots)}
+func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (string, error)) *Server {
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+	s := &Server{dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots)}
+	s.roots = s.loadRoots()
+	return s
 }
 
 // acquire waits for room to run a call, and returns how to give it back.
@@ -192,6 +199,8 @@ func (s *Server) Read(ctx context.Context, p string) (*agentv1.ReadFileResult, e
 		out.Binary, out.Truncated = true, false
 	case holdsPrivateKey(text):
 		return &agentv1.ReadFileResult{Refusal: refused(where, "a private key")}, nil
+	case holdsDockerState(text):
+		return &agentv1.ReadFileResult{Refusal: refused(where, whyDockerCopy)}, nil
 	default:
 		out.Content = string(text)
 	}
@@ -275,8 +284,15 @@ func credentials(p string) string {
 	case "/etc/shadow", "/etc/shadow-", "/etc/gshadow", "/etc/gshadow-":
 		return "the server's password hashes"
 	}
-	if path.Base(p) == ".pgpass" {
+	switch path.Base(p) {
+	case ".pgpass":
 		return "a list of database passwords"
+	case "config.v2.json", "hostconfig.json":
+		return whyDocker // Docker's own names, and no one else's
+	case "opts.json":
+		if path.Base(path.Dir(path.Dir(p))) == "volumes" {
+			return whyVolumeOpts
+		}
 	}
 	return ""
 }

@@ -40,7 +40,7 @@ func newDisk(t *testing.T) *fakeDisk {
 	write(t, filepath.Join(d.docker, "volumes", "metadata.db"), "bolt")
 	write(t, filepath.Join(d.docker, "volumes", "web", "opts.json"), `{"o":"password=hunter2"}`)
 	write(t, filepath.Join(d.docker, "volumes", "web", "_data", "index.html"), "<h1>hello</h1>")
-	d.server = New(d.data, func(context.Context) (string, error) { return d.docker, nil })
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return d.docker, nil })
 	return d
 }
 
@@ -364,7 +364,7 @@ func TestAPlaceIsRefusedByWhatItIsNotHowItIsNamed(t *testing.T) {
 	d := newDisk(t)
 	configured := filepath.Join(d.root, "elsewhere", "dockwell")
 	link(t, d.data, configured)
-	d.server = New(configured, func(context.Context) (string, error) { return filepath.Join(d.root, "elsewhere", "docker"), nil })
+	d.server = New(configured, nil, func(context.Context) (string, error) { return filepath.Join(d.root, "elsewhere", "docker"), nil })
 	link(t, d.docker, filepath.Join(d.root, "elsewhere", "docker"))
 	for _, p := range []string{
 		filepath.Join(d.data, "control", "key"),
@@ -423,7 +423,7 @@ func TestDockersDataOpensOnlyAsFarAsAVolumesFiles(t *testing.T) {
 func TestDockerStoppingKeepsWhatItSaidLast(t *testing.T) {
 	d := newDisk(t)
 	answer := d.docker
-	d.server = New(d.data, func(context.Context) (string, error) {
+	d.server = New(d.data, nil, func(context.Context) (string, error) {
 		if answer == "" {
 			return "", errors.New("Docker isn't running")
 		}
@@ -583,5 +583,113 @@ func TestModeStrings(t *testing.T) {
 		if got := modeString(mode); got != want {
 			t.Errorf("mode %o reads %s, want %s", mode, got, want)
 		}
+	}
+}
+
+// A root nobody has named yet, as when Docker doesn't answer and this agent has
+// never heard from it, is shut by what it is.
+func TestDockersDataIsShutWhenNoOneHasSaidWhereItIs(t *testing.T) {
+	d := newDisk(t)
+	moved := filepath.Join(d.root, "elsewhere", "docker")
+	config := filepath.Join(moved, "containers", "abc", "config.v2.json")
+	opts := filepath.Join(moved, "volumes", "web", "opts.json")
+	layer := filepath.Join(moved, "overlay2", "abc", "merged", "app.env")
+	write(t, config, `{"Env":["DATABASE_PASSWORD=hunter2"]}`)
+	write(t, opts, `{"o":"password=hunter2"}`)
+	write(t, layer, "DATABASE_PASSWORD=hunter2\n")
+	files := filepath.Join(moved, "volumes", "web", "_data", "index.html")
+	write(t, files, "<h1>hello</h1>")
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
+	for _, p := range []string{config, opts, layer} {
+		if got := refusalOf(t, d, p); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Errorf("%s: %v", p, got)
+		}
+	}
+	if got := d.read(t, files).GetFile().GetContent(); got != "<h1>hello</h1>" {
+		t.Errorf("a volume's files read as %q", got)
+	}
+}
+
+// Where Docker keeps its data outlives the agent, so a root with nothing about
+// it to tell it by, as it has only just started, stays shut after a restart.
+func TestARestartKeepsWhereDockersDataIs(t *testing.T) {
+	d := newDisk(t)
+	root := filepath.Join(d.root, "bare")
+	secret := filepath.Join(root, "overlay2", "abc", "app.env")
+	write(t, secret, "DATABASE_PASSWORD=hunter2\n")
+	answer := root
+	ask := func(context.Context) (string, error) {
+		if answer == "" {
+			return "", errors.New("Docker isn't answering")
+		}
+		return answer, nil
+	}
+	d.server = New(d.data, nil, ask)
+	if got := refusalOf(t, d, secret); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Fatalf("with Docker answering: %v", got)
+	}
+	answer = ""
+	d.server = New(d.data, nil, ask)
+	if got := refusalOf(t, d, secret); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Fatalf("after a restart with Docker away: %v", got)
+	}
+	// A root that moves leaves the old one behind, with what's in it.
+	moved := filepath.Join(d.root, "bare2")
+	if err := os.Mkdir(moved, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	answer = moved
+	d.server = New(d.data, nil, ask)
+	if got := refusalOf(t, d, secret); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Errorf("once Docker's data moved, the old place reads as %v", got)
+	}
+	st, err := os.Stat(filepath.Join(d.data, "agent", "docker-roots"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Errorf("the list of roots is mode %v", st.Mode())
+	}
+}
+
+func TestRememberingRootsStaysBounded(t *testing.T) {
+	d := newDisk(t)
+	root := ""
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return root, nil })
+	for i := range maxRoots + 4 {
+		root = filepath.Join(d.root, "root"+itoa(i))
+		d.server.dockerRoots(t.Context())
+	}
+	again := New(d.data, nil, nil)
+	if got := again.dockerRoots(t.Context()); len(got) != maxRoots+1 || got[len(got)-1] != root {
+		t.Fatalf("after a restart it knows %v", got)
+	}
+}
+
+// Those files are refused by what they are, wherever a copy turns up.
+func TestWhatDockerKeepsIsRefusedWhereverItTurnsUp(t *testing.T) {
+	d := newDisk(t)
+	dir := filepath.Join(d.root, "backup")
+	for path, content := range map[string]string{
+		"config.v2.json":        `{"Env":["DATABASE_PASSWORD=hunter2"]}`,
+		"hostconfig.json":       `{"Binds":null}`,
+		"volumes/web/opts.json": `{"o":"password=hunter2"}`,
+		"inspect.json":          `[{"ResolvConfPath":"/var/lib/docker/containers/abc/resolv.conf","Config":{"Env":["A=1"]}}]`,
+		"renamed.txt":           `{"MountType":"cifs","MountOpts":"username=a,password=hunter2"}`,
+	} {
+		p := filepath.Join(dir, path)
+		write(t, p, content)
+		if got := refusalOf(t, d, p); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Errorf("%s: %v", path, got)
+		}
+	}
+	plain := filepath.Join(dir, "opts.json")
+	write(t, plain, `{"theme":"dark"}`)
+	if d.read(t, plain).GetFile() == nil {
+		t.Error("an app's own opts.json is refused")
+	}
+	l := d.list(t, dir).GetListing()
+	if !entryNamed(t, l, "config.v2.json").GetRefused() || entryNamed(t, l, "opts.json").GetRefused() {
+		t.Errorf("the listing reads as %v", l.GetEntries())
 	}
 }

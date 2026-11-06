@@ -41,6 +41,8 @@ The agent refuses these whoever asks. No step-up opens them.
 
 A step-up doesn't open these because one tap would open every secret at once, where ADR 0022 asks one tap for each.
 
+Not knowing where Docker's data is must never mean serving it. The engine says where it is whenever it answers, and the agent keeps each place it has said on disk, so a restart with Docker away, or a root that moved, still knows. A directory that holds both `containers` and `volumes` counts as a data root whoever says so. `config.v2.json`, `hostconfig.json`, a volume's `opts.json`, and text with Docker's own keys in it are refused wherever they turn up.
+
 `.env`, `wp-config.php` and the like stay readable. Dockwell can't tell a config with a password in it from one without, and reading them beside a running app is what the screen is for. [The threat model](../security/files.md) says so.
 
 ### The agent decides, on what it opens
