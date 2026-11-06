@@ -567,6 +567,51 @@ func TestAnAppAndItsRouteMoveToANewPortOnRealCaddy(t *testing.T) {
 	}
 }
 
+// What ADR 0027 accepts: a route's file gone leaves it with nothing to dial, and it
+// reads as a hand edit, which only a person puts right. A reconcile never touches a
+// route, and a deploy goes on, as its plan says the route was edited, with the route
+// still down. A revert is what writes the file again.
+func TestARouteWhoseFileHasGoneWaitsForARevertOnRealCaddy(t *testing.T) {
+	s := newLoadStack(t, 0, time.Second, "1s", func(port int) *resourcev1.Healthcheck {
+		return &resourcev1.Healthcheck{Http: &resourcev1.HttpCheck{Port: uint32(port), Path: "/healthz"}}
+	})
+	s.up(t)
+	ref := resource.Ref{Kind: routekind.Kind, Scope: s.env, Name: "www"}
+	if err := os.Remove(filepath.Join(s.caddy.runDir(), upstreamsDir, ingress.RouteID(ref))); err != nil {
+		t.Fatal(err)
+	}
+	answers := func(when string, want int) {
+		t.Helper()
+		res, err := s.real.client("app.example.net").Get("https://app.example.net/who")
+		if err != nil {
+			t.Fatalf("%s: %v", when, err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != want {
+			t.Errorf("%s, it answers %d, want %d", when, res.StatusCode, want)
+		}
+	}
+	answers("with its file gone", http.StatusBadGateway)
+	if err := s.mgr.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	answers("after a reconcile", http.StatusBadGateway)
+	got, err := s.mgr.Observe(t.Context(), ref)
+	if err != nil || got == nil || got.GetService() == "web" {
+		t.Fatalf("it reads as %v, %v, want a difference, for drift to show", got, err)
+	}
+	step, err := s.deploy(t.Context(), s.spec("app:1", 1))
+	if err != nil {
+		t.Fatalf("a deploy = %v", err)
+	}
+	if step.Rollout == nil || !slices.Equal(step.Rollout.EditedRoutes, []string{"www"}) {
+		t.Errorf("the plan says %+v, and should name the route", step.Rollout)
+	}
+	answers("after a deploy", http.StatusBadGateway)
+	s.change(t, "www", &resourcev1.Route{Domain: "app.example.net", Service: "web", Port: uint32(s.fleet.port)})
+	answers("after a revert", http.StatusOK)
+}
+
 // What the proxy and table say while a route changes under a rollout: a route's
 // edit doesn't send traffic to a new instance that hasn't passed its check.
 func TestARouteEditDuringARolloutKeepsToWhatServesOnRealCaddy(t *testing.T) {
