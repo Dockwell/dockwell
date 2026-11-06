@@ -1731,7 +1731,7 @@ type Route struct {
 	// at all, for something that isn't a Dockwell service. The proxy dials 127.0.0.1 on it,
 	// so what's there sees every caller as local. It reaches past containers, so a
 	// person approves it, and any change to where it answers. Dockwell's own ports,
-	// and Docker's API on 2375 and 2376, aren't taken.
+	// and Docker's API, on 2375, 2376 or wherever dockerd listens, aren't taken.
 	HostPort uint32 `protobuf:"varint,7,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
 	// True for a route that says tls off to answer anyone who can reach this
 	// server's port 80, as for a site on a private network, or a load balancer whose
