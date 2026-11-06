@@ -93,7 +93,7 @@ func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"postgres", "mysql"} {
+	for _, id := range []string{"postgres", "mysql", "nginx-proxy-manager"} {
 		e, _ := c.Entry(id)
 		steps := e.GetFirstSteps()
 		at := strings.Index(steps, "plain HTTP")
