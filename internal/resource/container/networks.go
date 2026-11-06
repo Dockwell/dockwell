@@ -284,7 +284,10 @@ func (d *Docker) checkNetworks(ctx context.Context, t Target, spec *resourcev1.C
 		case err != nil:
 			return err
 		}
-		list, err := d.Client.ListContainers(ctx, map[string][]string{"network": {n.ID}})
+		// By its name: Docker has a container's ID for a network only once it first
+		// starts, so asking by ID wouldn't list one another change has made and not
+		// started yet.
+		list, err := d.Client.ListContainers(ctx, map[string][]string{"network": {n.Name}})
 		if err != nil {
 			return err
 		}

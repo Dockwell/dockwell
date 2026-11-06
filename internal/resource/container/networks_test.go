@@ -160,6 +160,23 @@ func TestATakenNameSaysWhatFreesIt(t *testing.T) {
 // the second change is refused once it is made, rather than made beside it. The
 // last check of #92 found both passing, by reading.
 func TestTwoChangesCantTakeOneNameAtOnce(t *testing.T) {
+	for name, held := range map[string]func(*http.Request) bool{
+		// As it makes its container, which the lock stops the second passing.
+		"making": func(r *http.Request) bool { return strings.HasSuffix(r.URL.Path, "/containers/create") },
+		// Made and not started, with the lock released, as a stop-first deploy leaves
+		// it for as long as the old one takes to stop. Docker has no ID for a network
+		// on a container until it first starts, so only the network's name finds it.
+		"not yet started": func(r *http.Request) bool { return strings.HasSuffix(r.URL.Path, "/start") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			testTwoChangesCantTakeOneName(t, held)
+		})
+	}
+}
+
+// testTwoChangesCantTakeOneName holds the first change at what held says, until the
+// second makes a container or a second has gone by.
+func testTwoChangesCantTakeOneName(t *testing.T, held func(*http.Request) bool) {
 	e := dockertest.New(t)
 	images(e)
 	e.AddNetwork(docker.Network{Name: "edge", Driver: "bridge"})
@@ -171,22 +188,25 @@ func TestTwoChangesCantTakeOneNameAtOnce(t *testing.T) {
 			Image: "nginx:1.27", ExternalNetworks: []string{"edge"}, Aliases: []string{"shared"},
 		}}}
 	}
-	var once sync.Once
+	var once, hold sync.Once
 	secondMakes := make(chan struct{})
 	e.Intercept(func(r *http.Request) error {
-		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/containers/create") {
+		if r.Method != http.MethodPost {
 			return nil
 		}
-		switch name := r.URL.Query().Get("name"); {
-		case strings.Contains(name, docker.Project(second.Scope)):
+		if strings.HasSuffix(r.URL.Path, "/containers/create") && strings.Contains(r.URL.Query().Get("name"), docker.Project(second.Scope)) {
 			once.Do(func() { close(secondMakes) })
-		case strings.Contains(name, docker.Project(first.Scope)):
-			// Held until the second is made too, as it would be without a lock, or
+			return nil
+		}
+		if held(r) {
+			// Held until the second is made too, as it would be without the check, or
 			// for long enough that it would be by now.
-			select {
-			case <-secondMakes:
-			case <-time.After(time.Second):
-			}
+			hold.Do(func() {
+				select {
+				case <-secondMakes:
+				case <-time.After(time.Second):
+				}
+			})
 		}
 		return nil
 	})

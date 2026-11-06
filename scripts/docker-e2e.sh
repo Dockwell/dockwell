@@ -120,7 +120,7 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
@@ -2295,6 +2295,21 @@ if docker inspect "$client" >/dev/null 2>&1; then fail "the undo left $client"; 
 dw services delete shop --environment real --yes >/dev/null || fail "services delete shop failed"
 if docker inspect "$shop" >/dev/null 2>&1; then fail "deleting shop left $shop"; fi
 docker network inspect e2e-edge >/dev/null || fail "the undo or the deletion took the network e2e-edge, which Dockwell didn't make"
+
+step "A container made and not yet started holds its name on a network"
+# As another change's does between making it and starting it, for as long as a
+# stop-first deploy takes to stop the old one. Docker has a network's ID for a
+# container only once it first starts, so only asking by the network's name finds it.
+docker create --name e2e-not-started --network e2e-edge --network-alias e2e-unstarted nginx:1.27-alpine >/dev/null || fail "docker create failed"
+edge_id=$(docker network inspect --format '{{.Id}}' e2e-edge) || fail "docker network inspect e2e-edge failed"
+[[ -n "$(docker ps -aq --filter network=e2e-edge --filter name=e2e-not-started)" ]] || fail "Docker doesn't list a container not yet started on its network, by name"
+[[ -z "$(docker ps -aq --filter "network=$edge_id" --filter name=e2e-not-started)" ]] || fail "Docker lists a container not yet started by the network's ID, which the check needn't avoid"
+unstarted=$(printf 'services:\n  unstarted:\n    image: nginx:1.27-alpine\n    container_name: e2e-unstarted\n    networks: [e2e-edge]\nnetworks:\n  e2e-edge:\n    external: true\n')
+if out=$(dw compose import --compose "$unstarted" --project default --environment other --plan-only 2>&1); then
+  fail "a name a container not yet started holds was planned: ${out:0:300}"
+fi
+[[ "$out" == *"already does"* ]] || fail "a name a container not yet started holds failed some other way: ${out:0:300}"
+docker rm e2e-not-started >/dev/null || fail "docker rm e2e-not-started failed"
 
 # Last of what names a project: its projects stay, as nothing deletes one, and
 # with more than one, everything that names none is refused for not saying which.
