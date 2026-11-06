@@ -52,8 +52,10 @@ type ContainerServiceClient interface {
 	// that runs it from then on. Nothing about the container changes: it isn't
 	// restarted, and it keeps its name and labels until a change replaces it. Its
 	// environment comes in with it, sealed like any service's, and no plan or log
-	// shows a value of it. A person applies the plan, as a token can't. Deleting the
-	// service before anything replaces the container lets go of it again.
+	// shows a value of it. A person plans it and applies it, never a token, as its plan
+	// shows what the list of containers leaves out: its command, labels, user and
+	// mounts. Deleting the service before anything replaces the container lets go of
+	// it again.
 	AdoptContainer(context.Context, *connect.Request[v1.AdoptContainerRequest]) (*connect.Response[v1.AdoptContainerResponse], error)
 }
 
@@ -109,8 +111,10 @@ type ContainerServiceHandler interface {
 	// that runs it from then on. Nothing about the container changes: it isn't
 	// restarted, and it keeps its name and labels until a change replaces it. Its
 	// environment comes in with it, sealed like any service's, and no plan or log
-	// shows a value of it. A person applies the plan, as a token can't. Deleting the
-	// service before anything replaces the container lets go of it again.
+	// shows a value of it. A person plans it and applies it, never a token, as its plan
+	// shows what the list of containers leaves out: its command, labels, user and
+	// mounts. Deleting the service before anything replaces the container lets go of
+	// it again.
 	AdoptContainer(context.Context, *connect.Request[v1.AdoptContainerRequest]) (*connect.Response[v1.AdoptContainerResponse], error)
 }
 

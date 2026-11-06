@@ -12,6 +12,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
@@ -447,8 +448,6 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 	}
 }
 
-// A token that can change things can't bring in a stranger's environment: it could
-// read it through a command of its own, and a stranger's was never in its reach.
 // A token may run a new image on what was taken on, as on any service: that's what a
 // deploy from CI is. Not on what's as good as root, where a new image is any code
 // with root's reach, so a person approves that, whichever way it got there.
@@ -502,13 +501,20 @@ func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
 	}
 }
 
+// A token can't take on a container, and can't plan to. A plan shows a stranger's
+// command, labels, user and mounts, which the list of containers leaves out, and it
+// stays on record for a read-only token. Applying is for a person too: a token could
+// read the environment that comes in through a command of its own.
 func TestATokenCantTakeOnAContainer(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
 	runByHand(t, e, "by-hand", nil)
-	cc := containerClient(b, b.origin)
-	planned := adopt(t, cc, "by-hand", "api")
-	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
-	tokenRefused(t, script, planned, "its environment, which comes in with it")
+	token := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	_, err := containerClient(token, b.origin).AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "by-hand", Service: "api"}))
+	if reasonOf(err) != authapi.ReasonNeedsSession {
+		t.Errorf("a token planning a take-on = %v, want %s", err, authapi.ReasonNeedsSession)
+	}
+	planned := adopt(t, containerClient(b, b.origin), "by-hand", "api")
+	tokenRefused(t, changeClient(token, b.origin), planned, "its environment, which comes in with it")
 }

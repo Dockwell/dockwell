@@ -349,7 +349,7 @@ func Methods() []*apicli.Method {
 			Noun:      "containers",
 			Verb:      "adopt",
 			Short:     "Plan taking on a container Dockwell didn't make",
-			Long:      "Plan taking on a container Dockwell didn't make, as a service that runs it from\nthen on. Nothing about the container changes: it isn't restarted, and it keeps\nits name and labels until a change replaces it. Its environment comes in with\nit, sealed like any service's, and no plan or log shows a value of it. A person\napplies the plan, as a token can't. Deleting the service before anything\nreplaces the container lets go of it again.",
+			Long:      "Plan taking on a container Dockwell didn't make, as a service that runs it from\nthen on. Nothing about the container changes: it isn't restarted, and it keeps\nits name and labels until a change replaces it. Its environment comes in with\nit, sealed like any service's, and no plan or log shows a value of it. A person\nplans it and applies it, never a token, as its plan shows what the list of\ncontainers leaves out: its command, labels, user and mounts. Deleting the\nservice before anything replaces the container lets go of it again.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The container, by its name or its full ID.", Arg: true},
