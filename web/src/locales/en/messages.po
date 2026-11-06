@@ -2445,6 +2445,14 @@ msgstr "Dockwell hands what's set on this app to it, and never shows those value
 msgid "Dockwell is clearing this away"
 msgstr "Dockwell is clearing this away"
 
+#: src/features/apps/AddPortSheet.tsx
+msgid "Dockwell is putting {name} back. You can review this plan once that ends."
+msgstr "Dockwell is putting {name} back. You can review this plan once that ends."
+
+#: src/features/apps/DeploySheet.tsx
+msgid "Dockwell is putting <0>{current}</0> back. You can review this plan once that ends."
+msgstr "Dockwell is putting <0>{current}</0> back. You can review this plan once that ends."
+
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell is putting <0>{image}</0> back, started {ago}"
 msgstr "Dockwell is putting <0>{image}</0> back, started {ago}"

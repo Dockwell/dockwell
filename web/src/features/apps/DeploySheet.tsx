@@ -11,7 +11,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useApp } from "./AppContext";
-import { imageOf, isMoving, nameOf, tidyMessage } from "./app";
+import { failedAtField, imageOf, isMoving, nameOf } from "./app";
 
 /**
  * Deploys another image: one field, then the plan. Everything else about the
@@ -47,6 +47,13 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
     field.current?.select();
   }, [plan]);
 
+  // This form has an image and nothing else, so that is what there is to check here. A
+  // check that fails says what it answered, and what to do about that, which is the server's.
+  const fix = (reason: string) => {
+    if (reason === "exits" || reason === "command") return t`Check the image and tag, then deploy again.`;
+    return reason === "port" ? t`Stop what uses it on this server, then deploy again.` : undefined;
+  };
+
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     if (busy || moving) return;
@@ -74,19 +81,12 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
       make: () => Promise.resolve({ change }),
       retryLabel: t`Edit and try again`,
       onDone: onClose,
-      fix: (reason) => {
-        // This form has an image and nothing else, so that is what there is to check here. A
-        // check that fails says what it answered, and what to do about that, which is the server's.
-        if (reason === "exits" || reason === "command") {
-          return t`Check the image and tag, then deploy again.`;
-        }
-        return reason === "port" ? t`Stop what uses it on this server, then deploy again.` : undefined;
-      },
+      fix,
       onClose: (after) => {
         // Cancelling comes back here, with what you typed, as failing does, saying why
         // at the field. Anything else is under way or over.
         if (after?.state === ChangeState.FAILED) {
-          setFieldError(tidyMessage(after.error));
+          setFieldError(failedAtField(after, name, fix));
           reveal.current = true;
           setPlan(undefined);
         } else if (!after || after.state === ChangeState.PLANNED) setPlan(undefined);
@@ -141,7 +141,11 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
           value={image}
           error={fieldError}
           hint={
-            moving ? (
+            moving && service.rolledBackChangeId !== "" ? (
+              <Trans>
+                Dockwell is putting <code>{current}</code> back. You can review this plan once that ends.
+              </Trans>
+            ) : moving ? (
               <Trans>
                 <code>{current}</code> is still deploying. You can review this plan once that ends.
               </Trans>

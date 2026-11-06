@@ -13,7 +13,7 @@ import {
 } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 
-import { withoutIds } from "../changes/plan";
+import { factAndRest, failedStep, withoutIds } from "../changes/plan";
 import type { ServerSummary } from "../servers/server";
 import type { AppHealth, HealthKind } from "./health";
 
@@ -387,13 +387,26 @@ export function canRollBackTo(revision: ServiceRevision, recovering = false): bo
  * nothing here, as the page is already that app's: "Service web in env_01M…
  * isn't valid: the server path…" reads "The server path…".
  */
-export function tidyMessage(message: string): string {
+export function tidyMessage(message: string, name = ""): string {
   const bare = withoutIds(message);
   // A message that starts with a server's name keeps it as it is written.
   if (/^[a-z0-9-]+:\s/.test(bare)) return bare;
   // A domain or an address leads as it's written.
   if (/^\S*[.:/]\S*\s/.test(bare)) return bare;
+  // So does the name of what it's about, which is a name and no word to capitalize.
+  if (name !== "" && (bare.startsWith(`${name} `) || bare.startsWith(`${name}'`))) return bare;
   return bare.charAt(0).toUpperCase() + bare.slice(1);
+}
+
+/**
+ * Why a change failed, for the field of the form it came from: what happened, and
+ * what to do about it where that's the form's to say, as the plan said it, since
+ * what the server would have anyone do may be nothing this form has.
+ */
+export function failedAtField(change: Change, name: string, fix: (reason: string) => string | undefined): string {
+  const said = tidyMessage(change.error, name);
+  const here = fix(failedStep(change)?.reason ?? "");
+  return here ? `${factAndRest(said)[0]}. ${here}` : said;
 }
 
 /** An image by what tells it apart on a narrow screen: the last part of its name, and its tag. */

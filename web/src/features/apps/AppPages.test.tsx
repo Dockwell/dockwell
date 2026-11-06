@@ -684,6 +684,70 @@ describe("an app's overview", () => {
     await waitFor(() => expect(host).toHaveFocus());
   });
 
+  it("brings the plan's own fix back to the field, and leaves an app's name as it's written", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchChangeResponse>();
+    const service = anApp("web", "nginx:1.5");
+    renderAt(
+      "/apps/svc_web",
+      api([service], {
+        services: {
+          listServices: () => ({ services: [service] }),
+          listServiceRevisions: () => ({ revisions }),
+          deployService: () => ({ change: webPlanned() }),
+        },
+        changes: {
+          watchChange: watch.stream,
+          applyChange: () => ({ change: webPlanned() }),
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const deploy = await screen.findByRole("dialog", { name: "Deploy web" });
+    await user.clear(within(deploy).getByLabelText("Image"));
+    await user.type(within(deploy).getByLabelText("Image"), "nginx:nope");
+    await user.click(within(deploy).getByRole("button", { name: /Review plan/ }));
+    await user.click(await screen.findByRole("button", { name: /Apply plan/ }));
+    watch.push(
+      watched(
+        moved(webPlanned(), {
+          state: ChangeState.FAILED,
+          error:
+            "web stopped right after it started, with exit code 1. Check its command and variables, then try again.",
+          steps: [create(StepProgressSchema, { resourceId: "svc_web", state: StepState.FAILED, reason: "exits" })],
+        }),
+      ),
+    );
+    const failed = await screen.findByRole("dialog", { name: "Couldn't replace web" });
+    await user.click(within(failed).getByRole("button", { name: /Edit and try again/ }));
+    const back = await screen.findByRole("dialog", { name: "Deploy web" });
+    expect(within(back).getByLabelText("Image")).toHaveAccessibleDescription(
+      "web stopped right after it started, with exit code 1. Check the image and tag, then deploy again.",
+    );
+  });
+
+  it("says Dockwell is putting it back, not that it's deploying, while a rollback runs", async () => {
+    const moving = anApp(
+      "web",
+      "nginx:1.32",
+      {},
+      {
+        deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+        changeState: ChangeState.APPLYING,
+        rolledBackChangeId: "chg_failed",
+      },
+    );
+    const user = userEvent.setup();
+    renderAt("/apps/svc_web", api([moving]));
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const sheet = await screen.findByRole("dialog", { name: "Deploy web" });
+    expect(within(sheet).getByLabelText("Image")).toHaveAccessibleDescription(
+      "Dockwell is putting nginx:1.32 back. You can review this plan once that ends.",
+    );
+    expect(sheet).not.toHaveTextContent("still deploying");
+  });
+
   it("names a field in the language it reads in", async () => {
     await activateLocale("zh-CN");
     try {

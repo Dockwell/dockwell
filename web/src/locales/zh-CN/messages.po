@@ -2445,6 +2445,14 @@ msgstr "Dockwell 将此应用自身设置的内容交给它，且不再显示这
 msgid "Dockwell is clearing this away"
 msgstr "Dockwell 正在清理此次变更"
 
+#: src/features/apps/AddPortSheet.tsx
+msgid "Dockwell is putting {name} back. You can review this plan once that ends."
+msgstr "Dockwell 正在恢复 {name}。结束后你就可以查看此计划。"
+
+#: src/features/apps/DeploySheet.tsx
+msgid "Dockwell is putting <0>{current}</0> back. You can review this plan once that ends."
+msgstr "Dockwell 正在恢复 <0>{current}</0>。结束后你就可以查看此计划。"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell is putting <0>{image}</0> back, started {ago}"
 msgstr "Dockwell 正在恢复 <0>{image}</0>，开始于 {ago}"

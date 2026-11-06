@@ -11,7 +11,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useApp } from "./AppContext";
-import { isMoving, nameOf, portRefusal, tidyMessage } from "./app";
+import { failedAtField, isMoving, nameOf, portRefusal } from "./app";
 import { validPort } from "./form";
 
 /**
@@ -49,6 +49,10 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
     field.current?.select();
   }, [plan]);
 
+  // A port is all that moved, and its numbers are all this form has. A check that fails says
+  // what it answered, and what to do about that, which is the server's.
+  const fix = (reason: string) => (reason === "exits" ? t`Check the port in the app, then try again.` : undefined);
+
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     if (busy || moving) return;
@@ -85,15 +89,12 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
       make: () => Promise.resolve({ change }),
       retryLabel: t`Edit and try again`,
       onDone: onClose,
-      fix: (reason) =>
-        // A port is all that moved, and its numbers are all this form has. A check that fails says
-        // what it answered, and what to do about that, which is the server's.
-        reason === "exits" ? t`Check the port in the app, then try again.` : undefined,
+      fix,
       onClose: (after) => {
         // Cancelling comes back here, with what you typed, as failing does, saying why
         // at the field. Anything else is under way or over.
         if (after?.state === ChangeState.FAILED) {
-          setHostError(tidyMessage(after.error));
+          setHostError(failedAtField(after, name, fix));
           reveal.current = true;
           setPlan(undefined);
         } else if (!after || after.state === ChangeState.PLANNED) setPlan(undefined);
@@ -145,7 +146,11 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
         {moving ? (
           <Callout tone="info">
-            <Trans>{name} is still deploying. You can review this plan once that ends.</Trans>
+            {service.rolledBackChangeId !== "" ? (
+              <Trans>Dockwell is putting {name} back. You can review this plan once that ends.</Trans>
+            ) : (
+              <Trans>{name} is still deploying. You can review this plan once that ends.</Trans>
+            )}
           </Callout>
         ) : null}
         <TextField
