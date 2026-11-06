@@ -103,6 +103,16 @@ function millis(d: { seconds: bigint; nanos: number } | undefined): number {
 }
 
 /** Quotes what could read as the plan's own words, as AccessWords does on the server. */
+/**
+ * True for a proxy that covers more than one address, so what else is on that network
+ * can be it. A lone address is written as a range of one, and a preset has its name.
+ * The server says the same in what it words for the CLI.
+ */
+export function namesARange(proxy: string): boolean {
+  const [, bits] = /^[0-9a-f:.]+\/(\d+)$/i.exec(proxy) ?? [];
+  return bits !== undefined && bits !== (proxy.includes(":") ? "128" : "32");
+}
+
 export function plain(s: string): string {
   return /^[A-Za-z0-9_.,/=:@+*-]*$/.test(s) ? s : JSON.stringify(s);
 }
@@ -323,7 +333,9 @@ export function useChangeWords(): ChangeWords {
               ? t`the port ${path} on the server itself, past its containers, at ${detail} over plain HTTP`
               : t`the port ${path} on the server itself, past its containers, at ${detail}`;
           case HostAccessKind.TRUSTED_PROXY:
-            return t`${path} as a proxy it believes on where a request came from`;
+            return namesARange(access.path)
+              ? t`${path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is`
+              : t`${path} as a proxy it believes on where a request came from`;
           case HostAccessKind.PLAIN_FOR_ANYONE:
             return t`plain HTTP on ${path} for anyone who can reach this server, around whatever is in front of it`;
           case HostAccessKind.HTTPS_OFF:

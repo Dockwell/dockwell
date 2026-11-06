@@ -52,6 +52,7 @@ import { applied, moved, shopPlanned, watched, webPlanned } from "../../test/cha
 import { type Api, type CacheOptions, feed, onPhone, quietWatch, renderWithApi } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
+import { PlanSteps } from "./PlanSteps";
 
 function Opener({ opening }: { opening: Opening }) {
   const { open } = useChangeSheet();
@@ -1746,6 +1747,45 @@ describe("the plan sheet, once it runs", () => {
       const review = await screen.findByRole("dialog", { name: "Review plan" });
       expect(review).toHaveTextContent("app.example.com believes the proxy 127.0.0.1/32");
       expect(review).not.toHaveTextContent("app-example-com");
+    });
+
+    it.each([
+      ["172.20.0.0/16", true],
+      ["2001:db8::/32", true],
+      ["10.0.0.5/32", false],
+      ["2001:db8::1/128", false],
+      ["cloudflare", false],
+    ])("says what else %s lets in, if it's a range", async (proxy, wide) => {
+      const change = moved(aRoutePlan(PlanAction.CREATE), { state: ChangeState.PLANNED });
+      const resource = change.plan?.resources[0];
+      const access = create(HostAccessSchema, { kind: HostAccessKind.TRUSTED_PROXY, path: proxy });
+      if (resource) {
+        resource.changes = [create(FieldChangeSchema, { path: "domain", op: FieldOp.ADDED, to: "app.example.com" })];
+        resource.hostAccess = [access];
+      }
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) step.hostAccess = [access];
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(await within(review).findByText(/believes the proxy/)).toBeVisible();
+      const says = "Whatever else is in that range can reach the route, and say who its client is";
+      if (wide) expect(review).toHaveTextContent(says);
+      else expect(review).not.toHaveTextContent(says);
+    });
+
+    it("says what else a range lets in where a step says what it reaches, too", async () => {
+      const change = moved(aRoutePlan(PlanAction.CREATE), { state: ChangeState.PLANNED });
+      const access = create(HostAccessSchema, { kind: HostAccessKind.TRUSTED_PROXY, path: "172.20.0.0/16" });
+      const first = change.plan?.servers[0];
+      const step = first?.steps[0];
+      if (step) step.hostAccess = [access];
+      // Steps say this for a fleet: with one server, the notice does.
+      if (change.plan && first) change.plan.servers = [first, { ...first, serverId: "srv_2", serverName: "hz-2" }];
+      renderWithApi(<PlanSteps plan={change.plan} progress={[]} />, {});
+      expect((await screen.findAllByText(/whatever else is in that range can reach the route/)).length).toBe(2);
     });
 
     it("says nothing of what DNS said once the domain serves", async () => {

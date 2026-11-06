@@ -71,6 +71,11 @@ func TestAccessWords(t *testing.T) {
 	}{
 		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "edge"}, "the network edge, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"},
 		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "edge", Detail: "db,www"}, "the network edge, which is on the server already, where it answers to its name and to db,www: whatever else is on that network, other projects' services too, can reach it, and it can reach them"},
+		{resource.Access{Kind: resource.AccessTrustedProxy, Path: "172.30.0.0/16"}, "172.30.0.0/16 as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"},
+		{resource.Access{Kind: resource.AccessTrustedProxy, Path: "2001:db8::/32"}, "2001:db8::/32 as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"},
+		{resource.Access{Kind: resource.AccessTrustedProxy, Path: "10.0.0.5/32"}, "10.0.0.5/32 as a proxy it believes on where a request came from"},
+		{resource.Access{Kind: resource.AccessTrustedProxy, Path: "2001:db8::1/128"}, "2001:db8::1/128 as a proxy it believes on where a request came from"},
+		{resource.Access{Kind: resource.AccessTrustedProxy, Path: "cloudflare"}, "cloudflare as a proxy it believes on where a request came from"},
 		{resource.Access{Kind: resource.AccessCapability, Path: "NET_ADMIN"}, "the Linux capability NET_ADMIN"},
 		{resource.Access{Kind: resource.AccessCapability, Path: "SYS_ADMIN", SameAsRoot: true}, "the Linux capability SYS_ADMIN, which is the same as root"},
 		{resource.Access{Kind: resource.AccessGroup, Path: "999"}, "the group 999, which is the same as root if it is the group that owns Docker's socket on the server"},

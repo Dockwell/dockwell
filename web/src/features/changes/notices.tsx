@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 
 import { useTimeWords } from "../../lib/time";
 import { asGoodAsRoot, changing, factAndRest, onlyIfNewer, reloadsProxy, shownName, startsStopped } from "./plan";
-import { plain, type RolloutLine, useChangeWords } from "./words";
+import { namesARange, plain, type RolloutLine, useChangeWords } from "./words";
 
 /** One thing to know about a plan before applying it. */
 export interface Notice {
@@ -196,7 +196,9 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} believes the proxy ${path} on ${server}`,
-          detail: t`It takes that proxy's word for where a request came from.`,
+          detail: namesARange(access.path)
+            ? t`It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself.`
+            : t`It takes that proxy's word for where a request came from.`,
         };
       case HostAccessKind.PLAIN_FOR_ANYONE:
         return {
