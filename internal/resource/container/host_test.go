@@ -3,10 +3,14 @@
 package container_test
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -527,5 +531,110 @@ func TestACheckOnANetworkTheServerHasIsHeldToTheSameReach(t *testing.T) {
 				t.Errorf("it says %v, want it refused with %q", err, want)
 			}
 		})
+	}
+}
+
+// deadPath stands in for a mount that stopped answering: what asks the disk about a
+// path under it doesn't come back until the test lets it.
+func deadPath(t *testing.T, under string) (release func(), asked *atomic.Int32) {
+	t.Helper()
+	gone := make(chan struct{})
+	var once sync.Once
+	release = func() { once.Do(func() { close(gone) }) }
+	asked = &atomic.Int32{}
+	restore := container.StopAnswering(50*time.Millisecond, func(p string) {
+		if p == under || strings.HasPrefix(p, under+"/") {
+			asked.Add(1)
+			<-gone
+		}
+	})
+	t.Cleanup(func() { release(); restore() })
+	return release, asked
+}
+
+func TestAPlanOnAPathThatStopsAnsweringSaysWhichWithinItsBound(t *testing.T) {
+	dir := t.TempDir()
+	dead := filepath.Join(dir, "nfs")
+	if err := os.Mkdir(dead, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mounted := filepath.Join(dead, "uploads")
+	release, asked := deadPath(t, dead)
+	h := container.Host{Resolve: container.Resolve}
+
+	check := func() error {
+		t.Helper()
+		done := make(chan error, 1)
+		go func() { done <- h.CheckPath(mounted, "the server path "+mounted+" mounted at /data") }()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(3 * time.Second):
+			t.Fatal("the check is stuck on a path that won't answer")
+			return nil
+		}
+	}
+	err := check()
+	if !errors.Is(err, resource.ErrPathNotAnswering) || !strings.Contains(err.Error(), mounted+" isn't answering") || !strings.Contains(err.Error(), "Check the mount") {
+		t.Fatalf("got %v", err)
+	}
+	// The next plan hears at once, and holds nothing more.
+	if err := check(); !errors.Is(err, resource.ErrPathNotAnswering) {
+		t.Fatalf("again: %v", err)
+	}
+	if n := asked.Load(); n != 1 {
+		t.Errorf("the disk was asked %d times, each holding a thread", n)
+	}
+	// Once it answers, so do plans, with nothing to restart.
+	release()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if err := check(); err == nil {
+			break
+		} else if time.Now().After(deadline) {
+			t.Fatalf("it answers again, and the plan says %v", err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// A rollout's own way of following a path is bounded the same.
+func TestARolloutOnAPathThatStopsAnsweringSaysWhich(t *testing.T) {
+	dir := t.TempDir()
+	dead := filepath.Join(dir, "nfs")
+	if err := os.Mkdir(dead, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	deadPath(t, dead)
+	done := make(chan error, 1)
+	go func() {
+		_, err := container.ResolveForRollout(&container.Docker{}, filepath.Join(dead, "uploads"))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, resource.ErrPathNotAnswering) {
+			t.Fatalf("got %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("following a path for a rollout is stuck")
+	}
+}
+
+// Each path left behind holds a thread, so they're bounded too.
+func TestWhatsLeftBehindOfPathsIsBounded(t *testing.T) {
+	dir := t.TempDir()
+	dead := filepath.Join(dir, "nfs")
+	if err := os.Mkdir(dead, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, asked := deadPath(t, dead)
+	for i := range container.MaxStuckPaths + 5 {
+		if _, err := container.Resolve(filepath.Join(dead, fmt.Sprint(i))); !errors.Is(err, resource.ErrPathNotAnswering) {
+			t.Fatalf("%d: %v", i, err)
+		}
+	}
+	if n := int(asked.Load()); n != container.MaxStuckPaths {
+		t.Errorf("%d paths left behind, want %d", n, container.MaxStuckPaths)
 	}
 }

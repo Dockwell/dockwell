@@ -57,6 +57,9 @@ var (
 	// ErrNotConnected means the server's agent isn't connected, so the
 	// call never reached it and didn't run.
 	ErrNotConnected = errors.New("the server's agent isn't connected")
+	// ErrPathNotAnswering means a path on the server stopped answering, as a
+	// network mount does when its far end is down.
+	ErrPathNotAnswering = errors.New("a server path isn't answering")
 )
 
 // ServerError is a call that a server's agent ran and failed, with the

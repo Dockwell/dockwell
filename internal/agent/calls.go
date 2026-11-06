@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -26,6 +27,17 @@ var errNoFiles = errors.New("this agent doesn't read files")
 // certificate waits for its calls to finish.
 const drainLimit = 15 * time.Minute
 
+const (
+	// DefaultCallGrace is how long a call gets to end once its time is up or its
+	// stream is going. Past it, it's left behind.
+	DefaultCallGrace = 30 * time.Second
+	// maxLeftBehind is how many calls can be left behind at once, across streams.
+	// Each holds a goroutine and a thread until whatever it's stuck on comes back,
+	// so with no bound, a plan a minute on a dead mount would add up to the
+	// agent's whole memory budget in days.
+	maxLeftBehind = 16
+)
+
 // calls runs the control plane's calls on one stream, each in its own
 // goroutine, and sends each result back. They end with the stream: a call
 // still running when it drops is cancelled, and the control plane plans
@@ -35,6 +47,11 @@ const drainLimit = 15 * time.Minute
 // on, the stream's receiver stops, and stop cancels what still runs and
 // waits for it. So no call starts while stop waits, and moving to a renewed
 // certificate never cuts a step off that it took on.
+//
+// That wait has a bound. A call can be stuck where nothing can stop it, as a system
+// call on a network mount whose far end is down is, and the agent's next stream,
+// and so the server being online, can't depend on it. A call that overruns is left
+// behind, says so, and frees what it can: see finish.
 type calls struct {
 	ctx   context.Context // the calls', apart from the stream's
 	end   context.CancelFunc
@@ -46,6 +63,10 @@ type calls struct {
 	server   string
 	send     func(*agentv1.ConnectRequest) error
 	logger   *slog.Logger
+	// grace is how long a call gets to end once it should.
+	grace time.Duration
+	// left counts the calls left behind on this agent, on any stream.
+	left *atomic.Int32
 
 	mu      sync.Mutex
 	running map[uint64]context.CancelFunc
@@ -68,8 +89,16 @@ func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest
 	if cfg.Identity != nil {
 		server = cfg.Identity.ServerID
 	}
+	grace, left := cfg.CallGrace, cfg.left
+	if grace <= 0 {
+		grace = DefaultCallGrace
+	}
+	if left == nil {
+		left = &atomic.Int32{}
+	}
 	return &calls{
 		ctx: ctx, end: end, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, delivery: key, server: server, send: send, logger: cfg.Logger,
+		grace: grace, left: left,
 		running: map[uint64]context.CancelFunc{}, reading: map[uint64]context.CancelFunc{},
 		idle: make(chan struct{}, 1), drained: make(chan struct{}),
 	}
@@ -92,6 +121,13 @@ func (c *calls) start(call *agentv1.Call) {
 			Message:  "this agent is moving to a new stream, so it didn't run the call; send it again once the agent reconnects",
 			Draining: true,
 		}}})
+		return
+	}
+	if n := c.left.Load(); n >= maxLeftBehind {
+		c.mu.Unlock()
+		c.reply(call.GetId(), &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: fmt.Sprintf(
+			"%d calls on this agent never came back, so it takes no more until one does. Something they touch isn't answering, "+
+				"such as a network mount. Check the server's mounts, then restart the agent if they don't come back", n)}}})
 		return
 	}
 	if logs := call.GetLogs(); logs != nil {
@@ -123,7 +159,7 @@ func (c *calls) start(call *agentv1.Call) {
 			}
 			defer release()
 		}
-		result := c.run(ctx, call)
+		result := c.finish(ctx, call)
 		// A step cut short because this stream is ending can only say it was
 		// cancelled. Sending nothing lets the control plane say what's true:
 		// the agent disconnected, and the step may or may not have run.
@@ -131,6 +167,64 @@ func (c *calls) start(call *agentv1.Call) {
 			c.reply(call.GetId(), result)
 		}
 	}()
+}
+
+// A call's state, for what comes back to know whether anyone still waits.
+const (
+	callRunning int32 = iota
+	callReturned
+	callLeftBehind
+)
+
+// finish carries out a call on a goroutine of its own, and waits for it until its
+// time is up or its stream goes, and grace more. Past that it's left behind, as
+// nothing can stop a call stuck in the kernel. Its result is then a failure, which
+// a stream that's ending doesn't send.
+func (c *calls) finish(ctx context.Context, call *agentv1.Call) *agentv1.CallResult {
+	done := make(chan *agentv1.CallResult, 1)
+	var state atomic.Int32
+	what := callKind(call)
+	go func() {
+		result := c.run(ctx, call)
+		if state.CompareAndSwap(callRunning, callReturned) {
+			done <- result
+			return
+		}
+		c.left.Add(-1)
+		c.logger.Info("a call that was left behind came back", slog.String("call", what), slog.Uint64("id", call.GetId()))
+	}()
+	select {
+	case result := <-done:
+		return result
+	case <-ctx.Done():
+	}
+	grace := time.NewTimer(c.grace)
+	defer grace.Stop()
+	select {
+	case result := <-done:
+		return result
+	case <-grace.C:
+	}
+	if !state.CompareAndSwap(callRunning, callLeftBehind) {
+		return <-done
+	}
+	n := c.left.Add(1)
+	c.logger.Warn("a call didn't end when it should, so the agent left it behind and went on; something it touches may not be answering, such as a network mount",
+		slog.String("call", what), slog.Uint64("id", call.GetId()), slog.Int("left_behind", int(n)))
+	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
+		Message: "something this " + what + " touches on the server isn't answering, such as a network mount, so the agent stopped waiting for it. " +
+			"Check the server's mounts, then try again",
+		OutOfTime: true,
+	}}}
+}
+
+// callKind names what a call asks, as the protocol does, for the log.
+func callKind(call *agentv1.Call) string {
+	m := call.ProtoReflect()
+	if f := m.WhichOneof(m.Descriptor().Oneofs().ByName("call")); f != nil {
+		return string(f.Name())
+	}
+	return "call"
 }
 
 func (c *calls) doneReading(id uint64, cancel context.CancelFunc) {
@@ -243,13 +337,26 @@ func (c *calls) busy() bool {
 	return len(c.running) > 0
 }
 
-// stop cancels every call still running and waits for them. It closes
-// first, so no call starts while it waits; stop the stream's receiver
-// between the two.
+// stop cancels every call still running and waits for them, within a bound: the
+// agent's next stream never depends on a call returning. A call gets its grace in
+// finish, so past that and as long again, what's left is a send or a logs call that
+// can't end. It closes first, so no call starts while it waits; stop the stream's
+// receiver between the two.
 func (c *calls) stop() {
 	c.close()
 	c.end()
-	c.wg.Wait()
+	ended := make(chan struct{})
+	go func() {
+		c.wg.Wait()
+		close(ended)
+	}()
+	limit := time.NewTimer(2 * c.grace)
+	defer limit.Stop()
+	select {
+	case <-ended:
+	case <-limit.C:
+		c.logger.Warn("a call on this stream hasn't ended, so the stream ended without it and the agent goes on to its next")
+	}
 }
 
 // drain readies a stream that moves to a renewed certificate to end, while

@@ -470,8 +470,14 @@ func (d *Docker) resolvePath(p string) (string, error) {
 	if d.ResolvePath != nil {
 		return d.ResolvePath(p)
 	}
+	return followWithin(p, evalLinks)
+}
+
+// evalLinks follows a path's links as far as there is anything there.
+func evalLinks(p string) (string, error) {
 	rest := ""
 	for at := filepath.Clean(p); ; {
+		touchPath(at)
 		resolved, err := filepath.EvalSymlinks(at)
 		switch {
 		case err == nil:

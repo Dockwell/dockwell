@@ -17,6 +17,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -73,6 +74,11 @@ type Config struct {
 	Health HealthReporter
 	// Files reads this server's disk for a person. Nil reads nothing.
 	Files *files.Server
+	// CallGrace is how long a call gets to end once its time is up or its stream is
+	// going, before it's left behind. Zero means DefaultCallGrace.
+	CallGrace time.Duration
+	// left counts the calls left behind, across this agent's streams.
+	left *atomic.Int32
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
@@ -244,6 +250,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}
+	cfg.left = &atomic.Int32{}
 	id := cfg.Identity
 	cfg.Logger = cfg.Logger.With(slog.String("server", id.ServerID))
 	cfg.Logger.Info("agent running", slog.String("name", id.ServerName), slog.String("control_plane", id.ControlURL),

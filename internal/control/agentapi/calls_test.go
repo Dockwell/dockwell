@@ -602,6 +602,75 @@ func (plainFailing) Put(context.Context, string, *resourcev1.FirewallRule) error
 	return resource.PlainlyBecause(resource.ReasonPort, "Port 80 can't open. Check the firewall, then try again.", errors.New("iptables said no"))
 }
 
+// deafDriver is stuck as a plan's Lstat is on a dead mount: no context reaches it, so
+// it comes back only when the mount does.
+type deafDriver struct {
+	*firewall.Fake
+	started chan struct{}
+	gone    chan struct{}
+}
+
+func (d *deafDriver) Put(ctx context.Context, name string, rule *resourcev1.FirewallRule) error {
+	if name == "stuck" {
+		d.started <- struct{}{}
+		<-d.gone
+	}
+	return d.Fake.Put(ctx, name, rule)
+}
+
+// A call of any kind, stuck for good, doesn't keep the agent away. The stream here
+// ends as it does each time a certificate is renewed, and the same stop ends a
+// stream that drops.
+func TestACallStuckForGoodDoesntKeepTheAgentFromReconnecting(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	fw := &deafDriver{Fake: firewall.NewFake(), started: make(chan struct{}, 1), gone: make(chan struct{})}
+	ctx, cancel := context.WithCancel(t.Context())
+	ran := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(), Collector: fakeCollector(),
+			Drivers: resource.NewRegistry(&firewall.Driver{Backend: fw}), CallGrace: 50 * time.Millisecond,
+		})
+		close(ran)
+	}()
+	t.Cleanup(func() {
+		close(fw.gone)
+		cancel()
+		<-ran
+	})
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	first, _ := s.agents.Session(id.ServerID)
+
+	step := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "stuck"}, Decision: resource.Decision{Action: resource.ActionCreate}}
+	short, stop := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer stop()
+	if err := a.Apply(short, step, &resourcev1.FirewallRule{Port: 8080}); err == nil {
+		t.Fatal("a call stuck for good answered")
+	}
+	<-fw.started
+
+	if err := id.Renew(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if now, ok := s.agents.Session(id.ServerID); ok && now != first {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the agent never came back: it's waiting on a call that will never return")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	// It takes calls on the new stream, with the old one still stuck.
+	b := waitForAgent(t, s.agents, id.ServerID, true)
+	steps, err := b.Plan(t.Context(), []resource.Desired{{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "http"}, Spec: &resourcev1.FirewallRule{Port: 80}}})
+	if err != nil || len(steps) != 1 {
+		t.Fatalf("a plan on the new stream = %v, %v", steps, err)
+	}
+}
+
 func TestAStreamThatDropsFailsItsCalls(t *testing.T) {
 	s := startStack(t, 5*time.Second)
 	id := s.enrollLocal(t)

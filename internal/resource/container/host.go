@@ -97,6 +97,9 @@ func (h Host) CheckPath(p, what string) error {
 		return nil
 	}
 	to, err := h.Resolve(p)
+	if errors.Is(err, resource.ErrPathNotAnswering) {
+		return err // it says which, and what to do, and there's no other path to offer
+	}
 	if err != nil {
 		return fmt.Errorf("can't follow %s on this server to check where it leads: %w. Mount a path the agent can read", what, err)
 	}
@@ -540,11 +543,15 @@ const maxLinks = 40
 // Resolve follows an absolute path on this server, as resolve does.
 func Resolve(p string) (string, error) { return resolve(p) }
 
-// resolve follows an absolute path on this server part by part, as the
+// resolve is walkLinks with a bound, as a path can lead into a mount that has
+// stopped answering (followWithin).
+func resolve(p string) (string, error) { return followWithin(p, walkLinks) }
+
+// walkLinks follows an absolute path on this server part by part, as the
 // kernel does: .. goes up from where a symlink led, not from how the path
 // is spelled. Docker makes a server path that isn't there, so what doesn't
 // exist yet is taken as it is: it holds no symlinks.
-func resolve(p string) (string, error) {
+func walkLinks(p string) (string, error) {
 	at := "/"
 	rest := strings.Split(p, "/")
 	for links := 0; len(rest) > 0; {
@@ -558,6 +565,7 @@ func resolve(p string) (string, error) {
 			continue
 		}
 		next := filepath.Join(at, part)
+		touchPath(next)
 		fi, err := os.Lstat(next)
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
