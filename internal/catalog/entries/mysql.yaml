@@ -17,7 +17,10 @@ firstSteps: >-
   phpMyAdmin answers over plain HTTP, so signing in from outside this server sends
   MySQL's root password in clear. Add a domain first, or reach it another way, such
   as a VPN or an SSH tunnel. Then open phpMyAdmin and sign in as user root, with the
-  password in the MYSQL_ROOT_PASSWORD secret.
+  password in the MYSQL_ROOT_PASSWORD secret. That secret sets the password on first
+  start only, so changing it doesn't change what signs in. To change the password, run
+  ALTER USER for both 'root'@'%' and 'root'@'localhost' in phpMyAdmin, then set the
+  secret to match.
 inputs:
   - name: ADMIN_PORT
     label: phpMyAdmin port

@@ -120,6 +120,26 @@ func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
 	}
 }
 
+// These apps read their password from the environment on first start alone, so a
+// rotation leaves the old one signing in, and the panel revealing a new one that
+// doesn't. Each entry says so, and how to change the password instead.
+func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, how := range map[string]string{
+		"postgres":            "ALTER USER postgres PASSWORD",
+		"mysql":               "ALTER USER",
+		"nginx-proxy-manager": "change the password in the console",
+	} {
+		e, _ := c.Entry(id)
+		if steps := e.GetFirstSteps(); !strings.Contains(steps, "on first start only") || !strings.Contains(steps, how) {
+			t.Errorf("%s doesn't say its password is set once, and %q: %q", id, how, steps)
+		}
+	}
+}
+
 // The checks the catalog's CI will make, on what would get past a look.
 func TestCheckRefuses(t *testing.T) {
 	c, err := catalog.Load("")

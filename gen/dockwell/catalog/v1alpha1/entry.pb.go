@@ -44,7 +44,9 @@ const (
 	InputType_INPUT_TYPE_PORT InputType = 3
 	// A value kept as one of the project's secrets, encrypted and used by
 	// reference. Its ${NAME} must be a whole environment value, or a word of a
-	// command or a health check, so that a rotation reaches it.
+	// command or a health check, so that a rotation reaches the service. An app
+	// that reads it on first start alone keeps what it read, which the entry's
+	// first steps must say.
 	InputType_INPUT_TYPE_SECRET InputType = 4
 )
 

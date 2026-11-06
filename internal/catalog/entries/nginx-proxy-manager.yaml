@@ -14,9 +14,9 @@ source:
 web:
   service: proxy
 firstSteps: >-
-  Open the console and sign in with your email and the password in the
-  ADMIN_PASSWORD secret. Then change that password, as Nginx Proxy Manager writes
-  the first one in its log.
+  Open the console and sign in with your email and the password in the ADMIN_PASSWORD
+  secret. That secret sets the password on first start only, and Nginx Proxy Manager
+  writes it in its log, so change the password in the console after you first sign in.
 inputs:
   - name: ADMIN_EMAIL
     label: Your email

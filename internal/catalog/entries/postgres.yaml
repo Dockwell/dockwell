@@ -18,6 +18,9 @@ firstSteps: >-
   database's password in clear. Add a domain first, or reach it another way, such as
   a VPN or an SSH tunnel. Then open Adminer and choose PostgreSQL as its system. Sign
   in to server db as user postgres, with the password in the POSTGRES_PASSWORD secret.
+  That secret sets the password on first start only, so changing it doesn't change
+  what signs in. To change the password, run ALTER USER postgres PASSWORD 'new' in
+  Adminer, then set the secret to match.
 inputs:
   - name: ADMIN_PORT
     label: Adminer port
