@@ -374,6 +374,15 @@ func TestWords(t *testing.T) {
 	if got := In(now.Add(3*time.Hour), now); got != "in 3 hours" {
 		t.Errorf("In = %s", got)
 	}
+	// A value with a word of its own says it, as the panel does.
+	for state, want := range map[dockwellv1.HealthState]string{
+		dockwellv1.HealthState_HEALTH_STATE_NO_CHECK: "Running", dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: "Not running",
+		dockwellv1.HealthState_HEALTH_STATE_HEALTHY: "Healthy",
+	} {
+		if got := word(state); got != want {
+			t.Errorf("%s reads %q, want %q", state, got, want)
+		}
+	}
 }
 
 // Each thing that needs a person is said as what it is: a domain isn't more
@@ -729,6 +738,17 @@ func TestRolloutWordsSayWhatFollows(t *testing.T) {
 		"a restart that stops first": {
 			plan: &dockwellv1.RolloutPlan{ImageData: []string{"/data"}}, restart: true, want: []string{"a restart has nothing to go back to"},
 		},
+		// What nothing checks is healthy as it runs, so how long it must is all there is to it.
+		"a restart of what someone stopped, which nothing checks": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, Soak: soak, HealthyWithin: durationpb.New(2 * time.Second), NoCheck: true}, stopped: true, restart: true,
+			want: []string{"Nothing checks it, so it has to keep running for 5 s. If it doesn't, the new one goes, and what was stopped stays stopped."},
+			not:  []string{"healthy", "within"},
+		},
+		"a deploy that rolls, which nothing checks": {
+			plan: &dockwellv1.RolloutPlan{Rolling: true, HealthyWithin: durationpb.New(2 * time.Second), NoCheck: true},
+			want: []string{"Nothing checks it, so a new container takes over once it starts, and what runs goes on serving until then. If it doesn't, Dockwell rolls this back."},
+			not:  []string{"healthy", "within"},
+		},
 		"what it can't read":     {plan: &dockwellv1.RolloutPlan{CantTell: []string{"nfs-share"}}, want: []string{"can't read where nfs-share really lands"}},
 		"a route edited by hand": {plan: &dockwellv1.RolloutPlan{EditedRoutes: []string{"www"}}, want: []string{"The route www was edited by hand", "keep the old one's address"}},
 		"two writers, as chosen": {
@@ -907,5 +927,19 @@ func TestANameWrittenAsTextSaysTheFlag(t *testing.T) {
 		if want := "list command in its references, with " + flag + " on the command line.\n"; !strings.Contains(buf.String(), want) {
 			t.Errorf("for a %s it says %q, want it to end %q", kind, buf.String(), want)
 		}
+	}
+}
+
+// A watch of the fleet says it is alive every few seconds, which a terminal shows by
+// going on: it prints nothing for it.
+func TestAHeartbeatPrintsNothing(t *testing.T) {
+	var out strings.Builder
+	serverEvent(&out, &dockwellv1.WatchServersResponse{Heartbeat: true}, now)
+	if out.Len() != 0 {
+		t.Errorf("a heartbeat printed %q", out.String())
+	}
+	serverEvent(&out, &dockwellv1.WatchServersResponse{SnapshotComplete: true}, now)
+	if !strings.Contains(out.String(), "Watching for changes") {
+		t.Errorf("the end of the snapshot printed %q", out.String())
 	}
 }

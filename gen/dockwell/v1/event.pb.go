@@ -561,8 +561,10 @@ func (x *Event) GetHealth() *EventHealth {
 
 // EventHealth is how a service's health changed on a server, as far as the
 // timeline tells of it: when it turned unhealthy or stopped running, and when
-// it came back. A state that lasts under 30 s isn't told, and at most one event
-// is, for a service on a server, every 5 minutes: flips counts what came between.
+// it came back. A state that lasts under 30 s isn't told, and one that lasts is
+// told then. A service that went between good and bad 3 times in 5 minutes keeps
+// changing, and is one event, whose time, flips and output change as it goes on,
+// until it has stayed one way for 5 minutes.
 type EventHealth struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The server's ID.
@@ -576,9 +578,13 @@ type EventHealth struct {
 	// What the last check said, in one short line, with the values of the
 	// container's environment masked.
 	Output string `protobuf:"bytes,5,opt,name=output,proto3" json:"output,omitempty"`
-	// How many other times the state changed since the last event of this
-	// service on this server.
-	Flips         int32 `protobuf:"varint,6,opt,name=flips,proto3" json:"flips,omitempty"`
+	// How many times it went between good and bad since since, for a service
+	// that keeps changing. 0 for one that changed once.
+	Flips int32 `protobuf:"varint,6,opt,name=flips,proto3" json:"flips,omitempty"`
+	// When it came to this state, as the control plane heard, which is up to
+	// 30 s before the event's time; or, for one that keeps changing, when it began
+	// to. Unset on events from before it was kept.
+	Since         *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=since,proto3" json:"since,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -653,6 +659,13 @@ func (x *EventHealth) GetFlips() int32 {
 		return x.Flips
 	}
 	return 0
+}
+
+func (x *EventHealth) GetSince() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Since
+	}
+	return nil
 }
 
 // EventSubject names what an event is about.
@@ -765,7 +778,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\asurface\x18\x06 \x01(\x0e2\x14.dockwell.v1.SurfaceR\asurface\x12+\n" +
 	"\x06change\x18\a \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x123\n" +
 	"\asubject\x18\b \x01(\v2\x19.dockwell.v1.EventSubjectR\asubject\x120\n" +
-	"\x06health\x18\t \x01(\v2\x18.dockwell.v1.EventHealthR\x06health\"\xdf\x01\n" +
+	"\x06health\x18\t \x01(\v2\x18.dockwell.v1.EventHealthR\x06health\"\x91\x02\n" +
 	"\vEventHealth\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -773,7 +786,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x05state\x18\x03 \x01(\x0e2\x18.dockwell.v1.HealthStateR\x05state\x124\n" +
 	"\bprevious\x18\x04 \x01(\x0e2\x18.dockwell.v1.HealthStateR\bprevious\x12\x16\n" +
 	"\x06output\x18\x05 \x01(\tR\x06output\x12\x14\n" +
-	"\x05flips\x18\x06 \x01(\x05R\x05flips\"H\n" +
+	"\x05flips\x18\x06 \x01(\x05R\x05flips\x120\n" +
+	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"H\n" +
 	"\fEventSubject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -838,15 +852,16 @@ var file_dockwell_v1_event_proto_depIdxs = []int32{
 	6,  // 12: dockwell.v1.Event.health:type_name -> dockwell.v1.EventHealth
 	13, // 13: dockwell.v1.EventHealth.state:type_name -> dockwell.v1.HealthState
 	13, // 14: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
-	1,  // 15: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
-	3,  // 16: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
-	2,  // 17: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
-	4,  // 18: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
-	17, // [17:19] is the sub-list for method output_type
-	15, // [15:17] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	9,  // 15: dockwell.v1.EventHealth.since:type_name -> google.protobuf.Timestamp
+	1,  // 16: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
+	3,  // 17: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
+	2,  // 18: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
+	4,  // 19: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
+	18, // [18:20] is the sub-list for method output_type
+	16, // [16:18] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_event_proto_init() }

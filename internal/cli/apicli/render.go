@@ -112,7 +112,8 @@ func when(t *timestamppb.Timestamp, now time.Time) string {
 }
 
 // enumWord writes an enum value as a word: CONNECTION_CONNECTED is
-// "Connected", TOKEN_SCOPE_READ_ONLY "Read only".
+// "Connected", TOKEN_SCOPE_READ_ONLY "Read only", and a value with a word of its
+// own that, as HEALTH_STATE_NO_CHECK is "Running".
 func enumWord(ed protoreflect.EnumDescriptor, n protoreflect.EnumNumber) string {
 	v := ed.Values().ByNumber(n)
 	if v == nil {
@@ -120,6 +121,9 @@ func enumWord(ed protoreflect.EnumDescriptor, n protoreflect.EnumNumber) string 
 	}
 	if n == 0 {
 		return ""
+	}
+	if w, _ := proto.GetExtension(v.Options(), dockwellv1.E_Word).(string); w != "" {
+		return w
 	}
 	return capitalize(strings.ReplaceAll(enumName(ed, v), "-", " "))
 }
@@ -228,6 +232,8 @@ func serverDetail(w io.Writer, s *dockwellv1.Server, now time.Time) {
 
 func serverEvent(w io.Writer, e *dockwellv1.WatchServersResponse, now time.Time) {
 	switch {
+	case e.GetHeartbeat():
+		// It says only that the watch is alive, which a terminal shows by going on.
 	case e.GetSnapshotComplete():
 		fmt.Fprintln(w, "Watching for changes. Press Ctrl+C to stop.")
 	case e.GetRemoved():
@@ -784,6 +790,29 @@ func startsStopped(st *dockwellv1.PlanStep) bool {
 	return slices.ContainsFunc(st.GetChanges(), func(c *dockwellv1.FieldChange) bool { return c.GetPath() == "state" && c.GetTo() == "running" })
 }
 
+// unchecked says how a container that nothing checks takes over: once it has run for
+// soak, as healthy is only that it runs.
+func unchecked(soak time.Duration, restart, stopped bool) string {
+	if stopped {
+		runs := "Nothing checks it, so it only has to start"
+		if soak > 0 {
+			runs = "Nothing checks it, so it has to keep running for " + human.Duration(soak)
+		}
+		if restart {
+			return runs + ". If it doesn't, the new one goes, and what was stopped stays stopped."
+		}
+		return runs + ". If it doesn't, Dockwell rolls this back."
+	}
+	takes := "Nothing checks it, so a new container takes over once it starts"
+	if soak > 0 {
+		takes = "Nothing checks it, so a new container takes over once it has kept running for " + human.Duration(soak)
+	}
+	if restart {
+		return takes + ", and what runs goes on serving until then. If it doesn't, the new one goes, and what runs stays."
+	}
+	return takes + ", and what runs goes on serving until then. If it doesn't, Dockwell rolls this back."
+}
+
 func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
 	if r == nil {
 		return nil
@@ -792,14 +821,19 @@ func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
 	say := func(format string, args ...any) { out = append(out, fmt.Sprintf(format, args...)) }
 	shared := slices.Concat(r.GetVolumes(), r.GetPaths(), r.GetImageData())
 	if r.GetRolling() {
-		if d := r.GetHealthyWithin().AsDuration(); stopped {
+		d := r.GetHealthyWithin().AsDuration()
+		switch {
+		case r.GetNoCheck() && d > 0:
+			// What nothing checks is healthy as it runs: how long it must is all there is to say.
+			say("%s", unchecked(r.GetSoak().AsDuration(), restart, stopped))
+		case stopped:
 			// Nothing runs, so nothing goes on serving, and nothing is in flight.
 			if restart {
 				say("It has to stay healthy for %s. If it isn't healthy within %s, the new one goes, and what was stopped stays stopped.", human.Duration(r.GetSoak().AsDuration()), human.Duration(d))
 			} else {
 				say("It has to stay healthy for %s. If it isn't healthy within %s, Dockwell rolls this back.", human.Duration(r.GetSoak().AsDuration()), human.Duration(d))
 			}
-		} else if d > 0 {
+		case d > 0:
 			soak := ""
 			if s := r.GetSoak().AsDuration(); s > 0 {
 				soak = " and has stayed so for " + human.Duration(s)
@@ -809,7 +843,7 @@ func rolloutWords(r *dockwellv1.RolloutPlan, restart, stopped bool) []string {
 			} else {
 				say("A new container takes over once it is healthy%s, and what runs goes on serving until then. If it isn't healthy within %s, Dockwell rolls this back.", soak, human.Duration(d))
 			}
-		} else {
+		default:
 			say("What this step wants already runs, so nothing stops for it.")
 		}
 		if r.GetChosen() && len(shared)+len(r.GetCantTell()) > 0 {

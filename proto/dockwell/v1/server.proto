@@ -78,6 +78,12 @@ message WatchServersResponse {
   // server that existed when the watch began came before it, and every later
   // message is a change. An empty fleet sends only this.
   bool snapshot_complete = 3;
+  // True on a message, without a server, that says only that the watch is
+  // alive. One comes every 10 s, whatever else does, so a client that hears
+  // nothing for longer knows the stream has stalled, as a frozen control plane
+  // or a proxy holding the connection open makes it, and that what it last
+  // heard may no longer be so.
+  bool heartbeat = 4;
 }
 
 // Connection says whether a server's agent is talking to the control plane.
@@ -121,6 +127,11 @@ message Server {
   // Where its ingress stands, as it last said. Unset for a server with no
   // routes, as nothing on it wants the public ports.
   IngressStatus ingress = 12;
+  // Since when its agent hasn't been able to read Docker, on the server's
+  // clock, as it last said: Docker isn't running, or doesn't answer. Nobody
+  // can say how what runs there is until it can. Unset while it can, and for a
+  // server that isn't connected.
+  google.protobuf.Timestamp docker_unreadable_since = 13;
 }
 
 // ServerInventory is what a server is: its system and hardware.

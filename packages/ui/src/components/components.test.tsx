@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { STATUS } from "../lib/status";
 import { englishStrings, UIStringsProvider } from "../lib/strings";
 import { expectAccessible } from "../test/a11y";
 import { Button, ButtonLink } from "./Button/Button";
@@ -41,13 +42,39 @@ describe("Icon", () => {
 
 describe("Glyph", () => {
   it("draws each status shape, hidden from assistive technology", () => {
-    for (const shape of ["circle", "triangle", "square", "spinner", "ring", "info"] as const) {
+    for (const shape of [
+      "circle",
+      "triangle",
+      "square",
+      "spinner",
+      "ring",
+      "dotted-ring",
+      "dashed-ring",
+      "info",
+    ] as const) {
       const { container, unmount } = render(<Glyph shape={shape} />);
       const svg = container.querySelector("svg");
       expect(svg).toHaveAttribute("aria-hidden", "true");
       expect(svg?.childElementCount, shape).toBeGreaterThan(0);
       unmount();
     }
+  });
+
+  it("tells the stopped ring from the unknown one by more than its dash", () => {
+    const parts = (shape: "ring" | "dashed-ring" | "dotted-ring") => {
+      const { container, unmount } = render(<Glyph shape={shape} />);
+      const svg = container.querySelector("svg") as SVGElement;
+      const out = {
+        filled: svg.querySelectorAll("[fill='currentColor']").length,
+        dashed: svg.querySelector("[stroke-dasharray]") !== null,
+      };
+      unmount();
+      return out;
+    };
+    expect(parts("ring")).toEqual({ filled: 0, dashed: false });
+    // A dash across it: something filled where the stopped ring has nothing.
+    expect(parts("dashed-ring")).toEqual({ filled: 1, dashed: true });
+    expect(parts("dotted-ring")).toEqual({ filled: 1, dashed: false });
   });
 
   it("animates only the deploying arc", () => {
@@ -160,6 +187,27 @@ describe("StatusBadge", () => {
     const { container } = render(<StatusBadge status="degraded" />);
     expect(screen.getByText("Degraded")).toBeVisible();
     expect(container.firstChild).toHaveClass("dw-status-dot", "dw-tone-warning");
+  });
+
+  it("gives what runs unchecked and what nobody can say shapes of their own, never green", () => {
+    const shapes = new Set<string>();
+    for (const status of ["healthy", "running", "degraded", "down", "deploying", "stopped", "unknown"] as const) {
+      const { container, unmount } = render(<StatusBadge status={status} />);
+      shapes.add(container.querySelector("svg")?.innerHTML ?? "");
+      if (status === "running" || status === "unknown") {
+        expect(container.firstChild).not.toHaveClass("dw-tone-healthy");
+      }
+      unmount();
+    }
+    expect(shapes.size).toBe(7);
+    // Ink is for action, so no state spends it, and each has a token of its own.
+    for (const [status, spec] of Object.entries(STATUS)) expect(spec.tone, status).not.toBe("ink");
+    expect(STATUS.running.tone).toBe("running");
+    expect(STATUS.unknown.tone).toBe("unknown");
+    render(<StatusBadge status="running" />);
+    expect(screen.getByText("Running")).toBeVisible();
+    render(<StatusBadge status="unknown" />);
+    expect(screen.getByText("Unknown")).toBeVisible();
   });
 
   it("still announces the state when the label names the subject", async () => {

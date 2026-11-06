@@ -331,6 +331,9 @@ type RolloutPlan struct {
 	// Soak is how long a new container must stay healthy before anything moves
 	// to it.
 	Soak time.Duration `json:",omitempty"`
+	// NoCheck is true when nothing checks the new container, so healthy is only
+	// that it runs.
+	NoCheck bool `json:",omitempty"`
 }
 
 // DroppedMount is something the old container mounts and the new one won't.

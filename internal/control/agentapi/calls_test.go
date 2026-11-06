@@ -750,6 +750,7 @@ type healthReporter struct {
 	list    []*dockwellv1.InstanceHealth
 	changed chan struct{}
 	scanned time.Time
+	blind   time.Time
 }
 
 func (r *healthReporter) Report() []*dockwellv1.InstanceHealth {
@@ -761,6 +762,12 @@ func (r *healthReporter) Report() []*dockwellv1.InstanceHealth {
 func (r *healthReporter) Changed() <-chan struct{} { return r.changed }
 
 func (r *healthReporter) ScannedAt() time.Time { return r.scanned }
+
+func (r *healthReporter) DockerUnreadableSince() time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.blind
+}
 
 func (r *healthReporter) set(list ...*dockwellv1.InstanceHealth) {
 	r.mu.Lock()
@@ -847,10 +854,20 @@ func TestAnAgentReportsHowItsServicesAre(t *testing.T) {
 		return got.Instances[0].GetState()
 	}
 	waitUntil(t, "the first report came", func() bool { return state() == healthy })
+	if got, _ := s.agents.Health(id.ServerID); !got.DockerUnreadableSince.IsZero() {
+		t.Errorf("with Docker answering, the report says it can't be read since %s", got.DockerUnreadableSince)
+	}
+	blind := time.Now().Add(-time.Minute).Truncate(time.Second)
+	r.mu.Lock()
+	r.blind = blind
+	r.mu.Unlock()
 	r.set(&dockwellv1.InstanceHealth{Project: "env_x", Service: "web", Number: 1, State: unhealthy})
 	waitUntil(t, "the change came", func() bool { return state() == unhealthy })
 	if heard.Load() < 2 {
 		t.Errorf("what hears them heard %d", heard.Load())
+	}
+	if got, _ := s.agents.Health(id.ServerID); !got.DockerUnreadableSince.Equal(blind) {
+		t.Errorf("the report says Docker can't be read since %s, want %s", got.DockerUnreadableSince, blind)
 	}
 	cancel()
 	<-done
@@ -860,6 +877,37 @@ func TestAnAgentReportsHowItsServicesAre(t *testing.T) {
 	})
 	if state() != unhealthy {
 		t.Errorf("with the agent gone, it reads %s, want what it last said", state())
+	}
+}
+
+// An agent that starts with Docker down has read nothing, which says nothing of what
+// runs, and says from the start that Docker hasn't answered it, so its server can't
+// read as healthy. Nothing hears that as a service gone.
+func TestAnAgentThatHasntReadDockerSaysSo(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	blind := time.Now().Add(-time.Minute).Truncate(time.Second)
+	r := &healthReporter{changed: make(chan struct{}, 1), blind: blind}
+	var heard atomic.Int64
+	s.agents.OnHealth(func(string, []*dockwellv1.InstanceHealth) { heard.Add(1) })
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() {
+		_ = agent.Run(ctx, agent.Config{
+			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
+			Collector: fakeCollector(), Health: r,
+		})
+	}()
+	waitForAgent(t, s.agents, id.ServerID, true)
+	waitUntil(t, "it said Docker hasn't answered", func() bool {
+		got, _ := s.agents.Health(id.ServerID)
+		return got.DockerUnreadableSince.Equal(blind)
+	})
+	if got, _ := s.agents.Health(id.ServerID); got.Said || len(got.Instances) != 0 {
+		t.Errorf("having read nothing, it said %+v", got)
+	}
+	if n := heard.Load(); n != 0 {
+		t.Errorf("what hears how services are heard %d reports from an agent that has read nothing", n)
 	}
 }
 

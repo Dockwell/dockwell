@@ -209,12 +209,23 @@ func (h *Handler) onServer(server, name, project, serviceName string) *dockwellv
 	if h.now != nil {
 		now = h.now()
 	}
+	fresh := report.ReceivedAt.IsZero() || now.Sub(report.ReceivedAt) <= reportGoodFor
+	// An agent that can't read Docker says so, whether or not it ever has.
+	if connected && fresh && !report.DockerUnreadableSince.IsZero() {
+		s.DockerUnreadableSince = timestamppb.New(report.DockerUnreadableSince)
+	}
 	switch {
 	case !connected || !report.Said:
 		s.State = dockwellv1.HealthState_HEALTH_STATE_UNKNOWN
 		return s
-	case !report.ReceivedAt.IsZero() && now.Sub(report.ReceivedAt) > reportGoodFor:
+	case !fresh:
 		s.State, s.Stale = dockwellv1.HealthState_HEALTH_STATE_UNKNOWN, true
+		return s
+	}
+	switch {
+	case len(s.Instances) == 0 && s.DockerUnreadableSince != nil:
+		// What it can't read isn't that nothing runs.
+		s.State = dockwellv1.HealthState_HEALTH_STATE_UNKNOWN
 		return s
 	case len(s.Instances) == 0:
 		s.State = dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING
@@ -280,7 +291,8 @@ var bestFirst = map[dockwellv1.HealthState]int{
 	dockwellv1.HealthState_HEALTH_STATE_STARTING:    4,
 	dockwellv1.HealthState_HEALTH_STATE_UNKNOWN:     3,
 	dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY:   2,
-	dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: 1,
+	dockwellv1.HealthState_HEALTH_STATE_PAUSED:      1,
+	dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: 0,
 }
 
 // Worst is how a service is as a whole, from its servers: a service is only as
@@ -299,8 +311,9 @@ func Worst(states []dockwellv1.HealthState) dockwellv1.HealthState {
 }
 
 var worstFirst = map[dockwellv1.HealthState]int{
-	dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY:   6,
-	dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: 5,
+	dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY:   7,
+	dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING: 6,
+	dockwellv1.HealthState_HEALTH_STATE_PAUSED:      5,
 	dockwellv1.HealthState_HEALTH_STATE_UNKNOWN:     4,
 	dockwellv1.HealthState_HEALTH_STATE_STARTING:    3,
 	dockwellv1.HealthState_HEALTH_STATE_NO_CHECK:    2,

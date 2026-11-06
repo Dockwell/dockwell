@@ -96,12 +96,21 @@ export interface UIStrings {
     action: Readonly<Record<PlanAction, string>>;
     /** The same, once it is done. */
     actionDone: Readonly<Record<PlanAction, string>>;
+    /** The action word of a resource replaced as it was, a restart, before and once done. */
+    restart: Readonly<{ action: string; done: string }>;
     /** The kind shown after a resource's name. */
     kind: Readonly<Record<PlanKind, string>>;
     /** The summary, each after a count: "3 to create". Replacements count apart from changes. */
-    summary: Readonly<{ create: string; change: string; replace: string; destroy: string; ifNewer: string }>;
+    summary: Readonly<{
+      create: string;
+      change: string;
+      replace: string;
+      restart: string;
+      destroy: string;
+      ifNewer: string;
+    }>;
     /** The same, once it is done: "3 created". */
-    summaryDone: Readonly<{ create: string; change: string; replace: string; destroy: string }>;
+    summaryDone: Readonly<{ create: string; change: string; replace: string; restart: string; destroy: string }>;
     /** Stands in for a secret value, which is never shown. */
     hidden: string;
     /** Read before an old and a new value. */
@@ -122,6 +131,8 @@ export const englishStrings: UIStrings = {
     down: "Down",
     deploying: "Deploying",
     stopped: "Stopped",
+    running: "Running",
+    unknown: "Unknown",
   },
   remove: (what) => `Remove ${what}`,
   optional: "Optional",
@@ -184,6 +195,7 @@ export const englishStrings: UIStrings = {
       replace: "Replaced",
       destroy: "Deleted",
     },
+    restart: { action: "Restart", done: "Restarted" },
     kind: {
       project: "project",
       environment: "environment",
@@ -208,10 +220,17 @@ export const englishStrings: UIStrings = {
       create: "to create",
       change: "to update",
       replace: "to replace",
+      restart: "to restart",
       destroy: "to delete",
       ifNewer: "to update if newer",
     },
-    summaryDone: { create: "created", change: "updated", replace: "replaced", destroy: "deleted" },
+    summaryDone: {
+      create: "created",
+      change: "updated",
+      replace: "replaced",
+      restart: "restarted",
+      destroy: "deleted",
+    },
     hidden: "hidden",
     from: "from",
     to: "to",

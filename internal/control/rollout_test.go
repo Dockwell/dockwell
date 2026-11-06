@@ -162,6 +162,62 @@ func testHealthThroughTheAPI(t *testing.T, backend store.Backend) {
 // service, its server, and everyone reading the timeline, as an event of its own.
 func TestHealthOnTheTimeline(t *testing.T) { storetest.Each(t, testHealthOnTheTimeline) }
 
+// A service that keeps changing is one event, which a watch sees change as it goes
+// on: its time, and how often it changed since it began.
+func TestAFlapIsOneEventThatChanges(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	hz1 := f.addServer(t, true)
+	c := changeClient(b, b.origin)
+	made := apply(t, c, propose(t, c, "Run web", serviceEdit("web", "nginx:1.27", nil)))
+	waitChange(t, c, made.GetId(), "web runs", func(ch *dockwellv1.Change) bool { return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED })
+	project := docker.Project(made.GetPlan().GetResources()[0].GetResource().GetScope())
+
+	now := time.Now()
+	r := &controlhealth.Recorder{DB: f.store, Logger: slog.New(slog.DiscardHandler), Now: func() time.Time { return now }}
+	say := func(state dockwellv1.HealthState) {
+		r.Heard(hz1.id.ServerID, []*dockwellv1.InstanceHealth{{Project: project, Service: "web", Number: 1, State: state}})
+		now = now.Add(5 * time.Second)
+		r.Record(t.Context())
+	}
+	w := watchEvents(t, eventClient(b, b.origin), &dockwellv1.WatchEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_HEALTH}})
+	say(dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
+	began := now
+	for range 3 {
+		say(dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
+		say(dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
+	}
+	health := func(w *eventWatch) []*dockwellv1.Event {
+		var out []*dockwellv1.Event
+		for _, e := range w.latest {
+			if e.GetHealth() != nil {
+				out = append(out, e)
+			}
+		}
+		return out
+	}
+	w.until("it keeps changing", func(w *eventWatch) bool { return len(health(w)) == 1 })
+	first := health(w)[0]
+	if first.GetHealth().GetState() != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING || first.GetHealth().GetFlips() < 3 || !first.GetHealth().GetSince().AsTime().Equal(began) {
+		t.Errorf("the event says %v, want not running, 3 changes or more, since %s", first.GetHealth(), began)
+	}
+	for range 6 {
+		say(dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
+		say(dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
+	}
+	w.until("its event changes", func(w *eventWatch) bool {
+		got := health(w)
+		return len(got) == 1 && got[0].GetHealth().GetFlips() >= 12
+	})
+	again := health(w)[0]
+	if again.GetId() != first.GetId() || !again.GetTime().AsTime().After(first.GetTime().AsTime()) || !again.GetHealth().GetSince().AsTime().Equal(began) {
+		t.Errorf("as it went on, the event went from %v to %v, want one event, told later, since %s", first, again, began)
+	}
+	if got := listEvents(t, eventClient(b, b.origin), &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_HEALTH}}); len(got) != 1 {
+		t.Errorf("the timeline has %d health events, want one", len(got))
+	}
+}
+
 func testHealthOnTheTimeline(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
@@ -194,6 +250,10 @@ func testHealthOnTheTimeline(t *testing.T, backend store.Backend) {
 	h := ev.GetHealth()
 	if h.GetState() != dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY || h.GetServerId() != hz1.id.ServerID || h.GetServerName() != "hz-1" || !strings.Contains(h.GetOutput(), "503") {
 		t.Errorf("what it says is %v", h)
+	}
+	// It is told once it has lasted, and says when it came about.
+	if since := h.GetSince().AsTime(); !since.Equal(now.Add(-controlhealth.Dwell)) || !ev.GetTime().AsTime().Equal(now.Truncate(time.Millisecond)) {
+		t.Errorf("it says it came about at %s, told at %s; want %s, told at %s", since, ev.GetTime().AsTime(), now.Add(-controlhealth.Dwell), now)
 	}
 	for name, req := range map[string]*dockwellv1.ListEventsRequest{
 		"its service": {ResourceId: res.GetId(), Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_HEALTH}},

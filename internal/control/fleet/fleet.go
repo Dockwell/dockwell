@@ -65,6 +65,12 @@ type live struct {
 	// ingress is what the server last said of its ingress. It is lost with the
 	// control plane, as the agent says it again when its stream opens.
 	ingress *dockwellv1.IngressStatus
+	// held counts a stream that ended as its agent moved to a new one, until the
+	// next opens or it runs out.
+	held *time.Timer
+	// dockerUnreadableSince is since when its agent hasn't been able to read
+	// Docker, as it last said, on the server's clock. Each stream says it anew.
+	dockerUnreadableSince *timestamppb.Timestamp
 }
 
 // Hub is the fleet's live state.
@@ -148,6 +154,9 @@ func (h *Hub) Removed(id string) {
 		return
 	}
 	delete(h.servers, id)
+	if l.held != nil {
+		l.held.Stop()
+	}
 	h.broadcastLocked(Update{Server: h.toProtoLocked(id, l, false), Removed: true})
 }
 
@@ -178,13 +187,45 @@ func (h *Hub) Attach(ctx context.Context, srv store.Server, inventory *dockwellv
 	l.inventory, l.build, l.lastSeen = inventory, build, now
 	if l.streams == 0 {
 		l.connectedAt = now
+		l.dockerUnreadableSince = nil
 	}
 	l.streams++
+	if l.held != nil {
+		// The stream it held for has come, so it holds no more.
+		l.held.Stop()
+		l.held = nil
+		l.streams--
+	}
 	h.notifyLocked(id, true)
 	h.mu.Unlock()
 
 	var once sync.Once
 	return func() { once.Do(func() { h.detach(id) }) }, nil
+}
+
+// Hold has a server go on reading as connected after its stream ends, as its agent
+// moves to a new one, as it does each time its certificate is renewed: until the
+// next opens, which it does within a second, or for grace, when it reads as gone.
+// Call it before the stream's detach.
+func (h *Hub) Hold(id string, grace time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l, ok := h.servers[id]
+	if !ok || l.held != nil {
+		return
+	}
+	l.streams++
+	var held *time.Timer
+	held = time.AfterFunc(grace, func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if l.held != held || h.servers[id] != l {
+			return
+		}
+		l.held = nil
+		h.detachLocked(id, l)
+	})
+	l.held = held
 }
 
 func (h *Hub) detach(id string) {
@@ -194,6 +235,10 @@ func (h *Hub) detach(id string) {
 	if !ok {
 		return
 	}
+	h.detachLocked(id, l)
+}
+
+func (h *Hub) detachLocked(id string, l *live) {
 	l.streams--
 	if l.streams == 0 {
 		l.connectedAt = time.Time{}
@@ -218,6 +263,20 @@ func (h *Hub) RecordIngress(id string, ingress *dockwellv1.IngressStatus) {
 		return
 	}
 	l.ingress = ingress
+	h.notifyLocked(id, false)
+}
+
+// RecordDocker keeps since when a server's agent hasn't been able to read Docker,
+// as it says with each report of its services' health, and tells whoever is watching
+// when that changes. Nil is that it can.
+func (h *Hub) RecordDocker(id string, since *timestamppb.Timestamp) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l, ok := h.servers[id]
+	if !ok || proto.Equal(l.dockerUnreadableSince, since) {
+		return
+	}
+	l.dockerUnreadableSince = since
 	h.notifyLocked(id, false)
 }
 
@@ -334,6 +393,7 @@ func (h *Hub) toProtoLocked(id string, l *live, withHistory bool) *dockwellv1.Se
 	case l.streams > 0:
 		s.Connection = dockwellv1.Connection_CONNECTION_CONNECTED
 		s.ConnectTime = timestamppb.New(l.connectedAt)
+		s.DockerUnreadableSince = l.dockerUnreadableSince
 	case l.inventory != nil:
 		s.Connection = dockwellv1.Connection_CONNECTION_UNREACHABLE
 	default:

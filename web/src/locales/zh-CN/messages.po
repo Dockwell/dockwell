@@ -11,6 +11,10 @@ msgstr ""
 msgid ", secret"
 msgstr "，密钥"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid ".env file"
+msgstr ".env 文件"
+
 #: src/features/system/StatusPage.tsx
 msgid "(modified)"
 msgstr "（有未提交的修改）"
@@ -57,8 +61,8 @@ msgstr "{0, plural, other {已加载的 {total} 行中有 {shown} 行匹配。}}
 
 #. placeholder {0}: live.length
 #: src/features/changes/ChangeSheet.tsx
-msgid "{0, plural, one {# app is live} other {# apps are live}}"
-msgstr "{0, plural, other {# 个应用已上线}}"
+msgid "{0, plural, one {# app is deployed} other {# apps are deployed}}"
+msgstr "{0, plural, other {# 个应用已部署}}"
 
 #. placeholder {0}: away.length
 #: src/features/changes/ChangeSheet.tsx
@@ -171,6 +175,11 @@ msgstr "{0} 项删除"
 msgid "{0} to replace"
 msgstr "{0} 项替换"
 
+#. placeholder {0}: s.replace
+#: src/features/activity/describe.ts
+msgid "{0} to restart"
+msgstr "{0} 项重启"
+
 #. placeholder {0}: s.change
 #: src/features/activity/describe.ts
 msgid "{0} to update"
@@ -218,6 +227,14 @@ msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保�
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, other {# 台服务器}}"
 
+#: src/features/activity/describe.ts
+msgid "{count, plural, one {It changed once in {span}.} other {It changed # times in {span}.}}"
+msgstr "{count, plural, other {在 {span} 内变化了 # 次。}}"
+
+#: src/features/activity/describe.ts
+msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
+msgstr "{count, plural, other {自上一条记录以来又变化了 # 次。}}"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, other {显示}}"
@@ -250,6 +267,10 @@ msgstr "{count} 分钟"
 msgid "{count} min ago"
 msgstr "{count} 分钟前"
 
+#: src/app/Providers.tsx
+msgid "{count} running"
+msgstr "{count} 个正在运行"
+
 #: src/lib/time.ts
 msgid "{count} s"
 msgstr "{count} 秒"
@@ -262,6 +283,10 @@ msgstr "{count} 秒前"
 msgid "{count} stopped"
 msgstr "{count} 台已停止"
 
+#: src/app/Providers.tsx
+msgid "{count} unknown"
+msgstr "{count} 个状态未知"
+
 #: src/features/overview/Overview.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "{cpus} vCPU"
@@ -270,6 +295,10 @@ msgstr "{cpus} 个 vCPU"
 #: src/features/apps/DomainNote.tsx
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
 msgstr "{days, plural, other {有效期还有 # 天}}"
+
+#: src/features/shell/Topbar.tsx
+msgid "{docker} can't read Docker"
+msgstr "{docker} 台无法读取 Docker"
 
 #: src/features/changes/words.ts
 msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
@@ -304,8 +333,8 @@ msgid "{left} of 10 are left, and each works once. If you lost your authenticato
 msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢了身份验证器应用，请在下方重新设置，这也会生成新的恢复码。"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "{made} is live"
-msgstr "{made} 已上线"
+msgid "{made} is deployed"
+msgstr "{made} 已部署"
 
 #: src/features/logs/LogFoot.tsx
 msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
@@ -343,6 +372,15 @@ msgstr "{name} 在 {server} 上信任代理 {path}"
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符，并以字母开头"
 
+#: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} fails its health check"
+msgstr "{name} 未通过健康检查"
+
+#: src/features/apps/AppOverview.tsx
+msgid "{name} fails its health check on {where}"
+msgstr "{name} 在 {where} 上未通过健康检查"
+
 #: src/features/changes/notices.tsx
 msgid "{name} gets back the data the server kept."
 msgstr "{name} 将取回服务器保留的数据。"
@@ -376,12 +414,45 @@ msgid "{name} hasn't written anything. Its first lines show here as it writes th
 msgstr "{name} 还没有写入任何内容。它一写入，第一批日志就会显示在这里。"
 
 #: src/features/changes/ChangeSheet.tsx
-msgid "{name} is live"
-msgstr "{name} 已上线"
+msgid "{name} is deployed"
+msgstr "{name} 已部署"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} is healthy"
+msgstr "{name} 运行健康"
+
+#: src/features/activity/describe.ts
+msgid "{name} is healthy again on {server}"
+msgstr "{name} 在 {server} 上恢复健康"
 
 #: src/features/apps/AppOverview.tsx
 msgid "{name} is on <0>{image}</0>, as it was before that deploy. Fix what stopped the deploy, then deploy again."
 msgstr "{name} 使用的是 <0>{image}</0>，与那次部署之前相同。请修复导致部署中止的问题，然后重新部署。"
+
+#: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} is paused"
+msgstr "{name} 已暂停"
+
+#: src/features/apps/Health.tsx
+msgid "{name} is paused now, so it serves nothing."
+msgstr "{name} 现在已暂停，因此不提供任何服务。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "{name} is paused on {where}"
+msgstr "{name} 在 {where} 上已暂停"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} is running"
+msgstr "{name} 正在运行"
+
+#: src/features/activity/describe.ts
+msgid "{name} is running again on {server}"
+msgstr "{name} 在 {server} 上重新运行"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} is starting"
+msgstr "{name} 正在启动"
 
 #: src/features/apps/AddPortSheet.tsx
 msgid "{name} is still deploying. You can review this plan once that ends."
@@ -395,10 +466,23 @@ msgstr "{name} 正在等待代理连接"
 msgid "{name} isn't reporting"
 msgstr "{name} 没有上报数据"
 
+#: src/features/apps/AppOverview.tsx
+#: src/features/changes/ChangeSheet.tsx
+msgid "{name} isn't running"
+msgstr "{name} 没有运行"
+
+#: src/features/apps/Health.tsx
+msgid "{name} isn't running now."
+msgstr "{name} 现在没有运行。"
+
 #. placeholder {0}: off.serverName
 #: src/features/logs/LogNote.tsx
 msgid "{name} isn't running on {0}"
 msgstr "{name} 未在 {0} 上运行"
+
+#: src/features/apps/AppOverview.tsx
+msgid "{name} isn't running on {where}"
+msgstr "{name} 没有在 {where} 上运行"
 
 #: src/features/changes/notices.tsx
 msgid "{name} joins the group {path} on {server}"
@@ -408,9 +492,9 @@ msgstr "{name} 在 {server} 上加入用户组 {path}"
 msgid "{name} joins the network {path} on {server}"
 msgstr "{name} 在 {server} 上加入网络 {path}"
 
-#: src/features/apps/AppOverview.tsx
-msgid "{name} keeps running there, but Dockwell can't see it or change it until its agent reconnects. Check that <0>dockwell run</0> is still running on the server."
-msgstr "{name} 仍在那里运行，但在其代理重新连接之前，Dockwell 无法查看或更改它。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
+#: src/features/activity/describe.ts
+msgid "{name} keeps changing on {server}"
+msgstr "{name} 在 {server} 上反复变化"
 
 #: src/features/changes/notices.tsx
 msgid "{name} keeps what is in {names} as it is"
@@ -449,6 +533,10 @@ msgstr "{name} 可访问 {server} 上的 {reach}"
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} 在 {server} 上可访问端口 {path}"
 
+#: src/features/apps/Health.tsx
+msgid "{name} runs now, and fails its health check."
+msgstr "{name} 现在正在运行，但未通过健康检查。"
+
 #: src/features/changes/notices.tsx
 msgid "{name} runs with the latest value of {names}"
 msgstr "{name} 使用 {names} 的最新值运行"
@@ -457,9 +545,21 @@ msgstr "{name} 使用 {names} 的最新值运行"
 msgid "{name} shares {server}'s own network"
 msgstr "{name} 与 {server} 共用其自身的网络"
 
+#: src/features/activity/describe.ts
+msgid "{name} stopped running on {server}"
+msgstr "{name} 在 {server} 上停止运行"
+
 #: src/features/changes/notices.tsx
 msgid "{name} stops HTTPS on {path} on {server}"
 msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
+
+#: src/features/activity/describe.ts
+msgid "{name} turned unhealthy on {server}"
+msgstr "{name} 在 {server} 上变为不健康"
+
+#: src/features/activity/describe.ts
+msgid "{name} was paused on {server}"
+msgstr "{name} 在 {server} 上被暂停"
 
 #: src/app/Providers.tsx
 msgid "{name}, {status}"
@@ -478,6 +578,10 @@ msgstr "{name}：{0}"
 #: src/features/changes/notices.tsx
 msgid "{name}'s {where} holds the value of {variable}"
 msgstr "{name} 的 {where} 中含有 {variable} 的值"
+
+#: src/features/changes/notices.tsx
+msgid "{name}'s {where} holds the value of {variable} from your .env"
+msgstr "{name} 的 {where} 中含有你的 .env 里 {variable} 的值"
 
 #: src/features/changes/notices.tsx
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
@@ -895,6 +999,11 @@ msgstr "一个 {type} 挂载（{reads}）"
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
 
+#. placeholder {0}: check.tcp.port
+#: src/features/apps/AppOverview.tsx
+msgid "A connection to port {0}"
+msgstr "连接端口 {0}"
+
 #: src/features/changes/words.ts
 msgid "A container on the server's own network listens on the server's ports itself, so two can't run at once, and the old one stops first"
 msgstr "服务器自身网络上的容器直接监听服务器的端口，因此两个容器不能同时运行，旧容器会先停止"
@@ -914,6 +1023,10 @@ msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容�
 #: src/features/changes/words.ts
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果它在 {healthyWithin} 内未变为健康，新容器会被移除，正在运行的容器保留"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "A restart has no undo, as it changes nothing to go back to."
+msgstr "重启无法撤销，因为它不会改变任何可恢复的内容。"
 
 #: src/features/changes/notices.tsx
 msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't."
@@ -938,6 +1051,10 @@ msgstr "密钥需要一个值。"
 #: src/features/activity/describe.ts
 msgid "a server"
 msgstr "一台服务器"
+
+#: src/features/activity/describe.ts
+msgid "A service"
+msgstr "某个服务"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "A step failed, so the change stopped there."
@@ -1049,6 +1166,10 @@ msgstr "再添加一种登录方式"
 #: src/features/variables/VariablesPage.tsx
 msgid "Add a variable or secret to {envName}"
 msgstr "向 {envName} 添加变量或密钥"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Add an .env file"
+msgstr "添加 .env 文件"
 
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/auth/ProfilePage.tsx
@@ -1162,6 +1283,10 @@ msgstr "全部健康"
 msgid "All levels"
 msgstr "全部级别"
 
+#: src/features/apps/AppOverview.tsx
+msgid "All of it"
+msgstr "查看全部"
+
 #: src/features/apps/AppsPage.tsx
 msgid "All servers"
 msgstr "所有服务器"
@@ -1260,12 +1385,16 @@ msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
 
 #: src/features/changes/notices.tsx
-msgid "Anyone who can read this app can see it. It can't be hidden there, so don't pass a secret there."
-msgstr "能读取此应用的任何人都能看到它。那里无法隐藏它，所以不要在那里传入机密。"
+msgid "Anyone who can read this app can see it. It can't be hidden there, so if it's a secret, set it in environment for the app to read instead."
+msgstr "能读取此应用的任何人都能看到它。这里无法隐藏它，因此如果它是机密，请改为在 environment 中设置，让应用从那里读取。"
 
 #: src/features/changes/notices.tsx
 msgid "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
 msgstr "能读取此应用的任何人都能看到它。它的值含有空格、引号或 Compose 会当作这一行一部分来读的其他字符，所以一个名称无法代表它。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
+
+#: src/features/changes/notices.tsx
+msgid "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
+msgstr "能读取此应用的任何人都能看到它。只有变量的值会被隐藏，因此不要把机密写在变量名中。"
 
 #: src/features/changes/words.ts
 msgid "API token"
@@ -1413,6 +1542,12 @@ msgstr "无法生成计划"
 msgid "Can't reach the control plane"
 msgstr "无法连接到控制平面"
 
+#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/ServersPanel.tsx
+#: src/features/shell/Topbar.tsx
+msgid "Can't read Docker"
+msgstr "无法读取 Docker"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Can't read the file yet"
 msgstr "暂时无法读取此文件"
@@ -1534,6 +1669,7 @@ msgstr "请检查应用内的端口，然后重试。"
 msgid "Checked"
 msgstr "已检查"
 
+#: src/features/apps/Health.tsx
 #: src/features/auth/AuthGate.tsx
 #: src/features/changes/words.ts
 msgid "Checking"
@@ -2043,6 +2179,11 @@ msgstr "将 {wanted} 部署到 {name}"
 msgid "Deploy it, and its logs show here as it starts."
 msgstr "部署后，它启动时日志就会显示在这里。"
 
+#: src/features/apps/AppOverview.tsx
+#: src/features/changes/RollbackLine.tsx
+msgid "Deploy what should run, or fix it on the server."
+msgstr "请部署应当运行的版本，或在服务器上修复。"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Deploy your first app"
 msgstr "部署你的第一个应用"
@@ -2053,8 +2194,9 @@ msgstr "部署你的第一个应用"
 msgid "Deployed"
 msgstr "部署时间"
 
+#: src/features/apps/revision.ts
 #: src/features/apps/words.ts
-msgctxt "An app whose servers the fleet hasn't said anything about yet"
+msgctxt "An app whose latest revision is deployed"
 msgid "Deployed"
 msgstr "已部署"
 
@@ -2119,6 +2261,10 @@ msgid "Directory"
 msgstr "目录"
 
 #: src/features/apps/NewAppSheet.tsx
+msgid "Directory on the server"
+msgstr "服务器上的目录"
+
+#: src/features/apps/NewAppSheet.tsx
 msgid "Discard"
 msgstr "丢弃"
 
@@ -2155,6 +2301,14 @@ msgstr "{domain} 的 DNS 指向 {found}。此服务器自身的地址都是私�
 msgid "Docker"
 msgstr "Docker"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
+msgstr "Docker 只会在它出错退出时重启它，而现在不会。请重启或部署。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy."
+msgstr "Docker 只会在它自行停止时重启它，因此是有人停止了它。请重启或部署。"
+
 #: src/features/changes/words.ts
 msgid "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
 msgstr "{server} 下次重启时，Docker 会再次启动 {list}，它可能从代理手中夺走 80 或 443 端口，使此路由无法响应。请用 docker update --restart=no {command} 让它保持停止"
@@ -2179,6 +2333,10 @@ msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方�
 #: src/features/changes/words.ts
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Dockwell 无法读取 {cantTell} 的实际位置，因此无法确定两个容器不会写入同一处，所以旧容器先停止。如果应用支持，请将其发布顺序设置为先启动"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that <0>dockwell run</0> is still running on the server."
+msgstr "在代理重新连接之前，Dockwell 看不到也无法更改那里的 {name}。它很可能仍在运行。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell can't tell whether <0>{next}</0> started"
@@ -2236,6 +2394,10 @@ msgstr "Dockwell 进行此更改以回滚一次失败的更改。"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "如果卷 <0>{source}</0> 还不存在，Dockwell 会创建它。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Dockwell put <0>{image}</0> back, as it was before that deploy."
+msgstr "Dockwell 已恢复 <0>{image}</0>，与那次部署之前一样。"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell put <0>{name}</0> back as it was"
@@ -2315,6 +2477,7 @@ msgid "driver"
 msgstr "驱动"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/changes/notices.tsx
 msgid "driver options"
 msgstr "驱动选项"
 
@@ -2403,6 +2566,7 @@ msgid "environment {environment}"
 msgstr "环境 {environment}"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/changes/notices.tsx
 msgid "environment variable names"
 msgstr "环境变量名称"
 
@@ -2440,8 +2604,8 @@ msgid "Events: {caption}"
 msgstr "事件：{caption}"
 
 #: src/features/activity/ActivityPage.tsx
-msgid "Every change, server event and access grant, newest first"
-msgstr "所有变更、服务器事件和访问授权，最新的在前"
+msgid "Every change, server event, access grant and change of health, newest first"
+msgstr "所有变更、服务器事件、访问授权和健康变化，最新的在前"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Everything is back as it was"
@@ -2528,8 +2692,16 @@ msgid "Fix lines {line}–{end} to review the plan"
 msgstr "修复第 {line}–{end} 行后即可审阅计划"
 
 #: src/features/apps/NewAppSheet.tsx
+msgid "Fix the .env file to review the plan"
+msgstr "请修复 .env 文件后再查看计划"
+
+#: src/features/apps/NewAppSheet.tsx
 msgid "Fix the file to review the plan"
 msgstr "修复文件后即可查看计划"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Fix what stopped the deploy, then deploy again."
+msgstr "请修复导致部署失败的问题，然后重新部署。"
 
 #: src/features/shell/Rail.tsx
 msgid "Fleet"
@@ -2559,6 +2731,10 @@ msgstr "跟随中"
 msgid "For {connected}"
 msgstr "已连接 {connected}"
 
+#: src/features/apps/Health.tsx
+msgid "for {span}"
+msgstr "已持续 {span}"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
 msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
@@ -2566,6 +2742,10 @@ msgstr "用于前面没有任何代理的私有网络。否则，发往服务器
 #: src/features/auth/TokensPanel.tsx
 msgid "For a script, the CLI or an integration"
 msgstr "用于脚本、CLI 或集成"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
+msgstr "用于文件使用的变量。它只用于读取文件和生成计划，不会保存在此浏览器中，值只有在文件写入的地方才会留下记录。"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Free"
@@ -2631,6 +2811,10 @@ msgstr "转到最后一处"
 msgid "Go to the overview"
 msgstr "前往概览"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Health"
+msgstr "健康"
+
 #: src/features/apps/words.ts
 #: src/features/changes/fields.tsx
 #: src/features/changes/notices.tsx
@@ -2658,6 +2842,8 @@ msgid "health check timeout"
 msgstr "健康检查超时"
 
 #: src/app/Providers.tsx
+#: src/features/activity/describe.ts
+#: src/features/apps/Health.tsx
 msgid "Healthy"
 msgstr "健康"
 
@@ -2669,6 +2855,10 @@ msgstr "已隐藏"
 #: src/features/variables/VariablesPage.tsx
 msgid "Hidden"
 msgstr "已隐藏"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Hide"
+msgstr "隐藏"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Hide {name}"
@@ -2844,6 +3034,10 @@ msgstr "在此期间无法读取；服务器恢复连接且满 7 天后，这些
 msgid "It can't tell what is running there until then. Check that the server and its agent are up."
 msgstr "在此之前，无法确定那里正在运行什么。请检查服务器及其代理是否正常运行。"
 
+#: src/features/apps/Health.tsx
+msgid "It has no container on this server."
+msgstr "它在这台服务器上没有容器。"
+
 #: src/features/changes/notices.tsx
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
@@ -2855,6 +3049,10 @@ msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健
 #: src/features/changes/words.ts
 msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
 msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健康，新容器会被移除，已停止的容器保持停止"
+
+#: src/features/apps/Health.tsx
+msgid "It isn't placed on a server."
+msgstr "它没有部署到任何服务器。"
 
 #: src/features/servers/ServerCallout.tsx
 msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
@@ -2892,6 +3090,10 @@ msgstr "它的访问地址可能不止这里所示。没有任何内容发生变
 msgid "It may have been deleted. Dockwell has no logs under this address."
 msgstr "它可能已被删除。Dockwell 在此地址下没有日志。"
 
+#: src/features/apps/AppOverview.tsx
+msgid "It may well be running. Check that <0>dockwell run</0> is still running on {server}."
+msgstr "它很可能仍在运行。请检查 {server} 上的 <0>dockwell run</0> 是否仍在运行。"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "它从未停止。这次变更失败后,Dockwell 移除了它创建的内容。"
@@ -2919,6 +3121,14 @@ msgstr "它以特权模式运行，可使用服务器上的所有设备和能力
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs the new image with the rest as it is"
 msgstr "运行新镜像，其余保持不变"
+
+#: src/features/apps/AppOverview.tsx
+msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
+msgstr "在有人恢复它之前，它不提供任何服务。重启或部署也能解决这个问题。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
+msgstr "在有人做出更改之前，它会一直保持运行。请修复检查报告的问题或检查本身，然后部署。"
 
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from."
@@ -2968,6 +3178,26 @@ msgstr "它的代理最后一次上报于 {seen}，此处显示的是当时的�
 msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
 msgstr "其中的应用会以这个名称显示为一行，并使用独立的网络。再次以此名称导入会更新它们。"
 
+#: src/features/apps/Health.tsx
+msgid "Its check hasn't finished yet."
+msgstr "它的检查还没有完成。"
+
+#: src/features/apps/Health.tsx
+msgid "Its check hasn't passed yet: {said}."
+msgstr "它的检查还没有通过：{said}。"
+
+#: src/features/apps/Health.tsx
+msgid "Its check keeps failing."
+msgstr "它的检查一直失败。"
+
+#: src/features/apps/Health.tsx
+msgid "Its check passed."
+msgstr "它的检查已通过。"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Its check said"
+msgstr "检查结果"
+
 #: src/features/logs/LogNote.tsx
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
@@ -2992,6 +3222,7 @@ msgstr "能读取时，它的日志就会显示在这里。"
 msgid "Its rollout order says to stop first, so there are never two"
 msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器"
 
+#: src/features/activity/describe.ts
 #: src/features/changes/notices.tsx
 msgid "its server"
 msgstr "它的服务器"
@@ -3091,8 +3322,8 @@ msgstr "级别根据每行文本判断。未标明级别的行算作信息。双
 msgid "Light"
 msgstr "浅色"
 
-#. placeholder {0}: refused.line
-#. placeholder {1}: refused.text
+#. placeholder {0}: onFileField.line
+#. placeholder {1}: onFileField.text
 #: src/features/apps/NewAppSheet.tsx
 msgid "Line {0}: {1}"
 msgstr "第 {0} 行：{1}"
@@ -3124,12 +3355,6 @@ msgstr "目前在此监听的是：{listening}"
 #: src/features/logs/LogsPage.tsx
 msgid "Live"
 msgstr "实时"
-
-#: src/features/apps/revision.ts
-#: src/features/apps/words.ts
-msgctxt "An app whose latest revision is deployed"
-msgid "Live"
-msgstr "运行中"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
@@ -3336,9 +3561,9 @@ msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
 msgid "names values in"
 msgstr "引用值的字段"
 
-#. placeholder {0}: refused.line
-#. placeholder {1}: refused.to
-#. placeholder {2}: refused.text
+#. placeholder {0}: onFileField.line
+#. placeholder {1}: onFileField.to
+#. placeholder {2}: onFileField.text
 #: src/features/apps/NewAppSheet.tsx
 msgid "Near lines {0}–{1}: {2}"
 msgstr "第 {0}–{1} 行附近：{2}"
@@ -3495,9 +3720,21 @@ msgstr "没有步骤：它已离开集群"
 msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
 msgstr "还没有令牌。为每个脚本或集成各创建一个，这样就能单独撤销其中一个。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "No undo"
+msgstr "无法撤销"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "{envName} 中还没有变量或密钥。请在上方添加第一个，服务随后按名称使用它。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Nobody can say how {name} runs"
+msgstr "无法确定 {name} 的运行情况"
+
+#: src/features/apps/Health.tsx
+msgid "Nobody can say how {name} runs now."
+msgstr "现在无法确定 {name} 的运行情况。"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -3506,6 +3743,18 @@ msgstr "未上报"
 #: src/features/apps/AppOverview.tsx
 msgid "None set"
 msgstr "未设置"
+
+#: src/features/apps/AppOverview.tsx
+msgid "None set here. The image may have one."
+msgstr "这里没有设置。镜像可能自带检查。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "None. Without one, Running only means it started."
+msgstr "无。没有检查时，“正在运行”只表示它已启动。"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
+msgstr "自 {ago}起没有响应，因此无法确定这里运行着什么。请用 <0>systemctl status docker</0> 检查它是否在运行。"
 
 #: src/features/apps/DomainNote.tsx
 #: src/features/servers/ServerPanels.tsx
@@ -3532,6 +3781,11 @@ msgstr "未加载"
 msgid "Not placed"
 msgstr "未部署"
 
+#: src/features/activity/describe.ts
+#: src/features/apps/Health.tsx
+msgid "Not running"
+msgstr "没有运行"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "Not used yet"
 msgstr "尚未使用"
@@ -3544,6 +3798,42 @@ msgstr "服务器上没有任何变化。请重新加载页面再试。"
 #: src/features/apps/AddPortSheet.tsx
 msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
+
+#: src/features/changes/words.ts
+msgid "Nothing checks it, so a new container takes over once it has kept running for {soak}, and what runs goes on serving until then. If it doesn't, Dockwell rolls this back"
+msgstr "没有任何检查，因此新容器持续运行 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果做不到，Dockwell 会回滚此更改"
+
+#: src/features/changes/words.ts
+msgid "Nothing checks it, so a new container takes over once it has kept running for {soak}, and what runs goes on serving until then. If it doesn't, the new one goes, and what runs stays"
+msgstr "没有任何检查，因此新容器持续运行 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果做不到，新容器会被移除，正在运行的容器保留"
+
+#: src/features/changes/words.ts
+msgid "Nothing checks it, so a new container takes over once it starts, and what runs goes on serving until then. If it doesn't, Dockwell rolls this back"
+msgstr "没有任何检查，因此新容器启动后即接管，在此之前正在运行的容器继续提供服务。如果它没有启动，Dockwell 会回滚此更改"
+
+#: src/features/changes/words.ts
+msgid "Nothing checks it, so a new container takes over once it starts, and what runs goes on serving until then. If it doesn't, the new one goes, and what runs stays"
+msgstr "没有任何检查，因此新容器启动后即接管，在此之前正在运行的容器继续提供服务。如果它没有启动，新容器会被移除，正在运行的容器保留"
+
+#: src/features/changes/words.ts
+msgid "Nothing checks it, so it has to keep running for {soak}. If it doesn't, Dockwell rolls this back"
+msgstr "没有任何检查，因此它必须持续运行 {soak}。如果做不到，Dockwell 会回滚此更改"
+
+#: src/features/changes/words.ts
+msgid "Nothing checks it, so it has to keep running for {soak}. If it doesn't, the new one goes, and what was stopped stays stopped"
+msgstr "没有任何检查，因此它必须持续运行 {soak}。如果做不到，新容器会被移除，已停止的容器保持停止"
+
+#: src/features/changes/words.ts
+msgid "Nothing checks it, so it only has to start. If it doesn't, Dockwell rolls this back"
+msgstr "没有任何检查，因此它只需启动。如果它没有启动，Dockwell 会回滚此更改"
+
+#: src/features/changes/words.ts
+msgid "Nothing checks it, so it only has to start. If it doesn't, the new one goes, and what was stopped stays stopped"
+msgstr "没有任何检查，因此它只需启动。如果它没有启动，新容器会被移除，已停止的容器保持停止"
+
+#: src/features/apps/Health.tsx
+msgid "Nothing checks it, so this only means it started."
+msgstr "没有任何检查，因此这只表示它已启动。"
 
 #: src/features/logs/LogContext.tsx
 msgid "Nothing else was written around this line."
@@ -3614,6 +3904,10 @@ msgstr "服务器之外还无法访问这些应用。"
 msgid "Nothing runs until you apply the plan"
 msgstr "应用计划之前不会运行任何内容"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Nothing starts it again on its own. Restart it, or deploy."
+msgstr "没有任何机制会自动再次启动它。请重启或部署。"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing to change"
 msgstr "没有需要更改的内容"
@@ -3642,7 +3936,6 @@ msgstr "/ {total}"
 msgid "Off"
 msgstr "关闭"
 
-#: src/features/apps/AppOverview.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/changes/PlanSteps.tsx
 msgid "Offline"
@@ -3659,6 +3952,11 @@ msgstr "在 {networks} 上，新容器通过检查之前，其他服务就可以
 #: src/features/changes/words.ts
 msgid "On {networks}, other services can reach the new container by its service's name before it has passed its check, beside the old one, as Docker can't add a name to a container later"
 msgstr "在 {networks} 上，其他服务可以在新容器通过检查之前通过服务名访问到它，与旧容器并存，因为 Docker 无法在之后为容器添加名称"
+
+#. placeholder {0}: check.http.port
+#: src/features/apps/AppOverview.tsx
+msgid "on port {0}"
+msgstr "端口 {0}"
 
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -3729,6 +4027,10 @@ msgstr "打开计划"
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the activity"
 msgstr "打开动态"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Open the app"
+msgstr "打开应用"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the apps"
@@ -3885,6 +4187,8 @@ msgid "Pause to read"
 msgstr "暂停以便阅读"
 
 #: src/app/Providers.tsx
+#: src/features/activity/describe.ts
+#: src/features/apps/Health.tsx
 msgid "Paused"
 msgstr "已暂停"
 
@@ -4234,6 +4538,10 @@ msgstr "只读"
 msgid "read-write"
 msgstr "读写"
 
+#: src/features/apps/Health.tsx
+msgid "Reading how it runs."
+msgstr "正在读取运行情况。"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Reading logs"
 msgstr "正在读取日志"
@@ -4265,6 +4573,10 @@ msgstr "最近的变更"
 #: src/features/apps/AppOverview.tsx
 msgid "Recent deployments"
 msgstr "最近部署"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Recent health"
+msgstr "最近的健康情况"
 
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
@@ -4397,9 +4709,22 @@ msgstr "资源"
 msgid "restart"
 msgstr "重启"
 
+#: src/app/Providers.tsx
+#: src/features/apps/AppLayout.tsx
+msgid "Restart"
+msgstr "重启"
+
 #: src/features/apps/words.ts
 msgid "restart policy"
 msgstr "重启策略"
+
+#: src/app/Providers.tsx
+msgid "restarted"
+msgstr "已重启"
+
+#: src/app/Providers.tsx
+msgid "Restarted"
+msgstr "已重启"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/words.ts
@@ -4635,8 +4960,9 @@ msgstr "请通过 SSH 在服务器上运行这条命令获取新链接。它只�
 msgid "Run this on the server over SSH. It prints a sign-in link that works once."
 msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只能用一次的登录链接。"
 
-#: src/features/apps/AppLayout.tsx
-#: src/features/apps/AppOverview.tsx
+#: src/app/Providers.tsx
+#: src/features/activity/describe.ts
+#: src/features/apps/Health.tsx
 #: src/features/changes/words.ts
 msgid "Running"
 msgstr "正在运行"
@@ -4685,6 +5011,14 @@ msgstr "保存"
 #: src/features/auth/TotpPanel.tsx
 msgid "Save your recovery codes"
 msgstr "保存你的恢复码"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Say where the file is to review the plan"
+msgstr "请说明文件所在位置后再查看计划"
+
+#: src/features/apps/NewAppSheet.tsx
+msgid "Say which directory it's in"
+msgstr "说明它所在的目录"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Scan this code with the app."
@@ -4740,6 +5074,10 @@ msgstr "密钥 {from}"
 msgid "secrets"
 msgstr "密钥"
 
+#: src/features/apps/AppOverview.tsx
+msgid "See its logs"
+msgstr "查看日志"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "See the guide"
 msgstr "查看指南"
@@ -4765,8 +5103,8 @@ msgstr "发送"
 msgid "server"
 msgstr "服务器"
 
+#: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AddDomainSheet.tsx
-#: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
 #: src/features/servers/ServerOverview.tsx
@@ -4829,6 +5167,10 @@ msgstr "设置"
 msgid "Settings, status and account"
 msgstr "设置、状态和账户"
 
+#: src/features/apps/NewAppSheet.tsx
+msgid "Show"
+msgstr "显示"
+
 #: src/app/Providers.tsx
 msgid "Show all of this line"
 msgstr "显示整行"
@@ -4876,6 +5218,10 @@ msgstr "显示当前日志"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show the value"
 msgstr "显示值"
+
+#: src/features/apps/AppsPage.tsx
+msgid "Show them first"
+msgstr "优先显示"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Show what happened on {name}"
@@ -4999,9 +5345,21 @@ msgstr "某人"
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "有人为你的账户连续输错了 {count} 次验证码，最后一次在{when}。只有确认是你本人时才解锁验证码登录。否则可能有人知道了你的邮箱；你的通行密钥和恢复码仍然可用。"
 
+#: src/features/apps/Health.tsx
+msgid "Someone paused it, so it serves nothing and no check runs. Unpause it with {command}."
+msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。请用 {command} 恢复。"
+
 #: src/features/changes/words.ts
 msgid "something else on the server"
 msgstr "服务器上的其他内容"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
+msgstr "{name} 有部分在运行，但 Dockwell 无法确定是哪个版本。请检查后部署应当运行的版本，或在服务器上修复。"
+
+#: src/features/changes/RollbackLine.tsx
+msgid "Something of <0>{name}</0> runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
+msgstr "<0>{name}</0> 有部分在运行，但 Dockwell 无法确定是哪个版本。请检查后部署应当运行的版本，或在服务器上修复。"
 
 #: src/features/auth/messages.ts
 msgid "Something went wrong. Try again."
@@ -5023,12 +5381,15 @@ msgstr "日志开头"
 msgid "Start with read only, and allow writes only when the job needs them."
 msgstr "先从只读开始，只在任务需要时才允许写入。"
 
+#: src/features/apps/Health.tsx
+msgid "Starting"
+msgstr "正在启动"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "State"
 msgstr "状态"
 
 #: src/features/apps/AppDeployments.tsx
-#: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "Status"
 msgstr "状态"
@@ -5175,6 +5536,38 @@ msgstr "{type} 挂载 {at}（{reads}）"
 msgid "The agent hasn't said what this server is yet."
 msgstr "代理尚未上报这台服务器的信息。"
 
+#: src/features/apps/Health.tsx
+msgid "The agent on {name} can't read Docker, since {since}, so it can't say how this runs. Check that Docker is running there, with {command}."
+msgstr "{name} 上的代理自 {since}起无法读取 Docker，因此无法确定它的运行情况。请用 {command} 检查那里的 Docker 是否在运行。"
+
+#: src/features/apps/Health.tsx
+msgid "The agent on {name} hasn't read how this runs yet."
+msgstr "{name} 上的代理还没有读取它的运行情况。"
+
+#: src/features/apps/Health.tsx
+msgid "The agent on {name} hasn't said how this runs lately."
+msgstr "{name} 上的代理最近没有报告它的运行情况。"
+
+#: src/features/apps/Health.tsx
+msgid "The agent on {name} hasn't said how this runs since {ago}, when it read {word}."
+msgstr "{name} 上的代理自 {ago}起没有报告它的运行情况，当时的状态是{word}。"
+
+#: src/features/apps/Health.tsx
+msgid "The agent on {name} isn't connected, so it can't say how this runs now."
+msgstr "{name} 上的代理没有连接，因此现在无法确定它的运行情况。"
+
+#: src/features/apps/Health.tsx
+msgid "The agent on {name} isn't connected, so it can't say how this runs now. It last read {word}, {ago}."
+msgstr "{name} 上的代理没有连接，因此现在无法确定它的运行情况。上次的状态是{word}，{ago}。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "The agent on {server} can't read Docker, so it can't say what runs there. Check that Docker is running on the server, with <0>systemctl status docker</0>."
+msgstr "{server} 上的代理无法读取 Docker，因此无法确定那里运行着什么。请用 <0>systemctl status docker</0> 检查服务器上的 Docker 是否在运行。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "The agent on {server} is connected, and hasn't said how it runs lately. It may well be running. If this goes on, read the agent's log on the server, with <0>journalctl -u dockwell</0>."
+msgstr "{server} 上的代理已连接，但最近没有报告它的运行情况。它很可能仍在运行。如果一直这样，请在服务器上用 <0>journalctl -u dockwell</0> 查看代理的日志。"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "The agent reports no disks"
 msgstr "代理没有上报磁盘"
@@ -5255,6 +5648,10 @@ msgstr "用户组 {path}，等同于 root"
 msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
 msgstr "用户组 {path}，如果它是服务器上拥有 Docker 套接字的用户组，则等同于 root"
 
+#: src/features/activity/describe.ts
+msgid "The health of {name} changed on {server}"
+msgstr "{name} 在 {server} 上的健康状态发生了变化"
+
 #: src/features/apps/AppOverview.tsx
 msgid "The image's own"
 msgstr "镜像自带"
@@ -5306,6 +5703,30 @@ msgstr "所有者账户未创建"
 #: src/features/changes/words.ts
 msgid "The panel"
 msgstr "面板"
+
+#: src/features/apps/Health.tsx
+msgid "The panel can't reach the control plane, so it can't say how this runs. It keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定它的运行情况。面板会继续尝试。"
+
+#: src/features/apps/Health.tsx
+msgid "The panel can't reach the control plane, so it can't say how this runs. It last heard {ago}, and keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定它的运行情况。上次收到消息是在{ago}，面板会继续尝试。"
+
+#: src/features/servers/FleetNotes.tsx
+msgid "The panel can't reach the control plane, so it can't say how this server is. It last heard {ago}, and keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定这台服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
+
+#: src/features/apps/Health.tsx
+msgid "The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定你的应用的运行情况，它们显示为未知。面板会继续尝试。"
+
+#: src/features/apps/Health.tsx
+msgid "The panel can't reach the control plane, so it can't say how your apps run, and they read Unknown. It last heard {ago}, and keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定你的应用的运行情况，它们显示为未知。上次收到消息是在{ago}，面板会继续尝试。"
+
+#: src/features/servers/FleetNotes.tsx
+msgid "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定你的服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
 
 #: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
@@ -5468,6 +5889,30 @@ msgstr "这个浏览器"
 msgid "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 msgstr "这个浏览器无法在此地址使用通行密钥。请通过 SSH 隧道在 http://localhost 打开面板，或通过 HTTPS 在它的域名上打开。"
 
+#: src/features/apps/Health.tsx
+msgid "This browser is offline, so the panel can't say how this runs. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定它的运行情况。请检查你的网络连接。"
+
+#: src/features/apps/Health.tsx
+msgid "This browser is offline, so the panel can't say how this runs. It last heard {ago}. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定它的运行情况。上次收到消息是在{ago}。请检查你的网络连接。"
+
+#: src/features/servers/FleetNotes.tsx
+msgid "This browser is offline, so the panel can't say how this server is. It last heard {ago}. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定这台服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+
+#: src/features/apps/Health.tsx
+msgid "This browser is offline, so the panel can't say how your apps run, and they read Unknown. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定你的应用的运行情况，它们显示为未知。请检查你的网络连接。"
+
+#: src/features/apps/Health.tsx
+msgid "This browser is offline, so the panel can't say how your apps run, and they read Unknown. It last heard {ago}. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定你的应用的运行情况，它们显示为未知。上次收到消息是在{ago}。请检查你的网络连接。"
+
+#: src/features/servers/FleetNotes.tsx
+msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定你的服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+
 #: src/features/auth/messages.ts
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
 msgstr "这个认领链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 dockwell claim 获取新链接。"
@@ -5623,6 +6068,10 @@ msgid "to replace"
 msgstr "项待替换"
 
 #: src/app/Providers.tsx
+msgid "to restart"
+msgstr "项待重启"
+
+#: src/app/Providers.tsx
 msgid "to run"
 msgstr "运行"
 
@@ -5704,6 +6153,10 @@ msgstr "开启"
 msgid "Turned off codes from an authenticator app"
 msgstr "关闭了身份验证器应用验证码"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Turned off. Without one, Running only means it started."
+msgstr "已关闭。没有检查时，“正在运行”只表示它已启动。"
+
 #: src/features/activity/describe.ts
 msgid "Turned on codes from an authenticator app"
 msgstr "开启了身份验证器应用验证码"
@@ -5782,8 +6235,18 @@ msgstr "撤销者"
 msgid "Unfold {title}"
 msgstr "展开 {title}"
 
+#: src/features/activity/describe.ts
+#: src/features/apps/Health.tsx
+msgid "Unhealthy"
+msgstr "不健康"
+
+#: src/app/Providers.tsx
+#: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
 #: src/features/changes/words.ts
+#: src/features/overview/Overview.tsx
+#: src/features/servers/FleetNotes.tsx
+#: src/features/servers/ServerOverview.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Unknown"
 msgstr "未知"
@@ -6163,9 +6626,9 @@ msgstr "时间"
 msgid "When it exits with an error"
 msgstr "出错退出时"
 
-#: src/features/apps/AppOverview.tsx
-msgid "Where it runs"
-msgstr "运行位置"
+#: src/features/apps/NewAppSheet.tsx
+msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
+msgstr "文件所在的位置，例如 <0>/opt/shop</0>。相对于它的路径（例如 <1>./data</1>）从这里开始，每个都是你在计划中批准的服务器路径。"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Which project is it for?"
@@ -6248,6 +6711,10 @@ msgstr "你尚未登录"
 #: src/features/auth/messages.ts
 msgid "You're not signed in. Sign in, then try again."
 msgstr "你尚未登录。请登录后重试。"
+
+#: src/features/servers/FleetNotes.tsx
+msgid "You're offline"
+msgstr "你已离线"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Your domain gets a certificate automatically."

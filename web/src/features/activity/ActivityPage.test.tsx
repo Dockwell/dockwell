@@ -9,6 +9,7 @@ import {
   ChangeState,
   EventKind,
   FieldOp,
+  HealthState,
   type ListEventsRequest,
   PlanAction,
   PlannedResourceSchema,
@@ -614,5 +615,139 @@ describe("Activity", () => {
     // A change's summary is its author's words, and stays as written.
     expect(screen.getByRole("row", { name: /Create the project shop/ })).toHaveTextContent("2 项创建");
     expect(screen.getByRole("radiogroup", { name: "事件类型" })).toBeVisible();
+  });
+});
+
+describe("Activity's restarts", () => {
+  it("counts what a restart replaces as restarted, not replaced", async () => {
+    const restart = applied(shopPlanned(), new Date(Date.now() - 2 * 60_000));
+    restart.id = "chg_restart";
+    restart.summary = "Restart web";
+    restart.restart = true;
+    if (restart.plan?.summary) {
+      restart.plan.summary.create = 0;
+      restart.plan.summary.replace = 1;
+    }
+    renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([changeEvent(restart)])), listEvents: () => ({}) },
+    });
+    const row = await screen.findByRole("row", { name: /Restart web/ });
+    expect(row).toHaveTextContent("1 to restart");
+    expect(row).not.toHaveTextContent("to replace");
+  });
+});
+
+describe("Activity's health", () => {
+  const health = (id: string, state: HealthState, flips = 0, sinceMs?: number) =>
+    auditEvent({
+      id,
+      kind: EventKind.HEALTH,
+      action: "service.health",
+      time: timestampFromDate(new Date(Date.now() - HOUR)),
+      subject: { id: "svc_web", name: "web" },
+      health: {
+        serverId: "srv_1",
+        serverName: "hz-1",
+        state,
+        previous: HealthState.HEALTHY,
+        flips,
+        output: "GET / answered 503",
+        ...(sinceMs === undefined ? {} : { since: timestampFromDate(new Date(Date.now() - HOUR - sinceMs)) }),
+      },
+    });
+
+  it.each([
+    [HealthState.UNHEALTHY, "web turned unhealthy on hz-1", "Unhealthy"],
+    [HealthState.NOT_RUNNING, "web stopped running on hz-1", "Not running"],
+    [HealthState.PAUSED, "web was paused on hz-1", "Paused"],
+    [HealthState.HEALTHY, "web is healthy again on hz-1", "Healthy"],
+    [HealthState.NO_CHECK, "web is running again on hz-1", "Running"],
+  ])("says what happened, in words of its own, for state %s", async (state, title, word) => {
+    const { container } = renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([health("evt_1", state)])), listEvents: () => ({}) },
+    });
+    const row = await screen.findByRole("row", { name: new RegExp(title) });
+    expect(row).toHaveTextContent(word);
+    // Its word is the state, which a screen reader hears alone: not "Stopped: Paused".
+    expect(row.querySelector(".dw-tl-meta .dw-sr")).toBeNull();
+    await expectAccessible(container);
+  });
+
+  it("marks a pause as its state is, grey, and what went wrong in its tone", async () => {
+    renderAt("/activity", {
+      events: {
+        watchEvents: feedOf(snapshot([health("evt_1", HealthState.PAUSED), health("evt_2", HealthState.NOT_RUNNING)])),
+        listEvents: () => ({}),
+      },
+    });
+    const paused = await screen.findByRole("row", { name: /web was paused/ });
+    expect(paused.querySelector(".activity-mark")).not.toHaveClass("dw-tone-warning");
+    expect(paused.querySelector(".dw-status")).toHaveClass("dw-tone-idle");
+    const down = screen.getByRole("row", { name: /web stopped running/ });
+    expect(down.querySelector(".activity-mark")).toHaveClass("dw-tone-critical");
+  });
+
+  it("is dated when it happened, which the server tells once it has lasted", async () => {
+    renderAt("/activity", {
+      events: {
+        watchEvents: feedOf(snapshot([health("evt_1", HealthState.NOT_RUNNING, 0, 2 * HOUR)])),
+        listEvents: () => ({}),
+      },
+    });
+    const row = await screen.findByRole("row", { name: /web stopped running/ });
+    // Two hours before it was told, an hour ago: a server tells within 35 s, so only a test is this far off.
+    expect(row).toHaveTextContent("3 h ago");
+  });
+
+  it("is one line for a flapping app, saying how often it changed, and over how long", async () => {
+    renderAt("/activity", {
+      events: {
+        watchEvents: feedOf(snapshot([health("evt_1", HealthState.UNHEALTHY, 12, 40 * 60_000)])),
+        listEvents: () => ({}),
+      },
+    });
+    const rows = await screen.findAllByRole("row", { name: /web keeps changing on hz-1/ });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("It changed 12 times in 40 min.");
+    expect(rows[0]).not.toHaveTextContent("since the last of these");
+    // Its time is the last it was told, as it goes on.
+    expect(rows[0]).toHaveTextContent("1 h ago");
+    await expectAccessible(document.body);
+  });
+
+  it("says what an event from before the server said since when counted", async () => {
+    renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([health("evt_1", HealthState.UNHEALTHY, 12)])), listEvents: () => ({}) },
+    });
+    const row = await screen.findByRole("row", { name: /web turned unhealthy/ });
+    expect(row).toHaveTextContent("It changed 12 more times since the last of these.");
+  });
+
+  it("filters to health, and asks for it", async () => {
+    const asked: WatchEventsRequest[] = [];
+    const user = userEvent.setup();
+    renderAt("/activity", {
+      events: {
+        watchEvents: async function* (req: WatchEventsRequest, ctx: { signal: AbortSignal }) {
+          asked.push(req);
+          yield snapshot([]);
+          await untilAborted(ctx.signal);
+        },
+        listEvents: () => ({}),
+      },
+    });
+    await user.click(await screen.findByRole("radio", { name: "Health" }));
+    await waitFor(() => expect(asked.at(-1)?.kinds).toEqual([EventKind.HEALTH]));
+  });
+
+  it("says what its check said beside the event, and goes to the app", async () => {
+    const user = userEvent.setup();
+    renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([health("evt_1", HealthState.UNHEALTHY, 2)])), listEvents: () => ({}) },
+    });
+    await user.click(await screen.findByRole("row", { name: /web turned unhealthy/ }));
+    expect(await screen.findByText("Its check said")).toBeVisible();
+    expect(screen.getAllByText("GET / answered 503").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "Open the app" })).toHaveAttribute("href", "/apps/svc_web");
   });
 });

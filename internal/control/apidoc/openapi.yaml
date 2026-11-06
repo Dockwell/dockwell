@@ -3183,6 +3183,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: How it is now.
                     format: enum
@@ -3195,6 +3196,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: How it was as the timeline last told of it.
                     format: enum
@@ -3206,14 +3208,23 @@ components:
                 flips:
                     type: integer
                     description: |-
-                        How many other times the state changed since the last event of this
-                         service on this server.
+                        How many times it went between good and bad since since, for a service
+                         that keeps changing. 0 for one that changed once.
                     format: int32
+                since:
+                    type: string
+                    description: |-
+                        When it came to this state, as the control plane heard, which is up to
+                         30 s before the event's time; or, for one that keeps changing, when it began
+                         to. Unset on events from before it was kept.
+                    format: date-time
             description: |-
                 EventHealth is how a service's health changed on a server, as far as the
                  timeline tells of it: when it turned unhealthy or stopped running, and when
-                 it came back. A state that lasts under 30 s isn't told, and at most one event
-                 is, for a service on a server, every 5 minutes: flips counts what came between.
+                 it came back. A state that lasts under 30 s isn't told, and one that lasts is
+                 told then. A service that went between good and bad 3 times in 5 minutes keeps
+                 changing, and is one event, whose time, flips and output change as it goes on,
+                 until it has stayed one way for 5 minutes.
         EventSubject:
             type: object
             properties:
@@ -3856,6 +3867,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: How it is.
                     format: enum
@@ -4482,6 +4494,12 @@ components:
                          "updates_project"; the volumes and server paths for "volumes_stay"; the
                          variables and secrets, by the names the service sees, for "values_latest";
                          the container_name, or the image, or the ports. Never a variable's value.
+                from:
+                    type: string
+                    description: |-
+                        Where the value came from, for "exposed_variable": "env_file" for the .env
+                         sent beside the file, which someone may not have read for this, and
+                         "variables" for the request's own. Empty otherwise.
             description: PlanNote is one thing a person should know before applying a plan.
         PlanPlace:
             type: object
@@ -5254,6 +5272,11 @@ components:
                     description: |-
                         How long a new container must stay healthy before anything moves to it or
                          the old one goes.
+                noCheck:
+                    type: boolean
+                    description: |-
+                        True when nothing checks the new container, neither its spec nor its image,
+                         so healthy is only that it runs, and keeps running for soak.
             description: RolloutPlan is how a step replaces a running service, and why.
         Route:
             type: object
@@ -5465,6 +5488,14 @@ components:
                     description: |-
                         Where its ingress stands, as it last said. Unset for a server with no
                          routes, as nothing on it wants the public ports.
+                dockerUnreadableSince:
+                    type: string
+                    description: |-
+                        Since when its agent hasn't been able to read Docker, on the server's
+                         clock, as it last said: Docker isn't running, or doesn't answer. Nobody
+                         can say how what runs there is until it can. Unset while it can, and for a
+                         server that isn't connected.
+                    format: date-time
             description: Server is one machine running the agent.
         ServerHealth:
             type: object
@@ -5484,6 +5515,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: |-
                         How it is there. While a container takes over from another, it is how the
@@ -5508,6 +5540,14 @@ components:
                     description: |-
                         When its agent last read the list of containers from Docker, on the server's
                          clock. Unset until it has.
+                    format: date-time
+                dockerUnreadableSince:
+                    type: string
+                    description: |-
+                        Since when its agent hasn't been able to read Docker, on the server's
+                         clock: Docker isn't running, or doesn't answer, so what only Docker can say
+                         is HEALTH_STATE_UNKNOWN while the agent is connected. Unset while it can,
+                         and when stale.
                     format: date-time
             description: ServerHealth is how a service is on one server.
         ServerInventory:
@@ -5783,6 +5823,7 @@ components:
                         - HEALTH_STATE_HEALTHY
                         - HEALTH_STATE_UNHEALTHY
                         - HEALTH_STATE_NOT_RUNNING
+                        - HEALTH_STATE_PAUSED
                     type: string
                     description: |-
                         How it is as a whole: the worst of its servers. Show "Healthy" only for

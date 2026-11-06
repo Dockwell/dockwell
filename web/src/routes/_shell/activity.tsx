@@ -9,7 +9,7 @@ import {
   searchWithout,
 } from "../../features/activity/ActivityPage";
 
-const KINDS: readonly ActivityKind[] = ["changes", "servers", "access"];
+const KINDS: readonly ActivityKind[] = ["changes", "servers", "access", "health"];
 
 /** Reads Activity's filters from its URL, leaving out what isn't one. */
 function readSearch(search: Record<string, unknown>): ActivitySearch {

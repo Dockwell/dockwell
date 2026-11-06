@@ -6,12 +6,12 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
 import { formatBytes } from "../../lib/format";
-import { Connecting, usePageReconnecting } from "../servers/FleetNotes";
+import { Connecting, FleetUnreadNote, usePageReconnecting } from "../servers/FleetNotes";
 import { ServerCallout } from "../servers/ServerCallout";
 import { ServerMetrics } from "../servers/ServerMetrics";
 import { ServersPanel } from "../servers/ServersPanel";
 import { useServerWords } from "../servers/server";
-import { useFleet } from "../servers/useFleet";
+import { useFleet, useFleetUnread } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 
@@ -60,6 +60,7 @@ export function Overview() {
 function OneServer({ server, status }: { server: Server; status: ReactNode }) {
   const { t, i18n } = useLingui();
   const { up, phoneSub } = useServerWords(server);
+  const unread = useFleetUnread();
   const phone = useMediaQuery(PHONE_QUERY);
   const inv = server.inventory;
   const cpus = inv?.cpuCount ?? 0;
@@ -77,10 +78,10 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
       lead={lead || undefined}
       phoneTitle={server.name}
       phoneMachineTitle
-      phoneSub={phoneSub}
+      phoneSub={unread ? t`Unknown` : phoneSub}
       status={status}
     >
-      <ServerCallout server={server} />
+      {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
       <ServerMetrics server={server} fourth="network" compact={phone} />
     </Page>
   );

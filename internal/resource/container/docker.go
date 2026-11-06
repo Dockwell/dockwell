@@ -1237,11 +1237,7 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 			return err
 		}
 	}
-	if err := d.roll(ctx, t, spec, dec); err != nil {
-		return err
-	}
-	d.reportRan(ctx, spec.GetImage())
-	return nil
+	return d.roll(ctx, t, spec, dec)
 }
 
 // joinIngress puts a service's new container on the ingress network, at its
@@ -1552,7 +1548,8 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	if err := d.waitHealthy(ctx, t, all[0], soak); err != nil {
 		return err
 	}
-	// A step cut short before it could say what it ran comes here with nothing else.
+	// What it ran goes on record once it passes, as a step does, however far it got
+	// before it was cut short.
 	d.reportRan(ctx, all[0].Config.Image)
 	return nil
 }

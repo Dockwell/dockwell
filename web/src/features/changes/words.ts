@@ -476,7 +476,31 @@ export function useChangeWords(): ChangeWords {
         const drain = span(millis(plan.drain));
         const shared = [...plan.volumes, ...plan.paths, ...plan.imageData, ...plan.cantTell].join(", ");
         if (plan.rolling) {
-          if (stopped) {
+          if (plan.noCheck && millis(plan.healthyWithin) > 0) {
+            // What nothing checks is healthy as it runs: how long it must is all there is to say.
+            const kept = millis(plan.soak) > 0;
+            if (stopped) {
+              say(
+                restart
+                  ? kept
+                    ? t`Nothing checks it, so it has to keep running for ${soak}. If it doesn't, the new one goes, and what was stopped stays stopped`
+                    : t`Nothing checks it, so it only has to start. If it doesn't, the new one goes, and what was stopped stays stopped`
+                  : kept
+                    ? t`Nothing checks it, so it has to keep running for ${soak}. If it doesn't, Dockwell rolls this back`
+                    : t`Nothing checks it, so it only has to start. If it doesn't, Dockwell rolls this back`,
+              );
+            } else {
+              say(
+                restart
+                  ? kept
+                    ? t`Nothing checks it, so a new container takes over once it has kept running for ${soak}, and what runs goes on serving until then. If it doesn't, the new one goes, and what runs stays`
+                    : t`Nothing checks it, so a new container takes over once it starts, and what runs goes on serving until then. If it doesn't, the new one goes, and what runs stays`
+                  : kept
+                    ? t`Nothing checks it, so a new container takes over once it has kept running for ${soak}, and what runs goes on serving until then. If it doesn't, Dockwell rolls this back`
+                    : t`Nothing checks it, so a new container takes over once it starts, and what runs goes on serving until then. If it doesn't, Dockwell rolls this back`,
+              );
+            }
+          } else if (stopped) {
             // Nothing runs, so nothing goes on serving, and nothing is in flight.
             say(
               restart

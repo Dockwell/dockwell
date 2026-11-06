@@ -9,17 +9,37 @@ import { QueryClient } from "@tanstack/react-query";
 import { isSessionEnded } from "../lib/errors";
 
 /**
+ * How long a call with one answer may take when it says nothing of its own: longer
+ * than any plan takes, so nothing that would have answered is cut off, and a call
+ * nobody answers gives way, so what waits on it can try again. Streams have none.
+ */
+export const CALL_TIMEOUT_MS = 120_000;
+
+/**
  * The panel talks to the control plane that served it, over the Connect
  * protocol: binary in production, JSON in development so requests read well
  * in devtools. Read-only methods go out as GET, so they can be cached.
  */
 export function createTransport(baseUrl: string = window.location.origin, interceptors: Interceptor[] = []): Transport {
-  return createConnectTransport({
-    baseUrl,
-    useBinaryFormat: import.meta.env.PROD,
-    useHttpGet: true,
-    interceptors,
-  });
+  return withCallTimeout(
+    createConnectTransport({
+      baseUrl,
+      useBinaryFormat: import.meta.env.PROD,
+      useHttpGet: true,
+      interceptors,
+    }),
+    CALL_TIMEOUT_MS,
+  );
+}
+
+/** A transport whose calls with one answer have ms to answer, unless they say otherwise. */
+export function withCallTimeout(transport: Transport, ms: number): Transport {
+  return {
+    unary: (method, signal, timeoutMs, header, input, contextValues) =>
+      transport.unary(method, signal, timeoutMs ?? ms, header, input, contextValues),
+    stream: (method, signal, timeoutMs, header, input, contextValues) =>
+      transport.stream(method, signal, timeoutMs, header, input, contextValues),
+  };
 }
 
 /** The query cache and the transport the panel runs on, wired so an ended session sends it back to the gate. */

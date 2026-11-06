@@ -1816,3 +1816,83 @@
     margin-block: -12px;
   }
 }
+
+/* How it runs, in the panel that says so: one row for each server it's on. */
+.app-runs {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.app-runs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.app-runs-row + .app-runs-row {
+  border-top: 1px solid var(--line);
+}
+
+.app-runs-server {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.app-runs-said {
+  flex: 1 1 100%;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.app-runs-unread {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.app-notice-said {
+  margin: 0 0 var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+/* What was deployed, kept apart from how it runs. */
+.apps-record {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  min-width: 0;
+}
+
+.apps-record-state {
+  font-family: var(--font-sans);
+}
+
+.app-health-check {
+  overflow-wrap: anywhere;
+}
+
+/* What a file reads beside it waits behind a button each. */
+.app-beside {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* An .env holds secrets, which the screen behind someone needn't read as they paste it. */
+.app-env-hidden textarea {
+  -webkit-text-security: disc;
+}

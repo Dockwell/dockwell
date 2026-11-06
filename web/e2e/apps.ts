@@ -19,6 +19,7 @@ import { type Browser, chromium } from "playwright-core";
 
 import { appsFlow } from "./apps-flow.ts";
 import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
+import { healthFlow } from "./health-flow.ts";
 
 const bin = resolve(process.argv[2] ?? "bin/dockwell");
 const port = 7650 + Math.floor(Math.random() * 300);
@@ -165,6 +166,19 @@ try {
       failing: "busybox:1.37",
       step: (what) => console.log(`e2e: ${what}`),
       shoot: async () => {},
+    });
+    await healthFlow(page, {
+      origin,
+      step: (what) => console.log(`e2e: ${what}`),
+      shoot: async () => {},
+      docker,
+      socket,
+      fake: false,
+      bin,
+      data,
+      env: {},
+      browser: browser as Browser,
+      context,
     });
   };
   await Promise.race([flow(), pageThrew]);

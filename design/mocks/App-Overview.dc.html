@@ -74,6 +74,11 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 </section>
 
 <section class="dw-panel">
+<div class="dw-panel-head"><h2 class="dw-panel-title">Recent health</h2><a href="Activity.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">All of it</a></div>
+<div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{health}}"></x-import></div>
+</section>
+
+<section class="dw-panel">
 <div class="dw-panel-head"><h2 class="dw-panel-title">Recent deployments</h2><a href="App-Deployments.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">All deployments</a></div>
 <div class="dw-panel-body"><x-import component-from-global-scope="Dockwell.Timeline" events="{{events}}" on-undo="{{noop}}"></x-import></div>
 </section>
@@ -105,8 +110,8 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 <div class="dw-panel-head"><h2 class="dw-panel-title">Health check</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="3 of 3 passing"></x-import></div>
 <div class="dw-panel-body">
 <dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; font-size: 13px; line-height: 20px;">
-<dt style="color: var(--ink-muted);">Request</dt><dd style="margin: 0;"><code class="code-sm">GET /healthz</code> every 10 s</dd>
-<dt style="color: var(--ink-muted);">Last result</dt><dd style="margin: 0;">200 in 3 ms · 4 s ago</dd>
+<dt style="color: var(--ink-muted);">Request</dt><dd style="margin: 0;"><code class="code-sm">GET /healthz</code> on port <code class="code-sm">8080</code> every 10 s</dd>
+<dt style="color: var(--ink-muted);">Its check said</dt><dd style="margin: 0;"><code class="code-sm">GET /healthz</code> on port <code class="code-sm">8080</code> answered 200 OK, in 3 ms · 4 s ago</dd>
 </dl>
 </div>
 </section>
@@ -167,9 +172,16 @@ class Component extends DCLogic {
       { id: 4, kind: 'rollback', title: 'Rolled back to r123', revision: 'r125', actor: 'Mira Chen', time: '2 Nov' },
       { id: 5, kind: 'deploy', title: 'Batch inventory sync', revision: 'r124', actor: 'Leo Park', time: '2 Nov' }
     ];
+    // A change of health is told once it has lasted 30 s, dated when it happened; one that keeps
+    // changing is one line that goes on, with how often over how long.
+    const health = [
+      { id: 'h1', kind: 'config', status: 'degraded', statusLabel: 'Unhealthy', title: 'api keeps changing on ams-1-02', meta: 'GET /healthz on port 8080 answered 503 Service Unavailable · It changed 7 times in 12 min', time: '2 h ago' },
+      { id: 'h2', kind: 'config', status: 'healthy', title: 'api is healthy again on fra-1-04', time: '3 Nov' },
+      { id: 'h3', kind: 'config', status: 'down', statusLabel: 'Not running', title: 'api stopped running on fra-1-04', meta: 'The container exited, with exit code 137', time: '3 Nov' }
+    ];
     return {
       theme: this.props.theme ?? 'light',
-      replicas, replicaCols, domains, domainCols, events,
+      replicas, replicaCols, domains, domainCols, events, health,
       reqs: wave(30, 3.4, 0.35, 2), lat: wave(30, 84, 7, 5), err: wave(30, 0.09, 0.03, 3), cpu: wave(30, 31, 5, 6),
       yes: true,
       noop: () => {}

@@ -22,6 +22,8 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         down: t`Down`,
         deploying: t`Deploying`,
         stopped: t`Stopped`,
+        running: t`Running`,
+        unknown: t`Unknown`,
       },
       remove: (what) => t`Remove ${what}`,
       optional: t`Optional`,
@@ -68,6 +70,10 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
               return t`${count} deploying`;
             case "stopped":
               return t`${count} stopped`;
+            case "running":
+              return t`${count} running`;
+            case "unknown":
+              return t`${count} unknown`;
           }
         },
         tile: (name, status, cpu) => (cpu == null ? t`${name}, ${status}` : t`${name}, ${status}, CPU ${cpu}%`),
@@ -102,6 +108,7 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           replace: t`Replaced`,
           destroy: t`Deleted`,
         },
+        restart: { action: t`Restart`, done: t`Restarted` },
         kind: {
           project: t`project`,
           environment: t`environment`,
@@ -126,10 +133,17 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           create: t`to create`,
           change: t`to update`,
           replace: t`to replace`,
+          restart: t`to restart`,
           destroy: t`to delete`,
           ifNewer: t`to update if newer`,
         },
-        summaryDone: { create: t`created`, change: t`updated`, replace: t`replaced`, destroy: t`deleted` },
+        summaryDone: {
+          create: t`created`,
+          change: t`updated`,
+          replace: t`replaced`,
+          restart: t`restarted`,
+          destroy: t`deleted`,
+        },
         hidden: t`hidden`,
         from: t`from`,
         to: t`to`,

@@ -201,7 +201,16 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	if err != nil {
 		return h.rpcError(ctx, err)
 	}
-	defer detach()
+	var session *Session
+	defer func() {
+		// An agent moving to a new stream, as each renewed certificate has it do,
+		// opens the next within a second, so its server doesn't read as gone in
+		// between, unless it isn't back within MoveGrace.
+		if session != nil && session.leftMoving() {
+			h.fleet.Hold(peer.ServerID, MoveGrace)
+		}
+		detach()
+	}()
 	if err := stream.Send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Welcome{Welcome: &agentv1.Welcome{
 		ServerName:    srv.Name,
 		StatsInterval: durationpb.New(fleet.StatsInterval),
@@ -218,7 +227,6 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	}
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
-	var session *Session
 	if h.agents != nil {
 		session = h.agents.open(peer.ServerID, srv.Name, hello, stream.Send)
 		defer session.close()
@@ -259,6 +267,7 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				h.fleet.RecordIngress(peer.ServerID, msg.GetDomains().GetIngress())
 			case msg.GetHealth() != nil && h.agents != nil:
 				h.agents.ReportHealth(peer.ServerID, msg.GetHealth())
+				h.fleet.RecordDocker(peer.ServerID, msg.GetHealth().GetDockerUnreadableSince())
 			case msg.GetDraining() != nil && session != nil:
 				session.drain()
 			case msg.GetDraining() != nil:

@@ -3273,7 +3273,11 @@ type PlanNote struct {
 	// "updates_project"; the volumes and server paths for "volumes_stay"; the
 	// variables and secrets, by the names the service sees, for "values_latest";
 	// the container_name, or the image, or the ports. Never a variable's value.
-	Names         []string `protobuf:"bytes,4,rep,name=names,proto3" json:"names,omitempty"`
+	Names []string `protobuf:"bytes,4,rep,name=names,proto3" json:"names,omitempty"`
+	// Where the value came from, for "exposed_variable": "env_file" for the .env
+	// sent beside the file, which someone may not have read for this, and
+	// "variables" for the request's own. Empty otherwise.
+	From          string `protobuf:"bytes,5,opt,name=from,proto3" json:"from,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3334,6 +3338,13 @@ func (x *PlanNote) GetNames() []string {
 		return x.Names
 	}
 	return nil
+}
+
+func (x *PlanNote) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
 }
 
 // PlanSummary counts the resources a plan touches by what it does to them.
@@ -4485,7 +4496,10 @@ type RolloutPlan struct {
 	Dropped []*DroppedMount `protobuf:"bytes,15,rep,name=dropped,proto3" json:"dropped,omitempty"`
 	// How long a new container must stay healthy before anything moves to it or
 	// the old one goes.
-	Soak          *durationpb.Duration `protobuf:"bytes,16,opt,name=soak,proto3" json:"soak,omitempty"`
+	Soak *durationpb.Duration `protobuf:"bytes,16,opt,name=soak,proto3" json:"soak,omitempty"`
+	// True when nothing checks the new container, neither its spec nor its image,
+	// so healthy is only that it runs, and keeps running for soak.
+	NoCheck       bool `protobuf:"varint,19,opt,name=no_check,json=noCheck,proto3" json:"no_check,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4637,6 +4651,13 @@ func (x *RolloutPlan) GetSoak() *durationpb.Duration {
 		return x.Soak
 	}
 	return nil
+}
+
+func (x *RolloutPlan) GetNoCheck() bool {
+	if x != nil {
+		return x.NoCheck
+	}
+	return false
 }
 
 // DroppedMount is something the old container mounts and the new one won't.
@@ -5256,12 +5277,13 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06places\x18\t \x03(\v2\x16.dockwell.v1.PlanPlaceR\x06places\"G\n" +
 	"\tPlanPlace\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x02 \x01(\tR\venvironment\"\x88\x01\n" +
+	"\venvironment\x18\x02 \x01(\tR\venvironment\"\x9c\x01\n" +
 	"\bPlanNote\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x124\n" +
 	"\bresource\x18\x03 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +
-	"\x05names\x18\x04 \x03(\tR\x05names\"q\n" +
+	"\x05names\x18\x04 \x03(\tR\x05names\x12\x12\n" +
+	"\x04from\x18\x05 \x01(\tR\x04from\"q\n" +
 	"\vPlanSummary\x12\x16\n" +
 	"\x06create\x18\x01 \x01(\x05R\x06create\x12\x16\n" +
 	"\x06change\x18\x02 \x01(\x05R\x06change\x12\x18\n" +
@@ -5358,7 +5380,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0fServerPortCheck\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x1c\n" +
 	"\tlistening\x18\x02 \x01(\tR\tlistening\x12+\n" +
-	"\x11nothing_listening\x18\x03 \x01(\bR\x10nothingListening\"\xfa\x04\n" +
+	"\x11nothing_listening\x18\x03 \x01(\bR\x10nothingListening\"\x95\x05\n" +
 	"\vRolloutPlan\x12\x18\n" +
 	"\arolling\x18\x01 \x01(\bR\arolling\x12\x14\n" +
 	"\x05ports\x18\x02 \x03(\tR\x05ports\x12\x18\n" +
@@ -5380,7 +5402,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"earlyNames\x12!\n" +
 	"\fhost_network\x18\x12 \x01(\bR\vhostNetwork\x123\n" +
 	"\adropped\x18\x0f \x03(\v2\x19.dockwell.v1.DroppedMountR\adropped\x12-\n" +
-	"\x04soak\x18\x10 \x01(\v2\x19.google.protobuf.DurationR\x04soak\"a\n" +
+	"\x04soak\x18\x10 \x01(\v2\x19.google.protobuf.DurationR\x04soak\x12\x19\n" +
+	"\bno_check\x18\x13 \x01(\bR\anoCheck\"a\n" +
 	"\fDroppedMount\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12!\n" +

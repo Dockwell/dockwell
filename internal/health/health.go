@@ -263,6 +263,9 @@ type Report struct {
 	// ScannedAt and ReportedAt are on the server's clock, and ReceivedAt on this
 	// one's.
 	ScannedAt, ReportedAt, ReceivedAt time.Time
+	// DockerUnreadableSince is since when the agent hasn't been able to read
+	// Docker, on the server's clock: the zero time while it can.
+	DockerUnreadableSince time.Time
 }
 
 // SpecEnv is the part of a container's environment worth masking in what a check

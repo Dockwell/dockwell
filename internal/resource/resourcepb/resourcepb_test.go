@@ -36,7 +36,7 @@ func TestARolloutReadsBack(t *testing.T) {
 			Action: resource.ActionReplace, Effect: resource.EffectRoll, Restart: "chg_1",
 			Rollout: &resource.RolloutPlan{
 				Rolling: true, Ports: []string{"8080/tcp"}, Volumes: []string{"data"}, Paths: []string{"/srv/a"}, ImageData: []string{"/var/lib/x"}, Chosen: true,
-				Drain: 30 * time.Second, StopGrace: time.Minute, HealthyWithin: 2 * time.Minute, Others: []string{"env_1-web-2"},
+				Drain: 30 * time.Second, StopGrace: time.Minute, HealthyWithin: 2 * time.Minute, Others: []string{"env_1-web-2"}, NoCheck: true,
 			},
 		},
 	}

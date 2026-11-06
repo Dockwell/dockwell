@@ -155,7 +155,7 @@ describe("the plan sheet", () => {
     expect(applying).toHaveTextContent("It keeps applying if you close this.");
 
     act(() => watch.push(watched(applied(running))));
-    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
     expect(done).toHaveTextContent("1 replaced");
     expect(done).not.toHaveTextContent("to replace");
     expect(done).not.toHaveTextContent("about 2 s down");
@@ -743,6 +743,15 @@ describe("the plan sheet", () => {
           message: "web's command holds the value of TOKEN.",
           resource: { kind: "service", name: "web" },
           names: ["TOKEN", "command"],
+          from: "variables",
+        }),
+        create(PlanNoteSchema, {
+          reason: "exposed_variable",
+          // What the panel goes by is the field: its words are the server's, in English.
+          message: "REDIS_PASSWORD is in cache's labels, so anyone who can read this change can read it",
+          resource: { kind: "service", name: "cache" },
+          names: ["REDIS_PASSWORD", "labels"],
+          from: "env_file",
         }),
         create(PlanNoteSchema, { reason: "newer", message: "This reason is new. The panel doesn't know it yet." }),
       ];
@@ -761,6 +770,10 @@ describe("the plan sheet", () => {
       "web's command holds the value of TOKEN. Anyone who can read this app can see it.",
     );
     expect(callout).toHaveTextContent("write the command as a list, with each word its own variable.");
+    expect(callout).not.toHaveTextContent("TOKEN from your .env");
+    // Where it came from an .env, it says so, and what can't be hidden where it lands.
+    expect(callout).toHaveTextContent("cache's labels holds the value of REDIS_PASSWORD from your .env");
+    expect(callout).toHaveTextContent("It can't be hidden there, so if it's a secret, set it in environment");
     expect(callout).toHaveTextContent("This reason is new. The panel doesn't know it yet.");
     expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(callout);
     // It stops nobody.
@@ -1149,7 +1162,7 @@ describe("the plan sheet, once it runs", () => {
     expect(applying).toHaveTextContent("hz-1 · about 2 s down");
   });
 
-  it("arrives: the title says it is live, and its address is the first line", async () => {
+  it("arrives: the title says it is deployed, and its address is the first line", async () => {
     const change = applied(aServicePlan());
     change.steps = [
       aStep({
@@ -1166,7 +1179,7 @@ describe("the plan sheet, once it runs", () => {
         changes: { watchChange: feed<WatchChangeResponse>().stream },
       },
     );
-    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
     const link = await within(done).findByRole("link", { name: "203.0.113.9:8080" });
     expect(link).toHaveAttribute("href", "http://203.0.113.9:8080");
     expect(link.closest(".plan-body")?.firstElementChild).toContainElement(link);
@@ -1189,7 +1202,7 @@ describe("the plan sheet, once it runs", () => {
         changes: { watchChange: feed<WatchChangeResponse>().stream },
       },
     );
-    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
     expect(await within(done).findByRole("button", { name: "Add a domain" })).toBeVisible();
     expect(within(done).getByRole("button", { name: "Add a port" })).toBeVisible();
     expect(done).toHaveTextContent("Nothing outside hz-1 reaches web yet.");
@@ -1270,7 +1283,7 @@ describe("the plan sheet, once it runs", () => {
         [aDomain("app.example.com", CertificateState.ISSUED)],
         [{ hostPort: 8080, containerPort: 80 }],
       );
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       const link = await within(done).findByRole("link", { name: "app.example.com" });
       expect(link).toHaveAttribute("href", "https://app.example.com");
       expect(asked).toContain("env_1");
@@ -1285,7 +1298,7 @@ describe("the plan sheet, once it runs", () => {
     it("sends a visitor to a tunnel's domain over HTTPS, in its link and its copy, as what's in front ends TLS", async () => {
       const user = userEvent.setup();
       arrivedWith([aDomain("app.example.com", CertificateState.NONE, "", "web", "http://app.example.com")]);
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       const link = await within(done).findByRole("link", { name: "app.example.com" });
       expect(link).toHaveAttribute("href", "https://app.example.com");
       expect(link.closest(".plan-reach-row")).toHaveTextContent("TLS ends in front");
@@ -1300,7 +1313,7 @@ describe("the plan sheet, once it runs", () => {
       arrivedWith([
         { ...plain, routes: plain.routes.map((route) => ({ ...route, tls: "off", plainForAnyone: true })) },
       ]);
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       const link = await within(done).findByRole("link", { name: "app.example.com" });
       expect(link).toHaveAttribute("href", "http://app.example.com");
       expect(link.closest(".plan-reach-row")).toHaveTextContent("Plain HTTP");
@@ -1333,7 +1346,7 @@ describe("the plan sheet, once it runs", () => {
             changes: { watchChange: feed<WatchChangeResponse>().stream },
           },
         );
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         expect(await within(done).findByText("Couldn't read the addresses this is reached at")).toBeVisible();
         expect(done).toHaveTextContent("The change itself applied.");
         expect(done).not.toHaveTextContent("Nothing outside");
@@ -1356,7 +1369,7 @@ describe("the plan sheet, once it runs", () => {
             changes: { watchChange: feed<WatchChangeResponse>().stream },
           },
         );
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         expect(await within(done).findByText("Couldn't read the addresses this is reached at")).toBeVisible();
         expect(await within(done).findByRole("link", { name: /:8080/ })).toBeVisible();
       });
@@ -1371,7 +1384,7 @@ describe("the plan sheet, once it runs", () => {
       arrivedWith([
         aDomain("app.example.com", CertificateState.PENDING, "Waiting for the certificate authority to answer"),
       ]);
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       const row = (await within(done).findByText("app.example.com")).closest(".plan-reach-row");
       expect(row).toHaveTextContent("Waiting for the certificate authority to answer");
       expect(within(done).queryByRole("link", { name: /app\.example\.com/ })).toBeNull();
@@ -1391,7 +1404,7 @@ describe("the plan sheet, once it runs", () => {
           changes: { watchChange: feed<WatchChangeResponse>().stream },
         },
       );
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       await within(done).findByText("Waiting for the certificate authority");
       domains = [aDomain("app.example.com", CertificateState.ISSUED)];
       expect(await within(done).findByRole("link", { name: "app.example.com" }, { timeout: 7000 })).toBeVisible();
@@ -1399,7 +1412,7 @@ describe("the plan sheet, once it runs", () => {
 
     it("says why a certificate failed, as the server words it", async () => {
       arrivedWith([aDomain("app.example.com", CertificateState.FAILED, "DNS for app.example.com points elsewhere")]);
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       const row = (await within(done).findByText("app.example.com")).closest(".plan-reach-row");
       expect(row).toHaveClass("is-failed");
       expect(row).toHaveTextContent("DNS for app.example.com points elsewhere");
@@ -1410,7 +1423,7 @@ describe("the plan sheet, once it runs", () => {
         [aDomain("other.example.com", CertificateState.ISSUED, "", "other")],
         [{ hostPort: 8080, containerPort: 80 }],
       );
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       await within(done).findByRole("link", { name: /:8080/ });
       expect(done).not.toHaveTextContent("other.example.com");
     });
@@ -1525,7 +1538,7 @@ describe("the plan sheet, once it runs", () => {
         const review = await screen.findByRole("dialog", { name: "Review plan" });
         await waitFor(() => expect(reads).toBe(1));
         await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         await waitFor(() => expect(reads).toBe(2));
         expect(done).not.toHaveTextContent("Nothing outside");
         act(() => answer({ domains: [aDomain("app.example.com", CertificateState.ISSUED)] }));
@@ -1561,7 +1574,7 @@ describe("the plan sheet, once it runs", () => {
             changes: { watchChange: feed<WatchChangeResponse>().stream },
           },
         );
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         expect(await within(done).findByRole("link", { name: "app.example.com" })).toBeVisible();
         expect(within(done).getByRole("link", { name: "web.example.com" })).toBeVisible();
         expect(within(done).getByRole("link", { name: /:8080/ })).toBeVisible();
@@ -1606,7 +1619,7 @@ describe("the plan sheet, once it runs", () => {
         expect(held?.textContent).toBe("");
         expect(held?.querySelector(".plan-reach-how")).toBeNull();
         await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         const name = await within(done).findByText("app.example.com", { selector: ".plan-reach-at" });
         expect(name.closest(".plan-reach-row")).toHaveTextContent("Waiting for the server");
         expect(done.querySelector(".plan-room-held")).toBeNull();
@@ -1632,14 +1645,14 @@ describe("the plan sheet, once it runs", () => {
           changes: { watchChange: feed<WatchChangeResponse>().stream },
         },
       );
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       const name = await within(done).findByText("app.example.com");
       const row = name.closest(".plan-reach-row");
       expect(row).toHaveTextContent("Waiting for the server");
       expect(row).not.toHaveTextContent("certificate");
       expect(within(done).queryByRole("link", { name: /app\.example\.com/ })).toBeNull();
       await user.click(within(done).getByRole("button", { name: /Done/ }));
-      await waitFor(() => expect(screen.queryByRole("dialog", { name: "web is live" })).toBeNull());
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "web is deployed" })).toBeNull());
     });
 
     describe("behind a tunnel or a proxy, says what to do next", () => {
@@ -1742,7 +1755,7 @@ describe("the plan sheet, once it runs", () => {
         step.domainCheck = create(DomainCheckSchema, { domain: "app.example.com", state: DomainCheckState.NO_RECORD });
       }
       arrivedWith([aDomain("app.example.com", CertificateState.ISSUED)], [], change);
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       await within(done).findByRole("link", { name: "app.example.com" });
       await waitFor(() => expect(done).not.toHaveTextContent("its certificate can't come"));
     });
@@ -1754,7 +1767,7 @@ describe("the plan sheet, once it runs", () => {
         step.domainCheck = create(DomainCheckSchema, { domain: "app.example.com", state: DomainCheckState.NO_RECORD });
       }
       arrivedWith([aDomain("app.example.com", CertificateState.PENDING, "Asking")], [], change);
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       await within(done).findByText("Asking");
       expect(done).toHaveTextContent("its certificate can't come");
     });
@@ -1796,7 +1809,7 @@ describe("the plan sheet, once it runs", () => {
       it("folds them after a few, so the plan is still there to see, and opens them when asked", async () => {
         const user = userEvent.setup();
         arrivedWith(many(14), [{ hostPort: 8080, containerPort: 80 }]);
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         await within(done).findByRole("link", { name: "site-1.example.com" });
         expect(done.querySelectorAll(".plan-reach-row.is-domain")).toHaveLength(3);
         const more = within(done).getByRole("button", { name: "and 12 more" });
@@ -1809,14 +1822,14 @@ describe("the plan sheet, once it runs", () => {
 
       it("doesn't fold what fits", async () => {
         arrivedWith(many(3));
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         await within(done).findByRole("link", { name: "site-3.example.com" });
         expect(within(done).queryByRole("button", { name: /more$/ })).toBeNull();
       });
 
       it("leads with what's wrong, so folding doesn't hide it", async () => {
         arrivedWith(many(14, 11));
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         const first = await within(done).findByText("site-12.example.com", { selector: ".plan-reach-at" });
         expect(done.querySelector(".plan-reach-row")).toContainElement(first);
       });
@@ -1834,7 +1847,7 @@ describe("the plan sheet, once it runs", () => {
           }),
         );
         arrivedWith(many(14, 0), [], change);
-        const done = await screen.findByRole("dialog", { name: "web is live" });
+        const done = await screen.findByRole("dialog", { name: "web is deployed" });
         const first = await within(done).findByText("site-14.example.com", {
           selector: "a.plan-reach-at code, code.plan-reach-at",
         });
@@ -1936,7 +1949,7 @@ describe("the plan sheet, once it runs", () => {
           changes: { watchChange: feed<WatchChangeResponse>().stream },
         },
       );
-      const done = await screen.findByRole("dialog", { name: "web is live" });
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(done).not.toHaveTextContent("Nothing outside");
     });
@@ -1957,7 +1970,7 @@ describe("the plan sheet, once it runs", () => {
         changes: { watchChange: feed<WatchChangeResponse>().stream },
       },
     );
-    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
     expect(await within(done).findByRole("button", { name: "Add a domain" })).toBeVisible();
   });
 
@@ -1984,7 +1997,7 @@ describe("the plan sheet, once it runs", () => {
       },
       { staleTime: 30_000 },
     );
-    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
     await waitFor(() => expect(reads).toBeGreaterThanOrEqual(2));
     expect(done).not.toHaveTextContent("Nothing outside");
     expect(within(done).queryByRole("button", { name: "Add a port" })).toBeNull();
@@ -2236,7 +2249,7 @@ describe("the plan sheet, once it runs", () => {
         },
       },
     );
-    const done = await screen.findByRole("dialog", { name: "web is live" });
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
     const shell = dialogs()[0];
     await user.click(within(done).getByRole("button", { name: /Undo until/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -2248,7 +2261,7 @@ describe("the plan sheet, once it runs", () => {
     expect(dialogs()[0]).toBe(shell);
     expect(document.querySelectorAll(".dw-scrim")).toHaveLength(1);
     await user.click(within(plan).getByRole("button", { name: "Cancel" }));
-    expect(await screen.findByRole("dialog", { name: "web is live" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "web is deployed" })).toBeVisible();
     expect(dialogs()[0]).toBe(shell);
   });
 
@@ -2322,7 +2335,7 @@ describe("the plan sheet, once it runs", () => {
         changes: { watchChange: feed<WatchChangeResponse>().stream },
       },
     );
-    const done = await screen.findByRole("dialog", { name: "web 已上线" });
+    const done = await screen.findByRole("dialog", { name: "web 已部署" });
     expect(done).toHaveTextContent("1 已替换");
     await within(done).findByText(/添加端口/);
     await expectAccessible(document.body);

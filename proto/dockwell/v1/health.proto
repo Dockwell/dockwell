@@ -85,6 +85,11 @@ message ServerHealth {
   // When its agent last read the list of containers from Docker, on the server's
   // clock. Unset until it has.
   google.protobuf.Timestamp scanned_at = 7;
+  // Since when its agent hasn't been able to read Docker, on the server's
+  // clock: Docker isn't running, or doesn't answer, so what only Docker can say
+  // is HEALTH_STATE_UNKNOWN while the agent is connected. Unset while it can,
+  // and when stale.
+  google.protobuf.Timestamp docker_unreadable_since = 8;
 }
 
 // InstanceHealth is how one container of a service is.
@@ -135,7 +140,7 @@ enum HealthState {
   HEALTH_STATE_UNKNOWN = 1;
   // It runs, and nothing checks it, so all that is known is that it runs. Show
   // "Running", never "Healthy".
-  HEALTH_STATE_NO_CHECK = 2;
+  HEALTH_STATE_NO_CHECK = 2 [(dockwell.v1.word) = "Running"];
   // It has started, and its check hasn't passed or failed for good yet.
   HEALTH_STATE_STARTING = 3;
   // Its check passed last time.
@@ -143,9 +148,11 @@ enum HealthState {
   // Its check failed as many times in a row as it allows, or it keeps
   // restarting.
   HEALTH_STATE_UNHEALTHY = 5;
-  // It isn't running: stopped, exited, paused, or not on the server at all. A
-  // paused container counts as running to Docker, which stops its checks.
+  // It isn't running: stopped, exited, or not on the server at all.
   HEALTH_STATE_NOT_RUNNING = 6;
+  // Someone paused it. It serves nothing until it is unpaused, and nothing checks
+  // it, though Docker counts it as running.
+  HEALTH_STATE_PAUSED = 7;
 }
 
 // HealthCheckKind is what checks a container.

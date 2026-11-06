@@ -73,6 +73,8 @@ type testServer struct {
 	stop    func()
 	// hello changes what its agent says of itself, to stand in for another version.
 	hello func(*agentv1.Hello)
+	// health says how its services are, when set.
+	health agent.HealthReporter
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -114,7 +116,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	go func() {
 		_ = agent.Run(ctx, agent.Config{
 			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-			Hello: s.hello,
+			Hello: s.hello, Health: s.health,
 		})
 		close(done)
 	}()

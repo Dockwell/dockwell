@@ -3,8 +3,9 @@
 import { Button, Icon, StatusBadge, useUIStrings } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
-import { Reconnecting } from "../servers/FleetNotes";
+import { FleetUnknown, Reconnecting } from "../servers/FleetNotes";
 import { type FleetView, serverStatus } from "../servers/server";
+import { useFleetUnread } from "../servers/useFleet";
 import { useCommandShortcut, useOpenCommandBar } from "./CommandMenu";
 
 /**
@@ -31,20 +32,31 @@ function Scope({ view }: { view: FleetView }) {
   const strings = useUIStrings();
   const { servers, only, fleet, counts } = view;
   // While the watch reconnects, the states are the last ones known, so the bar says that instead of vouching for
-  // them. It says it for the page below too, which keeps its own note for phones.
-  const reconnecting = view.status === "reconnecting" ? <Reconnecting /> : null;
+  // them. It says it for the page below too, which keeps its own note for phones. Once what it last heard is too
+  // old to stand, nobody can say how they are.
+  const unread = useFleetUnread();
+  const reconnecting = unread ? (
+    <FleetUnknown why={unread.why} heard={unread.heard} />
+  ) : view.status === "reconnecting" ? (
+    <Reconnecting />
+  ) : null;
   if (only) {
     return (
       <div className="topbar-scope">
         <Icon name="server" size={16} className="topbar-scope-icon" />
         <span className="topbar-server">{only.name}</span>
-        {reconnecting ?? <StatusBadge status={serverStatus(only)} />}
+        {reconnecting ??
+          (only.dockerUnreadableSince !== undefined ? (
+            <StatusBadge status="degraded" label={t`Can't read Docker`} />
+          ) : (
+            <StatusBadge status={serverStatus(only)} />
+          ))}
         {only.address ? <span className="topbar-address">{only.address}</span> : null}
       </div>
     );
   }
   if (!fleet || !servers) return null;
-  const { down, waiting, unknown } = counts;
+  const { down, waiting, unknown, docker } = counts;
   return (
     <div className="topbar-scope">
       <Icon name="server" size={16} className="topbar-scope-icon" />
@@ -54,7 +66,10 @@ function Scope({ view }: { view: FleetView }) {
           {down > 0 ? <StatusBadge status="down" label={strings.fleetGrid.count(down, "down")} /> : null}
           {waiting > 0 ? <StatusBadge status="stopped" label={t`${waiting} waiting for an agent`} /> : null}
           {unknown > 0 ? <StatusBadge status="stopped" label={t`${unknown} in an unknown state`} /> : null}
-          {counts.connected === servers.length ? <StatusBadge status="healthy" label={t`All healthy`} /> : null}
+          {docker > 0 ? <StatusBadge status="degraded" label={t`${docker} can't read Docker`} /> : null}
+          {counts.connected === servers.length && docker === 0 ? (
+            <StatusBadge status="healthy" label={t`All healthy`} />
+          ) : null}
         </>
       )}
     </div>

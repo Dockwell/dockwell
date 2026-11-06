@@ -277,7 +277,8 @@ func (w *watch) saw(at time.Time, e *dockwellv1.Event) {
 }
 
 // known reports whether the watch has sent the entry at p as it stands
-// still: an audit event, which never changes, or a change at the same
+// still: an audit event at the same place, as one that changes, such as a
+// service's that keeps changing, moves on with it, or a change at the same
 // place that can't move on again. Reading the store again skips those.
 func (w *watch) known(p store.TimelinePlace) bool {
 	s, ok := w.sent[p.ID]
@@ -285,7 +286,7 @@ func (w *watch) known(p store.TimelinePlace) bool {
 	case !ok:
 		return false
 	case !p.Change:
-		return true
+		return s.at.Equal(p.At)
 	}
 	return s.at.Equal(p.At) && !open(s.event)
 }
@@ -481,6 +482,9 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		e.Health = &dockwellv1.EventHealth{ServerId: a.Target, ServerName: look.Name(a.Target)}
 		if told, ok := health.ReadTold(a.Detail); ok {
 			e.Health.State, e.Health.Previous, e.Health.Output, e.Health.Flips = told.State, told.Previous, told.Output, told.Flips
+			if told.Since != nil {
+				e.Health.Since = timestamppb.New(*told.Since)
+			}
 		}
 		return e
 	}

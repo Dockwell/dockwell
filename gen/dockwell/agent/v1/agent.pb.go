@@ -227,16 +227,21 @@ type Health struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Each container, by project, service and number. Empty with scanned_at set
 	// means the server runs none. With no scanned_at, the agent hasn't read Docker
-	// yet, so it hasn't said anything.
+	// yet, so it hasn't said what runs, only, with docker_unreadable_since, that
+	// Docker hasn't answered it.
 	Instances []*v1.InstanceHealth `protobuf:"bytes,1,rep,name=instances,proto3" json:"instances,omitempty"`
 	// When the agent last read the list of containers from Docker, on the server's
 	// clock.
 	ScannedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=scanned_at,json=scannedAt,proto3" json:"scanned_at,omitempty"`
 	// When it sent this, on the same clock, so the control plane can tell how old
 	// something in it is without their clocks agreeing.
-	ReportedAt    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=reported_at,json=reportedAt,proto3" json:"reported_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ReportedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=reported_at,json=reportedAt,proto3" json:"reported_at,omitempty"`
+	// Since when it hasn't been able to read Docker, on the same clock: a list of
+	// containers failed, and none has come since, or none has come yet, since the
+	// agent started. Unset while it can.
+	DockerUnreadableSince *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=docker_unreadable_since,json=dockerUnreadableSince,proto3" json:"docker_unreadable_since,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *Health) Reset() {
@@ -286,6 +291,13 @@ func (x *Health) GetScannedAt() *timestamppb.Timestamp {
 func (x *Health) GetReportedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.ReportedAt
+	}
+	return nil
+}
+
+func (x *Health) GetDockerUnreadableSince() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DockerUnreadableSince
 	}
 	return nil
 }
@@ -3169,13 +3181,14 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05kinds\x18\x06 \x01(\v2\x18.dockwell.agent.v1.KindsH\x00R\x05kinds\x126\n" +
 	"\adomains\x18\a \x01(\v2\x1a.dockwell.agent.v1.DomainsH\x00R\adomains\x123\n" +
 	"\x06health\x18\b \x01(\v2\x19.dockwell.agent.v1.HealthH\x00R\x06healthB\t\n" +
-	"\amessage\"\xbb\x01\n" +
+	"\amessage\"\x8f\x02\n" +
 	"\x06Health\x129\n" +
 	"\tinstances\x18\x01 \x03(\v2\x1b.dockwell.v1.InstanceHealthR\tinstances\x129\n" +
 	"\n" +
 	"scanned_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tscannedAt\x12;\n" +
 	"\vreported_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"reportedAt\"t\n" +
+	"reportedAt\x12R\n" +
+	"\x17docker_unreadable_since\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x15dockerUnreadableSince\"t\n" +
 	"\aDomains\x123\n" +
 	"\adomains\x18\x01 \x03(\v2\x19.dockwell.v1.DomainStatusR\adomains\x124\n" +
 	"\aingress\x18\x02 \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\"r\n" +
@@ -3456,74 +3469,75 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	44, // 8: dockwell.agent.v1.Health.instances:type_name -> dockwell.v1.InstanceHealth
 	45, // 9: dockwell.agent.v1.Health.scanned_at:type_name -> google.protobuf.Timestamp
 	45, // 10: dockwell.agent.v1.Health.reported_at:type_name -> google.protobuf.Timestamp
-	46, // 11: dockwell.agent.v1.Domains.domains:type_name -> dockwell.v1.DomainStatus
-	47, // 12: dockwell.agent.v1.Domains.ingress:type_name -> dockwell.v1.IngressStatus
-	4,  // 13: dockwell.agent.v1.CallProgress.outcome:type_name -> dockwell.agent.v1.StepOutcome
-	48, // 14: dockwell.agent.v1.StepOutcome.did:type_name -> dockwell.v1.PlanAction
-	6,  // 15: dockwell.agent.v1.Kinds.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
-	49, // 16: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
-	50, // 17: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
-	6,  // 18: dockwell.agent.v1.Hello.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
-	11, // 19: dockwell.agent.v1.ConnectResponse.welcome:type_name -> dockwell.agent.v1.Welcome
-	17, // 20: dockwell.agent.v1.ConnectResponse.call:type_name -> dockwell.agent.v1.Call
-	33, // 21: dockwell.agent.v1.ConnectResponse.cancel:type_name -> dockwell.agent.v1.CancelCall
-	10, // 22: dockwell.agent.v1.ConnectResponse.drained:type_name -> dockwell.agent.v1.Drained
-	51, // 23: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
-	49, // 24: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
-	51, // 25: dockwell.agent.v1.Call.timeout:type_name -> google.protobuf.Duration
-	27, // 26: dockwell.agent.v1.Call.plan:type_name -> dockwell.agent.v1.PlanCall
-	28, // 27: dockwell.agent.v1.Call.apply:type_name -> dockwell.agent.v1.ApplyCall
-	31, // 28: dockwell.agent.v1.Call.observe:type_name -> dockwell.agent.v1.ObserveCall
-	18, // 29: dockwell.agent.v1.Call.log_sources:type_name -> dockwell.agent.v1.LogSourcesCall
-	22, // 30: dockwell.agent.v1.Call.logs:type_name -> dockwell.agent.v1.LogsCall
-	19, // 31: dockwell.agent.v1.Call.forgotten:type_name -> dockwell.agent.v1.ForgottenCall
-	52, // 32: dockwell.agent.v1.LogSourcesCall.resource:type_name -> dockwell.v1.ResourceRef
-	20, // 33: dockwell.agent.v1.ForgottenCall.services:type_name -> dockwell.agent.v1.ForgottenService
-	52, // 34: dockwell.agent.v1.ForgottenService.resource:type_name -> dockwell.v1.ResourceRef
-	52, // 35: dockwell.agent.v1.LogsCall.resource:type_name -> dockwell.v1.ResourceRef
-	45, // 36: dockwell.agent.v1.LogsCall.since:type_name -> google.protobuf.Timestamp
-	45, // 37: dockwell.agent.v1.LogsCall.until:type_name -> google.protobuf.Timestamp
-	53, // 38: dockwell.agent.v1.LogsCall.levels:type_name -> dockwell.v1.LogLevel
-	23, // 39: dockwell.agent.v1.LogsCall.after:type_name -> dockwell.agent.v1.LogCursor
-	23, // 40: dockwell.agent.v1.LogsCall.before:type_name -> dockwell.agent.v1.LogCursor
-	45, // 41: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
-	51, // 42: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
-	45, // 43: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
-	45, // 44: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
-	54, // 45: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
-	55, // 46: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
-	24, // 47: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
-	45, // 48: dockwell.agent.v1.SendLogsRequest.started:type_name -> google.protobuf.Timestamp
-	32, // 49: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	56, // 50: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
-	32, // 51: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	29, // 52: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
-	42, // 53: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
-	52, // 54: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
-	52, // 55: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
-	37, // 56: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
-	38, // 57: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
-	39, // 58: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
-	40, // 59: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
-	35, // 60: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
-	36, // 61: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
-	21, // 62: dockwell.agent.v1.CallResult.forgotten:type_name -> dockwell.agent.v1.ForgottenResult
-	54, // 63: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
-	56, // 64: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
-	41, // 65: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
-	13, // 66: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
-	15, // 67: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
-	0,  // 68: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
-	25, // 69: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
-	14, // 70: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
-	16, // 71: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
-	9,  // 72: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
-	26, // 73: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
-	70, // [70:74] is the sub-list for method output_type
-	66, // [66:70] is the sub-list for method input_type
-	66, // [66:66] is the sub-list for extension type_name
-	66, // [66:66] is the sub-list for extension extendee
-	0,  // [0:66] is the sub-list for field type_name
+	45, // 11: dockwell.agent.v1.Health.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	46, // 12: dockwell.agent.v1.Domains.domains:type_name -> dockwell.v1.DomainStatus
+	47, // 13: dockwell.agent.v1.Domains.ingress:type_name -> dockwell.v1.IngressStatus
+	4,  // 14: dockwell.agent.v1.CallProgress.outcome:type_name -> dockwell.agent.v1.StepOutcome
+	48, // 15: dockwell.agent.v1.StepOutcome.did:type_name -> dockwell.v1.PlanAction
+	6,  // 16: dockwell.agent.v1.Kinds.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
+	49, // 17: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
+	50, // 18: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
+	6,  // 19: dockwell.agent.v1.Hello.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
+	11, // 20: dockwell.agent.v1.ConnectResponse.welcome:type_name -> dockwell.agent.v1.Welcome
+	17, // 21: dockwell.agent.v1.ConnectResponse.call:type_name -> dockwell.agent.v1.Call
+	33, // 22: dockwell.agent.v1.ConnectResponse.cancel:type_name -> dockwell.agent.v1.CancelCall
+	10, // 23: dockwell.agent.v1.ConnectResponse.drained:type_name -> dockwell.agent.v1.Drained
+	51, // 24: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
+	49, // 25: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
+	51, // 26: dockwell.agent.v1.Call.timeout:type_name -> google.protobuf.Duration
+	27, // 27: dockwell.agent.v1.Call.plan:type_name -> dockwell.agent.v1.PlanCall
+	28, // 28: dockwell.agent.v1.Call.apply:type_name -> dockwell.agent.v1.ApplyCall
+	31, // 29: dockwell.agent.v1.Call.observe:type_name -> dockwell.agent.v1.ObserveCall
+	18, // 30: dockwell.agent.v1.Call.log_sources:type_name -> dockwell.agent.v1.LogSourcesCall
+	22, // 31: dockwell.agent.v1.Call.logs:type_name -> dockwell.agent.v1.LogsCall
+	19, // 32: dockwell.agent.v1.Call.forgotten:type_name -> dockwell.agent.v1.ForgottenCall
+	52, // 33: dockwell.agent.v1.LogSourcesCall.resource:type_name -> dockwell.v1.ResourceRef
+	20, // 34: dockwell.agent.v1.ForgottenCall.services:type_name -> dockwell.agent.v1.ForgottenService
+	52, // 35: dockwell.agent.v1.ForgottenService.resource:type_name -> dockwell.v1.ResourceRef
+	52, // 36: dockwell.agent.v1.LogsCall.resource:type_name -> dockwell.v1.ResourceRef
+	45, // 37: dockwell.agent.v1.LogsCall.since:type_name -> google.protobuf.Timestamp
+	45, // 38: dockwell.agent.v1.LogsCall.until:type_name -> google.protobuf.Timestamp
+	53, // 39: dockwell.agent.v1.LogsCall.levels:type_name -> dockwell.v1.LogLevel
+	23, // 40: dockwell.agent.v1.LogsCall.after:type_name -> dockwell.agent.v1.LogCursor
+	23, // 41: dockwell.agent.v1.LogsCall.before:type_name -> dockwell.agent.v1.LogCursor
+	45, // 42: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
+	51, // 43: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
+	45, // 44: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
+	45, // 45: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
+	54, // 46: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
+	55, // 47: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
+	24, // 48: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
+	45, // 49: dockwell.agent.v1.SendLogsRequest.started:type_name -> google.protobuf.Timestamp
+	32, // 50: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	56, // 51: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
+	32, // 52: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	29, // 53: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
+	42, // 54: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
+	52, // 55: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
+	52, // 56: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
+	37, // 57: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
+	38, // 58: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
+	39, // 59: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
+	40, // 60: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
+	35, // 61: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
+	36, // 62: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
+	21, // 63: dockwell.agent.v1.CallResult.forgotten:type_name -> dockwell.agent.v1.ForgottenResult
+	54, // 64: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
+	56, // 65: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
+	41, // 66: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
+	13, // 67: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
+	15, // 68: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
+	0,  // 69: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
+	25, // 70: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
+	14, // 71: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
+	16, // 72: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
+	9,  // 73: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
+	26, // 74: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
+	71, // [71:75] is the sub-list for method output_type
+	67, // [67:71] is the sub-list for method input_type
+	67, // [67:67] is the sub-list for extension type_name
+	67, // [67:67] is the sub-list for extension extendee
+	0,  // [0:67] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_agent_v1_agent_proto_init() }

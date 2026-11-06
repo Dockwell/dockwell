@@ -322,9 +322,27 @@ func TestStillRefused(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "Pass the directory it is in, as directory (--directory on the CLI)") {
 		t.Errorf("a relative path with no directory = %v", err)
 	}
-	for _, dir := range []string{"relative/path", "/srv/../etc", "/srv/./x", "/srv:/x", "/srv\n/x"} {
-		if _, err := compose.Read(t.Context(), compose.Input{File: []byte(web), Directory: dir}); !errors.Is(err, compose.ErrInvalid) {
-			t.Errorf("the directory %q = %v, want it refused", dir, err)
+	for dir, want := range map[string]string{
+		"relative/path": "isn't an absolute path", "/srv/../etc": "has .. in it, which a server reads through symlinks", "/srv:/x": "a colon",
+		"/srv\n/x": "a control character",
+		// A shell's home directory, which a server doesn't read.
+		"~/apps/redis": "starts with ~, which a shell reads as a home directory, and a server takes a path as it is written. Give the full path, such as /root/apps/redis",
+		"~mira/apps":   "Give the full path, such as /home/mira/apps",
+	} {
+		_, err := compose.Read(t.Context(), compose.Input{File: []byte(web), Directory: dir})
+		if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(compose.Message(err), want) {
+			t.Errorf("the directory %q = %v, want it refused as %q", dir, err, want)
+		}
+	}
+	// A . leads where it would without, so it is taken out.
+	for dir, want := range map[string]string{"/srv/./app": "/srv/app/data", "/./srv/app/.": "/srv/app/data", "/.": "/data"} {
+		s, err := compose.Read(t.Context(), compose.Input{File: []byte(web + "    volumes: [\"./data:/data\"]\n"), Directory: dir})
+		if err != nil {
+			t.Errorf("the directory %q = %v", dir, err)
+			continue
+		}
+		if got := s.Services[0].Spec.GetApp().GetMounts()[0].GetHostPath(); got != want {
+			t.Errorf("with the directory %q, ./data is %q, want %q", dir, got, want)
 		}
 	}
 }

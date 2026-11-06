@@ -61,6 +61,7 @@ import {
   useDomainsReaching,
   visitorUrl,
 } from "../apps/domains";
+import { readHealthSoon, useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
@@ -90,6 +91,7 @@ import {
   onlyDeletes,
   onlyIfNewer,
   replacesIfNewer,
+  restarts,
   routeDomain,
   routeWhereOf,
   shortFingerprint,
@@ -315,6 +317,7 @@ function refreshAfter(queryClient: QueryClient): void {
   for (const schema of [ResourceService, ServiceService, DomainService, EventService, ChangeService, VariableService]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
+  readHealthSoon(queryClient);
 }
 
 /** A later state wins, so an apply's answer never takes back what the watch already said. */
@@ -594,7 +597,9 @@ function ChangeSheet({
   const undoNote = (
     <span className="dw-sheet-note">
       <Icon name="undo" size={14} />
-      {onlyIfNewer(plan) ? (
+      {restarts(plan) ? (
+        <Trans>No undo</Trans>
+      ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
       ) : (
         <Trans>Undo for {undoDays} days</Trans>
@@ -758,10 +763,21 @@ function TitleWithState({ phase, live, children }: { phase: Phase; live: boolean
 }
 
 /** The sheet's title, in words that say what happened, once something has, and what it was for when the plan says. */
+/** When a change's last step ended, as an agent's report from before then says nothing of what it made. */
+function landedAt(change: Change | undefined): Date | undefined {
+  let newest: Date | undefined;
+  for (const step of change?.steps ?? []) {
+    const at = step.finishTime ? timestampDate(step.finishTime) : undefined;
+    if (at && (!newest || at > newest)) newest = at;
+  }
+  return newest;
+}
+
 function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefined): string {
   const { t } = useLingui();
   const words = useChangeWords();
   const intent = intentOf(plan);
+  const health = useHealth();
   switch (phase) {
     case "planning":
       return t`Planning`;
@@ -809,14 +825,35 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
     const same = changing(plan)[0]?.resource?.name ?? "";
     return t`${same} stays as it is`;
   }
-  // A deploy is live, as a new app is. A port or a rollback says what it did, as its button promised.
+  // A deploy says how what it deployed runs, as its server says, and a new app the same. A
+  // port or a rollback says what it did, as its button promised.
   if (intent && intent.kind !== IntentKind.DEPLOY) return words.intent(intent, "done");
   const live = goesLive(plan);
   const name = live[0]?.resource?.name ?? "";
-  if (live.length === 1) return t`${name} is live`;
+  if (live.length === 1 && live[0]) {
+    const runs = health.of({ id: live[0].id }, landedAt(change));
+    if (runs.read === "read") {
+      switch (runs.kind) {
+        case "healthy":
+          return t`${name} is healthy`;
+        case "running":
+          return t`${name} is running`;
+        case "starting":
+          return t`${name} is starting`;
+        case "unhealthy":
+          return t`${name} fails its health check`;
+        case "not-running":
+          return t`${name} isn't running`;
+        case "paused":
+          return t`${name} is paused`;
+        case "unknown":
+      }
+    }
+    return t`${name} is deployed`;
+  }
   const made = madeProject(plan);
-  if (live.length > 1 && made) return t`${made} is live`;
-  if (live.length > 1) return plural(live.length, { one: "# app is live", other: "# apps are live" });
+  if (live.length > 1 && made) return t`${made} is deployed`;
+  if (live.length > 1) return plural(live.length, { one: "# app is deployed", other: "# apps are deployed" });
   const all = changing(plan);
   const only = all[0];
   const subject = shownName(only);
@@ -1850,7 +1887,14 @@ function Effects({
   if (phone) rows.push({ key: "reach", icon: "activity", title: <Impact plan={plan} /> });
   // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves and their checks are #28.
   // A restart changes no spec, so it has nothing to roll back to.
-  const restarting = (plan?.servers ?? []).some((s) => s.steps.some((step) => step.restart !== ""));
+  const restarting = restarts(plan);
+  if (restarting) {
+    rows.push({
+      key: "no-undo",
+      icon: "undo",
+      title: <Trans>A restart has no undo, as it changes nothing to go back to.</Trans>,
+    });
+  }
   const serving = restarting
     ? []
     : changing(plan).filter((r) => r.resource?.kind === "service" && r.action !== PlanAction.DELETE);

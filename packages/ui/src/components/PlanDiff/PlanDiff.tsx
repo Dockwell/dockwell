@@ -72,6 +72,8 @@ export interface PlanResource {
   expanded?: boolean;
   /** It changes only if a pull finds a newer image, so it counts apart, as what may come to nothing. */
   ifNewer?: boolean;
+  /** It is replaced as it was, a restart, which changes nothing of it, so it counts apart from a replace. */
+  restart?: boolean;
 }
 
 export interface PlanDiffProps {
@@ -140,9 +142,11 @@ export function PlanDiff({ resources, impact, done = false, noSummary = false, a
   const [toggled, setToggled] = useState<Readonly<Record<string, boolean>>>({});
   const counts: Record<PlanAction, number> = { create: 0, update: 0, replace: 0, destroy: 0 };
   let ifNewer = 0;
+  let restart = 0;
   for (const resource of [...resources, ...(also?.resources ?? [])]) {
     // Once it has happened it did or it didn't, and the counts say what it did.
     if (resource.ifNewer && !done) ifNewer += 1;
+    else if (resource.restart) restart += 1;
     else counts[resource.action] += 1;
   }
   // A replace removes what is there now, so it gets its own count rather than hiding among the changes.
@@ -153,6 +157,7 @@ export function PlanDiff({ resources, impact, done = false, noSummary = false, a
     { key: "create", count: counts.create, tone: "add", symbol: ACTIONS.create.symbol },
     { key: "change", count: counts.update, tone: "change", symbol: ACTIONS.update.symbol },
     { key: "replace", count: counts.replace, tone: "change", symbol: ACTIONS.replace.symbol },
+    { key: "restart", count: restart, tone: "change", symbol: ACTIONS.replace.symbol },
     { key: "destroy", count: counts.destroy, tone: "remove", symbol: ACTIONS.destroy.symbol },
     { key: "ifNewer", count: ifNewer, tone: "change", symbol: ACTIONS.update.symbol },
   ].filter((part) => part.count > 0);
@@ -173,7 +178,14 @@ export function PlanDiff({ resources, impact, done = false, noSummary = false, a
           <code>{resource.name}</code>{" "}
           <span className="dw-plan-kind">{resource.kindLabel ?? strings.planDiff.kind[resource.kind]}</span>
         </span>{" "}
-        <span className="dw-plan-act">{resource.note ?? actionWords[resource.action]}</span>
+        <span className="dw-plan-act">
+          {resource.note ??
+            (resource.restart
+              ? done
+                ? strings.planDiff.restart.done
+                : strings.planDiff.restart.action
+              : actionWords[resource.action])}
+        </span>
       </>
     );
     return (

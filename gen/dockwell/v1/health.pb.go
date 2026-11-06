@@ -43,9 +43,11 @@ const (
 	// Its check failed as many times in a row as it allows, or it keeps
 	// restarting.
 	HealthState_HEALTH_STATE_UNHEALTHY HealthState = 5
-	// It isn't running: stopped, exited, paused, or not on the server at all. A
-	// paused container counts as running to Docker, which stops its checks.
+	// It isn't running: stopped, exited, or not on the server at all.
 	HealthState_HEALTH_STATE_NOT_RUNNING HealthState = 6
+	// Someone paused it. It serves nothing until it is unpaused, and nothing checks
+	// it, though Docker counts it as running.
+	HealthState_HEALTH_STATE_PAUSED HealthState = 7
 )
 
 // Enum value maps for HealthState.
@@ -58,6 +60,7 @@ var (
 		4: "HEALTH_STATE_HEALTHY",
 		5: "HEALTH_STATE_UNHEALTHY",
 		6: "HEALTH_STATE_NOT_RUNNING",
+		7: "HEALTH_STATE_PAUSED",
 	}
 	HealthState_value = map[string]int32{
 		"HEALTH_STATE_UNSPECIFIED": 0,
@@ -67,6 +70,7 @@ var (
 		"HEALTH_STATE_HEALTHY":     4,
 		"HEALTH_STATE_UNHEALTHY":   5,
 		"HEALTH_STATE_NOT_RUNNING": 6,
+		"HEALTH_STATE_PAUSED":      7,
 	}
 )
 
@@ -390,9 +394,14 @@ type ServerHealth struct {
 	Instances []*InstanceHealth `protobuf:"bytes,6,rep,name=instances,proto3" json:"instances,omitempty"`
 	// When its agent last read the list of containers from Docker, on the server's
 	// clock. Unset until it has.
-	ScannedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=scanned_at,json=scannedAt,proto3" json:"scanned_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ScannedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=scanned_at,json=scannedAt,proto3" json:"scanned_at,omitempty"`
+	// Since when its agent hasn't been able to read Docker, on the server's
+	// clock: Docker isn't running, or doesn't answer, so what only Docker can say
+	// is HEALTH_STATE_UNKNOWN while the agent is connected. Unset while it can,
+	// and when stale.
+	DockerUnreadableSince *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=docker_unreadable_since,json=dockerUnreadableSince,proto3" json:"docker_unreadable_since,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *ServerHealth) Reset() {
@@ -470,6 +479,13 @@ func (x *ServerHealth) GetInstances() []*InstanceHealth {
 func (x *ServerHealth) GetScannedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.ScannedAt
+	}
+	return nil
+}
+
+func (x *ServerHealth) GetDockerUnreadableSince() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DockerUnreadableSince
 	}
 	return nil
 }
@@ -705,7 +721,7 @@ const file_dockwell_v1_health_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12.\n" +
 	"\x05state\x18\x03 \x01(\x0e2\x18.dockwell.v1.HealthStateR\x05state\x123\n" +
-	"\aservers\x18\x04 \x03(\v2\x19.dockwell.v1.ServerHealthR\aservers\"\xba\x02\n" +
+	"\aservers\x18\x04 \x03(\v2\x19.dockwell.v1.ServerHealthR\aservers\"\x8e\x03\n" +
 	"\fServerHealth\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -715,7 +731,8 @@ const file_dockwell_v1_health_proto_rawDesc = "" +
 	"\x05since\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\x129\n" +
 	"\tinstances\x18\x06 \x03(\v2\x1b.dockwell.v1.InstanceHealthR\tinstances\x129\n" +
 	"\n" +
-	"scanned_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tscannedAt\"\xce\x03\n" +
+	"scanned_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tscannedAt\x12R\n" +
+	"\x17docker_unreadable_since\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x15dockerUnreadableSince\"\xce\x03\n" +
 	"\x0eInstanceHealth\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x16\n" +
@@ -733,15 +750,16 @@ const file_dockwell_v1_health_proto_rawDesc = "" +
 	"\x06passed\x18\x01 \x01(\bR\x06passed\x12\x16\n" +
 	"\x06output\x18\x02 \x01(\tR\x06output\x12.\n" +
 	"\x04time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12-\n" +
-	"\x04took\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x04took*\xcf\x01\n" +
+	"\x04took\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x04took*\xf5\x01\n" +
 	"\vHealthState\x12\x1c\n" +
 	"\x18HEALTH_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
-	"\x14HEALTH_STATE_UNKNOWN\x10\x01\x12\x19\n" +
-	"\x15HEALTH_STATE_NO_CHECK\x10\x02\x12\x19\n" +
+	"\x14HEALTH_STATE_UNKNOWN\x10\x01\x12&\n" +
+	"\x15HEALTH_STATE_NO_CHECK\x10\x02\x1a\v\xa2\xbb\x18\aRunning\x12\x19\n" +
 	"\x15HEALTH_STATE_STARTING\x10\x03\x12\x18\n" +
 	"\x14HEALTH_STATE_HEALTHY\x10\x04\x12\x1a\n" +
 	"\x16HEALTH_STATE_UNHEALTHY\x10\x05\x12\x1c\n" +
-	"\x18HEALTH_STATE_NOT_RUNNING\x10\x06*\xa6\x01\n" +
+	"\x18HEALTH_STATE_NOT_RUNNING\x10\x06\x12\x17\n" +
+	"\x13HEALTH_STATE_PAUSED\x10\a*\xa6\x01\n" +
 	"\x0fHealthCheckKind\x12!\n" +
 	"\x1dHEALTH_CHECK_KIND_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16HEALTH_CHECK_KIND_NONE\x10\x01\x12\x1d\n" +
@@ -790,21 +808,22 @@ var file_dockwell_v1_health_proto_depIdxs = []int32{
 	9,  // 5: dockwell.v1.ServerHealth.since:type_name -> google.protobuf.Timestamp
 	6,  // 6: dockwell.v1.ServerHealth.instances:type_name -> dockwell.v1.InstanceHealth
 	9,  // 7: dockwell.v1.ServerHealth.scanned_at:type_name -> google.protobuf.Timestamp
-	0,  // 8: dockwell.v1.InstanceHealth.state:type_name -> dockwell.v1.HealthState
-	1,  // 9: dockwell.v1.InstanceHealth.check:type_name -> dockwell.v1.HealthCheckKind
-	7,  // 10: dockwell.v1.InstanceHealth.last:type_name -> dockwell.v1.HealthResult
-	9,  // 11: dockwell.v1.InstanceHealth.since:type_name -> google.protobuf.Timestamp
-	9,  // 12: dockwell.v1.InstanceHealth.confirmed_at:type_name -> google.protobuf.Timestamp
-	10, // 13: dockwell.v1.InstanceHealth.good_for:type_name -> google.protobuf.Duration
-	9,  // 14: dockwell.v1.HealthResult.time:type_name -> google.protobuf.Timestamp
-	10, // 15: dockwell.v1.HealthResult.took:type_name -> google.protobuf.Duration
-	2,  // 16: dockwell.v1.HealthService.ListHealth:input_type -> dockwell.v1.ListHealthRequest
-	3,  // 17: dockwell.v1.HealthService.ListHealth:output_type -> dockwell.v1.ListHealthResponse
-	17, // [17:18] is the sub-list for method output_type
-	16, // [16:17] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	9,  // 8: dockwell.v1.ServerHealth.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	0,  // 9: dockwell.v1.InstanceHealth.state:type_name -> dockwell.v1.HealthState
+	1,  // 10: dockwell.v1.InstanceHealth.check:type_name -> dockwell.v1.HealthCheckKind
+	7,  // 11: dockwell.v1.InstanceHealth.last:type_name -> dockwell.v1.HealthResult
+	9,  // 12: dockwell.v1.InstanceHealth.since:type_name -> google.protobuf.Timestamp
+	9,  // 13: dockwell.v1.InstanceHealth.confirmed_at:type_name -> google.protobuf.Timestamp
+	10, // 14: dockwell.v1.InstanceHealth.good_for:type_name -> google.protobuf.Duration
+	9,  // 15: dockwell.v1.HealthResult.time:type_name -> google.protobuf.Timestamp
+	10, // 16: dockwell.v1.HealthResult.took:type_name -> google.protobuf.Duration
+	2,  // 17: dockwell.v1.HealthService.ListHealth:input_type -> dockwell.v1.ListHealthRequest
+	3,  // 18: dockwell.v1.HealthService.ListHealth:output_type -> dockwell.v1.ListHealthResponse
+	18, // [18:19] is the sub-list for method output_type
+	17, // [17:18] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_health_proto_init() }

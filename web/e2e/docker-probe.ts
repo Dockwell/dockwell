@@ -20,9 +20,10 @@ export interface Running {
   running: boolean;
 }
 
-function call(socket: string, method: string, path: string): Promise<string> {
+function call(socket: string, method: string, path: string, body?: unknown): Promise<string> {
   return new Promise((done, failed) => {
-    const req = request({ socketPath: socket, path, method }, (res) => {
+    const headers = body === undefined ? {} : { "Content-Type": "application/json" };
+    const req = request({ socketPath: socket, path, method, headers }, (res) => {
       let body = "";
       res.on("data", (chunk: Buffer) => {
         body += chunk.toString();
@@ -33,7 +34,7 @@ function call(socket: string, method: string, path: string): Promise<string> {
       });
     });
     req.on("error", failed);
-    req.end();
+    req.end(body === undefined ? undefined : JSON.stringify(body));
   });
 }
 
@@ -83,6 +84,27 @@ export type DockerProbe = ReturnType<typeof dockerProbe>;
 /** Stops a container, as someone at the server would by hand. */
 export async function dockerStop(socket: string, id: string): Promise<void> {
   await call(socket, "POST", `/containers/${id}/stop`);
+}
+
+/** Does to a container what a person at the server would by hand: docker stop, pause, kill and so on. */
+export async function dockerAct(
+  socket: string,
+  id: string,
+  action: "stop" | "start" | "pause" | "unpause" | "kill" | "restart",
+): Promise<void> {
+  await call(socket, "POST", `/containers/${id}/${action}`);
+}
+
+/** Runs a command in a container, as docker exec does, and leaves it to it. */
+export async function dockerExec(socket: string, id: string, command: string[]): Promise<void> {
+  const made = JSON.parse(await call(socket, "POST", `/containers/${id}/exec`, { Cmd: command })) as { Id: string };
+  await call(socket, "POST", `/exec/${made.Id}/start`, { Detach: true });
+}
+
+/** Tells scripts/fakedocker how a container's check went, as it has none to run. */
+export async function dockerHealth(socket: string, id: string, status: string, output: string): Promise<void> {
+  const query = new URLSearchParams({ status, output });
+  await call(socket, "POST", `/containers/${id}/x-dockwell-health?${query}`);
 }
 
 /** What a run's Dockwell makes on Docker, by the ID or name Docker removes it by. */

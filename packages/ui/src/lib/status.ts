@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/** The five states anything Dockwell runs can be in. */
-export type Status = "healthy" | "degraded" | "down" | "deploying" | "stopped";
+/**
+ * The states anything Dockwell runs can be in. Healthy means a check passed: what
+ * runs with nothing checking it is running, and what nobody can say anything of is
+ * unknown, so neither reads as healthy.
+ */
+export type Status = "healthy" | "running" | "degraded" | "down" | "deploying" | "stopped" | "unknown";
 
 /** Tones for things that aren't a runtime state, such as callouts and toasts. */
 export type Tone = "healthy" | "warning" | "critical" | "info";
 
 /** The status shapes. Shape carries meaning with colour, so state never depends on colour alone. */
-export type GlyphShape = "circle" | "triangle" | "square" | "spinner" | "ring" | "info";
+export type GlyphShape = "circle" | "triangle" | "square" | "spinner" | "ring" | "dotted-ring" | "dashed-ring" | "info";
 
-export type ToneClass = "healthy" | "warning" | "critical" | "cobalt" | "idle";
+export type ToneClass = "healthy" | "warning" | "critical" | "cobalt" | "idle" | "running" | "unknown" | "ink";
 
 interface StatusSpec {
   tone: ToneClass;
@@ -27,6 +31,8 @@ export const STATUS: Readonly<Record<Status, StatusSpec>> = {
   down: { tone: "critical", shape: "square" },
   deploying: { tone: "cobalt", shape: "spinner" },
   stopped: { tone: "idle", shape: "ring" },
+  running: { tone: "running", shape: "dotted-ring" },
+  unknown: { tone: "unknown", shape: "dashed-ring" },
 };
 
 /** The glyph and colour each tone uses in callouts and toasts. */

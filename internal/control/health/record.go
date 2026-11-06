@@ -26,18 +26,25 @@ const Action = "service.health"
 const (
 	// Dwell is how long a state must last to be told, so a stop-first deploy's
 	// few seconds aren't news, as the change tells of those, and a check that
-	// fails once and passes again isn't either.
+	// fails once and passes again isn't either. A state that lasts is told then,
+	// with when it came about.
 	Dwell = 30 * time.Second
-	// HoldOff is the least time between two events of a service on a server. A
-	// service that flaps is told at this pace, each with how many times it
-	// changed in between.
-	HoldOff = 5 * time.Minute
-	// flapsToTell is how many times a service has to go between good and bad to be
-	// told as flapping, whatever Dwell says: one that never stays anywhere for
-	// that long would otherwise never be told at all.
+	// FlapWindow is how far back changes count for a service that keeps
+	// changing. One that went between good and bad flapsToTell times in it is
+	// told as one event, which changes as it goes on, until it has stayed one way
+	// for this long.
+	FlapWindow = 5 * time.Minute
+	// flapsToTell is how many times a service has to go between good and bad in
+	// FlapWindow to be told as one that keeps changing, whatever Dwell says: one
+	// that never stays anywhere for that long would otherwise never be told at all.
 	flapsToTell = 3
+	// flapEvery is how often the event of one that keeps changing changes, at
+	// most.
+	flapEvery = Dwell
 	// recordEvery is how often it looks at what has come due.
 	recordEvery = 5 * time.Second
+	// flipsKept bounds what a track keeps of when it changed.
+	flipsKept = 64
 )
 
 // Told is what an event says, as the audit log keeps it in its detail: the one
@@ -46,7 +53,12 @@ type Told struct {
 	State    dockwellv1.HealthState `json:"state"`
 	Previous dockwellv1.HealthState `json:"previous"`
 	Output   string                 `json:"output,omitempty"`
-	Flips    int32                  `json:"flips,omitempty"`
+	// Flips is how many times it went between good and bad since Since, for a
+	// service that keeps changing, which this one event stands for.
+	Flips int32 `json:"flips,omitempty"`
+	// Since is when it came to State, as this control plane heard, or when it
+	// began to keep changing. Events before it was kept have none.
+	Since *time.Time `json:"since,omitempty"`
 }
 
 // ReadTold reads what an event says.
@@ -77,16 +89,26 @@ type track struct {
 	since      time.Time
 	output     string
 	told       dockwellv1.HealthState // as the timeline last had it
-	toldAt     time.Time
-	flips      int32 // what changed since it was last told
-	askedStore bool  // it has read what the timeline last had
+	askedStore bool                   // it has read what the timeline last had
 	// wasGood says which way it last stood, of good and bad, for counting flips:
 	// a state that says neither, as an agent that can't say, doesn't count.
 	wasGood, stood bool
+	// flips is when it went between good and bad, within FlapWindow.
+	flips []time.Time
 	// badState and badOutput are the last bad state, and what it said, as what a
-	// service flapping faster than Dwell is told as.
+	// service that keeps changing is told as.
 	badState  dockwellv1.HealthState
 	badOutput string
+	// flap is the event of one that keeps changing, while it does.
+	flap *flap
+}
+
+// flap is the one event that stands for a service that keeps changing.
+type flap struct {
+	event store.Event
+	told  Told
+	// flips is how many times it changed since the event's Since.
+	flips int32
 }
 
 func (r *Recorder) now() time.Time {
@@ -139,7 +161,13 @@ func (t *track) see(state dockwellv1.HealthState, output string, now time.Time) 
 	}
 	if good(state) || bad(state) {
 		if t.stood && t.wasGood != good(state) {
-			t.flips++
+			t.flips = append(t.flips, now)
+			if over := len(t.flips) - flipsKept; over > 0 {
+				t.flips = slices.Delete(t.flips, 0, over)
+			}
+			if t.flap != nil {
+				t.flap.flips++
+			}
 		}
 		t.stood, t.wasGood = true, good(state)
 	}
@@ -153,7 +181,8 @@ func good(s dockwellv1.HealthState) bool {
 }
 
 func bad(s dockwellv1.HealthState) bool {
-	return s == dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY || s == dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING
+	return s == dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY || s == dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING ||
+		s == dockwellv1.HealthState_HEALTH_STATE_PAUSED
 }
 
 func lastOutput(list []*dockwellv1.InstanceHealth) string {
@@ -180,16 +209,21 @@ func (r *Recorder) Run(ctx context.Context) {
 	}
 }
 
+// due is an event to write: a new one, or the one of a service that keeps
+// changing, again.
+type due struct {
+	key   key
+	event store.Event
+	told  Told
+	// again is the event of one that keeps changing, written before.
+	again bool
+}
+
 // Record tells the timeline of what has come due, and first reads what it last
 // said of each service it hasn't heard of since this control plane started, so
 // a restart neither repeats a state nor misses one that ended while it was away.
 func (r *Recorder) Record(ctx context.Context) {
 	now := r.now()
-	type due struct {
-		key   key
-		event store.Event
-		told  Told
-	}
 	r.mu.Lock()
 	keys := make([]key, 0, len(r.tracked))
 	for k, t := range r.tracked {
@@ -252,7 +286,7 @@ func (r *Recorder) Record(ctx context.Context) {
 		t.askedStore = true
 		if e, ok := last[k]; ok {
 			if told, ok := ReadTold(e.Detail); ok {
-				t.told, t.toldAt = told.State, e.At
+				t.told = told.State
 			}
 		}
 	}
@@ -265,22 +299,17 @@ func (r *Recorder) Record(ctx context.Context) {
 			delete(r.tracked, k) // deleted, or not yet committed: its next report brings it back
 			continue
 		}
-		if !t.due(now) {
-			continue
+		if d, ok := t.next(now); ok {
+			if !d.again {
+				d.event = store.Event{ID: id.New(id.Event), Actor: "dockwell", Action: Action, Subject: subject, Target: k.server, Surface: store.SurfaceAutomatic}
+			}
+			detail, err := json.Marshal(d.told)
+			if err != nil {
+				continue
+			}
+			d.key, d.event.At, d.event.Detail = k, now, string(detail)
+			out = append(out, d)
 		}
-		told := Told{State: t.state, Previous: t.told, Output: t.output, Flips: max(t.flips-1, 0)}
-		if t.flapping(now) && t.badState != dockwellv1.HealthState_HEALTH_STATE_UNSPECIFIED {
-			// What it keeps falling to is the news, whichever way it stands now.
-			told.State, told.Output = t.badState, t.badOutput
-		}
-		detail, err := json.Marshal(told)
-		if err != nil {
-			continue
-		}
-		out = append(out, due{k, store.Event{
-			ID: id.New(id.Event), At: now, Actor: "dockwell", Action: Action, Subject: subject, Target: k.server,
-			Detail: string(detail), Surface: store.SurfaceAutomatic,
-		}, told})
 	}
 	r.mu.Unlock()
 	if len(out) == 0 {
@@ -288,6 +317,12 @@ func (r *Recorder) Record(ctx context.Context) {
 	}
 	err := r.DB.Update(ctx, func(tx *store.Tx) error {
 		for i := range out {
+			if out[i].again {
+				if err := tx.UpdateEvent(ctx, out[i].event); err != nil && !errors.Is(err, store.ErrNotFound) {
+					return err
+				}
+				continue
+			}
 			// A server speaks for what runs on it, and for no other. The API reads
 			// its reports by placement too, and a timeline is as plain about it.
 			placed, err := tx.Placement(ctx, out[i].event.Subject, revisions[out[i].event.Subject])
@@ -295,6 +330,7 @@ func (r *Recorder) Record(ctx context.Context) {
 				return err
 			}
 			if !slices.Contains(placed, out[i].key.server) {
+				out[i].event.ID = ""
 				continue
 			}
 			if err := tx.RecordEvent(ctx, out[i].event); err != nil {
@@ -310,8 +346,16 @@ func (r *Recorder) Record(ctx context.Context) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for i := range out {
-		if t := r.tracked[out[i].key]; t != nil {
-			t.told, t.toldAt, t.flips = out[i].told.State, now, 0
+		t := r.tracked[out[i].key]
+		if t == nil || out[i].event.ID == "" {
+			continue
+		}
+		t.told = out[i].told.State
+		switch {
+		case out[i].again && t.flap != nil:
+			t.flap.event, t.flap.told = out[i].event, out[i].told
+		case out[i].told.Flips > 0:
+			t.flap = &flap{event: out[i].event, told: out[i].told, flips: out[i].told.Flips}
 		}
 	}
 }
@@ -321,37 +365,76 @@ func (r *Recorder) anyDue(now time.Time) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, t := range r.tracked {
-		if t.askedStore && t.due(now) {
+		if !t.askedStore {
+			continue
+		}
+		if _, ok := t.next(now); ok {
 			return true
 		}
 	}
 	return false
 }
 
-// due reports a state worth telling: one that has lasted, and isn't what the
-// timeline has, with the last event long enough ago. What the timeline has never
-// told of, it tells only if it is bad: a service that has always been fine
-// isn't news.
-func (t *track) due(now time.Time) bool {
-	switch {
-	case now.Sub(t.toldAt) < HoldOff:
-		return false
-	case t.flapping(now):
-		return true
-	case now.Sub(t.since) < Dwell:
-		return false
-	case bad(t.state):
-		return t.state != t.told
-	case good(t.state):
-		return bad(t.told)
+// next is what the timeline should hear of a service now, if anything. A state
+// that lasts and isn't what the timeline has is told, with when it came about.
+// What the timeline has never told of, it tells only if it is bad: a service that
+// has always been fine isn't news. One that keeps changing is told as one event,
+// which changes no more often than flapEvery for as long as it goes on, and says
+// what it keeps falling to and how often since it began. It is told without the
+// event's ID or time, which the caller gives it.
+func (t *track) next(now time.Time) (due, bool) {
+	recent := t.flipsWithin(now)
+	if t.flap != nil {
+		// It goes on until it has stayed one way for FlapWindow, and no flip is left within it.
+		if recent > 0 {
+			told := t.flap.told
+			told.Flips = t.flap.flips
+			told.State, told.Output = t.fellTo(told)
+			if told == t.flap.told || now.Sub(t.flap.event.At) < flapEvery {
+				return due{}, false
+			}
+			return due{event: t.flap.event, told: told, again: true}, true
+		}
+		// It has stayed one way long enough to have stopped changing.
+		t.flap = nil
 	}
-	return false
+	if recent >= flapsToTell {
+		since := t.flips[len(t.flips)-recent]
+		// recent is at most flipsKept, which an int32 holds.
+		told := Told{Previous: t.told, Output: t.output, Flips: int32(min(recent, flipsKept)), Since: &since}
+		told.State, told.Output = t.fellTo(told)
+		return due{told: told}, true
+	}
+	if now.Sub(t.since) < Dwell {
+		return due{}, false
+	}
+	if bad(t.state) && t.state != t.told || good(t.state) && bad(t.told) {
+		since := t.since
+		return due{told: Told{State: t.state, Previous: t.told, Output: t.output, Since: &since}}, true
+	}
+	return due{}, false
 }
 
-// flapping reports a service going between good and bad faster than it stays in
-// either, so Dwell would never let it be told.
-func (t *track) flapping(now time.Time) bool {
-	return t.flips >= flapsToTell && now.Sub(t.since) < Dwell
+// fellTo is what a service that keeps changing is told as: what it keeps falling
+// to, whichever way it stands now, as that is the news.
+func (t *track) fellTo(told Told) (dockwellv1.HealthState, string) {
+	if t.badState != dockwellv1.HealthState_HEALTH_STATE_UNSPECIFIED {
+		return t.badState, t.badOutput
+	}
+	return t.state, told.Output
+}
+
+// flipsWithin counts the times it went between good and bad within FlapWindow,
+// and forgets those before.
+func (t *track) flipsWithin(now time.Time) int {
+	i := 0
+	for i < len(t.flips) && now.Sub(t.flips[i]) >= FlapWindow {
+		i++
+	}
+	if i > 0 {
+		t.flips = slices.Delete(t.flips, 0, i)
+	}
+	return len(t.flips)
 }
 
 func (r *Recorder) fail(ctx context.Context, err error) {

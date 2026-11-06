@@ -532,9 +532,11 @@ func read(ctx context.Context, in Input, asked bool) (Inspection, *Stack, error)
 	if err := checkVariables(in.Variables); err != nil {
 		return Inspection{}, nil, err
 	}
-	if err := checkDirectory(in.Directory); err != nil {
+	dir, err := checkDirectory(in.Directory)
+	if err != nil {
 		return Inspection{}, nil, err
 	}
+	in.Directory = dir
 	if waiting.Add(1) > maxWaiting {
 		waiting.Add(-1)
 		return Inspection{}, nil, ErrBusy

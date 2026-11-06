@@ -29,6 +29,8 @@
 .dw-status-pill .dw-status-meta {
   font-weight: 400;
 }
-.dw-status-pill.dw-tone-idle {
+.dw-status-pill.dw-tone-idle,
+.dw-status-pill.dw-tone-running,
+.dw-status-pill.dw-tone-unknown {
   color: var(--ink-muted);
 }

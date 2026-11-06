@@ -26,6 +26,8 @@
   --critical-soft: #fbe8e0;
   --on-critical: #ffffff;
   --idle: var(--ink-muted);
+  --running: var(--ink-muted);
+  --unknown: var(--ink-muted);
   --diff-add: var(--healthy);
   --diff-add-soft: var(--healthy-soft);
   --diff-change: var(--warning);
@@ -64,6 +66,8 @@
   --critical-soft: #36190f;
   --on-critical: #0f1110;
   --idle: var(--ink-muted);
+  --running: var(--ink-muted);
+  --unknown: var(--ink-muted);
   --diff-add: var(--healthy);
   --diff-add-soft: var(--healthy-soft);
   --diff-change: var(--warning);

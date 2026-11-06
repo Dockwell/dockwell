@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp, aProject, ENV, places, projectPlaces, SERVER } from "../../test/apps";
+import { anApp, aProject, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
 import { changeEvent, moved, shopPlanned, since, snapshot } from "../../test/changes";
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -118,7 +118,7 @@ describe("the apps list", () => {
         .map((h) => h.textContent),
     ).toEqual(["App", "Status", "Revision", "Deployed"]);
     expect(row).toHaveTextContent("ghcr.io/acme/web:1.4");
-    expect(row).toHaveTextContent("Live");
+    expect(row).not.toHaveTextContent("Live");
     expect(row).toHaveTextContent("r3");
     expect(row).toHaveTextContent("1 h ago");
     expect(screen.getByText("1 app")).toBeVisible();
@@ -176,7 +176,6 @@ describe("the apps list", () => {
     );
     const head = await screen.findByRole("row", { name: /shop/ });
     expect(head).toHaveTextContent("5 apps");
-    expect(head).toHaveTextContent("Live");
     // Its revision column has nothing to say, and says so without leaving a hole.
     expect(within(head).getAllByRole("cell")[2]).toHaveTextContent("—");
     expect(screen.getByRole("row", { name: /worker/ })).toBeVisible();
@@ -367,14 +366,16 @@ describe("the apps list", () => {
     expect(await screen.findByText(/1 needs a look/)).toBeVisible();
   });
 
-  it("doesn't say live until the fleet has said its servers are there", async () => {
+  it("needs nothing of the fleet to say how an app runs, and asks nothing of you until then", async () => {
+    const web = anApp("web", "nginx");
     renderAt("/apps", {
-      ...api([anApp("web", "nginx")]),
+      ...api([web]),
       // A watch that never answers.
       servers: { watchServers: feed<WatchServersResponse>().stream },
+      health: running(web),
     });
     const row = await screen.findByRole("row", { name: /web/ });
-    expect(row).toHaveTextContent("Deployed");
+    await waitFor(() => expect(row).toHaveTextContent("Running"));
     expect(row).not.toHaveTextContent("Live");
     expect(screen.queryByText(/need a look/)).not.toBeInTheDocument();
   });
@@ -577,7 +578,7 @@ describe("the apps list", () => {
       },
     });
     const link = await screen.findByRole("link", { name: /nginx/ });
-    expect(link).toHaveTextContent("Live");
+    expect(link).not.toHaveTextContent("Live");
     expect(link).toHaveTextContent("r3");
     // A phone shows the last part and its tag, and keeps the whole for those who ask.
     expect(link).toHaveTextContent("nginx:1");
@@ -599,10 +600,11 @@ describe("the apps list", () => {
 
   it("speaks Chinese", async () => {
     await activateLocale("zh-CN");
-    renderAt("/apps", api([anApp("web", "nginx"), ...aProject("shop", "a", "b")]));
+    const web = anApp("web", "nginx");
+    renderAt("/apps", { ...api([web, ...aProject("shop", "a", "b")]), health: running(web) });
     expect(await screen.findByRole("heading", { level: 1, name: "应用" })).toBeVisible();
     expect(await screen.findByRole("columnheader", { name: "状态" })).toBeVisible();
     expect(screen.getByRole("link", { name: "新建应用" })).toBeVisible();
-    expect(screen.getByRole("row", { name: /web/ })).toHaveTextContent("运行中");
+    await waitFor(() => expect(screen.getByRole("row", { name: /web/ })).toHaveTextContent("正在运行"));
   });
 });

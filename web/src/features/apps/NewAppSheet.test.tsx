@@ -127,7 +127,7 @@ describe("New app, from an image", () => {
     await screen.findByRole("dialog", { name: "Applying" });
     expect(applies[0]?.fingerprint).toBe("feedfacefeedfacefeedfacefeedface");
     watch.push(watched(moved(planned(), { state: ChangeState.APPLIED })));
-    const done = await screen.findByRole("dialog", { name: "nginx is live" });
+    const done = await screen.findByRole("dialog", { name: "nginx is deployed" });
     await user.click(within(done).getByRole("button", { name: "Open nginx" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx"));
   });
@@ -989,5 +989,143 @@ describe("New app, from a Compose file", () => {
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(imports[0]?.removeOrphans).toBe(true);
+  });
+});
+
+describe("what a Compose file reads beside it", () => {
+  const SECRET = "hunter2-not-for-the-page";
+  const checking = (asked: { env: string; directory: string }[], refusal?: { message: string; line?: number }) => ({
+    checkCompose: (req: { env: string; directory: string }) => {
+      asked.push({ env: req.env, directory: req.directory });
+      return create(CheckComposeResponseSchema, {
+        ...(refusal && req.env !== "OK=1" && req.directory !== "/opt/shop" ? { refusal: { line: 0, ...refusal } } : {}),
+        services: [anApp("db", "postgres:17")],
+      });
+    },
+  });
+  const typed = async (user: ReturnType<typeof userEvent.setup>, sheet: HTMLElement) => {
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("services:\n  db:\n    image: postgres:17\n");
+  };
+
+  it("sends an .env and a directory to check and to plan, keeps neither, and hides the values", async () => {
+    const user = userEvent.setup();
+    const asked: { env: string; directory: string }[] = [];
+    const imports: ImportComposeRequest[] = [];
+    const set = vi.spyOn(Storage.prototype, "setItem");
+    const { router } = renderAt("/apps/new?source=compose", {
+      ...api({
+        compose: {
+          ...checking(asked),
+          importCompose: (req) => {
+            imports.push(req);
+            return { change: planned({ summary: "Run a Compose file" }) };
+          },
+        },
+      }),
+      changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await typed(user, sheet);
+    await user.click(within(sheet).getByRole("button", { name: "Add an .env file" }));
+    const env = within(sheet).getByLabelText(".env file");
+    expect(env.closest(".app-env-hidden")).not.toBeNull();
+    await user.click(env);
+    await user.paste(`POSTGRES_PASSWORD=${SECRET}`);
+    await user.click(within(sheet).getByRole("button", { name: "Say which directory it's in" }));
+    await user.type(within(sheet).getByLabelText(/Directory on the server/), "/opt/shop");
+    await waitFor(() => expect(asked.at(-1)).toEqual({ env: `POSTGRES_PASSWORD=${SECRET}`, directory: "/opt/shop" }));
+    // A person can check what they pasted.
+    await user.click(within(sheet).getByRole("button", { name: "Show" }));
+    expect(env.closest(".app-env-hidden")).toBeNull();
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    await waitFor(() => expect(review).toBeEnabled());
+    await user.click(review);
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(imports[0]?.env).toBe(`POSTGRES_PASSWORD=${SECRET}`);
+    expect(imports[0]?.directory).toBe("/opt/shop");
+    // Nowhere that outlives this sheet.
+    expect(router.state.location.href).not.toContain(SECRET);
+    expect(window.location.href).not.toContain(SECRET);
+    for (const [, value] of set.mock.calls) expect(String(value)).not.toContain(SECRET);
+    set.mockRestore();
+  });
+
+  it("puts what's wrong with an .env on the .env, at its line, and never its value", async () => {
+    const user = userEvent.setup();
+    const asked: { env: string; directory: string }[] = [];
+    renderAt("/apps/new?source=compose", {
+      ...api({
+        compose: checking(asked, {
+          message: "line 2 of the .env file has a $ before a name with no value. To write a $ of your own, use $$",
+        }),
+      }),
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await typed(user, sheet);
+    await user.click(await within(sheet).findByLabelText(".env file"));
+    await user.paste(`A=1\nB=${SECRET}$oops`);
+    const env = within(sheet).getByLabelText(".env file");
+    await waitFor(() => expect(env).toHaveAttribute("aria-invalid", "true"));
+    expect(sheet).toHaveTextContent("Line 2 of the .env file has a $ before a name with no value.");
+    // Only what was pasted holds it, and that is the field's own.
+    const beyond = sheet.cloneNode(true) as HTMLElement;
+    for (const field of beyond.querySelectorAll("textarea")) field.remove();
+    expect(beyond).not.toHaveTextContent(SECRET);
+    // It isn't the Compose file that's wrong.
+    expect(within(sheet).getByLabelText("Compose file")).not.toHaveAttribute("aria-invalid", "true");
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+    await waitFor(() => expect(sheet).toHaveTextContent("Fix the .env file to review the plan"));
+  });
+
+  it("opens the directory where a relative path needs it, and puts what's wrong there", async () => {
+    const user = userEvent.setup();
+    const asked: { env: string; directory: string }[] = [];
+    renderAt("/apps/new?source=compose", {
+      ...api({
+        compose: checking(asked, {
+          message:
+            "the service db mounts ./data, a path relative to the Compose file, and Dockwell doesn't know where the file is on the server. Pass the directory it is in, as directory (--directory on the CLI), or use an absolute path, such as /srv/db/data, or a named volume",
+          line: 4,
+        }),
+      }),
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await typed(user, sheet);
+    const directory = await within(sheet).findByLabelText(/Directory on the server/);
+    await waitFor(() => expect(directory).toHaveAttribute("aria-invalid", "true"));
+    expect(within(sheet).getByLabelText("Compose file")).not.toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(sheet).toHaveTextContent("Say where the file is to review the plan"));
+    await user.type(directory, "/opt/shop");
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
+  });
+
+  it("puts a directory that won't do on the directory", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/new?source=compose", {
+      ...api({
+        compose: {
+          checkCompose: (req) =>
+            create(CheckComposeResponseSchema, {
+              ...(req.directory === "opt/shop"
+                ? {
+                    refusal: {
+                      message:
+                        'the directory "opt/shop" isn\'t an absolute path, and a server has nowhere else to start from. Give the one the Compose file is in, such as /opt/shop',
+                    },
+                  }
+                : {}),
+              services: [anApp("db", "postgres:17")],
+            }),
+        },
+      }),
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await typed(user, sheet);
+    await user.click(await within(sheet).findByRole("button", { name: "Say which directory it's in" }));
+    const directory = within(sheet).getByLabelText(/Directory on the server/);
+    await user.type(directory, "opt/shop");
+    await waitFor(() => expect(directory).toHaveAttribute("aria-invalid", "true"));
+    expect(sheet).toHaveTextContent("isn't an absolute path");
   });
 });

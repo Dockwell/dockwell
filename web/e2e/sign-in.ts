@@ -37,6 +37,7 @@ import { type Browser, type BrowserContext, chromium, type Page } from "playwrig
 
 import { appsFlow } from "./apps-flow.ts";
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
+import { healthFlow } from "./health-flow.ts";
 import { planFlow } from "./plan-flow.ts";
 
 const { values, positionals } = parseArgs({
@@ -771,6 +772,30 @@ async function main() {
       shoot,
       stopByHand: (id) => dockerStop(fakeSocket, id),
       docker: dockerProbe(fakeSocket),
+    });
+    await healthFlow(page, {
+      origin,
+      step,
+      shoot,
+      docker: dockerProbe(fakeSocket),
+      socket: fakeSocket,
+      fake: true,
+      bin,
+      data,
+      env: { DOCKER_HOST: `unix://${fakeSocket}` },
+      browser,
+      context,
+      // A daemon that hangs, as a stuck storage driver makes Docker: it takes calls and answers none.
+      hangDocker: () => {
+        docker?.kill("SIGSTOP");
+        return () => docker?.kill("SIGCONT");
+      },
+      // A control plane that stops answering and keeps its connections, as a frozen
+      // process or a proxy holding them open does.
+      freezeControlPlane: () => {
+        server?.kill("SIGSTOP");
+        return () => server?.kill("SIGCONT");
+      },
     });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");

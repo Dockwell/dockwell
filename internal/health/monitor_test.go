@@ -320,6 +320,7 @@ func TestDockerGoneLeavesNoClaimStanding(t *testing.T) {
 		}},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			e := dockertest.New(t)
 			c := add(e, "web")
 			if tc.setup != nil {
@@ -337,11 +338,21 @@ func TestDockerGoneLeavesNoClaimStanding(t *testing.T) {
 				}
 				return nil
 			})
+			if !m.DockerUnreadableSince().IsZero() {
+				t.Errorf("with Docker there, it says it can't read it since %s", m.DockerUnreadableSince())
+			}
+			gone := time.Now()
 			eventually(t, "it stops claiming that", m, stateOf(n, dockwellv1.HealthState_HEALTH_STATE_UNKNOWN))
 			if got := m.ScannedAt(); got.After(scanned.Add(time.Second)) {
 				t.Errorf("it says it read Docker at %s, with Docker gone since before", got)
 			}
+			// It says it can't read Docker, since about when it went, so whoever reads it is told why.
+			if since := m.DockerUnreadableSince(); since.Before(gone.Add(-time.Second)) || since.After(time.Now()) {
+				t.Errorf("it says it can't read Docker since %s, with Docker gone at %s", since, gone)
+			}
 			down.Store(false)
+			// At its slower pace, which is no more than 5 s.
+			eventually(t, "it says it reads Docker again", m, func(map[string]*dockwellv1.InstanceHealth) bool { return m.DockerUnreadableSince().IsZero() })
 			// It looks again at its slower pace, so this needs no more than that.
 			m2 := start(t, e, nil)
 			eventually(t, "a monitor with Docker back reads it", m2, stateOf(n, tc.want))
@@ -518,6 +529,65 @@ func TestAMonitorThatHasReadNothingHasNothingToSay(t *testing.T) {
 	}
 }
 
+// A monitor that starts with Docker down or hung hasn't read it, and says so from
+// its first moment, and on its pace after, so its server never reads as healthy
+// before Docker has answered once. Once Docker answers, it doesn't.
+func TestAMonitorThatHasReadNothingSaysDockerHasntAnswered(t *testing.T) {
+	for name, answer := range map[string]func(*http.Request) error{
+		"down": func(*http.Request) error { return errors.New("Cannot connect to the Docker daemon") },
+		"hung": func(r *http.Request) error { <-r.Context().Done(); return r.Context().Err() },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := dockertest.New(t)
+			add(e, "web")
+			var answering atomic.Bool
+			e.Intercept(func(r *http.Request) error {
+				if answering.Load() {
+					return nil
+				}
+				return answer(r)
+			})
+			before := time.Now()
+			m := &health.Monitor{Client: e.Client(), Scan: 5 * time.Millisecond, Refresh: 20 * time.Millisecond, CallTimeout: time.Hour}
+			if name == "down" {
+				m.CallTimeout = 0
+			}
+			since := m.DockerUnreadableSince()
+			if since.Before(before) || since.After(time.Now()) {
+				t.Errorf("before it has read anything, Docker is unreadable since %s, want since it started, at %s", since, before)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan struct{})
+			go func() { defer close(done); m.Run(ctx) }()
+			defer func() { cancel(); <-done }()
+			// It goes on saying so, on its pace, though it has nothing else to say.
+			for i := range 3 {
+				select {
+				case <-m.Changed():
+				case <-time.After(5 * time.Second):
+					t.Fatalf("with Docker %s, it said nothing for 5 s, the %d time", name, i+1)
+				}
+				m.Report()
+				if got := m.DockerUnreadableSince(); !got.Equal(since) {
+					t.Errorf("with Docker %s, it says it can't read it since %s, want %s", name, got, since)
+				}
+			}
+			if name == "hung" {
+				return // its list waits for its hour
+			}
+			answering.Store(true)
+			deadline := time.Now().Add(10 * time.Second)
+			for !m.DockerUnreadableSince().IsZero() || m.ScannedAt().IsZero() {
+				if time.Now().After(deadline) {
+					t.Fatal("with Docker answering again, it still says it can't read it")
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+		})
+	}
+}
+
 // Checks that hang hold a worker for their timeout. They can't hold them all, so one
 // that would have said a service has died gets its turn.
 func TestHungChecksDontHoldUpAServiceThatHasDied(t *testing.T) {
@@ -578,9 +648,9 @@ func TestOnlyWhatTheSpecSetIsMasked(t *testing.T) {
 }
 
 // A paused container counts as running to Docker, which stops its checks, and each list
-// goes on saying what they last said. It serves nothing, so it reads as not running,
-// whatever checks it, for as long as it stays paused, and goes back as it was after.
-func TestAPausedContainerReadsAsNotRunning(t *testing.T) {
+// goes on saying what they last said. It serves nothing, so it reads as paused, whatever
+// checks it, for as long as it stays so, and goes back as it was after.
+func TestAPausedContainerReadsAsPaused(t *testing.T) {
 	pause := func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" }
 	unpause := func(c *docker.Container) { c.State.Paused, c.State.Status = false, "running" }
 	for _, way := range []struct {
@@ -611,14 +681,14 @@ func TestAPausedContainerReadsAsNotRunning(t *testing.T) {
 			})
 			eventually(t, "it reads as it does", m, stateOf(name, way.before))
 			e.Edit(name, pause)
-			got := eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+			got := eventually(t, "it reads as paused", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_PAUSED))
 			if said := got[name].GetLast().GetOutput(); !strings.Contains(said, "paused") || got[name].GetLast().GetPassed() {
 				t.Errorf("it says %q, passed %t", said, got[name].GetLast().GetPassed())
 			}
 			// Each list goes on confirming that, and no check changes it.
 			settled := checks.Load()
 			time.Sleep(100 * time.Millisecond)
-			if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
+			if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_PAUSED {
 				t.Errorf("paused for a while, it reads %s", got)
 			}
 			if got := checks.Load(); got > settled+1 {
@@ -653,11 +723,11 @@ func TestACheckUnderWayWhenAContainerPausesSaysNothing(t *testing.T) {
 	hold.Store(true)
 	<-asked
 	e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
-	eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+	eventually(t, "it reads as paused", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_PAUSED))
 	time.Sleep(30 * time.Millisecond) // for the read that list started, which would put it right too
 	close(release)
 	for end := time.Now().Add(100 * time.Millisecond); time.Now().Before(end); time.Sleep(time.Millisecond) {
-		if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING {
+		if got := m.Report()[0].GetState(); got != dockwellv1.HealthState_HEALTH_STATE_PAUSED {
 			t.Fatalf("a check that passed before it paused made it read %s", got)
 		}
 	}
@@ -717,12 +787,13 @@ func TestWhatNoCheckLooksAtHoldsAsLongAsTheListSaysIt(t *testing.T) {
 // doesn't get through. That is enough to stop reading it as healthy.
 func TestWhatTheListSaysReachesTheStateWhenAReadFails(t *testing.T) {
 	for _, way := range []struct {
-		name string
-		says string
-		to   func(e *dockertest.Engine, name string)
+		name  string
+		state dockwellv1.HealthState
+		says  string
+		to    func(e *dockertest.Engine, name string)
 	}{
-		{"exited", "it is exited", func(e *dockertest.Engine, name string) { e.Stop(name) }},
-		{"paused", "it serves nothing and no check runs", func(e *dockertest.Engine, name string) {
+		{"exited", dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, "it is exited", func(e *dockertest.Engine, name string) { e.Stop(name) }},
+		{"paused", dockwellv1.HealthState_HEALTH_STATE_PAUSED, "it serves nothing and no check runs", func(e *dockertest.Engine, name string) {
 			e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
 		}},
 	} {
@@ -744,10 +815,35 @@ func TestWhatTheListSaysReachesTheStateWhenAReadFails(t *testing.T) {
 			})
 			defer refuse.Store(false)
 			way.to(e, name)
-			got := eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+			got := eventually(t, "it stops reading as healthy", m, stateOf(name, way.state))
 			if said := got[name].GetLast().GetOutput(); !strings.Contains(said, way.says) {
 				t.Errorf("it says %q, want %q", said, way.says)
 			}
 		})
+	}
+}
+
+// A list says a container doesn't run before a read says how it exited. That goes out
+// as soon as it's known, and not with the next report that would have gone anyway.
+func TestHowAContainerExitedGoesOutAtOnce(t *testing.T) {
+	e := dockertest.New(t)
+	name := strings.TrimPrefix(add(e, "web").Name, "/")
+	m := &health.Monitor{Client: e.Client(), Scan: 5 * time.Millisecond, Refresh: time.Hour}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); m.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+	eventually(t, "it reads as running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NO_CHECK))
+	e.Edit(name, func(c *docker.Container) { c.State = docker.State{Status: "exited", ExitCode: 137} })
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case <-m.Changed():
+			if said := m.Report()[0].GetLast().GetOutput(); strings.Contains(said, "exit code 137") {
+				return
+			}
+		case <-deadline:
+			t.Fatalf("nothing told of how it exited, and it says %q", m.Report()[0].GetLast().GetOutput())
+		}
 	}
 }

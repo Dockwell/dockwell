@@ -148,23 +148,35 @@ export function NetworkPanel({ server }: { server: Server }) {
 }
 
 /** The agent on the server: its build, its connection and when it last reported. */
-export function AgentPanel({ server }: { server: Server }) {
+export function AgentPanel({ server, unknown = false }: { server: Server; unknown?: boolean }) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   // The control plane's clock, which its timestamps are on, so a browser whose clock is off doesn't skew them.
   const now = useControlPlaneNow();
   const controlPlane = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const version = server.agentBuild?.version;
+  const blind = server.connection === Connection.CONNECTED ? server.dockerUnreadableSince : undefined;
   const badge =
     server.connection === Connection.CONNECTED
-      ? t`Connected`
+      ? blind
+        ? t`Can't read Docker`
+        : t`Connected`
       : server.connection === Connection.UNREACHABLE
         ? t`Not connected`
         : t`Waiting`;
   const connected = server.connectTime ? words.span(now - timestampDate(server.connectTime).getTime()) : undefined;
   const joined = server.createTime ? timestampDate(server.createTime) : undefined;
   return (
-    <Panel title={t`Agent`} actions={<StatusBadge status={serverStatus(server)} label={badge} />}>
+    <Panel
+      title={t`Agent`}
+      actions={
+        unknown ? (
+          <StatusBadge status="unknown" label={t`Unknown`} labelIsState />
+        ) : (
+          <StatusBadge status={serverStatus(server)} label={badge} />
+        )
+      }
+    >
       <dl className="facts">
         {version ? (
           <Fact term={t`Version`}>
@@ -179,6 +191,7 @@ export function AgentPanel({ server }: { server: Server }) {
         ) : null}
         <Fact term={t`Control plane`}>{server.controlServer ? t`Runs on this server` : t`Runs on another server`}</Fact>
         {connected ? <Fact term={t`Connected`}>{t`For ${connected}`}</Fact> : null}
+        {blind ? <DockerFact since={timestampDate(blind)} now={now} /> : null}
         <Fact term={t`Last heartbeat`}>
           {server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : <Muted>{t`Never`}</Muted>}
         </Fact>
@@ -189,6 +202,20 @@ export function AgentPanel({ server }: { server: Server }) {
         ) : null}
       </dl>
     </Panel>
+  );
+}
+
+/** An agent that can't read Docker: since when, what that means, and how to check it. */
+function DockerFact({ since, now }: { since: Date; now: number }) {
+  const { t } = useLingui();
+  const ago = useTimeWords().ago(since, now);
+  return (
+    <Fact term={t`Docker`}>
+      <Trans>
+        Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with{" "}
+        <code>systemctl status docker</code>.
+      </Trans>
+    </Fact>
   );
 }
 

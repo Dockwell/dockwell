@@ -42,7 +42,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { BecauseNotice, FailureNotice } from "../changes/FailureNotice";
+import { BecauseNotice, FailureNotice, MachineWords } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
 import { canUndo, diffResources, failedStep, foldPlumbing, shortFingerprint, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
@@ -52,12 +52,12 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { type Described, useCounts, useDescribe, useProgress } from "./describe";
+import { type Described, happenedAt, useCounts, useDescribe, useHealthEventWords, useProgress } from "./describe";
 import { type EventFilter, useEvents } from "./useEvents";
 import "./ActivityPage.css";
 
 /** The kinds of event Activity filters by, as its search names them. */
-export type ActivityKind = "changes" | "servers" | "access";
+export type ActivityKind = "changes" | "servers" | "access" | "health";
 
 /** Activity's place, in its URL: the filters and the event open beside the list. */
 export interface ActivitySearch {
@@ -73,6 +73,7 @@ const KINDS: Readonly<Record<ActivityKind, EventKind>> = {
   changes: EventKind.CHANGE,
   servers: EventKind.SERVER,
   access: EventKind.ACCESS,
+  health: EventKind.HEALTH,
 };
 
 /** Dockwell, in the actor filter. */
@@ -139,6 +140,7 @@ export function ActivityPage({
     { value: "changes", label: t`Changes` },
     { value: "servers", label: t`Servers` },
     { value: "access", label: t`Access` },
+    { value: "health", label: t`Health` },
   ];
 
   let body: ReactNode;
@@ -215,7 +217,7 @@ export function ActivityPage({
   return (
     <Page
       title={t`Activity`}
-      lead={t`Every change, server event and access grant, newest first`}
+      lead={t`Every change, server event, access grant and change of health, newest first`}
       status={status}
       className="activity"
     >
@@ -334,9 +336,14 @@ function useMeta() {
   const counts = useCounts();
   const progress = useProgress();
   const rollbackWord = useRollbackWord();
+  const health = useHealthEventWords();
   return useCallback(
     (event: Event): { look: StepLook | undefined; parts: string[] } => {
       const change = event.change;
+      if (event.kind === EventKind.HEALTH) {
+        const said = health.flips(event);
+        return { look: health.look(event), parts: said ? [said] : [] };
+      }
       if (!change) return { look: undefined, parts: [words.via(event.surface)] };
       const parts: string[] = [];
       const steps = change.state === ChangeState.APPLYING ? progress(change) : "";
@@ -347,7 +354,7 @@ function useMeta() {
       if (rollback) parts.push(rollback);
       return { look: words.state(change.state), parts };
     },
-    [t, words, counts, progress, rollbackWord],
+    [t, words, counts, progress, rollbackWord, health],
   );
 }
 
@@ -355,7 +362,8 @@ function useMeta() {
 function MetaLine({ look, parts }: { look: StepLook | undefined; parts: string[] }) {
   return (
     <span className="dw-tl-meta">
-      {look ? <StatusBadge status={look.status} label={look.word} /> : null}
+      {/* Its word is the state, so a screen reader hears that alone. */}
+      {look ? <StatusBadge status={look.status} label={look.word} labelIsState /> : null}
       {parts.map((part) => (
         <span key={part}>{part}</span>
       ))}
@@ -405,7 +413,7 @@ function DayTable({
       width: 104,
       align: "right",
       render: (event) => {
-        const date = event.time ? timestampDate(event.time) : new Date(0);
+        const date = happenedAt(event);
         return (
           <div className="activity-when">
             <time dateTime={date.toISOString()}>{time.ago(date, now)}</time>
@@ -436,7 +444,7 @@ function PhoneDay({ events, summaries, now }: DayProps) {
   const sheet = useChangeSheet();
   const items: TimelineEvent[] = events.map((event) => {
     const d = describe(event, summaries);
-    const date = event.time ? timestampDate(event.time) : new Date(0);
+    const date = happenedAt(event);
     const change = event.change;
     return {
       id: event.id,
@@ -625,7 +633,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
   const rows = useFieldRows();
   const change = event.change;
   const full = useQuery(ChangeService.method.getChange, { id: event.id }, { enabled: change !== undefined });
-  const date = event.time ? timestampDate(event.time) : new Date(0);
+  const date = happenedAt(event);
   const ago = time.ago(date, now);
   const kindWord = event.actor ? words.actorKind(event.actor.kind) : "";
   const look = change ? words.state(change.state) : undefined;
@@ -719,6 +727,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 <dd>{event.subject.name || <code className="activity-code">{event.subject.id}</code>}</dd>
               </>
             ) : null}
+            {event.health ? <HealthFacts event={event} /> : null}
           </dl>
           {change?.because ? <BecauseNotice because={change.because} /> : null}
           {change?.state === ChangeState.FAILED ? (
@@ -766,9 +775,58 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             </div>
           ) : toVariables ? (
             <div className="activity-detail-actions">{toVariables}</div>
+          ) : event.health && event.subject?.id ? (
+            <div className="activity-detail-actions">
+              <RouterButtonLink
+                to="/apps/$serviceId"
+                params={{ serviceId: event.subject.id }}
+                variant="ghost"
+                icon="service"
+              >
+                <Trans>Open the app</Trans>
+              </RouterButtonLink>
+            </div>
           ) : null}
         </div>
       </Panel>
     </div>
+  );
+}
+
+/** A change of health, in the facts of an event: how it stood, where, and what its check said. */
+function HealthFacts({ event }: { event: Event }) {
+  const { t } = useLingui();
+  const words = useHealthEventWords();
+  const look = words.look(event);
+  const flips = words.flips(event);
+  return (
+    <>
+      <dt>{t`Server`}</dt>
+      <dd>
+        <code className="activity-code">{event.health?.serverName}</code>
+      </dd>
+      {look ? (
+        <>
+          <dt>{t`State`}</dt>
+          <dd>
+            <StatusBadge status={look.status} label={look.word} labelIsState />
+          </dd>
+        </>
+      ) : null}
+      {event.health?.output ? (
+        <>
+          <dt>{t`Its check said`}</dt>
+          <dd>
+            <MachineWords>{event.health.output}</MachineWords>
+          </dd>
+        </>
+      ) : null}
+      {flips ? (
+        <>
+          <dt>{t`Changes`}</dt>
+          <dd>{flips}</dd>
+        </>
+      ) : null}
+    </>
   );
 }

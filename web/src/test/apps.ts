@@ -8,8 +8,12 @@ import {
   ContainerSchema,
   DeploymentState,
   FieldOp,
+  HealthCheckKind,
+  HealthState,
   type Resource,
   ResourceSchema,
+  type ServiceHealth,
+  ServiceHealthSchema,
   type ServiceInfo,
   ServiceInfoSchema,
   type ServiceRevision,
@@ -42,6 +46,85 @@ export function anApp(
     changeId: `chg_${name}`,
   };
   return create(ServiceInfoSchema, { ...base, ...init } as MessageInitShape<typeof ServiceInfoSchema>);
+}
+
+/** How a service runs on a server, as ListHealth has it. */
+export interface HealthOn {
+  state: HealthState;
+  server?: string;
+  serverName?: string;
+  stale?: boolean;
+  check?: HealthCheckKind;
+  said?: string;
+  passed?: boolean;
+  failing?: number;
+  /** How long ago it came to this, in ms, and how long ago its agent last looked. */
+  forMs?: number;
+  scannedMsAgo?: number;
+  /** How it last read, for a server that can't be read now. */
+  lastSaid?: HealthState;
+  /** How long ago its agent stopped being able to read Docker, for one that can't. */
+  dockerUnreadableMsAgo?: number;
+}
+
+/** How a service runs, on each server, as ListHealth has it: on hz-1, unless it says otherwise. */
+export function aHealth(id: string, ...on: HealthOn[]): ServiceHealth {
+  const worst: readonly HealthState[] = [
+    HealthState.UNHEALTHY,
+    HealthState.NOT_RUNNING,
+    HealthState.PAUSED,
+    HealthState.UNKNOWN,
+    HealthState.STARTING,
+    HealthState.NO_CHECK,
+    HealthState.HEALTHY,
+  ];
+  const state = worst.find((w) => on.some((o) => o.state === w)) ?? HealthState.UNKNOWN;
+  const now = Date.now();
+  return create(ServiceHealthSchema, {
+    id,
+    state,
+    servers: on.map((o) => {
+      const since = timestampFromDate(new Date(now - (o.forMs ?? 180_000)));
+      const known = o.state === HealthState.UNKNOWN && !o.lastSaid;
+      return {
+        serverId: o.server ?? SERVER,
+        serverName: o.serverName ?? "hz-1",
+        state: o.state,
+        stale: o.stale ?? o.state === HealthState.UNKNOWN,
+        ...(o.state === HealthState.UNKNOWN ? {} : { since }),
+        scannedAt: timestampFromDate(new Date(now - (o.scannedMsAgo ?? 1_000))),
+        ...(o.dockerUnreadableMsAgo === undefined
+          ? {}
+          : { dockerUnreadableSince: timestampFromDate(new Date(now - o.dockerUnreadableMsAgo)) }),
+        instances: known
+          ? []
+          : [
+              {
+                container: `env_1-${id}-1`,
+                state: o.lastSaid ?? o.state,
+                check: o.check ?? (o.state === HealthState.NO_CHECK ? HealthCheckKind.NONE : HealthCheckKind.HTTP),
+                failing: o.failing ?? 0,
+                since,
+                confirmedAt: since,
+                ...(o.said === undefined
+                  ? {}
+                  : {
+                      last: {
+                        output: o.said,
+                        passed: o.passed ?? false,
+                        time: timestampFromDate(new Date(now - 4_000)),
+                      },
+                    }),
+              },
+            ],
+      };
+    }),
+  });
+}
+
+/** A ListHealth with every given service running, and nothing checking it, unless it says otherwise. */
+export function running(...services: { id: string }[]) {
+  return { listHealth: () => ({ services: services.map((s) => aHealth(s.id, { state: HealthState.NO_CHECK })) }) };
 }
 
 /** The services of a Compose file, in a project of its own: they share its default network. */

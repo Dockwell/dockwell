@@ -92,6 +92,9 @@ const MAX_FILE = 256 << 10;
 /** How many lines the Compose field starts with, and the most it grows to before it scrolls. */
 const FILE_LINES = 12;
 
+/** How many lines of an .env show before it scrolls. */
+const ENV_LINES = 6;
+
 /**
  * New app (Apps-New): one sheet that takes an image or a Compose file and
  * ends in the plan. Nothing runs until the plan applies. An image needs only
@@ -137,6 +140,9 @@ export function NewAppSheet({
   const [file, setFile] = useState("");
   const [typedProject, setTypedProject] = useState<string>();
   const [variables, setVariables] = useState<Readonly<Record<string, string>>>({});
+  // An .env holds secrets: it lives here and in what is sent, and in nothing kept.
+  const [envFile, setEnvFile] = useState("");
+  const [directory, setDirectory] = useState("");
   const [removeOrphans, setRemoveOrphans] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
@@ -146,7 +152,7 @@ export function NewAppSheet({
 
   const fileBytes = useMemo(() => new TextEncoder().encode(file).length, [file]);
   const fileTooBig = fileBytes > MAX_FILE;
-  const check = useComposeCheck(source === "compose" && !fileTooBig ? file : "", variables);
+  const check = useComposeCheck(source === "compose" && !fileTooBig ? file : "", variables, envFile, directory);
 
   // A Compose file goes in the project it names, and an image in the one chosen.
   const project = typedProject ?? toLabel(check.data?.name ?? "");
@@ -308,6 +314,8 @@ export function NewAppSheet({
           compose: file,
           environment: choosesEnvironment ? scope : "",
           variables,
+          env: envFile,
+          directory: directory.trim(),
           servers: [...chosenServers],
           removeOrphans,
         });
@@ -376,6 +384,9 @@ export function NewAppSheet({
     // What it would refuse whatever its variables hold comes first: no one should
     // type a secret for a file it then refuses.
     if (refused && !waitsForValues(refused.message)) {
+      const at = composeRefusal(refused).field;
+      if (at === "env") return t`Fix the .env file to review the plan`;
+      if (at === "directory") return t`Say where the file is to review the plan`;
       const line = refused.line;
       const end = refused.endLine;
       if (end > line) return t`Fix lines ${line}–${end} to review the plan`;
@@ -394,7 +405,10 @@ export function NewAppSheet({
   const whyNotAt = (() => {
     if (!whyNot || file.trim() === "" || fileTooBig || check.isPending) return undefined;
     const refused = check.data?.refusal;
-    if (refused && !waitsForValues(refused.message)) return "textarea";
+    if (refused && !waitsForValues(refused.message)) {
+      const at = composeRefusal(refused).field;
+      return at === "file" ? "textarea" : `[data-field="${at}"] textarea, input[data-field="${at}"]`;
+    }
     const [first] = missingVariables;
     if (first) return `[data-variable="${first}"]`;
     return '[data-field="project"]';
@@ -517,6 +531,10 @@ export function NewAppSheet({
             tooBig={fileTooBig ? fileBytes : undefined}
             variables={variables}
             onVariables={setVariables}
+            envFile={envFile}
+            onEnvFile={setEnvFile}
+            directory={directory}
+            onDirectory={setDirectory}
             check={check}
             fieldRef={firstField}
             project={project}
@@ -934,19 +952,35 @@ function RemoveRow({ label, onClick }: { label: string; onClick: () => void }) {
 }
 
 /** Reads a Compose file as it is typed, a moment after each key. */
-function useComposeCheck(file: string, variables: Readonly<Record<string, string>>) {
-  const [settled, setSettled] = useState({ file, variables });
+function useComposeCheck(file: string, variables: Readonly<Record<string, string>>, env: string, directory: string) {
+  const [settled, setSettled] = useState({ file, variables, env, directory });
   useEffect(() => {
-    const timer = setTimeout(() => setSettled({ file, variables }), CHECK_AFTER_MS);
+    const timer = setTimeout(() => setSettled({ file, variables, env, directory }), CHECK_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [file, variables]);
+  }, [file, variables, env, directory]);
   const query = useQuery(
     ComposeService.method.checkCompose,
-    { compose: settled.file, variables: settled.variables },
-    { enabled: settled.file.trim() !== "", placeholderData: (previous) => previous, staleTime: 60_000 },
+    {
+      compose: settled.file,
+      variables: settled.variables,
+      env: settled.env,
+      directory: settled.directory.trim(),
+    },
+    {
+      enabled: settled.file.trim() !== "",
+      placeholderData: (previous) => previous,
+      staleTime: 60_000,
+      // A query's key is what it asked, and here that holds an .env's values, so nothing keeps it once it's done with.
+      gcTime: 0,
+    },
   );
   // Until the file settles, what is shown is about an older one, so Review plan waits.
-  const waiting = file !== settled.file || variables !== settled.variables || query.isFetching;
+  const waiting =
+    file !== settled.file ||
+    variables !== settled.variables ||
+    env !== settled.env ||
+    directory !== settled.directory ||
+    query.isFetching;
   return { data: file.trim() === "" ? undefined : query.data, error: query.error, isPending: waiting };
 }
 
@@ -956,6 +990,10 @@ function ComposeFields({
   tooBig,
   variables,
   onVariables,
+  envFile,
+  onEnvFile,
+  directory,
+  onDirectory,
   check,
   fieldRef,
   project,
@@ -971,6 +1009,10 @@ function ComposeFields({
   tooBig: number | undefined;
   variables: Readonly<Record<string, string>>;
   onVariables: (variables: Readonly<Record<string, string>>) => void;
+  envFile: string;
+  onEnvFile: (text: string) => void;
+  directory: string;
+  onDirectory: (path: string) => void;
   check: ReturnType<typeof useComposeCheck>;
   project: string;
   onProject: (name: string) => void;
@@ -992,17 +1034,20 @@ function ComposeFields({
   const readFile = async (chosen: File | undefined) => {
     if (chosen) onFile(await chosen.text());
   };
+  const onFileField = refused?.field === "file" ? refused : undefined;
+  const onEnvField = refused?.field === "env" ? refused : undefined;
+  const onDirectoryField = refused?.field === "directory" ? refused : undefined;
   const kib = tooBig === undefined ? 0 : Math.ceil(tooBig / 1024);
   const limit = MAX_FILE >> 10;
   const fileError =
     tooBig !== undefined
       ? t`This file is ${kib} KiB, and Dockwell reads files of up to ${limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file.`
-      : refused
-        ? refused.line > 0
-          ? refused.to > refused.line
-            ? t`Near lines ${refused.line}–${refused.to}: ${refused.text}`
-            : t`Line ${refused.line}: ${refused.text}`
-          : refused.text
+      : onFileField
+        ? onFileField.line > 0
+          ? onFileField.to > onFileField.line
+            ? t`Near lines ${onFileField.line}–${onFileField.to}: ${onFileField.text}`
+            : t`Line ${onFileField.line}: ${onFileField.text}`
+          : onFileField.text
         : undefined;
   return (
     <>
@@ -1023,8 +1068,8 @@ function ComposeFields({
           onChange={(event) => onFile(event.target.value)}
           placeholder={'services:\n  web:\n    image: nginx:1.27\n    ports:\n      - "8080:80"'}
           error={fileError ? withCode(fileError) : undefined}
-          markedLine={refused?.line}
-          markedTo={refused?.to}
+          markedLine={refused && refused.field !== "env" ? refused.line : undefined}
+          markedTo={refused && refused.field !== "env" ? refused.to : undefined}
           hint={t`Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan.`}
           actions={
             <>
@@ -1077,6 +1122,14 @@ function ComposeFields({
           )
         }
         onChange={(event) => onProject(event.target.value)}
+      />
+      <BesideTheFile
+        envFile={envFile}
+        onEnvFile={onEnvFile}
+        directory={directory}
+        onDirectory={onDirectory}
+        envRefused={onEnvField}
+        directoryRefused={onDirectoryField}
       />
       {required.length > 0 || optional.length > 0 ? (
         <fieldset className="app-section" aria-label={t`Variables`}>
@@ -1144,6 +1197,116 @@ function ComposeFields({
         </p>
       ) : null}
       <ComposePreview check={check.data} />
+    </>
+  );
+}
+
+/**
+ * What a real file reads beside it: the .env it takes values from, and the directory
+ * what it says of paths starts from. They wait behind a button each, as most files need
+ * neither, and come out of hiding when a refusal is about one of them.
+ */
+function BesideTheFile({
+  envFile,
+  onEnvFile,
+  directory,
+  onDirectory,
+  envRefused,
+  directoryRefused,
+}: {
+  envFile: string;
+  onEnvFile: (text: string) => void;
+  directory: string;
+  onDirectory: (path: string) => void;
+  envRefused: RefusedAt | undefined;
+  directoryRefused: RefusedAt | undefined;
+}) {
+  const { t } = useLingui();
+  const [envOpen, setEnvOpen] = useState(false);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [shown, setShown] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const envShows = envOpen || envFile !== "" || envRefused !== undefined;
+  const directoryShows = directoryOpen || directory !== "" || directoryRefused !== undefined;
+  const read = async (chosen: File | undefined) => {
+    if (chosen) onEnvFile(await chosen.text());
+  };
+  return (
+    <>
+      {envShows && directoryShows ? null : (
+        <div className="app-beside">
+          {envShows ? null : (
+            <Button variant="ghost" size="sm" icon="plus" onClick={() => setEnvOpen(true)}>
+              <Trans>Add an .env file</Trans>
+            </Button>
+          )}
+          {directoryShows ? null : (
+            <Button variant="ghost" size="sm" icon="plus" onClick={() => setDirectoryOpen(true)}>
+              <Trans>Say which directory it's in</Trans>
+            </Button>
+          )}
+        </div>
+      )}
+      {envShows ? (
+        <div className="app-field" data-field="env">
+          <CodeField
+            className={shown ? undefined : "app-env-hidden"}
+            label={t`.env file`}
+            lines={ENV_LINES}
+            value={envFile}
+            autoComplete="off"
+            onChange={(event) => onEnvFile(event.target.value)}
+            placeholder={"REDIS_PASSWORD=...\nTAG=1.27"}
+            error={envRefused ? withCode(envRefused.text) : undefined}
+            markedLine={envRefused?.line || undefined}
+            hint={t`For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it.`}
+            actions={
+              <>
+                <input
+                  ref={input}
+                  type="file"
+                  className="dw-sr"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  onChange={(event) => {
+                    void read(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+                <Button variant="ghost" size="sm" icon="upload" onClick={() => input.current?.click()}>
+                  <Trans>Choose a file</Trans>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="eye"
+                  aria-pressed={shown}
+                  onClick={() => setShown((was) => !was)}
+                >
+                  {shown ? <Trans>Hide</Trans> : <Trans>Show</Trans>}
+                </Button>
+              </>
+            }
+          />
+        </div>
+      ) : null}
+      {directoryShows ? (
+        <TextField
+          data-field="directory"
+          label={t`Directory on the server`}
+          mono
+          optional
+          value={directory}
+          error={directoryRefused ? withCode(directoryRefused.text) : undefined}
+          hint={
+            <Trans>
+              Where the file is, such as <code>/opt/shop</code>. A path relative to it, such as <code>./data</code>,
+              starts there, and each is a server path you approve in the plan.
+            </Trans>
+          }
+          onChange={(event) => onDirectory(event.target.value)}
+        />
+      ) : null}
     </>
   );
 }
