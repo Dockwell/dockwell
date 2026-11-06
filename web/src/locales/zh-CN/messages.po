@@ -6823,6 +6823,14 @@ msgstr "时间"
 msgid "When it exits with an error"
 msgstr "出错退出时"
 
+#: src/features/changes/notices.tsx
+msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
+msgstr "在启用 SELinux 的服务器上，Docker 会把那里的所有内容重新标记为此应用私有，其他内容都无法再使用。"
+
+#: src/features/changes/notices.tsx
+msgid "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
+msgstr "在启用 SELinux 的服务器上，Docker 会重新标记那里的所有内容，以便在容器之间共享。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
 msgstr "文件所在的位置，例如 <0>/opt/shop</0>。相对于它的路径（例如 <1>./data</1>）从这里开始，每个都是你在计划中批准的服务器路径。"

@@ -6823,6 +6823,14 @@ msgstr "When"
 msgid "When it exits with an error"
 msgstr "When it exits with an error"
 
+#: src/features/changes/notices.tsx
+msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
+msgstr "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
+
+#: src/features/changes/notices.tsx
+msgid "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
+msgstr "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
 msgstr "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."

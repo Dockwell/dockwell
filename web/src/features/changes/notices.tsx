@@ -117,6 +117,21 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   const notice = ({ name, server, access }: (typeof reaches)[number], key: string): Notice => {
     // What a spec holds is quoted where it isn't what a name holds, so it can't write these words.
     const [path, leadsTo] = [plain(access.path), plain(access.leadsTo)];
+    // A relabel writes on the server, however read-only the mount is (ADR 0021).
+    const relabel =
+      access.relabel === "Z"
+        ? t`Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it.`
+        : access.relabel === "z"
+          ? t`Where SELinux is enforced, Docker relabels everything there, to share it between containers.`
+          : "";
+    const andRelabel = (detail: ReactNode): ReactNode =>
+      relabel ? (
+        <>
+          {detail} {relabel}
+        </>
+      ) : (
+        detail
+      );
     switch (access.kind) {
       case HostAccessKind.DOCKER_SOCKET:
         return {
@@ -228,33 +243,37 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           ? {
               key,
               title: t`${name} reaches ${path} on ${server}`,
-              detail: leadsTo ? (
-                <Trans>
-                  It leads to <code>{leadsTo}</code> through a symlink, and the server's security rests on what is
-                  there, so reaching it is as good as root.
-                </Trans>
-              ) : (
-                t`The server's security rests on what is there, so reaching it is as good as root.`
+              detail: andRelabel(
+                leadsTo ? (
+                  <Trans>
+                    It leads to <code>{leadsTo}</code> through a symlink, and the server's security rests on what is
+                    there, so reaching it is as good as root.
+                  </Trans>
+                ) : (
+                  t`The server's security rests on what is there, so reaching it is as good as root.`
+                ),
               ),
               trust: true,
             }
           : {
               key,
               title: t`${name} reaches ${path} on ${server}`,
-              detail: leadsTo ? (
-                access.readOnly ? (
-                  <Trans>
-                    It leads to <code>{leadsTo}</code> through a symlink, and it can read what is there.
-                  </Trans>
+              detail: andRelabel(
+                leadsTo ? (
+                  access.readOnly ? (
+                    <Trans>
+                      It leads to <code>{leadsTo}</code> through a symlink, and it can read what is there.
+                    </Trans>
+                  ) : (
+                    <Trans>
+                      It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
+                    </Trans>
+                  )
+                ) : access.readOnly ? (
+                  t`It can read that path on the server.`
                 ) : (
-                  <Trans>
-                    It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
-                  </Trans>
-                )
-              ) : access.readOnly ? (
-                t`It can read that path on the server.`
-              ) : (
-                t`It can read and write that path on the server.`
+                  t`It can read and write that path on the server.`
+                ),
               ),
             };
     }
