@@ -171,8 +171,21 @@ func mountReason(message string) string {
 
 // pullFailure says why an image can't be pulled, and says so if it can't tell.
 func pullFailure(ref string, err error) error {
-	message := messageOf(err)
-	var plain, reason string
+	plain, reason := pullWords(ref, messageOf(err))
+	return resource.PlainlyBecause(reason, plain, fmt.Errorf("can't pull %s: %w", ref, err))
+}
+
+// pullAgainFailure is pullFailure for an image that runs now, as a deploy of its
+// own tag pulls it again: after why, it says what that left as it was.
+func pullAgainFailure(ref string, err error) error {
+	plain, reason := pullWords(ref, messageOf(err))
+	// The first full stop that a space follows, as an image's own have none after.
+	why, fix, _ := strings.Cut(plain, ". ")
+	return resource.PlainlyBecause(reason, why+". Nothing was replaced, and what runs goes on running. "+fix, fmt.Errorf("can't pull %s again: %w", ref, err))
+}
+
+// pullWords says why a pull failed, from what Docker said, and what that comes down to.
+func pullWords(ref, message string) (plain, reason string) {
 	switch {
 	case pullPlatform(message):
 		reason = resource.ReasonImage
@@ -198,7 +211,7 @@ func pullFailure(ref string, err error) error {
 	default:
 		plain = fmt.Sprintf("%s can't be pulled, and Dockwell doesn't recognize why. Docker says: %s. Look at what it says, then try again.", ref, dockerSays(message))
 	}
-	return resource.PlainlyBecause(reason, plain, fmt.Errorf("can't pull %s: %w", ref, err))
+	return plain, reason
 }
 
 // startFailure says why a container at t didn't start, from what Docker said

@@ -1098,7 +1098,7 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 	}
 	if old != nil && notRunning(old) == "" {
 		resource.Report(ctx, resource.Outcome{Untouched: true})
-		return fmt.Errorf("can't pull %s again: %w, so nothing was replaced, and what runs goes on running. Check that its registry answers, and the image's name and tag, then deploy again. Dockwell can't pull private images yet", ref, err)
+		return pullAgainFailure(ref, err)
 	}
 	switch _, have := d.Client.InspectImage(ctx, docker.WithTag(ref)); {
 	case have == nil:

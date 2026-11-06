@@ -894,9 +894,9 @@ cant_pull() {
   id=$(moving_id)
   started=$(moving_started)
   if said=$(dw services deploy moving --image "$moving" --yes 2>&1); then fail "deploying with the registry stopped applied: $said"; fi
-  grep -qF "can't pull $moving again" <<<"$said" || fail "with the registry stopped, the fact isn't there: $said"
-  grep -qF "so nothing was replaced, and what runs goes on running" <<<"$said" || fail "with the registry stopped, what follows isn't there: $said"
-  grep -qF "Check that its registry answers" <<<"$said" || fail "with the registry stopped, the fix isn't there: $said"
+  grep -qF "can't reach the registry $moving is on" <<<"$said" || fail "with the registry stopped, the fact isn't there: $said"
+  grep -qF "Nothing was replaced, and what runs goes on running" <<<"$said" || fail "with the registry stopped, what follows isn't there: $said"
+  grep -qF "Check the server's network and DNS" <<<"$said" || fail "with the registry stopped, the fix isn't there: $said"
   moving_settled
   [[ "$(moving_id)" == "$id" ]] || fail "a pull that failed replaced the container"
   [[ "$(moving_started)" == "$started" ]] || fail "a pull that failed restarted the container"

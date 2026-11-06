@@ -272,10 +272,15 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	before := b.e.Serving(name).ID
 	delete(b.e.Registry, latest)
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
-	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "can't pull "+latest+" again") ||
-		!strings.Contains(got.GetError(), "so nothing was replaced, and what runs goes on running") ||
-		!strings.Contains(got.GetError(), "Check that its registry answers") {
+	want := latest + " can't be pulled. Nothing was replaced, and what runs goes on running. " +
+		"The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again."
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetError() != want {
 		t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
+	}
+	// It says what it comes down to, and what the engine said stays for whoever digs in.
+	step := got.GetSteps()[0]
+	if step.GetReason() != "image" || !strings.Contains(step.GetDetail(), "can't pull "+latest+" again") || !strings.Contains(step.GetDetail(), "pull access denied") {
+		t.Errorf("the step's reason is %q, and its detail %q", step.GetReason(), step.GetDetail())
 	}
 	if ctr := b.e.Serving(name); ctr.ID != before || !ctr.State.Running {
 		t.Error("a failed pull touched what runs")
@@ -309,7 +314,7 @@ func TestAPullThatFailsLeavesAPinnedApp(t *testing.T) {
 	delete(b.e.Registry, latest)
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetRolledBackBy() == "" ||
-		!strings.Contains(got.GetError(), "can't pull "+latest+" again") {
+		!strings.Contains(got.GetError(), latest+" can't be pulled") {
 		t.Fatalf("the deploy ended %v, rolled back by %q: %s", got.GetState(), got.GetRolledBackBy(), got.GetError())
 	}
 	waitFor(t, "the rollback to end", func() bool {

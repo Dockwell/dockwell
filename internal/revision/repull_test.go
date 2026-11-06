@@ -413,7 +413,7 @@ func TestAPullWithNothingOnRecordResumesByAskingAgain(t *testing.T) {
 	next.Wait()
 
 	c := stored(t, s.db, plan.Change)
-	if c.State != store.ChangeFailed || !strings.Contains(c.Error, "can't pull "+shopTag+" again") {
+	if c.State != store.ChangeFailed || !strings.Contains(c.Error, shopTag+" can't be pulled") {
 		t.Fatalf("the change ended %s: %s", c.State, c.Error)
 	}
 	if got := s.running(eng); got.ID != s.before["srv_A"] || !got.State.Running {
