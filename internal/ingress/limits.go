@@ -240,7 +240,8 @@ func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired, m
 		return nil
 	}
 	// One whose certificate is there already asks nothing of the authority, so an
-	// undo that puts a route back isn't held up by what others were adding.
+	// undo that puts a route back isn't held up by the names others were adding, only
+	// by MaxRoutes above.
 	certs, err := m.Proxy.Certificates(ctx, fresh)
 	if err != nil {
 		return err
