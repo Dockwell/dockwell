@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -426,13 +428,13 @@ func newDeafFirewall(t *testing.T) *deafFirewall {
 }
 
 // stops says whether a stream's calls let it end within a bound.
-func stops(c *calls, within time.Duration) bool {
+func stops(c *calls) bool {
 	stopped := make(chan struct{})
 	go func() { c.stop(); close(stopped) }()
 	select {
 	case <-stopped:
 		return true
-	case <-time.After(within):
+	case <-time.After(3 * time.Second):
 		return false
 	}
 }
@@ -449,7 +451,7 @@ func TestACallThatNeverReturnsDoesntHoldUpTheStream(t *testing.T) {
 	}, s.send, nil)
 	c.start(applyCall(t, 1, "stuck"))
 	<-fw.started
-	if !stops(c, 3*time.Second) {
+	if !stops(c) {
 		t.Fatal("stop is waiting on a call that will never return, so this agent would never reconnect")
 	}
 	if !strings.Contains(log.String(), "left it behind") || !strings.Contains(log.String(), "call=apply") {
@@ -508,7 +510,7 @@ func TestWhatsLeftBehindIsBoundedAcrossStreams(t *testing.T) {
 		c := newCalls(context.Background(), cfg, s.send, nil)
 		c.start(applyCall(t, uint64(i+1), "stuck"))
 		<-fw.started
-		if !stops(c, 3*time.Second) {
+		if !stops(c) {
 			t.Fatal("stop hung")
 		}
 	}
@@ -548,11 +550,46 @@ func TestASendThatNeverReturnsDoesntHoldUpTheStream(t *testing.T) {
 	}, func(*agentv1.ConnectRequest) error { sending <- struct{}{}; <-gone; return nil }, nil)
 	c.start(listCall(1, t.TempDir(), time.Minute))
 	<-sending
-	if !stops(c, 3*time.Second) {
+	if !stops(c) {
 		t.Fatal("stop is waiting on a send that will never return")
 	}
 	if !strings.Contains(log.String(), "stream ended") {
 		t.Errorf("the log says nothing of it: %s", log.String())
+	}
+}
+
+// A root that can't be saved holds the save's call, and nothing else.
+func TestARootThatWontSaveDoesntHoldUpTheStream(t *testing.T) {
+	dir := t.TempDir()
+	data := filepath.Join(dir, "data")
+	if err := os.MkdirAll(filepath.Join(data, "agent"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Writing to a FIFO no one reads blocks in a real system call, as a stalled disk does.
+	fifo := filepath.Join(data, "agent", "docker-roots.new")
+	if err := unix.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if fd, err := unix.Open(fifo, unix.O_RDONLY|unix.O_NONBLOCK, 0); err == nil {
+			time.Sleep(100 * time.Millisecond)
+			_ = unix.Close(fd)
+		}
+	})
+	disk := files.New(data, nil, func(context.Context) (string, error) { return "/data/docker", nil })
+	disk.AnswerWithin = 100 * time.Millisecond
+	s := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{Logger: slog.New(slog.DiscardHandler), Files: disk, CallGrace: 50 * time.Millisecond}, s.send, nil)
+	c.start(listCall(1, dir, time.Minute))
+	deadline := time.Now().Add(3 * time.Second)
+	for s.result(1) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("the listing never answered")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !stops(c) {
+		t.Fatal("a stalled save of Docker's root stopped the stream ending")
 	}
 }
 

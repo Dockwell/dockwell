@@ -75,30 +75,41 @@ func (s *Server) dockerRoots(ctx context.Context) []string {
 	return append([]string{defaultDockerRoot}, s.roots...)
 }
 
-// remember keeps a place Docker said, on disk too, if it's new.
+// remember keeps a place Docker said, on disk too, if it's new. The write is
+// outside mu: a disk that stalls here holds this call, which is left behind like
+// any other, and nothing that waits on mu, which must never wait on a disk.
 func (s *Server) remember(root string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if root == defaultDockerRoot || slices.Contains(s.roots, root) || strings.Contains(root, "\n") {
-		return
+	known := root == defaultDockerRoot || slices.Contains(s.roots, root) || strings.Contains(root, "\n")
+	if !known {
+		s.roots = append(s.roots, root)
+		if len(s.roots) > maxRoots {
+			s.roots = s.roots[len(s.roots)-maxRoots:]
+		}
 	}
-	s.roots = append(s.roots, root)
-	if len(s.roots) > maxRoots {
-		s.roots = s.roots[len(s.roots)-maxRoots:]
+	s.mu.Unlock()
+	if known {
+		return
 	}
 	if err := s.saveRoots(); err != nil {
 		s.logger.Warn("can't keep where Docker's data is, so after a restart with Docker away it goes by what it looks like", "error", err.Error())
 	}
 }
 
-// saveRoots writes the list whole, so a failure leaves the one before it.
+// saveRoots writes the list as it stands, whole, so a failure leaves the one before
+// it. One save runs at a time, and what's newest goes last.
 func (s *Server) saveRoots() error {
+	s.saving.Lock()
+	defer s.saving.Unlock()
+	s.mu.Lock()
+	roots := strings.Join(s.roots, "\n")
+	s.mu.Unlock()
 	path := s.rootsFile()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	tmp := path + ".new"
-	if err := os.WriteFile(tmp, []byte(strings.Join(s.roots, "\n")+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(tmp, []byte(roots+"\n"), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

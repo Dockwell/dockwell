@@ -62,12 +62,15 @@ type Server struct {
 	dockerRoot func(context.Context) (string, error)
 	slots      chan struct{}
 
+	// mu is never held across anything that touches a disk.
 	mu    sync.Mutex
 	roots []string // where Docker has said it keeps its data, oldest first
 	// stuck holds where each call left behind stopped: see stuck.go.
 	stuck map[*trail]string
 	// mounts reads what's mounted, as /proc/self/mountinfo has it.
 	mounts func() string
+	// saving keeps saves of roots to one at a time.
+	saving sync.Mutex
 }
 
 // New returns a Server. dataDir is Dockwell's data directory, and dockerRoot says

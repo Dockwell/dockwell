@@ -4,10 +4,10 @@ package container_test
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -630,7 +630,7 @@ func TestWhatsLeftBehindOfPathsIsBounded(t *testing.T) {
 	}
 	_, asked := deadPath(t, dead)
 	for i := range container.MaxStuckPaths + 5 {
-		if _, err := container.Resolve(filepath.Join(dead, fmt.Sprint(i))); !errors.Is(err, resource.ErrPathNotAnswering) {
+		if _, err := container.Resolve(filepath.Join(dead, strconv.Itoa(i))); !errors.Is(err, resource.ErrPathNotAnswering) {
 			t.Fatalf("%d: %v", i, err)
 		}
 	}
