@@ -383,11 +383,17 @@ func droppedStream(err error) bool {
 // planned shows a planned change and, once the person says so, applies it
 // and follows it to an end. res is the response that carried it.
 func (r *runner) planned(ctx context.Context, res proto.Message, c *dockwellv1.Change) error {
-	if err := r.print(res, r.applies(c)); err != nil {
+	applies := r.applies(c)
+	// Before it prints, so what it prints says what became of it: a script reading
+	// --json would otherwise take a change that's gone for one left planned.
+	nothing := empty(c.GetPlan())
+	if nothing && r.discard(ctx, c.GetId()) {
+		c.State = dockwellv1.ChangeState_CHANGE_STATE_DISCARDED
+	}
+	if err := r.print(res, applies); err != nil {
 		return err
 	}
-	if empty(c.GetPlan()) {
-		r.discard(ctx, c.GetId())
+	if nothing {
 		fmt.Fprintln(r.env.Err, "Nothing to change: everything is already as you asked.")
 		return nil
 	}
@@ -516,9 +522,11 @@ func (r *runner) confirmAndApply(ctx context.Context, c *dockwellv1.Change, fing
 	return r.follow(ctx, c.GetId(), began)
 }
 
-// discard drops a planned change nobody will apply, as best it can.
-func (r *runner) discard(ctx context.Context, id string) {
-	_, _ = r.client.Changes().DiscardChange(ctx, connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: id}))
+// discard drops a planned change nobody will apply, as best it can, and says
+// whether it did.
+func (r *runner) discard(ctx context.Context, id string) bool {
+	_, err := r.client.Changes().DiscardChange(ctx, connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: id}))
+	return err == nil
 }
 
 // applyPlanned is dockwell changes apply: it shows the change's plan, asks,

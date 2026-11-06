@@ -256,6 +256,11 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		if list.code != exitOK || !strings.Contains(list.out, "DB_PASSWORD") || !strings.Contains(list.out, "LOG_LEVEL") {
 			t.Errorf("variables list = %d:\n%s%s", list.code, list.out, list.err)
 		}
+		// A plan with nothing in it is gone once the CLI has shown it, and --json says so.
+		same := run(t, env, "variables", "update", "LOG_LEVEL", "--value", "debug", "--project", "default", "--plan-only", "--json")
+		if same.code != exitOK || !strings.Contains(same.err, "Nothing to change") || !strings.Contains(same.out, `"CHANGE_STATE_DISCARDED"`) || strings.Contains(same.out, `"CHANGE_STATE_PLANNED"`) {
+			t.Errorf("a plan that changes nothing, with --plan-only --json = %d:\n%s%s", same.code, same.out, same.err)
+		}
 		r = run(t, env, "secrets", "create", "OTHER", "--value", "s3cret-on-the-command-line", "--project", "default", "--yes")
 		if r.code != exitUsage || !strings.Contains(r.err, "unknown flag: --value") {
 			t.Errorf("a secret's value as a flag = %d %q, want it refused", r.code, r.err)
