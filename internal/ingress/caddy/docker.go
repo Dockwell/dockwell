@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
@@ -63,6 +64,11 @@ type Container struct {
 	// registry.example.com/library/caddy. Only the repository changes: the
 	// digest is pinned, and Docker checks it.
 	Mirror string
+
+	mu sync.Mutex
+	// pastMemory is what Docker's events said of the restart memoryAsked counts to.
+	memoryAsked int
+	pastMemory  bool
 }
 
 var _ Runtime = (*Container)(nil)
@@ -103,11 +109,46 @@ func (c *Container) Status(ctx context.Context) (ingress.Status, error) {
 	if err != nil || got == nil {
 		return ingress.Status{}, err
 	}
+	outOfMemory, unread := c.restartedForMemory(ctx, got)
 	return ingress.Status{
 		Exists: true, Running: got.State.Running && !got.State.Restarting,
 		Outdated: !strings.HasSuffix(got.Config.Image, "@"+Digest),
 		Version:  got.Config.Labels[versionLabel], Pinned: Tag, Image: got.Config.Image,
+		Restarts: got.RestartCount, OutOfMemory: outOfMemory, RestartUnread: unread,
 	}, nil
+}
+
+// restartWait is more than Docker waits between restarts of a container, which it
+// doubles up to a minute, so a kill that led to a start comes within this of it.
+const restartWait = 2 * time.Minute
+
+// eventSettle is how long after a start finding no event of why it stopped says
+// nothing yet. Docker can show a container running again before it has the event:
+// CI's real Docker read none just as the restart showed, then found it.
+const eventSettle = 30 * time.Second
+
+// restartedForMemory says whether what stopped Caddy last was its memory limit. Docker
+// says so itself until it starts it again, and from then on only in its events, which
+// are read until they say, or a while has passed. Not being able to tell yet isn't a
+// failure of anything: unread says so, and it's asked again next time.
+func (c *Container) restartedForMemory(ctx context.Context, got *docker.Container) (outOfMemory, unread bool) {
+	if got.State.OOMKilled {
+		return true, false
+	}
+	if got.RestartCount == 0 {
+		return false, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.memoryAsked == got.RestartCount {
+		return c.pastMemory, false
+	}
+	went, err := c.Client.WentPastMemory(ctx, got.ID, got.State.StartedAt.Add(-restartWait), time.Now())
+	if err != nil || (!went && time.Since(got.State.StartedAt) < eventSettle) {
+		return false, true
+	}
+	c.memoryAsked, c.pastMemory = got.RestartCount, went
+	return went, false
 }
 
 // Pull gets Caddy's image, by its digest, if the server hasn't it. Docker

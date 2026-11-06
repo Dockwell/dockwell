@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -137,6 +138,112 @@ func TestStatusSaysWhichVersionItRuns(t *testing.T) {
 	st, err = c.Status(t.Context())
 	if err != nil || st.Version != "2.11.6-alpine" || st.Pinned != Tag || !st.Outdated {
 		t.Errorf("Status of an older one = %+v, %v", st, err)
+	}
+}
+
+// Docker keeps how many times it started Caddy again, and whether the last was for
+// its memory until it starts it, and after that only in its events. That's all that
+// says why every site dropped for a moment, and it's read once for each restart.
+func TestStatusSaysCaddyRestartedForMemory(t *testing.T) {
+	c, e := onEngine(t)
+	if err := c.Run(t.Context(), "/etc/dockwell/bootstrap.json"); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 0 || st.OutOfMemory {
+		t.Errorf("Status of a fresh one = %+v, %v", st, err)
+	}
+	// Killed, and not started again yet: its state says.
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.RestartCount = 1
+		got.State.OOMKilled = true
+	})
+	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 1 || !st.OutOfMemory {
+		t.Errorf("Status killed for memory = %+v, %v", st, err)
+	}
+	// Started again: its state doesn't, and its events do. Up to the moment, as an
+	// end cut to the second would miss what's just happened.
+	started := time.Now()
+	e.KillForMemory(ingress.ContainerName, started)
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.RestartCount = 2
+		got.State.OOMKilled = false
+		got.State.StartedAt = started
+	})
+	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 2 || !st.OutOfMemory || !st.Running {
+		t.Errorf("Status after a restart for memory = %+v, %v", st, err)
+	}
+	asked := func() int {
+		return len(slices.DeleteFunc(slices.Clone(e.Requests), func(r string) bool { return !strings.HasSuffix(r, "/events") }))
+	}
+	if st, err := c.Status(t.Context()); err != nil || !st.OutOfMemory || asked() != 1 {
+		t.Errorf("Status read again = %+v, %v, with %d reads of its events, want one", st, err, asked())
+	}
+}
+
+// Docker can show a container running again before it has the event that says why
+// it stopped, so a read that soon doesn't settle it.
+func TestARestartIsntSettledBeforeItsEventCouldCome(t *testing.T) {
+	c, e := onEngine(t)
+	if err := c.Run(t.Context(), "/etc/dockwell/bootstrap.json"); err != nil {
+		t.Fatal(err)
+	}
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.RestartCount = 1
+		got.State.StartedAt = time.Now()
+	})
+	if st, err := c.Status(t.Context()); err != nil || st.OutOfMemory || !st.RestartUnread {
+		t.Errorf("Status just after a restart = %+v, %v, want it unread", st, err)
+	}
+	e.KillForMemory(ingress.ContainerName, time.Now())
+	if st, err := c.Status(t.Context()); err != nil || !st.OutOfMemory || st.RestartUnread {
+		t.Errorf("Status once the event came = %+v, %v, want the restart for memory", st, err)
+	}
+}
+
+// Once a while has passed, no event means there wasn't one, and that's read once. An
+// event from a restart before doesn't count for this one.
+func TestNoEventAWhileAfterARestartSettlesIt(t *testing.T) {
+	c, e := onEngine(t)
+	if err := c.Run(t.Context(), "/etc/dockwell/bootstrap.json"); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now().Add(-eventSettle - time.Second)
+	e.KillForMemory(ingress.ContainerName, started.Add(-2*restartWait))
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.RestartCount = 2
+		got.State.StartedAt = started
+	})
+	for range 2 {
+		if st, err := c.Status(t.Context()); err != nil || st.Restarts != 2 || st.OutOfMemory || st.RestartUnread {
+			t.Errorf("Status a while after a restart for something else = %+v, %v", st, err)
+		}
+	}
+	reads := len(slices.DeleteFunc(slices.Clone(e.Requests), func(r string) bool { return !strings.HasSuffix(r, "/events") }))
+	if reads != 1 {
+		t.Errorf("that read Docker's events %d times, want once", reads)
+	}
+}
+
+// Docker's events not answering isn't the same as their saying nothing, or the
+// agent would never say why that restart happened.
+func TestEventsThatCantBeReadAreAskedAgain(t *testing.T) {
+	c, e := onEngine(t)
+	if err := c.Run(t.Context(), "/etc/dockwell/bootstrap.json"); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	e.KillForMemory(ingress.ContainerName, started)
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.RestartCount = 1
+		got.State.StartedAt = started
+	})
+	e.EventsFail = true
+	if st, err := c.Status(t.Context()); err != nil || st.OutOfMemory || !st.RestartUnread {
+		t.Errorf("Status with Docker's events failing = %+v, %v, want it unread", st, err)
+	}
+	e.EventsFail = false
+	if st, err := c.Status(t.Context()); err != nil || !st.OutOfMemory || st.RestartUnread {
+		t.Errorf("Status once they answer = %+v, %v, want the restart for memory", st, err)
 	}
 }
 

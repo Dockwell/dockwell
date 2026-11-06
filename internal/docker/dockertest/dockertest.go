@@ -66,6 +66,10 @@ type Image struct {
 
 // Engine is a fake Docker Engine.
 type Engine struct {
+	memoryKills []memoryKill
+	// EventsFail makes GET /events fail.
+	EventsFail bool
+
 	// Socket is where it listens.
 	Socket string
 	// APIVersion and MinAPIVersion are what /version reports.
@@ -198,6 +202,21 @@ func newID() string {
 	return hex.EncodeToString(b)
 }
 
+// eventTime reads a time as Docker's events take one: seconds, and nanoseconds if
+// it has them.
+func eventTime(s string) time.Time {
+	seconds, nanos, _ := strings.Cut(s, ".")
+	sec, _ := strconv.ParseInt(seconds, 10, 64)
+	nsec, _ := strconv.ParseInt((nanos + "000000000")[:9], 10, 64)
+	return time.Unix(sec, nsec)
+}
+
+// memoryKill is the kernel killing something in a container for its memory limit.
+type memoryKill struct {
+	id string
+	at time.Time
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -246,6 +265,8 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	case path == "/version":
 		writeJSON(w, http.StatusOK, map[string]string{"Version": "27.3.1", "ApiVersion": e.APIVersion, "MinAPIVersion": e.MinAPIVersion})
+	case path == "/events":
+		e.serveEvents(w, r)
 	case path == "/info":
 		root := e.DockerRoot
 		if root == "" {
@@ -1543,6 +1564,37 @@ func (e *Engine) Edit(name string, edit func(*docker.Container)) {
 	defer e.mu.Unlock()
 	if c := e.byNameOrID(name); c != nil {
 		edit(&c.Container)
+	}
+}
+
+// KillForMemory records the kernel killing something in a container, as its events
+// would. It changes nothing else, so a test says what its state reads as.
+func (e *Engine) KillForMemory(name string, at time.Time) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil {
+		e.memoryKills = append(e.memoryKills, memoryKill{id: c.ID, at: at})
+	}
+}
+
+// serveEvents answers GET /events for the kind of event Dockwell asks after, and
+// closes, as Docker does when asked up to now.
+func (e *Engine) serveEvents(w http.ResponseWriter, r *http.Request) {
+	if e.EventsFail {
+		http.Error(w, "the daemon is busy", http.StatusInternalServerError)
+		return
+	}
+	var filters map[string][]string
+	if err := json.Unmarshal([]byte(r.URL.Query().Get("filters")), &filters); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	since, until := eventTime(r.URL.Query().Get("since")), eventTime(r.URL.Query().Get("until"))
+	w.WriteHeader(http.StatusOK)
+	for _, kill := range e.memoryKills {
+		if slices.Contains(filters["container"], kill.id) && slices.Contains(filters["event"], "oom") && !kill.at.Before(since) && !kill.at.After(until) {
+			_ = json.NewEncoder(w).Encode(map[string]string{"Type": "container", "Action": "oom", "id": kill.id})
+		}
 	}
 }
 

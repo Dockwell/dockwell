@@ -368,7 +368,18 @@ func (m *Manager) ensureNetwork(ctx context.Context) error {
 	switch {
 	case err == nil:
 		if n.Labels[docker.OwnPrefix+"ingress"] == "" {
-			return fmt.Errorf("a network named %[1]s is on this server, and Dockwell didn't make it, so the ingress can't use it. Rename or remove it with docker network rm %[1]s", docker.IngressNetwork)
+			// The routes dial addresses on the network Dockwell made, and whatever
+			// is on this one may have them now, as its subnet can be anything. A
+			// route to a port on the server dials none, so it has no part in this.
+			dials, err := m.dialing(ctx)
+			if err != nil {
+				return err
+			}
+			if m.table.Subnet != "" && dials {
+				return m.closeRoutes(ctx, fmt.Errorf("a network named %[1]s is on this server, and Dockwell didn't make it, so the ingress can't use it. This server's routes dial addresses on %[2]s, which what is on it could have, so every route on this server answers 503 until it goes. Remove it with docker network rm %[1]s, and the agent makes its own again within a minute",
+					docker.IngressNetwork, m.table.Subnet))
+			}
+			return fmt.Errorf("a network named %[1]s is on this server, and Dockwell didn't make it, so the ingress can't use it. Remove it with docker network rm %[1]s", docker.IngressNetwork)
 		}
 		if len(n.IPAM.Config) == 0 || m.table.Subnet == n.IPAM.Config[0].Subnet {
 			return nil

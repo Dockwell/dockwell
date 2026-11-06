@@ -120,7 +120,7 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
@@ -1068,6 +1068,12 @@ if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "the ingress ran b
 # OpenResty is, so the plan says so.
 docker run -d --name e2e-returns --restart=always -p 80:80 nginx:1.27-alpine >/dev/null || fail "can't run a container on port 80"
 docker stop --time 1 e2e-returns >/dev/null || fail "can't stop e2e-returns"
+# docker stop can return before the list of what's running has caught up, and that's
+# what a plan reads for who holds a port.
+for _ in $(seq 100); do
+  [[ -n "$(docker ps --quiet --filter name=^e2e-returns\$)" ]] || break
+  sleep 0.1
+done
 first=$(dw routes create www --domain "$domain" --service web --port 80 --yes) || fail "routes create www failed: $first"
 grep -q 'Docker starts e2e-returns again' <<<"$first" || fail "the plan doesn't warn of a stopped container that comes back: $first"
 grep -q 'docker update --restart=no e2e-returns' <<<"$first" || fail "the plan doesn't say how to keep it stopped: $first"
@@ -1262,6 +1268,50 @@ if over_https >/dev/null 2>&1; then fail "Caddy served from half a config, so th
 start_dockwell
 wait_for_dockwell
 serves "the agent didn't put back Caddy's last config, cut short"
+
+step "Ingress: a last config that has gone comes back, rather than Caddy being stopped as a server with no routes"
+stop_dockwell
+docker stop --time 5 dockwell-ingress >/dev/null || fail "docker stop dockwell-ingress failed"
+priv rm -f "$autosave" || fail "can't remove $autosave"
+docker start dockwell-ingress >/dev/null || fail "docker start dockwell-ingress failed"
+for _ in $(seq 100); do
+  admin /config/ >/dev/null 2>&1 && break
+  sleep 0.1
+done
+admin /config/ >/dev/null || fail "Caddy didn't start from its bootstrap"
+if over_https >/dev/null 2>&1; then fail "Caddy served from its bootstrap, so this proves nothing"; fi
+start_dockwell
+wait_for_dockwell
+serves "the agent didn't put back Caddy's last config, gone"
+priv test -f "$autosave" || fail "Caddy's last config wasn't written again"
+
+step "Docker's events say a container it started again went past its memory limit, which the agent reads of Caddy"
+# Not Caddy itself, which the agent makes again in the moment it isn't running. The
+# agent says why every site dropped from what this reads (docs/security/ingress.md),
+# as Docker clears OOMKilled as it starts a container again.
+oom_from=$(date +%s)
+docker run -d --name e2e-oom --memory 16m --memory-swap 16m --restart unless-stopped nginx:1.27-alpine sh -c 'sleep 2; tail /dev/zero' >/dev/null ||
+  fail "can't run e2e-oom"
+restarted=""
+for _ in $(seq 300); do
+  state=$(docker inspect --format '{{.RestartCount}} {{.State.Running}} {{.State.Restarting}}' e2e-oom) || fail "docker inspect e2e-oom failed"
+  read -r restarts running restarting <<<"$state"
+  if ((restarts >= 1)) && [[ "$running" == true && "$restarting" == false ]]; then
+    restarted=yes
+    break
+  fi
+  sleep 0.1
+done
+[[ -n "$restarted" ]] || fail "e2e-oom wasn't started again: $state (restarts, running, restarting)"
+# Docker can show it running again before it has the event, which the agent allows for.
+oom=""
+for _ in $(seq 40); do
+  oom=$(docker events --since "$oom_from" --until "$(date +%s.%N)" --filter container=e2e-oom --filter event=oom --format '{{.Action}}') || fail "docker events failed"
+  [[ -z "$oom" ]] || break
+  sleep 0.5
+done
+docker rm --force e2e-oom >/dev/null || fail "can't remove e2e-oom"
+[[ "$oom" == *oom* ]] || fail "Docker's events say nothing of a container going past its memory limit, so the agent wouldn't say why every site dropped: '$oom'"
 
 step "Ingress: docker network prune can't take the network, and a network lost comes back on its subnet"
 subnet=$(docker network inspect --format '{{(index .IPAM.Config 0).Subnet}}' dockwell_ingress) || fail "there's no network dockwell_ingress"

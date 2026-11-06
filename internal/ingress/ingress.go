@@ -97,6 +97,13 @@ type Status struct {
 	// Image is what it runs, by reference, as a move to a newer version needs
 	// to go back to.
 	Image string
+	// Restarts is how many times its runtime has started it again since it was
+	// made, and OutOfMemory says the last of those was for going past its memory
+	// limit.
+	Restarts    int
+	OutOfMemory bool
+	// RestartUnread says it can't tell yet why the last restart happened.
+	RestartUnread bool
 }
 
 // Route is what a proxy serves. It holds what the proxy has, not intent:
@@ -1250,8 +1257,8 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	}
 	// Before anything reads a config that a full disk or a power cut damaged,
 	// and takes what it finds for a server with no routes.
-	recovered, err := m.Proxy.Recover(ctx)
-	if err != nil {
+	recovered, recoverErr := m.Proxy.Recover(ctx)
+	if err := recoverErr; err != nil {
 		m.logger().WarnContext(ctx, "can't check the ingress's last config, or keep a copy of it; the agent tries again within a minute", slog.String("error", err.Error()))
 	}
 	if recovered {
@@ -1267,6 +1274,11 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		return err
 	}
 	if len(routes) == 0 {
+		// With what would bring the routes back having failed, none here isn't
+		// none to serve, and stopping takes the copy it's trying to load with it.
+		if recoverErr != nil {
+			return nil
+		}
 		// A step that stopped partway, between the last route and the stop.
 		if err := m.releaseUnused(ctx); err != nil {
 			return err
@@ -1275,6 +1287,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		return m.stop(ctx)
 	}
 	m.noteOutdated(ctx, st)
+	m.noteRestarts(ctx, st)
 	m.noteOwnPorts(ctx, routes)
 	// The network first: a route that dials a subnet someone else has now mustn't
 	// get a request, even from a proxy that is starting. Routes to the server's own
@@ -1309,6 +1322,11 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	}
 	if networkErr != nil {
 		m.report(&problem{kind: dockwellv1.IngressProblem_INGRESS_PROBLEM_SUBNET_TAKEN, message: networkErr.Error()})
+		// With nothing left that dials a container, the network is no reason for
+		// what's left to stay closed, whatever closed it while something did.
+		if !dialsContainers(routes) {
+			return errors.Join(networkErr, m.Proxy.SetClosed(ctx, false))
+		}
 		return networkErr
 	}
 	if err := m.releaseUnused(ctx); err != nil {
@@ -1353,6 +1371,28 @@ func (m *Manager) noteOutdated(ctx context.Context, st Status) {
 		m.logger().WarnContext(ctx, "the ingress runs another version than this release of Dockwell pins, which may be missing security fixes. It moves to the pinned one on this server's next route change",
 			slog.String("proxy", m.Proxy.Name()), slog.String("version", st.Version), slog.String("pinned", st.Pinned))
 	}
+}
+
+// noteRestarts says when the proxy was started again for going past its memory
+// limit, once for each time the agent sees, as every site on the server and the
+// panel's domain dropped then, and nothing else says why. Routes don't take it
+// there: connections do, such as many WebSockets held open, from one client or
+// many (docs/security/ingress.md).
+func (m *Manager) noteRestarts(ctx context.Context, st Status) {
+	// Not read yet isn't seen: it's asked again at the next look.
+	if st.RestartUnread {
+		return
+	}
+	b := &m.status
+	b.mu.Lock()
+	seen, known := b.restarts, b.restartsKnown
+	b.restarts, b.restartsKnown = st.Restarts, true
+	b.mu.Unlock()
+	if !st.OutOfMemory || (known && st.Restarts <= seen) {
+		return
+	}
+	m.logger().WarnContext(ctx, "the ingress went past its memory limit, and Docker started it again, which dropped every site on this server, and the panel's domain, for a moment. Connections take it there, not routes: thousands held open, such as WebSockets, from one client or many. If this goes on, limit connections per client in front of this server, with a firewall or a proxy such as Cloudflare",
+		slog.String("proxy", m.Proxy.Name()), slog.Int("restarts", st.Restarts))
 }
 
 // noteOwnPorts says once when a route sends to a port Dockwell has come to listen
