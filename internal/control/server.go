@@ -41,6 +41,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/domains"
@@ -214,7 +215,9 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler) (http.Hand
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
-		handle(dockwellv1connect.NewComposeServiceHandler(composeapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		imports := composeapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
+		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
+		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, cfg.Store, cfg.Secrets, cfg.Build.Commit, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 		if cfg.Secrets != nil && cfg.Auth != nil {
