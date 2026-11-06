@@ -77,6 +77,9 @@ type fullServer struct {
 	server *Server
 	// lastDocker is the server addDockerServer last added.
 	lastDocker *testServer
+	// volumes wraps the volume driver of the next server added, to see what its
+	// agent hears. Nil leaves it as it is.
+	volumes func(*volume.Driver) resource.Type
 }
 
 // execSQL runs a statement on the server's database from outside the store,

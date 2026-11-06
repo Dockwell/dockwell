@@ -349,6 +349,9 @@ func TestAVolumeKeepsItsPassword(t *testing.T) {
 			if kept.Reason != c.reason {
 				t.Errorf("it says it kept %q, want %q", kept.Reason, c.reason)
 			}
+			if (kept.Reason != "") != (kept.Stays != "") {
+				t.Errorf("it kept %q and says %q of where that goes", kept.Reason, kept.Stays)
+			}
 			if !maps.Equal(current.GetOptions(), made) {
 				t.Errorf("it changed the volume as it is: %v", current.GetOptions())
 			}

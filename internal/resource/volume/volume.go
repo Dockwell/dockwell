@@ -135,12 +135,17 @@ var passwordNames = []string{"password", "pass", "password2"}
 // would take it to the address or driver the edit names. Planning it with the
 // edit's own password wouldn't do either, as the paths a plan says changed would
 // say whether that one was right.
+//
+// What it keeps goes only to the servers that have it, which the engine holds it to
+// (Kept.Stays), as this doesn't know where the edit places the volume. An edit with
+// no password and options of its own is none of this: it keeps nothing, and on a
+// move, what it gave is what goes.
 func (*Driver) Keep(current, desired proto.Message) (resource.Kept, error) {
 	c, d := current.(*resourcev1.Volume), desired.(*resourcev1.Volume)
 	switch {
 	case len(d.GetOptions()) == 0 && len(c.GetOptions()) > 0 && d.GetDriver() == c.GetDriver():
 		d.Options = maps.Clone(c.GetOptions())
-		return resource.Kept{Reason: "kept_options", Words: "keeps the options it was made with, as this gives it none, which is how an export writes it. " +
+		return resource.Kept{Reason: "kept_options", Stays: keptStays, Words: "keeps the options it was made with, as this gives it none, which is how an export writes it. " +
 			"Docker can't change a volume, so to make it without them, make a volume of another name, move its data across, then delete this one"}, nil
 	case !HoldsPassword(d.GetOptions()):
 		return resource.Kept{}, nil
@@ -149,9 +154,13 @@ func (*Driver) Keep(current, desired proto.Message) (resource.Kept, error) {
 			"Make a new volume as you want it, move the data across, then delete this one")
 	}
 	d.Options = maps.Clone(c.GetOptions())
-	return resource.Kept{Reason: "kept_password", Words: "keeps the password it was made with. A plan never compares a volume's password with the one there, so it doesn't say whether this one is the same. " +
+	return resource.Kept{Reason: "kept_password", Stays: keptStays, Words: "keeps the password it was made with. A plan never compares a volume's password with the one there, so it doesn't say whether this one is the same. " +
 		"Docker can't change a volume, so to give it another, make a volume of another name, move its data across, then delete this one"}, nil
 }
+
+// keptStays is the same whatever an edit gave, so a refusal says nothing of a guess.
+const keptStays = "it would keep the options it was made with, and those go only to the servers that have them. " +
+	"To run it there, make a volume of another name, giving its options in full, move the data across, then delete this one"
 
 // withoutPasswords is a volume's options with what gives a password blanked, in
 // place, so what's left can be compared.

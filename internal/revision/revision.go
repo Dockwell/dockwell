@@ -220,6 +220,9 @@ type Edit struct {
 	// rollback. A stop by hand isn't drift (ADR 0021), so nothing else starts it, but
 	// for a change that replaces it anyway.
 	Run bool
+	// Observed says Spec is what a server has, as adopting drift reads it, and not
+	// what a caller said, so nothing is kept of what's stored (resource.Keeper).
+	Observed bool
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -1002,7 +1005,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
 				// Before anything compares it with what is there.
-				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil {
+				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil && !ed.Observed {
 					if it.kept, err = k.Keep(it.current, it.spec); err != nil {
 						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
 					}
@@ -1032,7 +1035,38 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		items = e.orderByReference(items)
 		return e.check(ctx, tx, items)
 	})
-	return items, err
+	if err != nil {
+		return items, err
+	}
+	return items, e.checkKept(ctx, items)
+}
+
+// checkKept refuses an edit that would take what it kept to a server that hasn't got
+// it. A plan sends a spec to every server it would run on, before anyone applies it,
+// so what a Keeper put in an edit would reach that server's agent on a proposal
+// alone (ADR 0022). Whether it refuses depends only on what the edit gave and where it
+// places the resource, never on whether what it gave is the same as what's kept.
+func (e *Engine) checkKept(ctx context.Context, items []item) error {
+	for i := range items {
+		it := &items[i]
+		if it.kept.Reason == "" {
+			continue
+		}
+		added := slices.DeleteFunc(slices.Clone(it.servers), func(s string) bool { return slices.Contains(it.placed, s) })
+		if len(added) == 0 {
+			continue
+		}
+		names, err := e.serverNames(ctx, added)
+		if err != nil {
+			return err
+		}
+		list := make([]string, len(added))
+		for j, s := range added {
+			list[j] = names[s]
+		}
+		return fault.New(ErrInvalid, "%s can't go on %s: %s", it.ref.Name, human.List(list), it.kept.Stays)
+	}
+	return nil
 }
 
 // load reads where a resource stands now.
@@ -3454,7 +3488,7 @@ func (e *Engine) Revert(ctx context.Context, d Drift, by By) (*Plan, error) {
 func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
 	// What the server runs already, so nothing restarts.
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed}}}, "", false)
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed, Observed: true}}}, "", false)
 }
 
 func encodeOrNil(m proto.Message) ([]byte, error) {

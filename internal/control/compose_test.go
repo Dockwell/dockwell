@@ -3,11 +3,14 @@
 package control
 
 import (
+	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -68,7 +71,12 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	client := e.Client()
 	archive := &agentlogs.Archive{Dir: t.TempDir(), Client: client, Logger: slog.New(slog.DiscardHandler), Free: func(string) (uint64, error) { return 1 << 40, nil }}
 	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}}}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}, &network.Driver{Client: client}}
+	volumes := &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}
+	var volumeType resource.Type = volumes
+	if f.volumes != nil {
+		volumeType = f.volumes(volumes)
+	}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, volumeType, &network.Driver{Client: client}}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}
@@ -741,12 +749,42 @@ func testATokenCantConfirmAGuessAtAVolumesPassword(t *testing.T, backend store.B
 	}
 }
 
+// planHeard is a server's volume driver, noting the options of each volume a plan
+// call brings its agent, so a test can say what reached that server. A plan sends a
+// spec to every server it would run on, before anyone applies it.
+type planHeard struct {
+	*volume.Driver
+	mu    sync.Mutex
+	heard []string
+}
+
+func (p *planHeard) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	if v, ok := desired.(*resourcev1.Volume); ok {
+		p.mu.Lock()
+		p.heard = append(p.heard, v.GetOptions()["o"])
+		p.mu.Unlock()
+	}
+	return p.Driver.Judge(ctx, ref, actual, desired, changes)
+}
+
+// options is what plan calls have brought, in order.
+func (p *planHeard) options() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.heard)
+}
+
 // A volume's password goes only where it went. An edit that gives one and changes
 // anything else of the volume is refused, on any server, in the same words whatever
 // the password is. Planning it would take the password the volume keeps to the
 // address the edit names, as a move makes a volume anew on another server, and the
-// paths the plan says changed would say whether a guess was right. A move that
-// changes nothing else keeps the password, whatever the edit gave.
+// paths the plan says changed would say whether a guess was right.
+//
+// And what a volume keeps goes only to the servers that have it. A plan sends a spec
+// to every server it would run on, on a proposal alone, so an edit that keeps
+// anything can't add a server, in the same words whatever it gave. The review of
+// #140 found a token could have the real options sent to another server's agent by
+// proposing the volume there with none, or with a wrong guess.
 func TestAVolumesPasswordGoesNowhereElse(t *testing.T) {
 	storetest.Each(t, testAVolumesPasswordGoesNowhereElse)
 }
@@ -757,13 +795,19 @@ func testAVolumesPasswordGoesNowhereElse(t *testing.T, backend store.Backend) {
 	b := signedIn(t, f)
 	f.addServerNamed(t, "hz-1", nil, nil)
 	one := f.lastDocker.id.ServerID
+	heard := &planHeard{}
+	f.volumes = func(d *volume.Driver) resource.Type {
+		heard.Driver = d
+		return heard
+	}
 	hz2 := f.addServerNamed(t, "hz-2", nil, nil)
+	f.volumes = nil
 	two := f.lastDocker.id.ServerID
-	edit := func(options map[string]string, server string) *dockwellv1.ProposeChangeRequest {
+	edit := func(options map[string]string, servers ...string) *dockwellv1.ProposeChangeRequest {
 		return &dockwellv1.ProposeChangeRequest{Summary: "Share", Edits: []*dockwellv1.Edit{{
 			Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "share"},
 			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: options}}},
-			Servers:  []string{server},
+			Servers:  servers,
 		}}}
 	}
 	cifs := func(device, o string) map[string]string {
@@ -779,6 +823,7 @@ func testAVolumesPasswordGoesNowhereElse(t *testing.T, backend store.Backend) {
 
 	script := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
 	tc := dockwellv1connect.NewChangeServiceClient(script, b.origin, connect.WithProtoJSON())
+	tcc := dockwellv1connect.NewComposeServiceClient(script, b.origin, connect.WithProtoJSON())
 	for what, options := range map[string]func(guess string) map[string]string{
 		"another address": func(guess string) map[string]string { return cifs(nas, "addr=10.0.0.9,username=svc,password="+guess) },
 		"another device":  func(guess string) map[string]string { return cifs("//10.0.0.9/share", there+guess) },
@@ -798,17 +843,137 @@ func testAVolumesPasswordGoesNowhereElse(t *testing.T, backend store.Backend) {
 		}
 	}
 
-	moved, err := tc.ProposeChange(t.Context(), connect.NewRequest(edit(cifs(nas, there+"letmein"), two)))
-	if err != nil {
-		t.Fatalf("moving the volume with a wrong password = %v, want it planned", err)
+	// Nothing an edit can say sends what's kept to a server that hasn't got it, and
+	// nothing it says changes the words, so a refusal tells no guess.
+	file := func(o string) string {
+		return "services:\n  app:\n    image: ghcr.io/acme/shop:1.4\n    volumes: [\"share:/x\"]\nvolumes:\n  share:\n" +
+			"    driver_opts: {type: cifs, device: " + nas + ", o: \"" + o + "\"}\n"
 	}
-	if !slices.ContainsFunc(moved.Msg.GetChange().GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "kept_password" }) {
-		t.Errorf("the move's plan doesn't say share keeps its password: %v", moved.Msg.GetChange().GetPlan().GetNotes())
+	var words string
+	for what, propose := range map[string]func() error{
+		"no options": func() error {
+			_, err := tc.ProposeChange(t.Context(), connect.NewRequest(edit(nil, two)))
+			return err
+		},
+		"a wrong guess": func() error {
+			_, err := tc.ProposeChange(t.Context(), connect.NewRequest(edit(cifs(nas, there+"letmein"), two)))
+			return err
+		},
+		"the right password": func() error {
+			_, err := tc.ProposeChange(t.Context(), connect.NewRequest(edit(cifs(nas, there+password), two)))
+			return err
+		},
+		"a server beside the one it's on": func() error {
+			_, err := tc.ProposeChange(t.Context(), connect.NewRequest(edit(nil, one, two)))
+			return err
+		},
+		"a wrong guess in a file, with --servers": func() error {
+			_, err := tcc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: scope.DefaultProject, Compose: file(there + "letmein"), Servers: []string{two}}))
+			return err
+		},
+		"no password in a file that gives it none, with --servers": func() error {
+			_, err := tcc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{
+				Project: scope.DefaultProject,
+				Compose: "services:\n  app:\n    image: ghcr.io/acme/shop:1.4\n    volumes: [\"share:/x\"]\nvolumes:\n  share: {}\n", Servers: []string{two},
+			}))
+			return err
+		},
+	} {
+		before := len(heard.options())
+		err := propose()
+		if brought := heard.options()[before:]; slices.ContainsFunc(brought, func(o string) bool { return strings.Contains(o, password) }) {
+			t.Errorf("%s: a plan call brought hz-2 the password: %q", what, brought)
+		}
+		if err == nil || !strings.Contains(err.Error(), "can't go on hz-2") || !strings.Contains(err.Error(), "make a volume of another name") {
+			t.Errorf("%s = %v, want it refused, saying what to do", what, err)
+			continue
+		}
+		if strings.Contains(err.Error(), password) || strings.Contains(err.Error(), "letmein") {
+			t.Errorf("%s: the refusal holds the password: %v", what, err)
+		}
+		_, says, _ := strings.Cut(err.Error(), "can't go on")
+		if words != "" && says != words {
+			t.Errorf("%s says\n%s\nand another says\n%s", what, says, words)
+		}
+		words = says
+	}
+	if got := hz2.Volume(docker.Project(listedEnv(t, b)) + "_share"); got != nil {
+		t.Errorf("hz-2 has %+v", got)
+	}
+
+	// Where it is, it goes on planning, as it says nothing new to any server.
+	if _, err := tc.ProposeChange(t.Context(), connect.NewRequest(edit(cifs(nas, there+"letmein"), one))); err != nil {
+		t.Errorf("a guess where the volume is = %v, want it planned", err)
+	}
+
+	// An edit that gives no password keeps nothing, so a move can change what it
+	// gives: what goes is the edit's own, and nothing stored goes with it.
+	const own = "addr=10.0.0.9,username=svc"
+	moved, err := tc.ProposeChange(t.Context(), connect.NewRequest(edit(cifs("//10.0.0.9/share", own), two)))
+	if err != nil {
+		t.Fatalf("moving the volume with options of its own = %v, want it planned", err)
+	}
+	if got := heard.options(); !slices.Contains(got, own) || slices.ContainsFunc(got, func(o string) bool { return strings.Contains(o, password) }) {
+		t.Errorf("plan calls brought hz-2 %q, want the edit's options and no password", got)
 	}
 	applyConfirmed(t, c, moved.Msg.GetChange())
-	project := docker.Project(listedEnv(t, b))
-	if got := hz2.Volume(project + "_share"); got == nil || got.Options["o"] != there+password {
-		t.Errorf("hz-2 has %+v, want the volume with the password it was made with", got)
+	if got := hz2.Volume(docker.Project(listedEnv(t, b)) + "_share"); got == nil || got.Options["o"] != own {
+		t.Errorf("hz-2 has %+v, want the volume as the edit gave it", got)
+	}
+}
+
+// Someone remakes a volume by hand with a new password, and drift shows it. Adopting
+// that takes what the server has, which no caller said, so nothing is kept of what's
+// stored: Docker has what's adopted, so nothing changes there. The review of #140
+// found the stored options went in its place, the agent refused them as a change, and
+// that drift couldn't be adopted.
+func TestAVolumeRemadeByHandCanBeAdopted(t *testing.T) {
+	storetest.Each(t, testAVolumeRemadeByHandCanBeAdopted)
+}
+
+func testAVolumeRemadeByHandCanBeAdopted(t *testing.T, backend store.Backend) {
+	file := func(o string) string {
+		return "services:\n  app:\n    image: ghcr.io/acme/shop:1.4\n    volumes: [\"share:/x\"]\nvolumes:\n  share:\n" +
+			"    driver_opts: {type: cifs, device: //nas/share, o: \"" + o + "\"}\n"
+	}
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	applyConfirmed(t, c, importCompose(t, dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()), file("addr=10.0.0.2,username=svc,password=first-pw-5Tn2"), nil, false))
+
+	name := docker.Project(listedEnv(t, b)) + "_share"
+	v := e.Volume(name)
+	if v == nil {
+		t.Fatal("Docker has no volume")
+	}
+	remade := *v
+	remade.Options = maps.Clone(v.Options)
+	remade.Options["o"] = "addr=10.0.0.2,username=svc,password=second-pw-8Kw3"
+	e.AddVolume(remade)
+
+	drift := func() []*dockwellv1.Drift {
+		t.Helper()
+		res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetDrift()
+	}
+	found := drift()
+	if len(found) != 1 || found[0].GetResource().GetName() != "share" {
+		t.Fatalf("drift = %v, want the volume", found)
+	}
+	adopted, err := c.AdoptDrift(t.Context(), connect.NewRequest(&dockwellv1.AdoptDriftRequest{ServerId: found[0].GetServerId(), ResourceId: found[0].GetResourceId()}))
+	if err != nil {
+		t.Fatalf("adopting a volume remade by hand = %v, want it planned", err)
+	}
+	applyConfirmed(t, c, adopted.Msg.GetChange())
+	if left := drift(); len(left) != 0 {
+		t.Errorf("after adopting it, drift = %v", left)
+	}
+	if got := e.Volume(name); got == nil || got.Options["o"] != remade.Options["o"] {
+		t.Errorf("Docker has %+v after adopting what it had", got)
 	}
 }
 

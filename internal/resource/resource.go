@@ -724,9 +724,11 @@ type Keeper interface {
 
 // Kept is what a Keeper kept: Reason names it, as a plan note's reason does, and
 // Words say it after the resource's name, such as "keeps the password it was made
-// with". Empty means nothing.
+// with". Stays says why that can't go to a server that hasn't got it, and what to do
+// instead, as a plan sends its spec to every server it would run on (ADR 0022).
+// Empty means nothing.
 type Kept struct {
-	Reason, Words string
+	Reason, Words, Stays string
 }
 
 // HostAccesser is a kind whose specs can reach their server beyond what
