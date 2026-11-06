@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/file.proto.
  */
 export const file_dockwell_v1_file: GenFile = /*@__PURE__*/
-  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSIzChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIogBChFMaXN0RmlsZXNSZXNwb25zZRIMCgRwYXRoGAEgASgJEikKCWRpcmVjdG9yeRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRInCgdlbnRyaWVzGAMgAygLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhEKCXRydW5jYXRlZBgEIAEoCCIyCg9SZWFkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkiegoQUmVhZEZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHY29udGVudBgDIAEoCRIOCgZiaW5hcnkYBCABKAgSEQoJdHJ1bmNhdGVkGAUgASgIIpgCCglGaWxlRW50cnkSDAoEbmFtZRgBIAEoCRIjCgR0eXBlGAIgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSEgoKc2l6ZV9ieXRlcxgDIAEoBBIvCgttb2RpZnlfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEbW9kZRgFIAEoCRINCgVvd25lchgGIAEoCRINCgVncm91cBgHIAEoCRITCgtsaW5rX3RhcmdldBgIIAEoCRIoCglsaW5rX3R5cGUYCSABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRIPCgdyZWZ1c2VkGAogASgIEhcKD3VucmVhZGFibGVfbmFtZRgLIAEoCCp+CghGaWxlVHlwZRIZChVGSUxFX1RZUEVfVU5TUEVDSUZJRUQQABISCg5GSUxFX1RZUEVfRklMRRABEhcKE0ZJTEVfVFlQRV9ESVJFQ1RPUlkQAhIVChFGSUxFX1RZUEVfU1lNTElOSxADEhMKD0ZJTEVfVFlQRV9PVEhFUhAEMq8CCgtGaWxlU2VydmljZRKNAQoJTGlzdEZpbGVzEh0uZG9ja3dlbGwudjEuTGlzdEZpbGVzUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1Jlc3BvbnNlIkGQAgGguxgBqrsYDQoFZmlsZXMSBGxpc3SwuxgBgtPkkwIfEh0vdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlcxKPAQoIUmVhZEZpbGUSHC5kb2Nrd2VsbC52MS5SZWFkRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5SZWFkRmlsZVJlc3BvbnNlIkaguxgBqrsYDQoFZmlsZXMSBHJlYWSwuxgBgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpyZWFkQqIBCg9jb20uZG9ja3dlbGwudjFCCUZpbGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSIzChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIogBChFMaXN0RmlsZXNSZXNwb25zZRIMCgRwYXRoGAEgASgJEikKCWRpcmVjdG9yeRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRInCgdlbnRyaWVzGAMgAygLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhEKCXRydW5jYXRlZBgEIAEoCCIyCg9SZWFkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkiiwEKEFJlYWRGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5Eg8KB2NvbnRlbnQYAyABKAkSDgoGYmluYXJ5GAQgASgIEhEKCXRydW5jYXRlZBgFIAEoCBIPCgd2ZXJzaW9uGAYgASgJIlQKD1NhdmVGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRIPCgdjb250ZW50GAMgASgJEg8KB3ZlcnNpb24YBCABKAkiVwoQU2F2ZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHdmVyc2lvbhgDIAEoCSKYAgoJRmlsZUVudHJ5EgwKBG5hbWUYASABKAkSIwoEdHlwZRgCIAEoDjIVLmRvY2t3ZWxsLnYxLkZpbGVUeXBlEhIKCnNpemVfYnl0ZXMYAyABKAQSLwoLbW9kaWZ5X3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBG1vZGUYBSABKAkSDQoFb3duZXIYBiABKAkSDQoFZ3JvdXAYByABKAkSEwoLbGlua190YXJnZXQYCCABKAkSKAoJbGlua190eXBlGAkgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSDwoHcmVmdXNlZBgKIAEoCBIXCg91bnJlYWRhYmxlX25hbWUYCyABKAgqfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBDLBAwoLRmlsZVNlcnZpY2USjQEKCUxpc3RGaWxlcxIdLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1JlcXVlc3QaHi5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXNwb25zZSJBkAIBoLsYAaq7GA0KBWZpbGVzEgRsaXN0sLsYAYLT5JMCHxIdL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMSjwEKCFJlYWRGaWxlEhwuZG9ja3dlbGwudjEuUmVhZEZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuUmVhZEZpbGVSZXNwb25zZSJGoLsYAaq7GA0KBWZpbGVzEgRyZWFksLsYAYLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6cmVhZBKPAQoIU2F2ZUZpbGUSHC5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlc3BvbnNlIkaguxgEqrsYDQoFZmlsZXMSBHNhdmWwuxgBgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpzYXZlQqIBCg9jb20uZG9ja3dlbGwudjFCCUZpbGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListFilesRequest names a directory on a server.
@@ -158,6 +158,15 @@ export type ReadFileResponse = Message<"dockwell.v1.ReadFileResponse"> & {
    * @generated from field: bool truncated = 5;
    */
   truncated: boolean;
+
+  /**
+   * What SaveFile takes to save over this text: a digest of the file, which
+   * tells whether it changed since. Empty for what can't be saved here: a binary
+   * file, or one with more to it than content.
+   *
+   * @generated from field: string version = 6;
+   */
+  version: string;
 };
 
 /**
@@ -166,6 +175,84 @@ export type ReadFileResponse = Message<"dockwell.v1.ReadFileResponse"> & {
  */
 export const ReadFileResponseSchema: GenMessage<ReadFileResponse> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_file, 3);
+
+/**
+ * SaveFileRequest replaces a file's text.
+ *
+ * @generated from message dockwell.v1.SaveFileRequest
+ */
+export type SaveFileRequest = Message<"dockwell.v1.SaveFileRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The file's absolute path, without . or .. in it. The file must exist:
+   * SaveFile doesn't make one.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * The file's new text, 1 MiB at most.
+   *
+   * @generated from field: string content = 3;
+   */
+  content: string;
+
+  /**
+   * The version from ReadFile: the file as you last read it.
+   *
+   * @generated from field: string version = 4;
+   */
+  version: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SaveFileRequest.
+ * Use `create(SaveFileRequestSchema)` to create a new message.
+ */
+export const SaveFileRequestSchema: GenMessage<SaveFileRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 4);
+
+/**
+ * SaveFileResponse is the file as saved.
+ *
+ * @generated from message dockwell.v1.SaveFileResponse
+ */
+export type SaveFileResponse = Message<"dockwell.v1.SaveFileResponse"> & {
+  /**
+   * The file's path, with every symlink followed.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * The file itself.
+   *
+   * @generated from field: dockwell.v1.FileEntry file = 2;
+   */
+  file?: FileEntry | undefined;
+
+  /**
+   * What the next save over this text takes.
+   *
+   * @generated from field: string version = 3;
+   */
+  version: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SaveFileResponse.
+ * Use `create(SaveFileResponseSchema)` to create a new message.
+ */
+export const SaveFileResponseSchema: GenMessage<SaveFileResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 5);
 
 /**
  * FileEntry is one file or directory on a server.
@@ -259,7 +346,7 @@ export type FileEntry = Message<"dockwell.v1.FileEntry"> & {
  * Use `create(FileEntrySchema)` to create a new message.
  */
 export const FileEntrySchema: GenMessage<FileEntry> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_file, 4);
+  messageDesc(file_dockwell_v1_file, 6);
 
 /**
  * FileType says what an entry in a directory is.
@@ -308,9 +395,10 @@ export const FileTypeSchema: GenEnum<FileType> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_file, 0);
 
 /**
- * FileService browses and reads the files on a server, through its agent. Files
- * on a server aren't managed state, so nothing here is a revision or has a
- * plan. See docs/adr/0032-files-on-a-server.md.
+ * FileService browses, reads and saves the files on a server, through its
+ * agent. Files on a server aren't managed state, so nothing here is a revision
+ * or has a plan, and a save can't be undone. See
+ * docs/adr/0032-files-on-a-server.md.
  *
  * Every method needs a signed-in session: no API token can call them, whatever
  * its scope. The agent refuses what holds Dockwell's keys, secrets' values and
@@ -343,6 +431,19 @@ export const FileService: GenService<{
     methodKind: "unary";
     input: typeof ReadFileRequestSchema;
     output: typeof ReadFileResponseSchema;
+  },
+  /**
+   * SaveFile replaces a file's text, if the file is still as ReadFile gave it. A
+   * file that changed since fails with the reason "file_changed", and nothing is
+   * written. It can't be undone. No API token can call it. Every save is in the
+   * audit log, and on the timeline.
+   *
+   * @generated from rpc dockwell.v1.FileService.SaveFile
+   */
+  saveFile: {
+    methodKind: "unary";
+    input: typeof SaveFileRequestSchema;
+    output: typeof SaveFileResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_file, 0);

@@ -1,6 +1,6 @@
 # Files: threat model
 
-Files hands a browser a server's disk, through an agent that runs as root. This says what that protects, from whom, what's refused, and what it doesn't protect. The design is in [ADR 0032](../adr/0032-files-on-a-server.md), beside the threat models for [secrets](secrets.md) and [sign-in](sign-in.md). The code is in `internal/agent/files` and `internal/control/files`.
+Files hands a browser a server's disk, to read and to write, through an agent that runs as root. This says what that protects, from whom, what's refused, and what it doesn't protect. The design is in [ADR 0032](../adr/0032-files-on-a-server.md), beside the threat models for [secrets](secrets.md) and [sign-in](sign-in.md). The code is in `internal/agent/files` and `internal/control/files`.
 
 ## What there is to protect
 
@@ -15,7 +15,7 @@ Files hands a browser a server's disk, through an agent that runs as root. This 
 
 ## What's refused
 
-The agent refuses these whoever asks, over every surface, and no step-up opens them. Each refusal says why, and points at SSH. Every refused or failed read and refused listing is on Activity, whatever the reason, so a miss shows as a hit does. A listing that works isn't, as it returns names and runs on every click, and neither is one that can't reach its server, as the panel asks again by itself.
+The agent refuses to read or save these whoever asks, over every surface, and no step-up opens them. Each refusal says why, and points at SSH. Every refused or failed read or save, and every refused listing, is on Activity, whatever the reason, so a miss shows as a hit does. A listing that works isn't, as it returns names and runs on every click, and neither is one that can't reach its server, as the panel asks again by itself.
 
 | Refused | Why |
 | --- | --- |
@@ -46,7 +46,7 @@ The agent refuses these whoever asks, over every surface, and no step-up opens t
 
 | It tries to | What happens |
 | --- | --- |
-| List a directory or read a file, with any scope | Refused with `needs_session`, by the interceptor and again by the handler. Tested over Connect and REST, read-only and read-write |
+| List a directory, read a file or save one, with any scope | Refused with `needs_session`, by the interceptor and again by the handler. Tested over Connect and REST, read-only and read-write |
 | Use a person's session beside it | The token alone counts, and is refused ([ADR 0016](../adr/0016-scoped-api-tokens.md)) |
 
 ### A stolen session
@@ -59,6 +59,9 @@ The agent refuses these whoever asks, over every surface, and no step-up opens t
 | Read a file without leaving a record | It can't. The audit event is written before the contents leave the control plane, and a failed write returns nothing. Tested |
 | Look for credentials and leave no trace of what it missed | It can't. A refused or failed read is on Activity however it failed: nothing there, not a file, denied, refused, or not answering. So is a refused listing. Tested |
 | Hide in the record with a crafted path | A name can hold a newline or a terminal's escape codes, and a link can lead through one. A path is cleaned before it's stored or shown. Tested |
+| Save a file, such as a cron job or `authorized_keys`, to get root or keep a way in | It can, as it can with a plan: see [known gaps](#known-gaps). Each save is on the timeline, with the path, and in the audit log |
+| Save a file without leaving a record | It can't. `file.saving` is written before the agent is asked, and if it can't be written nothing is. Tested |
+| Write over the install's key, or a secret's value in Docker's state | Refused: a save takes the same walk as a read |
 | Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |
 
 ### A compromised app
@@ -73,8 +76,13 @@ It can't reach past its container on its own. What it can do is leave things for
 | Fill a directory with entries, or with long link targets, to take the agent's stream down | A listing stops at 5,000 entries and 4 MiB, and says so |
 | Run many large listings at once, on a stream it has slowed, to fill the agent's memory | A call keeps one of 4 places until its result has gone, so 4 listings are all that wait to send. Tested |
 | Name a file so it can't be sent, with bytes that aren't UTF-8 | The listing carries on, and shows that one name as well as it can, marked. It can't be opened from the panel |
-| Write markup in a file, to run in the panel | Contents are text in a `<pre>`, with nothing rendered, whatever the file's name says |
+| Write markup in a file, to run in the panel | Contents are text in a text field, with nothing rendered, whatever the file's name says |
 | Hide a private key from the check | It can. The check finds PEM on a line of its own, indented or not. See [known gaps](#known-gaps) |
+| Plant a symlink where a person will save, to write through it to a cron job | The save follows the link and writes where it leads, as a read does, unless that's refused. The panel shows a link's target in the folder, and the audit log and the timeline name where the save landed |
+| Swap a file for a link or another file as a save goes on | The save writes only to the file it read: the agent opens it from the directory it checked, with `O_NOFOLLOW`, and compares its identity. Anything else reads as changed, and nothing is written. Tested |
+| Change a file a person is editing, to have their save undo it, or to slip something in | A save names the version it was edited from, and a file that differs isn't written over. The person sees that it changed, and chooses. Tested |
+| Have a person's session overwrite a binary it knows the digest of, such as `/usr/bin/sudo` | A save goes only over what reads as text, and the version counts for nothing on anything else. Tested |
+| Fill the disk, so a save leaves a file cut short | The save writes a copy first, so a full disk stops it with the file untouched. If the file's own write fails anyway, the old text goes back, and failing that the copy stays, and the error names it. Tested |
 
 ### A mount that stops answering
 
@@ -82,6 +90,7 @@ A network mount or FUSE file system whose far end is down holds a system call fo
 
 | What it could do | What happens |
 | --- | --- |
+| Leave a save half done, or land it later | A call left behind that comes back writes nothing if it hadn't begun to, and the person hears a save may or may not land if it had. Tested |
 | Take the server offline, as the agent waits on the call when its stream ends | The agent never waits on a file call. Stopping leaves it behind, and the next stream opens. Tested with a call that never returns, end to end |
 | Take every place a call runs in, so Files only says it's busy | A call left behind gives its place back within 15 s, and healthy paths carry on. Tested |
 | Leave a person waiting | They hear that the path isn't answering within 15 s, or at once if it's already known. A folder around it lists by name alone |
@@ -96,6 +105,8 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **Keep a stolen session out of the disk.** A session controls every server: it can apply a plan that mounts `/etc`, with no passkey ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)). There's no step-up here for that reason: it would add a prompt without closing that door.
 - **Stop a stolen session reaching what's refused.** The refused list stops Files. ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach everything here.
 - **Keep a stolen session out of a server with no Docker by any other way.** With no plan to run, Files is new reach there, and Activity is what shows it.
+- **Undo a save.** A file isn't managed state, so there's no revision to go back to. The panel says so beside the Save button.
+- **Know what a file does.** A save to a cron job, a unit file or `sudoers` is root, and Dockwell doesn't read what's in it or check its syntax.
 - **Tell a config with a password in it from one without.** `.env`, `wp-config.php` and the like are readable with a session.
 - **Protect one person on a server from another.** Every signed-in person can read every server's files until roles come.
 
@@ -108,5 +119,6 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **A file over 1 MiB** is checked for a key only in what is read of it, and only that part goes out.
 - **Eight stuck calls stop Files on that server** until one comes back, for paths and mounts alike. The agent, its stream and everything else on the server carry on. A call stuck in the kernel can also outlast the agent's own stop, as nothing can end it until the mount answers.
 - **A hard link to a refused file,** made by root, reads as what it is: a file somewhere else.
-- **Activity shows paths.** Anyone who can read events, a read-only token included, sees which files were read and refused, not what's in them.
+- **Activity shows paths.** Anyone who can read events, a read-only token included, sees which files were read, saved and refused, not what's in them.
 - **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding both `containers` and `volumes`. A backup of `overlay2` alone, or a root that has never answered and holds only one of them, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.
+- **A save has a moment in the open.** The file is read and written moments apart, so a writer that lands between them is lost. A reader can catch a file half written, as a save writes in place to keep what a container mounts. A power cut in that moment can leave it half written, and the copy of what was saved beside it, as `.dockwell-save-…`.

@@ -4,6 +4,7 @@ package files
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -248,5 +249,62 @@ func TestACallerThatLeavesIsntKeptWaiting(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("a cancelled call is still waiting on a path that won't answer")
+	}
+}
+
+func TestASaveThatDoesntAnswerSaysItMayStillLand(t *testing.T) {
+	d := newDisk(t)
+	dead := filepath.Join(d.root, "mnt")
+	p := filepath.Join(dead, "f")
+	write(t, p, "before")
+	v := d.read(t, p).GetFile().GetVersion()
+	stopAnswering(t, d.server, dead)
+	got := within(t, 2*time.Second, func() *agentv1.FileRefusal { return d.save(t, p, "after", v).GetRefusal() })
+	if got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING || !strings.Contains(got.GetMessage(), "can still land") {
+		t.Fatalf("got %v", got)
+	}
+}
+
+// A person told a save may not have landed has moved on, so one that comes back
+// before it began to write doesn't write. What's on the disk stays theirs.
+func TestASaveLeftBehindWritesNothingWhenItComesBack(t *testing.T) {
+	d := newDisk(t)
+	dir := filepath.Join(d.root, "mnt")
+	p := filepath.Join(dir, "f")
+	write(t, p, "before")
+	v := d.read(t, p).GetFile().GetVersion()
+	m := stopAnswering(t, d.server, p)
+	if got := d.save(t, p, "after", v).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING {
+		t.Fatalf("got %v", got)
+	}
+	m.answer()
+	waitFor(t, "the call to come back", func() bool { return d.server.stuckCount() == 0 })
+	if content, _ := os.ReadFile(p); string(content) != "before" {
+		t.Fatalf("a save the person gave up on landed: %q", content)
+	}
+	if left := spares(t, dir); len(left) != 0 {
+		t.Errorf("it left %v", left)
+	}
+}
+
+// Stuck on a link, it comes back to a file nothing has marked, and would save.
+func TestASaveLeftBehindOnALinkWritesNothingWhenItComesBack(t *testing.T) {
+	d := newDisk(t)
+	target := filepath.Join(d.root, "app", "conf")
+	write(t, target, "before")
+	via := filepath.Join(d.root, "current")
+	link(t, target, via)
+	v := d.read(t, via).GetFile().GetVersion()
+	m := stopAnswering(t, d.server, via)
+	if got := d.save(t, via, "after", v).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING {
+		t.Fatalf("got %v", got)
+	}
+	m.answer()
+	waitFor(t, "the call to come back", func() bool { return d.server.stuckCount() == 0 })
+	if content, _ := os.ReadFile(target); string(content) != "before" {
+		t.Fatalf("a save the person gave up on landed: %q", content)
+	}
+	if left := spares(t, filepath.Dir(target)); len(left) != 0 {
+		t.Errorf("it left %v", left)
 	}
 }

@@ -92,7 +92,7 @@ func testAPersonReadsAServersFiles(t *testing.T, backend store.Backend) {
 		t.Fatalf("the audit log has %v", events)
 	}
 	e := events[0]
-	if e.Action != "file.read" || e.Target != id || e.Surface != store.SurfacePanel || !strings.HasPrefix(e.Actor, "user:") ||
+	if e.Action != "file.read" || e.Subject != config || e.Target != id || e.Surface != store.SurfacePanel || !strings.HasPrefix(e.Actor, "user:") ||
 		!strings.Contains(e.Detail, config) || !strings.Contains(e.Detail, "hz-1") {
 		t.Errorf("the read went on record as %+v", e)
 	}
@@ -134,6 +134,10 @@ func testNoTokenReachesAServersFiles(t *testing.T, backend store.Backend) {
 		if connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != authapi.ReasonNeedsSession {
 			t.Errorf("%v reading a file = %v, want needs_session", scope, err)
 		}
+		_, err = script.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: config, Content: "written", Version: "v"}))
+		if connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != authapi.ReasonNeedsSession {
+			t.Errorf("%v saving a file = %v, want needs_session", scope, err)
+		}
 		// A working session beside the token changes nothing: the token alone counts.
 		both := fileClient(tokenAndCookie{browser: b, token: token}, b.origin)
 		_, err = both.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: config}))
@@ -143,6 +147,7 @@ func testNoTokenReachesAServersFiles(t *testing.T, backend store.Backend) {
 		for _, r := range []struct{ verb, path, body string }{
 			{http.MethodGet, "/v1/servers/" + id + "/files?path=/", ""},
 			{http.MethodPost, "/v1/servers/" + id + "/files:read", `{"path":"` + config + `"}`},
+			{http.MethodPost, "/v1/servers/" + id + "/files:save", `{"path":"` + config + `","content":"written","version":"v"}`},
 		} {
 			code, reason, body := callREST(t, b, r.verb, r.path, map[string]string{"Authorization": "Bearer " + token}, r.body)
 			if code != http.StatusForbidden || reason != authapi.ReasonNeedsSession || strings.Contains(body, "s3cret") {
@@ -152,6 +157,192 @@ func testNoTokenReachesAServersFiles(t *testing.T, backend store.Backend) {
 	}
 	if got := fileEvents(t, f); len(got) != 0 {
 		t.Errorf("a refused token got as far as the audit log: %v", got)
+	}
+	if got, err := os.ReadFile(config); err != nil || string(got) != "s3cret" {
+		t.Errorf("the file holds %q: %v", got, err)
+	}
+}
+
+func TestAPersonSavesAFile(t *testing.T) { storetest.Each(t, testAPersonSavesAFile) }
+
+func testAPersonSavesAFile(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := filepath.Join(dir, "app.env")
+	writeFile(t, config, "PORT=80\n")
+	c := fileClient(b, b.origin)
+	read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: config}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	changes := changeClient(b, b.origin)
+	before, err := changes.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	saved, err := c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{
+		ServerId: id, Path: config, Content: "PORT=8080 # s3cret-in-a-file\n", Version: read.Msg.GetVersion(),
+	}))
+	if err != nil {
+		t.Fatalf("SaveFile: %v", err)
+	}
+	if got, err := os.ReadFile(config); err != nil || string(got) != "PORT=8080 # s3cret-in-a-file\n" {
+		t.Fatalf("the file holds %q: %v", got, err)
+	}
+	if saved.Msg.GetVersion() == "" || saved.Msg.GetVersion() == read.Msg.GetVersion() || saved.Msg.GetPath() != config {
+		t.Errorf("saved as %v", saved.Msg)
+	}
+
+	// A save isn't a change: no plan, no revision.
+	after, err := changes.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Msg.GetChanges()) != len(before.Msg.GetChanges()) {
+		t.Errorf("a save made a change: %v", after.Msg.GetChanges())
+	}
+
+	events := fileEvents(t, f)
+	var actions []string
+	for i := range events {
+		actions = append(actions, events[i].Action)
+		if strings.Contains(events[i].Detail, "s3cret") {
+			t.Errorf("the audit log holds what was saved: %s", events[i].Detail)
+		}
+	}
+	if want := []string{"file.read", "file.saving", "file.save"}; !slices.Equal(actions, want) {
+		t.Fatalf("the audit log has %v, want %v", actions, want)
+	}
+	last := events[2]
+	if last.Subject != config || last.Target != id || !strings.HasPrefix(last.Actor, "user:") || last.Surface != store.SurfacePanel {
+		t.Errorf("the save went on record as %+v", last)
+	}
+
+	// It's on the timeline as what it is, under its server, after the read.
+	timeline := dockwellv1connect.NewEventServiceClient(b, b.origin, connect.WithProtoJSON())
+	list, err := timeline.ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{ServerId: id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seen []*dockwellv1.Event
+	for _, e := range list.Msg.GetEvents() {
+		if strings.HasPrefix(e.GetAction(), "file.") {
+			seen = append(seen, e)
+		}
+	}
+	slices.Reverse(seen)
+	if len(seen) != 2 || seen[0].GetAction() != "file.read" {
+		t.Fatalf("the timeline has %v", seen)
+	}
+	e := seen[1]
+	if e.GetAction() != "file.save" || e.GetKind() != dockwellv1.EventKind_EVENT_KIND_SERVER ||
+		e.GetSubject().GetId() != id || e.GetSubject().GetName() != "hz-1" || e.GetSubject().GetPath() != config || e.GetActor() == nil {
+		t.Errorf("the timeline says %v", e)
+	}
+
+	// A save over what changed since writes nothing, and isn't on the timeline as saved.
+	writeFile(t, config, "PORT=9000\n")
+	_, err = c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{
+		ServerId: id, Path: config, Content: "PORT=1\n", Version: saved.Msg.GetVersion(),
+	}))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "file_changed" {
+		t.Fatalf("saving over what changed = %v, want file_changed", err)
+	}
+	if got, err := os.ReadFile(config); err != nil || string(got) != "PORT=9000\n" {
+		t.Fatalf("the file holds %q: %v", got, err)
+	}
+	if got := fileEvents(t, f); len(got) != 5 || got[3].Action != "file.saving" || got[4].Action != "file.save_failed" {
+		t.Errorf("after a refused save the audit log has %v", got)
+	}
+
+	// REST takes it too.
+	again, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: config}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, _, body := callREST(t, b, http.MethodPost, "/v1/servers/"+id+"/files:save", nil,
+		`{"path":"`+config+`","content":"PORT=2\n","version":"`+again.Msg.GetVersion()+`"}`)
+	if code != http.StatusOK || !strings.Contains(body, config) {
+		t.Errorf("POST files:save: %d %s", code, body)
+	}
+}
+
+func TestASaveThatCantBeMadeSaysWhy(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	server := f.addServer(t, false)
+	id := server.id.ServerID
+	config := filepath.Join(t.TempDir(), "config")
+	writeFile(t, config, "x")
+	key := filepath.Join(server.dataDir, "control", "key")
+	writeFile(t, key, "the install's key")
+	c := fileClient(b, b.origin)
+	save := func(path, content, version string) error {
+		_, err := c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: path, Content: content, Version: version}))
+		return err
+	}
+	for _, s := range []struct {
+		name, path, content, version, reason string
+	}{
+		{"no version", config, "y", "", "invalid"},
+		{"too long", config, strings.Repeat("y", 1<<20+1), "v", "invalid"},
+		{"a relative path", "etc/config", "y", "v", "invalid"},
+		{"what's refused", key, "y", "v", "file_refused"},
+		{"nothing there", config + ".nope", "y", "v", "not_found"},
+	} {
+		t.Run(s.name, func(t *testing.T) {
+			if err := save(s.path, s.content, s.version); reasonOf(err) != s.reason {
+				t.Errorf("got %v, want %s", err, s.reason)
+			}
+		})
+	}
+	if got, err := os.ReadFile(key); err != nil || string(got) != "the install's key" {
+		t.Errorf("the key holds %q: %v", got, err)
+	}
+	var failed []string
+	events := fileEvents(t, f)
+	for i := range events {
+		if events[i].Action == "file.save_failed" {
+			failed = append(failed, events[i].Subject)
+		}
+	}
+	if len(failed) != 5 {
+		t.Errorf("failed saves on record: %v", failed)
+	}
+	// What was refused, and what's on the timeline says so, as it would a read.
+	if on := timelineFiles(t, b, &dockwellv1.ListEventsRequest{ServerId: id}); len(on) != 5 ||
+		on[0].GetAction() != "file.save_failed" || on[0].GetKind() != dockwellv1.EventKind_EVENT_KIND_SERVER || on[0].GetSubject().GetPath() == "" {
+		t.Errorf("the timeline has %v", on)
+	}
+}
+
+// What can't go on record isn't written.
+func TestASaveThatCantGoOnRecordWritesNothing(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	config := filepath.Join(t.TempDir(), "config")
+	writeFile(t, config, "before")
+	c := fileClient(b, b.origin)
+	read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: config}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.execSQL(t, `CREATE TRIGGER keep_out BEFORE INSERT ON audit_events WHEN NEW.action = 'file.saving' BEGIN SELECT RAISE(ABORT, 'no room'); END`)
+	_, err = c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{
+		ServerId: id, Path: config, Content: "after", Version: read.Msg.GetVersion(),
+	}))
+	if err == nil {
+		t.Fatal("the save went ahead with nothing on record")
+	}
+	if got, err := os.ReadFile(config); err != nil || string(got) != "before" {
+		t.Fatalf("the file holds %q: %v", got, err)
 	}
 }
 

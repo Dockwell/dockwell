@@ -723,6 +723,10 @@ func (s *Session) lost(c *agentv1.Call) error {
 		return resource.Plainly(fmt.Sprintf("%s went offline during this step, so Dockwell can't tell whether it ran. Check that %s is up.", s.name, s.name),
 			fault.New(ErrLost, "%s's agent disconnected during this step", s.name))
 	}
+	if c.GetSaveFile() != nil {
+		return fault.New(ErrLost, "%s's agent disconnected before it answered, so the file may or may not have saved. "+
+			"Open it again once the agent reconnects, to see what's there", s.name)
+	}
 	return fault.New(ErrLost, "%s's agent disconnected before it answered. Try again once it reconnects", s.name)
 }
 

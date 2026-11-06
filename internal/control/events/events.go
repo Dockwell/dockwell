@@ -50,12 +50,14 @@ const lateness = 30 * time.Second
 // comes with it, such as the steps of one change, to send them together.
 const gather = 100 * time.Millisecond
 
-// A person reading a server's files, and what stopped them. Not asking for a
-// passkey to read one rests on these being where the person can see them (ADR
-// 0032), as with a secret's reveal.
+// What a person does with a server's files, and what stopped them. Not asking for
+// a passkey rests on these being where the person can see them (ADR 0032), as with
+// a secret's reveal. A save has no change of its own, as files aren't managed state.
 const (
-	fileRead   = "file.read"
-	fileRefuse = "file.refuse"
+	fileRead       = "file.read"
+	fileRefuse     = "file.refuse"
+	fileSave       = "file.save"
+	fileSaveFailed = "file.save_failed"
 )
 
 // The audit log's actions that belong on the timeline, by kind. What the
@@ -63,7 +65,7 @@ const (
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
-	serverActions = []string{"server.join", "server.renew", "server.revoke"}
+	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveFailed}
 	healthActions = []string{health.Action}
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
@@ -480,7 +482,7 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Id: a.ID, Kind: dockwellv1.EventKind_EVENT_KIND_ACCESS, Action: a.Action, Time: timestamppb.New(a.At),
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
-	if strings.HasPrefix(a.Action, "server.") {
+	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveFailed {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if a.Action == health.Action {
@@ -500,7 +502,7 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 	}
-	if (a.Action == fileRead || a.Action == fileRefuse) && e.Subject != nil {
+	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {
 		e.Subject.Path = a.Subject // only ever a path, cleaned by internal/control/files
 	}
 	return e

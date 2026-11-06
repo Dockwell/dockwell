@@ -1179,6 +1179,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:save:
+        post:
+            tags:
+                - FileService
+            description: |-
+                SaveFile replaces a file's text, if the file is still as ReadFile gave it. A
+                 file that changed since fails with the reason "file_changed", and nothing is
+                 written. It can't be undone. No API token can call it. Every save is in the
+                 audit log, and on the timeline.
+            operationId: FileService_SaveFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SaveFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SaveFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services:
         get:
             tags:
@@ -3716,7 +3752,9 @@ components:
                          otherwise.
                 path:
                     type: string
-                    description: Which file on it, for a file read on a server, or refused. Empty otherwise.
+                    description: |-
+                        Which file on it, for a file read, saved or refused on a server. Empty
+                         otherwise.
             description: EventSubject names what an event is about.
         ExportComposeResponse:
             type: object
@@ -5587,6 +5625,12 @@ components:
                 truncated:
                     type: boolean
                     description: True when the file is longer than 1 MiB, so content is its beginning.
+                version:
+                    type: string
+                    description: |-
+                        What SaveFile takes to save over this text: a digest of the file, which
+                         tells whether it changed since. Empty for what can't be saved here: a binary
+                         file, or one with more to it than content.
             description: ReadFileResponse is a file on a server.
         ReadLogsResponse:
             type: object
@@ -6192,6 +6236,38 @@ components:
                     description: The port on the server it goes to, when it goes to no service.
                     format: uint32
             description: RouteMove is a route leaving one service for another.
+        SaveFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: |-
+                        The file's absolute path, without . or .. in it. The file must exist:
+                         SaveFile doesn't make one.
+                content:
+                    type: string
+                    description: The file's new text, 1 MiB at most.
+                version:
+                    type: string
+                    description: 'The version from ReadFile: the file as you last read it.'
+            description: SaveFileRequest replaces a file's text.
+        SaveFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: The file's path, with every symlink followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: The file itself.
+                version:
+                    type: string
+                    description: What the next save over this text takes.
+            description: SaveFileResponse is the file as saved.
         Secret:
             type: object
             properties:
@@ -7407,9 +7483,10 @@ tags:
          same credentials.
     - name: FileService
       description: |-
-        FileService browses and reads the files on a server, through its agent. Files
-         on a server aren't managed state, so nothing here is a revision or has a
-         plan. See docs/adr/0032-files-on-a-server.md.
+        FileService browses, reads and saves the files on a server, through its
+         agent. Files on a server aren't managed state, so nothing here is a revision
+         or has a plan, and a save can't be undone. See
+         docs/adr/0032-files-on-a-server.md.
 
          Every method needs a signed-in session: no API token can call them, whatever
          its scope. The agent refuses what holds Dockwell's keys, secrets' values and

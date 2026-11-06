@@ -62,12 +62,19 @@ If plans with host access or the terminal come to take a step-up, this takes the
 
 Two limits on that reasoning. A server without Docker can't run that plan, so there Files is new reach for a stolen session. And the refused list stops Files, not a stolen session: ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach what Files refuses.
 
+### How a save lands
+
+- **It says what it read.** `ReadFile` gives a version, a SHA-256 of the file, and `SaveFile` takes it back. The agent reads the file again and compares, and one that differs is left as it is, with the reason `file_changed`. A time and a size can't tell: two saves can share both. There's no way to force a save: to go ahead, a client reads the file again, which is on record, and saves over that version. The check and the write are moments apart, so a writer that lands between them is lost, as with any editor.
+- **It writes in place.** A container that mounts one file holds its inode, so a rename would leave it reading the old file, which is how a save to a file mounted beside a running app would seem to do nothing. Hard links would break too. A rename is atomic and this isn't, so a reader can catch a file half written for a moment, as with `nano` or VS Code.
+- **A copy goes beside it first,** mode 0600, named `.dockwell-save-…`. It proves the disk has room before the file is touched. If the write still fails, the agent puts the old text back and removes the copy. If that fails too, the copy stays, and the error names it.
+- **It makes no file, directory or change of mode.** Those come with the rest of the mock's toolbar, and each will need the same care.
+
 ### On record
 
 - `file.read` for each `ReadFile`, naming the person, the server and the path, written before the contents go out. If it can't be written, nothing goes out, as with `secret.reveal`.
 - `file.refuse` for each read or listing that came to nothing, however it failed. Someone looking for credentials mostly misses, so a miss leaves a mark as a hit does.
-- `file.save` for each save, which is on the timeline too, as it changes the server.
-- All of these are on Activity, where ADR 0020 leaves other refusals in the audit log, as the case for no step-up rests on them being seen.
+- `file.saving` before each save, and `file.save` after one lands, or `file.save_failed`, however it failed. If the first can't be written, nothing is saved. The first stays in the audit log, as a save may yet fail, so a save always leaves a line, and Activity says only what happened.
+- All but `file.saving` are on Activity, by person, server and path, where ADR 0020 leaves other refusals in the audit log, as the case for no step-up rests on them being seen.
 - A listing that works isn't recorded: it returns names, and it runs on every click. Nor is a listing that can't reach its server, as the panel asks again by itself.
 - A file's contents are never recorded or logged. A path is cleaned before it's stored or shown, as a name can hold a newline or a terminal's escape codes, and a link can lead through one.
 

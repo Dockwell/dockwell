@@ -33,7 +33,8 @@ const (
 	// A change to managed state: a plan waiting to be applied, or a change
 	// applying, applied or failed, rollbacks and undos included.
 	EventKind_EVENT_KIND_CHANGE EventKind = 1
-	// A server joined the fleet, renewed its certificate, or was removed.
+	// A server joined the fleet, renewed its certificate, or was removed, or
+	// someone saved a file on it.
 	EventKind_EVENT_KIND_SERVER EventKind = 2
 	// Someone gained or gave up a way in: claiming the install, signing in,
 	// signing other sessions out, passkeys, authenticator codes, API tokens,
@@ -682,7 +683,8 @@ type EventSubject struct {
 	// secret's environment, as "env_…", for a secret revealed. Empty
 	// otherwise.
 	Scope string `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
-	// Which file on it, for a file read on a server, or refused. Empty otherwise.
+	// Which file on it, for a file read, saved or refused on a server. Empty
+	// otherwise.
 	Path          string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

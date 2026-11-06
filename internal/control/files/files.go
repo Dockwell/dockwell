@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package files serves dockwell.v1.FileService: a person browsing and reading the
-// files on a server, through its agent, which decides what's refused. Nothing
-// here is a revision: a file on a server isn't managed state. See
+// Package files serves dockwell.v1.FileService: a person browsing, reading and
+// saving the files on a server, through its agent, which decides what's refused.
+// Nothing here is a revision: a file on a server isn't managed state, so a save
+// writes the server and the audit log, and never reaches internal/revision. See
 // docs/adr/0032-files-on-a-server.md and docs/security/files.md.
 package files
 
@@ -28,10 +29,16 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// Audit events.
+// Audit events, each naming the file as its subject and the server as its target.
 const (
 	eventRead   = "file.read"
 	eventRefuse = "file.refuse"
+	// eventSaving goes on record before a save, and eventSave after it: what
+	// can't go on record isn't written, and what may have failed isn't on the
+	// timeline as saved.
+	eventSaving     = "file.saving"
+	eventSave       = "file.save"
+	eventSaveFailed = "file.save_failed"
 )
 
 // Handler implements FileService.
@@ -102,7 +109,7 @@ func (h *Handler) ListFiles(ctx context.Context, req *connect.Request[dockwellv1
 	}
 	record := h.recorder(ctx, p, srv)
 	if err := files.CheckPath(path); err != nil {
-		h.noteRefusal(ctx, record, "list", path, srv, err)
+		h.note(ctx, record, eventRefuse, "list", path, srv, err)
 		return nil, authapi.Invalid(err)
 	}
 	session, err := h.session(ctx, srv)
@@ -115,7 +122,7 @@ func (h *Handler) ListFiles(ctx context.Context, req *connect.Request[dockwellv1
 	}
 	if r := out.GetRefusal(); r != nil {
 		err := refusal(r)
-		h.noteRefusal(ctx, record, "list", path, srv, err)
+		h.note(ctx, record, eventRefuse, "list", path, srv, err)
 		return nil, err
 	}
 	return connect.NewResponse(out.GetListing()), nil
@@ -136,7 +143,7 @@ func (h *Handler) ReadFile(ctx context.Context, req *connect.Request[dockwellv1.
 	}
 	record := h.recorder(ctx, p, srv)
 	failed := func(err error) error {
-		h.noteRefusal(ctx, record, "read", path, srv, err)
+		h.note(ctx, record, eventRefuse, "read", path, srv, err)
 		return err
 	}
 	if err := files.CheckPath(path); err != nil {
@@ -160,6 +167,56 @@ func (h *Handler) ReadFile(ctx context.Context, req *connect.Request[dockwellv1.
 	return connect.NewResponse(out.GetFile()), nil
 }
 
+// SaveFile replaces a file's text on a server, if it is still as it was read. It
+// isn't a revision: see the package's doc. It goes to its end whether or not the
+// client stays, so what lands on the disk lands on record too.
+func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.SaveFileRequest]) (*connect.Response[dockwellv1.SaveFileResponse], error) {
+	p, err := person(ctx)
+	if err != nil {
+		return nil, err
+	}
+	path, content, version := req.Msg.GetPath(), req.Msg.GetContent(), req.Msg.GetVersion()
+	srv, err := h.server(ctx, req.Msg.GetServerId())
+	if err != nil {
+		return nil, err
+	}
+	record := h.recorder(ctx, p, srv)
+	failed := func(err error) error {
+		h.note(ctx, record, eventSaveFailed, "save", path, srv, err)
+		return err
+	}
+	switch {
+	case len(content) > files.MaxFileBytes:
+		return nil, failed(authapi.Invalid(fmt.Errorf("that text is %d bytes, and a file saves at %d at most. Connect to the server over SSH to write more", len(content), files.MaxFileBytes)))
+	case version == "":
+		return nil, failed(authapi.Invalid(errors.New("say which version of the file this replaces. Read it with ReadFile, and pass its version")))
+	}
+	if err := files.CheckPath(path); err != nil {
+		return nil, failed(authapi.Invalid(err))
+	}
+	session, err := h.session(ctx, srv)
+	if err != nil {
+		return nil, failed(err)
+	}
+	ctx = context.WithoutCancel(ctx)
+	if err := record(eventSaving, path, fmt.Sprintf("saving %s on %s", path, srv.GetName())); err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	out, err := session.SaveFile(ctx, path, content, version)
+	if err != nil {
+		return nil, failed(h.rpcError(ctx, err))
+	}
+	if r := out.GetRefusal(); r != nil {
+		return nil, failed(refusal(r))
+	}
+	saved := out.GetSaved()
+	if err := record(eventSave, saved.GetPath(), fmt.Sprintf("saved %s on %s, %d bytes", saved.GetPath(), srv.GetName(), len(content))); err != nil {
+		// It's on the disk, and eventSaving says so might be: the person hears it saved.
+		h.logger.ErrorContext(ctx, "saved a file, and can't record that it saved", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
+	}
+	return connect.NewResponse(saved), nil
+}
+
 // recorder writes a server's audit events for what p does to one of its files, by
 // a path that's fit to store, as a name can hold anything but a slash. It writes
 // whether or not the caller stays.
@@ -176,14 +233,14 @@ func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv
 	}
 }
 
-// noteRefusal puts on record a read or a listing that came to nothing, and why. A
+// note puts on record something done to a file that came to nothing, and why. A
 // refusal stands whether or not this does. A caller that left isn't a refusal.
-func (h *Handler) noteRefusal(ctx context.Context, record func(action, path, detail string) error, doing, path string, srv *dockwellv1.Server, why error) {
+func (h *Handler) note(ctx context.Context, record func(action, path, detail string) error, event, doing, path string, srv *dockwellv1.Server, why error) {
 	if errors.Is(why, context.Canceled) || connect.CodeOf(why) == connect.CodeCanceled {
 		return
 	}
 	detail := fmt.Sprintf("couldn't %s %s on %s: %s", doing, path, srv.GetName(), why.Error())
-	if err := record(eventRefuse, path, detail); err != nil {
+	if err := record(event, path, detail); err != nil {
 		h.logger.WarnContext(ctx, "can't record a refused file", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
 	}
 }
@@ -202,6 +259,8 @@ func refusal(r *agentv1.FileRefusal) error {
 		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "not_a_file")
 	case agentv1.FileRefusal_KIND_NOT_ANSWERING:
 		return authapi.ReasonError(connect.CodeDeadlineExceeded, err, "path_not_answering")
+	case agentv1.FileRefusal_KIND_CHANGED:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "file_changed")
 	case agentv1.FileRefusal_KIND_DENIED, agentv1.FileRefusal_KIND_UNSPECIFIED:
 	}
 	return authapi.ReasonError(connect.CodePermissionDenied, err, "file_denied")

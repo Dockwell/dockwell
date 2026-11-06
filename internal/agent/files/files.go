@@ -10,6 +10,8 @@ package files
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -253,7 +255,17 @@ func (s *Server) read(ctx context.Context, t *trail, p string) *agentv1.ReadFile
 		return &agentv1.ReadFileResult{Refusal: refused(where, why)}
 	}
 	out.Content = string(text)
+	if !truncated {
+		out.Version = version(text)
+	}
 	return &agentv1.ReadFileResult{File: out}
+}
+
+// version is what tells whether a file changed: a save compares it with the
+// file as it finds it. A time and a size can't, as two saves can share both.
+func version(text []byte) string {
+	sum := sha256.Sum256(text)
+	return hex.EncodeToString(sum[:])
 }
 
 // readText opens the walk's last part for reading, through the descriptor of the
