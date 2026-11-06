@@ -54,6 +54,8 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.GROUP]: 2,
   [HostAccessKind.NETWORK_DRIVER]: 3,
   [HostAccessKind.EXTERNAL_NETWORK]: 3,
+  [HostAccessKind.EXTERNAL_VOLUME]: 3,
+  [HostAccessKind.TAKES_ON]: 3,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
@@ -199,6 +201,18 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           detail: leadsTo
             ? t`Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`
             : t`Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`,
+        };
+      case HostAccessKind.EXTERNAL_VOLUME:
+        return {
+          key,
+          title: t`${name} mounts the volume ${path} on ${server}`,
+          detail: t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
+        };
+      case HostAccessKind.TAKES_ON:
+        return {
+          key,
+          title: t`${name} takes on the container ${path} on ${server}`,
+          detail: t`Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running.`,
         };
       case HostAccessKind.SERVER_PORT: {
         const at = plain(access.detail);

@@ -179,8 +179,12 @@ function StepRow({
             <MachineWords>{words.intent(intent, tenseOf(live?.state))}</MachineWords>
           ) : (
             <>
-              {words.verb(step.action, tenseOf(live?.state))} <code>{name}</code>{" "}
-              <span className="plan-step-kind">{words.kind(step.resource?.kind ?? "")}</span>
+              {step.adopts
+                ? words.takesOn(tenseOf(live?.state))
+                : step.releases
+                  ? words.letsGo(tenseOf(live?.state))
+                  : words.verb(step.action, tenseOf(live?.state))}{" "}
+              <code>{name}</code> <span className="plan-step-kind">{words.kind(step.resource?.kind ?? "")}</span>
             </>
           )}
         </span>

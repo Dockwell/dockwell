@@ -58,6 +58,17 @@ export function mountSource(mount: ContainerMount): string {
   return mount.volume || mount.hostPath;
 }
 
+/** What a service that takes a container on is called unless someone says, as the control plane works it out. */
+export function serviceNameFor(container: ServerContainer): string {
+  const name = (container.composeService || container.name)
+    .toLowerCase()
+    .replace(/[_.]/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/^-+|-+$/g, "");
+  const named = name === "" || !/^[a-z]/.test(name) ? `app-${name}` : name;
+  return named.slice(0, 63).replace(/-+$/, "");
+}
+
 /** A name or an image that a filter finds, however it is written. */
 export function matches(container: ServerContainer, filter: string): boolean {
   const wanted = filter.trim().toLowerCase();

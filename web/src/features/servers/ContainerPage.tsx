@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
-import { ContainerService, type ServerContainer } from "@dockwell/api";
-import { Icon, Panel, StatusBadge } from "@dockwell/ui";
+import { createClient } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
+import { ChangeState, ContainerService, type ServerContainer } from "@dockwell/api";
+import { Button, Icon, Panel, SelectField, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
-import { useRef } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { usePlaces } from "../apps/useServices";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { LogsPage, type LogsSearch } from "../logs/LogsPage";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import { Page } from "../shell/Page";
 import { useMadeWords } from "./ContainersPanel";
-import { mountSource, portWords, READ_EVERY_MS, statusOf, useContainerStateWord } from "./containers";
+import { mountSource, portWords, READ_EVERY_MS, serviceNameFor, statusOf, useContainerStateWord } from "./containers";
 import { useFleet } from "./useFleet";
 import "./ContainersPanel.css";
 
@@ -94,9 +97,69 @@ export function ContainerPage({
         ) : container ? (
           <Facts container={container} />
         ) : null}
+        {container ? <TakeItOn serverId={serverId} container={container} /> : null}
         <LogsPage id={name} server={serverId} search={search} onSearch={onSearch} />
       </Page>
     </LogsSearchButton>
+  );
+}
+
+/**
+ * Taking a container on: a name for the service, where it goes when there is a choice,
+ * and a plan like any other. What it says first is what a person worries about: it
+ * doesn't restart, and nothing of its environment shows.
+ */
+function TakeItOn({ serverId, container }: { serverId: string; container: ServerContainer }) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const navigate = useNavigate();
+  const places = usePlaces();
+  const [name, setName] = useState(() => serviceNameFor(container));
+  const [environment, setEnvironment] = useState("");
+  const chosen = environment || places.defaultEnvironment?.id || "";
+  const open = () =>
+    sheet.open({
+      kind: "plan",
+      make: () =>
+        createClient(ContainerService, transport).adoptContainer({
+          id: container.name,
+          server: serverId,
+          service: name,
+          environment: chosen,
+        }),
+      onClose: (change) => {
+        const made = change?.plan?.resources[0]?.id;
+        if (change?.state === ChangeState.APPLIED && made) {
+          void navigate({ to: "/apps/$serviceId", params: { serviceId: made } });
+        }
+      },
+    });
+  return (
+    <Panel title={t`Take it on`}>
+      <div className="container-take-on">
+        <p>
+          <Trans>
+            Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its
+            volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it.
+          </Trans>
+        </p>
+        <TextField label={t`Name as a service`} value={name} onChange={(event) => setName(event.target.value)} />
+        {places.environments.length > 1 ? (
+          <SelectField
+            label={places.showsEnvironment ? t`Environment` : t`Project`}
+            value={chosen}
+            options={places.environments.map((e) => ({ value: e.id, label: e.label }))}
+            onChange={(event) => setEnvironment(event.target.value)}
+          />
+        ) : null}
+        <div>
+          <Button onClick={open} disabled={name === ""}>
+            <Trans>Plan taking it on</Trans>
+          </Button>
+        </div>
+      </div>
+    </Panel>
   );
 }
 
