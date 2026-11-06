@@ -75,7 +75,7 @@ func (*fakeIngress) Routing(context.Context, ingress.Service) (ingress.Routing, 
 
 func (f *fakeIngress) Reachable(context.Context, ingress.Instance) error { return f.unreachable }
 
-func (f *fakeIngress) Hold(ingress.Service) func() { return func() {} }
+func (f *fakeIngress) Hold(ingress.Service, map[string]uint32) func() { return func() {} }
 
 func withIngress(t *testing.T, ing *fakeIngress) (*Docker, *dockertest.Engine) {
 	t.Helper()

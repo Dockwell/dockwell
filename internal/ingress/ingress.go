@@ -74,7 +74,8 @@ type Proxy interface {
 	SetPanel(ctx context.Context, panel *PanelSite) error
 	// InFlight says how many connections the proxy has open to an upstream, which
 	// is above zero for as long as a request is on its way there, and for no longer
-	// than a moment past that, in any config old or new.
+	// than a moment past that, in any config old or new. An address with no port
+	// counts what is open to it on any port.
 	InFlight(ctx context.Context, upstream string) (int, error)
 	// Certificates says where each domain's certificate stands. It works with
 	// the proxy down.
@@ -208,6 +209,9 @@ type Manager struct {
 	// context to give up with.
 	rolloutsMu sync.Mutex
 	rollouts   map[Service]int
+	// moving is the port a rollout's plan has for each route of a service it holds,
+	// by the route's name.
+	moving map[Service]map[string]uint32
 }
 
 var _ Upstreams = (*Manager)(nil)

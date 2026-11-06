@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/loadtest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	routekind "github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
@@ -109,7 +110,13 @@ func (f *fleetOf) start(id string) {
 	f.running[id] = a
 	f.mu.Unlock()
 	f.started.Add(1)
-	address := fmt.Sprintf("%s:%d", ep.IPAMConfig.IPv4Address, f.port)
+	port := f.port
+	for _, kv := range c.Config.Env {
+		if v, ok := strings.CutPrefix(kv, "LISTEN_PORT="); ok {
+			port, _ = strconv.Atoi(v)
+		}
+	}
+	address := fmt.Sprintf("%s:%d", ep.IPAMConfig.IPv4Address, port)
 	go func() {
 		// An app takes a moment to come up, and nothing answers until it has.
 		time.Sleep(f.startIn)
@@ -177,7 +184,7 @@ func newLoadStack(t *testing.T, startIn, grace time.Duration, drain string, chec
 	drivers := container.Driver{Runtime: rt}
 	ls := &loadStack{
 		wholeStack: s, fleet: fleet, real: &realCaddy{Caddy: s.caddy, proc: s.proc, http: s.http, tls: s.tls},
-		apply: resource.Local{Drivers: resource.NewRegistry(&service.Driver{Containers: drivers})},
+		apply: resource.Local{Drivers: resource.NewRegistry(&service.Driver{Containers: drivers}, &routekind.Driver{Ingress: s.mgr})},
 		ref:   resource.Ref{Kind: service.Kind, Scope: s.env, Name: "web"},
 		drain: drain,
 	}
@@ -502,6 +509,61 @@ func TestAnAppWithNoCheckGetsNoTrafficUntilItListensOnRealCaddy(t *testing.T) {
 	t.Log(l)
 	for _, said := range l.Errors() {
 		t.Errorf("a request failed: %s", said.What)
+	}
+}
+
+// An app and its route go to a new port in one change. A route's step comes after its
+// service's, so the rollout holds the new container to the port the plan has, and
+// traffic moves to that with it. With no check, that port taking a connection is all
+// that stands between a request and an app still starting. An app that dies as it is
+// stopped loses what the old port has in flight unless the drain waits for it, though
+// the route has left that port by then. Nothing reloads, and no request fails.
+func TestAnAppAndItsRouteMoveToANewPortOnRealCaddy(t *testing.T) {
+	s := newLoadStack(t, 500*time.Millisecond, 0, "10s", nil)
+	s.up(t)
+	l := loadtest.NewTally()
+	stop := make(chan struct{})
+	wg := s.target().Run(t.Context(), l, stop)
+	time.Sleep(300 * time.Millisecond)
+	before := reloadsIn(t, s.proc.dir)
+	moved := freePort(t)
+	next := s.spec("app:1", 1)
+	next.GetApp().Env["LISTEN_PORT"] = strconv.Itoa(moved)
+	route := &resourcev1.Route{Domain: "app.example.net", Service: "web", Port: uint32(moved)}
+	routeRef := resource.Ref{Kind: routekind.Kind, Scope: s.env, Name: "www"}
+	desired := []resource.Desired{{Ref: s.ref, Spec: next}, {Ref: routeRef, Spec: route}}
+	steps, err := s.apply.Plan(t.Context(), desired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, step := range steps {
+		if err := s.apply.Apply(t.Context(), step, desired[i].Spec); err != nil {
+			t.Fatalf("applying %s: %v", step.Ref, err)
+		}
+	}
+	close(stop)
+	wg.Wait()
+	t.Log(l)
+	for _, said := range l.Errors() {
+		t.Errorf("a request failed: %s (%d times)", said.What, said.Count)
+	}
+	if l.Passed("slow") == 0 {
+		t.Errorf("too few long requests ran to mean anything: %s", l)
+	}
+	if got := reloadsIn(t, s.proc.dir) - before; got != 0 {
+		t.Errorf("moving a port reloaded Caddy %d times", got)
+	}
+	if got := s.body(t, "/who"); !strings.Contains(got, "-web-2") {
+		t.Errorf("after it, the route answers %s", got)
+	}
+	again, err := s.apply.Plan(t.Context(), desired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range again {
+		if step.Action != resource.ActionNone {
+			t.Errorf("once it settled, %s still has %s to do: %v", step.Ref, step.Action, step.Changes)
+		}
 	}
 }
 

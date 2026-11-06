@@ -18,7 +18,8 @@
 # and serves a real container over HTTPS through Caddy, and routes that take no
 # certificate serve over plain HTTP on port 80 alone, to what they name. A rollout
 # runs under load through that Caddy, with an app slow to turn healthy and one that
-# never does, counting every request. It uses throwaway data directories and removes
+# never does, counting every request, and an app and its route go to a new port in
+# one change. It uses throwaway data directories and removes
 # what it made, so it never touches a real install. It needs Docker with the compose
 # plugin, Go, curl, jq, openssl, pgrep and iproute2's ss, a free port (E2E_WEB_PORT,
 # 18080 by default), and ports 80 and 443 free, for the ingress's own part. With
@@ -1501,6 +1502,31 @@ rolled_back() {
   fail "120 s after a deploy failed, the newest change isn't a finished rollback: $change"
 }
 
+# moves_with_its_route takes the app and its route to a port in one change, as a client
+# sends it. A route's step comes after its service's, so nothing but the rollout can
+# take the route there before the old container, and with it the old port, goes.
+moves_with_its_route() {
+  local port=$1 deploy=$2 rollout=${3:-'{"drain":"10s"}'} service route change
+  service=$(jq -nc --arg port "$port" --arg deploy "$deploy" --argjson rollout "$rollout" '{resource: {kind: "service", name: "app"}, spec: {service: {app: {
+    image: "dockwell-e2e-app:slow", env: {DEPLOY: $deploy, E2E_PORT: $port}, rollout: $rollout,
+    healthcheck: {http: {port: ($port | tonumber), path: "/healthz"}, interval: "1s", timeout: "2s", retries: 3, startPeriod: "15s"}}}}}') ||
+    fail "can't write the app's edit"
+  route=$(jq -nc --arg port "$port" --arg domain "$roll_domain" '{resource: {kind: "route", name: "roll"}, spec: {route: {domain: $domain, service: "app", port: ($port | tonumber)}}}') ||
+    fail "can't write the route's edit"
+  dw changes propose --summary "Move app to port $port" --edits "$service" --edits "$route" --yes ||
+    fail "moving the app and its route to port $port in one change failed"
+  one_app "after moving to port $port" slow
+  app_env "$app" | grep -qx "E2E_PORT=$port" || fail "$app should listen on $port, and has: $(app_env "$app")"
+  change=$(newest_change) || fail "changes list failed"
+  jq -e '.state == "CHANGE_STATE_APPLIED"' <<<"$change" >/dev/null || fail "moving to port $port reads as: $change"
+  dw changes get "$(jq -r .id <<<"$change")" --json | jq -e --arg port "$port" '[.change.plan.servers[].steps[].rollout.routePorts.roll // empty] == [$port | tonumber]' >/dev/null ||
+    fail "the plan of moving to port $port should say the service's step takes the route there: $(dw changes get "$(jq -r .id <<<"$change")" --json)"
+  says name curl -fsS --max-time 5 --cacert "$pebble_dir/root.pem" --resolve "$roll_domain:443:127.0.0.1" "https://$roll_domain/who" ||
+    fail "https://$roll_domain/ doesn't serve app after it moved to port $port"
+  # The route reads as what its change said, which a route still on the old port wouldn't.
+  [[ "$(drifted)" == "$drift_before" ]] || fail "drift after moving to port $port: $(dw drift list --json), and before the rollouts it was $drift_before"
+}
+
 rollout_step "The first deploy waits for the check, through the API"
 start=$SECONDS
 mapfile -t spec < <(app_spec slow 1)
@@ -1667,6 +1693,10 @@ deploy_app slow 7 || fail "the rollout after docker compose up failed"
 one_app "after the rollout after docker compose up" slow
 [[ "${app##*-}" -gt "${before##*-}" ]] || fail "the rollout after docker compose up made $app, after $before"
 
+rollout_step "An app and its route go to a new port in one change, and back, with the load still on"
+moves_with_its_route 8081 71
+moves_with_its_route 8080 7
+
 rollout_step "What the load counted"
 kill -TERM "$load_pid" || fail "the load had already stopped: $(cat "$rollout_dir/load.log")"
 wait "$load_pid" || fail "the load ended badly: $(cat "$rollout_dir/load.log")"
@@ -1683,6 +1713,10 @@ for kind in short fresh browser post-http1 post-http2 slow stream websocket; do
   jq -e --arg kind "$kind" '.passed[$kind] >= 5' <<<"$report" >/dev/null || fail "only $(jq --arg kind "$kind" '.passed[$kind]' <<<"$report") of the $kind requests passed, too few to mean anything"
 done
 jq -e '.servedBy | length >= 5' <<<"$report" >/dev/null || fail "only $(jq '.servedBy | length' <<<"$report") containers served requests, so traffic didn't move: $(jq -c .servedBy <<<"$report")"
+
+rollout_step "Stopping first, an app and its route go to a new port in one change, and back"
+moves_with_its_route 8081 72 '{"drain":"10s","order":"ROLLOUT_ORDER_STOP_FIRST"}'
+moves_with_its_route 8080 7
 
 rollout_step "Killed while a stop-first deploy waits for its check: it still has to pass it, and it rolls back"
 count=$(changes_count) || fail "changes list failed"

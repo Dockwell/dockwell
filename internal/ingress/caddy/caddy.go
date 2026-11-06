@@ -2104,30 +2104,30 @@ func sameJSON(a, b []byte) bool {
 	return bytes.Equal(ca, cb)
 }
 
-// InFlight says how many connections are open to an upstream, as the kernel has
-// them, from the server's own network namespace, which is Caddy's: it runs on the
-// host's network, as this agent does. Caddy's own count is by what a config says to
-// dial, which for a route that dials through a file is every container it has ever
-// sent to. A connection with no request on it closes within upstreamIdle, so what is
-// left is what is on its way. A request's connection may open a moment after a
-// route moves, which is why Drain reads twice.
+// InFlight says how many connections are open to an upstream, or to an address on
+// any port, as the kernel has them, from the server's own network namespace, which
+// is Caddy's: it runs on the host's network, as this agent does. Caddy's own count is
+// by what a config says to dial, which for a route that dials through a file is every
+// container it has ever sent to. A connection with no request on it closes within
+// upstreamIdle, so what is left is what is on its way. A request's connection may open
+// a moment after a route moves, which is why Drain reads twice.
 func (c *Caddy) InFlight(_ context.Context, up string) (int, error) {
-	host, port, err := net.SplitHostPort(up)
-	if err != nil {
-		return 0, fmt.Errorf("%s isn't an address and a port: %w", up, err)
-	}
+	host, port, hasPort := strings.Cut(up, ":")
 	address, err := netip.ParseAddr(host)
 	if err != nil || !address.Is4() {
-		return 0, fmt.Errorf("%s isn't an IPv4 address, which is all the ingress network has", host)
-	}
-	number, err := strconv.ParseUint(port, 10, 16)
-	if err != nil {
-		return 0, fmt.Errorf("%s isn't a port: %w", port, err)
+		return 0, fmt.Errorf("%s isn't an IPv4 address, which is all the ingress network has", up)
 	}
 	// The kernel writes an address in the host's order: little-endian here, as on
 	// every architecture Dockwell ships for.
 	b := address.As4()
-	remote := fmt.Sprintf("%02X%02X%02X%02X:%04X", b[3], b[2], b[1], b[0], number)
+	remote := fmt.Sprintf("%02X%02X%02X%02X:", b[3], b[2], b[1], b[0])
+	if hasPort {
+		number, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			return 0, fmt.Errorf("%s isn't a port: %w", port, err)
+		}
+		remote += fmt.Sprintf("%04X", number)
+	}
 	table := c.procNetTCP
 	if table == "" {
 		table = "/proc/net/tcp"
@@ -2142,7 +2142,7 @@ func (c *Caddy) InFlight(_ context.Context, up string) (int, error) {
 	scan := bufio.NewScanner(f)
 	for scan.Scan() {
 		fields := strings.Fields(scan.Text())
-		if len(fields) > 3 && fields[2] == remote && fields[3] == established {
+		if len(fields) > 3 && strings.HasPrefix(fields[2], remote) && fields[3] == established {
 			n++
 		}
 	}

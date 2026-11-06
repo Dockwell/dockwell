@@ -1027,7 +1027,7 @@ func TestARouteKeepsWhatItAsksThroughAMoveAndAHold(t *testing.T) {
 			dial := s.table.Addresses[next.String()]
 			same("after the move", dial)
 			s.engine.Remove(old.ContainerName())
-			release := s.Hold(old.service())
+			release := s.Hold(old.service(), nil)
 			if err := s.Reconcile(t.Context()); err != nil {
 				t.Fatal(err)
 			}
@@ -1056,8 +1056,8 @@ func TestARouteWithAServiceAndAPortOnTheServerIsntMovedHeldOrDrained(t *testing.
 	project := docker.Project(envID)
 	old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
 	// Whatever is under way there, nothing about this service is what it's waiting
-	// for, whether it reads the port itself or that port on the old container.
-	s.proxy.inFlight = map[string]int{dials: 1, s.table.Addresses[old.String()] + ":9090": 1}
+	// for: the old container's address is all a drain reads.
+	s.proxy.inFlight = map[string]int{dials: 1, ServerHost: 1}
 	alone := func(when string) {
 		t.Helper()
 		all, err := s.proxy.Routes(t.Context())
@@ -1115,7 +1115,7 @@ func TestARouteWithAServiceAndAPortOnTheServerIsntMovedHeldOrDrained(t *testing.
 	alone("after the move")
 	dialing("after the move", next)
 
-	release := s.Hold(old.service())
+	release := s.Hold(old.service(), nil)
 	if err := s.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}

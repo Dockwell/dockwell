@@ -336,6 +336,10 @@ type RolloutPlan struct {
 	// NoCheck is true when nothing checks the new container, so healthy is only
 	// that it runs.
 	NoCheck bool `json:",omitempty"`
+	// RoutePorts is the port each route the change touches sends to on the service,
+	// by the route's name. A route's own step comes after its service's, so these are
+	// what the new container has to answer on, and what traffic moves to with it.
+	RoutePorts map[string]uint32 `json:",omitempty"`
 }
 
 // DroppedMount is something the old container mounts and the new one won't.

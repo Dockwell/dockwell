@@ -318,6 +318,7 @@ func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Containe
 			return nil, err
 		}
 		p.EditedRoutes = routing.Edited
+		p.RoutePorts = routePorts(ctx, t)
 	}
 	shared := len(p.Volumes)+len(p.Paths)+len(p.ImageData)+len(p.CantTell) > 0
 	order := spec.GetRollout().GetOrder()
@@ -352,6 +353,26 @@ func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Containe
 		}
 	}
 	return p, nil
+}
+
+// routePorts is the port each route the plan under way touches sends to on t's
+// service, by the route's name. A route's step comes after its service's, so a service
+// that moves to a new port in the same change as its route has to answer there before
+// the route says so (ADR 0027). A route the plan takes elsewhere is no business of this
+// step's, and neither is one to a port on the server, which belongs to no container.
+func routePorts(ctx context.Context, t Target) map[string]uint32 {
+	var out map[string]uint32
+	for _, want := range resource.DesiredIn(ctx) {
+		r, ok := want.Spec.(*resourcev1.Route)
+		if !ok || r.GetPort() == 0 || r.GetHostPort() != 0 || r.GetService() != t.Service || docker.Project(want.Ref.Scope) != t.Project {
+			continue
+		}
+		if out == nil {
+			out = map[string]uint32{}
+		}
+		out[want.Ref.Name] = r.GetPort()
+	}
+	return out
 }
 
 // landing is where a mount really lands on the server, as far as the agent can
@@ -617,7 +638,11 @@ func (d *Docker) Left(ctx context.Context, t Target, desired *resourcev1.Contain
 func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
 	release := func() {}
 	if d.Ingress != nil && t.Scoped {
-		release = d.Ingress.Hold(ingress.Service{Project: t.Project, Name: t.Service})
+		var ports map[string]uint32
+		if dec.Rollout != nil {
+			ports = dec.Rollout.RoutePorts
+		}
+		release = d.Ingress.Hold(ingress.Service{Project: t.Project, Name: t.Service}, ports)
 	}
 	defer release()
 	all, err := d.instances(ctx, t)

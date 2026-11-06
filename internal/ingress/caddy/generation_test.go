@@ -60,6 +60,13 @@ func TestInFlightCountsWhatIsOpenToAnUpstream(t *testing.T) {
 	if n, err := c.InFlight(t.Context(), "172.30.0.9:8080"); n != 0 || err != nil {
 		t.Errorf("InFlight of what nothing is open to = %d, %v", n, err)
 	}
+	if n, err := c.InFlight(t.Context(), "172.30.0.2:9090"); n != 0 || err != nil {
+		t.Errorf("InFlight of another port of an address = %d, %v", n, err)
+	}
+	// An address alone is what is open to it on any port, as a route can have moved.
+	if n, err := c.InFlight(t.Context(), "172.30.0.2"); n != 2 || err != nil {
+		t.Errorf("InFlight of an address = %d, %v, want the two open to it", n, err)
+	}
 	c.procNetTCP = filepath.Join(t.TempDir(), "gone")
 	if _, err := c.InFlight(t.Context(), "172.30.0.2:8080"); err == nil {
 		t.Error("it said how many, with nothing to read")

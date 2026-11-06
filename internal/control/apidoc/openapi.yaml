@@ -5281,6 +5281,15 @@ components:
                     description: |-
                         True when nothing checks the new container, neither its spec nor its image,
                          so healthy is only that it runs, and keeps running for soak.
+                routePorts:
+                    type: object
+                    additionalProperties:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The port each route this change touches sends to on the service, by the route's
+                         name. A route's own step comes after its service's, so the new container is held
+                         to these, and traffic moves to them with it, not to what the route dials now.
             description: RolloutPlan is how a step replaces a running service, and why.
         Route:
             type: object
