@@ -2436,6 +2436,8 @@ services:
     cap_add: [NET_ADMIN]
     cap_drop: [MKNOD]
     group_add: ["12345"]
+    shm_size: 128m
+    tmpfs: ["/run/e2e-short:size=8m"]
     labels:
       createdBy: Apps
     networks: [e2e-edge]
@@ -2449,6 +2451,7 @@ services:
       retries: 15
     volumes:
       - ./data:/data
+      - {type: tmpfs, target: /run/e2e-long, tmpfs: {size: 4m}}
 networks:
   e2e-edge:
     external: true
@@ -2480,12 +2483,21 @@ has '.[0].HostConfig.MemoryReservation == 16777216'
 has '.[0].HostConfig.CapAdd | any(endswith("NET_ADMIN"))'
 has '.[0].HostConfig.CapDrop | any(endswith("MKNOD"))'
 has '.[0].HostConfig.GroupAdd | index("12345") != null'
+has '.[0].HostConfig.ShmSize == 134217728'
+has '.[0].HostConfig.Tmpfs["/run/e2e-short"] == "size=8388608"'
+has '.[0].HostConfig.Tmpfs["/run/e2e-long"] == "size=4194304"'
 has '.[0].HostConfig.RestartPolicy.Name == "on-failure" and .[0].HostConfig.RestartPolicy.MaximumRetryCount == 5'
 has '.[0].NetworkSettings.Networks["e2e-edge"].Aliases | (index("e2e-storefront") != null and index("shop") != null)'
 has '.[0].NetworkSettings.Networks | keys == ["e2e-edge"]'
 has '.[0].HostConfig.Binds | length == 1'
 bind=$(jq -r '.[0].HostConfig.Binds[0]' <<<"$inspected")
 [[ "$bind" == "$real_dir/data:/data" ]] || fail "./data mounts as '$bind', want $real_dir/data:/data"
+# What Docker was told is one thing, and what the container has another.
+held=$(docker exec "$shop" df -kP /dev/shm /run/e2e-short /run/e2e-long) || fail "df in $shop failed"
+for want in '/dev/shm 131072' '/run/e2e-short 8192' '/run/e2e-long 4096'; do
+  got=$(awk -v at="${want% *}" '$NF == at { print $NF, $2 }' <<<"$held")
+  [[ "$got" == "$want" ]] || fail "$shop has '$got', want '$want' KiB, in: $held"
+done
 page=$(curl -fsS --max-time 10 "http://127.0.0.1:$real_port/") || fail "shop doesn't serve on port $real_port, on the empty HOST_IP's every address"
 [[ "$page" == *nginx* ]] || fail "shop serves something other than nginx on port $real_port: ${page:0:300}"
 drift=$(dw drift list --json) || fail "drift list failed"

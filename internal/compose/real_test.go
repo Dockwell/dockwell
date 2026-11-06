@@ -83,7 +83,11 @@ services:
   web:
     image: nginx:1.27-alpine
     ports: ["127.0.0.1:%d:80"]
-    volumes: ["%s:/srv/shared:z"]
+    volumes:
+      - "%s:/srv/shared:z"
+      - {type: tmpfs, target: /run/long, tmpfs: {size: 4m}}
+    shm_size: 128m
+    tmpfs: ["/run/short:size=8m"]
     environment: {GREETING: hello}
     labels: {team: web}
     networks: [front]
