@@ -59,6 +59,7 @@ moving_repo=""
 digest_first=""
 digest_second=""
 digest_third=""
+built=""
 # A registry, by digest, for the images of the step about a tag that moves.
 registry_image=registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
 
@@ -98,6 +99,7 @@ start_dockwell
 # moving_tidy removes what the step about a tag that moves brought here.
 moving_tidy() {
   docker rm --force --volumes e2e-registry >/dev/null 2>&1 || true
+  [[ -z "$built" ]] || docker rmi "$built" >/dev/null 2>&1 || true
   docker rmi e2e-moving:first e2e-moving:second e2e-moving:third "$moving_repo:latest" "$moving_repo@$digest_first" "$moving_repo@$digest_second" "$moving_repo@$digest_third" >/dev/null 2>&1 || true
   [[ -z "$moving_dir" ]] || rm -rf "$moving_dir"
   moving_dir=""
@@ -1126,6 +1128,35 @@ moving_serves third
 
 dw services delete moving --yes || fail "services delete moving failed"
 [[ -z "$(docker ps -aq --filter label=com.docker.compose.service=moving)" ]] || fail "deleting the app left its container"
+
+step "An image built on this server deploys under its own tag, and a build under that tag runs"
+# Named for this registry, which has never heard of it, and not Docker Hub, which
+# would then have to be up, so this is Docker's real answer for a name no registry has.
+built=127.0.0.1:$registry_port/e2e-built-here:1
+build_here() {
+  printf '%s\n' "$1" >"$moving_dir/index.html"
+  docker build -q -t "$built" "$moving_dir" >/dev/null || fail "can't build the image $1"
+}
+built_id() { docker ps -aq --no-trunc --filter label=com.docker.compose.service=built; }
+build_here built-one
+dw services create built --app-image "$built" --app-ports "$ports" --yes || fail "services create built failed"
+moving_serves built-one
+before=$(built_id)
+planned=$(dw services deploy built --image "$built" --plan-only --json 2>/dev/null) || fail "planning the deploy failed"
+change=$(jq -r .change.id <<<"$planned")
+said=$(dw changes apply "$change" --yes 2>&1) || fail "deploying an image built here under its own tag failed: $said"
+grep -qF "$built was built or loaded on this server" <<<"$said" || fail "with nothing built since, it says: $said"
+moving_did "$change" PLAN_ACTION_NONE
+[[ "$(built_id)" == "$before" ]] || fail "with nothing built since, the container was replaced"
+build_here built-two
+said=$(dw services deploy built --image "$built" --yes 2>&1) || fail "deploying a build under its own tag failed: $said"
+[[ "$(built_id)" != "$before" ]] || fail "after a build, the container wasn't replaced"
+moving_serves built-two
+revisions=$(dw services revisions built --json) || fail "services revisions failed"
+jq -e '.revisions | length == 2' <<<"$revisions" >/dev/null || fail "a build under its own tag isn't one more revision: $revisions"
+dw services delete built --yes || fail "services delete built failed"
+docker rmi "$built" >/dev/null || fail "can't remove the image built here"
+built=""
 moving_tidy
 
 step "Ingress: Pebble, Let's Encrypt's test CA, on this machine"

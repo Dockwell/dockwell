@@ -297,6 +297,47 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	}
 }
 
+// An image built on the server can be deployed under its own tag. The change
+// applies, and says where the image came from: with nothing built since, it writes
+// no revision and nothing stops, and a build under that tag runs as any newer image
+// does, as a revision of its own.
+func TestDeployingAnImageBuiltHereUnderItsOwnTag(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	const built = "acme/built-here:1"
+	b.e.AddLocalImage(built, dockertest.Image{Config: docker.Config{Cmd: []string{"old"}}})
+	env := b.run(t, &dockwellv1.ImportComposeRequest{Compose: "name: shop\nservices:\n  web:\n    image: " + built + "\n"})
+	name := docker.ContainerName(docker.Project(env), "web")
+	web := b.service(t, "shop", "web")
+	before := b.e.Serving(name).ID
+
+	got := applied(t, b.c, b.deploy(t, web.GetId(), built))
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("with nothing built since, the deploy ended %v: %s", got.GetState(), got.GetError())
+	}
+	if step := got.GetSteps()[0]; !strings.Contains(step.GetMessage(), built+" was built or loaded on this server") ||
+		step.GetDid() != dockwellv1.PlanAction_PLAN_ACTION_NONE {
+		t.Errorf("the step did %v, and says %q", step.GetDid(), step.GetMessage())
+	}
+	if b.e.Serving(name).ID != before {
+		t.Error("with nothing built since, the container was replaced")
+	}
+	if revs := b.revisions(t, web.GetId()); len(revs) != 1 {
+		t.Errorf("with nothing built since, the revisions are %v", revs)
+	}
+
+	b.e.AddLocalImage(built, dockertest.Image{Config: docker.Config{Cmd: []string{"new"}}})
+	got = applied(t, b.c, b.deploy(t, web.GetId(), built))
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("after a build, the deploy ended %v: %s", got.GetState(), got.GetError())
+	}
+	if ctr := b.e.Serving(name); ctr.ID == before || ctr.Config.Cmd[0] != "new" {
+		t.Errorf("after a build, it runs %+v", ctr)
+	}
+	if revs := b.revisions(t, web.GetId()); len(revs) != 2 || revs[0].GetDeployments()[0].GetState() != dockwellv1.DeploymentState_DEPLOYMENT_STATE_LIVE {
+		t.Errorf("after a build, the revisions are %v", revs)
+	}
+}
+
 // An app a rollback pinned, going back to its tag with the registry gone, fails
 // the same way. Going back undoes only what the record said, so what runs stays,
 // by the same digest.
