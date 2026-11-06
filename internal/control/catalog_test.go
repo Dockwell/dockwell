@@ -483,7 +483,7 @@ func testUpgradingAnInstall(t *testing.T, backend store.Backend) {
 		t.Fatal(err)
 	}
 	if res.Msg.GetChange().GetPlan().GetDestructive() {
-		t.Errorf("an upgrade that drops a service with no data is destructive: %v", res.Msg.GetChange().GetPlan())
+		t.Errorf("an upgrade that drops a service and keeps its volume is destructive: %v", res.Msg.GetChange().GetPlan())
 	}
 	if got := apply(t, c, res.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the upgrade ended %v: %s", got.GetState(), got.GetError())
