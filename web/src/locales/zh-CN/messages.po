@@ -222,6 +222,10 @@ msgstr "{count, plural, other {# 天}}"
 msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, other {# 小时}}"
 
+#: src/features/files/FilesPage.tsx
+msgid "{count, plural, one {# item} other {# items}}"
+msgstr "{count, plural, other {# 项}}"
+
 #: src/app/Providers.tsx
 msgid "{count, plural, one {# new line} other {# new lines}}"
 msgstr "{count, plural, other {# 行新日志}}"
@@ -351,6 +355,10 @@ msgstr "{later}。“优先显示”会把它们移到列表顶部。"
 #: src/features/auth/ProfilePage.tsx
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢了身份验证器应用，请在下方重新设置，这也会生成新的恢复码。"
+
+#: src/features/files/FileViewer.tsx
+msgid "{lines} lines"
+msgstr "{lines} 行"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "{made} is deployed"
@@ -891,7 +899,7 @@ msgstr "<0>{0}</0> · {name} 的面板"
 msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
 msgstr "<0>{current}</0> 仍在部署中。部署结束后即可审阅这个计划。"
 
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
 
@@ -1018,6 +1026,10 @@ msgstr "<0>{source}</0>，只读"
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
 msgstr "1 小时"
+
+#: src/features/files/FileViewer.tsx
+msgid "1 line"
+msgstr "1 行"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
@@ -1486,8 +1498,8 @@ msgid "API tokens"
 msgstr "API 令牌"
 
 #: src/features/auth/messages.ts
-msgid "API tokens can't remove data, cut off access, reveal a secret, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API 令牌不能删除数据、切断访问、显示密钥，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
 
 #: src/app/Providers.tsx
 #: src/features/changes/fields.tsx
@@ -1563,6 +1575,10 @@ msgstr "自动化"
 #: src/features/shell/Page.tsx
 msgid "Back"
 msgstr "返回"
+
+#: src/features/files/FilesPage.tsx
+msgid "Back to {folder}"
+msgstr "返回 {folder}"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Back to the server"
@@ -1645,6 +1661,10 @@ msgstr "无法生成计划"
 msgid "Can't reach the control plane"
 msgstr "无法连接到控制平面"
 
+#: src/features/files/FilesPage.tsx
+msgid "Can't reach this server"
+msgstr "无法连接这台服务器"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
 #: src/features/shell/Topbar.tsx
@@ -1662,6 +1682,14 @@ msgstr "无法读取它前后的日志"
 #: src/features/logs/LogsPage.tsx
 msgid "Can't read these logs now"
 msgstr "现在无法读取这些日志"
+
+#: src/features/files/FileViewer.tsx
+msgid "Can't read this file"
+msgstr "无法读取这个文件"
+
+#: src/features/files/FilesPage.tsx
+msgid "Can't read this folder"
+msgstr "无法读取这个文件夹"
 
 #. placeholder {0}: groupSecret(setup.secret)
 #: src/features/auth/TotpPanel.tsx
@@ -1843,6 +1871,10 @@ msgstr "清理此次变更也失败了"
 msgid "Close"
 msgstr "关闭"
 
+#: src/features/files/FileViewer.tsx
+msgid "Close {name}"
+msgstr "关闭 {name}"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Close details"
 msgstr "关闭详情"
@@ -1968,6 +2000,10 @@ msgstr "容器"
 msgid "Containers Dockwell didn't make"
 msgstr "非 Dockwell 创建的容器"
 
+#: src/features/files/FileViewer.tsx
+msgid "Contents of {name}"
+msgstr "{name} 的内容"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
@@ -2035,6 +2071,10 @@ msgstr "复制恢复码"
 msgid "Copy command"
 msgstr "复制命令"
 
+#: src/features/files/FilesPage.tsx
+msgid "Copy path {shown}"
+msgstr "复制路径 {shown}"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "复制镜像名称"
@@ -2090,6 +2130,10 @@ msgstr "未能部署"
 #: src/features/changes/words.ts
 msgid "Couldn't deploy {image}"
 msgstr "无法部署 {image}"
+
+#: src/features/activity/describe.ts
+msgid "Couldn't open {path} on {server}"
+msgstr "无法打开 {server} 上的 {path}"
 
 #: src/features/apps/revision.ts
 msgid "Couldn't place it on {added}"
@@ -2465,6 +2509,10 @@ msgstr "这里没有非 Dockwell 创建的 Docker 容器。"
 msgid "Docker starts {list} again when {server} next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no {command}"
 msgstr "{server} 下次重启时，Docker 会再次启动 {list}，它可能从代理手中夺走 80 或 443 端口，使此路由无法响应。请用 docker update --restart=no {command} 让它保持停止"
 
+#: src/features/files/FilesPage.tsx
+msgid "Docker volumes"
+msgstr "Docker 卷"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/fields.tsx
 msgid "Docker's socket"
@@ -2517,6 +2565,18 @@ msgstr "该网络不是 Dockwell 创建的，并且可以绕过服务器的防�
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "该网络不是 Dockwell 创建的。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
+
+#: src/features/files/FilesPage.tsx
+msgid "Dockwell doesn't open this"
+msgstr "Dockwell 不打开这一项"
+
+#: src/features/files/FileViewer.tsx
+msgid "Dockwell doesn't open this file"
+msgstr "Dockwell 不打开这个文件"
+
+#: src/features/files/FilesPage.tsx
+msgid "Dockwell doesn't open this folder"
+msgstr "Dockwell 不打开这个文件夹"
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
@@ -2844,6 +2904,14 @@ msgstr "失败"
 msgid "Failed"
 msgstr "失败"
 
+#: src/features/servers/ServerFrame.tsx
+msgid "Files"
+msgstr "文件"
+
+#: src/features/files/FilesPage.tsx
+msgid "Files in {shown}"
+msgstr "{shown} 中的文件"
+
 #: src/features/apps/AppsPage.tsx
 msgid "Filter apps"
 msgstr "筛选应用"
@@ -3007,10 +3075,15 @@ msgid "Go to the last"
 msgstr "转到最后一处"
 
 #: src/features/auth/ClaimPage.tsx
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
 msgstr "前往概览"
+
+#. placeholder {0}: parentOf(folder)
+#: src/features/files/FilesPage.tsx
+msgid "Go up to {0}"
+msgstr "返回上级 {0}"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Health"
@@ -3377,6 +3450,10 @@ msgstr "它创建时没有设置日志轮转，日志可能占满磁盘。Dockwe
 msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
 msgstr "它写入的内容超过了服务器为单个容器保留的量，所以这里不是全部日志。"
 
+#: src/features/files/FileViewer.tsx
+msgid "It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Connect to the server over SSH to work with it."
+msgstr "它的大小是 {size}，且不是 UTF-8 文本，所以这里无法显示。请通过 SSH 连接服务器来处理它。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "It's behind a tunnel or a proxy"
 msgstr "它位于隧道或代理之后"
@@ -3648,6 +3725,7 @@ msgid "Log filters"
 msgstr "日志筛选"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/files/FilesPage.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Logs"
 msgstr "日志"
@@ -3732,6 +3810,10 @@ msgstr "可能已被复制，不能再用于登录"
 msgid "Memory"
 msgstr "内存"
 
+#: src/features/files/FilesPage.tsx
+msgid "Modified"
+msgstr "修改时间"
+
 #: src/features/catalog/useCatalog.ts
 msgid "Monitoring"
 msgstr "监控"
@@ -3762,6 +3844,7 @@ msgstr "换到另一个应用"
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/catalog/InstallSheet.tsx
+#: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "Name"
 msgstr "名称"
@@ -3977,7 +4060,7 @@ msgstr "不涉及服务器 · 不会停机"
 msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
 msgstr "已没有服务器运行它，因此没有任何响应。请移除它，或将其放到一台服务器上。"
 
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 msgid "No server with this ID"
 msgstr "没有这个 ID 的服务器"
 
@@ -4075,6 +4158,10 @@ msgstr "未启动"
 msgid "Not used yet"
 msgstr "尚未使用"
 
+#: src/features/files/FilesPage.tsx
+msgid "Nothing at this path"
+msgstr "这个路径下什么都没有"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "服务器上没有任何变化。请重新加载页面再试。"
@@ -4127,6 +4214,10 @@ msgstr "这一行前后没有其他日志。"
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
 msgstr "没有符合这些筛选条件的内容。"
+
+#: src/features/files/FilesPage.tsx
+msgid "Nothing here matches your search."
+msgstr "这里没有符合搜索条件的内容。"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing here yet"
@@ -4277,6 +4368,10 @@ msgstr "<0>{servers}</0> 重新连接后，Dockwell 会恢复原样"
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "部署失败后，服务器重新连接时，Dockwell 会恢复 <0>{image}</0>。在此之前，无法确定那里正在运行什么。"
 
+#: src/features/files/FilesPage.tsx
+msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
+msgstr "这里只显示了其中 {count} 项，你要找的可能不在其中。请通过 SSH 连接服务器查看全部内容。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
@@ -4334,6 +4429,10 @@ msgstr "打开应用"
 #: src/features/auth/ClaimPage.tsx
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开认领链接，或通过 HTTPS 在面板的域名上打开。"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Open the file"
+msgstr "打开文件"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the overview"
@@ -4407,12 +4506,18 @@ msgstr "同一网络上的其他应用通过此名称访问它。"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
+#: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Overview"
 msgstr "概览"
 
+#: src/features/files/FilesPage.tsx
+msgid "owned by <0>{owner}</0>"
+msgstr "所有者 <0>{owner}</0>"
+
 #: src/features/auth/user.ts
+#: src/features/files/FilesPage.tsx
 msgid "Owner"
 msgstr "所有者"
 
@@ -4473,6 +4578,10 @@ msgstr "请粘贴 dockwell run 打印的认领链接或认领码。"
 msgid "path"
 msgstr "路径"
 
+#: src/features/files/FilesPage.tsx
+msgid "Path"
+msgstr "路径"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Path in the app"
 msgstr "应用内路径"
@@ -4508,9 +4617,17 @@ msgstr "人们通过此名称以明文 HTTP 访问应用"
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "人们通过此名称访问应用，流量经过此服务器前面的隧道或代理"
 
+#: src/features/files/FilesPage.tsx
+msgid "Permissions"
+msgstr "权限"
+
 #: src/features/apps/revision.ts
 msgid "Placed it on {added}"
 msgstr "已把它放到 {added} 上"
+
+#: src/features/files/FilesPage.tsx
+msgid "Places"
+msgstr "常用位置"
 
 #: src/features/apps/revision.ts
 msgid "Placing it on {added}"
@@ -4807,6 +4924,10 @@ msgstr "可访问 {server} 上的 {reach}"
 msgid "Read {name}'s logs from this deploy"
 msgstr "阅读此次部署中 {name} 的日志"
 
+#: src/features/activity/describe.ts
+msgid "Read {path} on {server}"
+msgstr "已读取 {server} 上的 {path}"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"
 msgstr "读写"
@@ -4850,6 +4971,10 @@ msgstr "只读"
 msgid "read-write"
 msgstr "读写"
 
+#: src/features/files/FileViewer.tsx
+msgid "Reading {name}"
+msgstr "正在读取 {name}"
+
 #: src/features/apps/Health.tsx
 msgid "Reading how it runs."
 msgstr "正在读取运行情况。"
@@ -4873,6 +4998,10 @@ msgstr "正在读取它前后的日志"
 #: src/features/catalog/InstallSheet.tsx
 msgid "Reading this app"
 msgstr "正在读取此应用"
+
+#: src/features/files/FilesPage.tsx
+msgid "Reading this folder"
+msgstr "正在读取这个文件夹"
 
 #: src/features/servers/ContainersPanel.tsx
 msgid "Reading what Docker runs here"
@@ -5331,7 +5460,7 @@ msgstr "运行在另一台服务器上"
 msgid "Runs on this server"
 msgstr "运行在这台服务器上"
 
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 msgid "Runs the control plane"
 msgstr "运行控制平面"
 
@@ -5379,6 +5508,11 @@ msgstr "搜索服务器保留的全部内容"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Search apps"
 msgstr "搜索应用"
+
+#. placeholder {0}: nameOf(shown)
+#: src/features/files/FilesPage.tsx
+msgid "Search in {0}"
+msgstr "在 {0} 中搜索"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Search lines"
@@ -5456,11 +5590,16 @@ msgstr "服务器"
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
 #: src/features/servers/ContainerPage.tsx
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Server"
 msgstr "服务器"
+
+#. placeholder {0}: server.name
+#: src/features/servers/ServerFrame.tsx
+msgid "Server {0}"
+msgstr "服务器 {0}"
 
 #: src/features/changes/fields.tsx
 msgid "server path"
@@ -5469,6 +5608,10 @@ msgstr "服务器路径"
 #: src/features/apps/AppOverview.tsx
 msgid "Server path"
 msgstr "服务器路径"
+
+#: src/features/files/FilesPage.tsx
+msgid "Server root"
+msgstr "服务器根目录"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -5586,6 +5729,10 @@ msgstr "显示 {name} 上发生的事"
 msgid "Showing {oldest} to {newest}"
 msgstr "显示 {oldest} 到 {newest}"
 
+#: src/features/files/FileViewer.tsx
+msgid "Showing the first 1 MB"
+msgstr "只显示前 1 MB"
+
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
 msgid "Sign in"
@@ -5672,6 +5819,7 @@ msgid "Signing you in with a one-time link"
 msgstr "正在用一次性链接为你登录"
 
 #: src/features/auth/ClaimPage.tsx
+#: src/features/files/FilesPage.tsx
 msgid "Size"
 msgstr "规格"
 
@@ -6340,6 +6488,10 @@ msgstr "这台设备已经有你在此处账户的通行密钥。请直接使用
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "这个文件有 {kib} KiB，而 Dockwell 最多读取 {limit} KiB。请删除 Dockwell 不会运行的内容，或把服务拆分到多个文件中导入。"
 
+#: src/features/files/FileViewer.tsx
+msgid "This file is {size}, so the rest of it stays on the server. Connect to the server over SSH to see it all."
+msgstr "这个文件大小为 {size}，其余内容留在服务器上。请通过 SSH 连接服务器查看完整内容。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file is too large to read"
 msgstr "文件过大，无法读取"
@@ -6347,6 +6499,14 @@ msgstr "文件过大，无法读取"
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
 msgstr "此文件明文写入的变量比这里列出的更多。向其中传入机密之前，请先阅读文件。"
+
+#: src/features/files/FilesPage.tsx
+msgid "This folder holds more than a listing shows"
+msgstr "这个文件夹的内容超出了列表能显示的数量"
+
+#: src/features/files/FilesPage.tsx
+msgid "This folder is empty."
+msgstr "这个文件夹是空的。"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This install already has an owner"
@@ -6363,6 +6523,10 @@ msgstr "这是 {server} 上第一条需要证书的路由，因此 {proxy} 还�
 #: src/features/changes/words.ts
 msgid "This is the last route on {server}, so {proxy} stops, and ports {ports} are free. Its certificates stay on the server for when a route comes back"
 msgstr "这是 {server} 上的最后一条路由，因此 {proxy} 将停止并释放端口 {ports}。证书会保留在服务器上，以便日后再次添加路由时使用"
+
+#: src/features/files/FileViewer.tsx
+msgid "This isn't a text file"
+msgstr "这不是文本文件"
 
 #. placeholder {0}: server.serverName
 #: src/features/changes/notices.tsx
@@ -6388,6 +6552,11 @@ msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。
 #: src/features/apps/AddDomainSheet.tsx
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
+
+#: src/features/files/FilesPage.tsx
+#: src/features/files/FileViewer.tsx
+msgid "This path isn't answering"
+msgstr "这个路径没有响应"
 
 #: src/features/changes/notices.tsx
 msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
@@ -6661,7 +6830,7 @@ msgstr "不健康"
 #: src/features/overview/Overview.tsx
 #: src/features/servers/containers.ts
 #: src/features/servers/FleetNotes.tsx
-#: src/features/servers/ServerOverview.tsx
+#: src/features/servers/ServerFrame.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Unknown"
 msgstr "未知"
@@ -6944,6 +7113,7 @@ msgstr "警告"
 msgid "Warnings"
 msgstr "警告"
 
+#: src/features/files/FilesPage.tsx
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "网站"

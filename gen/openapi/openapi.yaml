@@ -1110,6 +1110,75 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:
+        get:
+            tags:
+                - FileService
+            description: |-
+                ListFiles returns what a directory on a server holds, by name. It follows
+                 symlinks, and path in the response says where it ended up. It returns at
+                 most 5,000 entries. No API token can call it.
+            operationId: FileService_ListFiles
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: path
+                  in: query
+                  description: The directory's absolute path, without . or .. in it, such as "/var/www".
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:read:
+        post:
+            tags:
+                - FileService
+            description: |-
+                ReadFile returns a file on a server as text: its first 1 MiB, or nothing
+                 when it isn't UTF-8 text. No API token can call it. Every read is in the
+                 audit log.
+            operationId: FileService_ReadFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ReadFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ReadFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services:
         get:
             tags:
@@ -3632,6 +3701,9 @@ components:
                         What it lives in, by ID, for a resource that lives in another: a
                          secret's environment, as "env_…", for a secret revealed. Empty
                          otherwise.
+                path:
+                    type: string
+                    description: Which file on it, for a file read on a server, or refused. Empty otherwise.
             description: EventSubject names what an event is about.
         ExportComposeResponse:
             type: object
@@ -3705,6 +3777,64 @@ components:
                         True for a field that may hold a secret: the plan says it changed,
                          never what it holds.
             description: FieldChange is one field that differs between two specs.
+        FileEntry:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: |-
+                        Its name. A name that isn't UTF-8 shows as well as it can, with
+                         unreadable_name set.
+                type:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    description: What it is.
+                    format: enum
+                sizeBytes:
+                    type: string
+                    description: Its size, in bytes.
+                modifyTime:
+                    type: string
+                    description: When its contents last changed.
+                    format: date-time
+                mode:
+                    type: string
+                    description: Its type and permissions as ls shows them, such as "-rw-r--r--".
+                owner:
+                    type: string
+                    description: |-
+                        The user that owns it, by name, or by ID where the server has no name for
+                         it.
+                group:
+                    type: string
+                    description: The group that owns it, the same way.
+                linkTarget:
+                    type: string
+                    description: Where a symlink points, as the link says.
+                linkType:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    description: What a symlink leads to. Unspecified for one that leads nowhere.
+                    format: enum
+                refused:
+                    type: boolean
+                    description: |-
+                        True when Dockwell doesn't open it, as it holds keys, secrets' values or
+                         the server's own credentials. Whatever opening it would say is why.
+                unreadableName:
+                    type: boolean
+                    description: True when its name isn't UTF-8, so name can't reach it.
+            description: FileEntry is one file or directory on a server.
         FinishAddPasskeyRequest:
             type: object
             properties:
@@ -4524,6 +4654,27 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListEventsResponse is a page of events.
+        ListFilesResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: The directory's path, with every symlink followed.
+                directory:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: The directory itself.
+                entries:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FileEntry'
+                    description: What it holds, by name.
+                truncated:
+                    type: boolean
+                    description: |-
+                        True when the directory holds more than a listing can carry, so these
+                         are some of its entries, in no useful order but their names.
+            description: ListFilesResponse is what a directory holds.
         ListHealthResponse:
             type: object
             properties:
@@ -5390,6 +5541,38 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ProposeChangeResponse carries the planned change.
+        ReadFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: |-
+                        The file's absolute path, without . or .. in it, such as
+                         "/etc/nginx/nginx.conf".
+            description: ReadFileRequest names a file on a server.
+        ReadFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: The file's path, with every symlink followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: The file itself.
+                content:
+                    type: string
+                    description: Its text. Empty for a binary file.
+                binary:
+                    type: boolean
+                    description: True when the file isn't UTF-8 text, so its contents aren't sent.
+                truncated:
+                    type: boolean
+                    description: True when the file is longer than 1 MiB, so content is its beginning.
+            description: ReadFileResponse is a file on a server.
         ReadLogsResponse:
             type: object
             properties:
@@ -7195,6 +7378,16 @@ tags:
          WatchEvents streams, so it has no REST path. A REST client polls GET
          /v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the
          same credentials.
+    - name: FileService
+      description: |-
+        FileService browses and reads the files on a server, through its agent. Files
+         on a server aren't managed state, so nothing here is a revision or has a
+         plan. See docs/adr/0032-files-on-a-server.md.
+
+         Every method needs a signed-in session: no API token can call them, whatever
+         its scope. The agent refuses what holds Dockwell's keys, secrets' values and
+         the server's own credentials for everyone, with the reason "file_refused":
+         docs/security/files.md lists them.
     - name: HealthService
       description: |-
         HealthService says how services are, as far as anything checked, from what

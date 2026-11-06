@@ -12,3 +12,8 @@
   gap: var(--space-3);
   align-items: start;
 }
+
+/* The tabs sit closer to the head than the page's panels do to them, as the mocks have them. */
+.server-page > .dw-tabs {
+  margin-top: calc(-1 * var(--space-2) - 4px);
+}

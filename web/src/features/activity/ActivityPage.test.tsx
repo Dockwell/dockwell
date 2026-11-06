@@ -239,6 +239,32 @@ describe("Activity", () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
   });
 
+  it("shows what was read of a server and what wasn't, and leads to the file", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchEventsResponse>();
+    const on = { id: "srv_1", name: "hz-1" };
+    const read = auditEvent({
+      id: "evt_read",
+      action: "file.read",
+      time: timestampFromDate(new Date(Date.now() - HOUR)),
+      subject: { ...on, path: "/etc/nginx/nginx.conf" },
+    });
+    const refused = auditEvent({
+      id: "evt_refuse",
+      action: "file.refuse",
+      time: timestampFromDate(new Date(Date.now() - 2 * HOUR)),
+      subject: { ...on, path: "/root/.ssh/id_rsa" },
+    });
+    watch.push(snapshot([read, refused]));
+    const { router } = renderActivity(watch);
+
+    await screen.findByRole("row", { name: /Couldn't open \/root\/\.ssh\/id_rsa on hz-1/ });
+    await user.click(await screen.findByRole("row", { name: /Read \/etc\/nginx\/nginx\.conf on hz-1/ }));
+    await user.click(await screen.findByRole("link", { name: "Open the file" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_1/files"));
+    expect(router.state.location.search).toEqual({ file: "/etc/nginx/nginx.conf" });
+  });
+
   it("marks a setup that wrong codes ended as worth a look", async () => {
     const watch = feed<WatchEventsResponse>();
     watch.push(

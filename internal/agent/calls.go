@@ -19,6 +19,9 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
+// errNoFiles answers a call for a server's files on an agent set up without them.
+var errNoFiles = errors.New("this agent doesn't read files")
+
 // drainLimit bounds how long a stream that is moving to a renewed
 // certificate waits for its calls to finish.
 const drainLimit = 15 * time.Minute
@@ -110,6 +113,16 @@ func (c *calls) start(call *agentv1.Call) {
 	go func() {
 		defer c.wg.Done()
 		defer c.done(call.GetId())
+		// A file call keeps its place until its result has gone, so what waits
+		// for a slow stream is bounded, and a call whose caller left drops out.
+		if c.cfg.Files != nil && (call.GetListFiles() != nil || call.GetReadFile() != nil) {
+			release, err := c.cfg.Files.Take(ctx)
+			if err != nil {
+				c.reply(call.GetId(), &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}})
+				return
+			}
+			defer release()
+		}
 		result := c.run(ctx, call)
 		// A step cut short because this stream is ending can only say it was
 		// cancelled. Sending nothing lets the control plane say what's true:
@@ -395,6 +408,26 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			c.cfg.Logs.Forgotten(f.GetServices())
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Forgotten{Forgotten: &agentv1.ForgottenResult{}}}
+	}
+	if list := call.GetListFiles(); list != nil {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		listing, err := c.cfg.Files.List(ctx, list.GetPath())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListFiles{ListFiles: listing}}
+	}
+	if read := call.GetReadFile(); read != nil {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		file, err := c.cfg.Files.Read(ctx, read.GetPath())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadFile{ReadFile: file}}
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",

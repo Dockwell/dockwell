@@ -192,6 +192,8 @@ message EventSubject {
   // secret's environment, as "env_…", for a secret revealed. Empty
   // otherwise.
   string scope = 3;
+  // Which file on it, for a file read on a server, or refused. Empty otherwise.
+  string path = 4;
 }
 
 // EventKind sorts events, for filtering.
@@ -204,8 +206,9 @@ enum EventKind {
   EVENT_KIND_SERVER = 2;
   // Someone gained or gave up a way in: claiming the install, signing in,
   // signing other sessions out, passkeys, authenticator codes, API tokens,
-  // sign-in and claim links, and join tickets. Refusals, such as a wrong
-  // code, stay in the audit log.
+  // sign-in and claim links, and join tickets. Someone reading a server's files,
+  // and what refused them. Other refusals, such as a wrong code, stay in the
+  // audit log.
   EVENT_KIND_ACCESS = 3;
   // A service turned unhealthy, stopped running, or came back, as its server's
   // agent saw, outside any change.

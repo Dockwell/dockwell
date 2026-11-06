@@ -16,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/datadir"
@@ -81,6 +82,24 @@ func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Di
 	drivers, collector, routes, reader, monitor := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	return agent.Run(ctx, agent.Config{
 		Logger: logger, Dir: dir.Agent(), Identity: id, Build: build, Drivers: drivers, Collector: collector, Domains: routes, Logs: reader, Docker: reader.Client, Health: monitor,
+		Files: serverFiles(stdio, logger, dir),
+	})
+}
+
+// serverFiles reads this server's disk for a person. What it refuses takes this
+// data directory, and wherever Docker says it keeps its own.
+func serverFiles(stdio IO, logger *slog.Logger, dir datadir.Dir) *files.Server {
+	socket, err := docker.SocketFrom(stdio.Getenv)
+	client := docker.Unusable(err)
+	if err == nil {
+		client = docker.New(socket)
+	}
+	return files.New(dir.Root, logger, func(ctx context.Context) (string, error) {
+		info, err := client.Info(ctx)
+		if err != nil {
+			return "", err
+		}
+		return info.DockerRootDir, nil
 	})
 }
 

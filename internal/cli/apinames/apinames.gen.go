@@ -25,6 +25,7 @@ func Commands() []string {
 		"drift",
 		"environments",
 		"events",
+		"files",
 		"firewall-rules",
 		"health",
 		"logs",

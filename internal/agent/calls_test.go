@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -331,4 +333,69 @@ func TestDesiredHearsNoValues(t *testing.T) {
 	if desired.calls != 1 || desired.values != nil {
 		t.Errorf("Desired heard of %d steps, with values %v; want one, and no values", desired.calls, desired.values)
 	}
+}
+
+func listCall(id uint64, path string, timeout time.Duration) *agentv1.Call {
+	return &agentv1.Call{Id: id, Timeout: durationpb.New(timeout), Call: &agentv1.Call_ListFiles{ListFiles: &agentv1.ListFilesCall{Path: path}}}
+}
+
+// A call into a dead mount can stay in the kernel for as long as the mount is
+// down, and nothing can stop it. The agent's next stream, and so the server being
+// online, can't wait on that.
+func TestAFileCallThatNeverReturnsDoesntHoldUpTheStream(t *testing.T) {
+	gone := make(chan struct{})
+	t.Cleanup(func() { close(gone) })
+	var held atomic.Int32
+	disk := files.New(t.TempDir(), nil, nil)
+	disk.AnswerWithin = time.Hour
+	disk.Touching = func(string) { held.Add(1); <-gone }
+	s := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{Logger: slog.New(slog.DiscardHandler), Files: disk}, s.send, nil)
+	for i := range uint64(4) {
+		c.start(listCall(i+1, "/mnt/dead", time.Hour))
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for held.Load() < 4 {
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d calls reached the mount", held.Load())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	stopped := make(chan struct{})
+	go func() { c.stop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stop is waiting on calls that will never return, so this agent would never reconnect")
+	}
+}
+
+// Each result can hold 4 MiB of a listing, for as long as the stream is slower than
+// the agent, so a call keeps its place until its result has gone.
+func TestResultsWaitingToSendAreBounded(t *testing.T) {
+	dir := t.TempDir()
+	disk := files.New(filepath.Join(dir, "data"), nil, nil)
+	var waiting atomic.Int32
+	release := make(chan struct{})
+	c := newCalls(context.Background(), Config{Logger: slog.New(slog.DiscardHandler), Files: disk}, func(*agentv1.ConnectRequest) error {
+		waiting.Add(1)
+		<-release
+		return nil
+	}, nil)
+	for i := range uint64(12) {
+		c.start(listCall(i+1, dir, time.Minute))
+	}
+	time.Sleep(300 * time.Millisecond)
+	if n := waiting.Load(); n > 4 {
+		t.Errorf("%d results are held waiting to send, with 4 places", n)
+	}
+	close(release)
+	deadline := time.Now().Add(5 * time.Second)
+	for waiting.Load() < 12 {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d of 12 results went out once the stream moved", waiting.Load())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	c.stop()
 }

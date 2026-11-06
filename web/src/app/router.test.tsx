@@ -69,7 +69,7 @@ describe("routes", () => {
     );
   });
 
-  it.each(["/servers/hz-9/files", "/nowhere"])("explains a missing page at %s and links home", async (path) => {
+  it.each(["/servers/hz-9/terminal", "/nowhere"])("explains a missing page at %s and links home", async (path) => {
     renderAt(path);
     expect(await screen.findByRole("heading", { level: 1, name: "No page here" })).toBeVisible();
     expect(screen.getByText(path).tagName).toBe("CODE");

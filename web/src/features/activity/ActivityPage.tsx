@@ -650,6 +650,18 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
         <Trans>Open the variables and secrets</Trans>
       </RouterButtonLink>
     ) : null;
+  const fileOn = event.action === "file.read" ? event.subject : undefined;
+  const toFile = fileOn?.path ? (
+    <RouterButtonLink
+      to="/servers/$serverId/files"
+      params={{ serverId: fileOn.id }}
+      search={{ file: fileOn.path }}
+      variant="ghost"
+      icon="file"
+    >
+      <Trans>Open the file</Trans>
+    </RouterButtonLink>
+  ) : null;
   return (
     <div className="activity-detail">
       <Panel
@@ -773,8 +785,11 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 {change.state === ChangeState.PLANNED ? <Trans>Review plan</Trans> : <Trans>Open plan</Trans>}
               </Button>
             </div>
-          ) : toVariables ? (
-            <div className="activity-detail-actions">{toVariables}</div>
+          ) : toVariables || toFile ? (
+            <div className="activity-detail-actions">
+              {toVariables}
+              {toFile}
+            </div>
           ) : event.health && event.subject?.id ? (
             <div className="activity-detail-actions">
               <RouterButtonLink

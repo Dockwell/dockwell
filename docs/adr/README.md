@@ -35,6 +35,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0029](0029-a-catalog-format-fed-from-other-catalogs.md) | A catalog format of our own, fed from other catalogs | Accepted |
 | [0030](0030-routes-behind-a-tunnel-or-a-proxy.md) | Routes behind a tunnel or a proxy | Accepted |
 | [0031](0031-containers-dockwell-didnt-make.md) | The containers Dockwell didn't make | Accepted |
+| [0032](0032-files-on-a-server.md) | Files on a server, for a person, outside revisions | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 

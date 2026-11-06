@@ -1,0 +1,289 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.files-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.files-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.files-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  font: 400 13px / 1 var(--font-mono);
+}
+
+.files-crumb {
+  display: inline-flex;
+  align-items: center;
+  color: var(--line-strong);
+}
+
+.files-crumb .dw-btn {
+  padding: 0 6px;
+  font: 400 13px / 1 var(--font-mono);
+}
+
+.files-crumb-here {
+  padding: 0 6px;
+  font: 550 13px / 28px var(--font-mono);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.files-count {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.files-count code {
+  font-size: 12px;
+}
+
+.files-filter {
+  width: 240px;
+  max-width: 100%;
+}
+
+.files-panes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.files-places {
+  flex: 0 0 208px;
+  align-self: flex-start;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.files-places nav {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2);
+}
+
+.files-places .dw-btn {
+  justify-content: flex-start;
+  width: 100%;
+  font-weight: 400;
+}
+
+.files-list {
+  flex: 1 1 520px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Columns keep their widths, so a long name or link gives way, not the Size column. */
+.files-list .dw-table {
+  table-layout: fixed;
+}
+
+.files-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.files-icon {
+  display: flex;
+  flex: none;
+  color: var(--ink-muted);
+}
+
+/* A name stays whole before a link's target does. */
+.files-entry-name {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.files-link-target {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.files-viewer {
+  flex: 1 1 380px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.files-viewer .dw-panel-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.files-viewer .dw-panel-head {
+  padding-right: var(--space-2);
+}
+
+.files-viewer .dw-panel-title {
+  min-width: 0;
+}
+
+.files-viewer-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.files-viewer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 550 13px / 20px var(--font-mono);
+}
+
+.files-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 6px var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.files-facts code {
+  font-size: 11.5px;
+}
+
+.files-reading {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.files-note {
+  padding: var(--space-3);
+}
+
+/* Numbers and text scroll as one: each is one pre, so a long file is two text nodes. */
+.files-code {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  min-height: 240px;
+  max-height: 640px;
+  overflow: auto;
+  background: var(--surface-sunken);
+  font: 400 12px / 20px var(--font-mono);
+}
+
+.files-gutter,
+.files-text {
+  margin: 0;
+  padding: 10px 0;
+  font: inherit;
+}
+
+.files-gutter {
+  position: sticky;
+  left: 0;
+  padding-right: var(--space-3);
+  padding-left: var(--space-3);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  text-align: right;
+  user-select: none;
+}
+
+.files-text {
+  padding-right: var(--space-4);
+  padding-left: var(--space-1);
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.files-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  padding: 6px var(--space-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface-sunken);
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+/* Where the list wouldn't fit beside them, places go across, above it. */
+@media (max-width: 859.98px) {
+  .files-places {
+    flex: 1 1 100%;
+  }
+
+  .files-places nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: var(--space-1);
+  }
+
+  .files-places .dw-btn {
+    flex: none;
+    width: auto;
+  }
+
+  .files-list,
+  .files-viewer {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .files-filter {
+    width: 100%;
+  }
+
+  /* An open file takes the phone's screen, as the mock has it. */
+  .files-code {
+    min-height: calc(100dvh - 260px);
+    max-height: none;
+    font-size: 13px;
+    line-height: 22px;
+  }
+}
