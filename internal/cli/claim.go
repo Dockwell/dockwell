@@ -22,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -79,10 +80,6 @@ func (a panelAddress) tunnelHost() string {
 	}
 }
 
-// sharedAddresses are carrier-grade NAT's (RFC 6598): not public, though
-// not private by net/netip's reckoning either.
-var sharedAddresses = netip.MustParsePrefix("100.64.0.0/10")
-
 // dnsAddress is the public host as an address a domain's DNS record can
 // point at, for a certificate from Let's Encrypt: a public IP address. It is
 // empty when all that is known is a hostname, or a loopback, private,
@@ -93,11 +90,10 @@ func (a panelAddress) dnsAddress() string {
 	if err != nil {
 		return ""
 	}
-	ip = ip.Unmap()
-	if !ip.IsGlobalUnicast() || ip.IsPrivate() || sharedAddresses.Contains(ip) || ip.Zone() != "" {
+	if !resource.IsPublicAddress(ip) {
 		return ""
 	}
-	return ip.String()
+	return ip.Unmap().String()
 }
 
 // dnsRecord is the kind of DNS record that points at dnsAddress.

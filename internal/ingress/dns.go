@@ -46,7 +46,7 @@ func (d *DNS) Check(ctx context.Context, domain string) *resource.DomainCheck {
 		out.State = resource.DomainUnknown
 	case slices.ContainsFunc(found, func(a netip.Addr) bool { return slices.Contains(here, a.Unmap()) }):
 		out.State = resource.DomainHere
-	case !slices.ContainsFunc(here, isPublic) && slices.ContainsFunc(found, isPublic):
+	case !slices.ContainsFunc(here, resource.IsPublicAddress) && slices.ContainsFunc(found, resource.IsPublicAddress):
 		// Behind NAT, as on many clouds: the public address isn't on an
 		// interface, so it may be this server's or not.
 		out.State = resource.DomainCantTell
@@ -73,10 +73,6 @@ func (d *DNS) addrs() ([]netip.Addr, error) {
 func isNoRecord(err error) bool {
 	var dnsErr *net.DNSError
 	return errors.As(err, &dnsErr) && dnsErr.IsNotFound
-}
-
-func isPublic(a netip.Addr) bool {
-	return a.IsGlobalUnicast() && !a.IsPrivate()
 }
 
 func addrWords(list []netip.Addr) []string {

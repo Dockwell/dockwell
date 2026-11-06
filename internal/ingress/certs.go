@@ -181,6 +181,9 @@ func problemWords(domain string, st CertState, check *resource.DomainCheck) stri
 		}
 		return fmt.Sprintf("the certificate authority couldn't find %s in DNS. %s", domain, pointHere(check))
 	case ProblemConnection:
+		if check != nil && resource.BehindNAT(check.Here) {
+			return fmt.Sprintf("the certificate authority couldn't reach this server for %s on port 80 or 443. It has only private addresses, so it's behind NAT, and two firewalls can each stop this: the cloud provider's, or your router, and the machine's own, such as ufw or iptables. Open both ports in each.", domain)
+		}
 		return fmt.Sprintf("the certificate authority couldn't reach this server for %s on port 80 or 443, which a firewall often blocks. Open both, in the server's firewall and at your provider.", domain)
 	case ProblemWrongServer:
 		return fmt.Sprintf("something other than this server answered for %s. %s If a CDN or another proxy is in front, turn it off until the certificate comes.", domain, pointHere(check))
@@ -219,10 +222,10 @@ func routeCertMessage(domain string, st CertState, check *resource.DomainCheck) 
 }
 
 func pointHere(check *resource.DomainCheck) string {
-	if check != nil && len(check.Here) > 0 {
-		return "Point an A or AAAA record at this server, " + strings.Join(check.Here, " or ") + "."
+	if check == nil {
+		return resource.PointHere(nil)
 	}
-	return "Point an A or AAAA record at this server."
+	return resource.PointHere(check.Here)
 }
 
 // upperFirst starts a sentence made of words that may follow a colon elsewhere.

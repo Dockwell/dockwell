@@ -827,6 +827,32 @@ func TestARoutesPlanSaysWhatPortsItTakesAndFrees(t *testing.T) {
 	}
 }
 
+// A record pointed at a private address can't work, so the plan names none as
+// somewhere to point one, and says what to do instead.
+func TestDNSWordsNeverNameAPrivateAddressToPointAt(t *testing.T) {
+	const private = "Point an A record at this server's public address. Dockwell only sees 10.0.0.25 here, which is private, so the internet can't reach it."
+	for _, tc := range []struct {
+		name  string
+		state dockwellv1.DomainCheckState
+		found []string
+		here  []string
+		says  string
+		never string
+	}{
+		{"no record, behind NAT", dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD, nil, []string{"10.0.0.25"}, private, "at 10.0.0.25"},
+		{"elsewhere, behind NAT", dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, []string{"10.9.9.9"}, []string{"10.0.0.25"}, private, "not this server (10.0.0.25)"},
+		{"no record, with a public address", dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD, nil, []string{"10.0.0.25", "203.0.113.9"}, "at this server, 203.0.113.9.", "10.0.0.25"},
+		{"elsewhere, with a public address", dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, []string{"198.51.100.1"}, []string{"10.0.0.25", "203.0.113.9"}, "not this server (203.0.113.9)", "10.0.0.25"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := domainWords(&dockwellv1.DomainCheck{Domain: "app.example.com", State: tc.state, Found: tc.found, Here: tc.here})
+			if !strings.Contains(got, tc.says) || strings.Contains(got, tc.never) {
+				t.Errorf("it says %q", got)
+			}
+		})
+	}
+}
+
 // Behind a tunnel, a domain points somewhere else, and what DNS says there leads to
 // the setting as well as to moving DNS.
 func TestDNSThatPointsElsewhereNamesTheSetting(t *testing.T) {
