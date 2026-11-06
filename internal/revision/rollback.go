@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -39,7 +40,8 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 	var notes []Note
 	var nothing error
 	var pinned proto.Message
-	var pinWords, goneWords, goneFirst, imageWord string
+	var pinWords, goneWords, goneFirst, goneReason, imageWord string
+	var goneNames []string
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		latest, err := tx.GetResourceByID(ctx, resourceID)
 		if err != nil {
@@ -103,10 +105,12 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 				namer.SetImage(pinned, resource.PinnedImage(image, digest))
 				pinWords = fmt.Sprintf("%s runs %s as revision %d ran it, %s, even if the tag has moved since", latest.Name, image, number, shortDigest(digest))
 				goneWords = fmt.Sprintf("The %s that revision %d ran, %s, isn't on the server, and its registry won't give it, so %s runs what %s is now", image, number, shortDigest(digest), latest.Name, image)
+				goneReason, goneNames = "digest_gone", []string{image, strconv.Itoa(number), shortDigest(digest)}
 				goneFirst = fmt.Sprintf("the %s that revision %d ran, %s, isn't on the server, and its registry won't give it", image, number, shortDigest(digest))
 				imageWord = image
 			case digest == "" && image == resource.BareImage(image) && moved(deployments):
 				goneWords = fmt.Sprintf("Revision %d ran different images of %s on each server, so %s runs what %s is now", number, image, latest.Name, image)
+				goneReason, goneNames = "digest_differs", []string{image, strconv.Itoa(number)}
 			}
 		}
 		nothing = fault.New(ErrCantUndo, "%s already runs what revision %d had, so going back to it would change nothing. Choose a revision that differs", latest.Name, number)
@@ -120,7 +124,7 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 		return nil, err
 	}
 	plain := Proposal{Summary: words, Actor: by.Actor, Via: by.Via, Edits: []Edit{ed}, Notes: notes, RollsBackTo: number, IfNothing: nothing, Intent: &Intent{Kind: IntentRollBack, Resource: resourceID, Revision: number}}
-	gone := Note{Reason: "digest_gone", Message: goneWords, Ref: ed.Ref}
+	gone := Note{Reason: goneReason, Message: goneWords, Ref: ed.Ref, Names: goneNames}
 	if pinned == nil {
 		if goneWords != "" {
 			plain.Notes = append(slices.Clone(notes), gone)
@@ -130,7 +134,7 @@ func (e *Engine) RollBackTo(ctx context.Context, resourceID string, number int, 
 	exact := plain
 	exact.Edits = []Edit{ed}
 	exact.Edits[0].Spec = pinned
-	exact.Notes = append(slices.Clone(notes), Note{Reason: "digest_pinned", Message: pinWords, Ref: ed.Ref})
+	exact.Notes = append(slices.Clone(notes), Note{Reason: "digest_pinned", Message: pinWords, Ref: ed.Ref, Names: goneNames})
 	plain.Notes = append(slices.Clone(notes), gone)
 	plain.IfNothing = fault.New(ErrCantUndo, "%s, and it already runs what %s is now, so going back to it would change nothing. Choose a revision that differs",
 		goneFirst, imageWord)

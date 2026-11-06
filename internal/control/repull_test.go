@@ -169,7 +169,8 @@ func TestARollbackOfAMovingTagPutsBackWhatRan(t *testing.T) {
 			t.Fatal(err)
 		}
 		c := back.Msg.GetChange()
-		if note := noteOf(c, "digest_pinned"); note == nil || !strings.Contains(note.GetMessage(), "as revision 1 ran it, sha256:aaaaaaaaaaaa, even if the tag has moved since") {
+		if note := noteOf(c, "digest_pinned"); note == nil || !strings.Contains(note.GetMessage(), "as revision 1 ran it, sha256:aaaaaaaaaaaa, even if the tag has moved since") ||
+			!slices.Equal(note.GetNames(), []string{latest, "1", "sha256:aaaaaaaaaaaa"}) {
 			t.Errorf("the plan's notes = %v", c.GetPlan().GetNotes())
 		}
 		b.done(t, c)
@@ -436,7 +437,8 @@ func TestAPullOnTwoServersRecordsBoth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if note := noteOf(back.Msg.GetChange(), "digest_gone"); note == nil || !strings.Contains(note.GetMessage(), "ran different images") {
+	if note := noteOf(back.Msg.GetChange(), "digest_differs"); note == nil || !strings.Contains(note.GetMessage(), "ran different images") ||
+		!slices.Equal(note.GetNames(), []string{latest, "2"}) {
 		t.Errorf("the plan's notes = %v", back.Msg.GetChange().GetPlan().GetNotes())
 	}
 }

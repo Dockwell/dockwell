@@ -853,7 +853,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 	}
 	for i := range p.Notes {
 		n := &p.Notes[i]
-		out.Notes = append(out.Notes, &dockwellv1.PlanNote{Reason: n.Reason, Message: n.Message, Resource: resourcepb.Ref(n.Ref), Names: n.Names, From: n.From})
+		out.Notes = append(out.Notes, &dockwellv1.PlanNote{Reason: n.Reason, Message: n.Message, Resource: resourcepb.Ref(n.Ref), Names: n.Names, From: n.From, Deleted: n.Deleted})
 	}
 	for _, place := range p.Places {
 		out.Places = append(out.Places, &dockwellv1.PlanPlace{Project: place.Project, Environment: place.Environment})

@@ -728,6 +728,54 @@ describe("the plan sheet", () => {
     expect(sheet.querySelector(".dw-plan-changes dt")).toBe(socket);
   });
 
+  it("says what a server's note means in its own words, so they translate", async () => {
+    await activateLocale("zh-CN");
+    try {
+      const noted = webPlanned();
+      if (noted.plan) {
+        noted.plan.notes = [
+          create(PlanNoteSchema, {
+            reason: "updates_project",
+            message: "shop already runs web and worker, in words only the server has.",
+            names: ["shop", "web", "worker"],
+            deleted: ["worker"],
+          }),
+          create(PlanNoteSchema, {
+            reason: "digest_pinned",
+            message: "web runs nginx:1 as revision 2 ran it, in words only the server has.",
+            resource: { kind: "service", name: "web" },
+            names: ["nginx:1", "2", "sha256:0123456789ab"],
+          }),
+          create(PlanNoteSchema, {
+            reason: "digest_gone",
+            message: "The image is gone, in words only the server has.",
+            resource: { kind: "service", name: "web" },
+            names: ["nginx:1", "2", "sha256:0123456789ab"],
+          }),
+          create(PlanNoteSchema, {
+            reason: "digest_differs",
+            message: "Revision 2 ran different images, in words only the server has.",
+            resource: { kind: "service", name: "web" },
+            names: ["nginx:1", "2"],
+          }),
+          // One kept from before it carried its names says what it can.
+          create(PlanNoteSchema, { reason: "digest_gone", message: "Kept from before. It has no names." }),
+        ];
+      }
+      renderSheet(proposeWeb, {
+        changes: { proposeChange: () => ({ change: noted }), watchChange: feed<WatchChangeResponse>().stream },
+      });
+      const sheet = await screen.findByRole("dialog");
+      await within(sheet).findByText(/Kept from before/);
+      expect(sheet).not.toHaveTextContent("in words only the server has");
+      expect(sheet).toHaveTextContent("shop 已在运行 web, worker");
+      expect(sheet).toHaveTextContent("worker");
+      expect(sheet).toHaveTextContent("sha256:0123456789ab");
+    } finally {
+      await activateLocale("en");
+    }
+  });
+
   it("leads with what a plan says about itself, and says it in its own words", async () => {
     const noted = webPlanned();
     if (noted.plan) {

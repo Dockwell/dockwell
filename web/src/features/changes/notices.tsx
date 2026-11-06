@@ -407,6 +407,45 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           detail: t`It can't be read meanwhile, and it goes once the server is back and the 7 days are up.`,
         };
       }
+      case "updates_project": {
+        const [project = "", ...running] = note.names;
+        // A plan kept from before it said what would go has its message, and no less.
+        if (project === "") break;
+        const names = running.join(", ");
+        const deleted = note.deleted.join(", ");
+        return {
+          key,
+          title: t`${project} already runs ${names}`,
+          detail:
+            deleted !== ""
+              ? t`This changes what runs: a service of the same name in the file replaces it, and ${deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own.`
+              : t`This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own.`,
+        };
+      }
+      case "digest_pinned": {
+        const [image = "", revision = "", digest = ""] = note.names;
+        if (digest === "") break;
+        return {
+          key,
+          title: t`${name} runs ${image} as revision ${revision} ran it, ${digest}, even if the tag has moved since`,
+        };
+      }
+      case "digest_gone": {
+        const [image = "", revision = "", digest = ""] = note.names;
+        if (digest === "") break;
+        return {
+          key,
+          title: t`The ${image} that revision ${revision} ran, ${digest}, isn't on the server, and its registry won't give it, so ${name} runs what ${image} is now`,
+        };
+      }
+      case "digest_differs": {
+        const [image = "", revision = ""] = note.names;
+        if (revision === "") break;
+        return {
+          key,
+          title: t`Revision ${revision} ran different images of ${image} on each server, so ${name} runs what ${image} is now`,
+        };
+      }
       case "exposed_more":
         return {
           key,
