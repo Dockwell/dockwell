@@ -1143,6 +1143,93 @@ func testAVolumeRemadeByHandCanBeAdopted(t *testing.T, backend store.Backend) {
 	}
 }
 
+// A volume on two servers, remade by hand on one with a password of its own. Adopting
+// that plans the same spec for both, and a plan call goes to each server before anyone
+// applies anything, so the other's agent heard a password it doesn't hold, only to
+// refuse it, as Docker can't change a volume. So each server is asked what it has
+// first, which sends it nothing. Both remade alike is one thing to keep. The check of
+// #140 found this.
+func TestAdoptingAVolumeAsksItsOtherServersFirst(t *testing.T) {
+	storetest.Each(t, testAdoptingAVolumeAsksItsOtherServersFirst)
+}
+
+func testAdoptingAVolumeAsksItsOtherServersFirst(t *testing.T, backend store.Backend) {
+	const first, made = "addr=10.0.0.2,username=svc,password=first-pw-5Tn2", "by-hand-pw-9Rw4Lk2Xs7"
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	one := f.addServerNamed(t, "hz-1", nil, nil)
+	oneID := f.lastDocker.id.ServerID
+	heard := &planHeard{}
+	f.volumes = func(d *volume.Driver) resource.Type {
+		heard.Driver = d
+		return heard
+	}
+	two := f.addServerNamed(t, "hz-2", nil, nil)
+	twoID := f.lastDocker.id.ServerID
+	f.volumes = nil
+	c := changeClient(b, b.origin)
+	res, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Share", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "share"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: map[string]string{"type": "cifs", "device": "//nas/share", "o": first}}}},
+		Servers:  []string{oneID, twoID},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, res.Msg.GetChange())
+
+	name := docker.Project(listedEnv(t, b)) + "_share"
+	remake := func(e *dockertest.Engine) {
+		v := *e.Volume(name)
+		v.Options = maps.Clone(v.Options)
+		v.Options["o"] = "addr=10.0.0.2,username=svc,password=" + made
+		e.AddVolume(v)
+	}
+	drift := func(server string) *dockwellv1.Drift {
+		t.Helper()
+		res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range res.Msg.GetDrift() {
+			if d.GetServerId() == server {
+				return d
+			}
+		}
+		t.Fatalf("drift on %s = %v, want the volume", server, res.Msg.GetDrift())
+		return nil
+	}
+	remake(one)
+	found := drift(oneID)
+	before := len(heard.options())
+	_, err = c.AdoptDrift(t.Context(), connect.NewRequest(&dockwellv1.AdoptDriftRequest{ServerId: found.GetServerId(), ResourceId: found.GetResourceId()}))
+	if brought := heard.options()[before:]; slices.ContainsFunc(brought, func(o string) bool { return strings.Contains(o, made) }) {
+		t.Errorf("a plan call brought hz-2 the password made by hand: %q", brought)
+	}
+	if err == nil || !strings.Contains(err.Error(), "hz-2") || !strings.Contains(err.Error(), "Make them the same") {
+		t.Errorf("adopting what one of two servers has = %v, want it refused, saying what to do", err)
+	}
+	if err != nil && strings.Contains(err.Error(), made) {
+		t.Errorf("the refusal holds the password: %v", err)
+	}
+
+	// Both remade alike, what's kept is what each has.
+	remake(two)
+	found = drift(oneID)
+	adopted, err := c.AdoptDrift(t.Context(), connect.NewRequest(&dockwellv1.AdoptDriftRequest{ServerId: found.GetServerId(), ResourceId: found.GetResourceId()}))
+	if err != nil {
+		t.Fatalf("adopting what both servers have = %v, want it planned", err)
+	}
+	applyConfirmed(t, c, adopted.Msg.GetChange())
+	left, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := left.Msg.GetDrift(); len(got) != 0 {
+		t.Errorf("after adopting it, drift = %v", got)
+	}
+}
+
 // A network Dockwell didn't make can be a macvlan on the server's LAN, past its
 // firewall, and only the server knows. So its agent says which driver one uses, and
 // the plan says that where it says what joins it. The last check of #92 found it read

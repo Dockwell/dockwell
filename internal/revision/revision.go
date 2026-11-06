@@ -3407,6 +3407,8 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 type Drift struct {
 	ID  string // the resource's
 	Ref resource.Ref
+	// Server is the one that reported it.
+	Server string
 	// Revision is the latest revision, which the server should match.
 	Revision int
 	// Missing means the resource is gone from the server.
@@ -3463,7 +3465,7 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 		if resource.Equal(desired[i], observed[i]) {
 			continue
 		}
-		d := Drift{ID: r.ID, Ref: refs[i], Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
+		d := Drift{ID: r.ID, Ref: refs[i], Server: server, Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
 		if !d.Missing {
 			d.Changes = resource.Diff(desired[i], observed[i])
 		}
@@ -3491,9 +3493,53 @@ func (e *Engine) Revert(ctx context.Context, d Drift, by By) (*Plan, error) {
 // Adopt plans keeping what a server has for a drifted resource: a new
 // revision that matches it, with nothing to do on the server.
 func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
+	if err := e.checkSameElsewhere(ctx, d); err != nil {
+		return nil, err
+	}
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
 	// What the server runs already, so nothing restarts.
 	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed, Observed: true}}}, "", false)
+}
+
+// checkSameElsewhere refuses keeping what one server has of a kind that keeps
+// something (resource.Keeper) while another server it's on has something else. A plan
+// sends a spec to every server it would run on, before anyone applies it, so that
+// server's agent would hear what the first has, such as a password made by hand, and
+// could only refuse it, as Docker can't change a volume (ADR 0022). Asking each what
+// it has sends it nothing.
+func (e *Engine) checkSameElsewhere(ctx context.Context, d Drift) error {
+	if _, ok := e.keeper(d.Ref.Kind); !ok || d.Missing {
+		return nil
+	}
+	var it item
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		it, err = e.load(ctx, tx, d.Ref)
+		return err
+	}); err != nil {
+		return err
+	}
+	others := slices.DeleteFunc(slices.Clone(it.placed), func(s string) bool { return s == d.Server })
+	names, err := e.serverNames(ctx, append([]string{d.Server}, others...))
+	if err != nil {
+		return err
+	}
+	here := names[d.Server]
+	for _, s := range others {
+		agent, online := e.agents.Agent(s)
+		if !online {
+			return fault.New(ErrOffline, "%s isn't connected, so Dockwell can't tell whether it has %s as %s does. Try again once it reconnects", names[s], d.Ref.Name, here)
+		}
+		observed, err := agent.Observe(ctx, []resource.Ref{d.Ref})
+		if err != nil {
+			return &AgentError{Server: names[s], Doing: "check drift", Err: err}
+		}
+		if !resource.Equal(d.Observed, observed[0]) {
+			return fault.New(ErrInvalid, "%s on %s differs from what %s has, so it can't be kept: a plan would send it to %s, which can't change what it has. Make them the same, then keep this again, or revert it on %s",
+				d.Ref.Name, here, names[s], names[s], here)
+		}
+	}
+	return nil
 }
 
 func encodeOrNil(m proto.Message) ([]byte, error) {
