@@ -122,7 +122,7 @@ cleanup() {
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   moving_tidy
-  docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-tunnel >/dev/null 2>&1 || true
+  docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   [[ -z "$load_pid" ]] || kill "$load_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
@@ -1756,6 +1756,35 @@ from_default=$(on_network bridge "$bridged")
 [[ "$from_default" == *"404"* ]] || fail "a container on Docker's default network reached a route naming another network: $from_default"
 dw routes delete bridged --yes || fail "routes delete bridged failed"
 docker network rm e2e-tunnel >/dev/null || fail "docker network rm e2e-tunnel failed"
+
+# Both sides of why the guide gives a proxy a network of its own: a service with no
+# networks, which a token can deploy, runs on Docker's default network, so a route
+# naming that range answers it and believes what it says. web is such a service. A
+# container on any other network is a stranger to that route.
+[[ "$(docker inspect --format '{{if index .NetworkSettings.Networks "bridge"}}yes{{end}}' "$web")" == yes ]] ||
+  fail "web, a service with no networks, isn't on Docker's default network: $(docker inspect --format '{{json .NetworkSettings.Networks}}' "$web")"
+bridge_range=$(docker network inspect --format '{{(index .IPAM.Config 0).Subnet}}' bridge) || fail "docker network inspect bridge failed"
+bridge_gateway=$(docker network inspect --format '{{(index .IPAM.Config 0).Gateway}}' bridge) || fail "docker network inspect bridge failed"
+on_bridge=onbridge.e2e-dockwell.example.net
+set +e
+planned=$(dw routes create onbridge --domain "$on_bridge" --service web --port 80 --tls off --trusted-proxies "$bridge_range" --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a route naming Docker's default network exited $status, want 4: it waits for a person: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+person_apply "$(jq -r '.changes[0].id' <<<"$changes")"
+from_service=$(docker exec "$web" wget -q -T 5 -O- --header "Host: $on_bridge" --header 'X-Forwarded-For: 203.0.113.9' "http://$bridge_gateway:80/" 2>&1) ||
+  fail "web, a service on Docker's default network, can't reach a route naming that range: $from_service"
+[[ "$from_service" == *nginx* ]] || fail "web, a service on Docker's default network, got this from a route naming that range: $from_service"
+sleep 0.5
+seen=$(docker logs --tail 5 "$web" 2>&1) || fail "docker logs $web failed"
+seen=${seen##*$'\n'}
+[[ "$seen" == *'"203.0.113.9"' ]] || fail "a route naming Docker's default network didn't believe a service there on its client: $seen"
+docker network create e2e-other >/dev/null || fail "docker network create e2e-other failed"
+from_other=$(on_network e2e-other "$on_bridge")
+[[ "$from_other" == *"404"* ]] || fail "a container on another network reached a route naming Docker's default network: $from_other"
+dw routes delete onbridge --yes || fail "routes delete onbridge failed"
+docker network rm e2e-other >/dev/null || fail "docker network rm e2e-other failed"
 
 # Anyone takes a person, and says so.
 open=open.e2e-dockwell.example.net
