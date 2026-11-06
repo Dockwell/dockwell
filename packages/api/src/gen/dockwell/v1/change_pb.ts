@@ -1292,8 +1292,10 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * "kept_password" for a volume that keeps the
    * password it was made with, whatever an edit gave, and "kept_options" for one
    * that keeps its options, as an edit gave none, "first_steps" for what a catalog
-   * app needs a person to know and do, and "no_backup" for a catalog upgrade that
-   * runs without a backup first. Another reason may come: its
+   * app needs a person to know and do, "no_backup" for a catalog upgrade that runs
+   * without a backup first, "upgrade_kept" for what a person changed that the upgrade
+   * changes too, which stays, and "upgrade_dropped" for what they changed that it
+   * drops, which goes. Another reason may come: its
    * message says what it means.
    *
    * @generated from field: string reason = 1;

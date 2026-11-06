@@ -459,8 +459,12 @@ func testUpgradingAnInstall(t *testing.T, backend store.Backend) {
 		t.Errorf("after the undo, the install reads %v", got)
 	}
 
-	// A release that adds a service runs it.
-	write(3, "3.0", second, "    cache:\n      image: cache:1@sha256:"+digest1+"\n")
+	// A release that adds a service runs it, and its volume.
+	const cache = "    cache:\n      image: cache:1@sha256:" + digest1 + "\n      volumes:\n        - cached:/cache\n"
+	withVolume := strings.Replace(testEntry(3, "3.0", second, cache), "    data: {}\n", "    data: {}\n    cached: {}\n", 1)
+	if err := os.WriteFile(filepath.Join(dir, "thing.yaml"), []byte(withVolume), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	res, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
 	if err != nil {
 		t.Fatal(err)
@@ -471,7 +475,7 @@ func testUpgradingAnInstall(t *testing.T, backend store.Backend) {
 	if e.Newest(docker.Project(env), "cache") == nil {
 		t.Errorf("the upgrade didn't add the service its release adds: %v", e.Containers())
 	}
-	// And one that drops it takes it away, and leaves the data.
+	// And one that drops it takes it away, and leaves its data.
 	write(4, "4.0", second, "")
 	res, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
 	if err != nil {
@@ -482,6 +486,209 @@ func testUpgradingAnInstall(t *testing.T, backend store.Backend) {
 	}
 	if got := apply(t, c, res.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the upgrade ended %v: %s", got.GetState(), got.GetError())
+	}
+	if gone := e.Newest(docker.Project(env), "cache"); gone != nil {
+		t.Errorf("the service its release dropped runs on: %+v", gone.Name)
+	}
+	if e.Volume(docker.Project(env)+"_cached") == nil {
+		t.Error("dropping the service took its volume")
+	}
+}
+
+// upgrading is an install of the test entry, ready to take a person's changes and a
+// release.
+type upgrading struct {
+	t   *testing.T
+	dir string
+	e   *dockertest.Engine
+	c   dockwellv1connect.ChangeServiceClient
+	cat dockwellv1connect.CatalogServiceClient
+	b   *browser
+	env string
+}
+
+const firstRelease, secondRelease = "thing:1@sha256:" + digest1, "thing:2@sha256:" + digest2
+
+func startUpgrading(t *testing.T, backend store.Backend, entry string) *upgrading {
+	t.Helper()
+	u := &upgrading{t: t, dir: t.TempDir()}
+	t.Setenv(catalog.DirEnv, u.dir)
+	u.release(entry)
+	f := startFull(t, backend, nil)
+	u.b = signedIn(t, f)
+	u.e = f.addDockerServer(t)
+	pullsAnything(u.e)
+	u.c = changeClient(u.b, u.b.origin)
+	u.cat = catalogClient(u.b)
+	apply(t, u.c, installApp(t, u.cat, &dockwellv1.InstallCatalogEntryRequest{Id: "thing"}))
+	for _, r := range mustList(t, u.b).GetResources() {
+		u.env = r.GetId()
+	}
+	return u
+}
+
+func (u *upgrading) release(entry string) {
+	u.t.Helper()
+	if err := os.WriteFile(filepath.Join(u.dir, "thing.yaml"), []byte(entry), 0o600); err != nil {
+		u.t.Fatal(err)
+	}
+}
+
+func (u *upgrading) web() *docker.Container {
+	u.t.Helper()
+	return u.e.Newest(docker.Project(u.env), "web")
+}
+
+func (u *upgrading) upgrade() *dockwellv1.Change {
+	u.t.Helper()
+	res, err := u.cat.UpgradeCatalogInstall(u.t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	if err != nil {
+		u.t.Fatalf("upgrade: %v", err)
+	}
+	return res.Msg.GetChange()
+}
+
+func (u *upgrading) applied(ch *dockwellv1.Change) {
+	u.t.Helper()
+	if got := apply(u.t, u.c, ch); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		u.t.Fatalf("%s ended %v: %s", ch.GetSummary(), got.GetState(), got.GetError())
+	}
+}
+
+func (u *upgrading) edit(summary, name string, spec *resourcev1.Service) {
+	u.t.Helper()
+	p, err := u.c.ProposeChange(u.t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: summary, Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: u.env, Name: name},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
+	}}}))
+	if err != nil {
+		u.t.Fatal(err)
+	}
+	u.applied(p.Msg.GetChange())
+}
+
+func planHas(ch *dockwellv1.Change, kind, name string) bool {
+	return slices.ContainsFunc(ch.GetPlan().GetResources(), func(r *dockwellv1.PlannedResource) bool {
+		return r.GetResource().GetKind() == kind && r.GetResource().GetName() == name && r.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_NONE
+	})
+}
+
+// A person's own app in the install's environment isn't the file's, so an upgrade
+// leaves it alone, and an undo too.
+func TestAnUpgradeLeavesAPersonsAppAlone(t *testing.T) {
+	storetest.Each(t, testAnUpgradeLeavesAPersonsAppAlone)
+}
+
+func testAnUpgradeLeavesAPersonsAppAlone(t *testing.T, backend store.Backend) {
+	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	u.edit("My app", "mine", &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "mine:1"}}})
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+	up := u.upgrade()
+	if planHas(up, "service", "mine") {
+		t.Errorf("the upgrade plans to change a person's app: %v", up.GetPlan().GetResources())
+	}
+	u.applied(up)
+	if u.e.Newest(docker.Project(u.env), "mine") == nil {
+		t.Error("the upgrade took a person's app away")
+	}
+	if u.web().Config.Image != secondRelease {
+		t.Errorf("it runs %s", u.web().Config.Image)
+	}
+}
+
+// What a person changed stays through an upgrade, and through its undo.
+func TestAnUpgradeKeepsWhatAPersonChanged(t *testing.T) {
+	storetest.Each(t, testAnUpgradeKeepsWhatAPersonChanged)
+}
+
+func testAnUpgradeKeepsWhatAPersonChanged(t *testing.T, backend store.Backend) {
+	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	spec := func(image string) *resourcev1.Service {
+		return &resourcev1.Service{
+			Secrets: map[string]string{"PASSWORD": "PASSWORD"},
+			Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image: image, Networks: []string{"default"}, Restart: resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED,
+				Ports:     []*resourcev1.PortMapping{{HostPort: 18100, ContainerPort: 80, HostIp: "127.0.0.1"}},
+				Mounts:    []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data"}},
+				Resources: &resourcev1.Resources{Memory: "512M"},
+				Command:   []string{"serve", "--tuned"},
+			}},
+		}
+	}
+	u.edit("Close it", "web", spec(firstRelease))
+	check := func(when, image string) {
+		t.Helper()
+		web := u.web()
+		if web.Config.Image != image {
+			t.Errorf("%s it runs %s", when, web.Config.Image)
+		}
+		if got := web.HostConfig.PortBindings["80/tcp"]; len(got) != 1 || got[0].HostIP != "127.0.0.1" {
+			t.Errorf("%s port 80 binds %+v, want loopback alone", when, got)
+		}
+		if web.HostConfig.Memory != 512<<20 || !slices.Equal(web.Config.Cmd, []string{"serve", "--tuned"}) {
+			t.Errorf("%s its memory is %d and its command %v", when, web.HostConfig.Memory, web.Config.Cmd)
+		}
+	}
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+	up := u.upgrade()
+	u.applied(up)
+	check("after the upgrade", secondRelease)
+	undo, err := u.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: up.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.applied(undo.Msg.GetChange())
+	check("after the undo", firstRelease)
+}
+
+// A release can take away what it gave, and what a person took away doesn't come back.
+func TestAReleaseCanTakeAwayWhatItGave(t *testing.T) {
+	storetest.Each(t, testAReleaseCanTakeAwayWhatItGave)
+}
+
+func testAReleaseCanTakeAwayWhatItGave(t *testing.T, backend store.Backend) {
+	had := func(release int, version, image string) string {
+		s := testEntry(release, version, image, "")
+		s = strings.Replace(s, `- "${PORT}:80"`, "- \"${PORT}:80\"\n        - \"18101:9090\"", 1)
+		return strings.Replace(s, "PASSWORD: ${PASSWORD}", "PASSWORD: ${PASSWORD}\n        DEBUG_TRUST: all", 1)
+	}
+	u := startUpgrading(t, backend, had(1, "1.0", firstRelease))
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+	u.applied(u.upgrade())
+	web := u.web()
+	if _, open := web.HostConfig.PortBindings["9090/tcp"]; open {
+		t.Errorf("the port the release closed is open: %v", web.HostConfig.PortBindings)
+	}
+	if slices.Contains(web.Config.Env, "DEBUG_TRUST=all") {
+		t.Errorf("the variable the release dropped is set: %v", web.Config.Env)
+	}
+}
+
+// An install from before Dockwell kept its file has nothing to merge from, so it stays
+// as it is, and says why.
+func TestAnInstallWithNoRecordStaysAsItIs(t *testing.T) {
+	storetest.Each(t, testAnInstallWithNoRecordStaysAsItIs)
+}
+
+func testAnInstallWithNoRecordStaysAsItIs(t *testing.T, backend store.Backend) {
+	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	p, err := u.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "As it was", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "thing"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{Catalog: &resourcev1.CatalogPin{
+			Entry: "thing", Version: "1.0", Release: 1, Values: map[string]string{"PORT": "18100"},
+		}}}},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.applied(p.Msg.GetChange())
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+	_, err = u.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "no_record" || !strings.Contains(err.Error(), "can't tell that from what you changed") {
+		t.Errorf("upgrading with no record = %v", err)
+	}
+	if u.web().Config.Image != firstRelease {
+		t.Errorf("it runs %s", u.web().Config.Image)
 	}
 }
 

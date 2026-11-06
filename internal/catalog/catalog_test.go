@@ -305,6 +305,24 @@ func TestCarry(t *testing.T) {
 	}
 }
 
+// An install's old file reads again from its pin alone: what it kept, and a stand-in
+// for a secret, which it never kept.
+func TestGivenReadsAPinBack(t *testing.T) {
+	variables, stands, err := catalog.Given(&resourcev1.CatalogPin{
+		File:   []byte("a: ${PORT}\nb: ${PASSWORD}\nc: ${PASSWORD}\n"),
+		Values: map[string]string{"PORT": "8081", "UNUSED": "x"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if variables["PORT"] != "8081" || len(variables) != 2 || len(stands) != 1 {
+		t.Errorf("variables %v, stands %v", variables, stands)
+	}
+	if s := stands["PASSWORD"]; len(s) != 32 || variables["PASSWORD"] != s {
+		t.Errorf("the secret's stand-in is %q", s)
+	}
+}
+
 // A directory of entries takes over from one built in, and adds to the rest.
 func TestADirectoryOfEntries(t *testing.T) {
 	dir := t.TempDir()

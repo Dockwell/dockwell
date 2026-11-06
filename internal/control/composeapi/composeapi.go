@@ -162,116 +162,6 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes})
 }
 
-// Upgrade is an install to move to a newer release of its entry.
-type Upgrade struct {
-	Project     string // by ID
-	Environment string // by ID
-	Summary     string
-	Name        string // how the project shows
-	File        []byte
-	// Variables are values for what the file uses.
-	Variables map[string]string
-	// Secrets are new secrets to keep, by name.
-	Secrets map[string]string
-	// Stands is what stands for each secret among Variables, which a service uses
-	// by reference.
-	Stands map[string]string
-	Pin    *resourcev1.CatalogPin
-}
-
-// PlanUpgrade plans an install's newer release into the environment it runs in, with
-// its pin in the same change, so undoing it takes both back. Its entry owns what's in
-// its file, so what the file no longer has goes, but for volumes. What a person added
-// to a service stays (keepAdded), and its plan says no backup is taken.
-func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Change, error) {
-	stack, err := h.read(ctx, compose.Input{File: in.File, Variables: in.Variables})
-	if err != nil {
-		return nil, err
-	}
-	place, err := h.destination(ctx, in.Project, in.Environment, "")
-	if err != nil {
-		return nil, err
-	}
-	useSecrets(stack, in.Stands)
-	if err := h.keepAdded(ctx, place.environment, stack); err != nil {
-		return nil, h.internal(ctx, err)
-	}
-	project := resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project}
-	place.made = []revision.Edit{{Ref: project, Spec: &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}}}
-	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Variables: in.Variables, RemoveOrphans: true}
-	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, upgrade: true, notes: []revision.Note{{
-		Reason:  "no_backup",
-		Message: "Dockwell takes no backup before this upgrade, as it can't make one yet. Undoing it puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first",
-		Ref:     project,
-	}}})
-}
-
-// keepAdded brings into each service of a file what a person added to it since it
-// was installed, which the file doesn't know of: a port, a mount, what's in its
-// environment and what it uses. A name the file sets stays the file's. A value here
-// stays on the server, in the spec it came from.
-func (h *Handler) keepAdded(ctx context.Context, env string, stack *compose.Stack) error {
-	return h.db.View(ctx, func(tx *store.Tx) error {
-		list, err := tx.ListResources(ctx, env, string(service.Kind))
-		if err != nil {
-			return err
-		}
-		for i := range list {
-			r := list[i]
-			j := slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == r.Name })
-			if j < 0 {
-				continue
-			}
-			spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
-			if err != nil {
-				return err
-			}
-			if was, ok := spec.(*resourcev1.Service); ok {
-				addKept(stack.Services[j].Spec, was)
-			}
-		}
-		return nil
-	})
-}
-
-// addKept gives a service what the one it replaces has and it doesn't.
-func addKept(next, was *resourcev1.Service) {
-	app, old := next.GetApp(), was.GetApp()
-	for _, p := range old.GetPorts() {
-		same := func(q *resourcev1.PortMapping) bool {
-			return q.GetHostPort() == p.GetHostPort() && q.GetProtocol() == p.GetProtocol() && q.GetHostIp() == p.GetHostIp()
-		}
-		if !slices.ContainsFunc(app.GetPorts(), same) {
-			app.Ports = append(app.Ports, p)
-		}
-	}
-	for _, m := range old.GetMounts() {
-		same := func(n *resourcev1.Mount) bool { return n.GetTarget() == m.GetTarget() }
-		if !slices.ContainsFunc(app.GetMounts(), same) {
-			app.Mounts = append(app.Mounts, m)
-		}
-	}
-	has := func(name string) bool {
-		_, env := app.GetEnv()[name]
-		_, variable := next.GetVariables()[name]
-		_, secret := next.GetSecrets()[name]
-		return env || variable || secret
-	}
-	for name, value := range old.GetEnv() {
-		if !has(name) {
-			if app.Env == nil {
-				app.Env = map[string]string{}
-			}
-			app.Env[name] = value
-		}
-	}
-	for _, u := range binding.Uses(was) {
-		if !has(u.As) {
-			binding.Use(next, u)
-		}
-	}
-}
-
 // planning is what a plan adds to a file read for a place.
 type planning struct {
 	// secrets are new secrets to keep beside what the file makes, by name.
@@ -280,6 +170,8 @@ type planning struct {
 	// word that it's already there.
 	upgrade bool
 	notes   []revision.Note
+	// deletes are what goes with this, after everything else, in this order.
+	deletes []resource.Ref
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -360,6 +252,11 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 				})
 			}
 		}
+	}
+	for _, ref := range also.deletes {
+		edits = append(edits, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(ref.Kind), Scope: ref.Scope, Name: ref.Name}, Delete: true,
+		})
 	}
 	summary := strings.TrimSpace(m.GetSummary())
 	if summary == "" {

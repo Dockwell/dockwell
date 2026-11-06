@@ -139,11 +139,16 @@ paths:
                 - CatalogService
             description: |-
                 UpgradeCatalogInstall plans moving an install to the newest release of its
-                 entry, ready to apply or discard. What the entry sets changes, what a person
-                 added to a service since stays, its secrets stay as they are, and the plan says
-                 that no backup is taken, as Dockwell can't take one yet. Undoing it puts the old
-                 version back, but not what the new one changed in its data. It's refused with
-                 the reason up_to_date when there's nothing newer.
+                 entry, ready to apply or discard, as a three-way merge of the entry's old file,
+                 its new one and what runs. What the file gave and the new one changes follows
+                 the new one, what the new one dropped goes, and what a person added or changed
+                 stays, with anything else in the environment left alone. Where a person and the
+                 release both changed one thing, the person's stays and the plan says so, but for
+                 the image. Its secrets stay as they are, and the plan says that no backup is
+                 taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
+                 not what the new one changed in its data. It's refused with the reason up_to_date
+                 when there's nothing newer, and no_record for an install from before Dockwell
+                 kept what its file gave.
             operationId: CatalogService_UpgradeCatalogInstall
             parameters:
                 - name: id
@@ -2475,6 +2480,14 @@ components:
                     description: |-
                         What each input that isn't a secret was given, by name, so an upgrade gives
                          the same.
+                file:
+                    type: string
+                    description: |-
+                        The entry's Compose file at this release, with its ${NAME}s as written, so it
+                         holds no secret. Read with values, it's what the file gave, which an upgrade
+                         needs to tell that from what a person changed since. Empty for an install from
+                         before Dockwell kept it, which can't be upgraded.
+                    format: bytes
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
@@ -5007,8 +5020,10 @@ components:
                          "kept_password" for a volume that keeps the
                          password it was made with, whatever an edit gave, and "kept_options" for one
                          that keeps its options, as an edit gave none, "first_steps" for what a catalog
-                         app needs a person to know and do, and "no_backup" for a catalog upgrade that
-                         runs without a backup first. Another reason may come: its
+                         app needs a person to know and do, "no_backup" for a catalog upgrade that runs
+                         without a backup first, "upgrade_kept" for what a person changed that the upgrade
+                         changes too, which stays, and "upgrade_dropped" for what they changed that it
+                         drops, which goes. Another reason may come: its
                          message says what it means.
                 message:
                     type: string

@@ -217,6 +217,8 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the catalog no longer has %s, so %s stays on %s", pin.GetEntry(), install.GetProject(), pin.GetVersion()), "not_in_catalog")
 	case entry.GetRelease() <= pin.GetRelease():
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
+	case len(pin.GetFile()) == 0:
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s was installed before Dockwell kept what its entry's file gave, so an upgrade can't tell that from what you changed, and it stays on %s. To move on, install the new version under another name and bring its data across", install.GetProject(), pin.GetVersion()), "no_record")
 	}
 	free, err := h.whatsFree(ctx, entry)
 	if err != nil {
@@ -225,6 +227,10 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	filled, err := catalog.Carry(entry, pin, m.GetValues(), free.values, held)
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
+	}
+	oldVariables, oldStands, err := catalog.Given(pin)
+	if err != nil {
+		return nil, h.internal(ctx, err)
 	}
 	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
@@ -236,6 +242,10 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 		Secrets:     filled.Secrets,
 		Stands:      filled.Stands(),
 		Pin:         pinTo(entry, filled),
+
+		Old:          pin.GetFile(),
+		OldVariables: oldVariables,
+		OldStands:    oldStands,
 	})
 	if err != nil {
 		return nil, err
@@ -252,6 +262,7 @@ func pinTo(e *catalogv1.Entry, filled *catalog.Filled) *resourcev1.CatalogPin {
 		Repository: e.GetSource().GetRepository(),
 		Commit:     e.GetSource().GetCommit(),
 		Values:     filled.Plain,
+		File:       []byte(e.GetCompose()),
 	}
 }
 

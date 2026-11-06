@@ -248,6 +248,32 @@ type Filled struct {
 	Held map[string]string
 }
 
+// names finds the ${NAME}s a Compose file uses.
+var usedNames = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)`)
+
+// Given reads back what an install's file used: the values its pin kept, and a value of
+// no meaning for each secret, which a pin never holds. So the old file reads again
+// with no secret opened, for an upgrade to see what it gave.
+func Given(pin *resourcev1.CatalogPin) (variables, stands map[string]string, err error) {
+	variables, stands = map[string]string{}, map[string]string{}
+	for _, m := range usedNames.FindAllSubmatch(pin.GetFile(), -1) {
+		name := string(m[1])
+		if _, done := variables[name]; done {
+			continue
+		}
+		if v, ok := pin.GetValues()[name]; ok {
+			variables[name] = v
+			continue
+		}
+		stand, err := generate(32)
+		if err != nil {
+			return nil, nil, err
+		}
+		variables[name], stands[name] = stand, stand
+	}
+	return variables, stands, nil
+}
+
 // Stands is every value that stands for a secret, for what has services use them by
 // reference.
 func (f *Filled) Stands() map[string]string {

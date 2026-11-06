@@ -415,11 +415,16 @@ export const CatalogService: GenService<{
   },
   /**
    * UpgradeCatalogInstall plans moving an install to the newest release of its
-   * entry, ready to apply or discard. What the entry sets changes, what a person
-   * added to a service since stays, its secrets stay as they are, and the plan says
-   * that no backup is taken, as Dockwell can't take one yet. Undoing it puts the old
-   * version back, but not what the new one changed in its data. It's refused with
-   * the reason up_to_date when there's nothing newer.
+   * entry, ready to apply or discard, as a three-way merge of the entry's old file,
+   * its new one and what runs. What the file gave and the new one changes follows
+   * the new one, what the new one dropped goes, and what a person added or changed
+   * stays, with anything else in the environment left alone. Where a person and the
+   * release both changed one thing, the person's stays and the plan says so, but for
+   * the image. Its secrets stay as they are, and the plan says that no backup is
+   * taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
+   * not what the new one changed in its data. It's refused with the reason up_to_date
+   * when there's nothing newer, and no_record for an install from before Dockwell
+   * kept what its file gave.
    *
    * @generated from rpc dockwell.v1.CatalogService.UpgradeCatalogInstall
    */

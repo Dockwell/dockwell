@@ -132,7 +132,7 @@ func Methods() []*apicli.Method {
 			Noun:      "catalog",
 			Verb:      "upgrade",
 			Short:     "Plan moving an install to the newest release of its entry",
-			Long:      "Plan moving an install to the newest release of its entry, ready to apply or\ndiscard. What the entry sets changes, what a person added to a service since\nstays, its secrets stay as they are, and the plan says that no backup is taken,\nas Dockwell can't take one yet. Undoing it puts the old version back, but not\nwhat the new one changed in its data. It's refused with the reason up_to_date\nwhen there's nothing newer.",
+			Long:      "Plan moving an install to the newest release of its entry, ready to apply or\ndiscard, as a three-way merge of the entry's old file, its new one and what\nruns. What the file gave and the new one changes follows the new one, what the\nnew one dropped goes, and what a person added or changed stays, with anything\nelse in the environment left alone. Where a person and the release both changed\none thing, the person's stays and the plan says so, but for the image. Its\nsecrets stay as they are, and the plan says that no backup is taken, as Dockwell\ncan't take one yet. Undoing it puts the old version back, but not what the new\none changed in its data. It's refused with the reason up_to_date when there's\nnothing newer, and no_record for an install from before Dockwell kept what its\nfile gave.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "Its project, by name or ID.", Arg: true},
@@ -1070,6 +1070,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "catalog.repository", Help: "The repository the entry came from."},
 				{Path: "catalog.commit", Help: "The commit it came from."},
 				{Path: "catalog.values", Help: "What each input that isn't a secret was given, by name, so an upgrade gives the same."},
+				{Path: "catalog.file", Help: "The entry's Compose file at this release, with its ${NAME}s as written, so it holds no secret. Read with values, it's what the file gave, which an upgrade needs to tell that from what a person changed since. Empty for an install from before Dockwell kept it, which can't be upgraded."},
 			},
 		},
 		{
