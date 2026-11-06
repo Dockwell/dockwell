@@ -1,4 +1,4 @@
-# 0031. Files on a server, for a person, outside revisions
+# 0032. Files on a server, for a person, outside revisions
 
 - Status: Accepted
 - Date: 2026-11-06

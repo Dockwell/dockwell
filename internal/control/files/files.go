@@ -3,7 +3,7 @@
 // Package files serves dockwell.v1.FileService: a person browsing and reading the
 // files on a server, through its agent, which decides what's refused. Nothing
 // here is a revision: a file on a server isn't managed state. See
-// docs/adr/0031-files-on-a-server.md and docs/security/files.md.
+// docs/adr/0032-files-on-a-server.md and docs/security/files.md.
 package files
 
 import (

@@ -36,7 +36,7 @@ var agentPackages = []string{
 	"internal/agent",
 	"internal/agent/collect",
 	"internal/agent/enroll",
-	"internal/agent/files", // a server's files, for a person (ADR 0031)
+	"internal/agent/files", // a server's files, for a person (ADR 0032)
 	"internal/agent/logs",  // reading logs, and keeping those of removed containers (ADR 0025)
 	"internal/buildinfo",
 	"internal/cli",

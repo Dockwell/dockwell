@@ -2,7 +2,7 @@
 
 // Package files is what an agent reads of its server's disk for a person, for
 // FileService. It runs as root, so it decides here what's refused, on what it
-// actually opens: see docs/adr/0031-files-on-a-server.md and
+// actually opens: see docs/adr/0032-files-on-a-server.md and
 // docs/security/files.md. A refusal is an answer, not a failure, so these calls
 // return one rather than an error.
 package files

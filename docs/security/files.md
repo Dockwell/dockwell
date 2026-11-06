@@ -1,6 +1,6 @@
 # Files: threat model
 
-Files hands a browser a server's disk, through an agent that runs as root. This says what that protects, from whom, what's refused, and what it doesn't protect. The design is in [ADR 0031](../adr/0031-files-on-a-server.md), beside the threat models for [secrets](secrets.md) and [sign-in](sign-in.md). The code is in `internal/agent/files` and `internal/control/files`.
+Files hands a browser a server's disk, through an agent that runs as root. This says what that protects, from whom, what's refused, and what it doesn't protect. The design is in [ADR 0032](../adr/0032-files-on-a-server.md), beside the threat models for [secrets](secrets.md) and [sign-in](sign-in.md). The code is in `internal/agent/files` and `internal/control/files`.
 
 ## What there is to protect
 

@@ -52,7 +52,7 @@ const gather = 100 * time.Millisecond
 
 // A person reading a server's files, and what stopped them. Not asking for a
 // passkey to read one rests on these being where the person can see them (ADR
-// 0031), as with a secret's reveal.
+// 0032), as with a secret's reveal.
 const (
 	fileRead   = "file.read"
 	fileRefuse = "file.refuse"

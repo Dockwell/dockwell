@@ -310,7 +310,7 @@ export const FileTypeSchema: GenEnum<FileType> = /*@__PURE__*/
 /**
  * FileService browses and reads the files on a server, through its agent. Files
  * on a server aren't managed state, so nothing here is a revision or has a
- * plan. See docs/adr/0031-files-on-a-server.md.
+ * plan. See docs/adr/0032-files-on-a-server.md.
  *
  * Every method needs a signed-in session: no API token can call them, whatever
  * its scope. The agent refuses what holds Dockwell's keys, secrets' values and
