@@ -6191,6 +6191,10 @@ msgstr "There are no lines to download"
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 
+#: src/features/logs/LogsPage.tsx
+msgid "These logs can't be read now"
+msgstr "These logs can't be read now"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."

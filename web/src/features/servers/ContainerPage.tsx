@@ -7,6 +7,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useRef } from "react";
 
+import { sentence } from "../../lib/errors";
 import { LogsPage, type LogsSearch } from "../logs/LogsPage";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import { Page } from "../shell/Page";
@@ -39,7 +40,8 @@ export function ContainerPage({
     { server: serverId },
     { refetchInterval: READ_EVERY_MS, retry: false },
   );
-  const container = list.data?.containers.find((c) => c.name === name);
+  // What it last read can't stand once it can't be read, as on the server's page.
+  const container = list.error ? undefined : list.data?.containers.find((c) => c.name === name);
   const searchButton = useRef<(() => void) | null>(null);
   const back = (
     <Link
@@ -85,7 +87,13 @@ export function ContainerPage({
           </button>
         }
       >
-        {container ? <Facts container={container} /> : null}
+        {list.error ? (
+          <Panel flush title={t`What Docker says of it`}>
+            <p className="containers-note">{sentence(list.error)}</p>
+          </Panel>
+        ) : container ? (
+          <Facts container={container} />
+        ) : null}
         <LogsPage id={name} server={serverId} search={search} onSearch={onSearch} />
       </Page>
     </LogsSearchButton>

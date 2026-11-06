@@ -6191,6 +6191,10 @@ msgstr "没有可下载的日志"
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "<0>{pathname}</0> 下没有内容。<1>前往概览</1>"
 
+#: src/features/logs/LogsPage.tsx
+msgid "These logs can't be read now"
+msgstr "现在无法读取这些日志"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "这些容器在 Dockwell 之前就已存在，或以其他方式运行。Dockwell 只读取它们，因此在这里查看不会改变任何内容，它们会照常运行。"

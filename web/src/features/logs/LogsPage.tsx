@@ -51,7 +51,7 @@ import { LogNote } from "./LogNote";
 import { useLogsSearchButton } from "./phoneSearch";
 import { type Entry, LogStore, MAX_LINES } from "./store";
 import { type DeepSearch, useDeepSearch } from "./useDeepSearch";
-import { type StreamState, useLogStream } from "./useLogStream";
+import { final, type StreamState, useLogStream } from "./useLogStream";
 import {
   type Deploy,
   deployRevision,
@@ -77,6 +77,8 @@ const RANGE_MS: Readonly<Record<LogRange, number>> = { "15m": 15 * 60_000, "1h":
 const LIVE_TAIL = 1000;
 /** How many lines a page of older lines holds. */
 const OLDER_PAGE = 1000;
+/** How soon to ask for a log's sources again, when they couldn't be read. */
+const SOURCES_AGAIN_MS = 5_000;
 /** How long typing has to stop for a screen reader to hear what it found. */
 const SAY_AFTER_MS = 800;
 /** The longest search the API takes. */
@@ -171,7 +173,16 @@ export function LogsPage({
   const deepStore = useMemo(() => new LogStore(), []);
   const pane = useRef<LogStreamHandle>(null);
 
-  const sources = useQuery(LogService.method.listLogSources, { id, server }, { refetchOnWindowFocus: false });
+  // A container's server has to answer before there's anything to read, so what stops
+  // that goes on being tried, and reading starts once it answers.
+  const sources = useQuery(
+    LogService.method.listLogSources,
+    { id, server },
+    {
+      refetchOnWindowFocus: false,
+      refetchInterval: (query) => (query.state.error && !final(query.state.error) ? SOURCES_AGAIN_MS : false),
+    },
+  );
   const service = sources.data?.service;
   const allSources = sources.data?.sources;
   const deploys = useMemo(() => deploysOf(allSources ?? []), [allSources]);
@@ -512,6 +523,16 @@ export function LogsPage({
           )}
         </p>
       </EmptyState>
+    );
+  }
+  // The logs keep their place, and say why there's nothing in it.
+  if (sources.error && allSources === undefined) {
+    return (
+      <section className="logs" aria-label={t`Logs`}>
+        <EmptyState icon="server" title={t`These logs can't be read now`}>
+          <p>{sentence(sources.error)}</p>
+        </EmptyState>
+      </section>
     );
   }
   if (deployGone) {

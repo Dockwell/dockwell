@@ -36,7 +36,7 @@ export interface StreamState {
 const START: StreamState = { status: "connecting", caughtUp: false, sources: new Map(), servers: new Map() };
 
 /** Failures that trying again won't fix, as what was asked for stays as it is. */
-function final(err: ConnectError): boolean {
+export function final(err: ConnectError): boolean {
   return err.code === Code.PermissionDenied || err.code === Code.NotFound || err.code === Code.InvalidArgument;
 }
 

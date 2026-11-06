@@ -11,7 +11,7 @@ import {
   ServerContainerSchema,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -193,6 +193,61 @@ describe("a container's page", () => {
     expect(screen.getByText("shop")).toBeVisible();
     expect(screen.queryByRole("button", { name: /restart|stop|deploy/i })).toBeNull();
     await vi.waitFor(() => expect(asked).toContainEqual({ id: "legacy-api", server: "srv_1" }));
+  });
+
+  it("drops what it last read once the server stops answering, and says why", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let offline = false;
+    renderContainer("/servers/srv_1/containers/legacy-api", {
+      containers: {
+        listContainers: () => {
+          if (offline) throw new ConnectError("the agent on hz-1 isn't connected", Code.Unavailable);
+          return answer({ containers: [container("legacy-api")] });
+        },
+      },
+      logs: {
+        listLogSources: () => ({}),
+        async *watchLogs() {
+          yield { caughtUp: true };
+        },
+      },
+    });
+    expect(await screen.findByText("Up 3 hours")).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "legacy-api" }).parentElement).toHaveTextContent("Running");
+
+    offline = true;
+    await act(() => vi.advanceTimersByTimeAsync(16_000));
+    const panel = await screen.findByRole("region", { name: "What Docker says of it" });
+    expect(within(panel).getByText(/isn't connected/)).toBeVisible();
+    expect(screen.queryByText("Up 3 hours")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "legacy-api" }).parentElement).not.toHaveTextContent(
+      "Running",
+    );
+  });
+
+  it("says why its logs can't be read while its server is away, and reads them once it's back", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let offline = true;
+    renderContainer("/servers/srv_1/containers/legacy-api", {
+      containers: { listContainers: () => answer({ containers: [container("legacy-api")] }) },
+      logs: {
+        listLogSources: () => {
+          if (offline) throw new ConnectError("the agent on hz-1 isn't connected", Code.Unavailable);
+          return {};
+        },
+        async *watchLogs() {
+          yield { caughtUp: true };
+        },
+      },
+    });
+    const logs = await screen.findByRole("region", { name: "Logs" });
+    expect(within(logs).getByText("These logs can't be read now")).toBeVisible();
+    expect(within(logs).getByText(/isn't connected/)).toBeVisible();
+    expect(screen.queryByText("Reading logs")).toBeNull();
+
+    offline = false;
+    await act(() => vi.advanceTimersByTimeAsync(6_000));
+    await vi.waitFor(() => expect(screen.queryByText("These logs can't be read now")).toBeNull());
   });
 
   it("says when it has gone", async () => {
