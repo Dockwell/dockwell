@@ -5557,6 +5557,14 @@ msgid "That would leave you no way to sign in. Add another passkey or an authent
 msgstr "这样你将无法登录。请先添加另一个通行密钥或身份验证器应用。"
 
 #: src/features/changes/words.ts
+msgid "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "{leadsTo} 网络 {path}，它可绕过服务器的防火墙，已在服务器上，服务在其中以自身名称和 {detail} 响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
+
+#: src/features/changes/words.ts
+msgid "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "{leadsTo} 网络 {path}，它可绕过服务器的防火墙，已在服务器上，服务在其中以自身名称响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
+
+#: src/features/changes/words.ts
 msgid "the {type} mount {at} ({reads})"
 msgstr "{type} 挂载 {at}（{reads}）"
 
