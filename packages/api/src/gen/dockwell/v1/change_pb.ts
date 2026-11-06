@@ -687,7 +687,9 @@ export type UncheckedServer = Message<"dockwell.v1.UncheckedServer"> & {
    * drift is checked once it reconnects; "agent_timeout"; "no_driver";
    * "agent_outdated" for an agent from before a command could name a value,
    * which would read one's command with its values written in, so it reads
-   * nothing that names one until it is updated; or "agent_failed".
+   * nothing that names one until it is updated; "spec_unreadable" for a stored spec
+   * of what it runs that isn't sealed or can't be opened, which says what to do; or
+   * "agent_failed".
    *
    * @generated from field: string reason = 3;
    */

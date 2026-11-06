@@ -490,6 +490,7 @@ func (h *Handler) ListDrift(ctx context.Context, req *connect.Request[dockwellv1
 	for i, s := range servers {
 		if err := results[i].err; err != nil {
 			reason, _ := serverReason(err)
+			h.logUnreadable(ctx, err)
 			res.UncheckedServers = append(res.UncheckedServers, &dockwellv1.UncheckedServer{
 				ServerId: s, ServerName: names[s], Reason: reason, Message: err.Error(),
 			})
@@ -958,6 +959,7 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 		}
 		return cerr
 	}
+	h.logUnreadable(ctx, err)
 	for _, c := range codes {
 		if errors.Is(err, c.err) {
 			return authapi.ReasonError(c.code, err, c.reason)
@@ -972,6 +974,15 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	}
 	h.logger.ErrorContext(ctx, "change call failed", slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
+}
+
+// logUnreadable puts a stored spec Dockwell won't read in the log, as what reads it
+// here says so to its caller and nothing else would: it's the operator's to fix, and
+// it's the one failure of this API that says the database itself is wrong.
+func (h *Handler) logUnreadable(ctx context.Context, err error) {
+	if errors.Is(err, secrets.ErrUnsealed) || errors.Is(err, secrets.ErrOpen) {
+		h.logger.ErrorContext(ctx, "can't read a stored spec", slog.String("error", err.Error()))
+	}
 }
 
 // serverReason says why one server couldn't answer, as an error's reason

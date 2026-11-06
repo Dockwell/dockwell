@@ -1106,13 +1106,29 @@ func testDriftReportsEachServerItCantCheck(t *testing.T, backend store.Backend) 
 // A row Dockwell won't read costs the server that runs it, not the fleet: a build
 // from main between the Docker driver and sealing could leave one, and the last check
 // of #70 had drift fail for every server on it, with "try again". What reads the row
-// says which it is and what to do.
+// says which it is and what to do, and the log has it too, as the review of #137 found
+// the refusal had taken it out. A row that can't be opened goes the same way.
 func TestARowItWontReadCostsOneServersDrift(t *testing.T) {
-	storetest.Each(t, testARowItWontReadCostsOneServersDrift)
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		t.Run("not sealed", func(t *testing.T) {
+			spec := `x'0a0a'`
+			if backend == store.Postgres {
+				spec = `'\x0a0a'`
+			}
+			testARowItWontReadCostsOneServersDrift(t, backend, func(string) string { return spec },
+				"Restore the database from a backup. On a development install, start again with an empty data directory")
+		})
+		t.Run("sealed for another row", func(t *testing.T) {
+			testARowItWontReadCostsOneServersDrift(t, backend, func(other string) string {
+				return `(SELECT r.spec FROM revisions r WHERE r.resource_id IN (SELECT id FROM resources WHERE scope = '` + other + `' AND kind = 'container'))`
+			}, "Restore the database and the key file from the same backup")
+		})
+	})
 }
 
-func testARowItWontReadCostsOneServersDrift(t *testing.T, backend store.Backend) {
-	f := startFull(t, backend, nil)
+func testARowItWontReadCostsOneServersDrift(t *testing.T, backend store.Backend, spec func(other string) string, fix string) {
+	logs := &syncBuffer{}
+	f := startFullLogging(t, backend, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelError})))
 	b := signedIn(t, f)
 	hz1 := f.addServer(t, true)
 	hz2 := f.addNamedServer(t, "hz-2", true)
@@ -1127,14 +1143,13 @@ func testARowItWontReadCostsOneServersDrift(t *testing.T, backend store.Backend)
 	got.Image = "nginx:hand-edit"
 	_ = hz1.docker.Run(t.Context(), container.Target{Name: "web"}, got, resource.Decision{})
 
-	spec, drop := `x'0a0a'`, `DROP TRIGGER revisions_never_change`
+	drop := `DROP TRIGGER revisions_never_change`
 	if backend == store.Postgres {
-		spec, drop = `'\x0a0a'`, drop+` ON revisions`
+		drop += ` ON revisions`
 	}
 	storetest.Exec(t, f.db, drop)
-	storetest.Exec(t, f.db, `UPDATE revisions SET spec = `+spec+` WHERE resource_id IN (SELECT id FROM resources WHERE scope = '`+hz2.id.ServerID+`' AND kind = 'container')`)
+	storetest.Exec(t, f.db, `UPDATE revisions SET spec = `+spec(hz1.id.ServerID)+` WHERE resource_id IN (SELECT id FROM resources WHERE scope = '`+hz2.id.ServerID+`' AND kind = 'container')`)
 
-	const fix = "Restore the database from a backup. On a development install, start again with an empty data directory"
 	res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
 	if err != nil {
 		t.Fatalf("ListDrift with a row it won't read on one server = %v, want the others' drift", err)
@@ -1146,9 +1161,16 @@ func testARowItWontReadCostsOneServersDrift(t *testing.T, backend store.Backend)
 	if len(u) != 1 || u[0].GetServerName() != "hz-2" || u[0].GetReason() != "spec_unreadable" || !strings.Contains(u[0].GetMessage(), fix) {
 		t.Errorf("unchecked servers = %v, want hz-2, saying what to do", u)
 	}
+	if !strings.Contains(logs.String(), fix) {
+		t.Errorf("after drift, the log doesn't say what to do: %s", logs.String())
+	}
+	seen := len(logs.String())
 	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Change web", Edits: []*dockwellv1.Edit{on("hz-2")}}))
 	if err == nil || !strings.Contains(err.Error(), fix) || connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Errorf("planning from that row = %v, want it refused, saying what to do", err)
+	}
+	if !strings.Contains(logs.String()[seen:], fix) {
+		t.Errorf("after planning, the log doesn't say what to do: %s", logs.String()[seen:])
 	}
 }
 
