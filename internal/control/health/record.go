@@ -93,6 +93,9 @@ type track struct {
 	// wasGood says which way it last stood, of good and bad, for counting flips:
 	// a state that says neither, as an agent that can't say, doesn't count.
 	wasGood, stood bool
+	// goodIn is the container it last stood well in, by its ID in Docker: empty
+	// where its agent is too old to say.
+	goodIn string
 	// flips is when it went between good and bad, within FlapWindow.
 	flips []time.Time
 	// badState and badOutput are the last bad state, and what it said, as what a
@@ -101,6 +104,9 @@ type track struct {
 	badOutput string
 	// flap is the event of one that keeps changing, while it does.
 	flap *flap
+	// settled says it has stopped changing, and the timeline hasn't heard how it
+	// ended up, which its event may have said already, as what it kept falling to.
+	settled bool
 }
 
 // flap is the one event that stands for a service that keeps changing.
@@ -138,18 +144,18 @@ func (r *Recorder) Heard(server string, instances []*dockwellv1.InstanceHealth) 
 			t = &track{state: dockwellv1.HealthState_HEALTH_STATE_UNSPECIFIED, since: now}
 			r.tracked[k] = t
 		}
-		t.see(Best(list), lastOutput(list), now)
+		t.see(Best(list), lastOutput(list), bestContainer(list), now)
 	}
 	// A service with no container left doesn't run, if it is there at all, which
 	// recording it finds out.
 	for k, t := range r.tracked {
 		if k.server == server && byService[k] == nil {
-			t.see(dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, "the service has no container on this server", now)
+			t.see(dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, "the service has no container on this server", "", now)
 		}
 	}
 }
 
-func (t *track) see(state dockwellv1.HealthState, output string, now time.Time) {
+func (t *track) see(state dockwellv1.HealthState, output, container string, now time.Time) {
 	if output != "" {
 		t.output = output
 	}
@@ -157,10 +163,17 @@ func (t *track) see(state dockwellv1.HealthState, output string, now time.Time) 
 		t.badState, t.badOutput = state, output
 	}
 	if t.state == state {
+		if good(state) {
+			t.goodIn = container
+		}
 		return
 	}
 	if good(state) || bad(state) {
-		if t.stood && t.wasGood != good(state) {
+		switch {
+		case !t.stood || t.wasGood == good(state):
+		case good(state) && t.replaced(container):
+			t.forgetFall()
+		default:
 			t.flips = append(t.flips, now)
 			if over := len(t.flips) - flipsKept; over > 0 {
 				t.flips = slices.Delete(t.flips, 0, over)
@@ -170,8 +183,29 @@ func (t *track) see(state dockwellv1.HealthState, output string, now time.Time) 
 			}
 		}
 		t.stood, t.wasGood = true, good(state)
+		if good(state) {
+			t.goodIn = container
+		}
 	}
 	t.state, t.since = state, now
+}
+
+// replaced reports that it stands well in another container than it last did.
+// What keeps going down and coming back does so in one container: Docker restarts
+// that. So this is a deploy or a restart that stopped what ran first, and a gap a
+// scan happened to catch isn't it changing, however often someone deploys.
+func (t *track) replaced(container string) bool {
+	return t.goodIn != "" && container != "" && container != t.goodIn
+}
+
+// forgetFall takes back the flip of a fall that a replace explains.
+func (t *track) forgetFall() {
+	if len(t.flips) > 0 {
+		t.flips = t.flips[:len(t.flips)-1]
+	}
+	if t.flap != nil && t.flap.flips > 0 {
+		t.flap.flips--
+	}
 }
 
 // good is a state that isn't news when it stays; bad is one that is. A check that
@@ -183,6 +217,17 @@ func good(s dockwellv1.HealthState) bool {
 func bad(s dockwellv1.HealthState) bool {
 	return s == dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY || s == dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING ||
 		s == dockwellv1.HealthState_HEALTH_STATE_PAUSED
+}
+
+// bestContainer is the container that says how the service is, by its ID.
+func bestContainer(list []*dockwellv1.InstanceHealth) string {
+	best := Best(list)
+	for _, i := range list {
+		if i.GetState() == best {
+			return i.GetContainerId()
+		}
+	}
+	return ""
 }
 
 func lastOutput(list []*dockwellv1.InstanceHealth) string {
@@ -351,6 +396,7 @@ func (r *Recorder) Record(ctx context.Context) {
 			continue
 		}
 		t.told = out[i].told.State
+		t.settled = t.settled && out[i].again
 		switch {
 		case out[i].again && t.flap != nil:
 			t.flap.event, t.flap.told = out[i].event, out[i].told
@@ -396,7 +442,7 @@ func (t *track) next(now time.Time) (due, bool) {
 			return due{event: t.flap.event, told: told, again: true}, true
 		}
 		// It has stayed one way long enough to have stopped changing.
-		t.flap = nil
+		t.flap, t.settled = nil, true
 	}
 	if recent >= flapsToTell {
 		since := t.flips[len(t.flips)-recent]
@@ -408,7 +454,7 @@ func (t *track) next(now time.Time) (due, bool) {
 	if now.Sub(t.since) < Dwell {
 		return due{}, false
 	}
-	if bad(t.state) && t.state != t.told || good(t.state) && bad(t.told) {
+	if bad(t.state) && (t.state != t.told || t.settled) || good(t.state) && bad(t.told) {
 		since := t.since
 		return due{told: Told{State: t.state, Previous: t.told, Output: t.output, Since: &since}}, true
 	}

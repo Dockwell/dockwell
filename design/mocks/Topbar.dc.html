@@ -34,6 +34,15 @@ body{margin:0}
 <sc-if value="{{fleet}}" hint-placeholder-val="{{false}}">
 <x-import component-from-global-scope="Dockwell.ScopeBar" org="Acme" project="storefront" environment="production" protected="{{true}}"></x-import>
 </sc-if>
+<sc-if value="{{unknown}}" hint-placeholder-val="{{false}}">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="unknown" label="Unknown"></x-import>
+</sc-if>
+<sc-if value="{{offline}}" hint-placeholder-val="{{false}}">
+<span role="status" style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);"><span style="display: flex; color: var(--unknown);"><x-import component-from-global-scope="Dockwell.Glyph" shape="dashed-ring"></x-import></span>You're offline</span>
+</sc-if>
+<sc-if value="{{docker}}" hint-placeholder-val="{{false}}">
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="degraded" label="1 can't read Docker"></x-import>
+</sc-if>
 <div style="flex: 1 1 24px;"></div>
 <a href="Global-CommandBar.dc.html" class="dw-btn dw-btn-secondary dw-btn-md" style="width: 300px; max-width: 100%; justify-content: flex-start; color: var(--ink-muted); font-weight: 450; text-decoration: none;">
 <x-import component-from-global-scope="Dockwell.Icon" name="search" size="{{16}}"></x-import>
@@ -48,11 +57,16 @@ body{margin:0}
 <a href="Apps-New.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>New</span></a>
 </header>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"mode":{"editor":"enum","options":["single","solo","fleet"],"default":"single"},"servers":{"editor":"text","default":"2"},"$preview":{"width":1208,"height":52}}'>
+<script type="text/x-dc" data-dc-script data-props='{"mode":{"editor":"enum","options":["single","solo","fleet"],"default":"single"},"servers":{"editor":"text","default":"2"},"reads":{"editor":"enum","options":["well","unknown","offline","docker"],"default":"well"},"$preview":{"width":1208,"height":52}}'>
 class Component extends DCLogic {
   renderVals() {
     const mode = this.props.mode ?? 'single';
-    return { fleet: mode === 'fleet', solo: mode === 'solo', single: mode === 'single', servers: this.props.servers ?? '2' };
+    // What the bar says of the servers where it can't vouch for them, past what the scope shows.
+    const reads = this.props.reads ?? 'well';
+    return {
+      fleet: mode === 'fleet', solo: mode === 'solo', single: mode === 'single', servers: this.props.servers ?? '2',
+      unknown: reads === 'unknown', offline: reads === 'offline', docker: reads === 'docker'
+    };
   }
 }
 </script>

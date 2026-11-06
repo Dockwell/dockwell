@@ -12,7 +12,7 @@ make mock-snapshots ONLY="Overview-Single"   # just the artboards named, or whos
 
 The snapshot script starts the viewer on a free port and drives the system Chromium at `/usr/bin/chromium` through `playwright-core`. Set `CHROMIUM_PATH` to use another Chrome or Chromium; no browser is downloaded. It also takes `--theme light|dark`, `--out <dir>` and `--jobs <n>` when you run it with `pnpm --filter @dockwell/mockview snapshots -- …`. It fails when an artboard logs an error or a warning, throws, or reports a problem. Git ignores the PNGs.
 
-`make check` runs `src/mocks.test.tsx`, which renders all 81 artboards in both themes in jsdom and fails on any problem, error or warning.
+`make check` runs `src/mocks.test.tsx`, which renders all 84 artboards in both themes in jsdom and fails on any problem, error or warning.
 
 ## How it reads the format
 

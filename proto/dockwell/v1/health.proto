@@ -119,6 +119,9 @@ message InstanceHealth {
   google.protobuf.Timestamp confirmed_at = 10;
   // How old that may be and the state still stand. Past it, nobody can say.
   google.protobuf.Duration good_for = 11;
+  // Its ID in Docker. A replace can keep a container's name and number, and only
+  // this says it's another container. Empty from an older agent.
+  string container_id = 12;
 }
 
 // HealthResult is one check's result.

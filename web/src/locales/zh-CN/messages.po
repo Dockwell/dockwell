@@ -178,7 +178,7 @@ msgstr "{0} 项替换"
 #. placeholder {0}: s.replace
 #: src/features/activity/describe.ts
 msgid "{0} to restart"
-msgstr "{0} 项重启"
+msgstr "{0} 项待重启"
 
 #. placeholder {0}: s.change
 #: src/features/activity/describe.ts
@@ -229,7 +229,7 @@ msgstr "{count, plural, other {# 台服务器}}"
 
 #: src/features/activity/describe.ts
 msgid "{count, plural, one {It changed once in {span}.} other {It changed # times in {span}.}}"
-msgstr "{count, plural, other {在 {span} 内变化了 # 次。}}"
+msgstr "{count, plural, other {在 {span}内变化了 # 次。}}"
 
 #: src/features/activity/describe.ts
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
@@ -327,6 +327,10 @@ msgstr "无法搜索 {first}"
 #: src/features/servers/ServerMetrics.tsx
 msgid "{free} free"
 msgstr "可用 {free}"
+
+#: src/features/apps/AppsPage.tsx
+msgid "{later}. Show them first puts them at the top of the list."
+msgstr "{later}。“优先显示”会把它们移到列表顶部。"
 
 #: src/features/auth/ProfilePage.tsx
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
@@ -595,6 +599,10 @@ msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后�
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里，这可能损坏数据库。只有在应用能够承受时才应用此计划。"
 
+#: src/features/apps/AppsPage.tsx
+msgid "{needing, plural, one {# needs a look} other {# need a look}}"
+msgstr "{needing, plural, other {# 个需要查看}}"
+
 #: src/features/changes/words.ts
 msgid "{networks, plural, one {a network} other {# networks}}"
 msgstr "{networks, plural, other {# 个网络}}"
@@ -785,10 +793,6 @@ msgstr "{subject} 已替换"
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
-
-#: src/features/apps/AppsPage.tsx
-msgid "{trouble, plural, one {# needs a look} other {# need a look}}"
-msgstr "{trouble, plural, other {# 个需要查看}}"
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."

@@ -465,7 +465,8 @@
   color: var(--ink-muted);
 }
 
-.apps-phone-head .apps-new {
+.apps-phone-head .apps-new,
+.apps-phone-head .apps-show-first {
   flex: none;
   height: 44px;
 }

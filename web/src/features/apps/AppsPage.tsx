@@ -262,7 +262,8 @@ export function AppsPage({
   }, [all]);
   const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM;
   const elsewhere = count - shown.length;
-  const { lead, total, going } = useLead(shown, environment ? places.label(environment) : "", health);
+  const { lead, total, going, trouble, needing } = useLead(shown, environment ? places.label(environment) : "", health);
+  const later = useLaterTrouble(needing, trouble, settled);
   const showFirst = outOfPlace ? (
     <Button variant="ghost" size="sm" className="apps-show-first" onClick={bringUp}>
       <Trans>Show them first</Trans>
@@ -431,13 +432,17 @@ export function AppsPage({
                 <>
                   <span>{total}</span>
                   {going ? <span className="apps-phone-trouble">{going}</span> : null}
-                  {showFirst}
                 </>
               )}
             </h2>
+            {pending ? null : showFirst}
             {pending ? null : newApp}
           </div>
         ) : null}
+        {/* What goes wrong later moves nothing on the screen, so someone not looking at it has to be told. */}
+        <p className="dw-sr" aria-live="polite">
+          {later && outOfPlace ? t`${later}. Show them first puts them at the top of the list.` : later}
+        </p>
         {health.unread && !pending && count > 0 ? (
           <UnreadNote why={health.unread.why} heard={health.unread.heard} />
         ) : null}
@@ -478,7 +483,7 @@ function useLead(
   services: readonly ServiceInfo[],
   where: string,
   health: HealthView,
-): { lead: string; total: string; going: string } {
+): { lead: string; total: string; going: string; trouble: string; needing: number } {
   const { servers } = useFleetView();
   const { t } = useLingui();
   const count = services.length;
@@ -486,19 +491,32 @@ function useLead(
     ? plural(count, { one: `# app in ${where}`, other: `# apps in ${where}` })
     : plural(count, { one: "# app", other: "# apps" });
   let moving = 0;
-  let trouble = 0;
+  let needing = 0;
   for (const s of services) {
     const state = appState(s, servers);
     if (state.kind === "deploying") moving++;
-    else if (needsALook(state) || healthNeedsALook(health.of(s))) trouble++;
+    else if (needsALook(state) || healthNeedsALook(health.of(s))) needing++;
   }
-  const going = [
-    trouble > 0 ? plural(trouble, { one: "# needs a look", other: "# need a look" }) : "",
-    moving > 0 ? t`${moving} deploying` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return { lead: going ? `${total} · ${going}` : total, total, going };
+  const trouble = needing > 0 ? plural(needing, { one: "# needs a look", other: "# need a look" }) : "";
+  const going = [trouble, moving > 0 ? t`${moving} deploying` : ""].filter(Boolean).join(" · ");
+  return { lead: going ? `${total} · ${going}` : total, total, going, trouble, needing };
+}
+
+/**
+ * What to tell someone who isn't looking at the list, in words, once more of it
+ * needs a look than when they last heard. The first read isn't news, as the page
+ * says that as it loads, and nothing is said again until there's more to say.
+ */
+function useLaterTrouble(needing: number, trouble: string, settled: boolean): string {
+  const [told, setTold] = useState("");
+  const known = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!settled) return;
+    if (known.current !== undefined && needing > known.current) setTold(trouble);
+    if (needing === 0) setTold("");
+    known.current = needing;
+  }, [needing, trouble, settled]);
+  return told;
 }
 
 /**

@@ -469,6 +469,122 @@ func TestAFlappingServiceDoesntFlood(t *testing.T) {
 	})
 }
 
+// A deploy or a restart that stops what ran first leaves a gap a scan can catch.
+// Going down and coming back in one container is what keeps changing means: coming
+// back in another is someone replacing it, so however often that happens it isn't
+// news, and a crash soon after one is told as the crash it is.
+func TestAReplaceIsntAServiceChanging(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		w := newWorld(t, b)
+		start := time.Unix(1_800_000_000, 0)
+		c := &clock{now: start}
+		r := w.newRecorder(c)
+		say := func(state dockwellv1.HealthState, container string) {
+			i := w.instance("web", 1, state, "")
+			i.ContainerId = container
+			r.Heard("srv_A", []*dockwellv1.InstanceHealth{i})
+			r.Record(t.Context())
+		}
+		wait := func(d time.Duration) {
+			for end := c.now.Add(d); c.now.Before(end); {
+				c.tick(5 * time.Second)
+				r.Record(t.Context())
+			}
+		}
+		say(healthy, "aaa")
+		// Two restarts a minute apart, with a scan in each gap.
+		wait(time.Minute)
+		say(notRunning, "aaa")
+		wait(5 * time.Second)
+		say(healthy, "bbb")
+		wait(time.Minute)
+		say(notRunning, "bbb")
+		wait(5 * time.Second)
+		say(healthy, "ccc")
+		wait(time.Minute)
+		if got := w.events(t); len(got) != 0 {
+			t.Fatalf("two restarts a minute apart made %+v, want nothing", got)
+		}
+		// A crash two minutes on is news, from when it happened.
+		crashed := c.now
+		say(notRunning, "ccc")
+		wait(Dwell + 5*time.Second)
+		got := w.events(t)
+		if len(got) != 1 || got[0].State != notRunning || got[0].Flips != 0 || got[0].Since == nil || !got[0].Since.Equal(crashed) {
+			t.Errorf("a crash after two restarts made %+v, want it not running since %s, and no count of changes", got, crashed)
+		}
+	})
+}
+
+// Going down and coming back in one container is what a service that keeps changing
+// does, whatever its agent says of it, and an older agent, which says no ID, counts
+// as it did.
+func TestAFlapInOneContainerStillCounts(t *testing.T) {
+	for _, container := range []string{"aaa", ""} {
+		t.Run("container "+container, func(t *testing.T) {
+			w := newWorld(t, store.SQLite)
+			c := &clock{now: time.Unix(1_800_000_000, 0)}
+			r := w.newRecorder(c)
+			say := func(state dockwellv1.HealthState) {
+				i := w.instance("web", 1, state, "")
+				i.ContainerId = container
+				r.Heard("srv_A", []*dockwellv1.InstanceHealth{i})
+				c.tick(5 * time.Second)
+				r.Record(t.Context())
+			}
+			say(healthy)
+			say(notRunning)
+			say(healthy)
+			say(notRunning)
+			if got := w.events(t); len(got) != 1 || got[0].Flips != 3 {
+				t.Errorf("down and back in one container made %+v, want one event of 3 changes", got)
+			}
+		})
+	}
+}
+
+// Once it has stopped changing, how it ended up is told, as that's what is so now.
+// One that ended up down had an event saying it keeps changing, with not running as
+// what it kept falling to, and that stayed its last word.
+func TestAFlapThatEndsDownSaysSo(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		w := newWorld(t, b)
+		c := &clock{now: time.Unix(1_800_000_000, 0)}
+		r := w.newRecorder(c)
+		say := func(state dockwellv1.HealthState) {
+			r.Heard("srv_A", []*dockwellv1.InstanceHealth{w.instance("web", 1, state, "")})
+			c.tick(5 * time.Second)
+			r.Record(t.Context())
+		}
+		say(healthy)
+		say(notRunning)
+		say(healthy)
+		say(notRunning)
+		got := w.events(t)
+		if len(got) != 1 || got[0].Flips != 3 {
+			t.Fatalf("flapping made %+v", got)
+		}
+		down := *got[0].Since
+		for range 2 * FlapWindow / (5 * time.Second) {
+			say(notRunning)
+		}
+		got = w.events(t)
+		if len(got) != 2 || got[1].State != notRunning || got[1].Flips != 0 {
+			t.Fatalf("after it stayed down, the timeline has %+v, want it told as not running, and no longer changing", got)
+		}
+		if !got[1].Since.After(down) {
+			t.Errorf("it says it has been down since %s, which is when it began to change", got[1].Since)
+		}
+		// And that's said once.
+		for range 2 * FlapWindow / (5 * time.Second) {
+			say(notRunning)
+		}
+		if got = w.events(t); len(got) != 2 {
+			t.Errorf("staying down made %+v", got)
+		}
+	})
+}
+
 // An event is dated when its state came about, as well as Dwell lets the timeline
 // know, however soon after the last it comes: an outage soon after a recovery
 // reaches the timeline once it has lasted, not minutes later.
