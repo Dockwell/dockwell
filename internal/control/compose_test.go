@@ -5,6 +5,7 @@ package control
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -32,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -1043,7 +1045,8 @@ func testUndoPutsAVolumeBackWhereItRan(t *testing.T, backend store.Backend) {
 
 	t.Run("a move that fails", func(t *testing.T) {
 		applyConfirmed(t, c, propose(t, edit("failed", cifs("//nas/share", there+password), "hz-1")))
-		// hz-1 lets go of it first, so the rollback has something to put back.
+		// Builds run before deletes, so hz-2 fails while hz-1 still has it, and the rollback
+		// has only its record to put back.
 		engines["hz-2"].Intercept(func(r *http.Request) error {
 			if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/volumes/create") {
 				return errors.New("no space left on device")
@@ -1076,6 +1079,80 @@ func testUndoPutsAVolumeBackWhereItRan(t *testing.T, backend store.Backend) {
 			t.Errorf("hz-1 has %+v after the rollback", engines["hz-1"].Volume(name("failed")))
 		}
 	})
+}
+
+// An undo can send a volume's password to a server it left because that server keeps
+// the volume for 7 days, as long as an undo is open (ADR 0022). The window was read
+// only as an undo was proposed, so one left planned could be applied weeks on, when
+// hz-2 had pruned its copy. Applying plans again first, so hz-2 heard a password it no
+// longer held, and only then was it refused. The review of #150 found this.
+func TestAPlannedUndoCantOutliveItsWindow(t *testing.T) {
+	storetest.Each(t, testAPlannedUndoCantOutliveItsWindow)
+}
+
+func testAPlannedUndoCantOutliveItsWindow(t *testing.T, backend store.Backend) {
+	const password, there = "cifs-pw-2Lk9sDf4Gh7Jm3Np", "addr=10.0.0.2,username=svc,password="
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	f.addServerNamed(t, "hz-1", nil, nil)
+	one := f.lastDocker.id.ServerID
+	heard := &planHeard{}
+	f.volumes = func(d *volume.Driver) resource.Type {
+		heard.Driver = d
+		return heard
+	}
+	hz2 := f.addServerNamed(t, "hz-2", nil, nil)
+	f.volumes = nil
+	two := f.lastDocker.id.ServerID
+	c := changeClient(b, b.origin)
+	edit := func(options map[string]string, servers ...string) *dockwellv1.ProposeChangeRequest {
+		return &dockwellv1.ProposeChangeRequest{Summary: "Share", Edits: []*dockwellv1.Edit{{
+			Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "share"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: options}}},
+			Servers:  servers,
+		}}}
+	}
+	made, err := c.ProposeChange(t.Context(), connect.NewRequest(edit(map[string]string{"type": "cifs", "device": "//nas/share", "o": there + password}, one, two)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, made.Msg.GetChange())
+	off, err := c.ProposeChange(t.Context(), connect.NewRequest(edit(nil, one)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, off.Msg.GetChange())
+
+	script := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	tc := dockwellv1connect.NewChangeServiceClient(script, b.origin, connect.WithProtoJSON())
+	planned, err := tc.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: off.Msg.GetChange().GetId()}))
+	if err != nil {
+		t.Fatalf("a token's undo, within the window = %v, want it planned", err)
+	}
+	back := planned.Msg.GetChange()
+
+	// Its 7 days go by, and hz-2 prunes what it kept.
+	storetest.Exec(t, f.db, fmt.Sprintf("UPDATE changes SET applied_at = applied_at - %d WHERE id = '%s'",
+		(revision.UndoWindow+time.Hour).Milliseconds(), off.Msg.GetChange().GetId()))
+	name := docker.Project(listedEnv(t, b)) + "_share"
+	if err := hz2.Client().RemoveVolume(t.Context(), name); err != nil {
+		t.Fatal(err)
+	}
+	// What it reaches on hz-2 is a person's to approve, so a token gets no further.
+	before := len(heard.options())
+	if _, err := tc.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: back.GetId(), Fingerprint: back.GetPlan().GetFingerprint()})); reasonOf(err) != "needs_session" {
+		t.Errorf("a token applying it = %v, want a person to", err)
+	}
+	_, err = c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: back.GetId(), Fingerprint: back.GetPlan().GetFingerprint()}))
+	if brought := heard.options()[before:]; slices.ContainsFunc(brought, func(o string) bool { return strings.Contains(o, password) }) {
+		t.Errorf("hz-2 no longer holds the password, and a plan call brought it: %q", brought)
+	}
+	if reasonOf(err) != "cant_undo" || !strings.Contains(err.Error(), "changes can be undone for 7 days") {
+		t.Errorf("applying the undo past its window = %v, want it refused, saying so", err)
+	}
+	if got := hz2.Volume(name); got != nil {
+		t.Errorf("hz-2 has %+v", got)
+	}
 }
 
 // Someone remakes a volume by hand with a new password, and drift shows it. Adopting
@@ -1227,6 +1304,78 @@ func testAdoptingAVolumeAsksItsOtherServersFirst(t *testing.T, backend store.Bac
 	}
 	if got := left.Msg.GetDrift(); len(got) != 0 {
 		t.Errorf("after adopting it, drift = %v", got)
+	}
+}
+
+// A server that's away can't say what it has, so an adopt waits for it. One removed
+// from the fleet will never say, and nothing runs on it any more, so it has no part in
+// this. Its placement outlives it, so it read as away for good, and the volume's
+// drift could never be adopted. The review of #150 found this.
+func TestAdoptingAVolumeLeavesARemovedServerOut(t *testing.T) {
+	storetest.Each(t, testAdoptingAVolumeLeavesARemovedServerOut)
+}
+
+func testAdoptingAVolumeLeavesARemovedServerOut(t *testing.T, backend store.Backend) {
+	const first, second = "addr=10.0.0.2,username=svc,password=first-pw-5Tn2", "addr=10.0.0.2,username=svc,password=rotated-pw-2Vb8"
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	one := f.addServerNamed(t, "hz-1", nil, nil)
+	oneID := f.lastDocker.id.ServerID
+	f.addServerNamed(t, "hz-2", nil, nil)
+	hz2 := f.lastDocker
+	twoID := hz2.id.ServerID
+	c := changeClient(b, b.origin)
+	res, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Share", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "share"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: map[string]string{"type": "cifs", "device": "//nas/share", "o": first}}}},
+		Servers:  []string{oneID, twoID},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, res.Msg.GetChange())
+
+	name := docker.Project(listedEnv(t, b)) + "_share"
+	v := *one.Volume(name)
+	v.Options = maps.Clone(v.Options)
+	v.Options["o"] = second
+	one.AddVolume(v)
+	drift := func() []*dockwellv1.Drift {
+		t.Helper()
+		res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetDrift()
+	}
+	adopt := func() (*dockwellv1.Change, error) {
+		t.Helper()
+		found := drift()
+		if len(found) != 1 || found[0].GetServerId() != oneID {
+			t.Fatalf("drift = %v, want the volume on hz-1", found)
+		}
+		res, err := c.AdoptDrift(t.Context(), connect.NewRequest(&dockwellv1.AdoptDriftRequest{ServerId: oneID, ResourceId: found[0].GetResourceId()}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetChange(), nil
+	}
+
+	hz2.stop()
+	waitConnected(t, f, twoID, false)
+	if _, err := adopt(); err == nil || !strings.Contains(err.Error(), "hz-2 isn't connected") {
+		t.Errorf("adopting while hz-2 is away = %v, want it refused, as hz-2 can't say what it has", err)
+	}
+	if err := f.ident.Revoke(t.Context(), twoID, "cli:test"); err != nil {
+		t.Fatal(err)
+	}
+	adopted, err := adopt()
+	if err != nil {
+		t.Fatalf("adopting with hz-2 removed = %v, want it planned", err)
+	}
+	applyConfirmed(t, c, adopted)
+	if left := drift(); len(left) != 0 {
+		t.Errorf("after adopting it, drift = %v", left)
 	}
 }
 

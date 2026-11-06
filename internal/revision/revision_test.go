@@ -595,6 +595,45 @@ func testUndoHasAWindow(t *testing.T, backend store.Backend) {
 	}
 }
 
+// The window holds as an undo applies, as it does when it's proposed. A rollback a
+// person asks for names the change it reverts as an undo does, and has no time limit.
+func TestAPlannedUndoHasAWindowToo(t *testing.T) { storetest.Each(t, testAPlannedUndoHasAWindowToo) }
+
+func testAPlannedUndoHasAWindowToo(t *testing.T, backend store.Backend) {
+	e, _, db := setup(t, backend, "srv_A")
+	by := By{Actor: "usr_test"}
+	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
+	next := propose(t, e, "Move on", web("nginx:1.28"))
+	apply(t, e, next)
+	undo, err := e.Undo(t.Context(), next.Change, by)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.now = func() time.Time { return time.Now().Add(UndoWindow + time.Hour) }
+	if err := e.Apply(t.Context(), undo.Change); !errors.Is(err, ErrCantUndo) || !strings.Contains(err.Error(), "changes can be undone for 7 days") {
+		t.Errorf("applying an undo past the window = %v, want ErrCantUndo", err)
+	}
+
+	var id string
+	if err := db.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), string(container.Kind), "srv_A", "web")
+		id = r.ID
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	back, err := e.RollBackTo(t.Context(), id, 1, func(store.Resource, proto.Message) (string, []Note) { return "Roll web back", nil }, by)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Reverts != next.Change {
+		t.Fatalf("the rollback reverts %q, want %s, so this proves nothing", back.Reverts, next.Change)
+	}
+	if err := e.Apply(t.Context(), back.Change); err != nil {
+		t.Errorf("applying a rollback past the undo window = %v, want it applied", err)
+	}
+}
+
 func TestProposalsAreChecked(t *testing.T) { storetest.Each(t, testProposalsAreChecked) }
 
 func testProposalsAreChecked(t *testing.T, backend store.Backend) {

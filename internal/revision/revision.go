@@ -2161,6 +2161,9 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		if c.State != store.ChangePlanned {
 			return notPlanned(changeID, c.State)
 		}
+		if err := e.stillUndoable(ctx, tx, c); err != nil {
+			return err
+		}
 		items, err = e.current(ctx, tx, c)
 		return err
 	})
@@ -3372,6 +3375,38 @@ func inFleet(ctx context.Context, tx *store.Tx, ref resource.Ref, resourceID str
 	return out, nil
 }
 
+// withinUndoWindow refuses undoing a change applied more than UndoWindow ago.
+func (e *Engine) withinUndoWindow(c store.Change) error {
+	if age := e.now().Sub(c.AppliedAt); age > UndoWindow {
+		return fault.New(ErrCantUndo, "%s was applied %s ago, and changes can be undone for %s. Edit the resources directly instead",
+			c.ID, days(age), days(UndoWindow))
+	}
+	return nil
+}
+
+// stillUndoable refuses an undo applied past the window it was proposed in. Applying
+// plans again, which sends what it puts back to every server it goes to, and the window
+// is what says they still have that (ADR 0022), so this comes before anything is sent.
+// Reverts alone doesn't make an undo: a rollback a person asks for has it too, and goes
+// back any distance.
+func (e *Engine) stillUndoable(ctx context.Context, tx *store.Tx, c store.Change) error {
+	if c.Reverts == "" {
+		return nil
+	}
+	plan, err := DecodePlan(c.Plan)
+	if err != nil {
+		return err
+	}
+	if plan.RollsBackTo != 0 {
+		return nil
+	}
+	undone, err := tx.GetChange(ctx, c.Reverts)
+	if err != nil {
+		return err
+	}
+	return e.withinUndoWindow(undone)
+}
+
 // Undo plans putting back everything an applied change did. Apply the
 // plan to carry it out.
 func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error) {
@@ -3389,9 +3424,8 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	if c.State != store.ChangeApplied {
 		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", changeID, c.State)
 	}
-	if age := e.now().Sub(c.AppliedAt); age > UndoWindow {
-		return nil, fault.New(ErrCantUndo, "%s was applied %s ago, and changes can be undone for %s. Edit the resources directly instead",
-			changeID, days(age), days(UndoWindow))
+	if err := e.withinUndoWindow(c); err != nil {
+		return nil, err
 	}
 	edits, err := e.reverse(ctx, changeID)
 	if err != nil {
@@ -3506,7 +3540,8 @@ func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 // sends a spec to every server it would run on, before anyone applies it, so that
 // server's agent would hear what the first has, such as a password made by hand, and
 // could only refuse it, as Docker can't change a volume (ADR 0022). Asking each what
-// it has sends it nothing.
+// it has sends it nothing. A server removed from the fleet isn't asked, as nothing runs
+// there any more, and it would read as away for good.
 func (e *Engine) checkSameElsewhere(ctx context.Context, d Drift) error {
 	if _, ok := e.keeper(d.Ref.Kind); !ok || d.Missing {
 		return nil
@@ -3519,7 +3554,7 @@ func (e *Engine) checkSameElsewhere(ctx context.Context, d Drift) error {
 	}); err != nil {
 		return err
 	}
-	others := slices.DeleteFunc(slices.Clone(it.placed), func(s string) bool { return s == d.Server })
+	others := slices.DeleteFunc(it.targets(), func(s string) bool { return s == d.Server })
 	names, err := e.serverNames(ctx, append([]string{d.Server}, others...))
 	if err != nil {
 		return err
