@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeState, ContainerService, type ServerContainer } from "@dockwell/api";
+import { ChangeState, ComposeService, ContainerService, type ServerContainer } from "@dockwell/api";
 import { Button, Icon, Panel, SelectField, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -97,7 +97,17 @@ export function ContainerPage({
         ) : container ? (
           <Facts container={container} />
         ) : null}
-        {container ? <TakeItOn serverId={serverId} container={container} /> : null}
+        {container ? (
+          <TakeItOn
+            serverId={serverId}
+            container={container}
+            inProject={
+              list.data?.containers.filter(
+                (c) => c.composeProject !== "" && c.composeProject === container.composeProject && !c.oneOff,
+              ).length ?? 0
+            }
+          />
+        ) : null}
         <LogsPage id={name} server={serverId} search={search} onSearch={onSearch} />
       </Page>
     </LogsSearchButton>
@@ -109,7 +119,16 @@ export function ContainerPage({
  * and a plan like any other. What it says first is what a person worries about: it
  * doesn't restart, and nothing of its environment shows.
  */
-function TakeItOn({ serverId, container }: { serverId: string; container: ServerContainer }) {
+function TakeItOn({
+  serverId,
+  container,
+  inProject,
+}: {
+  serverId: string;
+  container: ServerContainer;
+  /** How many containers of its Compose project are here, which can be taken on together. */
+  inProject: number;
+}) {
   const { t } = useLingui();
   const transport = useTransport();
   const sheet = useChangeSheet();
@@ -118,6 +137,15 @@ function TakeItOn({ serverId, container }: { serverId: string; container: Server
   const [name, setName] = useState(() => serviceNameFor(container));
   const [environment, setEnvironment] = useState("");
   const chosen = environment || places.defaultEnvironment?.id || "";
+  const project = container.composeProject;
+  const openProject = () =>
+    sheet.open({
+      kind: "plan",
+      make: () => createClient(ComposeService, transport).adoptCompose({ name: project, server: serverId }),
+      onClose: (change) => {
+        if (change?.state === ChangeState.APPLIED) void navigate({ to: "/apps" });
+      },
+    });
   const open = () =>
     sheet.open({
       kind: "plan",
@@ -153,10 +181,15 @@ function TakeItOn({ serverId, container }: { serverId: string; container: Server
             onChange={(event) => setEnvironment(event.target.value)}
           />
         ) : null}
-        <div>
+        <div className="container-take-on-actions">
           <Button onClick={open} disabled={name === ""}>
             <Trans>Plan taking it on</Trans>
           </Button>
+          {inProject > 1 ? (
+            <Button variant="secondary" onClick={openProject}>
+              {t`Plan taking on all ${inProject} of ${project}`}
+            </Button>
+          ) : null}
         </div>
       </div>
     </Panel>

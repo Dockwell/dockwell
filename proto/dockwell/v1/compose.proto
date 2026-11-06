@@ -33,6 +33,21 @@ service ComposeService {
     };
   }
 
+  // AdoptCompose plans taking on a Compose project made elsewhere, whole: each of
+  // its containers on a server becomes a service of a project of its own, as
+  // AdoptContainer takes one on, in one change a person plans and applies, never a
+  // token, as its plan shows what the list of containers leaves out. Nothing about them
+  // changes, and none restarts. They stay on the networks and volumes they have,
+  // which stay Docker's: Dockwell doesn't make or delete them.
+  rpc AdoptCompose(AdoptComposeRequest) returns (AdoptComposeResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/compose:adopt"
+      body: "*"
+    };
+  }
+
   // CheckCompose reads a Compose file as ImportCompose would and says what
   // it would make, or why it can't, without planning anything or recording a
   // change, so a form can check a file as someone types it. It is a POST, as
@@ -55,6 +70,26 @@ service ComposeService {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (google.api.http) = {get: "/v1/compose"};
   }
+}
+
+// AdoptComposeRequest names a Compose project on a server.
+message AdoptComposeRequest {
+  // The Compose project, as its containers' labels name it, such as "shop".
+  string name = 1;
+  // The server it runs on, by name or ID. It can be left out while there is only
+  // one.
+  string server = 2;
+  // The project its services go in, by name or ID, brought to life if it isn't
+  // there. Unset takes one named after it.
+  string project = 3;
+  // The environment its services go in, by name or ID.
+  string environment = 4;
+}
+
+// AdoptComposeResponse carries the plan.
+message AdoptComposeResponse {
+  // The change, planned and not applied.
+  Change change = 1;
 }
 
 // ImportComposeRequest is a Compose file to plan into a project.

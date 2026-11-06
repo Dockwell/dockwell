@@ -5152,6 +5152,10 @@ msgstr "Plan"
 msgid "Plan taking it on"
 msgstr "Plan taking it on"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Plan taking on all {inProject} of {project}"
+msgstr "Plan taking on all {inProject} of {project}"
+
 #: src/features/changes/words.ts
 msgid "Planned"
 msgstr "Planned"

@@ -227,7 +227,8 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
-		imports := composeapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
+		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
+		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, cfg.Store, cfg.Secrets, cfg.Build.Commit, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
@@ -250,7 +251,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 		services = append(services, strings.Trim(path, "/"))
 		guardREST = logs.GuardREST
 		handle(dockwellv1connect.NewHealthServiceHandler(health.New(cfg.Store, cfg.Agents, cfg.Logger), opts...))
-		handle(dockwellv1connect.NewContainerServiceHandler(containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
 	}

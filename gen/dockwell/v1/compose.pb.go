@@ -25,6 +25,127 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// AdoptComposeRequest names a Compose project on a server.
+type AdoptComposeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The Compose project, as its containers' labels name it, such as "shop".
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The server it runs on, by name or ID. It can be left out while there is only
+	// one.
+	Server string `protobuf:"bytes,2,opt,name=server,proto3" json:"server,omitempty"`
+	// The project its services go in, by name or ID, brought to life if it isn't
+	// there. Unset takes one named after it.
+	Project string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment its services go in, by name or ID.
+	Environment   string `protobuf:"bytes,4,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdoptComposeRequest) Reset() {
+	*x = AdoptComposeRequest{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdoptComposeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdoptComposeRequest) ProtoMessage() {}
+
+func (x *AdoptComposeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdoptComposeRequest.ProtoReflect.Descriptor instead.
+func (*AdoptComposeRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *AdoptComposeRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AdoptComposeRequest) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+func (x *AdoptComposeRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *AdoptComposeRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// AdoptComposeResponse carries the plan.
+type AdoptComposeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned and not applied.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdoptComposeResponse) Reset() {
+	*x = AdoptComposeResponse{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdoptComposeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdoptComposeResponse) ProtoMessage() {}
+
+func (x *AdoptComposeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdoptComposeResponse.ProtoReflect.Descriptor instead.
+func (*AdoptComposeResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AdoptComposeResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 // ImportComposeRequest is a Compose file to plan into a project.
 type ImportComposeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -76,7 +197,7 @@ type ImportComposeRequest struct {
 
 func (x *ImportComposeRequest) Reset() {
 	*x = ImportComposeRequest{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[0]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -88,7 +209,7 @@ func (x *ImportComposeRequest) String() string {
 func (*ImportComposeRequest) ProtoMessage() {}
 
 func (x *ImportComposeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[0]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -101,7 +222,7 @@ func (x *ImportComposeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportComposeRequest.ProtoReflect.Descriptor instead.
 func (*ImportComposeRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ImportComposeRequest) GetSummary() string {
@@ -183,7 +304,7 @@ type ImportComposeResponse struct {
 
 func (x *ImportComposeResponse) Reset() {
 	*x = ImportComposeResponse{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[1]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +316,7 @@ func (x *ImportComposeResponse) String() string {
 func (*ImportComposeResponse) ProtoMessage() {}
 
 func (x *ImportComposeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[1]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,7 +329,7 @@ func (x *ImportComposeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportComposeResponse.ProtoReflect.Descriptor instead.
 func (*ImportComposeResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ImportComposeResponse) GetChange() *Change {
@@ -250,7 +371,7 @@ type CheckComposeRequest struct {
 
 func (x *CheckComposeRequest) Reset() {
 	*x = CheckComposeRequest{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[2]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -262,7 +383,7 @@ func (x *CheckComposeRequest) String() string {
 func (*CheckComposeRequest) ProtoMessage() {}
 
 func (x *CheckComposeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[2]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -275,7 +396,7 @@ func (x *CheckComposeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckComposeRequest.ProtoReflect.Descriptor instead.
 func (*CheckComposeRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CheckComposeRequest) GetCompose() string {
@@ -345,7 +466,7 @@ type CheckComposeResponse struct {
 
 func (x *CheckComposeResponse) Reset() {
 	*x = CheckComposeResponse{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[3]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -357,7 +478,7 @@ func (x *CheckComposeResponse) String() string {
 func (*CheckComposeResponse) ProtoMessage() {}
 
 func (x *CheckComposeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[3]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -370,7 +491,7 @@ func (x *CheckComposeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckComposeResponse.ProtoReflect.Descriptor instead.
 func (*CheckComposeResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CheckComposeResponse) GetRefusal() *ComposeRefusal {
@@ -459,7 +580,7 @@ type ExposedVariable struct {
 
 func (x *ExposedVariable) Reset() {
 	*x = ExposedVariable{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[4]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -471,7 +592,7 @@ func (x *ExposedVariable) String() string {
 func (*ExposedVariable) ProtoMessage() {}
 
 func (x *ExposedVariable) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[4]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -484,7 +605,7 @@ func (x *ExposedVariable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExposedVariable.ProtoReflect.Descriptor instead.
 func (*ExposedVariable) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ExposedVariable) GetName() string {
@@ -525,7 +646,7 @@ type ComposeRefusal struct {
 
 func (x *ComposeRefusal) Reset() {
 	*x = ComposeRefusal{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[5]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -537,7 +658,7 @@ func (x *ComposeRefusal) String() string {
 func (*ComposeRefusal) ProtoMessage() {}
 
 func (x *ComposeRefusal) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[5]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -550,7 +671,7 @@ func (x *ComposeRefusal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComposeRefusal.ProtoReflect.Descriptor instead.
 func (*ComposeRefusal) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ComposeRefusal) GetMessage() string {
@@ -587,7 +708,7 @@ type ComposeVariable struct {
 
 func (x *ComposeVariable) Reset() {
 	*x = ComposeVariable{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[6]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -599,7 +720,7 @@ func (x *ComposeVariable) String() string {
 func (*ComposeVariable) ProtoMessage() {}
 
 func (x *ComposeVariable) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[6]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -612,7 +733,7 @@ func (x *ComposeVariable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComposeVariable.ProtoReflect.Descriptor instead.
 func (*ComposeVariable) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ComposeVariable) GetName() string {
@@ -647,7 +768,7 @@ type ExportComposeRequest struct {
 
 func (x *ExportComposeRequest) Reset() {
 	*x = ExportComposeRequest{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[7]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -659,7 +780,7 @@ func (x *ExportComposeRequest) String() string {
 func (*ExportComposeRequest) ProtoMessage() {}
 
 func (x *ExportComposeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[7]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -672,7 +793,7 @@ func (x *ExportComposeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportComposeRequest.ProtoReflect.Descriptor instead.
 func (*ExportComposeRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ExportComposeRequest) GetProject() string {
@@ -715,7 +836,7 @@ type ExportComposeResponse struct {
 
 func (x *ExportComposeResponse) Reset() {
 	*x = ExportComposeResponse{}
-	mi := &file_dockwell_v1_compose_proto_msgTypes[8]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -727,7 +848,7 @@ func (x *ExportComposeResponse) String() string {
 func (*ExportComposeResponse) ProtoMessage() {}
 
 func (x *ExportComposeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_compose_proto_msgTypes[8]
+	mi := &file_dockwell_v1_compose_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -740,7 +861,7 @@ func (x *ExportComposeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportComposeResponse.ProtoReflect.Descriptor instead.
 func (*ExportComposeResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ExportComposeResponse) GetCompose() string {
@@ -761,7 +882,14 @@ var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\x91\x03\n" +
+	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"}\n" +
+	"\x13AdoptComposeRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
+	"\x06server\x18\x02 \x01(\tR\x06server\x12\x18\n" +
+	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x04 \x01(\tR\venvironment\"C\n" +
+	"\x14AdoptComposeResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x91\x03\n" +
 	"\x14ImportComposeRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -814,9 +942,10 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\aservice\x18\x03 \x01(\tR\aservice\"K\n" +
 	"\x15ExportComposeResponse\x12\x18\n" +
 	"\acompose\x18\x01 \x01(\tR\acompose\x12\x18\n" +
-	"\aomitted\x18\x02 \x03(\tR\aomitted2\xf6\x02\n" +
+	"\aomitted\x18\x02 \x03(\tR\aomitted2\xf1\x03\n" +
 	"\x0eComposeService\x12y\n" +
-	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"!\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12u\n" +
+	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"!\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12y\n" +
+	"\fAdoptCompose\x12 .dockwell.v1.AdoptComposeRequest\x1a!.dockwell.v1.AdoptComposeResponse\"$\xa0\xbb\x18\x02\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:adopt\x12u\n" +
 	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\" \xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12r\n" +
 	"\rExportCompose\x12!.dockwell.v1.ExportComposeRequest\x1a\".dockwell.v1.ExportComposeResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/compose\x90\x02\x01B\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fComposeProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
@@ -833,44 +962,49 @@ func file_dockwell_v1_compose_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_compose_proto_rawDescData
 }
 
-var file_dockwell_v1_compose_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_dockwell_v1_compose_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_dockwell_v1_compose_proto_goTypes = []any{
-	(*ImportComposeRequest)(nil),  // 0: dockwell.v1.ImportComposeRequest
-	(*ImportComposeResponse)(nil), // 1: dockwell.v1.ImportComposeResponse
-	(*CheckComposeRequest)(nil),   // 2: dockwell.v1.CheckComposeRequest
-	(*CheckComposeResponse)(nil),  // 3: dockwell.v1.CheckComposeResponse
-	(*ExposedVariable)(nil),       // 4: dockwell.v1.ExposedVariable
-	(*ComposeRefusal)(nil),        // 5: dockwell.v1.ComposeRefusal
-	(*ComposeVariable)(nil),       // 6: dockwell.v1.ComposeVariable
-	(*ExportComposeRequest)(nil),  // 7: dockwell.v1.ExportComposeRequest
-	(*ExportComposeResponse)(nil), // 8: dockwell.v1.ExportComposeResponse
-	nil,                           // 9: dockwell.v1.ImportComposeRequest.VariablesEntry
-	nil,                           // 10: dockwell.v1.CheckComposeRequest.VariablesEntry
-	(*Change)(nil),                // 11: dockwell.v1.Change
-	(*ServiceInfo)(nil),           // 12: dockwell.v1.ServiceInfo
-	(*ResourceRef)(nil),           // 13: dockwell.v1.ResourceRef
+	(*AdoptComposeRequest)(nil),   // 0: dockwell.v1.AdoptComposeRequest
+	(*AdoptComposeResponse)(nil),  // 1: dockwell.v1.AdoptComposeResponse
+	(*ImportComposeRequest)(nil),  // 2: dockwell.v1.ImportComposeRequest
+	(*ImportComposeResponse)(nil), // 3: dockwell.v1.ImportComposeResponse
+	(*CheckComposeRequest)(nil),   // 4: dockwell.v1.CheckComposeRequest
+	(*CheckComposeResponse)(nil),  // 5: dockwell.v1.CheckComposeResponse
+	(*ExposedVariable)(nil),       // 6: dockwell.v1.ExposedVariable
+	(*ComposeRefusal)(nil),        // 7: dockwell.v1.ComposeRefusal
+	(*ComposeVariable)(nil),       // 8: dockwell.v1.ComposeVariable
+	(*ExportComposeRequest)(nil),  // 9: dockwell.v1.ExportComposeRequest
+	(*ExportComposeResponse)(nil), // 10: dockwell.v1.ExportComposeResponse
+	nil,                           // 11: dockwell.v1.ImportComposeRequest.VariablesEntry
+	nil,                           // 12: dockwell.v1.CheckComposeRequest.VariablesEntry
+	(*Change)(nil),                // 13: dockwell.v1.Change
+	(*ServiceInfo)(nil),           // 14: dockwell.v1.ServiceInfo
+	(*ResourceRef)(nil),           // 15: dockwell.v1.ResourceRef
 }
 var file_dockwell_v1_compose_proto_depIdxs = []int32{
-	9,  // 0: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
-	11, // 1: dockwell.v1.ImportComposeResponse.change:type_name -> dockwell.v1.Change
-	4,  // 2: dockwell.v1.ImportComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
-	10, // 3: dockwell.v1.CheckComposeRequest.variables:type_name -> dockwell.v1.CheckComposeRequest.VariablesEntry
-	5,  // 4: dockwell.v1.CheckComposeResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
-	6,  // 5: dockwell.v1.CheckComposeResponse.variables:type_name -> dockwell.v1.ComposeVariable
-	12, // 6: dockwell.v1.CheckComposeResponse.services:type_name -> dockwell.v1.ServiceInfo
-	4,  // 7: dockwell.v1.CheckComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
-	13, // 8: dockwell.v1.ExposedVariable.resource:type_name -> dockwell.v1.ResourceRef
-	0,  // 9: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
-	2,  // 10: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
-	7,  // 11: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
-	1,  // 12: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
-	3,  // 13: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
-	8,  // 14: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
-	12, // [12:15] is the sub-list for method output_type
-	9,  // [9:12] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	13, // 0: dockwell.v1.AdoptComposeResponse.change:type_name -> dockwell.v1.Change
+	11, // 1: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
+	13, // 2: dockwell.v1.ImportComposeResponse.change:type_name -> dockwell.v1.Change
+	6,  // 3: dockwell.v1.ImportComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
+	12, // 4: dockwell.v1.CheckComposeRequest.variables:type_name -> dockwell.v1.CheckComposeRequest.VariablesEntry
+	7,  // 5: dockwell.v1.CheckComposeResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
+	8,  // 6: dockwell.v1.CheckComposeResponse.variables:type_name -> dockwell.v1.ComposeVariable
+	14, // 7: dockwell.v1.CheckComposeResponse.services:type_name -> dockwell.v1.ServiceInfo
+	6,  // 8: dockwell.v1.CheckComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
+	15, // 9: dockwell.v1.ExposedVariable.resource:type_name -> dockwell.v1.ResourceRef
+	2,  // 10: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
+	0,  // 11: dockwell.v1.ComposeService.AdoptCompose:input_type -> dockwell.v1.AdoptComposeRequest
+	4,  // 12: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
+	9,  // 13: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
+	3,  // 14: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
+	1,  // 15: dockwell.v1.ComposeService.AdoptCompose:output_type -> dockwell.v1.AdoptComposeResponse
+	5,  // 16: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
+	10, // 17: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
+	14, // [14:18] is the sub-list for method output_type
+	10, // [10:14] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_compose_proto_init() }
@@ -887,7 +1021,7 @@ func file_dockwell_v1_compose_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_compose_proto_rawDesc), len(file_dockwell_v1_compose_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

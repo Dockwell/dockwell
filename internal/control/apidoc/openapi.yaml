@@ -736,6 +736,37 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/compose:adopt:
+        post:
+            tags:
+                - ComposeService
+            description: |-
+                AdoptCompose plans taking on a Compose project made elsewhere, whole: each of
+                 its containers on a server becomes a service of a project of its own, as
+                 AdoptContainer takes one on, in one change a person plans and applies, never a
+                 token, as its plan shows what the list of containers leaves out. Nothing about them
+                 changes, and none restarts. They stay on the networks and volumes they have,
+                 which stay Docker's: Dockwell doesn't make or delete them.
+            operationId: ComposeService_AdoptCompose
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AdoptComposeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AdoptComposeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/compose:check:
         post:
             tags:
@@ -2586,6 +2617,34 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: AddServicePortResponse carries the planned change.
+        AdoptComposeRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The Compose project, as its containers' labels name it, such as "shop".
+                server:
+                    type: string
+                    description: |-
+                        The server it runs on, by name or ID. It can be left out while there is only
+                         one.
+                project:
+                    type: string
+                    description: |-
+                        The project its services go in, by name or ID, brought to life if it isn't
+                         there. Unset takes one named after it.
+                environment:
+                    type: string
+                    description: The environment its services go in, by name or ID.
+            description: AdoptComposeRequest names a Compose project on a server.
+        AdoptComposeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned and not applied.
+            description: AdoptComposeResponse carries the plan.
         AdoptContainerRequest:
             type: object
             properties:

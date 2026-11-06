@@ -80,6 +80,15 @@ A row opens the container's page: what Docker says of it, and the log view an ap
 - **Volumes it came with stay its own.** A service's volumes are its environment's, `<project>_<name>`, so one read back from a stranger would plan a new, empty volume at the next replace, which is the worst thing this could do. `Mount.external` says a volume is one Dockwell didn't make, by its name in Docker: Dockwell never makes, changes or deletes it, and it must be on the server. As with `external_networks`, what else mounts it shares it, so it is host access. Volumes Docker made for the image move on to the new container as they always did, and server paths stay what they are, under every rule in ADR 0021.
 - **Deleting the service before anything replaces the container lets go of it.** Dockwell never made it, so that is no reason to remove it, and it's what makes an undo of taking it on true. The step says `releases`, with no downtime and nothing lost, and the container is back on the list. Once a change has replaced it, what runs is Dockwell's own, and deleting it does what deleting any service does.
 
+### Taking on a Compose project
+
+`ComposeService.AdoptCompose` takes on what a Compose project has on a server, whole, in one change: a service for each container, in a project of its own, as `ImportCompose` gives a file one. It goes by the project's label, as there may be no file on the server to read, and what runs is what counts.
+
+- **Whole, or not at all.** One container that can't come stops the plan, and the refusal says everything that's in the way, so a person fixes it once, rather than leave half a project on each side.
+- **A service runs one container,** so one scaled with `--scale` is refused, with how to scale it down.
+- **Its networks and volumes stay Docker's.** They read back as `external_networks` and external mounts, so nothing is made, and they keep working for whatever else is on them. The services go on reaching each other by name, as a replace joins the same network under the service's name.
+- **`docker compose` still sees what hasn't been replaced,** as its labels are its own. What runs after a replace is in Dockwell's project, so `docker compose -p shop up` would make the old one again. Taking it on is the point at which Compose stops being how it runs.
+
 ## In 1Panel, after taking on
 
 Read from 1Panel's source at `726fd94e07`, for an app from its store. An app's Compose file and what it binds live in one folder, `/opt/1panel/apps/<app>/<name>`, which is the Compose working-directory label: its MySQL binds `./data/:/var/lib/mysql`. So what a taken-on service mounts is in that folder.
@@ -111,5 +120,5 @@ A second copy shares the folders and answers to the same name on the network, an
 - **Its name changes at the first replace.** It comes back as `env_…-api-2`, so `docker logs legacy-api` on the server stops working, and the plan says so as it is taken on. Containers on its networks go on reaching it by the old name.
 - **What it wrote outside its volumes goes with the old container** at the first replace, as with any `docker rm`. The plan says so.
 - **Undoing the deletion of something let go of** plans a new container, which its ports then refuse, as the old one still holds them. Take it on again instead.
-- **An export of a taken-on service lists its volumes as `external`, which `ImportCompose` doesn't take yet,** so that file doesn't import again. Slice 3 is the place for it.
+- **An export of a taken-on service lists its volumes as `external`, which `ImportCompose` doesn't take yet,** so that file doesn't import again.
 - **Memory.** The agent build links nothing new: `internal/docker`, which it had, and `internal/agent`.

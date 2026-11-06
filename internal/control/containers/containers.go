@@ -99,26 +99,12 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	session, ok := h.agents.SessionPastMove(ctx, s.ID, agentapi.MoveGrace)
-	if !ok {
-		return nil, notConnected(s)
-	}
-	read, cancel := context.WithTimeout(ctx, callWait)
-	defer cancel()
-	found, err := session.Adoption(read, c.GetId(), resource.Ref{Kind: service.Kind, Scope: env.ID, Name: name})
+	svc, found, err := h.ReadAs(ctx, s, c, resource.Ref{Kind: service.Kind, Scope: env.ID, Name: name})
 	if err != nil {
-		var se *resource.ServerError
-		if errors.As(err, &se) {
-			err = se.Err
-		}
-		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read %s now: %w", s.Name, c.GetName(), err), authapi.ReasonUnavailable)
+		return nil, err
 	}
 	if why := Refusal(c.GetName(), found); why != "" {
 		return nil, authapi.Invalid(fmt.Errorf("%s. It stays as it is, and nothing was taken on. Make it again without them, then take it on, or leave it outside Dockwell", why))
-	}
-	svc, ok := found.Spec.(*resourcev1.Service)
-	if !ok {
-		return nil, h.internal(ctx, fmt.Errorf("an agent read %s as %T", c.GetName(), found.Spec))
 	}
 	edit := &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: env.ID, Name: name},
@@ -159,10 +145,62 @@ func Refusal(name string, a resource.Adoption) string {
 	return strings.Join(why, ". ")
 }
 
+// ReadAs asks a server what a container would be as the service ref, and what would
+// stop it being taken on, which Refusal says.
+func (h *Handler) ReadAs(ctx context.Context, s Server, c *dockwellv1.ServerContainer, ref resource.Ref) (*resourcev1.Service, resource.Adoption, error) {
+	session, ok := h.agents.SessionPastMove(ctx, s.ID, agentapi.MoveGrace)
+	if !ok {
+		return nil, resource.Adoption{}, notConnected(s)
+	}
+	ctx, cancel := context.WithTimeout(ctx, callWait)
+	defer cancel()
+	found, err := session.Adoption(ctx, c.GetId(), ref)
+	if err != nil {
+		var se *resource.ServerError
+		if errors.As(err, &se) {
+			err = se.Err
+		}
+		return nil, resource.Adoption{}, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read %s now: %w", s.Name, c.GetName(), err), authapi.ReasonUnavailable)
+	}
+	svc, ok := found.Spec.(*resourcev1.Service)
+	if !ok {
+		return nil, resource.Adoption{}, h.internal(ctx, fmt.Errorf("an agent read %s as %T", c.GetName(), found.Spec))
+	}
+	return svc, found, nil
+}
+
+// InProject lists what a Compose project has on a server that Dockwell didn't make,
+// by name. A one-off is no service of it, so it isn't there.
+func (h *Handler) InProject(ctx context.Context, serverName, project string) (Server, []*dockwellv1.ServerContainer, error) {
+	s, err := h.server(ctx, serverName)
+	if err != nil {
+		return Server{}, nil, err
+	}
+	found, err := h.read(ctx, s, "")
+	if err != nil {
+		return Server{}, nil, err
+	}
+	others, _, err := h.others(ctx, found.GetContainers())
+	if err != nil {
+		return Server{}, nil, err
+	}
+	in := slices.DeleteFunc(others, func(c *dockwellv1.ServerContainer) bool { return c.GetComposeProject() != project || c.GetOneOff() })
+	if len(in) == 0 {
+		return Server{}, nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("%s has no Compose project %s among the containers Dockwell didn't make. See what's there with dockwell containers list --server %s", s.Name, project, s.Name), "not_found")
+	}
+	slices.SortFunc(in, func(a, b *dockwellv1.ServerContainer) int { return cmp.Compare(a.GetName(), b.GetName()) })
+	return s, in, nil
+}
+
 // ServiceName is what a service that takes a container on is called unless someone
 // says: its Compose service, or its own name, written as a service's name is.
 func ServiceName(c *dockwellv1.ServerContainer) string {
-	name := strings.ToLower(cmp.Or(c.GetComposeService(), c.GetName()))
+	return Label(cmp.Or(c.GetComposeService(), c.GetName()))
+}
+
+// Label writes a name Docker takes as one a service or a project takes, which
+// goes in a URL.
+func Label(name string) string {
 	out := strings.Map(func(r rune) rune {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
@@ -171,7 +209,7 @@ func ServiceName(c *dockwellv1.ServerContainer) string {
 			return '-'
 		}
 		return -1
-	}, name)
+	}, strings.ToLower(name))
 	out = strings.Trim(out, "-")
 	if out == "" || out[0] < 'a' {
 		out = "app-" + out

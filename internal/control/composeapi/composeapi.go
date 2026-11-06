@@ -7,6 +7,7 @@
 package composeapi
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
@@ -42,19 +44,20 @@ import (
 
 // Handler implements ComposeService.
 type Handler struct {
-	changes *changes.Handler
-	engine  *revision.Engine
-	db      *store.DB
-	keeper  *secrets.Keeper
-	logger  *slog.Logger
+	changes    *changes.Handler
+	containers *containers.Handler
+	engine     *revision.Engine
+	db         *store.DB
+	keeper     *secrets.Keeper
+	logger     *slog.Logger
 }
 
 var _ dockwellv1connect.ComposeServiceHandler = (*Handler)(nil)
 
 // New returns a handler that plans through ch and engine, and reads specs from
 // db, opening the sealed ones with keeper.
-func New(ch *changes.Handler, engine *revision.Engine, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, engine: engine, db: db, keeper: keeper, logger: logger}
+func New(ch *changes.Handler, ct *containers.Handler, engine *revision.Engine, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
+	return &Handler{changes: ch, containers: ct, engine: engine, db: db, keeper: keeper, logger: logger}
 }
 
 func invalid(err error) error {
@@ -282,6 +285,80 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 		}
 		return ""
 	}, changes.Also{Edits: place.made, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+}
+
+// AdoptCompose plans taking on a Compose project made elsewhere: each container as a
+// service of a project of its own, in one change. What stops one stops them all, and
+// a refusal says everything at once, as a project is taken on whole or not at all.
+func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwellv1.AdoptComposeRequest]) (*connect.Response[dockwellv1.AdoptComposeResponse], error) {
+	m := req.Msg
+	if m.GetName() == "" {
+		return nil, invalid(errors.New("the request names no Compose project. Pass one in name, such as shop"))
+	}
+	s, list, err := h.containers.InProject(ctx, m.GetServer(), m.GetName())
+	if err != nil {
+		return nil, err
+	}
+	byName := make(map[string]*dockwellv1.ServerContainer, len(list))
+	for _, c := range list {
+		name := containers.ServiceName(c)
+		if other := byName[name]; other != nil {
+			return nil, invalid(fmt.Errorf("%s and %s are both the service %s, and a service runs one container. It stays as it is. Scale it to one with docker compose up --scale %s=1, then take the project on", other.GetName(), c.GetName(), name, c.GetComposeService()))
+		}
+		byName[name] = c
+	}
+	place, err := h.destination(ctx, m.GetProject(), m.GetEnvironment(), containers.Label(m.GetName()))
+	if err != nil {
+		return nil, err
+	}
+	running, err := h.servicesIn(ctx, place.environment)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	var edits []*dockwellv1.Edit
+	var refusals []string
+	var manager, folder string
+	adopts := make(map[string]changes.Adoption, len(byName))
+	for _, name := range slices.Sorted(maps.Keys(byName)) {
+		c := byName[name]
+		if slices.Contains(running, name) {
+			return nil, invalid(fmt.Errorf("%s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, name, c.GetName()))
+		}
+		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: name}
+		svc, found, err := h.containers.ReadAs(ctx, s, c, ref)
+		if err != nil {
+			return nil, err
+		}
+		if why := containers.Refusal(c.GetName(), found); why != "" {
+			refusals = append(refusals, why)
+		}
+		manager, folder = cmp.Or(manager, found.Manager), cmp.Or(folder, found.Folder)
+		adopts[name] = changes.Adoption{ID: c.GetId(), Name: c.GetName()}
+		edits = append(edits, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: place.environment, Name: name},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
+			Servers:  []string{s.ID},
+		})
+	}
+	if len(refusals) > 0 {
+		return nil, invalid(fmt.Errorf("%s. It all stays as it is, and nothing was taken on. Make them again without those, then take the project on, or leave it outside Dockwell", strings.Join(refusals, ". ")))
+	}
+	names := make([]string, 0, len(list))
+	for _, c := range list {
+		names = append(names, c.GetName())
+	}
+	c, err := h.changes.Propose(ctx, "Take on "+m.GetName(), edits, nil, changes.Also{
+		Edits: place.made, Adopts: adopts,
+		Notes: []revision.Note{
+			{Reason: "takes_on", Message: fmt.Sprintf(
+				"Takes on %s as it is: its containers keep running, with no restart, on the networks and volumes they have. Changing an image later replaces that container, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container", m.GetName())},
+			revision.ManagedElsewhere(resource.Elsewhere{Manager: manager, Container: human.List(names), Project: m.GetName(), Folder: folder}),
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.AdoptComposeResponse{Change: c}), nil
 }
 
 // servicesIn names what an environment runs now.

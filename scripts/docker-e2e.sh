@@ -607,6 +607,51 @@ dw services delete composed --yes || fail "deleting composed failed"
 dw services delete on-bridge --yes || fail "deleting on-bridge failed"
 docker compose -p e2e-composed down --volumes --timeout 1 >/dev/null || fail "docker compose down for e2e-composed failed"
 
+step "A Compose project made elsewhere is taken on whole, with no restart, and one of its images changes"
+real_projects+=(e2e-taken)
+docker compose -p e2e-taken -f - up --detach --wait >/dev/null <<'EOF_COMPOSE' || fail "docker compose up failed"
+services:
+  front:
+    image: nginx:1.26-alpine
+    ports: ["127.0.0.1:18097:80"]
+    environment:
+      FRONT_KEY: not-in-any-plan
+  store:
+    image: nginx:1.26-alpine
+    volumes: ["kept:/data"]
+    command: ["sh", "-c", "echo kept-with-the-project >/data/note; exec nginx -g 'daemon off;'"]
+volumes:
+  kept: {}
+EOF_COMPOSE
+compose_state() { docker inspect --format '{{.Id}} {{.RestartCount}} {{.State.StartedAt}}' e2e-taken-front-1 e2e-taken-store-1; }
+compose_before=$(compose_state) || fail "docker inspect of the project's containers failed"
+# As for one container, a token can't even plan it.
+if said=$(dw compose adopt --name e2e-taken --plan-only 2>&1); then fail "a token planned taking a project on: $said"; fi
+adopted=$(person_answer ComposeService/AdoptCompose '{"name": "e2e-taken"}') || fail "a person can't reach the API to take on e2e-taken"
+jq -e '.change.id' <<<"$adopted" >/dev/null || fail "taking on e2e-taken was refused: $adopted"
+[[ "$adopted" != *not-in-any-plan* ]] || fail "the plan shows a value of an environment: $adopted"
+jq -e '.change.plan.notes | any(.reason == "managed_elsewhere")' <<<"$adopted" >/dev/null ||
+  fail "the plan doesn't say something may still run the project: $adopted"
+person_apply "$(jq -r '.change.id' <<<"$adopted")"
+[[ "$(compose_state)" == "$compose_before" ]] || fail "taking the project on touched it: $compose_before, then $(compose_state)"
+docker compose -p e2e-taken ps --format '{{.Name}}' | grep -qx e2e-taken-front-1 ||
+  fail "docker compose no longer lists what it made: $(docker compose -p e2e-taken ps)"
+listed=$(dw containers list --json) || fail "containers list failed"
+[[ "$listed" != *e2e-taken-* ]] || fail "the project's containers are still among what Dockwell didn't make: $listed"
+dw services deploy front --project e2e-taken --image nginx:1.27-alpine --yes || fail "deploying a new image of front failed"
+front=$(docker ps --filter label=com.docker.compose.service=front --format '{{.Names}}' | grep '^env_' | head -1)
+[[ -n "$front" ]] || fail "nothing of Dockwell's runs as front: $(docker ps --format '{{.Names}} {{.Image}}')"
+[[ "$(docker inspect --format '{{.Config.Image}}' "$front")" == nginx:1.27-alpine ]] || fail "front runs $(docker inspect --format '{{.Config.Image}}' "$front")"
+docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$front" | grep -qx 'FRONT_KEY=not-in-any-plan' || fail "front lost its environment"
+# It reaches the other service by name, on the network the project came with.
+docker exec "$front" sh -c 'wget -q -O /dev/null http://store/' || fail "front can't reach store by name"
+[[ "$(docker inspect --format '{{.State.StartedAt}}' e2e-taken-store-1)" == "$(awk '/./ { s = $3 } END { print s }' <<<"$compose_before")" ]] ||
+  fail "changing front's image touched store"
+[[ "$(docker exec e2e-taken-store-1 cat /data/note)" == kept-with-the-project ]] || fail "store lost what it wrote"
+dw services delete front --project e2e-taken --yes || fail "deleting front failed"
+dw services delete store --project e2e-taken --yes || fail "letting store go failed"
+docker inspect e2e-taken-store-1 >/dev/null 2>&1 || fail "deleting a service that was only taken on removed its container"
+
 step "It changes, and the change undoes"
 dw services update web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hi --yes ||
   fail "services update failed"

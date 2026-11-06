@@ -176,3 +176,9 @@
   margin: 0;
   color: var(--ink-muted);
 }
+
+.container-take-on-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

@@ -5152,6 +5152,10 @@ msgstr "计划"
 msgid "Plan taking it on"
 msgstr "计划接管"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Plan taking on all {inProject} of {project}"
+msgstr "计划接管 {project} 的全部 {inProject} 个容器"
+
 #: src/features/changes/words.ts
 msgid "Planned"
 msgstr "已计划"

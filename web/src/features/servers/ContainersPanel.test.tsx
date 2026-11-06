@@ -286,6 +286,36 @@ describe("a container's page", () => {
     await vi.waitFor(() => expect(asked).toEqual([{ id: "legacy_api", server: "srv_1", service: "legacy-api" }]));
   });
 
+  it("offers its whole Compose project once there is more of it", async () => {
+    const asked: unknown[] = [];
+    renderContainer("/servers/srv_1/containers/shop-web-1", {
+      containers: {
+        listContainers: () =>
+          answer({
+            containers: [
+              container("shop-web-1", { composeProject: "shop", composeService: "web" }),
+              container("shop-db-1", { composeProject: "shop", composeService: "db" }),
+              container("shop-run-1", { composeProject: "shop", oneOff: true }),
+            ],
+          }),
+      },
+      compose: {
+        adoptCompose: (req) => {
+          asked.push({ name: req.name, server: req.server });
+          return { change: webPlanned() };
+        },
+      },
+      logs: {
+        listLogSources: () => ({}),
+        async *watchLogs() {
+          yield { caughtUp: true };
+        },
+      },
+    });
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Plan taking on all 2 of shop" }));
+    await vi.waitFor(() => expect(asked).toEqual([{ name: "shop", server: "srv_1" }]));
+  });
+
   it("says when it has gone", async () => {
     renderContainer("/servers/srv_1/containers/gone", {
       containers: { listContainers: () => answer({}) },
