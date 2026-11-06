@@ -517,7 +517,10 @@ type InstanceHealth struct {
 	// the agent made, or the last time it read what Docker says.
 	ConfirmedAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=confirmed_at,json=confirmedAt,proto3" json:"confirmed_at,omitempty"`
 	// How old that may be and the state still stand. Past it, nobody can say.
-	GoodFor       *durationpb.Duration `protobuf:"bytes,11,opt,name=good_for,json=goodFor,proto3" json:"good_for,omitempty"`
+	GoodFor *durationpb.Duration `protobuf:"bytes,11,opt,name=good_for,json=goodFor,proto3" json:"good_for,omitempty"`
+	// Its ID in Docker. A replace can keep a container's name and number, and only
+	// this says it's another container. Empty from an older agent.
+	ContainerId   string `protobuf:"bytes,12,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -629,6 +632,13 @@ func (x *InstanceHealth) GetGoodFor() *durationpb.Duration {
 	return nil
 }
 
+func (x *InstanceHealth) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
 // HealthResult is one check's result.
 type HealthResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -734,7 +744,7 @@ const file_dockwell_v1_health_proto_rawDesc = "" +
 	"\tinstances\x18\x06 \x03(\v2\x1b.dockwell.v1.InstanceHealthR\tinstances\x129\n" +
 	"\n" +
 	"scanned_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tscannedAt\x12R\n" +
-	"\x17docker_unreadable_since\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x15dockerUnreadableSince\"\xce\x03\n" +
+	"\x17docker_unreadable_since\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x15dockerUnreadableSince\"\xf1\x03\n" +
 	"\x0eInstanceHealth\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x16\n" +
@@ -747,7 +757,8 @@ const file_dockwell_v1_health_proto_rawDesc = "" +
 	"\x05since\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x05since\x12=\n" +
 	"\fconfirmed_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\vconfirmedAt\x124\n" +
-	"\bgood_for\x18\v \x01(\v2\x19.google.protobuf.DurationR\agoodFor\"\x9d\x01\n" +
+	"\bgood_for\x18\v \x01(\v2\x19.google.protobuf.DurationR\agoodFor\x12!\n" +
+	"\fcontainer_id\x18\f \x01(\tR\vcontainerId\"\x9d\x01\n" +
 	"\fHealthResult\x12\x16\n" +
 	"\x06passed\x18\x01 \x01(\bR\x06passed\x12\x16\n" +
 	"\x06output\x18\x02 \x01(\tR\x06output\x12.\n" +

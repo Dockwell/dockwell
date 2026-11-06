@@ -174,9 +174,9 @@ func (m *Monitor) Report() []*dockwellv1.InstanceHealth {
 	}
 	blind := m.isBlind()
 	out := make([]*dockwellv1.InstanceHealth, 0, len(m.watched))
-	for _, w := range m.watched {
+	for id, w := range m.watched {
 		h := &dockwellv1.InstanceHealth{
-			Project: w.project, Service: w.service, Number: w.number, Container: w.name, State: w.state, Check: w.kind,
+			Project: w.project, Service: w.service, Number: w.number, Container: w.name, ContainerId: id, State: w.state, Check: w.kind,
 			Failing: w.failing, Since: timestamppb.New(w.since),
 		}
 		if r := w.last; r != nil {

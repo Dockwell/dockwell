@@ -97,6 +97,19 @@ func TestWhatNobodyChecksIsntHealthy(t *testing.T) {
 	}
 }
 
+// A replace can keep a container's name and number, so what a report calls it by
+// isn't enough to tell it from the one before: its ID is.
+func TestAReportSaysWhichContainerItMeans(t *testing.T) {
+	e := dockertest.New(t)
+	c := add(e, "web")
+	name := docker.InstanceName(project, "web", 1)
+	m := start(t, e, nil)
+	got := eventually(t, "it reads web", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NO_CHECK))
+	if c.ID == "" || got[name].GetContainerId() != c.ID {
+		t.Errorf("it says it's about %q, and Docker has %q", got[name].GetContainerId(), c.ID)
+	}
+}
+
 func TestItReadsWhatDockersCheckSays(t *testing.T) {
 	e := dockertest.New(t)
 	c := add(e, "db")
