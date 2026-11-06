@@ -769,7 +769,7 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		// A value anyone can read stops nobody, and is the most a note can say.
 		label := "Note"
 		switch {
-		case strings.HasPrefix(n.GetReason(), "exposed_"):
+		case strings.HasPrefix(n.GetReason(), "exposed_"), n.GetReason() == "no_backup", n.GetReason() == "undo_no_backup":
 			label = "Warning"
 		case n.GetReason() == "first_steps":
 			label = "First steps"

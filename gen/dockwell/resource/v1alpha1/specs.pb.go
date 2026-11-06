@@ -1301,7 +1301,12 @@ type CatalogPin struct {
 	Commit string `protobuf:"bytes,5,opt,name=commit,proto3" json:"commit,omitempty"`
 	// What each input that isn't a secret was given, by name, so an upgrade gives
 	// the same.
-	Values        map[string]string `protobuf:"bytes,6,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Values map[string]string `protobuf:"bytes,6,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The entry's Compose file at this release, with its ${NAME}s as written, so it
+	// holds no secret. Read with values, it's what the file gave, which an upgrade
+	// needs to tell that from what a person changed since. Empty for an install from
+	// before Dockwell kept it, which can't be upgraded.
+	File          []byte `protobuf:"bytes,7,opt,name=file,proto3" json:"file,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1374,6 +1379,13 @@ func (x *CatalogPin) GetCommit() string {
 func (x *CatalogPin) GetValues() map[string]string {
 	if x != nil {
 		return x.Values
+	}
+	return nil
+}
+
+func (x *CatalogPin) GetFile() []byte {
+	if x != nil {
+		return x.File
 	}
 	return nil
 }
@@ -2263,7 +2275,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\acomment\x18\x05 \x01(\tR\acomment\"n\n" +
 	"\aProject\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12@\n" +
-	"\acatalog\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.CatalogPinR\acatalog\"\x95\x02\n" +
+	"\acatalog\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.CatalogPinR\acatalog\"\xa9\x02\n" +
 	"\n" +
 	"CatalogPin\x12\x14\n" +
 	"\x05entry\x18\x01 \x01(\tR\x05entry\x12\x18\n" +
@@ -2273,7 +2285,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"repository\x18\x04 \x01(\tR\n" +
 	"repository\x12\x16\n" +
 	"\x06commit\x18\x05 \x01(\tR\x06commit\x12J\n" +
-	"\x06values\x18\x06 \x03(\v22.dockwell.resource.v1alpha1.CatalogPin.ValuesEntryR\x06values\x1a9\n" +
+	"\x06values\x18\x06 \x03(\v22.dockwell.resource.v1alpha1.CatalogPin.ValuesEntryR\x06values\x12\x12\n" +
+	"\x04file\x18\a \x01(\fR\x04file\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"0\n" +

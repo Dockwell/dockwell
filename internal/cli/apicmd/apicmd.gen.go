@@ -126,6 +126,21 @@ func Methods() []*apicli.Method {
 			Call:      apicli.Unary[v1.ListCatalogEntriesRequest, v1.ListCatalogEntriesResponse](dockwellv1connect.CatalogServiceListCatalogEntriesProcedure),
 		},
 		{
+			Name:      "dockwell.v1.CatalogService.UpgradeCatalogInstall",
+			Procedure: dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure,
+			HTTP:      "POST /v1/catalog/installs/{id}:upgrade",
+			Noun:      "catalog",
+			Verb:      "upgrade",
+			Short:     "Plan moving an install to the newest release of its entry",
+			Long:      "Plan moving an install to the newest release of its entry, ready to apply or\ndiscard, as a three-way merge of the entry's old file, its new one and what\nruns. What the file gave and the new one changes follows the new one, what the\nnew one dropped goes, and what a person added or changed stays, with anything\nelse in the environment left alone. Where a person and the release both changed\none thing, the person's stays and the plan says so, but for the image. Its\nsecrets stay as they are, and the plan says that no backup is taken, as Dockwell\ncan't take one yet. Undoing it puts the old version back, but not what the new\none changed in its data. It's refused with the reason up_to_date when there's\nnothing newer, and no_record for an install from before Dockwell kept what its\nfile gave.",
+			Effect:    v1.Effect_EFFECT_PLAN,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "Its project, by name or ID.", Arg: true},
+				{Path: "values", Help: "A value for each input the newer release adds, by name, as dockwell catalog install takes them. What it was installed with carries over, and its secrets stay.", Sensitive: true},
+			},
+			Call: apicli.Unary[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse](dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure),
+		},
+		{
 			Name:      "dockwell.v1.ChangeService.ApplyChange",
 			Procedure: dockwellv1connect.ChangeServiceApplyChangeProcedure,
 			HTTP:      "POST /v1/changes/{id}:apply",
@@ -1016,7 +1031,7 @@ func Nouns() []apicli.Noun {
 	return []apicli.Noun{
 		{Name: "api-tokens", Short: "Create, list or revoke API tokens", Long: "TokenService manages API tokens: secrets for scripts, the CLI and integrations,\neach acting for the person who made it, within a scope. See\ndocs/adr/0016-scoped-api-tokens.md.\n\nSend a token in the Authorization header, as \"Bearer dwt_…\", with REST, Connect,\ngRPC or gRPC-Web alike. A read-only token may call the methods whose effect is\nEFFECT_READ; a read-write token may also call EFFECT_PLAN and EFFECT_APPLY\nmethods. No token may call an EFFECT_DESTRUCTIVE method, AuthService, or this\nservice: they need a signed-in session."},
 		{Name: "auth-state", Short: "Say whether the install has an owner", Long: "The install's auth state says whether it has an owner yet, who is signed in on a\nrequest, and which address passkeys are made for there. dockwell auth-state get\nneeds no sign-in."},
-		{Name: "catalog", Short: "List, get, installs or install catalog", Long: "CatalogService lists the apps you can install, and plans installing one as a\nproject of its own: a Compose file with sensible ports and generated passwords,\nsealed, through the same plan as any other change. Nothing runs until you apply\nit. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md."},
+		{Name: "catalog", Short: "List, get, installs, upgrade or install catalog", Long: "CatalogService lists the apps you can install, and plans installing one as a\nproject of its own: a Compose file with sensible ports and generated passwords,\nsealed, through the same plan as any other change. Nothing runs until you apply\nit. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md."},
 		{Name: "changes", Short: "Propose, get, list, apply, watch, undo or discard changes", Long: "A change is a set of edits to managed state, with the plan that carries them\nout. You propose edits and get a plan back; applying it writes immutable\nrevisions and runs its steps on the servers; undoing it makes a new plan that\nputs things back. A change applies only as it was planned, and a plan never\nshows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and\ndocs/adr/0017-the-change-api-and-the-agent-stream.md."},
 		{Name: "claim-link", Short: "Check, begin or finish claim link", Long: "A claim link, which dockwell run and dockwell claim print, creates the install's\nowner with a passkey, and works once. dockwell claim-link check describes the\nserver a link claims, and dockwell claim-link begin and dockwell claim-link\nfinish make the passkey, which takes a browser: open the link in one."},
 		{Name: "compose", Short: "Import, check or export compose", Long: "ComposeService turns a Docker Compose file into a project's services, volumes\nand networks, and any of them back into one. Each file gets a project of its\nown, so two files with a service of one name run side by side, on networks of\ntheir own, as they do under docker compose. An environment is one Compose\nproject: its containers carry the labels Docker Compose gives its own, so docker\ncompose sees them, and an exported file runs the same with docker compose alone\n(PRD principle 6). See docs/adr/0021-the-docker-driver.md and\ndocs/adr/0026-the-app-screens.md."},
@@ -1055,6 +1070,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "catalog.repository", Help: "The repository the entry came from."},
 				{Path: "catalog.commit", Help: "The commit it came from."},
 				{Path: "catalog.values", Help: "What each input that isn't a secret was given, by name, so an upgrade gives the same."},
+				{Path: "catalog.file", Help: "The entry's Compose file at this release, with its ${NAME}s as written, so it holds no secret. Read with values, it's what the file gave, which an upgrade needs to tell that from what a person changed since. Empty for an install from before Dockwell kept it, which can't be upgraded."},
 			},
 		},
 		{

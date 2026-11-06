@@ -90,13 +90,15 @@ priv() { "${as_dockwell[@]}" "$@"; }
 # The ingress's certificates come from Pebble, on this machine.
 export DOCKWELL_ACME_DIRECTORY_URL=https://localhost:14000/dir
 export DOCKWELL_ACME_ROOTS=$pebble_dir/cert.pem
+# A release newer than the one installed comes from here, which Dockwell reads each time.
+catalog_dir=$(mktemp -d)
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 2 -subj /CN=localhost \
   -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout "$pebble_dir/key.pem" -out "$DOCKWELL_ACME_ROOTS" 2>/dev/null
 
 start_dockwell() {
   # SSL_CERT_FILE is for the panel's own certificates alone, as they come through
   # Go's default roots. sudo keeps none of these unless it is told.
-  "${as_dockwell[@]}" env SSL_CERT_FILE="$DOCKWELL_ACME_ROOTS" DOCKWELL_ACME_DIRECTORY_URL="$DOCKWELL_ACME_DIRECTORY_URL" DOCKWELL_ACME_ROOTS="$DOCKWELL_ACME_ROOTS" \
+  "${as_dockwell[@]}" env DOCKWELL_CATALOG_DIR="$catalog_dir" SSL_CERT_FILE="$DOCKWELL_ACME_ROOTS" DOCKWELL_ACME_DIRECTORY_URL="$DOCKWELL_ACME_DIRECTORY_URL" DOCKWELL_ACME_ROOTS="$DOCKWELL_ACME_ROOTS" \
     "$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json "$@" >>"$log" 2>&1 &
   pid=$!
 }
@@ -146,7 +148,7 @@ cleanup() {
   done
   wait 2>/dev/null || true
   docker image rm --force dockwell-e2e-app:slow dockwell-e2e-app:never >/dev/null 2>&1 || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir" "$real_dir" "$rollout_dir"
+  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
 }
 trap cleanup EXIT
 
@@ -2937,6 +2939,112 @@ image=$(jq -r '.entry.compose' <<<"$entry" | sed -n 's/^ *image: //p')
 [[ "$image" == cloudflare/cloudflared:*@sha256:* ]] || fail "the tunnel's entry names '$image'"
 said=$(docker run --rm "$image" tunnel --metrics 127.0.0.1:20241 ready 2>&1) && fail "a tunnel with nothing running reads as ready: $said"
 [[ "$said" != *"flag provided but not defined"* && "$said" != *"Incorrect Usage"* ]] || fail "cloudflared doesn't take its health check: $said"
+
+step "Catalog: a newer release reads as one, and upgrading keeps the data, the password, and what a person added and changed"
+# An earlier step may have pushed the same image to a registry of its own, so this
+# reads Docker Hub's digest by its name.
+digest_of() {
+  local all digest
+  docker pull -q "$1" >/dev/null || fail "docker pull $1 failed"
+  all=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$1") || fail "docker image inspect $1 failed"
+  digest=$(sed -n '/^nginx@sha256:/{p;q;}' <<<"$all")
+  [[ -n "$digest" ]] || fail "$1 has no digest from Docker Hub: $all"
+  echo "$digest"
+}
+release_first=$(digest_of nginx:1.27-alpine)
+release_second=$(digest_of nginx:1.28-alpine)
+catalog_release() {
+  cat >"$catalog_dir/e2e-notes.yaml" <<EOF
+id: e2e-notes
+name: E2E Notes
+summary: Something to upgrade
+category: storage
+version: "$2"
+release: $1
+license: AGPL-3.0-only
+appLicense: BSD-2-Clause
+source:
+  repository: https://github.com/Dockwell/dockwell
+web:
+  service: web
+inputs:
+  - name: PORT
+    label: Port
+    type: INPUT_TYPE_PORT
+    defaultValue: "18300"
+  - name: NOTES_PASSWORD
+    label: Password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    web:
+      image: $3
+      environment:
+        NOTES_PASSWORD: \${NOTES_PASSWORD}
+      ports:
+        - "\${PORT}:80"
+      volumes:
+        - data:/data
+  volumes:
+    data: {}
+EOF
+}
+catalog_release 1 1.27 "$release_first"
+catalog_install e2e-notes
+notes=$(catalog_container web)
+password=$(catalog_generated "$notes" NOTES_PASSWORD)
+docker exec "$notes" sh -c 'echo kept >/data/marker' || fail "can't write to the install's volume"
+dw services add-port web --project e2e-notes --host-port 18301 --container-port 80 --yes >/dev/null || fail "adding a port to what's installed failed"
+# What a person does to what's installed: a service the file doesn't name, and the
+# file's own port closed to this server. The whole spec goes back, as an edit sets all of it.
+dw services create mine --project e2e-notes --app-image nginx:1.27-alpine --yes >/dev/null || fail "adding a service to what's installed failed"
+mine=$(docker inspect --format '{{.Id}}' "$(catalog_container mine)") || fail "docker inspect of the service a person added failed"
+listed=$(dw services list --project e2e-notes --environment production --json) || fail "services list failed"
+closed=$(jq -c '.services[] | select(.resource.name == "web") |
+  {resource: .resource, spec: {service: (.spec | .app.ports |= map(if .hostPort == 18300 then .hostIp = "127.0.0.1" else . end))}}' <<<"$listed") ||
+  fail "can't write the edit that closes the port: $listed"
+[[ "$closed" == *'"hostIp":"127.0.0.1"'* ]] || fail "the edit that closes the port doesn't, from: $listed"
+dw changes propose --summary "Close the app to other hosts" --edits "$closed" --yes >/dev/null || fail "closing the port failed"
+installs=$(dw catalog installs --json) || fail "catalog installs failed"
+jq -e '.installs[] | select(.project == "e2e-notes") | has("upgrade") | not' <<<"$installs" >/dev/null || fail "the newest release offers an upgrade: $installs"
+if said=$(dw catalog upgrade e2e-notes --plan-only 2>&1); then fail "upgrading what's up to date planned: $said"; fi
+[[ "$said" == *"is up to date"* ]] || fail "upgrading what's up to date said: $said"
+
+catalog_release 2 1.28 "$release_second"
+installs=$(dw catalog installs --json) || fail "catalog installs failed"
+jq -e '.installs[] | select(.project == "e2e-notes") | .upgrade.version == "1.28"' <<<"$installs" >/dev/null || fail "a newer release doesn't read as one: $installs"
+planned=$(dw catalog upgrade e2e-notes --plan-only --json) || fail "planning the upgrade failed"
+jq -e '.change.plan.notes | any(.reason == "no_backup" and (.message | contains("takes no backup")))' <<<"$planned" >/dev/null ||
+  fail "the upgrade's plan doesn't say no backup is taken: $planned"
+change=$(jq -r .change.id <<<"$planned")
+dw changes apply "$change" --yes >/dev/null || fail "applying the upgrade failed"
+catalog_runs() {
+  local at runs
+  at=$(catalog_container web)
+  runs=$(docker inspect --format '{{.Config.Image}}' "$at") || fail "docker inspect $at failed"
+  [[ "$runs" == "$1" ]] || fail "it runs $runs, want $1"
+  [[ "$(docker exec "$at" cat /data/marker)" == kept ]] || fail "what was in its volume didn't stay"
+  [[ "$(catalog_env "$at" NOTES_PASSWORD)" == "$password" ]] || fail "its password changed"
+  for port in 18300 18301; do
+    curl -fsS --max-time 10 -o /dev/null "http://127.0.0.1:$port/" || fail "it doesn't serve on port $port"
+  done
+  bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$at") || fail "docker inspect $at failed"
+  jq -e '."80/tcp" | length == 2 and any(.HostPort == "18300" and .HostIp == "127.0.0.1")' <<<"$bound" >/dev/null ||
+    fail "the port a person closed reads: $bound"
+  [[ "$(docker inspect --format '{{.Id}}' "$(catalog_container mine)")" == "$mine" ]] || fail "the service a person added didn't keep running"
+}
+catalog_runs "$release_second"
+installs=$(dw catalog installs --json) || fail "catalog installs failed"
+jq -e '.installs[] | select(.project == "e2e-notes") | (has("upgrade") | not) and .pin.version == "1.28"' <<<"$installs" >/dev/null ||
+  fail "after the upgrade the install reads: $installs"
+
+step "Catalog: undoing an upgrade puts the old version back, with the data as it is"
+dw changes undo "$change" --yes >/dev/null || fail "undoing the upgrade failed"
+catalog_runs "$release_first"
+installs=$(dw catalog installs --json) || fail "catalog installs failed"
+jq -e '.installs[] | select(.project == "e2e-notes") | .upgrade.version == "1.28" and .pin.version == "1.27"' <<<"$installs" >/dev/null ||
+  fail "after the undo the install reads: $installs"
 
 step "The agent build joins with Docker down, says so from the start, and its server isn't healthy"
 made=$(dw token create 2>>"$log") || fail "dockwell token create failed"

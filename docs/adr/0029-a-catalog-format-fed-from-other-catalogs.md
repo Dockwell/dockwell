@@ -110,6 +110,25 @@ This is our reading of the licences, not legal advice. Counsel confirms it befor
 
 The first set is what the two real servers ran but for their AI agent runner, which comes with an entry of its own: an app that publishes with no account of its own belongs to whoever reaches it first, so an entry doesn't do that. Every app in the set is open source, which the catalog's page says and a test holds it to.
 
+### Upgrades, before backups exist
+
+*Added 6 Nov 2026, with #89.*
+
+An upgrade is a plan: `CatalogService.UpgradeCatalogInstall` reads the install's pin and proposes the entry's newest release, with the pin in the same change, so an undo puts back both.
+
+- **A newer release is a higher `release` whose file differs.** A release that only corrects an entry's words runs the same, so it offers nothing, and one that keeps its version but changes its file says it changes how that version runs. The panel says so on the catalog's card, on the rail and on each of the app's pages, which holds the button.
+- **An upgrade is a three-way merge:** the old file, the new one, and what runs. So the pin keeps the entry's file as it was at that release, with its `${NAME}`s as written, which holds no secret, and an upgrade reads it again beside the new one. What the file gave and the new one changes follows the new one. What the new one dropped goes, so a release can close a port. What a person added or changed stays. What the old file didn't name is left alone, so someone's own app in that environment is never touched, and what a person took away stays away. Each field merges by itself, and a list by what makes one entry the same thing from one version to the next: a port by the app's port, not the server's address for it, so limiting one to loopback changes that port rather than adding another.
+- **Where a person and a release both changed one thing, a person's stays, and the plan says so.** Taking the file's could start an app on the wrong data, or open what they closed, with a healthy check either way. Two things go the other way. The image follows the release, as that's what an upgrade is for. And what a release drops goes even if a person changed it, as closing a port has to close it, and the plan says that too.
+- **A volume stays,** with its data, whatever a release does.
+- **A release that adds a name a person's service has is refused,** saying to rename theirs, as neither can quietly win.
+- **An install from before the pin kept its file can't be upgraded.** It has nothing to tell a person's changes from the file's, so no upgrade is offered, and `dockwell catalog upgrade` says why, and it stays as it is. No release shipped one, so this asks nothing more.
+- **Its secrets stay as they are, and nothing reads them.** A secret the install has is filled in with a value that means nothing, which the service then uses by name, so the value is never opened. A secret a release adds is generated, or asked for.
+- **There's no backup first, and the plan says so.** The issue asks for one, but backups don't exist yet (#88), so that box stays open. A note, `no_backup`, says none is taken, and that an undo puts the old version back but not what the new one changed in its data. The undo's own plan says it again as `undo_no_backup`, as that's when it's news: the old version may refuse that data or misread it. A plan that fails says the data stays as it is, as a rollback doesn't put it back.
+- **A `breaking` marker must exist before the first entry with a major bump.** The format can't mark a release as one that the old data won't survive, such as a database's next major version. No entry reaches that until one ships such a release, so nothing warns of it yet.
+- **`DOCKWELL_CATALOG_DIR` names a directory of entries,** read each time, that take over from built-in ones of the same ID. Before a feed exists it's how a newer release reaches a server for a test, and how to try an entry. The panel's flow and the Docker end to end use it. A feed takes over from it, as from what's built in.
+
+Choosing to stay on a version, skipping one, and upgrading a whole fleet in one go are later work. A release that adds an input needs its value from `dockwell catalog upgrade --values`, as the panel has no form for it yet.
+
 ### What we turned down
 
 - **Running 1Panel's format directly.** It would tie the product to a format that can't express plans, secrets or backups, and it would run scripts on the host.

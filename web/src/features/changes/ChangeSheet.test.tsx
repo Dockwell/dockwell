@@ -796,6 +796,30 @@ describe("the plan sheet", () => {
     }
   });
 
+  it("warns, before an undo of an upgrade applies, of what it leaves in the data", async () => {
+    const undoing = webPlanned();
+    if (undoing.plan) {
+      undoing.reverts = "chg_upgrade";
+      undoing.plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "undo_no_backup",
+          message: "The server's words",
+          resource: { kind: "project", name: "thing" },
+        }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: undoing }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    const warned = within(sheet)
+      .getByText(/The old version may not read its data/)
+      .closest(".dw-callout") as HTMLElement;
+    expect(warned).toHaveClass("dw-tone-warning");
+    expect(warned).toHaveTextContent("may refuse it or misread it");
+    expect(warned).toHaveTextContent("no backup was taken");
+  });
+
   it("leads with what a plan says about itself, and says it in its own words", async () => {
     const noted = webPlanned();
     if (noted.plan) {

@@ -312,6 +312,11 @@ message CatalogPin {
   // What each input that isn't a secret was given, by name, so an upgrade gives
   // the same.
   map<string, string> values = 6;
+  // The entry's Compose file at this release, with its ${NAME}s as written, so it
+  // holds no secret. Read with values, it's what the file gave, which an upgrade
+  // needs to tell that from what a person changed since. Empty for an install from
+  // before Dockwell kept it, which can't be upgraded.
+  bytes file = 7;
 }
 
 // Environment is a stage of a project, such as production or staging, with

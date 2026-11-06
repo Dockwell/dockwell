@@ -75,7 +75,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	c, err := h.plan(ctx, m, stack, place, nil, nil)
+	c, err := h.plan(ctx, m, stack, place, planning{})
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,19 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 			Ref:     resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project},
 		}}
 	}
-	return h.plan(ctx, req, stack, place, in.Secrets, notes)
+	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes})
+}
+
+// planning is what a plan adds to a file read for a place.
+type planning struct {
+	// secrets are new secrets to keep beside what the file makes, by name.
+	secrets map[string]string
+	// upgrade says a file's project is the file's own to change, so it needs no
+	// word that it's already there.
+	upgrade bool
+	notes   []revision.Note
+	// deletes are what goes with this, after everything else, in this order.
+	deletes []resource.Ref
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -181,9 +193,8 @@ func useSecrets(stack *compose.Stack, values map[string]string) {
 	}
 }
 
-// plan proposes a file read for a place, with these secrets beside it, and these
-// notes ahead of what it says of the file.
-func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, stack *compose.Stack, place destination, sealed map[string]string, notes []revision.Note) (*dockwellv1.Change, error) {
+// plan proposes a file read for a place.
+func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, stack *compose.Stack, place destination, also planning) (*dockwellv1.Change, error) {
 	env := place.environment
 	if err := h.useVariables(ctx, env, stack); err != nil {
 		return nil, h.internal(ctx, err)
@@ -202,8 +213,8 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			Spec:     spec, Servers: m.GetServers(),
 		})
 	}
-	for _, name := range slices.Sorted(maps.Keys(sealed)) {
-		add(variable.SecretKind, name, &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: sealed[name]}}})
+	for _, name := range slices.Sorted(maps.Keys(also.secrets)) {
+		add(variable.SecretKind, name, &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: also.secrets[name]}}})
 	}
 	for _, n := range stack.Networks {
 		add(network.Kind, n.Name, &resourcev1.Spec{Kind: &resourcev1.Spec_Network{Network: n.Spec}})
@@ -242,6 +253,11 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			}
 		}
 	}
+	for _, ref := range also.deletes {
+		edits = append(edits, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(ref.Kind), Scope: ref.Scope, Name: ref.Name}, Delete: true,
+		})
+	}
 	summary := strings.TrimSpace(m.GetSummary())
 	if summary == "" {
 		switch {
@@ -253,6 +269,9 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			summary = "Run a Compose file"
 		}
 	}
+	if also.upgrade {
+		running, deleted = nil, nil
+	}
 	updates := place.updates(running, deleted)
 	for i := range updates {
 		updates[i].Deleted, updates[i].Named = deleted, true // for a surface that says it in its own words
@@ -262,7 +281,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Notes: slices.Concat(notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // servicesIn names what an environment runs now.

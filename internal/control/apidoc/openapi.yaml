@@ -133,6 +133,49 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:upgrade:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                UpgradeCatalogInstall plans moving an install to the newest release of its
+                 entry, ready to apply or discard, as a three-way merge of the entry's old file,
+                 its new one and what runs. What the file gave and the new one changes follows
+                 the new one, what the new one dropped goes, and what a person added or changed
+                 stays, with anything else in the environment left alone. Where a person and the
+                 release both changed one thing, the person's stays and the plan says so, but for
+                 the image. Its secrets stay as they are, and the plan says that no backup is
+                 taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
+                 not what the new one changed in its data. It's refused with the reason up_to_date
+                 when there's nothing newer, and no_record for an install from before Dockwell
+                 kept what its file gave.
+            operationId: CatalogService_UpgradeCatalogInstall
+            parameters:
+                - name: id
+                  in: path
+                  description: Its project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpgradeCatalogInstallRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpgradeCatalogInstallResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/changes:
         get:
             tags:
@@ -2396,14 +2439,22 @@ components:
                 webServiceId:
                     type: string
                     description: |-
-                        The ID of the service a person opens, once it has one. Empty for an app with
-                         nothing to open.
+                        The ID of the service a person opens: what its entry names, or one of its
+                         services when that names none, as a tunnel's.
                 firstSteps:
                     type: string
                     description: What to do first, as the entry says it. Empty when it says nothing.
                 environmentId:
                     type: string
                     description: The environment its services run in, by ID, whose secrets it uses.
+                upgrade:
+                    allOf:
+                        - $ref: '#/components/schemas/CatalogUpgrade'
+                    description: |-
+                        What it can move to, when the catalog has a release that changes what runs. A
+                         version the same as the pin's is a change to how that version runs. Unset when
+                         it's up to date, when a release changes only an entry's words, when the catalog
+                         no longer has its entry, or when the install has no record of its file.
             description: CatalogInstall is one project installed from the catalog.
         CatalogPin:
             type: object
@@ -2431,9 +2482,28 @@ components:
                     description: |-
                         What each input that isn't a secret was given, by name, so an upgrade gives
                          the same.
+                file:
+                    type: string
+                    description: |-
+                        The entry's Compose file at this release, with its ${NAME}s as written, so it
+                         holds no secret. Read with values, it's what the file gave, which an upgrade
+                         needs to tell that from what a person changed since. Empty for an install from
+                         before Dockwell kept it, which can't be upgraded.
+                    format: bytes
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
+        CatalogUpgrade:
+            type: object
+            properties:
+                version:
+                    type: string
+                    description: The app's version in it, such as "17.12".
+                release:
+                    type: integer
+                    description: The entry's release.
+                    format: uint32
+            description: CatalogUpgrade is a newer release of an install's entry.
         Certificate:
             type: object
             properties:
@@ -4951,9 +5021,13 @@ components:
                          "digest_differs" for one that can't as its servers ran different images,
                          "kept_password" for a volume that keeps the
                          password it was made with, whatever an edit gave, and "kept_options" for one
-                         that keeps its options, as an edit gave none, and "first_steps" for what a
-                         catalog app needs a person to know and do. Another reason may come: its
-                         message says what it means.
+                         that keeps its options, as an edit gave none, "first_steps" for what a catalog
+                         app needs a person to know and do, "no_backup" for a catalog upgrade that runs
+                         without a backup first, "upgrade_kept" for what a person changed that the upgrade
+                         changes too, which stays, "upgrade_dropped" for what they changed that it
+                         drops, which goes, and "undo_no_backup" for an undo of a plan that took no
+                         backup, whose data stays as the new version left it. Another reason may come:
+                         its message says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -6924,6 +6998,28 @@ components:
             type: object
             properties: {}
             description: UnlockCodeSignInResponse is empty.
+        UpgradeCatalogInstallRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its project, by name or ID.
+                values:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        A value for each input the newer release adds, by name, as InstallCatalogEntry
+                         takes them. What it was installed with carries over, and its secrets stay.
+            description: UpgradeCatalogInstallRequest names an install to upgrade.
+        UpgradeCatalogInstallResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: UpgradeCatalogInstallResponse carries the planned change.
         User:
             type: object
             properties:

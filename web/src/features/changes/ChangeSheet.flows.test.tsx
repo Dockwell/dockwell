@@ -236,6 +236,22 @@ describe("a plan reads as what it is for", () => {
     expect(sheet.querySelector(".dw-sheet-title code")).toHaveTextContent("nginx:1.28");
   });
 
+  it.each(["no_backup", "undo_no_backup"])("says what a failed plan with %s left in the data", async (reason) => {
+    const failed = moved(aDeploy(), { state: ChangeState.FAILED, error: "no." });
+    if (failed.plan) failed.plan.notes = [create(PlanNoteSchema, { reason, message: "The server's words" })];
+    show(failed);
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't deploy nginx:1.28" });
+    const left = within(sheet).getByText("No backup was taken, and the data stays as it is now");
+    expect(left.closest(".dw-callout")).toHaveClass("dw-tone-warning");
+    expect(sheet).toHaveTextContent("may refuse it or misread it");
+  });
+
+  it("says nothing of data when a plan that failed had nothing to say of it", async () => {
+    show(moved(aDeploy(), { state: ChangeState.FAILED, error: "no." }));
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't deploy nginx:1.28" });
+    expect(sheet).not.toHaveTextContent("No backup was taken");
+  });
+
   it("says where it lands once there is a choice, and only then", async () => {
     const planned = aDeploy();
     if (planned.plan) {

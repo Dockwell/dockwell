@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/catalog.proto.
  */
 export const file_dockwell_v1_catalog: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jYXRhbG9nLnByb3RvEgtkb2Nrd2VsbC52MSIbChlMaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0Ik8KGkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlEjEKB2VudHJpZXMYASADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5IiQKFkdldENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkizAEKF0dldENhdGFsb2dFbnRyeVJlc3BvbnNlEi8KBWVudHJ5GAEgASgLMiAuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbnRyeRIPCgdwcm9qZWN0GAIgASgJEkAKBnZhbHVlcxgDIAMoCzIwLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlc3BvbnNlLlZhbHVlc0VudHJ5Gi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiHAoaTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QiTAobTGlzdENhdGFsb2dJbnN0YWxsc1Jlc3BvbnNlEi0KCGluc3RhbGxzGAEgAygLMhsuZG9ja3dlbGwudjEuQ2F0YWxvZ0luc3RhbGwivQEKDkNhdGFsb2dJbnN0YWxsEhIKCnByb2plY3RfaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIzCgNwaW4YAyABKAsyJi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nUGluEgwKBG5hbWUYBCABKAkSFgoOd2ViX3NlcnZpY2VfaWQYBSABKAkSEwoLZmlyc3Rfc3RlcHMYBiABKAkSFgoOZW52aXJvbm1lbnRfaWQYByABKAkixAEKGkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSSQoGdmFsdWVzGAMgAygLMjMuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuVmFsdWVzRW50cnlCBMjzGAESDwoHc2VydmVycxgEIAMoCRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkIKG0luc3RhbGxDYXRhbG9nRW50cnlSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2Uy3gQKDkNhdGFsb2dTZXJ2aWNlEokBChJMaXN0Q2F0YWxvZ0VudHJpZXMSJi5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0GicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dFbnRyaWVzUmVzcG9uc2UiIpACAaC7GAGC0+STAhUSEy92MS9jYXRhbG9nL2VudHJpZXMShQEKD0dldENhdGFsb2dFbnRyeRIjLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXNwb25zZSInkAIBoLsYAYLT5JMCGhIYL3YxL2NhdGFsb2cvZW50cmllcy97aWR9EpsBChNMaXN0Q2F0YWxvZ0luc3RhbGxzEicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0luc3RhbGxzUmVzcG9uc2UiMZACAaC7GAGquxgKEghpbnN0YWxsc4LT5JMCFhIUL3YxL2NhdGFsb2cvaW5zdGFsbHMSmQEKE0luc3RhbGxDYXRhbG9nRW50cnkSJy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdBooLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXNwb25zZSIvoLsYAoLT5JMCJToBKiIgL3YxL2NhdGFsb2cvZW50cmllcy97aWR9Omluc3RhbGxCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ2F0YWxvZ1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_catalog_v1alpha1_entry, file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jYXRhbG9nLnByb3RvEgtkb2Nrd2VsbC52MSIbChlMaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0Ik8KGkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlEjEKB2VudHJpZXMYASADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5IiQKFkdldENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkizAEKF0dldENhdGFsb2dFbnRyeVJlc3BvbnNlEi8KBWVudHJ5GAEgASgLMiAuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbnRyeRIPCgdwcm9qZWN0GAIgASgJEkAKBnZhbHVlcxgDIAMoCzIwLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlc3BvbnNlLlZhbHVlc0VudHJ5Gi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiHAoaTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QiTAobTGlzdENhdGFsb2dJbnN0YWxsc1Jlc3BvbnNlEi0KCGluc3RhbGxzGAEgAygLMhsuZG9ja3dlbGwudjEuQ2F0YWxvZ0luc3RhbGwi6wEKDkNhdGFsb2dJbnN0YWxsEhIKCnByb2plY3RfaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIzCgNwaW4YAyABKAsyJi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nUGluEgwKBG5hbWUYBCABKAkSFgoOd2ViX3NlcnZpY2VfaWQYBSABKAkSEwoLZmlyc3Rfc3RlcHMYBiABKAkSFgoOZW52aXJvbm1lbnRfaWQYByABKAkSLAoHdXBncmFkZRgIIAEoCzIbLmRvY2t3ZWxsLnYxLkNhdGFsb2dVcGdyYWRlIjIKDkNhdGFsb2dVcGdyYWRlEg8KB3ZlcnNpb24YASABKAkSDwoHcmVsZWFzZRgCIAEoDSLEAQoaSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRJJCgZ2YWx1ZXMYAyADKAsyMy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdC5WYWx1ZXNFbnRyeUIEyPMYARIPCgdzZXJ2ZXJzGAQgAygJGi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiQgobSW5zdGFsbENhdGFsb2dFbnRyeVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSKmAQocVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVxdWVzdBIKCgJpZBgBIAEoCRJLCgZ2YWx1ZXMYAiADKAsyNS5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXF1ZXN0LlZhbHVlc0VudHJ5QgTI8xgBGi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRAodVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlMo4GCg5DYXRhbG9nU2VydmljZRKJAQoSTGlzdENhdGFsb2dFbnRyaWVzEiYuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dFbnRyaWVzUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlIiKQAgGguxgBgtPkkwIVEhMvdjEvY2F0YWxvZy9lbnRyaWVzEoUBCg9HZXRDYXRhbG9nRW50cnkSIy5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXF1ZXN0GiQuZG9ja3dlbGwudjEuR2V0Q2F0YWxvZ0VudHJ5UmVzcG9uc2UiJ5ACAaC7GAGC0+STAhoSGC92MS9jYXRhbG9nL2VudHJpZXMve2lkfRKbAQoTTGlzdENhdGFsb2dJbnN0YWxscxInLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nSW5zdGFsbHNSZXF1ZXN0GiguZG9ja3dlbGwudjEuTGlzdENhdGFsb2dJbnN0YWxsc1Jlc3BvbnNlIjGQAgGguxgBqrsYChIIaW5zdGFsbHOC0+STAhYSFC92MS9jYXRhbG9nL2luc3RhbGxzEq0BChVVcGdyYWRlQ2F0YWxvZ0luc3RhbGwSKS5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXF1ZXN0GiouZG9ja3dlbGwudjEuVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVzcG9uc2UiPaC7GAKquxgJEgd1cGdyYWRlgtPkkwImOgEqIiEvdjEvY2F0YWxvZy9pbnN0YWxscy97aWR9OnVwZ3JhZGUSmQEKE0luc3RhbGxDYXRhbG9nRW50cnkSJy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdBooLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXNwb25zZSIvoLsYAoLT5JMCJToBKiIgL3YxL2NhdGFsb2cvZW50cmllcy97aWR9Omluc3RhbGxCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ2F0YWxvZ1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_catalog_v1alpha1_entry, file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
 
 /**
  * ListCatalogEntriesRequest asks for the whole catalog.
@@ -188,8 +188,8 @@ export type CatalogInstall = Message<"dockwell.v1.CatalogInstall"> & {
   name: string;
 
   /**
-   * The ID of the service a person opens, once it has one. Empty for an app with
-   * nothing to open.
+   * The ID of the service a person opens: what its entry names, or one of its
+   * services when that names none, as a tunnel's.
    *
    * @generated from field: string web_service_id = 5;
    */
@@ -208,6 +208,16 @@ export type CatalogInstall = Message<"dockwell.v1.CatalogInstall"> & {
    * @generated from field: string environment_id = 7;
    */
   environmentId: string;
+
+  /**
+   * What it can move to, when the catalog has a release that changes what runs. A
+   * version the same as the pin's is a change to how that version runs. Unset when
+   * it's up to date, when a release changes only an entry's words, when the catalog
+   * no longer has its entry, or when the install has no record of its file.
+   *
+   * @generated from field: dockwell.v1.CatalogUpgrade upgrade = 8;
+   */
+  upgrade?: CatalogUpgrade | undefined;
 };
 
 /**
@@ -216,6 +226,34 @@ export type CatalogInstall = Message<"dockwell.v1.CatalogInstall"> & {
  */
 export const CatalogInstallSchema: GenMessage<CatalogInstall> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_catalog, 6);
+
+/**
+ * CatalogUpgrade is a newer release of an install's entry.
+ *
+ * @generated from message dockwell.v1.CatalogUpgrade
+ */
+export type CatalogUpgrade = Message<"dockwell.v1.CatalogUpgrade"> & {
+  /**
+   * The app's version in it, such as "17.12".
+   *
+   * @generated from field: string version = 1;
+   */
+  version: string;
+
+  /**
+   * The entry's release.
+   *
+   * @generated from field: uint32 release = 2;
+   */
+  release: number;
+};
+
+/**
+ * Describes the message dockwell.v1.CatalogUpgrade.
+ * Use `create(CatalogUpgradeSchema)` to create a new message.
+ */
+export const CatalogUpgradeSchema: GenMessage<CatalogUpgrade> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 7);
 
 /**
  * InstallCatalogEntryRequest is an app to install.
@@ -261,7 +299,7 @@ export type InstallCatalogEntryRequest = Message<"dockwell.v1.InstallCatalogEntr
  * Use `create(InstallCatalogEntryRequestSchema)` to create a new message.
  */
 export const InstallCatalogEntryRequestSchema: GenMessage<InstallCatalogEntryRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 7);
+  messageDesc(file_dockwell_v1_catalog, 8);
 
 /**
  * InstallCatalogEntryResponse carries the planned change.
@@ -282,7 +320,57 @@ export type InstallCatalogEntryResponse = Message<"dockwell.v1.InstallCatalogEnt
  * Use `create(InstallCatalogEntryResponseSchema)` to create a new message.
  */
 export const InstallCatalogEntryResponseSchema: GenMessage<InstallCatalogEntryResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 8);
+  messageDesc(file_dockwell_v1_catalog, 9);
+
+/**
+ * UpgradeCatalogInstallRequest names an install to upgrade.
+ *
+ * @generated from message dockwell.v1.UpgradeCatalogInstallRequest
+ */
+export type UpgradeCatalogInstallRequest = Message<"dockwell.v1.UpgradeCatalogInstallRequest"> & {
+  /**
+   * Its project, by name or ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * A value for each input the newer release adds, by name, as InstallCatalogEntry
+   * takes them. What it was installed with carries over, and its secrets stay.
+   *
+   * @generated from field: map<string, string> values = 2;
+   */
+  values: { [key: string]: string };
+};
+
+/**
+ * Describes the message dockwell.v1.UpgradeCatalogInstallRequest.
+ * Use `create(UpgradeCatalogInstallRequestSchema)` to create a new message.
+ */
+export const UpgradeCatalogInstallRequestSchema: GenMessage<UpgradeCatalogInstallRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 10);
+
+/**
+ * UpgradeCatalogInstallResponse carries the planned change.
+ *
+ * @generated from message dockwell.v1.UpgradeCatalogInstallResponse
+ */
+export type UpgradeCatalogInstallResponse = Message<"dockwell.v1.UpgradeCatalogInstallResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.UpgradeCatalogInstallResponse.
+ * Use `create(UpgradeCatalogInstallResponseSchema)` to create a new message.
+ */
+export const UpgradeCatalogInstallResponseSchema: GenMessage<UpgradeCatalogInstallResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 11);
 
 /**
  * CatalogService lists the apps you can install, and plans installing one as a
@@ -326,6 +414,26 @@ export const CatalogService: GenService<{
     methodKind: "unary";
     input: typeof ListCatalogInstallsRequestSchema;
     output: typeof ListCatalogInstallsResponseSchema;
+  },
+  /**
+   * UpgradeCatalogInstall plans moving an install to the newest release of its
+   * entry, ready to apply or discard, as a three-way merge of the entry's old file,
+   * its new one and what runs. What the file gave and the new one changes follows
+   * the new one, what the new one dropped goes, and what a person added or changed
+   * stays, with anything else in the environment left alone. Where a person and the
+   * release both changed one thing, the person's stays and the plan says so, but for
+   * the image. Its secrets stay as they are, and the plan says that no backup is
+   * taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
+   * not what the new one changed in its data. It's refused with the reason up_to_date
+   * when there's nothing newer, and no_record for an install from before Dockwell
+   * kept what its file gave.
+   *
+   * @generated from rpc dockwell.v1.CatalogService.UpgradeCatalogInstall
+   */
+  upgradeCatalogInstall: {
+    methodKind: "unary";
+    input: typeof UpgradeCatalogInstallRequestSchema;
+    output: typeof UpgradeCatalogInstallResponseSchema;
   },
   /**
    * InstallCatalogEntry plans installing an app as a project of its own, ready

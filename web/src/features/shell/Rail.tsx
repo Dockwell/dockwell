@@ -7,6 +7,7 @@ import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSignedInUser } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
+import { useUpgrades } from "../catalog/useCatalog";
 import type { FleetView } from "../servers/server";
 import { firstSegment, inActivity, OPERATE, RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
@@ -19,6 +20,7 @@ import { shortVersion } from "./version";
  */
 export function Rail({ view }: { view: FleetView }) {
   const { t, i18n } = useLingui();
+  const upgrades = useUpgrades();
   const segment = firstSegment(useLocation({ select: (location) => location.pathname }));
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
 
@@ -58,7 +60,7 @@ export function Rail({ view }: { view: FleetView }) {
       </Link>
       {RESOURCES.map(section)}
       <Link to="/catalog" {...current(segment === "catalog")}>
-        <ItemBody icon="grid" label={t`Catalog`} />
+        <ItemBody icon="grid" label={t`Catalog`} count={upgrades > 0 ? String(upgrades) : undefined} />
       </Link>
       {view.fleet ? (
         <>

@@ -361,6 +361,19 @@ export function useRisks(plan: Plan | undefined): Notice[] {
 }
 
 /**
+ * What a failed plan left in the data, when it took no backup: a rollback puts back
+ * what runs, and whatever ran meanwhile may have changed what that runs on.
+ */
+export function useDataLeft(plan: Plan | undefined): Omit<Notice, "key"> | undefined {
+  const { t } = useLingui();
+  if (!plan?.notes.some((note) => note.reason === "no_backup" || note.reason === "undo_no_backup")) return undefined;
+  return {
+    title: t`No backup was taken, and the data stays as it is now`,
+    detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't.`,
+  };
+}
+
+/**
  * What a person should know before applying a plan, which stops nobody: a folder
  * of the server's that an app reaches, a rollback leaving a service's data as it
  * is, or a Compose variable written where anyone can read it. The API says a
@@ -391,6 +404,20 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       }
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
+      case "no_backup":
+        return {
+          key,
+          title: t`No backup is taken first`,
+          detail: t`Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first.`,
+        };
+      case "undo_no_backup":
+        return {
+          key,
+          title: t`The old version may not read its data`,
+          detail: applied
+            ? t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't.`
+            : t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version.`,
+        };
       case "values_latest": {
         const names = note.names.join(", ");
         return {

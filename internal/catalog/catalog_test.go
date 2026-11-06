@@ -3,6 +3,8 @@
 package catalog_test
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -55,22 +57,6 @@ func TestTheBuiltInEntries(t *testing.T) {
 			}
 			if w := e.GetWeb().GetService(); w != "" && !slices.ContainsFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == w }) {
 				t.Errorf("it opens %s, which it doesn't run", w)
-			}
-			// A secret must be a whole value, as a rotation otherwise can't reach it.
-			for name, value := range filled.Secrets {
-				whole := false
-				for _, s := range stack.Services {
-					for k, v := range s.Spec.GetApp().GetEnv() {
-						if v == value {
-							whole = true
-						} else if strings.Contains(v, value) {
-							t.Errorf("%s holds %s inside a longer value", k, name)
-						}
-					}
-				}
-				if !whole {
-					t.Errorf("no service has %s as a whole environment value", name)
-				}
 			}
 		})
 	}
@@ -174,7 +160,13 @@ func TestCheckRefuses(t *testing.T) {
 		"no release":    {func(e *catalogv1.Entry) { e.Release = 0 }, "no release"},
 		"unused input":  {func(e *catalogv1.Entry) { e.Inputs[0].Name = "NOT_USED" }, "doesn't use the input NOT_USED"},
 		"shared secret": {func(e *catalogv1.Entry) { e.Inputs[1].DefaultValue = "hunter2" }, "everyone who installs it would share"},
-		"short secret":  {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
+		"a secret inside a longer value": {func(e *catalogv1.Entry) {
+			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n      URL: postgres://u:${POSTGRES_PASSWORD}@db/x", 1)
+		}, "inside a longer value"},
+		"a secret inside one word of a command": {func(e *catalogv1.Entry) {
+			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"--key=${POSTGRES_PASSWORD}\"]", 1)
+		}, "inside a longer value"},
+		"short secret": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := proto.CloneOf(base)
@@ -183,6 +175,26 @@ func TestCheckRefuses(t *testing.T) {
 				t.Errorf("Check = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// A secret stands alone: as an environment value in either form, or a word of a command.
+func TestCheckTakesASecretThatStandsAlone(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := c.Entry("postgres")
+	for name, compose := range map[string]string{
+		"a value":      "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}",
+		"a list entry": "- POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
+		"a word":       "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"${POSTGRES_PASSWORD}\"]",
+	} {
+		e := proto.CloneOf(base)
+		e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", compose, 1)
+		if err := catalog.Check(e); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }
 
@@ -265,5 +277,92 @@ func TestFill(t *testing.T) {
 				t.Errorf("a refusal quotes a value: %v", err)
 			}
 		})
+	}
+}
+
+// An upgrade gives what the install was given, a default to what's new, and reads no
+// secret: one that's held stands for itself, and only a new one is made.
+func TestCarry(t *testing.T) {
+	e := &catalogv1.Entry{Name: "Thing", Inputs: []*catalogv1.Input{
+		{Name: "PORT", Label: "Port", Type: catalogv1.InputType_INPUT_TYPE_PORT, DefaultValue: "8081"},
+		{Name: "ADDED", Label: "Added", Type: catalogv1.InputType_INPUT_TYPE_PORT, DefaultValue: "9000"},
+		{Name: "KEPT", Label: "Kept", Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32},
+		{Name: "NEW", Label: "New", Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32},
+		{Name: "TYPED", Label: "Typed", Type: catalogv1.InputType_INPUT_TYPE_SECRET},
+	}}
+	pin := &resourcev1.CatalogPin{Values: map[string]string{"PORT": "8090", "GONE": "x"}}
+	filled, err := catalog.Carry(e, pin, nil, catalog.Suggest(e, nil), map[string]bool{"KEPT": true, "TYPED": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filled.Variables["PORT"] != "8090" || filled.Variables["ADDED"] != "9000" {
+		t.Errorf("Carry gives %v", filled.Variables)
+	}
+	if _, ok := filled.Plain["GONE"]; ok {
+		t.Errorf("the pin keeps an input the entry dropped: %v", filled.Plain)
+	}
+	if _, ok := filled.Secrets["KEPT"]; ok || filled.Held["KEPT"] == "" || filled.Held["TYPED"] == "" {
+		t.Errorf("a held secret reads %+v", filled)
+	}
+	if len(filled.Secrets["NEW"]) != 32 {
+		t.Errorf("a new secret reads %q", filled.Secrets["NEW"])
+	}
+	if got := filled.Stands(); len(got) != 3 || got["NEW"] == "" || got["KEPT"] != filled.Held["KEPT"] {
+		t.Errorf("Stands = %v", got)
+	}
+	if _, err := catalog.Carry(e, pin, nil, catalog.Suggest(e, nil), map[string]bool{"KEPT": true}); err == nil || !strings.Contains(err.Error(), "Typed needs a value") {
+		t.Errorf("a secret this release adds with no value = %v", err)
+	}
+}
+
+// An install's old file reads again from its pin alone: what it kept, and a stand-in
+// for a secret, which it never kept.
+func TestGivenReadsAPinBack(t *testing.T) {
+	variables, stands, err := catalog.Given(&resourcev1.CatalogPin{
+		File:   []byte("a: ${PORT}\nb: ${PASSWORD}\nc: ${PASSWORD}\n"),
+		Values: map[string]string{"PORT": "8081", "UNUSED": "x"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if variables["PORT"] != "8081" || len(variables) != 2 || len(stands) != 1 {
+		t.Errorf("variables %v, stands %v", variables, stands)
+	}
+	if s := stands["PASSWORD"]; len(s) != 32 || variables["PASSWORD"] != s {
+		t.Errorf("the secret's stand-in is %q", s)
+	}
+}
+
+// A directory of entries takes over from one built in, and adds to the rest.
+func TestADirectoryOfEntries(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	built, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine, _ := built.Entry("postgres")
+	// A release of its own, in the entry's own words.
+	raw, err := os.ReadFile("entries/postgres.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer := strings.Replace(string(raw), "release: 1\n", "release: 9\n", 1)
+	if err := os.WriteFile(filepath.Join(dir, "postgres.yaml"), []byte(newer), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := c.Entry("postgres")
+	if got.GetRelease() != 9 || len(c.All()) != len(built.All()) || got.GetName() != mine.GetName() {
+		t.Errorf("Load gives release %d of %d entries", got.GetRelease(), len(c.All()))
+	}
+	if err := os.WriteFile(filepath.Join(dir, "broken.yaml"), []byte("id: broken\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := catalog.Load(""); err == nil || !strings.Contains(err.Error(), "broken.yaml") {
+		t.Errorf("a broken entry in the directory = %v", err)
 	}
 }

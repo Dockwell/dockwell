@@ -44,6 +44,9 @@ const (
 	// CatalogServiceListCatalogInstallsProcedure is the fully-qualified name of the CatalogService's
 	// ListCatalogInstalls RPC.
 	CatalogServiceListCatalogInstallsProcedure = "/dockwell.v1.CatalogService/ListCatalogInstalls"
+	// CatalogServiceUpgradeCatalogInstallProcedure is the fully-qualified name of the CatalogService's
+	// UpgradeCatalogInstall RPC.
+	CatalogServiceUpgradeCatalogInstallProcedure = "/dockwell.v1.CatalogService/UpgradeCatalogInstall"
 	// CatalogServiceInstallCatalogEntryProcedure is the fully-qualified name of the CatalogService's
 	// InstallCatalogEntry RPC.
 	CatalogServiceInstallCatalogEntryProcedure = "/dockwell.v1.CatalogService/InstallCatalogEntry"
@@ -60,6 +63,18 @@ type CatalogServiceClient interface {
 	// ListCatalogInstalls returns what's installed from the catalog and still has
 	// services, by project.
 	ListCatalogInstalls(context.Context, *connect.Request[v1.ListCatalogInstallsRequest]) (*connect.Response[v1.ListCatalogInstallsResponse], error)
+	// UpgradeCatalogInstall plans moving an install to the newest release of its
+	// entry, ready to apply or discard, as a three-way merge of the entry's old file,
+	// its new one and what runs. What the file gave and the new one changes follows
+	// the new one, what the new one dropped goes, and what a person added or changed
+	// stays, with anything else in the environment left alone. Where a person and the
+	// release both changed one thing, the person's stays and the plan says so, but for
+	// the image. Its secrets stay as they are, and the plan says that no backup is
+	// taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
+	// not what the new one changed in its data. It's refused with the reason up_to_date
+	// when there's nothing newer, and no_record for an install from before Dockwell
+	// kept what its file gave.
+	UpgradeCatalogInstall(context.Context, *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error)
 	// InstallCatalogEntry plans installing an app as a project of its own, ready
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
@@ -100,6 +115,12 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		upgradeCatalogInstall: connect.NewClient[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse](
+			httpClient,
+			baseURL+CatalogServiceUpgradeCatalogInstallProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("UpgradeCatalogInstall")),
+			connect.WithClientOptions(opts...),
+		),
 		installCatalogEntry: connect.NewClient[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse](
 			httpClient,
 			baseURL+CatalogServiceInstallCatalogEntryProcedure,
@@ -111,10 +132,11 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // catalogServiceClient implements CatalogServiceClient.
 type catalogServiceClient struct {
-	listCatalogEntries  *connect.Client[v1.ListCatalogEntriesRequest, v1.ListCatalogEntriesResponse]
-	getCatalogEntry     *connect.Client[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse]
-	listCatalogInstalls *connect.Client[v1.ListCatalogInstallsRequest, v1.ListCatalogInstallsResponse]
-	installCatalogEntry *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
+	listCatalogEntries    *connect.Client[v1.ListCatalogEntriesRequest, v1.ListCatalogEntriesResponse]
+	getCatalogEntry       *connect.Client[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse]
+	listCatalogInstalls   *connect.Client[v1.ListCatalogInstallsRequest, v1.ListCatalogInstallsResponse]
+	upgradeCatalogInstall *connect.Client[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse]
+	installCatalogEntry   *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
 }
 
 // ListCatalogEntries calls dockwell.v1.CatalogService.ListCatalogEntries.
@@ -130,6 +152,11 @@ func (c *catalogServiceClient) GetCatalogEntry(ctx context.Context, req *connect
 // ListCatalogInstalls calls dockwell.v1.CatalogService.ListCatalogInstalls.
 func (c *catalogServiceClient) ListCatalogInstalls(ctx context.Context, req *connect.Request[v1.ListCatalogInstallsRequest]) (*connect.Response[v1.ListCatalogInstallsResponse], error) {
 	return c.listCatalogInstalls.CallUnary(ctx, req)
+}
+
+// UpgradeCatalogInstall calls dockwell.v1.CatalogService.UpgradeCatalogInstall.
+func (c *catalogServiceClient) UpgradeCatalogInstall(ctx context.Context, req *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error) {
+	return c.upgradeCatalogInstall.CallUnary(ctx, req)
 }
 
 // InstallCatalogEntry calls dockwell.v1.CatalogService.InstallCatalogEntry.
@@ -148,6 +175,18 @@ type CatalogServiceHandler interface {
 	// ListCatalogInstalls returns what's installed from the catalog and still has
 	// services, by project.
 	ListCatalogInstalls(context.Context, *connect.Request[v1.ListCatalogInstallsRequest]) (*connect.Response[v1.ListCatalogInstallsResponse], error)
+	// UpgradeCatalogInstall plans moving an install to the newest release of its
+	// entry, ready to apply or discard, as a three-way merge of the entry's old file,
+	// its new one and what runs. What the file gave and the new one changes follows
+	// the new one, what the new one dropped goes, and what a person added or changed
+	// stays, with anything else in the environment left alone. Where a person and the
+	// release both changed one thing, the person's stays and the plan says so, but for
+	// the image. Its secrets stay as they are, and the plan says that no backup is
+	// taken, as Dockwell can't take one yet. Undoing it puts the old version back, but
+	// not what the new one changed in its data. It's refused with the reason up_to_date
+	// when there's nothing newer, and no_record for an install from before Dockwell
+	// kept what its file gave.
+	UpgradeCatalogInstall(context.Context, *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error)
 	// InstallCatalogEntry plans installing an app as a project of its own, ready
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
@@ -184,6 +223,12 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceUpgradeCatalogInstallHandler := connect.NewUnaryHandler(
+		CatalogServiceUpgradeCatalogInstallProcedure,
+		svc.UpgradeCatalogInstall,
+		connect.WithSchema(catalogServiceMethods.ByName("UpgradeCatalogInstall")),
+		connect.WithHandlerOptions(opts...),
+	)
 	catalogServiceInstallCatalogEntryHandler := connect.NewUnaryHandler(
 		CatalogServiceInstallCatalogEntryProcedure,
 		svc.InstallCatalogEntry,
@@ -198,6 +243,8 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceGetCatalogEntryHandler.ServeHTTP(w, r)
 		case CatalogServiceListCatalogInstallsProcedure:
 			catalogServiceListCatalogInstallsHandler.ServeHTTP(w, r)
+		case CatalogServiceUpgradeCatalogInstallProcedure:
+			catalogServiceUpgradeCatalogInstallHandler.ServeHTTP(w, r)
 		case CatalogServiceInstallCatalogEntryProcedure:
 			catalogServiceInstallCatalogEntryHandler.ServeHTTP(w, r)
 		default:
@@ -219,6 +266,10 @@ func (UnimplementedCatalogServiceHandler) GetCatalogEntry(context.Context, *conn
 
 func (UnimplementedCatalogServiceHandler) ListCatalogInstalls(context.Context, *connect.Request[v1.ListCatalogInstallsRequest]) (*connect.Response[v1.ListCatalogInstallsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.ListCatalogInstalls is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) UpgradeCatalogInstall(context.Context, *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.UpgradeCatalogInstall is not implemented"))
 }
 
 func (UnimplementedCatalogServiceHandler) InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error) {
