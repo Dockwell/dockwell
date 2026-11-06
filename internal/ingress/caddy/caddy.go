@@ -915,7 +915,8 @@ func EnsureDirs(dir string) error {
 // left from the last start, a link, or a directory with something in it, which
 // would otherwise stop the control plane starting, and with it the SSH tunnel
 // that reaches the panel when the ingress is down. Nothing is followed out of the
-// directory.
+// directory. It has no time limit, and doesn't end while something writes in a
+// directory there, so nothing may wait for it to start.
 func ClearSocket(path string) error {
 	root, err := os.OpenRoot(filepath.Dir(path))
 	if err != nil {
