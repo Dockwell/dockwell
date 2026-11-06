@@ -651,6 +651,13 @@ docker exec "$front" sh -c 'wget -q -O /dev/null http://store/' || fail "front c
 dw services delete front --project e2e-taken --yes || fail "deleting front failed"
 dw services delete store --project e2e-taken --yes || fail "letting store go failed"
 docker inspect e2e-taken-store-1 >/dev/null 2>&1 || fail "deleting a service that was only taken on removed its container"
+# The project stays once its services go, which leaves every bare command below a
+# choice of two. It and its environment go in one change, as neither can go alone.
+dw changes propose --summary "Retire e2e-taken" \
+  --edits '{"resource":{"kind":"environment","scope":"e2e-taken","name":"production"},"delete":true}' \
+  --edits '{"resource":{"kind":"project","name":"e2e-taken"},"delete":true}' --yes >/dev/null ||
+  fail "deleting the project e2e-taken and its environment failed"
+docker compose -p e2e-taken down --volumes --timeout 1 >/dev/null || fail "docker compose down for e2e-taken failed"
 
 step "It changes, and the change undoes"
 dw services update web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hi --yes ||
