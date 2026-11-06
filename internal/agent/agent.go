@@ -117,11 +117,15 @@ type LogReader interface {
 // verifies. The cache itself, and reconciling from it, come with #32; this
 // is where it plugs in.
 //
-// What it gets holds references, never values: a service's spec names the
-// variables and secrets it uses and pins each to a revision, and their
-// values reach the agent only sealed to one stream, for one step, and are
-// dropped once the step ends (ADR 0022). A cache that wants to start a
-// service again on its own needs its values from the control plane again.
+// What it gets is the step's whole spec. That spec names the variables and
+// secrets a service uses and pins each to a revision, and their values reach
+// the agent only sealed to one stream, for one step, and are dropped once the
+// step ends (ADR 0022), so it hears of none of those. A cache that wants to
+// start a service again on its own needs them from the control plane again.
+//
+// A spec also holds what is written in it: a container's own env, and a
+// volume's options, which can give a CIFS password. So a cache must seal what
+// it keeps on disk.
 type Desired interface {
 	// Applied records a resource's desired spec; nil means it was deleted.
 	Applied(ctx context.Context, ref resource.Ref, spec proto.Message) error

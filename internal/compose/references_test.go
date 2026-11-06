@@ -348,6 +348,35 @@ func TestOnlyWhatANameCantStandForIsText(t *testing.T) {
 			references: []string{"command"}, env: map[string]string{"P": "Pw7Hq2mXv9"},
 			warned: []Exposed{{Variable: "A", Kind: "service", Owner: "web", Field: "command"}},
 		},
+		"a tab": {
+			body:       "    command: run ${A} --pw=${P}\n",
+			vars:       map[string]string{"A": "two\twords", "P": "Pw7Hq2mXv9"},
+			command:    []string{"run", "two", "words", "--pw=${P}"},
+			references: []string{"command"}, env: map[string]string{"P": "Pw7Hq2mXv9"},
+			warned: []Exposed{{Variable: "A", Kind: "service", Owner: "web", Field: "command"}},
+		},
+		// Compose's splitter reads a ) as opening what the next one closes, so what's
+		// between is one word, and no name can stand for either end of it.
+		"parentheses across values": {
+			body:       "    command: run ${A} --pw=${P} ${B}\n",
+			vars:       map[string]string{"A": "x)", "B": "y)", "P": "Pw7Hq2mXv9"},
+			command:    []string{"run", "x) --pw=${P} y)"},
+			references: []string{"command"}, env: map[string]string{"P": "Pw7Hq2mXv9"},
+			warned: []Exposed{
+				{Variable: "A", Kind: "service", Owner: "web", Field: "command"},
+				{Variable: "B", Kind: "service", Owner: "web", Field: "command"},
+			},
+		},
+		"$( across values": {
+			body:       "    command: run ${A} --pw=${P} ${B}\n",
+			vars:       map[string]string{"A": "$(x", "B": "y)", "P": "Pw7Hq2mXv9"},
+			command:    []string{"run", "$$(x --pw=${P} y)"},
+			references: []string{"command"}, env: map[string]string{"P": "Pw7Hq2mXv9"},
+			warned: []Exposed{
+				{Variable: "A", Kind: "service", Owner: "web", Field: "command"},
+				{Variable: "B", Kind: "service", Owner: "web", Field: "command"},
+			},
+		},
 		"nothing left to name": {
 			body:    "    command: run ${A}\n",
 			vars:    map[string]string{"A": "two words"},
