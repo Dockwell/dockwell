@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 )
 
@@ -27,12 +26,10 @@ func (c *Client) WentPastMemory(ctx context.Context, id string, from, to time.Ti
 	if err != nil {
 		return false, err
 	}
-	// With an end in the past or now, Docker sends what it has and closes.
-	query := url.Values{
-		"since":   {strconv.FormatInt(from.Unix(), 10)},
-		"until":   {strconv.FormatInt(to.Unix(), 10)},
-		"filters": {string(filters)},
-	}
+	// With an end in the past or now, Docker sends what it has and closes. An end
+	// cut to the second would stop before an event from this one, which a restart
+	// that's just happened is.
+	query := url.Values{"since": {eventTime(from)}, "until": {eventTime(to)}, "filters": {string(filters)}}
 	res, err := c.send(ctx, http.MethodGet, path, query, nil)
 	if err != nil {
 		return false, err
@@ -50,3 +47,6 @@ func (c *Client) WentPastMemory(ctx context.Context, id string, from, to time.Ti
 	}
 	return event.Action == "oom", nil
 }
+
+// eventTime writes a time as Docker's events take it: seconds, and nanoseconds.
+func eventTime(t time.Time) string { return fmt.Sprintf("%d.%09d", t.Unix(), t.Nanosecond()) }

@@ -200,6 +200,15 @@ func newID() string {
 	return hex.EncodeToString(b)
 }
 
+// eventTime reads a time as Docker's events take one: seconds, and nanoseconds if
+// it has them.
+func eventTime(s string) time.Time {
+	seconds, nanos, _ := strings.Cut(s, ".")
+	sec, _ := strconv.ParseInt(seconds, 10, 64)
+	nsec, _ := strconv.ParseInt((nanos + "000000000")[:9], 10, 64)
+	return time.Unix(sec, nsec)
+}
+
 // memoryKill is the kernel killing something in a container for its memory limit.
 type memoryKill struct {
 	id string
@@ -1574,11 +1583,10 @@ func (e *Engine) serveEvents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	since, _ := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
-	until, _ := strconv.ParseInt(r.URL.Query().Get("until"), 10, 64)
+	since, until := eventTime(r.URL.Query().Get("since")), eventTime(r.URL.Query().Get("until"))
 	w.WriteHeader(http.StatusOK)
 	for _, kill := range e.memoryKills {
-		if slices.Contains(filters["container"], kill.id) && slices.Contains(filters["event"], "oom") && kill.at.Unix() >= since && kill.at.Unix() <= until {
+		if slices.Contains(filters["container"], kill.id) && slices.Contains(filters["event"], "oom") && !kill.at.Before(since) && !kill.at.After(until) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"Type": "container", "Action": "oom", "id": kill.id})
 		}
 	}

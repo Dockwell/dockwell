@@ -1297,7 +1297,7 @@ for _ in $(seq 300); do
   sleep 0.1
 done
 [[ -n "$restarted" ]] || fail "e2e-oom wasn't started again: $state (restarts, running, restarting)"
-oom=$(docker events --since "$oom_from" --until "$(date +%s)" --filter container=e2e-oom --filter event=oom --format '{{.Action}}') || fail "docker events failed"
+oom=$(docker events --since "$oom_from" --until "$(date +%s.%N)" --filter container=e2e-oom --filter event=oom --format '{{.Action}}') || fail "docker events failed"
 docker rm --force e2e-oom >/dev/null || fail "can't remove e2e-oom"
 [[ "$oom" == *oom* ]] || fail "Docker's events say nothing of a container going past its memory limit, so the agent wouldn't say why every site dropped: '$oom'"
 

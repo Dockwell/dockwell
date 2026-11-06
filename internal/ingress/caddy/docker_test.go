@@ -162,7 +162,7 @@ func TestStatusSaysCaddyRestartedForMemory(t *testing.T) {
 	}
 	// Started again: its state doesn't, and its events do.
 	started := time.Now()
-	e.KillForMemory(ingress.ContainerName, started.Add(-time.Second))
+	e.KillForMemory(ingress.ContainerName, started)
 	e.Edit(ingress.ContainerName, func(got *docker.Container) {
 		got.RestartCount = 2
 		got.State.OOMKilled = false
