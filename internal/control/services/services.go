@@ -236,6 +236,12 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 			if rev.Deployments, err = names.deployments(ctx, r.Deployments); err != nil {
 				return err
 			}
+			if rev.ServersAdded, err = names.names(ctx, r.ServersAdded); err != nil {
+				return err
+			}
+			if rev.ServersLeft, err = names.names(ctx, r.ServersLeft); err != nil {
+				return err
+			}
 			res.Revisions = append(res.Revisions, rev)
 		}
 		return nil
@@ -519,6 +525,18 @@ func (n *serverNames) name(ctx context.Context, server string) (string, error) {
 	}
 	n.known[server] = s.Name
 	return s.Name, nil
+}
+
+func (n *serverNames) names(ctx context.Context, servers []string) ([]string, error) {
+	out := make([]string, len(servers))
+	for i, s := range servers {
+		name, err := n.name(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = name
+	}
+	return out, nil
 }
 
 var deploymentStates = map[string]dockwellv1.DeploymentState{

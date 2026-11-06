@@ -2088,6 +2088,10 @@ msgid "Couldn't deploy {image}"
 msgstr "无法部署 {image}"
 
 #: src/features/apps/revision.ts
+msgid "Couldn't place it on {added}"
+msgstr "无法把它放到 {added} 上"
+
+#: src/features/apps/revision.ts
 msgid "Couldn't publish port {number}"
 msgstr "无法发布端口 {number}"
 
@@ -2126,6 +2130,10 @@ msgstr "无法替换"
 #: src/features/changes/words.ts
 msgid "Couldn't roll back to {revision}"
 msgstr "无法回滚到 {revision}"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't take it off {left}"
+msgstr "无法把它从 {left} 上移走"
 
 #: src/features/changes/words.ts
 msgid "Couldn't update"
@@ -4484,6 +4492,14 @@ msgstr "人们通过此名称以明文 HTTP 访问应用"
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "人们通过此名称访问应用，流量经过此服务器前面的隧道或代理"
 
+#: src/features/apps/revision.ts
+msgid "Placed it on {added}"
+msgstr "已把它放到 {added} 上"
+
+#: src/features/apps/revision.ts
+msgid "Placing it on {added}"
+msgstr "正在把它放到 {added} 上"
+
 #: src/features/apps/DomainNote.tsx
 msgid "Plain HTTP"
 msgstr "明文 HTTP"
@@ -5774,6 +5790,10 @@ msgstr "将取消{stopping}"
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "停用其镜像在 {kept} 保存的数据，服务器会保留 7 天"
 
+#: src/features/apps/revision.ts
+msgid "Taking it off {left}"
+msgstr "正在把它从 {left} 上移走"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
 msgstr "10 个新恢复码将替换你现有的 {left} 个，旧的会立即失效。新的恢复码只显示一次。"
@@ -6477,6 +6497,10 @@ msgstr "用时 {took}"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Took {took} on <0>{names}</0>"
 msgstr "在 <0>{names}</0> 上用时 {took}"
+
+#: src/features/apps/revision.ts
+msgid "Took it off {left}"
+msgstr "已把它从 {left} 上移走"
 
 #: src/features/changes/words.ts
 msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"

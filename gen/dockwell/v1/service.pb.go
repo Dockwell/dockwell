@@ -615,7 +615,12 @@ type ServiceRevision struct {
 	MatchesLatest bool `protobuf:"varint,8,opt,name=matches_latest,json=matchesLatest,proto3" json:"matches_latest,omitempty"`
 	// The revision it put back, for a revision made by RollBackService. 0 for
 	// any other.
-	RolledBackTo  int64 `protobuf:"varint,9,opt,name=rolled_back_to,json=rolledBackTo,proto3" json:"rolled_back_to,omitempty"`
+	RolledBackTo int64 `protobuf:"varint,9,opt,name=rolled_back_to,json=rolledBackTo,proto3" json:"rolled_back_to,omitempty"`
+	// The servers it put the service on, by name. A revision can do that and
+	// change no field of its spec, so changes is empty.
+	ServersAdded []string `protobuf:"bytes,10,rep,name=servers_added,json=serversAdded,proto3" json:"servers_added,omitempty"`
+	// The servers it took the service off, by name.
+	ServersLeft   []string `protobuf:"bytes,11,rep,name=servers_left,json=serversLeft,proto3" json:"servers_left,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -711,6 +716,20 @@ func (x *ServiceRevision) GetRolledBackTo() int64 {
 		return x.RolledBackTo
 	}
 	return 0
+}
+
+func (x *ServiceRevision) GetServersAdded() []string {
+	if x != nil {
+		return x.ServersAdded
+	}
+	return nil
+}
+
+func (x *ServiceRevision) GetServersLeft() []string {
+	if x != nil {
+		return x.ServersLeft
+	}
+	return nil
 }
 
 // DeployServiceRequest names a service and the image to run.
@@ -1177,7 +1196,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\venvironment\x18\x05 \x01(\tR\venvironment\"\x82\x01\n" +
 	"\x1cListServiceRevisionsResponse\x12:\n" +
 	"\trevisions\x18\x01 \x03(\v2\x1c.dockwell.v1.ServiceRevisionR\trevisions\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x86\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xce\x03\n" +
 	"\x0fServiceRevision\x12\x16\n" +
 	"\x06number\x18\x01 \x01(\x03R\x06number\x12;\n" +
 	"\vcreate_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
@@ -1188,7 +1207,10 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\achanges\x18\x06 \x03(\v2\x18.dockwell.v1.FieldChangeR\achanges\x12@\n" +
 	"\vdeployments\x18\a \x03(\v2\x1e.dockwell.v1.ServiceDeploymentR\vdeployments\x12%\n" +
 	"\x0ematches_latest\x18\b \x01(\bR\rmatchesLatest\x12$\n" +
-	"\x0erolled_back_to\x18\t \x01(\x03R\frolledBackTo\"\x92\x01\n" +
+	"\x0erolled_back_to\x18\t \x01(\x03R\frolledBackTo\x12#\n" +
+	"\rservers_added\x18\n" +
+	" \x03(\tR\fserversAdded\x12!\n" +
+	"\fservers_left\x18\v \x03(\tR\vserversLeft\"\x92\x01\n" +
 	"\x14DeployServiceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x18\n" +

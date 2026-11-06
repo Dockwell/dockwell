@@ -224,6 +224,11 @@ message ServiceRevision {
   // The revision it put back, for a revision made by RollBackService. 0 for
   // any other.
   int64 rolled_back_to = 9;
+  // The servers it put the service on, by name. A revision can do that and
+  // change no field of its spec, so changes is empty.
+  repeated string servers_added = 10;
+  // The servers it took the service off, by name.
+  repeated string servers_left = 11;
 }
 
 // DeployServiceRequest names a service and the image to run.

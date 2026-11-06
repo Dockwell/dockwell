@@ -484,6 +484,43 @@ func TestAPullOnTwoServersRecordsBoth(t *testing.T) {
 	}
 }
 
+// A revision that only moves a service between servers changes no field of its
+// spec, and the panel read that as a pull. It says which servers it added or left.
+func TestARevisionSaysWhichServersItAddedOrLeft(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	other := b.f.addServerNamed(t, "hz-2", nil, nil)
+	for _, e := range []*dockertest.Engine{b.e, other} {
+		moveLatest(e, digestA)
+	}
+	res, err := dockwellv1connect.NewServerServiceClient(b.b, b.b.origin, connect.WithProtoJSON()).ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var first, second string
+	for _, s := range res.Msg.GetServers() {
+		if s.GetName() == "hz-2" {
+			second = s.GetId()
+		} else {
+			first = s.GetId()
+		}
+	}
+	const file = "name: shop\nservices:\n  web:\n    image: " + latest + "\n"
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: file, Servers: []string{first}})
+	web := b.service(t, "shop", "web")
+
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: file, Servers: []string{first, second}})
+	added := b.revisions(t, web.GetId())[0]
+	if len(added.GetChanges()) != 0 || !slices.Equal(added.GetServersAdded(), []string{"hz-2"}) || len(added.GetServersLeft()) != 0 {
+		t.Errorf("the revision that added a server changed %v, added %v and left %v", added.GetChanges(), added.GetServersAdded(), added.GetServersLeft())
+	}
+
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: file, Servers: []string{first}})
+	left := b.revisions(t, web.GetId())[0]
+	if len(left.GetChanges()) != 0 || !slices.Equal(left.GetServersLeft(), []string{"hz-2"}) || len(left.GetServersAdded()) != 0 {
+		t.Errorf("the revision that left a server changed %v, added %v and left %v", left.GetChanges(), left.GetServersAdded(), left.GetServersLeft())
+	}
+}
+
 // What a file would be refused for whatever its variables hold comes before
 // asking for them, through the API as a form reads it.
 func TestCheckComposeRefusesBeforeAskingForValues(t *testing.T) {

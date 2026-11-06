@@ -2088,6 +2088,10 @@ msgid "Couldn't deploy {image}"
 msgstr "Couldn't deploy {image}"
 
 #: src/features/apps/revision.ts
+msgid "Couldn't place it on {added}"
+msgstr "Couldn't place it on {added}"
+
+#: src/features/apps/revision.ts
 msgid "Couldn't publish port {number}"
 msgstr "Couldn't publish port {number}"
 
@@ -2126,6 +2130,10 @@ msgstr "Couldn't replace"
 #: src/features/changes/words.ts
 msgid "Couldn't roll back to {revision}"
 msgstr "Couldn't roll back to {revision}"
+
+#: src/features/apps/revision.ts
+msgid "Couldn't take it off {left}"
+msgstr "Couldn't take it off {left}"
 
 #: src/features/changes/words.ts
 msgid "Couldn't update"
@@ -4484,6 +4492,14 @@ msgstr "People reach the app at this name, over plain HTTP"
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "People reach the app at this name, through what's in front of this server"
 
+#: src/features/apps/revision.ts
+msgid "Placed it on {added}"
+msgstr "Placed it on {added}"
+
+#: src/features/apps/revision.ts
+msgid "Placing it on {added}"
+msgstr "Placing it on {added}"
+
 #: src/features/apps/DomainNote.tsx
 msgid "Plain HTTP"
 msgstr "Plain HTTP"
@@ -5774,6 +5790,10 @@ msgstr "Takes away {stopping}"
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 
+#: src/features/apps/revision.ts
+msgid "Taking it off {left}"
+msgstr "Taking it off {left}"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
 msgstr "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
@@ -6477,6 +6497,10 @@ msgstr "Took {took}"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Took {took} on <0>{names}</0>"
 msgstr "Took {took} on <0>{names}</0>"
+
+#: src/features/apps/revision.ts
+msgid "Took it off {left}"
+msgstr "Took it off {left}"
 
 #: src/features/changes/words.ts
 msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"

@@ -97,6 +97,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("an app's history", () => {
+  it("says a revision placed it, where that's all it did, and doesn't call it a pull", async () => {
+    const list = [
+      aRevision(4n, "nginx:1.5", { changes: [], serversLeft: ["hz-2"] }),
+      aRevision(3n, "nginx:1.5", { changes: [], serversAdded: ["hz-2"] }),
+      aRevision(2n, "nginx:1.5", {
+        changes: [],
+        serversAdded: ["hz-3"],
+        change: { id: "chg_2", summary: "Place it", state: ChangeState.FAILED, error: "it exits" },
+      }),
+    ];
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([web], {
+        services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: list }) },
+      }),
+    );
+    expect(await screen.findByRole("row", { name: /r4/ })).toHaveTextContent("Took it off hz-2");
+    expect(screen.getByRole("row", { name: /r3/ })).toHaveTextContent("Placed it on hz-2");
+    expect(screen.getByRole("row", { name: /r2/ })).toHaveTextContent("Couldn't place it on hz-3");
+    expect(screen.queryByText(/Pulled/)).not.toBeInTheDocument();
+  });
+});
+
 describe("an app's frame", () => {
   it("says what to do about an app it can't read, and offers nothing it would refuse", async () => {
     const web = anApp("web", "", {}, { spec: undefined, specUnreadable: "service svc_web: can't open it" });
