@@ -154,6 +154,21 @@ describe("A newer release", () => {
     ).toBeVisible();
   });
 
+  it("words a change at the same version as what it is", async () => {
+    const sameVersion = {
+      installs: [{ ...behind.installs[0], upgrade: { version: "17.11", release: 2 } }],
+    };
+    renderAt("/apps/svc_adminer", {
+      ...api({ listCatalogInstalls: () => sameVersion }),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }) },
+    });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    expect(await within(panel).findByText("A change to how 17.11 runs is out.")).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "Review the change" })).toBeVisible();
+    expect(within(panel).queryByText(/Version 17.11 is out/)).not.toBeInTheDocument();
+  });
+
   it("offers its plan on the app's page, by the project", async () => {
     const user = userEvent.setup();
     let asked = "";

@@ -138,6 +138,7 @@ function Card({ entry, installs }: { entry: Entry; installs: readonly CatalogIns
   const count = installs.length;
   const app = entry.name;
   const behind = installs.some((install) => install.upgrade);
+  const sameVersion = installs.every((install) => !install.upgrade || install.upgrade.version === install.pin?.version);
   const latest = entry.version;
   const body = (
     <>
@@ -149,7 +150,7 @@ function Card({ entry, installs }: { entry: Entry; installs: readonly CatalogIns
           <span className="catalog-card-name">{entry.name}</span>
         </span>
         {behind ? (
-          <span className="catalog-installed is-behind">{t`Upgrade to ${latest}`}</span>
+          <span className="catalog-installed is-behind">{sameVersion ? t`Update out` : t`Upgrade to ${latest}`}</span>
         ) : first ? (
           <span className="catalog-installed">
             <Icon name="check" size={12} />

@@ -1055,6 +1055,10 @@ msgstr "{path} 上的一个 {driver} 网络"
 msgid "a {type} mount ({reads})"
 msgstr "一个 {type} 挂载（{reads}）"
 
+#: src/features/catalog/InstalledPanel.tsx
+msgid "A change to how {version} runs is out."
+msgstr "{version} 的运行方式有更新。"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "认领链接只在有人认领之前有效。请直接登录。"
@@ -5092,6 +5096,10 @@ msgstr "显示了密钥 {name}"
 msgid "Review plan"
 msgstr "审查计划"
 
+#: src/features/catalog/InstalledPanel.tsx
+msgid "Review the change"
+msgstr "查看更改"
+
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "Revision"
@@ -6701,6 +6709,10 @@ msgstr "更新"
 #: src/app/Providers.tsx
 msgid "Update in place"
 msgstr "原地更新"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Update out"
+msgstr "有更新"
 
 #: src/app/Providers.tsx
 msgid "updated"

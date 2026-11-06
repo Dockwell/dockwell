@@ -2451,8 +2451,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/CatalogUpgrade'
                     description: |-
-                        What it can move to, when the catalog has a newer release. Unset when it's up
-                         to date, or the catalog no longer has its entry.
+                        What it can move to, when the catalog has a release that changes what runs. A
+                         version the same as the pin's is a change to how that version runs. Unset when
+                         it's up to date, when a release changes only an entry's words, when the catalog
+                         no longer has its entry, or when the install has no record of its file.
             description: CatalogInstall is one project installed from the catalog.
         CatalogPin:
             type: object

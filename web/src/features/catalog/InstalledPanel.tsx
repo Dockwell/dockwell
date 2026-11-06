@@ -50,10 +50,14 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
       {install.upgrade ? (
         <div className="catalog-upgrade">
           <p className="catalog-upgrade-line">
-            <Trans>Version {next} is out.</Trans>
+            {next === version ? (
+              <Trans>A change to how {version} runs is out.</Trans>
+            ) : (
+              <Trans>Version {next} is out.</Trans>
+            )}
           </p>
           <Button variant="primary" size="sm" onClick={upgrade}>
-            <Trans>Upgrade to {next}</Trans>
+            {next === version ? <Trans>Review the change</Trans> : <Trans>Upgrade to {next}</Trans>}
           </Button>
         </div>
       ) : null}

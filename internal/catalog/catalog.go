@@ -248,7 +248,14 @@ type Filled struct {
 	Held map[string]string
 }
 
-// names finds the ${NAME}s a Compose file uses.
+// Upgrades reports whether an entry would change what an install runs. A release goes
+// up with any change to an entry, and one that fixes a word in its summary leaves what
+// runs as it is, so it's no reason to offer anyone a plan, or to warn them of one.
+func Upgrades(e *catalogv1.Entry, pin *resourcev1.CatalogPin) bool {
+	return e.GetRelease() > pin.GetRelease() && string(pin.GetFile()) != e.GetCompose()
+}
+
+// usedNames finds the ${NAME}s a Compose file uses.
 var usedNames = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)`)
 
 // Given reads back what an install's file used: the values its pin kept, and a value of

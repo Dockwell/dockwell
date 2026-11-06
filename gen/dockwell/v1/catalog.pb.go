@@ -323,8 +323,10 @@ type CatalogInstall struct {
 	FirstSteps string `protobuf:"bytes,6,opt,name=first_steps,json=firstSteps,proto3" json:"first_steps,omitempty"`
 	// The environment its services run in, by ID, whose secrets it uses.
 	EnvironmentId string `protobuf:"bytes,7,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
-	// What it can move to, when the catalog has a newer release. Unset when it's up
-	// to date, or the catalog no longer has its entry.
+	// What it can move to, when the catalog has a release that changes what runs. A
+	// version the same as the pin's is a change to how that version runs. Unset when
+	// it's up to date, when a release changes only an entry's words, when the catalog
+	// no longer has its entry, or when the install has no record of its file.
 	Upgrade       *CatalogUpgrade `protobuf:"bytes,8,opt,name=upgrade,proto3" json:"upgrade,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

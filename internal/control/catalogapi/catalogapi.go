@@ -142,7 +142,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, c *catalog.Catalog
 		entry, known := c.Entry(pin.GetEntry())
 		if known {
 			install.Name, install.FirstSteps = entry.GetName(), entry.GetFirstSteps()
-			if entry.GetRelease() > pin.GetRelease() {
+			if catalog.Upgrades(entry, pin) && len(pin.GetFile()) > 0 {
 				install.Upgrade = &dockwellv1.CatalogUpgrade{Version: entry.GetVersion(), Release: entry.GetRelease()}
 			}
 		}
@@ -215,7 +215,7 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	switch {
 	case !ok:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the catalog no longer has %s, so %s stays on %s", pin.GetEntry(), install.GetProject(), pin.GetVersion()), "not_in_catalog")
-	case entry.GetRelease() <= pin.GetRelease():
+	case !catalog.Upgrades(entry, pin):
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
 	case len(pin.GetFile()) == 0:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s was installed before Dockwell kept what its entry's file gave, so an upgrade can't tell that from what you changed, and it stays on %s. To move on, install the new version under another name and bring its data across", install.GetProject(), pin.GetVersion()), "no_record")

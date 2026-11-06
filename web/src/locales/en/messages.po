@@ -1055,6 +1055,10 @@ msgstr "a {driver} network on {path}"
 msgid "a {type} mount ({reads})"
 msgstr "a {type} mount ({reads})"
 
+#: src/features/catalog/InstalledPanel.tsx
+msgid "A change to how {version} runs is out."
+msgstr "A change to how {version} runs is out."
+
 #: src/features/auth/ClaimPage.tsx
 msgid "A claim link works only until someone claims the install. Sign in instead."
 msgstr "A claim link works only until someone claims the install. Sign in instead."
@@ -5092,6 +5096,10 @@ msgstr "Revealed the secret {name}"
 msgid "Review plan"
 msgstr "Review plan"
 
+#: src/features/catalog/InstalledPanel.tsx
+msgid "Review the change"
+msgstr "Review the change"
+
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "Revision"
@@ -6701,6 +6709,10 @@ msgstr "Update"
 #: src/app/Providers.tsx
 msgid "Update in place"
 msgstr "Update in place"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Update out"
+msgstr "Update out"
 
 #: src/app/Providers.tsx
 msgid "updated"

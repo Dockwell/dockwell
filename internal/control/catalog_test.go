@@ -664,6 +664,36 @@ func testAReleaseCanTakeAwayWhatItGave(t *testing.T, backend store.Backend) {
 	}
 }
 
+// A release that changes nothing that runs, such as a typo in its words, offers nothing,
+// and one that changes what runs at the same version still does.
+func TestAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges(t *testing.T) {
+	storetest.Each(t, testAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges)
+}
+
+func testAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges(t *testing.T, backend store.Backend) {
+	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	install := func() *dockwellv1.CatalogInstall {
+		t.Helper()
+		res, err := u.cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetInstalls()[0]
+	}
+	u.release(strings.Replace(testEntry(2, "1.0", firstRelease, ""), "Something to upgrade", "Something to upgrade, spelled right", 1))
+	if got := install().GetUpgrade(); got != nil {
+		t.Errorf("a release that changes nothing that runs offers %v", got)
+	}
+	_, err := u.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing"}))
+	if reasonOf(err) != "up_to_date" {
+		t.Errorf("upgrading to a release that changes nothing = %v", err)
+	}
+	u.release(testEntry(3, "1.0", secondRelease, ""))
+	if got := install().GetUpgrade(); got.GetRelease() != 3 || got.GetVersion() != "1.0" {
+		t.Errorf("a release that changes what runs at one version offers %v", got)
+	}
+}
+
 // An install from before Dockwell kept its file has nothing to merge from, so it stays
 // as it is, and says why.
 func TestAnInstallWithNoRecordStaysAsItIs(t *testing.T) {
