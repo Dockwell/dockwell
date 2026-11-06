@@ -499,7 +499,9 @@ type InstanceHealth struct {
 	Service string `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
 	// Its number, as Compose's container-number label has it.
 	Number int32 `protobuf:"varint,3,opt,name=number,proto3" json:"number,omitempty"`
-	// Its name in Docker, such as "env_01kat…-web-3".
+	// Its name in Docker now, such as "env_01kat…-web-3", which is what a docker
+	// command takes. A rollout has it under another for a moment, such as
+	// "stopping_a1b2c3d4e5f6_env_01kat…-web-3" as it goes.
 	Container string `protobuf:"bytes,4,opt,name=container,proto3" json:"container,omitempty"`
 	// How it is.
 	State HealthState `protobuf:"varint,5,opt,name=state,proto3,enum=dockwell.v1.HealthState" json:"state,omitempty"`

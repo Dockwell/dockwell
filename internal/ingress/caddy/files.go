@@ -83,6 +83,21 @@ func readIn(dir, name string, limit int64) ([]byte, error) {
 	return b, nil
 }
 
+// removeIn removes what stands at name under dir, a link included, and never goes
+// through a link that leads out of dir on the way there. What isn't there is gone
+// already.
+func removeIn(dir, name string) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := root.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
 // maxTempScan bounds how many names are looked through for a temp file left
 // behind. Caddy's directories are its to fill, and they hold a handful.
 const maxTempScan = 4096

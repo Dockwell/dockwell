@@ -55,6 +55,8 @@ type recorder struct {
 	unreachable, addErr error
 	// edited names routes edited by hand, as Routing says.
 	edited []string
+	// heldPorts is what the last Hold said of the service's routes.
+	heldPorts map[string]uint32
 }
 
 func (r *recorder) note(what string, i ingress.Instance) {
@@ -115,10 +117,10 @@ func (r *recorder) RoutedAfter(context.Context, ingress.Instance, []resource.Des
 	return r.hasRoutes, nil
 }
 
-func (r *recorder) Hold(ingress.Service) func() {
+func (r *recorder) Hold(_ ingress.Service, ports map[string]uint32) func() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.log = append(r.log, "hold")
+	r.log, r.heldPorts = append(r.log, "hold"), ports
 	return func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()

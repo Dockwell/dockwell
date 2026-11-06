@@ -166,3 +166,42 @@ func TestNetworksAreJoinedByName(t *testing.T) {
 	apply(t, l, ref, spec)
 	unchanged(t, l, ref, spec)
 }
+
+// A container on its own takes the mark a stop-first step gives what it stops, and a
+// change that would go in place finishes it, as it does a service's: it takes its name
+// back and runs, and the plan says what that costs.
+func TestAChangeInPlaceFinishesAMarkedContainerOnItsOwn(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+	spec := &resourcev1.Container{Image: "nginx:1.27", Restart: resourcev1.RestartPolicy_RESTART_POLICY_NO}
+	apply(t, l, ref, spec)
+	c := e.Container("web")
+	marked := "stopping_" + c.ID[:12] + "_web"
+	if err := e.Client().RenameContainer(t.Context(), c.ID, marked); err != nil {
+		t.Fatal(err)
+	}
+	e.Stop(marked)
+	want := &resourcev1.Container{Image: "nginx:1.27", Restart: resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS}
+	if err := container.Validate(want); err != nil {
+		t.Fatal(err)
+	}
+	steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: want}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if steps[0].Action != resource.ActionReplace || steps[0].Effect != resource.EffectRecreate {
+		t.Fatalf("a plan calls finishing it %s, %v", steps[0].Action, steps[0].Effect)
+	}
+	if err := l.Apply(t.Context(), steps[0], want); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.Container("web"); got == nil || !got.State.Running {
+		t.Errorf("it is %+v, want it running under its name", got)
+	}
+	if e.Container(marked) != nil {
+		t.Error("what was marked is still there")
+	}
+	unchanged(t, l, ref, want)
+}

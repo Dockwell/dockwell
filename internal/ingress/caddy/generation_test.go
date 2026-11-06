@@ -4,6 +4,7 @@ package caddy
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -60,6 +61,13 @@ func TestInFlightCountsWhatIsOpenToAnUpstream(t *testing.T) {
 	if n, err := c.InFlight(t.Context(), "172.30.0.9:8080"); n != 0 || err != nil {
 		t.Errorf("InFlight of what nothing is open to = %d, %v", n, err)
 	}
+	if n, err := c.InFlight(t.Context(), "172.30.0.2:9090"); n != 0 || err != nil {
+		t.Errorf("InFlight of another port of an address = %d, %v", n, err)
+	}
+	// An address alone is what is open to it on any port, as a route can have moved.
+	if n, err := c.InFlight(t.Context(), "172.30.0.2"); n != 2 || err != nil {
+		t.Errorf("InFlight of an address = %d, %v, want the two open to it", n, err)
+	}
 	c.procNetTCP = filepath.Join(t.TempDir(), "gone")
 	if _, err := c.InFlight(t.Context(), "172.30.0.2:8080"); err == nil {
 		t.Error("it said how many, with nothing to read")
@@ -114,6 +122,46 @@ func TestWhatARouteDialsIsReadWithSuspicion(t *testing.T) {
 	}
 	if fi, err := os.Lstat(file); err != nil || fi.Mode()&os.ModeSymlink != 0 {
 		t.Errorf("it is %v, %v", fi, err)
+	}
+}
+
+// The directory that holds a route's file is Caddy's to replace, so deleting a route
+// takes its own file and nothing a link there leads to.
+func TestDeletingARouteTakesItsFileAndNothingOutsideCaddysDirectory(t *testing.T) {
+	const id = "dockwell.env_x.www"
+	dir := shortDir(t)
+	c := &Caddy{Dir: dir, Runtime: &process{dir: dir}}
+	if err := os.MkdirAll(c.runDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	through, err := c.throughFile(ingress.Route{ID: id, Upstreams: []string{"172.30.0.2:8080"}})
+	if err != nil || len(through.Upstreams) != 1 {
+		t.Fatalf("throughFile = %+v, %v", through, err)
+	}
+	file := filepath.Join(c.runDir(), upstreamsDir, id)
+	if err := c.DeleteRoute(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(file); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the route's file is still there: %v", err)
+	}
+
+	outside := t.TempDir()
+	someone := filepath.Join(outside, id)
+	if err := os.WriteFile(someone, []byte("someone's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Dir(file)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Dir(file)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteRoute(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(someone); err != nil {
+		t.Errorf("a link in Caddy's directory took a file outside it: %v", err)
 	}
 }
 

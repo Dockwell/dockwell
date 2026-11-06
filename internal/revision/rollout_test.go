@@ -898,6 +898,18 @@ func TestStartFirstOverDataNeedsAPerson(t *testing.T) {
 		if !step.Rollout.Rolling || !step.Rollout.Chosen || !p.Destructive() {
 			t.Errorf("rolling=%t chosen=%t destructive=%t", step.Rollout.Rolling, step.Rollout.Chosen, p.Destructive())
 		}
+		// A list reads each plan in brief, and says what the plan says of it.
+		records, err := r.engine.Changes(t.Context(), store.ChangePage{}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := slices.IndexFunc(records, func(c *Record) bool { return c.ID == p.Change })
+		if at < 0 {
+			t.Fatalf("the change isn't among %d records", len(records))
+		}
+		if !records[at].Brief.Destructive {
+			t.Errorf("a list of changes reads two writers as %+v", records[at].Brief)
+		}
 	})
 }
 

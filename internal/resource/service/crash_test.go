@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
@@ -754,6 +756,134 @@ func TestAStopFirstThatCantPutWhatRanBackSaysSo(t *testing.T) {
 	}
 	a = s.comeBack(t, old)
 	s.oneHealthy(t, a, old)
+}
+
+// inPlace is a spec that differs from spec only by what Docker changes on a container
+// that exists.
+func inPlace(spec *resourcev1.Service) *resourcev1.Service {
+	out := proto.Clone(spec).(*resourcev1.Service)
+	out.GetApp().Restart = resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS
+	return out
+}
+
+// What can't be put back says the next change to it finishes this, and that holds of
+// one that would otherwise go in place. Updating what's marked leaves it stopped, and
+// a change in place has nothing running to verify, so it would read as applied.
+func TestAChangeInPlaceFinishesWhatCouldntBePutBack(t *testing.T) {
+	spec := func(v string) *resourcev1.Service { return web("postgres:17", "VERSION="+v) }
+	old, next := spec("old"), spec("new")
+	s := newScene(t, old)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	cut := stopCutShort(s, cancel)
+	s.engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
+			return errors.New("Docker can't start it for now")
+		}
+		return cut(r)
+	})
+	steps, err := s.first.local.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: next}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.first.local.Apply(ctx, steps[0], next); err == nil || !strings.Contains(err.Error(), "next change to it finishes this") {
+		t.Fatalf("the step said %v", err)
+	}
+	s.engine.Intercept(nil)
+	if s.running() != 0 {
+		t.Fatalf("it should have left nothing running, and %v run", s.instances())
+	}
+	want := inPlace(old)
+	a := agentOn(s.engine.Client(), s.dir)
+	planned, err := a.local.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: want}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planned[0].Action != resource.ActionReplace {
+		t.Fatalf("a plan calls finishing it %s: %+v", planned[0].Action, planned[0].Changes)
+	}
+	if err := a.local.Apply(t.Context(), planned[0], want); err != nil {
+		t.Fatalf("the next change: %v", err)
+	}
+	s.oneHealthy(t, a, want)
+}
+
+// A kill alone leaves the same at most steps of either way of replacing: whatever
+// reads as what's asked for but for its restart policy, in a state only a rollout
+// leaves. Going in place from any of them ends where any other way forward does.
+func TestAChangeInPlaceFinishesARolloutKilledAtEachStep(t *testing.T) {
+	for name, way := range map[string]struct {
+		points    []string
+		old, next *resourcev1.Service
+	}{
+		"rolling":    {container.Rolling, web("nginx:1.27"), web("nginx:1.28")},
+		"stop first": {container.StopFirst, web("postgres:17", "VERSION=old"), web("postgres:17", "VERSION=new")},
+	} {
+		for _, at := range way.points {
+			t.Run(name+"/"+at, func(t *testing.T) {
+				s := newScene(t, way.old)
+				s.killAt(t, at, way.next)
+				want := inPlace(way.next)
+				a := s.comeBack(t, want)
+				s.oneHealthy(t, a, want)
+			})
+		}
+	}
+}
+
+// routed is what an agent plans a change with a route in it through.
+func (a *agent) routed() resource.Local {
+	return resource.Local{Drivers: resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: a.rt}}, &route.Driver{Ingress: a.mgr})}
+}
+
+// An app and its route go to a new port in one change, whichever way the app is
+// replaced. A route's step comes after its service's, so the service's step has to
+// take the route there, as the old port has nothing behind it once the old container
+// goes. A step that can't go on rolls back the same way, from the new port.
+func TestAnAppAndItsRouteGoToANewPortInOneChange(t *testing.T) {
+	for name, images := range map[string]string{"rolling": "nginx:1.27", "stop first": "postgres:17"} {
+		t.Run(name, func(t *testing.T) {
+			old, next := web(images, "PORT=8080"), web(images, "PORT=9090")
+			was := &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 8080}
+			now := &resourcev1.Route{Domain: "app.example.com", Service: "web", Port: 9090}
+			s := newScene(t, old)
+			l := s.first.routed()
+			dialing := func(port string) []string {
+				t.Helper()
+				c := s.engine.Newest(project, "web")
+				return []string{c.NetworkSettings.Networks[docker.IngressNetwork].IPAddress + ":" + port}
+			}
+			steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: next}, {Ref: wwwRef, Spec: now}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := steps[0].Rollout.RoutePorts; !maps.Equal(got, map[string]uint32{"www": 9090}) {
+				t.Fatalf("the service's step has %v for its routes", got)
+			}
+			if err := l.Apply(t.Context(), steps[0], next); err != nil {
+				t.Fatal(err)
+			}
+			if got := s.route(t).Upstreams; !slices.Equal(got, dialing("9090")) {
+				t.Errorf("once the service's step is done, the route dials %v, want %v", got, dialing("9090"))
+			}
+
+			// Its own step finds that done, and a rollback from here is the same way
+			// back, with the route going back to where the old app listens.
+			back, err := l.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: old, Rollback: true, Run: true}, {Ref: wwwRef, Spec: was, Rollback: true}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := back[0].Rollout.RoutePorts; !maps.Equal(got, map[string]uint32{"www": 8080}) {
+				t.Fatalf("the rollback has %v for its routes", got)
+			}
+			for i, spec := range []proto.Message{old, was} {
+				if err := l.Apply(t.Context(), back[i], spec); err != nil {
+					t.Fatalf("rolling back %s: %v", back[i].Ref, err)
+				}
+			}
+			s.oneHealthy(t, s.first, old)
+		})
+	}
 }
 
 // A restart that must stop first, cut short the same way. Nothing follows it, so

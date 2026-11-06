@@ -9,15 +9,19 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net"
 	"net/http"
 	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -1075,7 +1079,7 @@ func TestARolloutSwapsAnInstanceWithoutAPlan(t *testing.T) {
 	want(api, oldAddr+":9090", nextAddr+":9090")
 
 	// Drain waits for what is in flight, and no longer than it is given.
-	s.proxy.inFlight = map[string]int{oldAddr + ":8080": 1}
+	s.proxy.inFlight = map[string]int{oldAddr: 1}
 	done := make(chan error, 1)
 	go func() { done <- s.Drain(t.Context(), old) }()
 	select {
@@ -1246,7 +1250,7 @@ func TestReconcileSettlesWhatARolloutLeft(t *testing.T) {
 	}
 	s.engine.Remove(old.ContainerName())
 
-	release := s.Hold(old.service())
+	release := s.Hold(old.service(), nil)
 	if err := s.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -1300,7 +1304,7 @@ func TestDrainGivesUpWhenItsTimeRunsOut(t *testing.T) {
 	if err := s.table.load(s.Dir); err != nil {
 		t.Fatal(err)
 	}
-	s.proxy.inFlight = map[string]int{s.table.Addresses[old.String()] + ":8080": 1}
+	s.proxy.inFlight = map[string]int{s.table.Addresses[old.String()]: 1}
 	ctx, cancel := context.WithTimeout(t.Context(), 2*drainPoll)
 	defer cancel()
 	if err := s.Drain(ctx, old); err != nil {
@@ -2433,5 +2437,154 @@ func TestADrainThatCantReadWhatIsInFlightWaitsItsTime(t *testing.T) {
 	// All of its time: two clear reads would take two polls.
 	if took := time.Since(begun); took < 3*drainPoll {
 		t.Errorf("it called that clear after %s", took)
+	}
+}
+
+// aNewInstance gives a service's next container its address, as a rollout does, and
+// puts it on the engine, running.
+func (s *setup) aNewInstance(t *testing.T, i Instance) string {
+	t.Helper()
+	_, ep, ok, err := s.Endpoint(t.Context(), i)
+	if err != nil || !ok {
+		t.Fatalf("Endpoint = %v, %v", ok, err)
+	}
+	s.engine.AddContainer(docker.Container{Name: "/" + i.ContainerName(), State: docker.State{Running: true, Status: "running"}, Config: docker.Config{Labels: map[string]string{
+		docker.LabelProject: i.Project, docker.LabelService: i.Service, docker.LabelNumber: strconv.Itoa(i.Number), docker.LabelOneoff: "False",
+	}}})
+	return ep.IPAMConfig.IPv4Address
+}
+
+// dialedBy is what a route dials.
+func (s *setup) dialedBy(t *testing.T, name string) []string {
+	t.Helper()
+	routes, err := s.proxy.Routes(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range routes {
+		if routes[i].ID == RouteID(routeRef(name)) {
+			return routes[i].Upstreams
+		}
+	}
+	t.Fatalf("there's no route %s in %+v", name, routes)
+	return nil
+}
+
+// A route's step comes after its service's, so with an app and its route going to a
+// new port in one change, the route still says the old port as the new container
+// starts. A rollout goes by what its plan says instead, and traffic moves to that port
+// with it, as nothing listens on the old one any more. What the old container has in
+// flight went to the old port, and its drain waits for that. The route's own step then
+// finds it done.
+func TestARolloutTakesARouteToThePortItsPlanHas(t *testing.T) {
+	s := newSetup(t)
+	s.engine.PickSubnet = "127.78.0.0/16"
+	s.DrainPoll = time.Millisecond
+	// A port nothing on this machine has, whatever else listens on every address.
+	free, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	was := uint32(free.Addr().(*net.TCPAddr).Port)
+	if err := free.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s.apply(t, "www", spec("www.example.com", "", "web", was))
+	s.apply(t, "api", spec("www.example.com", "/api", "web", 8081))
+	project := docker.Project(envID)
+	old, next := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+	nextAddr := s.aNewInstance(t, next)
+	oldAddr := s.table.Addresses[old.String()]
+
+	l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", nextAddr+":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	port := uint32(l.Addr().(*net.TCPAddr).Port)
+	other, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", nextAddr+":8081")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if err := s.Reachable(t.Context(), next); err == nil {
+		t.Fatal("with no plan to say otherwise, it reads as listening on the port the route has now")
+	}
+
+	release := s.Hold(old.service(), map[string]uint32{"www": port})
+	defer release()
+	if err := s.Reachable(t.Context(), next); err != nil {
+		t.Errorf("the new container listens on the port the plan has: %v", err)
+	}
+	if err := s.Move(t.Context(), next, []Instance{old}); err != nil {
+		t.Fatal(err)
+	}
+	moved := nextAddr + ":" + strconv.Itoa(int(port))
+	if got := s.dialedBy(t, "www"); !slices.Equal(got, []string{moved}) {
+		t.Errorf("after the move, www dials %v, want %s alone", got, moved)
+	}
+	if got := s.dialedBy(t, "api"); !slices.Equal(got, []string{nextAddr + ":8081"}) {
+		t.Errorf("a route the plan doesn't touch dials %v", got)
+	}
+
+	s.proxy.mu.Lock()
+	s.proxy.inFlight = map[string]int{oldAddr: 1}
+	s.proxy.mu.Unlock()
+	done := make(chan error, 1)
+	go func() { done <- s.Drain(t.Context(), old) }()
+	select {
+	case err := <-done:
+		t.Fatalf("Drain returned with what the old port has in flight: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	s.proxy.mu.Lock()
+	s.proxy.inFlight = nil
+	s.proxy.mu.Unlock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RemoveUpstream(t.Context(), old); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.dialedBy(t, "www"); !slices.Equal(got, []string{moved}) {
+		t.Errorf("after the old one went, www dials %v, want %s alone", got, moved)
+	}
+	release()
+
+	want := spec("www.example.com", "", "web", port)
+	if got, err := s.Observe(t.Context(), routeRef("www")); err != nil || !proto.Equal(got, want) {
+		t.Errorf("Observe = %v, %v, want %v, so the route's own step finds it done", got, err, want)
+	}
+	if err := s.Reachable(t.Context(), next); err != nil {
+		t.Errorf("with the rollout over, the check that follows reads the route's new port: %v", err)
+	}
+}
+
+// A stop-first step keeps the instance's number, and so its address, so the route has
+// the old port of the same address to leave behind, and the only container it has any
+// other instance of may be gone with its own address on the route.
+func TestAStopFirstRolloutLeavesTheOldPortBehind(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "www", spec("www.example.com", "", "web", 8080))
+	project := docker.Project(envID)
+	one, two := Instance{Project: project, Service: "web", Number: 1}, Instance{Project: project, Service: "web", Number: 2}
+	twoAddr := s.aNewInstance(t, two)
+	oneAddr := s.table.Addresses[one.String()]
+	if err := s.AddUpstream(t.Context(), two); err != nil {
+		t.Fatal(err)
+	}
+	release := s.Hold(one.service(), map[string]uint32{"www": 9090})
+	defer release()
+	if err := s.AddUpstream(t.Context(), two); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.dialedBy(t, "www"); !slices.Equal(got, []string{oneAddr + ":8080", twoAddr + ":9090"}) {
+		t.Errorf("www dials %v, with the port of the address it adds gone and the other left to go", got)
+	}
+	if err := s.RemoveUpstream(t.Context(), one); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.dialedBy(t, "www"); !slices.Equal(got, []string{twoAddr + ":9090"}) {
+		t.Errorf("www dials %v, want the new port alone", got)
 	}
 }

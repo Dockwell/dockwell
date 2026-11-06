@@ -318,6 +318,7 @@ func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Containe
 			return nil, err
 		}
 		p.EditedRoutes = routing.Edited
+		p.RoutePorts = routePorts(ctx, t)
 	}
 	shared := len(p.Volumes)+len(p.Paths)+len(p.ImageData)+len(p.CantTell) > 0
 	order := spec.GetRollout().GetOrder()
@@ -352,6 +353,26 @@ func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Containe
 		}
 	}
 	return p, nil
+}
+
+// routePorts is the port each route the plan under way touches sends to on t's
+// service, by the route's name. A route's step comes after its service's, so a service
+// that moves to a new port in the same change as its route has to answer there before
+// the route says so (ADR 0027). A route the plan takes elsewhere is no business of this
+// step's, and neither is one to a port on the server, which belongs to no container.
+func routePorts(ctx context.Context, t Target) map[string]uint32 {
+	var out map[string]uint32
+	for _, want := range resource.DesiredIn(ctx) {
+		r, ok := want.Spec.(*resourcev1.Route)
+		if !ok || r.GetPort() == 0 || r.GetHostPort() != 0 || r.GetService() != t.Service || docker.Project(want.Ref.Scope) != t.Project {
+			continue
+		}
+		if out == nil {
+			out = map[string]uint32{}
+		}
+		out[want.Ref.Name] = r.GetPort()
+	}
+	return out
 }
 
 // landing is where a mount really lands on the server, as far as the agent can
@@ -582,6 +603,16 @@ func dropped(t Target, spec *resourcev1.Container, old *docker.Container, img *d
 // neverStarted is the state of a container that was made and hasn't started yet.
 const neverStarted = "created"
 
+// unfinished reports containers a rollout that stopped partway left: more than one,
+// or one that has yet to take its name, that it marked, or that never started. That
+// last is what a replace that died just before its last step leaves, and nothing else
+// starts it: Docker's restart policy passes over what never ran. One someone stopped
+// by hand has run, and that isn't drift (ADR 0021): it stays stopped. One a rollout
+// marked isn't one a person stopped: the step that marked it didn't get to the end.
+func unfinished(all []*instance) bool {
+	return len(all) > 1 || len(all) == 1 && (all[0].temp || all[0].stopping || all[0].State.Status == neverStarted)
+}
+
 // Left says what is left of a service that reads back as its spec: another
 // container, what a replace hasn't finished naming, or a restart it hasn't had.
 func (d *Docker) Left(ctx context.Context, t Target, desired *resourcev1.Container, restart string) (resource.Decision, bool, error) {
@@ -593,13 +624,7 @@ func (d *Docker) Left(ctx context.Context, t Target, desired *resourcev1.Contain
 	if err != nil {
 		return resource.Decision{}, false, err
 	}
-	// One that was made and never started is what a replace that died just
-	// before its last step leaves, and nothing else starts it: Docker's restart
-	// policy passes over what never ran. One someone stopped by hand has run, and
-	// that isn't drift (ADR 0021): it stays stopped.
-	// One a rollout marked isn't one a person stopped: the step that marked it
-	// didn't get to the end.
-	if keep != nil && len(others) == 0 && !keep.temp && !keep.stopping && keep.State.Status != neverStarted {
+	if keep != nil && !unfinished(all) {
 		return resource.Decision{}, false, nil
 	}
 	dec := resource.Decision{}
@@ -613,7 +638,11 @@ func (d *Docker) Left(ctx context.Context, t Target, desired *resourcev1.Contain
 func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
 	release := func() {}
 	if d.Ingress != nil && t.Scoped {
-		release = d.Ingress.Hold(ingress.Service{Project: t.Project, Name: t.Service})
+		var ports map[string]uint32
+		if dec.Rollout != nil {
+			ports = dec.Rollout.RoutePorts
+		}
+		release = d.Ingress.Hold(ingress.Service{Project: t.Project, Name: t.Service}, ports)
 	}
 	defer release()
 	all, err := d.instances(ctx, t)
@@ -664,8 +693,7 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 	// What isn't running and is already what's asked for only has to start, as under
 	// docker compose up, so what it wrote stays. Its plan can't say that, as a pull may
 	// yet find something newer, so the step says what it did.
-	startsOnly := keep != nil && len(others) == 0 && dec.Restart == "" && notRunning(keep.Container) != "" &&
-		!keep.temp && !keep.stopping && keep.State.Status != neverStarted
+	startsOnly := keep != nil && !unfinished(all) && dec.Restart == "" && notRunning(keep.Container) != ""
 	if plan.Rolling {
 		err = d.startFirst(ctx, t, spec, dec, keep, others, plan)
 	} else {

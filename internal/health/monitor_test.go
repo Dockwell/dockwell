@@ -200,6 +200,21 @@ func TestItWatchesOnlyServices(t *testing.T) {
 	}
 }
 
+// A report names a container as Docker has it, and not as a person knows it
+// (container.PlainName). What's made of it is a command to run, docker unpause, and
+// that needs the name it has now, a rollout's mark and all.
+func TestAReportNamesAContainerAsDockerHasIt(t *testing.T) {
+	e := dockertest.New(t)
+	add(e, "web")
+	plain := docker.InstanceName(project, "web", 1)
+	marked := "stopping_0123456789ab_" + plain
+	if err := e.Client().RenameContainer(t.Context(), e.Container(plain).ID, marked); err != nil {
+		t.Fatal(err)
+	}
+	m := start(t, e, nil)
+	eventually(t, "it reports what Docker has", m, func(g map[string]*dockwellv1.InstanceHealth) bool { return g[marked] != nil })
+}
+
 func TestItForgetsWhatHasGone(t *testing.T) {
 	e := dockertest.New(t)
 	add(e, "web")

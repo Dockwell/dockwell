@@ -1286,6 +1286,12 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	if err != nil {
 		return err
 	}
+	// A change in place leaves what it finds as it is, and verifies nothing that
+	// doesn't run, so what a rollout left would stay and read as applied. A rollout
+	// is what finishes it (ADR 0027).
+	if dec.Action == resource.ActionUpdate && unfinished(all) {
+		dec.Action, dec.Effect, dec.Downtime = resource.ActionReplace, resource.EffectRecreate, stopGrace(all[0].Container)+LogCatchUp+recreateStart
+	}
 	var c *docker.Container
 	if len(all) > 0 {
 		c = all[0].Container

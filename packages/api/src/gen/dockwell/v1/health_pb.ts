@@ -247,7 +247,9 @@ export type InstanceHealth = Message<"dockwell.v1.InstanceHealth"> & {
   number: number;
 
   /**
-   * Its name in Docker, such as "env_01kat…-web-3".
+   * Its name in Docker now, such as "env_01kat…-web-3", which is what a docker
+   * command takes. A rollout has it under another for a moment, such as
+   * "stopping_a1b2c3d4e5f6_env_01kat…-web-3" as it goes.
    *
    * @generated from field: string container = 4;
    */

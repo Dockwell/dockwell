@@ -77,8 +77,11 @@ type Upstreams interface {
 	Reachable(ctx context.Context, instance Instance) error
 	// Hold keeps Reconcile off a service while a rollout moves its instances,
 	// until release is called. An address a rollout reserved has no container
-	// yet, which Reconcile would otherwise take for what a crash left.
-	Hold(service Service) (release func())
+	// yet, which Reconcile would otherwise take for what a crash left. ports is
+	// the port the rollout's plan has for a route, by its name, for one that goes
+	// to a new port with the service: Reachable asks that port, and what traffic
+	// moves to dials it.
+	Hold(service Service, ports map[string]uint32) (release func())
 	// Routing says what a rollout has to know of a service's routes before it
 	// decides how to replace it.
 	Routing(ctx context.Context, service Service) (Routing, error)
@@ -856,10 +859,7 @@ func (m *Manager) settle(ctx context.Context) error {
 			}
 			m.logger().InfoContext(ctx, "forgetting an instance whose container is gone, as a rollout that stopped partway leaves one", slog.String("instance", i.String()))
 			a := m.table.Addresses[i.String()]
-			err := m.editUpstreams(ctx, s, func(r *Route, port uint32) {
-				up := a + ":" + strconv.Itoa(int(port))
-				r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool { return u == up })
-			})
+			err := m.editUpstreams(ctx, s, func(r *Route, _ uint32) { stopDialing(r, a) })
 			if err == nil {
 				err = m.table.free(m.Dir, i)
 			}
@@ -869,14 +869,18 @@ func (m *Manager) settle(ctx context.Context) error {
 	return failed
 }
 
-// Hold keeps Reconcile off a service while a rollout moves its instances.
-func (m *Manager) Hold(s Service) (release func()) {
+// Hold keeps Reconcile off a service while a rollout moves its instances, and says
+// what port its plan has for the service's routes.
+func (m *Manager) Hold(s Service, ports map[string]uint32) (release func()) {
 	m.rolloutsMu.Lock()
 	defer m.rolloutsMu.Unlock()
 	if m.rollouts == nil {
-		m.rollouts = map[Service]int{}
+		m.rollouts, m.moving = map[Service]int{}, map[Service]map[string]uint32{}
 	}
 	m.rollouts[s]++
+	if len(ports) > 0 {
+		m.moving[s] = ports
+	}
 	var once sync.Once
 	return func() {
 		once.Do(func() {
@@ -885,9 +889,47 @@ func (m *Manager) Hold(s Service) (release func()) {
 			m.rollouts[s]--
 			if m.rollouts[s] <= 0 {
 				delete(m.rollouts, s)
+				delete(m.moving, s)
 			}
 		})
 	}
+}
+
+// portOf is the port a route sends to on a service: what it dials, unless a rollout
+// under way takes it to another. A route's own step comes after its service's, so
+// until then the route still says the old port, which the new container may have
+// left.
+func (m *Manager) portOf(s Service, r *Route) (uint32, error) {
+	_, port, err := splitUpstream(r.Upstreams[0])
+	if err != nil {
+		return 0, err
+	}
+	m.rolloutsMu.Lock()
+	defer m.rolloutsMu.Unlock()
+	if planned, ok := m.moving[s][strings.TrimPrefix(r.ID, "dockwell."+s.Project+".")]; ok {
+		return planned, nil
+	}
+	return port, nil
+}
+
+// dials reports an upstream at an address, on whatever port.
+func dials(up, address string) bool {
+	host, _, err := splitUpstream(up)
+	return err == nil && host == address
+}
+
+// dial has a route send to an address on port, and to no other port of that address.
+func dial(r *Route, address string, port uint32) {
+	up := address + ":" + strconv.Itoa(int(port))
+	r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool { return u != up && dials(u, address) })
+	if !slices.Contains(r.Upstreams, up) {
+		r.Upstreams = append(r.Upstreams, up)
+	}
+}
+
+// stopDialing has a route send to nothing at an address, whatever port it dials.
+func stopDialing(r *Route, address string) {
+	r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool { return dials(u, address) })
 }
 
 // Routing says what a rollout has to know of a service's routes. A route edited by
@@ -948,7 +990,8 @@ const reachWait = time.Second
 // route of its service sends to that doesn't take a connection. A service with
 // no routes has none, and neither does an instance with no address. A rollout
 // asks this of a service with no health check, as otherwise "it runs" would be
-// all it knew, and the first request would find an app still starting.
+// all it knew, and the first request would find an app still starting. The port
+// is the one the rollout's plan has for a route, which may be a new one.
 func (m *Manager) Reachable(ctx context.Context, i Instance) error {
 	if err := m.mu.lock(ctx); err != nil {
 		return err
@@ -969,7 +1012,7 @@ func (m *Manager) Reachable(ctx context.Context, i Instance) error {
 	}
 	seen := map[uint32]bool{}
 	for k := range routes {
-		_, port, err := splitUpstream(routes[k].Upstreams[0])
+		port, err := m.portOf(i.service(), &routes[k])
 		if err != nil || seen[port] {
 			continue
 		}
@@ -1150,12 +1193,7 @@ func (m *Manager) AddUpstream(ctx context.Context, i Instance) error {
 	if err := m.attach(ctx, i); err != nil {
 		return err
 	}
-	return m.editUpstreams(ctx, i.service(), func(r *Route, port uint32) {
-		up := a + ":" + strconv.Itoa(int(port))
-		if !slices.Contains(r.Upstreams, up) {
-			r.Upstreams = append(r.Upstreams, up)
-		}
-	})
+	return m.editUpstreams(ctx, i.service(), func(r *Route, port uint32) { dial(r, a, port) })
 }
 
 // Move sends new requests to an instance in place of others. A route that sends
@@ -1188,14 +1226,10 @@ func (m *Manager) Move(ctx context.Context, to Instance, from []Instance) error 
 		}
 	}
 	return m.editUpstreams(ctx, to.service(), func(r *Route, port uint32) {
-		r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool {
-			host, _, err := splitUpstream(u)
-			return err == nil && slices.Contains(gone, host)
-		})
-		up := a + ":" + strconv.Itoa(int(port))
-		if !slices.Contains(r.Upstreams, up) {
-			r.Upstreams = append(r.Upstreams, up)
+		for _, old := range gone {
+			stopDialing(r, old)
 		}
+		dial(r, a, port)
 	})
 }
 
@@ -1210,7 +1244,7 @@ func (m *Manager) editUpstreams(ctx context.Context, s Service, edit func(r *Rou
 	var changed []Route
 	for k := range routes {
 		r := &routes[k]
-		_, port, err := splitUpstream(r.Upstreams[0])
+		port, err := m.portOf(s, r)
 		if err != nil {
 			return err
 		}
@@ -1251,14 +1285,11 @@ func (m *Manager) Drain(ctx context.Context, i Instance) error {
 		m.mu.unlock()
 		return nil
 	}
-	var ups []string
-	err := m.editUpstreams(ctx, i.service(), func(r *Route, port uint32) {
-		up := a + ":" + strconv.Itoa(int(port))
-		ups = append(ups, up)
-		if len(r.Upstreams) == 1 && r.Upstreams[0] == up {
+	err := m.editUpstreams(ctx, i.service(), func(r *Route, _ uint32) {
+		if len(r.Upstreams) == 1 && dials(r.Upstreams[0], a) {
 			return
 		}
-		r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool { return u == up })
+		stopDialing(r, a)
 	})
 	m.mu.unlock()
 	if err != nil {
@@ -1277,20 +1308,18 @@ func (m *Manager) Drain(ctx context.Context, i Instance) error {
 			return nil
 		case <-t.C:
 		}
-		total := 0
-		for _, up := range ups {
-			n, err := m.Proxy.InFlight(ctx, up)
-			if err != nil {
-				if ctx.Err() != nil {
-					return nil
-				}
-				// It can't say it's clear, so it has what it was given to finish.
-				m.logger().WarnContext(ctx, "can't read what is in flight to an instance going away, so it gets all of its time to finish", slog.String("instance", i.String()), slog.String("error", err.Error()))
-				n = 1
+		// By its address, as what it has was sent to whatever port a route dialed
+		// then, and a route can have left that with the rollout.
+		n, err := m.Proxy.InFlight(ctx, a)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
 			}
-			total += n
+			// It can't say it's clear, so it has what it was given to finish.
+			m.logger().WarnContext(ctx, "can't read what is in flight to an instance going away, so it gets all of its time to finish", slog.String("instance", i.String()), slog.String("error", err.Error()))
+			n = 1
 		}
-		if total > 0 {
+		if n > 0 {
 			clearReads = 0
 			continue
 		}
@@ -1315,10 +1344,7 @@ func (m *Manager) RemoveUpstream(ctx context.Context, i Instance) error {
 	if !ok || len(m.table.instancesOf(i.service())) < 2 {
 		return nil
 	}
-	if err := m.editUpstreams(ctx, i.service(), func(r *Route, port uint32) {
-		up := a + ":" + strconv.Itoa(int(port))
-		r.Upstreams = slices.DeleteFunc(r.Upstreams, func(u string) bool { return u == up })
-	}); err != nil {
+	if err := m.editUpstreams(ctx, i.service(), func(r *Route, _ uint32) { stopDialing(r, a) }); err != nil {
 		return err
 	}
 	return m.table.free(m.Dir, i)
