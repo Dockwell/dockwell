@@ -49,7 +49,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { applied, moved, shopPlanned, watched, webPlanned } from "../../test/changes";
-import { type Api, type CacheOptions, feed, onPhone, quietWatch, renderWithApi } from "../../test/render";
+import { type Api, type CacheOptions, feed, onPhone, quietWatch, renderWithApi, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
 import { PlanSteps } from "./PlanSteps";
@@ -1675,10 +1675,11 @@ describe("the plan sheet, once it runs", () => {
         if (step?.resource) step.resource.kind = "route";
         return change;
       };
-      const arrived = async (change: Change) => {
+      const arrived = async (change: Change, more: Api = {}) => {
         renderSheet(
           { kind: "plan", make: () => Promise.resolve({ change }) },
           {
+            ...more,
             services: { listServices: () => ({ services: [aService([])] }) },
             domains: {
               listDomains: () => ({
@@ -1717,6 +1718,48 @@ describe("the plan sheet, once it runs", () => {
       it("nothing, for one that answers anyone, which works as it is", async () => {
         const row = await arrived(aTunnelPlan([], [{ path: "plain_for_anyone", to: "true" }]));
         expect(row).not.toHaveTextContent("Next,");
+      });
+
+      describe("with two servers, says which", () => {
+        // Each of what reads the fleet here has its own watch, as nothing above them shares one.
+        const two = () => ({
+          servers: {
+            watchServers: async function* (_req: unknown, ctx: HandlerContext) {
+              yield changed(aServer({ id: "srv_1", name: "hz-1" }));
+              yield changed(aServer({ id: "srv_2", name: "hz-2" }));
+              yield snapshotComplete;
+              await untilAborted(ctx.signal);
+            },
+          },
+        });
+
+        it("a tunnel's", async () => {
+          const change = aTunnelPlan(["127.0.0.1/32"]);
+          const server = change.plan?.servers[0];
+          if (server) server.serverName = "hz-2";
+          const row = await arrived(change, two());
+          await waitFor(() =>
+            expect(row).toHaveTextContent(
+              /point the tunnel on hz-2 at http:\/\/127\.0\.0\.1:80\..*this route takes no/,
+            ),
+          );
+        });
+
+        it("every server the route runs on", async () => {
+          const change = aTunnelPlan(["127.0.0.1/32"]);
+          const first = change.plan?.servers[0];
+          if (change.plan && first) change.plan.servers = [first, { ...first, serverId: "srv_2", serverName: "hz-2" }];
+          const row = await arrived(change, two());
+          await waitFor(() => expect(row).toHaveTextContent("point the tunnel on hz-1, hz-2 at http://127.0.0.1:80."));
+        });
+
+        it("another proxy's", async () => {
+          const change = aTunnelPlan(["172.20.0.0/16"]);
+          const server = change.plan?.servers[0];
+          if (server) server.serverName = "hz-2";
+          const row = await arrived(change, two());
+          await waitFor(() => expect(row).toHaveTextContent(/at port 80 on hz-2, over http:\/\//));
+        });
       });
     });
 
@@ -1946,6 +1989,16 @@ describe("the plan sheet, once it runs", () => {
         const review = await screen.findByRole("dialog", { name: "Review plan" });
         expect(review).toHaveTextContent("visitors lose 2 addresses");
         expect(review).not.toHaveTextContent("no downtime expected");
+      });
+
+      it("says it on a step too, where a fleet's steps say the rest", async () => {
+        const change = going(VisitorsFind.REFUSED);
+        const first = change.plan?.servers[0];
+        if (change.plan && first) change.plan.servers = [first, { ...first, serverId: "srv_2", serverName: "hz-2" }];
+        renderWithApi(<PlanSteps plan={change.plan} progress={[]} />, {});
+        expect(await screen.findAllByText(/Anyone visiting app\.example\.com gets a refused connection/)).toHaveLength(
+          2,
+        );
       });
 
       it.each([

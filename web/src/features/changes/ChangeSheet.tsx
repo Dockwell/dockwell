@@ -1331,6 +1331,8 @@ interface DomainInReach {
   /** The port it sends to, from the plan, until it's read. */
   port?: number;
   next?: NextStep;
+  /** The servers next is on, once there's more than one it could be. */
+  on?: string;
 }
 
 /**
@@ -1387,23 +1389,28 @@ function nextStepOf(planned: PlannedResource): NextStep | undefined {
   return proxies.every((proxy) => /^(127\.0\.0\.1|::1)(\/(32|128))?$/.test(proxy ?? "")) ? "tunnel" : "proxy";
 }
 
-function useNextWords(next: NextStep | undefined): string {
+/** What's left to do, and where: on names the server, once there's more than one it could be. */
+function useNextWords(next: NextStep | undefined, on: string | undefined): string {
   const { t } = useLingui();
   switch (next) {
     case "tunnel":
-      return t`Next, point your tunnel's service at http://127.0.0.1:80. https:// there fails, as this server takes no certificate.`;
+      return on
+        ? t`Next, point the tunnel on ${on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate.`
+        : t`Next, point your tunnel's service at http://127.0.0.1:80. https:// there fails, as this server takes no certificate.`;
     case "cloudflare":
       return t`Next, set this zone's SSL/TLS mode to Flexible in Cloudflare. This path crosses the open internet unencrypted, so a tunnel is the better way.`;
     case "proxy":
-      return t`Next, point what's in front at port 80 on this server, over http://. https:// there fails, as this server takes no certificate.`;
+      return on
+        ? t`Next, point what's in front at port 80 on ${on}, over http://. https:// there fails, as this route takes no certificate.`
+        : t`Next, point what's in front at port 80 on this server, over http://. https:// there fails, as this server takes no certificate.`;
     default:
       return "";
   }
 }
 
 /** What to do next, and where the guide says more. */
-function NextStepNote({ next }: { next: NextStep }) {
-  const words = useNextWords(next);
+function NextStepNote({ next, on }: { next: NextStep; on: string | undefined }) {
+  const words = useNextWords(next, on);
   return (
     <>
       {words}{" "}
@@ -1424,9 +1431,18 @@ function useReach(plan: Plan | undefined, change: Change | undefined, landed: bo
   // What the plan adds isn't in a read from before it, and it says what the domain is.
   const unread = routes.filter((r) => !read.routes.has(r.resource?.name ?? ""));
   const domainOf = routeDomain;
-  const nextOf = (name: string) => {
-    const planned = routes.find((r) => r.resource?.name === name);
-    return planned ? nextStepOf(planned) : undefined;
+  // Which servers, once there's more than one a tunnel or a proxy could be for.
+  const serversOf = (planned: PlannedResource) =>
+    (servers?.length ?? 0) > 1
+      ? (plan?.servers ?? [])
+          .filter((server) => server.steps.some((step) => step.resourceId === planned.id))
+          .map((server) => server.serverName)
+          .join(", ")
+      : "";
+  const nextOf = (planned: PlannedResource | undefined) => {
+    const next = planned ? nextStepOf(planned) : undefined;
+    const on = planned && next ? serversOf(planned) : "";
+    return { ...(next ? { next } : {}), ...(on ? { on } : {}) };
   };
   // What the change itself makes leads, then what's wrong, as only the first few show.
   const ownFirst = (row: { domain: Domain; route: DomainRoute }) => {
@@ -1437,17 +1453,16 @@ function useReach(plan: Plan | undefined, change: Change | undefined, landed: bo
   const domains: DomainInReach[] = [...read.rows]
     .sort((a, b) => ownFirst(a) - ownFirst(b))
     .map(({ domain, route }) => {
-      const next = nextOf(route.name);
-      return { key: route.id, where: routeWhere(domain, route), read: { domain, route }, ...(next ? { next } : {}) };
+      const planned = routes.find((r) => r.resource?.name === route.name);
+      return { key: route.id, where: routeWhere(domain, route), read: { domain, route }, ...nextOf(planned) };
     });
   for (const route of unread) {
     const name = domainOf(route);
     if (!name) continue;
     const where = routeWhereOf(route) ?? name;
     if (domains.some((domain) => domain.where === where)) continue;
-    const next = nextStepOf(route);
     const port = Number(changeTo(route, "host_port") ?? changeTo(route, "port") ?? 0);
-    domains.push({ key: route.id, where, ...(port ? { port } : {}), ...(next ? { next } : {}) });
+    domains.push({ key: route.id, where, ...(port ? { port } : {}), ...nextOf(route) });
   }
 
   // A new app with no port among its fields publishes none, which the plan says at once, before the list is read again.
@@ -1533,6 +1548,7 @@ function ReachRoom({ reach, phone, children }: { reach: Reach; phone: boolean; c
                 key={domain.key}
                 where={domain.where}
                 next={domain.next}
+                on={domain.on}
                 note={domain.read ? lookOf(domain.read.domain).message : ""}
               />
             ))}
@@ -1560,8 +1576,18 @@ function ReachRoom({ reach, phone, children }: { reach: Reach; phone: boolean; c
 }
 
 /** A route's row in the room held for it: its lines, and none of its words to read or find. */
-function HeldRow({ where, next, note }: { where: string; next: NextStep | undefined; note: string }) {
-  const nextWords = useNextWords(next);
+function HeldRow({
+  where,
+  next,
+  on,
+  note,
+}: {
+  where: string;
+  next: NextStep | undefined;
+  on: string | undefined;
+  note: string;
+}) {
+  const nextWords = useNextWords(next, on);
   const words = [note, nextWords].filter((said) => said !== "").join(" ");
   return (
     <div className="plan-reach-row is-domain">
@@ -1687,9 +1713,9 @@ function Arrival({
       ) : null}
       {reach.domains.length + reach.ports.length > 0 ? (
         <ul className="plan-reach">
-          {domains.map(({ key, where, read, port, next }) =>
+          {domains.map(({ key, where, read, port, next, on }) =>
             read ? (
-              <DomainReach key={key} domain={read.domain} route={read.route} next={next} onLeave={onLeave} />
+              <DomainReach key={key} domain={read.domain} route={read.route} next={next} on={on} onLeave={onLeave} />
             ) : (
               <li key={key} className="plan-reach-row is-domain">
                 <Icon name="globe" size={16} />
@@ -1709,7 +1735,7 @@ function Arrival({
                 </span>
                 {next ? (
                   <span className="plan-reach-how">
-                    <NextStepNote next={next} />
+                    <NextStepNote next={next} on={on} />
                   </span>
                 ) : null}
               </li>
@@ -1753,11 +1779,13 @@ function DomainReach({
   domain,
   route,
   next,
+  on,
   onLeave,
 }: {
   domain: Domain;
   route: DomainRoute;
   next: NextStep | undefined;
+  on: string | undefined;
   onLeave: () => void;
 }) {
   const { t } = useLingui();
@@ -1790,7 +1818,7 @@ function DomainReach({
       </span>
       <span className="plan-reach-how">
         <DomainNote domain={domain} look={look} silent={silent} onLeave={onLeave} />
-        {next && look.state !== "failed" ? <NextStepNote next={next} /> : null}
+        {next && look.state !== "failed" ? <NextStepNote next={next} on={on} /> : null}
       </span>
     </li>
   );

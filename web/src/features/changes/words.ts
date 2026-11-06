@@ -102,7 +102,6 @@ function millis(d: { seconds: bigint; nanos: number } | undefined): number {
   return d ? Number(d.seconds) * 1000 + d.nanos / 1e6 : 0;
 }
 
-/** Quotes what could read as the plan's own words, as AccessWords does on the server. */
 /**
  * True for a proxy that covers more than one address, so what else is on that network
  * can be it. A lone address is written as a range of one, and a preset has its name.
@@ -113,6 +112,7 @@ export function namesARange(proxy: string): boolean {
   return bits !== undefined && bits !== (proxy.includes(":") ? "128" : "32");
 }
 
+/** Quotes what could read as the plan's own words, as AccessWords does on the server. */
 export function plain(s: string): string {
   return /^[A-Za-z0-9_.,/=:@+*-]*$/.test(s) ? s : JSON.stringify(s);
 }

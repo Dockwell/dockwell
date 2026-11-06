@@ -75,6 +75,9 @@ export function DomainFacts({
 }) {
   const [status, word] = useDomainWord(domain, look, silent);
   const port = route?.hostPort || route?.port;
+  const { servers } = useFleetView();
+  // With one server, there's only one it can be.
+  const held = (servers?.length ?? 0) > 1 ? domain.servers.map((server) => server.serverName).join(", ") : "";
   return (
     <span className="domain-facts">
       <StatusBadge status={status} label={word} labelIsState />
@@ -82,6 +85,13 @@ export function DomainFacts({
         <span className="domain-port">
           <Trans>
             Port <code>{port}</code>
+          </Trans>
+        </span>
+      ) : null}
+      {held ? (
+        <span className="domain-held">
+          <Trans>
+            On <code>{held}</code>
           </Trans>
         </span>
       ) : null}

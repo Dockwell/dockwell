@@ -14,7 +14,13 @@
   white-space: nowrap;
 }
 
-.domain-port code {
+.domain-held {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.domain-port code,
+.domain-held code {
   font: 400 13px / 20px var(--font-mono);
   color: var(--ink);
 }
