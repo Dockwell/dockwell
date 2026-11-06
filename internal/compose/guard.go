@@ -29,6 +29,11 @@ var (
 // GuardCommand is the hidden command the binary runs a child as.
 const GuardCommand = "__read-compose"
 
+// guardChildEnv marks a child, in the environment guard gives it. A process that has
+// it never starts another, so no bug in any binary can multiply: the timeout reaches
+// only a child of its own, and what that child started goes on without it.
+const guardChildEnv = "DOCKWELL_READING_COMPOSE"
+
 // guardPath is the binary to run as a child, or empty to read in this
 // process, as tests do. Serve sets it.
 var guardPath string
@@ -40,8 +45,23 @@ var guardPath string
 // minutes or all the memory there is. A Go process can't be stopped or
 // recover from running out of memory, so the only safe place to find out is
 // another process. /proc/self/exe stays right across an upgrade that replaces
-// the binary.
-func UseGuard() { guardPath = "/proc/self/exe" }
+// the binary. A test binary reads in its own process (guardFor).
+func UseGuard() {
+	exe, _ := os.Executable()
+	guardPath = guardFor(exe)
+}
+
+// guardFor is what a binary at this path runs as its child: itself, or nothing for a
+// test binary. That ignores GuardCommand and runs every test again, each of which may
+// reach here, so one test that plans a Compose file filled a machine with thousands of
+// them. Only a name that says it's a test does this, so a path that can't be read
+// still gets the child, which is what protects a server.
+func guardFor(exe string) string {
+	if strings.HasSuffix(exe, ".test") {
+		return ""
+	}
+	return "/proc/self/exe"
+}
 
 // guardRequest is what a child reads, all of what Parse reads, so nothing the
 // parent goes on to read gets there without the child having read it first.
@@ -67,6 +87,9 @@ func guard(ctx context.Context, in Input, asked bool) (Inspection, error) {
 	if guardPath == "" {
 		return Inspection{}, nil
 	}
+	if os.Getenv(guardChildEnv) != "" {
+		return Inspection{}, errors.New("can't read the Compose file: this process is already reading one for its parent, and never starts another. This is about the server, not the file")
+	}
 	body, err := json.Marshal(guardRequest{in, guardCPU, guardMemory, asked})
 	if err != nil {
 		return Inspection{}, fmt.Errorf("can't pass the Compose file to be read: %w", err)
@@ -76,7 +99,7 @@ func guard(ctx context.Context, in Input, asked bool) (Inspection, error) {
 	cmd := exec.CommandContext(ctx, guardPath, GuardCommand)
 	// Nothing of this process's own passes to it, such as a database's
 	// address. GOMEMLIMIT has it collect garbage before it reaches its limit.
-	cmd.Env = []string{"GOMAXPROCS=2", fmt.Sprintf("GOMEMLIMIT=%d", guardMemory-guardMemory/4)}
+	cmd.Env = []string{"GOMAXPROCS=2", fmt.Sprintf("GOMEMLIMIT=%d", guardMemory-guardMemory/4), guardChildEnv + "=1"}
 	// Its first words say how it ended. Nothing else of what it writes is kept,
 	// as a crash's traces can hold what it read.
 	said := head{room: 256}
