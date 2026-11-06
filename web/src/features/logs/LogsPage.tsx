@@ -412,7 +412,9 @@ export function LogsPage({
   const noneReading =
     statuses.length > 0 &&
     statuses.every((s) => s.state === ServerLogState.OFFLINE || s.state === ServerLogState.UNAVAILABLE);
-  const live = !deepOn && !search.range && !reading && stream.status === "live" && !noneReading;
+  // A dropped stream carries on by itself, so what a reader chose stands while it does.
+  const streaming = stream.status === "live" || stream.status === "reconnecting";
+  const live = !deepOn && !search.range && !reading && streaming && !noneReading;
   // A failed deploy opens at what went wrong, not at its last line.
   const opensAtError = Boolean(chosen?.failed && !chosen.current && !search.q);
   const [follow, setFollow] = useState(true);

@@ -793,13 +793,12 @@ async function main() {
   await stillThere("a search that found some lines");
 
   step("a dropped stream leaves a pause as it was, with Follow there to press");
-  const context = page.context();
-  await context.setOffline(true);
+  await page.context().setOffline(true);
   await page.getByText("Reconnecting to the control server").waitFor({ timeout: 15_000 });
   await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
   await page.getByRole("button", { name: "Follow", exact: true }).waitFor({ timeout: 2000 });
   if ((await topLine()) !== place) fail("the stream dropping moved a paused reader");
-  await context.setOffline(false);
+  await page.context().setOffline(false);
   await page.getByText("Reconnecting to the control server").waitFor({ state: "hidden", timeout: 30_000 });
   await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
   if ((await topLine()) !== place) fail("the stream coming back moved a paused reader");
@@ -841,11 +840,18 @@ async function main() {
       return row?.textContent ?? "";
     });
   const held = await reading();
-  await sleep(8000);
+  // As long as a run once took to lose Follow, which a stream dropping would do.
+  let down = 0;
+  for (let second = 0; second < 40; second++) {
+    await sleep(1000);
+    if ((await page.getByText("Reconnecting to the control server").count()) > 0) down++;
+  }
+  step(`  paused for 40 s at 16,000 lines a second, with the stream down for ${down} s of them`);
   if (!held || (await reading()) !== held)
     fail("the line being read changed while paused, under 16,000 lines a second");
   await page.getByText(/Paused at \d\d:\d\d:\d\d\. [\d,]+ lines since\./).waitFor();
   await page.getByRole("button", { name: /10k\+ new lines/ }).waitFor();
+  await page.getByRole("button", { name: "Follow", exact: true }).waitFor({ timeout: 2000 });
   await post("/rate?lines=0");
   await page.getByRole("button", { name: "Follow", exact: true }).click();
 
