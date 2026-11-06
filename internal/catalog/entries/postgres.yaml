@@ -14,8 +14,10 @@ source:
 web:
   service: adminer
 firstSteps: >-
-  Open Adminer and choose PostgreSQL as its system. Sign in to server db as user
-  postgres, with the password in the POSTGRES_PASSWORD secret.
+  Adminer answers over plain HTTP, so signing in from outside this server sends the
+  database's password in clear. Add a domain first, or reach it another way, such as
+  a VPN or an SSH tunnel. Then open Adminer and choose PostgreSQL as its system. Sign
+  in to server db as user postgres, with the password in the POSTGRES_PASSWORD secret.
 inputs:
   - name: ADMIN_PORT
     label: Adminer port

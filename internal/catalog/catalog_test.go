@@ -99,6 +99,27 @@ func TestEveryAppIsOpenSource(t *testing.T) {
 	}
 }
 
+// An admin tool on a published port answers over plain HTTP, so a password typed into
+// it crosses the network in clear. A person hears that before they apply, with what to
+// do about it, and first, as the rest of the steps are signing in.
+func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"postgres", "mysql"} {
+		e, _ := c.Entry(id)
+		steps := e.GetFirstSteps()
+		at := strings.Index(steps, "plain HTTP")
+		if at < 0 || !strings.Contains(steps, "in clear") || !strings.Contains(steps, "Add a domain") {
+			t.Errorf("%s doesn't say its admin tool is plain HTTP, and what to do: %q", id, steps)
+		}
+		if signIn := strings.Index(steps, "sign in"); signIn >= 0 && signIn < at && !strings.HasPrefix(steps[signIn:], "signing") {
+			t.Errorf("%s tells a person to sign in before it says that: %q", id, steps)
+		}
+	}
+}
+
 // The checks the catalog's CI will make, on what would get past a look.
 func TestCheckRefuses(t *testing.T) {
 	c, err := catalog.Load("")
