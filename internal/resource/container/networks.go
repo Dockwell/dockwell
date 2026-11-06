@@ -225,6 +225,11 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 			}
 		}
 	}
+	// What was taken on goes by the name it came with, on a network where that
+	// reaches it, and goes on answering to that once a replace names it otherwise.
+	if came := c.Config.Labels[docker.LabelAdopted]; t.Scoped && came != "" && came != t.Service {
+		names[came] = true
+	}
 	out.Aliases = slices.Sorted(maps.Keys(names))
 }
 
@@ -276,6 +281,13 @@ func (d *Docker) checkNetworks(ctx context.Context, t Target, spec *resourcev1.C
 	for _, a := range names {
 		ours[strings.ToLower(a)] = true
 	}
+	// What a plan takes on answers to what it answers to already, and goes on doing so.
+	takingOn := map[string]bool{}
+	for _, want := range resource.DesiredIn(ctx) {
+		if want.Adopt != "" {
+			takingOn[want.Adopt] = true
+		}
+	}
 	for _, name := range networks {
 		n, err := d.Client.NetworkNamed(ctx, name)
 		switch {
@@ -293,7 +305,7 @@ func (d *Docker) checkNetworks(ctx context.Context, t Target, spec *resourcev1.C
 		}
 		for i := range list {
 			other := &list[i]
-			if other.Labels[docker.LabelProject] == t.Project && other.Labels[docker.LabelService] == t.Service {
+			if takingOn[other.ID] || other.Labels[docker.LabelProject] == t.Project && other.Labels[docker.LabelService] == t.Service {
 				continue // itself, or what a replace left of it
 			}
 			c, err := d.Client.InspectContainer(ctx, other.ID)

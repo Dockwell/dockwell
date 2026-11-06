@@ -38,6 +38,9 @@ const (
 	// ContainerServiceListContainersProcedure is the fully-qualified name of the ContainerService's
 	// ListContainers RPC.
 	ContainerServiceListContainersProcedure = "/dockwell.v1.ContainerService/ListContainers"
+	// ContainerServiceAdoptContainerProcedure is the fully-qualified name of the ContainerService's
+	// AdoptContainer RPC.
+	ContainerServiceAdoptContainerProcedure = "/dockwell.v1.ContainerService/AdoptContainer"
 )
 
 // ContainerServiceClient is a client for the dockwell.v1.ContainerService service.
@@ -45,6 +48,13 @@ type ContainerServiceClient interface {
 	// ListContainers returns the containers on a server that Dockwell didn't
 	// make, by name, running or not.
 	ListContainers(context.Context, *connect.Request[v1.ListContainersRequest]) (*connect.Response[v1.ListContainersResponse], error)
+	// AdoptContainer plans taking on a container Dockwell didn't make, as a service
+	// that runs it from then on. Nothing about the container changes: it isn't
+	// restarted, and it keeps its name and labels until a change replaces it. Its
+	// environment comes in with it, sealed like any service's, and no plan or log
+	// shows a value of it. A person applies the plan, as a token can't. Deleting the
+	// service before anything replaces the container lets go of it again.
+	AdoptContainer(context.Context, *connect.Request[v1.AdoptContainerRequest]) (*connect.Response[v1.AdoptContainerResponse], error)
 }
 
 // NewContainerServiceClient constructs a client for the dockwell.v1.ContainerService service. By
@@ -65,12 +75,19 @@ func NewContainerServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		adoptContainer: connect.NewClient[v1.AdoptContainerRequest, v1.AdoptContainerResponse](
+			httpClient,
+			baseURL+ContainerServiceAdoptContainerProcedure,
+			connect.WithSchema(containerServiceMethods.ByName("AdoptContainer")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // containerServiceClient implements ContainerServiceClient.
 type containerServiceClient struct {
 	listContainers *connect.Client[v1.ListContainersRequest, v1.ListContainersResponse]
+	adoptContainer *connect.Client[v1.AdoptContainerRequest, v1.AdoptContainerResponse]
 }
 
 // ListContainers calls dockwell.v1.ContainerService.ListContainers.
@@ -78,11 +95,23 @@ func (c *containerServiceClient) ListContainers(ctx context.Context, req *connec
 	return c.listContainers.CallUnary(ctx, req)
 }
 
+// AdoptContainer calls dockwell.v1.ContainerService.AdoptContainer.
+func (c *containerServiceClient) AdoptContainer(ctx context.Context, req *connect.Request[v1.AdoptContainerRequest]) (*connect.Response[v1.AdoptContainerResponse], error) {
+	return c.adoptContainer.CallUnary(ctx, req)
+}
+
 // ContainerServiceHandler is an implementation of the dockwell.v1.ContainerService service.
 type ContainerServiceHandler interface {
 	// ListContainers returns the containers on a server that Dockwell didn't
 	// make, by name, running or not.
 	ListContainers(context.Context, *connect.Request[v1.ListContainersRequest]) (*connect.Response[v1.ListContainersResponse], error)
+	// AdoptContainer plans taking on a container Dockwell didn't make, as a service
+	// that runs it from then on. Nothing about the container changes: it isn't
+	// restarted, and it keeps its name and labels until a change replaces it. Its
+	// environment comes in with it, sealed like any service's, and no plan or log
+	// shows a value of it. A person applies the plan, as a token can't. Deleting the
+	// service before anything replaces the container lets go of it again.
+	AdoptContainer(context.Context, *connect.Request[v1.AdoptContainerRequest]) (*connect.Response[v1.AdoptContainerResponse], error)
 }
 
 // NewContainerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -99,10 +128,18 @@ func NewContainerServiceHandler(svc ContainerServiceHandler, opts ...connect.Han
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	containerServiceAdoptContainerHandler := connect.NewUnaryHandler(
+		ContainerServiceAdoptContainerProcedure,
+		svc.AdoptContainer,
+		connect.WithSchema(containerServiceMethods.ByName("AdoptContainer")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ContainerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ContainerServiceListContainersProcedure:
 			containerServiceListContainersHandler.ServeHTTP(w, r)
+		case ContainerServiceAdoptContainerProcedure:
+			containerServiceAdoptContainerHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -114,4 +151,8 @@ type UnimplementedContainerServiceHandler struct{}
 
 func (UnimplementedContainerServiceHandler) ListContainers(context.Context, *connect.Request[v1.ListContainersRequest]) (*connect.Response[v1.ListContainersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ContainerService.ListContainers is not implemented"))
+}
+
+func (UnimplementedContainerServiceHandler) AdoptContainer(context.Context, *connect.Request[v1.AdoptContainerRequest]) (*connect.Response[v1.AdoptContainerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ContainerService.AdoptContainer is not implemented"))
 }

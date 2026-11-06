@@ -123,6 +123,7 @@ type (
 		Driver     string            `yaml:"driver,omitempty"`
 		DriverOpts map[string]string `yaml:"driver_opts,omitempty"`
 		Labels     map[string]string `yaml:"labels,omitempty"`
+		External   bool              `yaml:"external,omitempty"`
 	}
 )
 
@@ -228,6 +229,13 @@ func Export(project string, stack *Stack) (*Exported, error) {
 				v += ":" + strings.Join(options, ",")
 			}
 			entry.Volumes = append(entry.Volumes, escape(v))
+			// A volume the server has, as a network it has is listed.
+			if m.GetExternal() {
+				if f.Volumes == nil {
+					f.Volumes = map[string]volumeEntry{}
+				}
+				f.Volumes[m.GetVolume()] = volumeEntry{External: true}
+			}
 		}
 		switch {
 		case c.GetHostNetwork():

@@ -178,6 +178,9 @@ func mountAccess(c *resourcev1.Container) []resource.Access {
 			a.Relabel = relabels[m.GetRelabel()]
 			out = append(out, a)
 		}
+		if m.GetExternal() {
+			out = append(out, resource.Access{Kind: resource.AccessExternalVolume, Path: m.GetVolume(), ReadOnly: m.GetReadOnly()})
+		}
 	}
 	return out
 }
@@ -276,7 +279,7 @@ func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Conta
 			}
 			continue
 		}
-		v, err := d.Client.InspectVolume(ctx, t.DockerName(m.GetVolume()))
+		v, err := d.Client.InspectVolume(ctx, t.VolumeName(m))
 		switch {
 		case docker.IsNotFound(err):
 			continue // the change makes it, or checkRefs says what is wrong
@@ -377,7 +380,7 @@ func (d *Docker) pathLeads(ctx context.Context, t Target, spec *resourcev1.Conta
 			paths = append(paths, p)
 			continue
 		}
-		v, err := d.Client.InspectVolume(ctx, t.DockerName(m.GetVolume()))
+		v, err := d.Client.InspectVolume(ctx, t.VolumeName(m))
 		switch {
 		case docker.IsNotFound(err):
 			continue // the change makes it, and says where its own path leads

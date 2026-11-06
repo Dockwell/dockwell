@@ -428,7 +428,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if err != nil {
 				return fail(err)
 			}
-			desired = append(desired, resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback()})
+			desired = append(desired, resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()})
 		}
 		steps, err := c.local.Plan(ctx, desired)
 		if err != nil {
@@ -524,6 +524,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Containers{Containers: found}}
+	case call.GetAdoption() != nil:
+		found, err := c.adoption(ctx, call.GetAdoption())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Adoption{Adoption: found}}
 	}
 	if f := call.GetForgotten(); f != nil {
 		if c.cfg.Logs != nil {

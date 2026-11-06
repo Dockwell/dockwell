@@ -63,6 +63,14 @@ func (t Target) DockerName(name string) string {
 	return name
 }
 
+// VolumeName is what Docker names the volume a mount names.
+func (t Target) VolumeName(m *resourcev1.Mount) string {
+	if m.GetExternal() {
+		return m.GetVolume()
+	}
+	return t.DockerName(m.GetVolume())
+}
+
 // Runtime is the part of Docker the driver needs.
 type Runtime interface {
 	// Inspect returns the container's spec as Docker has it, or nil if
@@ -212,6 +220,8 @@ func checkOwnNames(c *resourcev1.Container) error {
 	for _, m := range c.GetMounts() {
 		v := m.GetVolume()
 		switch {
+		case m.GetExternal():
+			return fmt.Errorf("a container on its own names Docker's volumes already, so the volume %s takes no external. Leave it out", v)
 		case strings.HasPrefix(strings.ToLower(v), serviceForm):
 			return fmt.Errorf("the volume %s has the form of an environment's, %s<ID>_<name>, so a container on its own can't mount it. Mount a volume of its own, or run it as a service", v, serviceForm)
 		case anonymous(v):
@@ -509,7 +519,16 @@ func validateMounts(c *resourcev1.Container) error {
 			if m.GetRelabel() != resourcev1.Relabel_RELABEL_UNSPECIFIED {
 				return fmt.Errorf("the volume %s mounted at %s is relabelled for SELinux, which Dockwell can do for a server path alone. Leave relabel out, or mount a server path", src.Volume, m.Target)
 			}
+			if m.GetExternal() && strings.HasPrefix(strings.ToLower(src.Volume), serviceForm) {
+				return fmt.Errorf("the volume %s has the form of an environment's, %s<ID>_<name>, so it can't be mounted as one Dockwell didn't make. Mount it by its name in its own environment", src.Volume, serviceForm)
+			}
+			if m.GetExternal() && anonymous(src.Volume) {
+				return fmt.Errorf("the volume %s has the form of one Docker made for an image, so it can't be mounted by name. Mount a named volume", src.Volume)
+			}
 		case *resourcev1.Mount_HostPath:
+			if m.GetExternal() {
+				return fmt.Errorf("the mount at %s is a server path, which Dockwell didn't make either way, so it takes no external. Leave it out", m.Target)
+			}
 			if !path.IsAbs(src.HostPath) {
 				return fmt.Errorf("the server path %q mounted at %s isn't absolute; start it with /, such as /srv/data", src.HostPath, m.Target)
 			}
@@ -843,6 +862,13 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 	switch step.Action {
 	case resource.ActionCreate, resource.ActionReplace:
 		spec := desired.(*resourcev1.Container)
+		if step.Adopts != "" {
+			a, ok := d.Runtime.(adopter)
+			if !ok {
+				return errors.New("this runtime can't take on a container")
+			}
+			return a.Adopt(ctx, t, step.Adopts, spec)
+		}
 		if p, ok := d.Runtime.(puller); ok && step.Pull {
 			same, err := p.PullAgain(ctx, t, spec, step.Pulled)
 			if err != nil {

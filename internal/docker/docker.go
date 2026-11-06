@@ -41,6 +41,10 @@ const (
 
 // Client talks to one Docker Engine. It is safe for concurrent use.
 type Client struct {
+	// Adopted is the containers this server took on, which it reads as what they
+	// are now. Nil has none, and takes none on. Set it before the first call.
+	Adopted *Adopted
+
 	socket string
 	http   *http.Client
 

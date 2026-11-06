@@ -155,6 +155,12 @@ type Decision struct {
 	// own health check isn't known, and UntilHealthy may be missing or
 	// too short.
 	HealthUnknown bool `json:",omitempty"`
+	// Adopts is the full ID of a container this step takes on, which goes on running
+	// as it is, as what the resource runs. Its step makes nothing.
+	Adopts string `json:",omitempty"`
+	// Releases says this deletion lets go of a container that was taken on and hasn't
+	// been replaced since: it goes on running as it is.
+	Releases bool `json:",omitempty"`
 	// Leads says where the server paths the resource mounts lead through symlinks,
 	// by path, for those that lead elsewhere, and which driver a network Dockwell
 	// didn't make uses, by name, where that isn't Docker's bridge. An agent reads it;
@@ -560,6 +566,13 @@ const (
 	// AccessHTTPSOff is the domain in Path going off HTTPS, as it had a certificate
 	// within the undo window, so https:// stops answering (ADR 0030).
 	AccessHTTPSOff
+	// AccessExternalVolume is a volume on the server that Dockwell didn't make, by
+	// its name in Docker: Path. Whatever else mounts it shares what it holds.
+	AccessExternalVolume
+	// AccessTakesOn is a container Dockwell didn't make, by its name: Path. Its
+	// environment comes in with it, and a token mustn't be able to bring in what it
+	// couldn't read (ADR 0031).
+	AccessTakesOn
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -665,6 +678,14 @@ func AccessWords(a Access) string {
 		return "the domain " + plain(a.Path) + ", which the environment " + plain(a.Detail) + " held within the last 7 days"
 	case AccessPanelDomain:
 		return "the panel's domain, " + plain(a.Path) + ", which moves behind " + plain(a.Detail)
+	case AccessExternalVolume:
+		out := "the volume " + plain(a.Path) + ", which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds"
+		if a.ReadOnly {
+			out += ", and this reads it only"
+		}
+		return out
+	case AccessTakesOn:
+		return "the container " + plain(a.Path) + ", which Dockwell didn't make, and its environment, which comes in with it"
 	case AccessExternalNetwork:
 		out := "the network " + plain(a.Path) + ", which is on the server already, where it answers to its name"
 		if a.LeadsTo != "" {
@@ -784,6 +805,18 @@ type Type interface {
 // "env" for environments. Others get "res".
 type IDPrefixer interface {
 	IDPrefix() string
+}
+
+// Adopter is a driver that can take on what runs on a server already, as what a
+// resource runs, with nothing about it changing. See
+// docs/adr/0031-containers-dockwell-didnt-make.md.
+type Adopter interface {
+	// ReadAdoption reads the container, by its full ID, as what the resource would
+	// run: its spec, and what it runs with that no spec holds, in words for people.
+	ReadAdoption(ctx context.Context, ref Ref, container string) (proto.Message, []string, error)
+	// Adopts says what taking the container on as desired takes, and refuses
+	// what has changed since it was read.
+	Adopts(ctx context.Context, ref Ref, container string, desired proto.Message) (Decision, error)
 }
 
 // NameChecker is a Type that takes only some names, such as names that fit

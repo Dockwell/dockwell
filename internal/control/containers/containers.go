@@ -13,19 +13,24 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -40,16 +45,119 @@ type Server struct {
 
 // Handler implements ContainerService.
 type Handler struct {
-	agents *agentapi.Agents
-	db     *store.DB
-	logger *slog.Logger
+	agents  *agentapi.Agents
+	changes *changes.Handler
+	db      *store.DB
+	logger  *slog.Logger
 }
 
 var _ dockwellv1connect.ContainerServiceHandler = (*Handler)(nil)
 
 // New returns a handler that lists containers through agents.
-func New(agents *agentapi.Agents, db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{agents: agents, db: db, logger: logger}
+func New(agents *agentapi.Agents, ch *changes.Handler, db *store.DB, logger *slog.Logger) *Handler {
+	return &Handler{agents: agents, changes: ch, db: db, logger: logger}
+}
+
+// AdoptContainer plans taking on a container as a service. It reads what the
+// container runs with on its server, and proposes that as the service's spec, which
+// keeps the environment in its sensitive field: sealed in the store, and only ever
+// said to have changed. The plan goes through the engine like any other, so it is a
+// revision, with an undo.
+func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockwellv1.AdoptContainerRequest]) (*connect.Response[dockwellv1.AdoptContainerResponse], error) {
+	m := req.Msg
+	if m.GetId() == "" {
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("name a container, by its name or its full ID"), "invalid")
+	}
+	s, c, err := h.Find(ctx, m.GetServer(), m.GetId())
+	if err != nil {
+		return nil, err
+	}
+	_, env, err := h.changes.Environment(ctx, m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, err
+	}
+	name := cmp.Or(m.GetService(), ServiceName(c))
+	if err := (&service.Driver{}).CheckName(name); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	// An edit of a service that's there would move it here, so a name is taken while
+	// it runs anywhere.
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		res, err := tx.GetResource(ctx, string(service.Kind), env.ID, name)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err == nil && res.Spec != nil {
+			return authapi.Invalid(fmt.Errorf("there's a service %s in this environment already. Choose another name for this one", name))
+		}
+		return err
+	})
+	var refusal *connect.Error
+	if errors.As(err, &refusal) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	session, ok := h.agents.SessionPastMove(ctx, s.ID, agentapi.MoveGrace)
+	if !ok {
+		return nil, notConnected(s)
+	}
+	read, cancel := context.WithTimeout(ctx, callWait)
+	defer cancel()
+	spec, refused, err := session.Adoption(read, c.GetId(), resource.Ref{Kind: service.Kind, Scope: env.ID, Name: name})
+	if err != nil {
+		var se *resource.ServerError
+		if errors.As(err, &se) {
+			err = se.Err
+		}
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read %s now: %w", s.Name, c.GetName(), err), authapi.ReasonUnavailable)
+	}
+	if len(refused) > 0 {
+		return nil, authapi.Invalid(fmt.Errorf("%s runs with %s, which Dockwell can't keep yet, so changing its image would drop them without a word. It stays as it is. Make it again without them, then take it on", c.GetName(), human.List(refused)))
+	}
+	svc, ok := spec.(*resourcev1.Service)
+	if !ok {
+		return nil, h.internal(ctx, fmt.Errorf("an agent read %s as %T", c.GetName(), spec))
+	}
+	edit := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: env.ID, Name: name},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
+		Servers:  []string{s.ID},
+	}
+	change, err := h.changes.Propose(ctx, fmt.Sprintf("Take on %s as %s", c.GetName(), name), []*dockwellv1.Edit{edit}, nil, changes.Also{
+		Adopts: map[string]changes.Adoption{name: {ID: c.GetId(), Name: c.GetName()}},
+		Notes: []revision.Note{{Reason: "takes_on", Message: fmt.Sprintf(
+			"Takes on %s as it is: it keeps running, with no restart. Changing its image later replaces it, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container", c.GetName())}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.AdoptContainerResponse{Change: change}), nil
+}
+
+// ServiceName is what a service that takes a container on is called unless someone
+// says: its Compose service, or its own name, written as a service's name is.
+func ServiceName(c *dockwellv1.ServerContainer) string {
+	name := strings.ToLower(cmp.Or(c.GetComposeService(), c.GetName()))
+	out := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+			return r
+		case r == '_', r == '.':
+			return '-'
+		}
+		return -1
+	}, name)
+	out = strings.Trim(out, "-")
+	if out == "" || out[0] < 'a' {
+		out = "app-" + out
+	}
+	return strings.TrimRight(out[:min(len(out), 63)], "-")
+}
+
+func notConnected(s Server) error {
+	return authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("the agent on %s isn't connected, so what Docker runs there can't be read now. Its containers keep running. Check the server; this works again when its agent reconnects", s.Name), authapi.ReasonUnavailable)
 }
 
 // ListContainers returns the containers on a server that Dockwell didn't make.
@@ -142,7 +250,7 @@ func (h *Handler) server(ctx context.Context, name string) (Server, error) {
 func (h *Handler) read(ctx context.Context, s Server, name string) (*agentv1.ContainersResult, error) {
 	session, ok := h.agents.SessionPastMove(ctx, s.ID, agentapi.MoveGrace)
 	if !ok {
-		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("the agent on %s isn't connected, so what Docker runs there can't be read now. Its containers keep running. Check the server; this works again when its agent reconnects", s.Name), authapi.ReasonUnavailable)
+		return nil, notConnected(s)
 	}
 	ctx, cancel := context.WithTimeout(ctx, callWait)
 	defer cancel()

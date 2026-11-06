@@ -122,6 +122,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	if err == nil {
 		client = docker.New(socket)
 	}
+	client.Adopted = &docker.Adopted{Path: filepath.Join(dir.Agent(), "adopted-containers.json")}
 	collector.DockerSocket = socket
 	kept := &volume.Kept{Path: filepath.Join(dir.Agent(), "deleted-volumes.json")}
 	// What no container may mount, as this server has it: its data

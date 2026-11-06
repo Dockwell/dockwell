@@ -822,7 +822,13 @@ type Mount struct {
 	// Relabels a server path for SELinux, as Docker's z and Z options do, so
 	// the container can use it on a server that enforces SELinux. Only a
 	// server path takes one; elsewhere Docker changes nothing.
-	Relabel       Relabel `protobuf:"varint,5,opt,name=relabel,proto3,enum=dockwell.resource.v1alpha1.Relabel" json:"relabel,omitempty"`
+	Relabel Relabel `protobuf:"varint,5,opt,name=relabel,proto3,enum=dockwell.resource.v1alpha1.Relabel" json:"relabel,omitempty"`
+	// Says a service's volume is one Dockwell didn't make, by its name in Docker,
+	// as one a container came with when it was taken on. It must be on the server
+	// already: Dockwell never makes, changes or deletes one. Whatever else mounts it
+	// shares what it holds, so mounting one is host access, which a person approves.
+	// A container on its own names Docker's volumes already, so it takes none.
+	External      bool `protobuf:"varint,6,opt,name=external,proto3" json:"external,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -901,6 +907,13 @@ func (x *Mount) GetRelabel() Relabel {
 		return x.Relabel
 	}
 	return Relabel_RELABEL_UNSPECIFIED
+}
+
+func (x *Mount) GetExternal() bool {
+	if x != nil {
+		return x.External
+	}
+	return false
 }
 
 type isMount_Source interface {
@@ -2323,13 +2336,14 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x12memory_reservation\x18\x03 \x01(\tR\x11memoryReservation\"_\n" +
 	"\aRollout\x12>\n" +
 	"\x05order\x18\x01 \x01(\x0e2(.dockwell.resource.v1alpha1.RolloutOrderR\x05order\x12\x14\n" +
-	"\x05drain\x18\x02 \x01(\tR\x05drain\"\xbe\x01\n" +
+	"\x05drain\x18\x02 \x01(\tR\x05drain\"\xda\x01\n" +
 	"\x05Mount\x12\x18\n" +
 	"\x06volume\x18\x01 \x01(\tH\x00R\x06volume\x12\x1d\n" +
 	"\thost_path\x18\x02 \x01(\tH\x00R\bhostPath\x12\x16\n" +
 	"\x06target\x18\x03 \x01(\tR\x06target\x12\x1b\n" +
 	"\tread_only\x18\x04 \x01(\bR\breadOnly\x12=\n" +
-	"\arelabel\x18\x05 \x01(\x0e2#.dockwell.resource.v1alpha1.RelabelR\arelabelB\b\n" +
+	"\arelabel\x18\x05 \x01(\x0e2#.dockwell.resource.v1alpha1.RelabelR\arelabel\x12\x1a\n" +
+	"\bexternal\x18\x06 \x01(\bR\bexternalB\b\n" +
 	"\x06source\"\x87\x02\n" +
 	"\vHealthcheck\x12\x12\n" +
 	"\x04test\x18\x01 \x03(\tR\x04test\x12\x1a\n" +

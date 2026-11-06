@@ -228,6 +228,10 @@ type Edit struct {
 	// what a caller said. So nothing is kept of what's stored (resource.Keeper): it
 	// holds what those servers were given, and nothing goes anywhere it hasn't been.
 	Reverses bool
+	// Adopt takes on this container, by its full ID, as what the resource runs, in
+	// place of making one, and AdoptName is what it is called. Bringing a container
+	// in brings its environment, so a person applies it (resource.AccessTakesOn).
+	Adopt, AdoptName string
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -480,6 +484,8 @@ type item struct {
 	pulled []string
 	// run says the change asks it to run (Edit.Run).
 	run bool
+	// adopt and adoptName are what it takes on (Edit.Adopt).
+	adopt, adoptName string
 	// madeOn are the servers a run of the change stopped partway had a step on that
 	// makes its container, which may not have got as far as starting it. That isn't
 	// a stop by hand.
@@ -912,7 +918,7 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string,
 		}
 		out[i] = store.ChangeItem{
 			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: spec,
-			Servers: it.servers, Rotates: it.rotates, Pull: it.pull, Run: it.run,
+			Servers: it.servers, Rotates: it.rotates, Pull: it.pull, Run: it.run, Adopts: it.adopt, AdoptsName: it.adoptName,
 		}
 	}
 	return out, nil
@@ -1004,7 +1010,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if err != nil {
 				return err
 			}
-			it.pull, it.run = ed.Pull, ed.Run
+			it.pull, it.run, it.adopt, it.adoptName = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
@@ -1628,6 +1634,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
 			if it.desiredOn(server) != nil {
 				gained = append(gained, takes[it.ref]...)
+				if it.adopt != "" {
+					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
+				}
 			}
 			for j := range gained {
 				gained[j] = gained[j].Leading(leads[gained[j].Path])
@@ -1665,6 +1674,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
 			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
 				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs)
+			if s.Adopts != "" || s.Releases {
+				fmt.Fprintf(fp, "  adopts %s|%t\n", s.Adopts, s.Releases)
+			}
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
 			}
@@ -1797,7 +1809,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -2876,7 +2888,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if !bytes.Equal(it.encoded, asked) || it.base == 0 {
 				continue // a later change moved it on
 			}
-			it.run = ci.Run
+			it.run, it.adopt, it.adoptName = ci.Run, ci.Adopts, ci.AdoptsName
 			if ci.Pull {
 				moved, err := resumingPull(ctx, tx, c.ID, ci, &it)
 				if err != nil {
@@ -3051,7 +3063,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				it.id = e.newID(ref.Kind)
 			}
 		}
-		it.servers, it.rotates, it.pull, it.run = ci.Servers, ci.Rotates, ci.Pull, ci.Run
+		it.servers, it.rotates, it.pull, it.run, it.adopt, it.adoptName = ci.Servers, ci.Rotates, ci.Pull, ci.Run, ci.Adopts, ci.AdoptsName
 		// Opened as the item of the change it was sealed for, of the
 		// resource the base check above makes the one there now.
 		if it.encoded, err = e.open(ctx, tx, store.InChange(cmp.Or(ci.ResourceID, it.id), ci.Kind, c.ID, i), ci.Spec); err != nil {

@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
@@ -24,6 +25,45 @@ service ContainerService {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (google.api.http) = {get: "/v1/containers"};
   }
+
+  // AdoptContainer plans taking on a container Dockwell didn't make, as a service
+  // that runs it from then on. Nothing about the container changes: it isn't
+  // restarted, and it keeps its name and labels until a change replaces it. Its
+  // environment comes in with it, sealed like any service's, and no plan or log
+  // shows a value of it. A person applies the plan, as a token can't. Deleting the
+  // service before anything replaces the container lets go of it again.
+  rpc AdoptContainer(AdoptContainerRequest) returns (AdoptContainerResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/containers/{id}:adopt"
+      body: "*"
+    };
+    option (dockwell.v1.command) = {
+      noun: "containers"
+      verb: "adopt"
+    };
+  }
+}
+
+// AdoptContainerRequest names a container, and what to make of it.
+message AdoptContainerRequest {
+  // The container, by its name or its full ID.
+  string id = 1;
+  // The server it is on, by name or ID. It can be left out while there is only one.
+  string server = 2;
+  // What to call the service. Unset takes the container's Compose service, or its
+  // own name, written as a service's name.
+  string service = 3;
+  // The project the service goes in, by name or ID.
+  string project = 4;
+  // The environment the service goes in, by name or ID.
+  string environment = 5;
+}
+
+// AdoptContainerResponse carries the plan.
+message AdoptContainerResponse {
+  // The change, planned and not applied.
+  Change change = 1;
 }
 
 // ListContainersRequest names a server.

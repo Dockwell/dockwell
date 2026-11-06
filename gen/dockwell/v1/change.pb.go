@@ -399,6 +399,12 @@ const (
 	// The domain in path going off HTTPS, as it had a certificate within the undo
 	// window. https:// stops answering, and browsers that saw HSTS refuse plain HTTP.
 	HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF HostAccessKind = 15
+	// A volume on the server that Dockwell didn't make, in path. Whatever else
+	// mounts it shares what it holds.
+	HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_VOLUME HostAccessKind = 16
+	// A container Dockwell didn't make, in path, whose environment comes into
+	// Dockwell with it: a token mustn't be able to bring in what it couldn't read.
+	HostAccessKind_HOST_ACCESS_KIND_TAKES_ON HostAccessKind = 17
 )
 
 // Enum value maps for HostAccessKind.
@@ -420,6 +426,8 @@ var (
 		13: "HOST_ACCESS_KIND_PRIVILEGED",
 		14: "HOST_ACCESS_KIND_PLAIN_FOR_ANYONE",
 		15: "HOST_ACCESS_KIND_HTTPS_OFF",
+		16: "HOST_ACCESS_KIND_EXTERNAL_VOLUME",
+		17: "HOST_ACCESS_KIND_TAKES_ON",
 	}
 	HostAccessKind_value = map[string]int32{
 		"HOST_ACCESS_KIND_UNSPECIFIED":      0,
@@ -438,6 +446,8 @@ var (
 		"HOST_ACCESS_KIND_PRIVILEGED":       13,
 		"HOST_ACCESS_KIND_PLAIN_FOR_ANYONE": 14,
 		"HOST_ACCESS_KIND_HTTPS_OFF":        15,
+		"HOST_ACCESS_KIND_EXTERNAL_VOLUME":  16,
+		"HOST_ACCESS_KIND_TAKES_ON":         17,
 	}
 )
 
@@ -3993,7 +4003,13 @@ type PlanStep struct {
 	// Set when a route leaves the service it sent to for another, as what a domain
 	// reaches changing is easy to miss among a plan's fields. It never stops a plan.
 	// Numbered apart, as open work adds to this message.
-	Moves         *RouteMove `protobuf:"bytes,32,opt,name=moves,proto3" json:"moves,omitempty"`
+	Moves *RouteMove `protobuf:"bytes,32,opt,name=moves,proto3" json:"moves,omitempty"`
+	// The full ID of the container this step takes on, which goes on running as it
+	// is, with no restart, as what the step's service runs.
+	Adopts string `protobuf:"bytes,33,opt,name=adopts,proto3" json:"adopts,omitempty"`
+	// True when this deletion lets go of a container that was taken on and hasn't been
+	// replaced since: it goes on running as it is, and nothing about it changes.
+	Releases      bool `protobuf:"varint,34,opt,name=releases,proto3" json:"releases,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4208,6 +4224,20 @@ func (x *PlanStep) GetMoves() *RouteMove {
 		return x.Moves
 	}
 	return nil
+}
+
+func (x *PlanStep) GetAdopts() string {
+	if x != nil {
+		return x.Adopts
+	}
+	return ""
+}
+
+func (x *PlanStep) GetReleases() bool {
+	if x != nil {
+		return x.Releases
+	}
+	return false
 }
 
 // RouteMove is a route leaving one service for another.
@@ -5378,7 +5408,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\x9b\t\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xcf\t\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -5412,7 +5442,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\n" +
 	"hides_logs\x18\x1e \x01(\bR\thidesLogs\x12*\n" +
 	"\x04goes\x18\x1f \x01(\v2\x16.dockwell.v1.RouteGoesR\x04goes\x12,\n" +
-	"\x05moves\x18  \x01(\v2\x16.dockwell.v1.RouteMoveR\x05moves\"^\n" +
+	"\x05moves\x18  \x01(\v2\x16.dockwell.v1.RouteMoveR\x05moves\x12\x16\n" +
+	"\x06adopts\x18! \x01(\tR\x06adopts\x12\x1a\n" +
+	"\breleases\x18\" \x01(\bR\breleases\"^\n" +
 	"\tRouteMove\x12\x14\n" +
 	"\x05where\x18\x01 \x01(\tR\x05where\x12\x12\n" +
 	"\x04from\x18\x02 \x01(\tR\x04from\x12\x0e\n" +
@@ -5528,7 +5560,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x12INTENT_KIND_DEPLOY\x10\x01\x12\x1c\n" +
 	"\x18INTENT_KIND_PUBLISH_PORT\x10\x02\x12\x19\n" +
 	"\x15INTENT_KIND_ROLL_BACK\x10\x03\x12\x16\n" +
-	"\x12INTENT_KIND_REPULL\x10\x04*\xb5\x04\n" +
+	"\x12INTENT_KIND_REPULL\x10\x04*\xfa\x04\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -5546,7 +5578,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x16HOST_ACCESS_KIND_GROUP\x10\f\x12\x1f\n" +
 	"\x1bHOST_ACCESS_KIND_PRIVILEGED\x10\r\x12%\n" +
 	"!HOST_ACCESS_KIND_PLAIN_FOR_ANYONE\x10\x0e\x12\x1e\n" +
-	"\x1aHOST_ACCESS_KIND_HTTPS_OFF\x10\x0f*\xbc\x01\n" +
+	"\x1aHOST_ACCESS_KIND_HTTPS_OFF\x10\x0f\x12$\n" +
+	" HOST_ACCESS_KIND_EXTERNAL_VOLUME\x10\x10\x12\x1d\n" +
+	"\x19HOST_ACCESS_KIND_TAKES_ON\x10\x11*\xbc\x01\n" +
 	"\fVisitorsFind\x12\x1d\n" +
 	"\x19VISITORS_FIND_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15VISITORS_FIND_REFUSED\x10\x01\x12\x1b\n" +

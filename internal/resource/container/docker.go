@@ -619,7 +619,7 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 		switch src := m.GetSource().(type) {
 		case *resourcev1.Mount_Volume:
 			req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{
-				Type: "volume", Source: t.DockerName(src.Volume), Target: m.GetTarget(), ReadOnly: m.GetReadOnly(),
+				Type: "volume", Source: t.VolumeName(m), Target: m.GetTarget(), ReadOnly: m.GetReadOnly(),
 			})
 		case *resourcev1.Mount_HostPath:
 			req.HostConfig.Binds = append(req.HostConfig.Binds, bind(src.HostPath, m))
@@ -928,11 +928,14 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		}
 		return name
 	}
+	// What a service mounts is its environment's, by a name of that form, and
+	// anything else is a volume Dockwell didn't make.
+	outside := func(name string) bool { return t.Scoped && !strings.HasPrefix(name, t.Project+"_") }
 	for _, m := range c.HostConfig.Mounts {
 		switch {
 		case m.Type == "volume" && m.Source != "" && !anonymous(m.Source):
 			out.Mounts = append(out.Mounts, &resourcev1.Mount{
-				Source: &resourcev1.Mount_Volume{Volume: unscope(m.Source)}, Target: m.Target, ReadOnly: m.ReadOnly,
+				Source: &resourcev1.Mount_Volume{Volume: unscope(m.Source)}, Target: m.Target, ReadOnly: m.ReadOnly, External: outside(m.Source),
 			})
 		case m.Type == "bind":
 			out.Mounts = append(out.Mounts, &resourcev1.Mount{
@@ -968,7 +971,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		case anonymous(parts[0]):
 			continue
 		default:
-			m.Source = &resourcev1.Mount_Volume{Volume: unscope(parts[0])}
+			m.Source, m.External = &resourcev1.Mount_Volume{Volume: unscope(parts[0])}, outside(parts[0])
 		}
 		out.Mounts = append(out.Mounts, m)
 	}
@@ -1302,7 +1305,10 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 		if v == "" {
 			continue
 		}
-		if _, err := d.Client.InspectVolume(ctx, t.DockerName(v)); docker.IsNotFound(err) {
+		if _, err := d.Client.InspectVolume(ctx, t.VolumeName(m)); docker.IsNotFound(err) {
+			if m.GetExternal() {
+				return fmt.Errorf("the volume %s isn't on this server, so %s can't mount it. Dockwell didn't make it, so it won't make it again: restore it, or mount another", v, t.Service)
+			}
 			return fmt.Errorf("the volume %s isn't on this server, so %s can't mount it. Add it to the environment, in this change or an earlier one", v, t.Service)
 		} else if err != nil {
 			return err
@@ -1310,7 +1316,7 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 		if d.Deleted == nil {
 			continue
 		}
-		if deleted, err := d.Deleted.Has(t.DockerName(v)); err != nil {
+		if deleted, err := d.Deleted.Has(t.VolumeName(m)); err != nil {
 			return err
 		} else if deleted {
 			return fmt.Errorf("the volume %s was deleted, so %s can't mount it, though the server keeps its data for 7 days. "+
@@ -1400,6 +1406,10 @@ func owned(t Target, c *docker.Container) error {
 // how it replaces what runs, and why; and a recreated container's health check,
 // its image's included, says how long it may take to be healthy.
 func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Container, dec *resource.Decision) error {
+	if dec.Action == resource.ActionDelete && d.lettingGo(ctx, t) {
+		dec.Releases = true
+		return nil
+	}
 	if dec.Action == resource.ActionDelete && d.Logs != nil && t.Scoped {
 		dec.HidesLogs = true
 	}
@@ -1626,6 +1636,9 @@ func (d *Docker) Update(ctx context.Context, t Target, spec *resourcev1.Containe
 // days, so a container of the name made again in that time, as undoing the
 // deletion does, mounts them again.
 func (d *Docker) Remove(ctx context.Context, t Target) error {
+	if id := d.takenOn(ctx, t); id != "" {
+		return d.Client.Adopted.Forget(id)
+	}
 	c, err := d.find(ctx, t.Name)
 	if err != nil {
 		return err

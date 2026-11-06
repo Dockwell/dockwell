@@ -281,7 +281,7 @@ func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Containe
 				if m.GetReadOnly() && h.GetReadOnly() {
 					continue
 				}
-				if v := m.GetVolume(); v != "" && v == h.GetVolume() {
+				if v := m.GetVolume(); v != "" && v == h.GetVolume() && m.GetExternal() == h.GetExternal() {
 					volumes[v] = true
 					continue
 				}
@@ -442,7 +442,7 @@ func (d *Docker) readLanding(ctx context.Context, t Target, m *resourcev1.Mount)
 		return landing{name: p, path: resolved}
 	}
 	name := m.GetVolume()
-	v, err := d.Client.InspectVolume(ctx, t.DockerName(name))
+	v, err := d.Client.InspectVolume(ctx, t.VolumeName(m))
 	switch {
 	case docker.IsNotFound(err):
 		// The same change makes it: a step that finds otherwise when it runs says

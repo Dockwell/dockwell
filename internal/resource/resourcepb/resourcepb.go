@@ -149,6 +149,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	}
 	p.HidesLogs = s.HidesLogs
 	p.Rollout, p.Restart = rollout(s.Rollout), s.Restart
+	p.Adopts, p.Releases = s.Adopts, s.Releases
 	if g := s.Goes; g != nil {
 		p.Goes = &dockwellv1.RouteGoes{Where: g.Where, Domain: g.Domain, Find: visitorsFind[g.Find]}
 	}
@@ -255,6 +256,8 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessPanelDomain:   dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN,
 
 	resource.AccessExternalNetwork: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_NETWORK,
+	resource.AccessExternalVolume:  dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_VOLUME,
+	resource.AccessTakesOn:         dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON,
 	resource.AccessCapability:      dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY,
 	resource.AccessGroup:           dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP,
 	resource.AccessPrivileged:      dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED,
@@ -324,6 +327,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	}
 	s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs = p.GetKeptPaths(), p.GetRestores(), p.GetHealthUnknown(), p.GetHidesLogs()
 	s.Pull, s.ImageGone = p.GetPull(), p.GetImageGone()
+	s.Adopts, s.Releases = p.GetAdopts(), p.GetReleases()
 	for _, w := range p.GetWarnings() {
 		k, ok := from(warnings, w)
 		if !ok {
