@@ -64,6 +64,17 @@ func TestAnUpgradeMergesEachField(t *testing.T) {
 				c.Ports = append(c.Ports, port(8082, 8080), port(5432, 5432))
 			},
 		},
+		"a tmpfs a person added stays beside one the release adds": {
+			ours: func(c *resourcev1.Container) { c.Tmpfs = []*resourcev1.Tmpfs{{Target: "/mine", Size: "1M"}} },
+			next: func(c *resourcev1.Container) { c.Tmpfs = []*resourcev1.Tmpfs{{Target: "/theirs", Size: "2M"}} },
+			want: func(c *resourcev1.Container) {
+				c.Tmpfs = []*resourcev1.Tmpfs{{Target: "/theirs", Size: "2M"}, {Target: "/mine", Size: "1M"}}
+			},
+		},
+		"more shared memory from a release reaches what a person left": {
+			ours: func(*resourcev1.Container) {}, next: func(c *resourcev1.Container) { c.ShmSize = "1G" },
+			want: func(c *resourcev1.Container) { c.ShmSize = "1G" },
+		},
 		"a port the release closes goes": {
 			ours: func(*resourcev1.Container) {}, next: func(c *resourcev1.Container) { c.Ports = nil },
 			want: func(c *resourcev1.Container) { c.Ports = nil },
