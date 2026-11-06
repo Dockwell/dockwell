@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -93,6 +94,13 @@ var (
 		regexp.MustCompile(`bind source path does not exist: (\S+)`),
 		regexp.MustCompile(`error mounting "([^"]+)"`),
 	}
+)
+
+// How much of a container's log it reads for the runtime's word on its binary, and for
+// how long, as what it finds only says why something failed.
+const (
+	logRefusalLines = 5
+	logRefusalWait  = 2 * time.Second
 )
 
 // What the runtime says when a container's command can't run: its binary is

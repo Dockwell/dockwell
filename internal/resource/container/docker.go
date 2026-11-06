@@ -1111,13 +1111,22 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 	}
 }
 
-// builtForAnother reports a container that won't stay up whose image isn't built for
-// this server. Docker says nothing of that where anything can read it: the kernel
-// refuses the binary inside the container, which reads as one that exited with 255,
-// and under a restart policy, as a service has, as one that keeps restarting. So this
-// compares what the image says it's built for with what the engine runs on. That's a
-// fact whatever made it stop. A server with emulation runs such an image, so this is
-// only asked of what has failed, and either side that can't be read says no.
+// exitRefused is what a container exits with when the kernel won't run its binary, as
+// real Docker reports an image for another architecture.
+const exitRefused = 255
+
+// binaryRefused reports a container that failed because the kernel wouldn't run its
+// binary, which is what an image for another architecture comes to. An image built for
+// another architecture isn't enough to say that: 386 on amd64, arm on arm64 and anything
+// under emulation really run, and then a failure is the app's own. So it takes what
+// Docker gave of a real refusal: exit 255 from such an image, or the runtime's own words
+// in what the container logged.
+func (d *Docker) binaryRefused(ctx context.Context, c *docker.Container) bool {
+	return c.State.ExitCode == exitRefused && d.builtForAnother(ctx, c) || d.loggedRefusal(ctx, c)
+}
+
+// builtForAnother reports a container whose image isn't built for this server, as
+// its image says and the engine does. Either side that can't be read says no.
 func (d *Docker) builtForAnother(ctx context.Context, c *docker.Container) bool {
 	img, err := d.Client.InspectImage(ctx, c.Image)
 	if err != nil || img.Architecture == "" {
@@ -1125,6 +1134,27 @@ func (d *Docker) builtForAnother(ctx context.Context, c *docker.Container) bool 
 	}
 	here, err := d.Client.Architecture(ctx)
 	return err == nil && here != "" && here != img.Architecture
+}
+
+// loggedRefusal reports a container whose last lines say the kernel refused its binary.
+// A log that can't be read says no.
+func (d *Docker) loggedRefusal(ctx context.Context, c *docker.Container) bool {
+	reading, cancel := context.WithTimeout(ctx, logRefusalWait)
+	defer cancel()
+	r, err := d.Client.ContainerLogs(reading, c.ID, c.Config.Tty, docker.LogOptions{Tail: logRefusalLines})
+	if err != nil {
+		return false
+	}
+	defer r.Close()
+	for {
+		line, err := r.Next()
+		if err != nil {
+			return false
+		}
+		if wrongArchitecture(string(line.Text)) {
+			return true
+		}
+	}
 }
 
 // NotRunning says how the container at t isn't running, in a word.
@@ -1654,14 +1684,14 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 		switch {
 		case s.Restarting || c.RestartCount > restarts:
 			restarting := fmt.Errorf("%s keeps restarting: it exited with code %d", name, s.ExitCode)
-			if d.builtForAnother(ctx, c) {
+			if d.binaryRefused(ctx, c) {
 				return wrongArchitectureFailure(t, restarting)
 			}
 			// No word of docker logs in the plain words: a rollback takes this container away.
 			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s keeps restarting: it exited with code %d. Check its command and variables, then try again.", t.Service, s.ExitCode), restarting)
 		case !s.Running:
 			stopped := fmt.Errorf("%s stopped right after it started, with exit code %d", name, s.ExitCode)
-			if s.ExitCode != 0 && d.builtForAnother(ctx, c) {
+			if s.ExitCode != 0 && d.binaryRefused(ctx, c) {
 				return wrongArchitectureFailure(t, stopped)
 			}
 			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s stopped right after it started, with exit code %d. Check its command and variables, then try again.", t.Service, s.ExitCode), stopped)
