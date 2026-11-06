@@ -582,6 +582,16 @@ func dropped(t Target, spec *resourcev1.Container, old *docker.Container, img *d
 // neverStarted is the state of a container that was made and hasn't started yet.
 const neverStarted = "created"
 
+// unfinished reports containers a rollout that stopped partway left: more than one,
+// or one that has yet to take its name, that it marked, or that never started. That
+// last is what a replace that died just before its last step leaves, and nothing else
+// starts it: Docker's restart policy passes over what never ran. One someone stopped
+// by hand has run, and that isn't drift (ADR 0021): it stays stopped. One a rollout
+// marked isn't one a person stopped: the step that marked it didn't get to the end.
+func unfinished(all []*instance) bool {
+	return len(all) > 1 || len(all) == 1 && (all[0].temp || all[0].stopping || all[0].State.Status == neverStarted)
+}
+
 // Left says what is left of a service that reads back as its spec: another
 // container, what a replace hasn't finished naming, or a restart it hasn't had.
 func (d *Docker) Left(ctx context.Context, t Target, desired *resourcev1.Container, restart string) (resource.Decision, bool, error) {
@@ -593,13 +603,7 @@ func (d *Docker) Left(ctx context.Context, t Target, desired *resourcev1.Contain
 	if err != nil {
 		return resource.Decision{}, false, err
 	}
-	// One that was made and never started is what a replace that died just
-	// before its last step leaves, and nothing else starts it: Docker's restart
-	// policy passes over what never ran. One someone stopped by hand has run, and
-	// that isn't drift (ADR 0021): it stays stopped.
-	// One a rollout marked isn't one a person stopped: the step that marked it
-	// didn't get to the end.
-	if keep != nil && len(others) == 0 && !keep.temp && !keep.stopping && keep.State.Status != neverStarted {
+	if keep != nil && !unfinished(all) {
 		return resource.Decision{}, false, nil
 	}
 	dec := resource.Decision{}
@@ -664,8 +668,7 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 	// What isn't running and is already what's asked for only has to start, as under
 	// docker compose up, so what it wrote stays. Its plan can't say that, as a pull may
 	// yet find something newer, so the step says what it did.
-	startsOnly := keep != nil && len(others) == 0 && dec.Restart == "" && notRunning(keep.Container) != "" &&
-		!keep.temp && !keep.stopping && keep.State.Status != neverStarted
+	startsOnly := keep != nil && !unfinished(all) && dec.Restart == "" && notRunning(keep.Container) != ""
 	if plan.Rolling {
 		err = d.startFirst(ctx, t, spec, dec, keep, others, plan)
 	} else {

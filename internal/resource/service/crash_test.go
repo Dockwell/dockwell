@@ -756,6 +756,79 @@ func TestAStopFirstThatCantPutWhatRanBackSaysSo(t *testing.T) {
 	s.oneHealthy(t, a, old)
 }
 
+// inPlace is a spec that differs from spec only by what Docker changes on a container
+// that exists.
+func inPlace(spec *resourcev1.Service) *resourcev1.Service {
+	out := proto.Clone(spec).(*resourcev1.Service)
+	out.GetApp().Restart = resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS
+	return out
+}
+
+// What can't be put back says the next change to it finishes this, and that holds of
+// one that would otherwise go in place. Updating what's marked leaves it stopped, and
+// a change in place has nothing running to verify, so it would read as applied.
+func TestAChangeInPlaceFinishesWhatCouldntBePutBack(t *testing.T) {
+	spec := func(v string) *resourcev1.Service { return web("postgres:17", "VERSION="+v) }
+	old, next := spec("old"), spec("new")
+	s := newScene(t, old)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	cut := stopCutShort(s, cancel)
+	s.engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
+			return errors.New("Docker can't start it for now")
+		}
+		return cut(r)
+	})
+	steps, err := s.first.local.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: next}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.first.local.Apply(ctx, steps[0], next); err == nil || !strings.Contains(err.Error(), "next change to it finishes this") {
+		t.Fatalf("the step said %v", err)
+	}
+	s.engine.Intercept(nil)
+	if s.running() != 0 {
+		t.Fatalf("it should have left nothing running, and %v run", s.instances())
+	}
+	want := inPlace(old)
+	a := agentOn(s.engine.Client(), s.dir)
+	planned, err := a.local.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: want}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planned[0].Action != resource.ActionReplace {
+		t.Fatalf("a plan calls finishing it %s: %+v", planned[0].Action, planned[0].Changes)
+	}
+	if err := a.local.Apply(t.Context(), planned[0], want); err != nil {
+		t.Fatalf("the next change: %v", err)
+	}
+	s.oneHealthy(t, a, want)
+}
+
+// A kill alone leaves the same at most steps of either way of replacing: whatever
+// reads as what's asked for but for its restart policy, in a state only a rollout
+// leaves. Going in place from any of them ends where any other way forward does.
+func TestAChangeInPlaceFinishesARolloutKilledAtEachStep(t *testing.T) {
+	for name, way := range map[string]struct {
+		points    []string
+		old, next *resourcev1.Service
+	}{
+		"rolling":    {container.Rolling, web("nginx:1.27"), web("nginx:1.28")},
+		"stop first": {container.StopFirst, web("postgres:17", "VERSION=old"), web("postgres:17", "VERSION=new")},
+	} {
+		for _, at := range way.points {
+			t.Run(name+"/"+at, func(t *testing.T) {
+				s := newScene(t, way.old)
+				s.killAt(t, at, way.next)
+				want := inPlace(way.next)
+				a := s.comeBack(t, want)
+				s.oneHealthy(t, a, want)
+			})
+		}
+	}
+}
+
 // A restart that must stop first, cut short the same way. Nothing follows it, so
 // the agent has to put back what ran itself.
 func TestAStopFirstRestartCutShortWhileStoppingEndsRunning(t *testing.T) {
