@@ -255,7 +255,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	}
 	updates := place.updates(running, deleted)
 	for i := range updates {
-		updates[i].Deleted = deleted // for a surface that says it in its own words
+		updates[i].Deleted, updates[i].Named = deleted, true // for a surface that says it in its own words
 	}
 	return h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
 		if choice.Level == scope.ServerLevel {

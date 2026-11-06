@@ -698,6 +698,9 @@ message PlanNote {
   string from = 5;
   // What it says would be deleted, for "updates_project". Empty otherwise.
   repeated string deleted = 6;
+  // True when names and deleted hold all that message says, so a surface can say
+  // it in its own words. A note kept from before these did has only its message.
+  bool named = 7;
 }
 
 // PlanSummary counts the resources a plan touches by what it does to them.

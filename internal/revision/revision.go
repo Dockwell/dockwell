@@ -242,8 +242,10 @@ type Note struct {
 	Ref resource.Ref
 	// Names are what it is about, as the API's PlanNote says.
 	Names []string `json:",omitempty"`
-	// Deleted is what it says would be deleted, as the API's PlanNote says.
+	// Deleted is what it says would be deleted, and Named says that and Names hold
+	// all Message does, as the API's PlanNote says.
 	Deleted []string `json:",omitempty"`
+	Named   bool     `json:",omitempty"`
 	// From is where a value came from, as the API's PlanNote says.
 	From string `json:",omitempty"`
 }

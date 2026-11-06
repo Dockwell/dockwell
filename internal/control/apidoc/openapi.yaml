@@ -4883,6 +4883,11 @@ components:
                     items:
                         type: string
                     description: What it says would be deleted, for "updates_project". Empty otherwise.
+                named:
+                    type: boolean
+                    description: |-
+                        True when names and deleted hold all that message says, so a surface can say
+                         it in its own words. A note kept from before these did has only its message.
             description: PlanNote is one thing a person should know before applying a plan.
         PlanPlace:
             type: object

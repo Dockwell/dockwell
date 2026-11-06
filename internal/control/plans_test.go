@@ -376,7 +376,7 @@ func TestAFileForARunningProjectSaysSo(t *testing.T) {
 		// A token can delete a service with one flag, so the plan names it.
 		note = update(t, &dockwellv1.ImportComposeRequest{Compose: edited, RemoveOrphans: true})
 		if !strings.Contains(note.GetMessage(), "and worker, which the file doesn't name, would be deleted") ||
-			!slices.Equal(note.GetDeleted(), []string{"worker"}) {
+			!slices.Equal(note.GetDeleted(), []string{"worker"}) || !note.GetNamed() {
 			t.Errorf("with remove_orphans, the note = %v", note)
 		}
 	})

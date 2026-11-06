@@ -408,9 +408,10 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         };
       }
       case "updates_project": {
+        // A plan kept from before it said what would go has names all the same, and only
+        // its message says what it deletes.
+        if (!note.named) break;
         const [project = "", ...running] = note.names;
-        // A plan kept from before it said what would go has its message, and no less.
-        if (project === "") break;
         const names = running.join(", ");
         const deleted = note.deleted.join(", ");
         return {

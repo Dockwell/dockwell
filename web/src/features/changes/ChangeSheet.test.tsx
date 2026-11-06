@@ -728,6 +728,25 @@ describe("the plan sheet", () => {
     expect(sheet.querySelector(".dw-plan-changes dt")).toBe(socket);
   });
 
+  it("keeps what a plan from before it named what goes says it deletes", async () => {
+    const kept = webPlanned();
+    if (kept.plan) {
+      kept.plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "updates_project",
+          message:
+            "shop already runs web and worker, so this changes what runs: a service of the same name in the file replaces it, and worker, which the file doesn't name, would be deleted.",
+          names: ["shop", "web", "worker"],
+        }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: kept }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByText(/which the file doesn't name, would be deleted/)).toBeVisible();
+  });
+
   it("says what a server's note means in its own words, so they translate", async () => {
     await activateLocale("zh-CN");
     try {
@@ -739,6 +758,7 @@ describe("the plan sheet", () => {
             message: "shop already runs web and worker, in words only the server has.",
             names: ["shop", "web", "worker"],
             deleted: ["worker"],
+            named: true,
           }),
           create(PlanNoteSchema, {
             reason: "digest_pinned",
