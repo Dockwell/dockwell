@@ -232,6 +232,40 @@ func TestAFollowEndsWellWhenItsContainerGoes(t *testing.T) {
 	})
 }
 
+// A container made again under its name is what docker compose up -d and docker rm
+// then docker run leave. The page goes by the name, so its log has to: what the old
+// one wrote stays, a marker says it's gone, and the new one's lines follow.
+func TestAFollowGoesOnWhenItsContainerIsMadeAgain(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	lc := logClient(b, b.origin)
+	old := e.AddContainer(docker.Container{ID: "a1", Name: "/by-hand", Config: docker.Config{Image: "nginx:1.27"}})
+	e.Print("by-hand", docker.Stdout, "said by the old one")
+	r := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "by-hand", Server: "hz-1", Tail: 100})
+	r.waitLines("said by the old one")
+	r.waitCaughtUp()
+
+	e.Remove("by-hand")
+	again := e.AddContainer(docker.Container{ID: "b2", Name: "/by-hand", Config: docker.Config{Image: "nginx:1.28"}})
+	e.Print("by-hand", docker.Stdout, "said by the new one")
+
+	r.waitLines("said by the old one", "said by the new one")
+	eventually(t, "both sources as they are now", func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return r.sources[old.ID[:12]].GetState() == dockwellv1.LogSourceState_LOG_SOURCE_STATE_GONE &&
+			r.sources[again.ID[:12]].GetState() == dockwellv1.LogSourceState_LOG_SOURCE_STATE_RUNNING
+	})
+	eventually(t, "a marker where the old one's lines stop", func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return slices.ContainsFunc(r.gaps, func(g *dockwellv1.LogGap) bool {
+			return g.GetReason() == dockwellv1.LogGapReason_LOG_GAP_REASON_GONE
+		})
+	})
+}
+
 // An agent that isn't there can't say what runs. That reads as what it is, for a
 // person to act on, with how to fix it.
 func TestAServerThatIsntThereSaysSo(t *testing.T) {

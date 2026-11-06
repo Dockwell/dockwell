@@ -370,6 +370,57 @@ own_log=$(dw logs read "$container" --server "$server_name" 2>&1 || true)
 [[ "$own_log" == *"which Dockwell runs"* ]] || fail "reading Dockwell's own container as one it didn't make said: $own_log"
 [[ "$(touched e2e-by-hand)" == "$by_hand_before" ]] || fail "looking at e2e-by-hand touched it: $by_hand_before, then $(touched e2e-by-hand)"
 [[ "$(touched "$container")" == "$web_before" ]] || fail "looking at e2e-by-hand touched $container"
+
+step "A follow goes on when its container is made again under its name"
+# followed_through NAME SAYS COMMAND... follows a container's log while COMMAND makes
+# it again, and holds that what the new one says arrives, with a marker where the old
+# one's lines stop. It stops the follow as the step above does, for the same reasons.
+followed_through() {
+  local name=$1 says=$2 follow_log follower follower_pid
+  shift 2
+  follow_log=$(mktemp)
+  "${as_dockwell[@]}" env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text bash -c 'echo "$$"; exec "$@"' follow \
+    "$bin" logs follow "$name" --server "$server_name" --tail 5 --json >"$follow_log" 2>&1 &
+  follower=$!
+  for _ in $(seq 100); do
+    (($(wc -l <"$follow_log") >= 2)) && break
+    sleep 0.1
+  done
+  follower_pid=$(head -n 1 "$follow_log" | tr -d '\r')
+  [[ "$follower_pid" =~ ^[0-9]+$ ]] || fail "dockwell logs follow $name didn't start: $(cat "$follow_log")"
+  "$@" || fail "making $name again failed: $*"
+  for _ in $(seq 300); do
+    grep -q "$says" "$follow_log" && break
+    sleep 0.1
+  done
+  grep -q "$says" "$follow_log" || fail "following $name, what the new one says never came: $(cat "$follow_log")"
+  for _ in $(seq 100); do
+    grep -q LOG_GAP_REASON_GONE "$follow_log" && break
+    sleep 0.1
+  done
+  grep -q LOG_GAP_REASON_GONE "$follow_log" || fail "following $name, no marker says the old one's lines stop: $(cat "$follow_log")"
+  priv kill -INT "$follower_pid" || fail "can't interrupt dockwell logs follow: $(cat "$follow_log")"
+  wait "$follower" || true
+  rm -f "$follow_log"
+}
+by_hand_again() {
+  docker rm --force e2e-by-hand >/dev/null &&
+    docker run --detach --name e2e-by-hand nginx:1.27-alpine sh -c 'echo e2e-by-hand-made-again; exec nginx -g "daemon off;"' >/dev/null
+}
+followed_through e2e-by-hand e2e-by-hand-made-again by_hand_again
+real_projects+=(e2e-remade)
+remade_file=$(mktemp)
+cat >"$remade_file" <<'EOF_COMPOSE'
+services:
+  app:
+    image: nginx:1.27-alpine
+    command: ["sh", "-c", "echo e2e-turn-${E2E_TURN}; exec nginx -g 'daemon off;'"]
+EOF_COMPOSE
+compose_turn() { E2E_TURN=$1 docker compose -p e2e-remade -f "$remade_file" up --detach --wait >/dev/null 2>&1; }
+compose_turn first || fail "docker compose up failed"
+followed_through e2e-remade-app-1 e2e-turn-second compose_turn second
+docker compose -p e2e-remade -f "$remade_file" down --volumes --timeout 1 >/dev/null 2>&1 || fail "docker compose down failed"
+rm -f "$remade_file"
 docker rm --force e2e-by-hand >/dev/null || fail "docker rm e2e-by-hand failed"
 docker volume rm e2e-by-hand-data >/dev/null || fail "docker volume rm e2e-by-hand-data failed"
 

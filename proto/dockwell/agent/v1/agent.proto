@@ -395,6 +395,10 @@ message LogsCall {
   // In place of a service, a container Dockwell didn't make, by its full ID. The
   // server keeps nothing of such a container, so what Docker has is all there is.
   string container = 19;
+  // The name that container has. A reader goes by its name, so a follow reads what
+  // comes to hold the name too, as docker compose up -d and docker rm then docker
+  // run leave a new container under it.
+  string container_name = 20;
 }
 
 // LogCursor is a place in one source's lines.

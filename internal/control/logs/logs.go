@@ -249,6 +249,15 @@ func (t *target) subject() string {
 	return t.id
 }
 
+// containerName is the name a container target goes by, which a follow reads whatever
+// holds. A service has none.
+func (t *target) containerName() string {
+	if t.container == "" {
+		return ""
+	}
+	return t.ref.Name
+}
+
 // said is how the audit log names what was read.
 func (t *target) said() string {
 	if t.container != "" {
@@ -1215,7 +1224,7 @@ func (h *Handler) WatchLogs(ctx context.Context, req *connect.Request[dockwellv1
 	base := &agentv1.LogsCall{
 		Resource: resourceRef(t.ref), Since: m.GetSince(), Last: m.GetLast(), Until: m.GetUntil(), Tail: tail, Follow: !m.GetOnce(),
 		SourceIds: m.GetSourceIds(), Revision: m.GetRevision(), ChangeId: m.GetChangeId(), ForgottenUpTo: int64(t.forgotten.UpTo),
-		Levels: m.GetLevels(), Query: m.GetQuery(), Reader: reader(ctx), Container: t.container,
+		Levels: m.GetLevels(), Query: m.GetQuery(), Reader: reader(ctx), Container: t.container, ContainerName: t.containerName(),
 		// A range and a read to the end take in what the servers kept, as lines
 		// of that time may be there. Following shows what runs now.
 		IncludeKept: m.GetOnce() || m.GetSince() != nil || m.GetLast() != nil || m.GetUntil() != nil,
@@ -1531,6 +1540,6 @@ func cloneCall(c *agentv1.LogsCall) *agentv1.LogsCall {
 		Resource: c.GetResource(), Since: c.GetSince(), Until: c.GetUntil(), Tail: c.GetTail(), Follow: c.GetFollow(),
 		SourceIds: c.GetSourceIds(), Revision: c.GetRevision(), ChangeId: c.GetChangeId(), Levels: c.GetLevels(),
 		Query: c.GetQuery(), IncludeKept: c.GetIncludeKept(), Reader: c.GetReader(), Last: c.GetLast(),
-		ForgottenUpTo: c.GetForgottenUpTo(), Container: c.GetContainer(),
+		ForgottenUpTo: c.GetForgottenUpTo(), Container: c.GetContainer(), ContainerName: c.GetContainerName(),
 	}
 }

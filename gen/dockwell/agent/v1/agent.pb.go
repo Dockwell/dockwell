@@ -1818,7 +1818,11 @@ type LogsCall struct {
 	ForgottenUpTo int64 `protobuf:"varint,18,opt,name=forgotten_up_to,json=forgottenUpTo,proto3" json:"forgotten_up_to,omitempty"`
 	// In place of a service, a container Dockwell didn't make, by its full ID. The
 	// server keeps nothing of such a container, so what Docker has is all there is.
-	Container     string `protobuf:"bytes,19,opt,name=container,proto3" json:"container,omitempty"`
+	Container string `protobuf:"bytes,19,opt,name=container,proto3" json:"container,omitempty"`
+	// The name that container has. A reader goes by its name, so a follow reads what
+	// comes to hold the name too, as docker compose up -d and docker rm then docker
+	// run leave a new container under it.
+	ContainerName string `protobuf:"bytes,20,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1982,6 +1986,13 @@ func (x *LogsCall) GetForgottenUpTo() int64 {
 func (x *LogsCall) GetContainer() string {
 	if x != nil {
 		return x.Container
+	}
+	return ""
+}
+
+func (x *LogsCall) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
 	}
 	return ""
 }
@@ -3444,7 +3455,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12$\n" +
 	"\x0eup_to_revision\x18\x02 \x01(\x03R\fupToRevision\x12\x18\n" +
 	"\aexpired\x18\x03 \x01(\bR\aexpired\"\x11\n" +
-	"\x0fForgottenResult\"\xdc\x05\n" +
+	"\x0fForgottenResult\"\x83\x06\n" +
 	"\bLogsCall\x12\x16\n" +
 	"\x06stream\x18\x01 \x01(\x04R\x06stream\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x120\n" +
@@ -3467,7 +3478,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06reader\x18\x10 \x01(\tR\x06reader\x12-\n" +
 	"\x04last\x18\x11 \x01(\v2\x19.google.protobuf.DurationR\x04last\x12&\n" +
 	"\x0fforgotten_up_to\x18\x12 \x01(\x03R\rforgottenUpTo\x12\x1c\n" +
-	"\tcontainer\x18\x13 \x01(\tR\tcontainer\"n\n" +
+	"\tcontainer\x18\x13 \x01(\tR\tcontainer\x12%\n" +
+	"\x0econtainer_name\x18\x14 \x01(\tR\rcontainerName\"n\n" +
 	"\tLogCursor\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\tR\bsourceId\x12.\n" +
 	"\x04time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x14\n" +
