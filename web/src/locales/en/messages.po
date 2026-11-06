@@ -639,6 +639,10 @@ msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 
+#: src/features/changes/notices.tsx
+msgid "{name}'s tmpfs at {target} has no size"
+msgstr "{name}'s tmpfs at {target} has no size"
+
 #: src/features/apps/AppsPage.tsx
 msgid "{needing, plural, one {# needs a look} other {# need a look}}"
 msgstr "{needing, plural, one {# needs a look} other {# need a look}}"
@@ -837,6 +841,10 @@ msgstr "{subject} is deleted"
 #: src/features/changes/ChangeSheet.tsx
 msgid "{subject} is replaced"
 msgstr "{subject} is replaced"
+
+#: src/features/changes/fields.tsx
+msgid "{target}, up to {size}"
+msgstr "{target}, up to {size}"
 
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
@@ -3302,6 +3310,10 @@ msgstr "It can read and write that path on the server."
 msgid "It can read that path on the server."
 msgstr "It can read that path on the server."
 
+#: src/features/changes/notices.tsx
+msgid "It can take half the server's memory. Give it one, such as {target}:size=64m, or give {name} a memory limit."
+msgstr "It can take half the server's memory. Give it one, such as {target}:size=64m, or give {name} a memory limit."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "It can't be hidden there, so don't pass a secret there."
@@ -5659,6 +5671,10 @@ msgstr "Settings"
 msgid "Settings, status and account"
 msgstr "Settings, status and account"
 
+#: src/features/changes/fields.tsx
+msgid "shared memory"
+msgstr "shared memory"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show"
 msgstr "Show"
@@ -6625,6 +6641,18 @@ msgstr "Time range"
 #: src/features/apps/DomainNote.tsx
 msgid "TLS ends in front"
 msgstr "TLS ends in front"
+
+#: src/features/changes/fields.tsx
+msgid "tmpfs"
+msgstr "tmpfs"
+
+#: src/features/changes/fields.tsx
+msgid "tmpfs at"
+msgstr "tmpfs at"
+
+#: src/features/changes/fields.tsx
+msgid "tmpfs size"
+msgstr "tmpfs size"
 
 #: src/app/Providers.tsx
 msgid "to"

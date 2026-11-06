@@ -1295,9 +1295,10 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * app needs a person to know and do, "no_backup" for a catalog upgrade that runs
    * without a backup first, "upgrade_kept" for what a person changed that the upgrade
    * changes too, which stays, "upgrade_dropped" for what they changed that it
-   * drops, which goes, and "undo_no_backup" for an undo of a plan that took no
-   * backup, whose data stays as the new version left it. Another reason may come:
-   * its message says what it means.
+   * drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
+   * whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
+   * file's tmpfs that nothing stops taking half the server's memory. Another reason
+   * may come: its message says what it means.
    *
    * @generated from field: string reason = 1;
    */
@@ -1320,7 +1321,8 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
   /**
    * The names it is about: the variable, then the field that holds it, for
    * "exposed_variable"; the project, then the services it runs, for
-   * "updates_project"; the volumes and server paths for "volumes_stay"; the
+   * "updates_project"; the volumes and server paths for "volumes_stay"; the path
+   * for "tmpfs_no_size"; the
    * variables and secrets, by the names the service sees, for "values_latest";
    * the image, the revision and its digest for "digest_pinned" and "digest_gone",
    * and the image and the revision for "digest_differs"; the container_name, or
