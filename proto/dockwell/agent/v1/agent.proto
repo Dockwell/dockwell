@@ -7,6 +7,7 @@ package dockwell.agent.v1;
 import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
 import "dockwell/v1/domain.proto";
+import "dockwell/v1/file.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
@@ -303,6 +304,10 @@ message Call {
     ForgottenCall forgotten = 8;
     // List the containers Docker has.
     ContainersCall containers = 9;
+    // List a directory on the server.
+    ListFilesCall list_files = 10;
+    // Read a file on the server.
+    ReadFileCall read_file = 11;
   }
 }
 
@@ -311,6 +316,61 @@ message Call {
 message ContainersCall {
   // Only this container, by its full ID or its exact name. Empty lists them all.
   string container = 1;
+}
+
+// ListFilesCall asks what a directory holds.
+message ListFilesCall {
+  // The directory's absolute path.
+  string path = 1;
+}
+
+// ReadFileCall asks for a file's text.
+message ReadFileCall {
+  // The file's absolute path.
+  string path = 1;
+}
+
+// FileRefusal says why the agent didn't list or read a path. It is an answer,
+// not a failure: the call ran, and this is what the server has to say.
+message FileRefusal {
+  // Kind says what went wrong, for the API's reason.
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    // Nothing is at the path, or a symlink on the way leads nowhere.
+    KIND_NOT_FOUND = 1;
+    // Dockwell doesn't open what's at the path, whoever asks
+    // (docs/security/files.md).
+    KIND_REFUSED = 2;
+    // The path is something other than a directory, to a list.
+    KIND_NOT_A_DIRECTORY = 3;
+    // The path is something other than a regular file, to a read.
+    KIND_NOT_A_FILE = 4;
+    // The server denied the agent, as a mount that squashes root does.
+    KIND_DENIED = 5;
+  }
+
+  // What went wrong.
+  Kind kind = 1;
+  // The reason, for people, with how to fix it.
+  string message = 2;
+  // Where the agent stopped, with every symlink before it followed.
+  string path = 3;
+}
+
+// ListFilesResult answers a ListFilesCall.
+message ListFilesResult {
+  // What the directory holds. Unset when the agent refused.
+  dockwell.v1.ListFilesResponse listing = 1;
+  // Why it didn't list the directory.
+  FileRefusal refusal = 2;
+}
+
+// ReadFileResult answers a ReadFileCall.
+message ReadFileResult {
+  // The file. Unset when the agent refused.
+  dockwell.v1.ReadFileResponse file = 1;
+  // Why it didn't read the file.
+  FileRefusal refusal = 2;
 }
 
 // LogSourcesCall asks which containers a service has logs from.
@@ -554,6 +614,10 @@ message CallResult {
     ForgottenResult forgotten = 8;
     // The containers a containers call found.
     ContainersResult containers = 9;
+    // What a list files call found.
+    ListFilesResult list_files = 10;
+    // What a read file call found.
+    ReadFileResult read_file = 11;
   }
 }
 

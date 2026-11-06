@@ -19,6 +19,9 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
+// errNoFiles answers a call for a server's files on an agent set up without them.
+var errNoFiles = errors.New("this agent doesn't read files")
+
 // drainLimit bounds how long a stream that is moving to a renewed
 // certificate waits for its calls to finish.
 const drainLimit = 15 * time.Minute
@@ -395,6 +398,26 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			c.cfg.Logs.Forgotten(f.GetServices())
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Forgotten{Forgotten: &agentv1.ForgottenResult{}}}
+	}
+	if list := call.GetListFiles(); list != nil {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		listing, err := c.cfg.Files.List(ctx, list.GetPath())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListFiles{ListFiles: listing}}
+	}
+	if read := call.GetReadFile(); read != nil {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		file, err := c.cfg.Files.Read(ctx, read.GetPath())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadFile{ReadFile: file}}
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",

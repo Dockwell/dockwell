@@ -1,0 +1,409 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Package files is what an agent reads of its server's disk for a person, for
+// FileService. It runs as root, so it decides here what's refused, on what it
+// actually opens: see docs/adr/0031-files-on-a-server.md and
+// docs/security/files.md. A refusal is an answer, not a failure, so these calls
+// return one rather than an error.
+package files
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/user"
+	"path"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+)
+
+const (
+	// MaxFileBytes is the most of a file that a read returns.
+	MaxFileBytes = 1 << 20
+	// MaxEntries is the most entries a listing returns.
+	MaxEntries = 5000
+	// maxListBytes is the most a listing's names and link targets come to, as
+	// each target can be 4 KiB, and an oversized message would end the stream.
+	maxListBytes = 4 << 20
+	// entryBytes is about what an entry costs past those.
+	entryBytes = 64
+	// slots is how many of these calls run at once. Each can hold a file in
+	// memory, and they share the agent's stream.
+	slots = 4
+)
+
+// Server reads a server's files.
+type Server struct {
+	dataDir    string
+	dockerRoot func(context.Context) (string, error)
+	slots      chan struct{}
+
+	mu       sync.Mutex
+	lastRoot string // where Docker last said it keeps its data
+}
+
+// New returns a Server. dataDir is Dockwell's data directory, and dockerRoot says
+// where Docker keeps its data, or fails while Docker isn't running.
+func New(dataDir string, dockerRoot func(context.Context) (string, error)) *Server {
+	return &Server{dataDir: dataDir, dockerRoot: dockerRoot, slots: make(chan struct{}, slots)}
+}
+
+// acquire waits for room to run a call, and returns how to give it back.
+func (s *Server) acquire(ctx context.Context) (func(), error) {
+	select {
+	case s.slots <- struct{}{}:
+		return func() { <-s.slots }, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("the agent is busy reading other files: %w", ctx.Err())
+	}
+}
+
+// CheckPath refuses a path that isn't absolute, or that could read otherwise
+// than it looks: the kernel follows . and .. through symlinks, as ADR 0021 says.
+// The control plane checks this first, and the agent again, as what a server
+// does shouldn't rest on its caller.
+func CheckPath(p string) error {
+	switch {
+	case !strings.HasPrefix(p, "/"):
+		return fmt.Errorf("%q isn't an absolute path. Start it with /, such as /var/www", p)
+	case len(p) > maxPath:
+		return fmt.Errorf("that path is over %d bytes, longer than a server takes", maxPath)
+	case strings.IndexFunc(p, unicode.IsControl) >= 0:
+		return errors.New("that path has a control character in it. Write it without one")
+	}
+	for _, part := range parts(p) {
+		if part == "." || part == ".." {
+			return fmt.Errorf("%q has %s in it, which a server reads through symlinks, so it may not lead where it looks. Write the path without it", p, part)
+		}
+	}
+	return nil
+}
+
+// List returns what the directory at p holds.
+func (s *Server) List(ctx context.Context, p string) (*agentv1.ListFilesResult, error) {
+	if err := CheckPath(p); err != nil {
+		return nil, err
+	}
+	release, err := s.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	g := s.guard(ctx)
+	w, refusal := g.walk(p)
+	if refusal != nil {
+		return &agentv1.ListFilesResult{Refusal: refusal}, nil
+	}
+	defer w.close()
+	where := w.path()
+	if w.st.Mode&unix.S_IFMT != unix.S_IFDIR {
+		return &agentv1.ListFilesResult{Refusal: &agentv1.FileRefusal{
+			Kind: agentv1.FileRefusal_KIND_NOT_A_DIRECTORY, Path: where,
+			Message: where + " isn't a directory, so it has nothing to list. Read it as a file instead",
+		}}, nil
+	}
+	fd, err := unix.Openat(w.last().fd, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return &agentv1.ListFilesResult{Refusal: denied(where, err)}, nil
+	}
+	dir := os.NewFile(uintptr(fd), where)
+	defer dir.Close()
+	names, err := dir.Readdirnames(MaxEntries + 1)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return &agentv1.ListFilesResult{Refusal: denied(where, err)}, nil
+	}
+	truncated := len(names) > MaxEntries
+	if truncated {
+		names = names[:MaxEntries]
+	}
+	slices.Sort(names)
+	owners := owners{}
+	here := &dockwellv1.ListFilesResponse{Path: where, Directory: entry(path.Base(where), &w.st, owners), Truncated: truncated}
+	room := maxListBytes
+	for i, name := range names {
+		if i%256 == 0 && ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		var st unix.Stat_t
+		if unix.Fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW) != nil {
+			continue // it went as we read
+		}
+		e := entry(name, &st, owners)
+		if st.Mode&unix.S_IFMT == unix.S_IFLNK {
+			followLink(e, fd, name)
+		}
+		_, why := g.enter(w.last().place, name, &st)
+		e.Refused = why != "" || credentials(joined(where, name)) != ""
+		if room -= entryBytes + len(e.GetName()) + len(e.GetLinkTarget()); room < 0 {
+			here.Truncated = true
+			break
+		}
+		here.Entries = append(here.Entries, e)
+	}
+	return &agentv1.ListFilesResult{Listing: here}, nil
+}
+
+// Read returns the file at p, as text up to MaxFileBytes.
+func (s *Server) Read(ctx context.Context, p string) (*agentv1.ReadFileResult, error) {
+	if err := CheckPath(p); err != nil {
+		return nil, err
+	}
+	release, err := s.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	w, refusal := s.guard(ctx).walk(p)
+	if refusal != nil {
+		return &agentv1.ReadFileResult{Refusal: refusal}, nil
+	}
+	defer w.close()
+	where := w.path()
+	if w.st.Mode&unix.S_IFMT != unix.S_IFREG {
+		return &agentv1.ReadFileResult{Refusal: &agentv1.FileRefusal{
+			Kind: agentv1.FileRefusal_KIND_NOT_A_FILE, Path: where,
+			Message: fmt.Sprintf("%s is %s, not a file, so there's nothing to read", where, kindOf(&w.st)),
+		}}, nil
+	}
+	if why := credentials(where); why != "" {
+		return &agentv1.ReadFileResult{Refusal: refused(where, why)}, nil
+	}
+	text, truncated, refusal := read(w)
+	if refusal != nil {
+		return &agentv1.ReadFileResult{Refusal: refusal}, nil
+	}
+	out := &dockwellv1.ReadFileResponse{Path: where, File: entry(w.last().name, &w.st, owners{}), Truncated: truncated}
+	switch {
+	case isBinary(text):
+		out.Binary, out.Truncated = true, false
+	case holdsPrivateKey(text):
+		return &agentv1.ReadFileResult{Refusal: refused(where, "a private key")}, nil
+	default:
+		out.Content = string(text)
+	}
+	return &agentv1.ReadFileResult{File: out}, nil
+}
+
+// read opens the walk's last part for reading, through the descriptor of the
+// directory that holds it, and reads its first MaxFileBytes. A file only
+// opens as what the walk checked: a FIFO swapped in would hang a read, and
+// O_NONBLOCK and the check below keep it from being read at all.
+func read(w *walked) ([]byte, bool, *agentv1.FileRefusal) {
+	where, parent, name := w.path(), w.steps[len(w.steps)-2].fd, w.last().name
+	fd, err := unix.Openat(parent, name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, false, failed(where, err)
+	}
+	f := os.NewFile(uintptr(fd), where)
+	defer f.Close()
+	var st unix.Stat_t
+	if err := unix.Fstat(fd, &st); err != nil {
+		return nil, false, denied(where, err)
+	}
+	if identify(&st) != identify(&w.st) || st.Mode&unix.S_IFMT != unix.S_IFREG {
+		return nil, false, &agentv1.FileRefusal{
+			Kind: agentv1.FileRefusal_KIND_NOT_FOUND, Path: where,
+			Message: where + " changed as the agent opened it. Open it again",
+		}
+	}
+	w.st = st
+	text, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
+	if err != nil {
+		return nil, false, denied(where, err)
+	}
+	if len(text) > MaxFileBytes {
+		return trimRune(text[:MaxFileBytes]), true, nil
+	}
+	return text, false, nil
+}
+
+// trimRune cuts off a character the read limit split, so the rest is still text.
+func trimRune(b []byte) []byte {
+	for i := 1; i <= utf8.UTFMax && i <= len(b); i++ {
+		if r := b[len(b)-i]; utf8.RuneStart(r) {
+			if !utf8.FullRune(b[len(b)-i:]) {
+				return b[:len(b)-i]
+			}
+			break
+		}
+	}
+	return b
+}
+
+// isBinary reports what isn't text to show: a NUL, or anything that isn't UTF-8.
+func isBinary(text []byte) bool {
+	return bytes.IndexByte(text, 0) >= 0 || !utf8.Valid(text)
+}
+
+// holdsPrivateKey finds a PEM private key on a line of its own, which is how
+// every tool writes one, and which a document that only mentions one isn't.
+func holdsPrivateKey(text []byte) bool {
+	for rest := text; ; {
+		i := bytes.Index(rest, []byte("-----BEGIN "))
+		if i < 0 {
+			return false
+		}
+		atStart := i == 0 || rest[i-1] == '\n'
+		rest = rest[i:]
+		line, after, _ := bytes.Cut(rest, []byte("\n"))
+		if atStart && bytes.HasSuffix(bytes.TrimRight(line, "\r "), []byte("PRIVATE KEY-----")) {
+			return true
+		}
+		rest = after
+	}
+}
+
+// credentials says what a path holds when it is one of the server's own
+// credentials by its name, or nothing. What's in a private key's name proves
+// nothing, so those go by what they hold.
+func credentials(p string) string {
+	switch p {
+	case "/etc/shadow", "/etc/shadow-", "/etc/gshadow", "/etc/gshadow-":
+		return "the server's password hashes"
+	}
+	if path.Base(p) == ".pgpass" {
+		return "a list of database passwords"
+	}
+	return ""
+}
+
+// owners finds users' and groups' names once each for a call.
+type owners map[string]string
+
+func (o owners) name(key string, lookup func() (string, error), id uint32) string {
+	if name, ok := o[key]; ok {
+		return name
+	}
+	name, err := lookup()
+	if err != nil {
+		name = strconv.FormatUint(uint64(id), 10)
+	}
+	o[key] = name
+	return name
+}
+
+func (o owners) user(uid uint32) string {
+	id := strconv.FormatUint(uint64(uid), 10)
+	return o.name("u"+id, func() (string, error) {
+		u, err := user.LookupId(id)
+		if err != nil {
+			return "", err
+		}
+		return u.Username, nil
+	}, uid)
+}
+
+func (o owners) group(gid uint32) string {
+	id := strconv.FormatUint(uint64(gid), 10)
+	return o.name("g"+id, func() (string, error) {
+		g, err := user.LookupGroupId(id)
+		if err != nil {
+			return "", err
+		}
+		return g.Name, nil
+	}, gid)
+}
+
+// entry describes what st says of something called name.
+func entry(name string, st *unix.Stat_t, owners owners) *dockwellv1.FileEntry {
+	return &dockwellv1.FileEntry{
+		Name: strings.ToValidUTF8(name, "�"), UnreadableName: !utf8.ValidString(name),
+		Type: typeOf(st.Mode), SizeBytes: uint64(max(st.Size, 0)), Mode: modeString(st.Mode),
+		ModifyTime: timestamppb.New(time.Unix(st.Mtim.Unix())),
+		Owner:      owners.user(st.Uid), Group: owners.group(st.Gid),
+	}
+}
+
+// followLink says where the symlink called name in dir points, and what's there.
+func followLink(e *dockwellv1.FileEntry, dir int, name string) {
+	buf := make([]byte, maxPath)
+	if n, err := unix.Readlinkat(dir, name, buf); err == nil {
+		e.LinkTarget = strings.ToValidUTF8(string(buf[:n]), "�")
+	}
+	var st unix.Stat_t
+	if unix.Fstatat(dir, name, &st, 0) == nil {
+		e.LinkType = typeOf(st.Mode)
+	}
+}
+
+func typeOf(mode uint32) dockwellv1.FileType {
+	switch mode & unix.S_IFMT {
+	case unix.S_IFREG:
+		return dockwellv1.FileType_FILE_TYPE_FILE
+	case unix.S_IFDIR:
+		return dockwellv1.FileType_FILE_TYPE_DIRECTORY
+	case unix.S_IFLNK:
+		return dockwellv1.FileType_FILE_TYPE_SYMLINK
+	}
+	return dockwellv1.FileType_FILE_TYPE_OTHER
+}
+
+// kindOf names what isn't a file, for a sentence.
+func kindOf(st *unix.Stat_t) string {
+	switch st.Mode & unix.S_IFMT {
+	case unix.S_IFDIR:
+		return "a directory"
+	case unix.S_IFIFO:
+		return "a FIFO"
+	case unix.S_IFSOCK:
+		return "a socket"
+	case unix.S_IFBLK, unix.S_IFCHR:
+		return "a device"
+	}
+	return "something else"
+}
+
+// modeString writes a mode as ls does, set-ID and sticky bits included.
+func modeString(mode uint32) string {
+	var kind byte
+	switch mode & unix.S_IFMT {
+	case unix.S_IFDIR:
+		kind = 'd'
+	case unix.S_IFLNK:
+		kind = 'l'
+	case unix.S_IFIFO:
+		kind = 'p'
+	case unix.S_IFSOCK:
+		kind = 's'
+	case unix.S_IFBLK:
+		kind = 'b'
+	case unix.S_IFCHR:
+		kind = 'c'
+	default:
+		kind = '-'
+	}
+	out := []byte{kind, '-', '-', '-', '-', '-', '-', '-', '-', '-'}
+	for i := range 9 {
+		if mode&(1<<(8-i)) != 0 {
+			out[i+1] = "rwx"[i%3]
+		}
+	}
+	special := func(bit uint32, at int, set, unset byte) {
+		if mode&bit == 0 {
+			return
+		}
+		if out[at] == 'x' {
+			out[at] = set
+		} else {
+			out[at] = unset
+		}
+	}
+	special(unix.S_ISUID, 3, 's', 'S')
+	special(unix.S_ISGID, 6, 's', 'S')
+	special(unix.S_ISVTX, 9, 't', 'T')
+	return string(out)
+}

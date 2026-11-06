@@ -36,7 +36,8 @@ var agentPackages = []string{
 	"internal/agent",
 	"internal/agent/collect",
 	"internal/agent/enroll",
-	"internal/agent/logs", // reading logs, and keeping those of removed containers (ADR 0025)
+	"internal/agent/files", // a server's files, for a person (ADR 0031)
+	"internal/agent/logs",  // reading logs, and keeping those of removed containers (ADR 0025)
 	"internal/buildinfo",
 	"internal/cli",
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build

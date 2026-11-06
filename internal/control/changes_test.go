@@ -25,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -78,6 +79,9 @@ type testServer struct {
 	hello func(*agentv1.Hello)
 	// health says how its services are, when set.
 	health agent.HealthReporter
+	// disk reads its files. dataDir is what that takes for Dockwell's directory.
+	disk    *agentfiles.Server
+	dataDir string
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -102,7 +106,9 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 	s := &testServer{
 		id:     enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
 		docker: containertest.NewFake(), fw: &gate{Fake: firewall.NewFake(), started: make(chan struct{}, 4), release: make(chan struct{})},
+		dataDir: t.TempDir(),
 	}
+	s.disk = agentfiles.New(s.dataDir, nil)
 	if withDrivers {
 		containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
 		s.drivers = resource.NewRegistry(&containers, &firewall.Driver{Backend: s.fw}, &service.Driver{Containers: containers})
@@ -119,7 +125,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	go func() {
 		_ = agent.Run(ctx, agent.Config{
 			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-			Docker: s.client, Hello: s.hello, Health: s.health,
+			Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk,
 		})
 		close(done)
 	}()

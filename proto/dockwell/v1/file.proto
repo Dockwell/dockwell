@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// FileService browses and reads the files on a server, through its agent. Files
+// on a server aren't managed state, so nothing here is a revision or has a
+// plan. See docs/adr/0031-files-on-a-server.md.
+//
+// Every method needs a signed-in session: no API token can call them, whatever
+// its scope. The agent refuses what holds Dockwell's keys, secrets' values and
+// the server's own credentials for everyone, with the reason "file_refused":
+// docs/security/files.md lists them.
+service FileService {
+  // ListFiles returns what a directory on a server holds, by name. It follows
+  // symlinks, and path in the response says where it ended up. It returns at
+  // most 5,000 entries. No API token can call it.
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "list"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/files"};
+  }
+
+  // ReadFile returns a file on a server as text: its first 1 MiB, or nothing
+  // when it isn't UTF-8 text. No API token can call it. Every read is in the
+  // audit log.
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "read"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:read"
+      body: "*"
+    };
+  }
+}
+
+// ListFilesRequest names a directory on a server.
+message ListFilesRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The directory's absolute path, without . or .. in it, such as "/var/www".
+  string path = 2;
+}
+
+// ListFilesResponse is what a directory holds.
+message ListFilesResponse {
+  // The directory's path, with every symlink followed.
+  string path = 1;
+  // The directory itself.
+  FileEntry directory = 2;
+  // What it holds, by name.
+  repeated FileEntry entries = 3;
+  // True when the directory holds more than a listing can carry, so these
+  // are some of its entries, in no useful order but their names.
+  bool truncated = 4;
+}
+
+// ReadFileRequest names a file on a server.
+message ReadFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The file's absolute path, without . or .. in it, such as
+  // "/etc/nginx/nginx.conf".
+  string path = 2;
+}
+
+// ReadFileResponse is a file on a server.
+message ReadFileResponse {
+  // The file's path, with every symlink followed.
+  string path = 1;
+  // The file itself.
+  FileEntry file = 2;
+  // Its text. Empty for a binary file.
+  string content = 3;
+  // True when the file isn't UTF-8 text, so its contents aren't sent.
+  bool binary = 4;
+  // True when the file is longer than 1 MiB, so content is its beginning.
+  bool truncated = 5;
+}
+
+// FileType says what an entry in a directory is.
+enum FileType {
+  FILE_TYPE_UNSPECIFIED = 0;
+  // A regular file.
+  FILE_TYPE_FILE = 1;
+  // A directory.
+  FILE_TYPE_DIRECTORY = 2;
+  // A symbolic link.
+  FILE_TYPE_SYMLINK = 3;
+  // Anything else: a socket, a FIFO or a device.
+  FILE_TYPE_OTHER = 4;
+}
+
+// FileEntry is one file or directory on a server.
+message FileEntry {
+  // Its name. A name that isn't UTF-8 shows as well as it can, with
+  // unreadable_name set.
+  string name = 1;
+  // What it is.
+  FileType type = 2;
+  // Its size, in bytes.
+  uint64 size_bytes = 3;
+  // When its contents last changed.
+  google.protobuf.Timestamp modify_time = 4;
+  // Its type and permissions as ls shows them, such as "-rw-r--r--".
+  string mode = 5;
+  // The user that owns it, by name, or by ID where the server has no name for
+  // it.
+  string owner = 6;
+  // The group that owns it, the same way.
+  string group = 7;
+  // Where a symlink points, as the link says.
+  string link_target = 8;
+  // What a symlink leads to. Unspecified for one that leads nowhere.
+  FileType link_type = 9;
+  // True when Dockwell doesn't open it, as it holds keys, secrets' values or
+  // the server's own credentials. Whatever opening it would say is why.
+  bool refused = 10;
+  // True when its name isn't UTF-8, so name can't reach it.
+  bool unreadable_name = 11;
+}
