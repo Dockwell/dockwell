@@ -760,11 +760,33 @@ func (m *Manager) gateway(ctx context.Context) string {
 	return n.IPAM.Config[0].Gateway
 }
 
+// container finds an instance's container: by the name of its number, or for one that
+// was taken on, which keeps the name it came with, by what it reads as. A rollout's
+// container with a name still to come is the rollout's to connect.
+func (m *Manager) container(ctx context.Context, i Instance) (*docker.Container, error) {
+	c, err := m.Client.ContainerNamed(ctx, i.ContainerName())
+	if !docker.IsNotFound(err) {
+		return c, err
+	}
+	list, listErr := m.Client.ListContainers(ctx, map[string][]string{"label": {
+		docker.LabelProject + "=" + i.Project, docker.LabelService + "=" + i.Service, docker.LabelNumber + "=" + strconv.Itoa(i.Number),
+	}})
+	if listErr != nil {
+		return nil, listErr
+	}
+	for k := range list {
+		if list[k].Labels[docker.LabelAdopted] != "" {
+			return m.Client.InspectContainer(ctx, list[k].ID)
+		}
+	}
+	return nil, err
+}
+
 // attach puts an instance's container on the network at its address, if there
 // is one and it isn't on it. It works on a running container, which keeps
 // running, so adding a route has no downtime.
 func (m *Manager) attach(ctx context.Context, i Instance) error {
-	c, err := m.Client.ContainerNamed(ctx, i.ContainerName())
+	c, err := m.container(ctx, i)
 	switch {
 	case docker.IsNotFound(err):
 		return nil // the container driver connects it when it makes one
@@ -1081,7 +1103,7 @@ func (m *Manager) releaseUnused(ctx context.Context) error {
 		if !ok || used[i.service()] {
 			continue
 		}
-		c, err := m.Client.ContainerNamed(ctx, i.ContainerName())
+		c, err := m.container(ctx, i)
 		if err == nil {
 			if _, on := c.NetworkSettings.Networks[docker.IngressNetwork]; on {
 				err = m.Client.DisconnectNetwork(ctx, docker.IngressNetwork, c.ID)
