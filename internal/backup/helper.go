@@ -27,7 +27,7 @@ const (
 	helperRepository = "dockwell-volume-tool"
 	// labelHelper marks a helper, so it's never listed as something of a person's,
 	// and one a crash left can be found.
-	labelHelper = docker.OwnPrefix + "volume-tool"
+	labelHelper = docker.LabelVolumeTool
 	// helperMount is where a helper has the volume.
 	helperMount = "/volume"
 	// helperBinary is the binary in its image.

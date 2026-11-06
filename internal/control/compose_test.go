@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -23,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
+	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -74,7 +77,12 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	client.Adopted = &docker.Adopted{}
 	archive := &agentlogs.Archive{Dir: t.TempDir(), Client: client, Logger: slog.New(slog.DiscardHandler), Free: func(string) (uint64, error) { return 1 << 40, nil }}
 	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}}}
-	volumes := &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}}
+	helper := filepath.Join(t.TempDir(), "dockwell")
+	if err := os.WriteFile(helper, []byte("#!agent\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	backups := &backup.Runner{Client: client, Root: t.TempDir(), Binary: helper}
+	volumes := &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, Restores: backups}
 	var volumeType resource.Type = volumes
 	if f.volumes != nil {
 		volumeType = f.volumes(volumes)
@@ -91,6 +99,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		drivers: resource.NewRegistry(drivers...),
 		logs:    &agentlogs.Reader{Client: client, Archive: archive, Logger: slog.New(slog.DiscardHandler)},
 		client:  client,
+		backups: backups,
 	}
 	s.connect(t, f)
 	f.lastDocker = s

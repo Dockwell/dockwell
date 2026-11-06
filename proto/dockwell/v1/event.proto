@@ -127,8 +127,8 @@ message Event {
   // What sort of event it is.
   EventKind kind = 2;
   // What happened, as the audit log names it, such as "server.join",
-  // "auth.sign_in" or "token.create". A change's says where the change is:
-  // "change.planned", "change.applying", "change.applied" or
+  // "auth.sign_in", "token.create" or "backup.failed". A change's says where the
+  // change is: "change.planned", "change.applying", "change.applied" or
   // "change.failed".
   string action = 3;
   // When it happened. A change is timed from when it started applying, and
@@ -151,6 +151,24 @@ message Event {
   // How a service's health changed, for a health event. Its subject is the
   // service.
   EventHealth health = 9;
+  // What became of a backup, for a backup event. Its subject is the volume.
+  EventBackup backup = 10;
+}
+
+// EventBackup is what became of one backup.
+message EventBackup {
+  // The backup's ID.
+  string id = 1;
+  // The volume, by name.
+  string volume = 2;
+  // The server, by name.
+  string server_name = 3;
+  // How it was taken.
+  BackupMethod method = 4;
+  // Its size, in bytes.
+  int64 size_bytes = 5;
+  // Why it failed, for people. Empty unless it did.
+  string error = 6;
 }
 
 // EventHealth is how a service's health changed on a server, as far as the
@@ -215,4 +233,6 @@ enum EventKind {
   // A service turned unhealthy, stopped running, or came back, as its server's
   // agent saw, outside any change.
   EVENT_KIND_HEALTH = 4;
+  // A backup was taken, failed or was deleted. Restoring one is a change.
+  EVENT_KIND_BACKUP = 5;
 }

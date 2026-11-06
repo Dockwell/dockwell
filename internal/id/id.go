@@ -37,6 +37,7 @@ const (
 	Variable     = "var"
 	Secret       = "sec"
 	Route        = "rte"
+	Backup       = "bkp"
 
 	// Keys that seal what may be secret at rest (ADR 0022).
 	KeyEncryptionKey = "kek"

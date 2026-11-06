@@ -27,6 +27,203 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/backups:
+        get:
+            tags:
+                - BackupService
+            description: |-
+                ListBackups returns backups, newest first, a page at a time. It reads the
+                 control plane's records, so it answers with a server offline.
+            operationId: BackupService_ListBackups
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: 'How many to return: 50 when unset, and at most 200.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Pass the same filters
+                     with it.
+                  schema:
+                    type: string
+                - name: volumeId
+                  in: query
+                  description: Only the backups of one volume, by ID.
+                  schema:
+                    type: string
+                - name: environmentId
+                  in: query
+                  description: Only the backups in one environment, by ID.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListBackupsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - BackupService
+            description: |-
+                CreateBackup starts backing up a volume on its server, and returns the
+                 backup running. It ends whether or not the caller waits: follow it with
+                 GetBackup. The server has to be connected.
+            operationId: BackupService_CreateBackup
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateBackupRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateBackupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/backups/{id}:
+        get:
+            tags:
+                - BackupService
+            description: GetBackup returns one backup, with how far one under way has got.
+            operationId: BackupService_GetBackup
+            parameters:
+                - name: id
+                  in: path
+                  description: The backup's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetBackupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        delete:
+            tags:
+                - BackupService
+            description: |-
+                DeleteBackup removes a backup from its server and from the record. Nothing
+                 brings it back, so it needs a person. A backup that failed has nothing on the
+                 server, and its record goes all the same.
+            operationId: BackupService_DeleteBackup
+            parameters:
+                - name: id
+                  in: path
+                  description: The backup's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteBackupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/backups/{id}:restore:
+        post:
+            tags:
+                - BackupService
+            description: |-
+                RestoreBackup plans replacing what's in a backup's volume with what the
+                 backup holds, as a change. Its plan says what it replaces and what stops, and
+                 it destroys data, so only a person can apply it, with the plan's fingerprint.
+                 The server keeps a copy of what's replaced for 7 days, and undoing the change
+                 puts that back.
+            operationId: BackupService_RestoreBackup
+            parameters:
+                - name: id
+                  in: path
+                  description: The backup's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RestoreBackupRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RestoreBackupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/backups:preview:
+        get:
+            tags:
+                - BackupService
+            description: |-
+                PreviewBackup says what backing up a volume would do, asking its server, and
+                 changes nothing: the database's own dump, or a copy of its files, and what
+                 runs on it now. A copy of a running app's files can hold half a write, so
+                 when something runs on a volume that has no dump, ask CreateBackup to stop it.
+            operationId: BackupService_PreviewBackup
+            parameters:
+                - name: volumeId
+                  in: query
+                  description: The volume's ID, such as "vol_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  schema:
+                    type: string
+                - name: server
+                  in: query
+                  description: The server, by name or ID, when the volume is on several.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PreviewBackupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/entries:
         get:
             tags:
@@ -798,6 +995,7 @@ paths:
                             - EVENT_KIND_SERVER
                             - EVENT_KIND_ACCESS
                             - EVENT_KIND_HEALTH
+                            - EVENT_KIND_BACKUP
                         type: string
                         format: enum
                 - name: serverId
@@ -2436,6 +2634,76 @@ components:
                         The change: applying, with its steps queued; or applied, when it had
                          no steps to run.
             description: ApplyChangeResponse carries the change as it starts applying.
+        Backup:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The backup's ID, such as "bkp_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                environmentId:
+                    type: string
+                    description: The environment its volume is in, by ID.
+                volume:
+                    type: string
+                    description: The volume, by name. It stays after the volume is deleted.
+                volumeId:
+                    type: string
+                    description: The volume's ID.
+                serverId:
+                    type: string
+                    description: The server that holds it, by ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                state:
+                    enum:
+                        - BACKUP_STATE_UNSPECIFIED
+                        - BACKUP_STATE_RUNNING
+                        - BACKUP_STATE_DONE
+                        - BACKUP_STATE_FAILED
+                    type: string
+                    description: Where it is.
+                    format: enum
+                method:
+                    enum:
+                        - BACKUP_METHOD_UNSPECIFIED
+                        - BACKUP_METHOD_DUMP
+                        - BACKUP_METHOD_COPY
+                        - BACKUP_METHOD_COPY_RUNNING
+                    type: string
+                    description: How it's taken. Unset until the server says.
+                    format: enum
+                database:
+                    type: string
+                    description: The database it's a dump of, such as "PostgreSQL". Empty for any other.
+                sizeBytes:
+                    type: string
+                    description: Its size on the server's disk, in bytes.
+                sha256:
+                    type: string
+                    description: Its SHA-256, in hex.
+                startedAt:
+                    type: string
+                    description: When it started.
+                    format: date-time
+                finishedAt:
+                    type: string
+                    description: When it ended. Unset while it runs.
+                    format: date-time
+                actor:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who took it.
+                error:
+                    type: string
+                    description: Why it failed, for people.
+                filesChanged:
+                    type: string
+                    description: How many files changed while they were read, for a copy of a running app.
+                progress:
+                    type: string
+                    description: 'How one under way is going, for people, such as "Copying data: 1.2 GB so far".'
+            description: Backup is one backup of one volume.
         BeginAddPasskeyRequest:
             type: object
             properties:
@@ -3207,6 +3475,29 @@ components:
                     type: string
                     description: '"tcp" or "udp".'
             description: ContainerPort is a port a container publishes on the server.
+        CreateBackupRequest:
+            type: object
+            properties:
+                volumeId:
+                    type: string
+                    description: The volume's ID.
+                server:
+                    type: string
+                    description: The server, by name or ID, when the volume is on several.
+                stop:
+                    type: boolean
+                    description: |-
+                        Stop what runs on the volume for an exact copy of its files, and start it again
+                         after, whatever comes of the backup. A database's dump stops nothing.
+            description: CreateBackupRequest asks to back up a volume.
+        CreateBackupResponse:
+            type: object
+            properties:
+                backup:
+                    allOf:
+                        - $ref: '#/components/schemas/Backup'
+                    description: The backup.
+            description: CreateBackupResponse is the backup, running.
         CreateTokenRequest:
             type: object
             properties:
@@ -3260,6 +3551,10 @@ components:
                         The secret, such as "dwt_…", 53 characters. Send it as
                          "Authorization: Bearer <secret>". It is shown only now; store it safely.
             description: CreateTokenResponse carries the new token and its secret.
+        DeleteBackupResponse:
+            type: object
+            properties: {}
+            description: DeleteBackupResponse says it's gone.
         DeployServiceRequest:
             type: object
             properties:
@@ -3695,6 +3990,7 @@ components:
                         - EVENT_KIND_SERVER
                         - EVENT_KIND_ACCESS
                         - EVENT_KIND_HEALTH
+                        - EVENT_KIND_BACKUP
                     type: string
                     description: What sort of event it is.
                     format: enum
@@ -3702,8 +3998,8 @@ components:
                     type: string
                     description: |-
                         What happened, as the audit log names it, such as "server.join",
-                         "auth.sign_in" or "token.create". A change's says where the change is:
-                         "change.planned", "change.applying", "change.applied" or
+                         "auth.sign_in", "token.create" or "backup.failed". A change's says where the
+                         change is: "change.planned", "change.applying", "change.applied" or
                          "change.failed".
                 time:
                     type: string
@@ -3748,7 +4044,39 @@ components:
                     description: |-
                         How a service's health changed, for a health event. Its subject is the
                          service.
+                backup:
+                    allOf:
+                        - $ref: '#/components/schemas/EventBackup'
+                    description: What became of a backup, for a backup event. Its subject is the volume.
             description: Event is one thing that happened.
+        EventBackup:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The backup's ID.
+                volume:
+                    type: string
+                    description: The volume, by name.
+                serverName:
+                    type: string
+                    description: The server, by name.
+                method:
+                    enum:
+                        - BACKUP_METHOD_UNSPECIFIED
+                        - BACKUP_METHOD_DUMP
+                        - BACKUP_METHOD_COPY
+                        - BACKUP_METHOD_COPY_RUNNING
+                    type: string
+                    description: How it was taken.
+                    format: enum
+                sizeBytes:
+                    type: string
+                    description: Its size, in bytes.
+                error:
+                    type: string
+                    description: Why it failed, for people. Empty unless it did.
+            description: EventBackup is what became of one backup.
         EventHealth:
             type: object
             properties:
@@ -4132,6 +4460,14 @@ components:
                          or "dockwell claim" for a control plane a user runs themselves. Set only
                          while the install has no owner.
             description: GetAuthStateResponse describes the install and this request's session.
+        GetBackupResponse:
+            type: object
+            properties:
+                backup:
+                    allOf:
+                        - $ref: '#/components/schemas/Backup'
+                    description: The backup.
+            description: GetBackupResponse is one backup.
         GetCatalogEntryResponse:
             type: object
             properties:
@@ -4702,6 +5038,18 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        ListBackupsResponse:
+            type: object
+            properties:
+                backups:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Backup'
+                    description: The backups, newest first.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+            description: ListBackupsResponse is a page of backups.
         ListCatalogEntriesResponse:
             type: object
             properties:
@@ -5578,6 +5926,12 @@ components:
                     description: |-
                         What else may still run what this step replaces, which came from a Compose
                          project. A plan says what that means in a note.
+                restore:
+                    allOf:
+                        - $ref: '#/components/schemas/RestorePlan'
+                    description: |-
+                        What a step that restores a volume from a backup does. Numbered apart, as open
+                         work adds to this message.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -5679,6 +6033,29 @@ components:
                         The server address it listens on, such as "127.0.0.1". Empty listens on
                          every address.
             description: PortMapping publishes a container port on the server.
+        PreviewBackupResponse:
+            type: object
+            properties:
+                method:
+                    enum:
+                        - BACKUP_METHOD_UNSPECIFIED
+                        - BACKUP_METHOD_DUMP
+                        - BACKUP_METHOD_COPY
+                        - BACKUP_METHOD_COPY_RUNNING
+                    type: string
+                    description: What it would do with nothing else asked.
+                    format: enum
+                database:
+                    type: string
+                    description: The database whose dump it takes, such as "PostgreSQL".
+                running:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What runs on the volume now: services by name, and anything else by its
+                         container's.
+            description: PreviewBackupResponse says what backing up a volume would do.
         Project:
             type: object
             properties:
@@ -5928,6 +6305,64 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: RestartServiceResponse carries the planned restart.
+        RestoreBackupRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The backup's ID.
+                summary:
+                    type: string
+                    description: What it's for, for the timeline. Empty says what it restores.
+            description: RestoreBackupRequest asks to restore a backup.
+        RestoreBackupResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: RestoreBackupResponse is the change that restores it.
+        RestorePlan:
+            type: object
+            properties:
+                backupId:
+                    type: string
+                    description: The backup it brings back. Empty for an undo.
+                undoes:
+                    type: string
+                    description: The change it undoes, by putting back what that replaced. Empty otherwise.
+                method:
+                    enum:
+                        - BACKUP_METHOD_UNSPECIFIED
+                        - BACKUP_METHOD_DUMP
+                        - BACKUP_METHOD_COPY
+                        - BACKUP_METHOD_COPY_RUNNING
+                    type: string
+                    description: How what it brings back was taken.
+                    format: enum
+                database:
+                    type: string
+                    description: The database of a dump, such as "PostgreSQL".
+                takenAt:
+                    type: string
+                    description: When what it brings back was taken.
+                    format: date-time
+                sizeBytes:
+                    type: string
+                    description: How large that is, in bytes.
+                stops:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What stops while it happens: services by name, and anything else by its
+                         container's. It's whatever mounts the volume, and for a dump, the rest of the
+                         app on that server too.
+            description: |-
+                RestorePlan is what a step that restores a volume does: it says what comes
+                 back, and what stops while it does. What's in the volume is replaced, and the
+                 server keeps a copy of it for 7 days.
         RevealSecretRequest:
             type: object
             properties:
@@ -7542,6 +7977,16 @@ tags:
          with an API token gets "token_rejected" when the token is unknown, revoked
          or expired, "token_scope" when its scope doesn't cover the call, and
          "needs_session" when no token may make it.
+    - name: BackupService
+      description: |-
+        BackupService is an app's volumes and databases, backed up on the server that
+         has them. Taking a backup is an event: it changes no desired state, so it makes
+         no revision, and a failed one shows on the timeline. Restoring one is a change
+         with a plan, which says what it replaces and what stops, and which only a person
+         can apply. See docs/adr/0033-backups-of-volumes-and-databases.md.
+
+         A backup holds what its app stored, secrets among them, so nothing here gives
+         anyone its bytes.
     - name: CatalogService
       description: |-
         CatalogService lists the apps you can install, and plans installing one as a

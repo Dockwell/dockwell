@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -23,9 +24,11 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -68,6 +71,8 @@ const (
 var (
 	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveFailed, fileSaveUnknown}
 	healthActions = []string{health.Action}
+	// Taking a backup is an event, and a restore is a change (ADR 0033).
+	backupActions = backups.Actions
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
 		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
@@ -500,6 +505,18 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		}
 		return e
 	}
+	if slices.Contains(backupActions, a.Action) {
+		// As for health: only internal/control/backups writes these, and what it
+		// writes holds no path and nothing of what's in a backup.
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_BACKUP
+		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject)}
+		e.Backup = &dockwellv1.EventBackup{ServerName: look.Name(a.Target)}
+		if told, ok := backups.ReadTold(a.Detail); ok {
+			e.Backup.Id, e.Backup.Volume, e.Backup.SizeBytes, e.Backup.Error = told.ID, told.Volume, told.Size, told.Error
+			e.Backup.Method = resourcepb.BackupMethod(told.Method)
+		}
+		return e
+	}
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 	}
@@ -530,7 +547,10 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_HEALTH] {
 		f.Actions = append(f.Actions, healthActions...)
 	}
-	f.ResourceActions = healthActions
+	if every || want[dockwellv1.EventKind_EVENT_KIND_BACKUP] {
+		f.Actions = append(f.Actions, backupActions...)
+	}
+	f.ResourceActions = append(slices.Clone(healthActions), backupActions...)
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {

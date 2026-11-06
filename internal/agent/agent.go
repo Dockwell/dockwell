@@ -67,6 +67,8 @@ type Config struct {
 	Logs LogReader
 	// Docker lists this server's containers. Nil lists none.
 	Docker *docker.Client
+	// Backups takes and removes backups of this server's volumes. Nil takes none.
+	Backups BackupTaker
 	// Health says how this server's services are, which the agent tells the
 	// control plane as its stream opens, when a state changes, and every so
 	// often while checks run. Nil says nothing.
@@ -120,6 +122,17 @@ type LogReader interface {
 	// it all or ctx ends. send may block: a follow drops what it can't send,
 	// and says how much.
 	Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error
+}
+
+// BackupTaker takes and removes backups on this server (ADR 0033). What restores
+// one is the volume's driver, as a restore is a step of a change.
+type BackupTaker interface {
+	// Preview says what backing up a volume would do.
+	Preview(ctx context.Context, call *agentv1.BackupPreviewCall) (*agentv1.BackupPreviewResult, error)
+	// Take takes a backup, and says what it took once it's whole on the disk.
+	Take(ctx context.Context, call *agentv1.BackupCall) (*agentv1.BackupResult, error)
+	// Delete removes a backup from the disk.
+	Delete(ctx context.Context, call *agentv1.DeleteBackupCall) error
 }
 
 // Desired keeps what the control plane told this agent to apply, so the

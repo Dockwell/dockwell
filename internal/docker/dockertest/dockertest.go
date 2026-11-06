@@ -145,8 +145,8 @@ type image struct {
 	// imported says it came from docker import, so a container of it is a helper.
 	imported bool
 	id       string
-	digest string
-	repo   string
+	digest   string
+	repo     string
 	Image
 }
 

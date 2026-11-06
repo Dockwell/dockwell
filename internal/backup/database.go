@@ -46,17 +46,17 @@ type databaseKind struct {
 var databaseKinds = []*databaseKind{
 	{
 		name: "PostgreSQL", image: "postgres", data: "/var/lib/postgresql",
-		dump: []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dumpall -U "${POSTGRES_USER:-postgres}" --clean --if-exists`},
-		load: []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}" PGOPTIONS='-c lc_messages=C'; exec psql -X -q -U "${POSTGRES_USER:-postgres}" -d postgres -f -`},
-		ready: []string{"sh", "-c", `exec pg_isready -q -h 127.0.0.1 -p "${PGPORT:-5432}" -U "${POSTGRES_USER:-postgres}"`},
+		dump:       []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dumpall -U "${POSTGRES_USER:-postgres}" --clean --if-exists`},
+		load:       []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}" PGOPTIONS='-c lc_messages=C'; exec psql -X -q -U "${POSTGRES_USER:-postgres}" -d postgres -f -`},
+		ready:      []string{"sh", "-c", `exec pg_isready -q -h 127.0.0.1 -p "${PGPORT:-5432}" -U "${POSTGRES_USER:-postgres}"`},
 		complete:   "PostgreSQL database cluster dump complete",
 		loadFailed: postgresLoadFailed,
 	},
 	{
 		name: "MySQL", image: "mysql", data: "/var/lib/mysql", needs: "MYSQL_ROOT_PASSWORD",
-		dump: []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges --set-gtid-purged=OFF`},
-		load: []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot --binary-mode=1`},
-		ready: []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
+		dump:     []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges --set-gtid-purged=OFF`},
+		load:     []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot --binary-mode=1`},
+		ready:    []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
 		complete: "Dump completed",
 	},
 }

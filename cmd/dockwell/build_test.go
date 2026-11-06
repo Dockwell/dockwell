@@ -38,6 +38,7 @@ var agentPackages = []string{
 	"internal/agent/enroll",
 	"internal/agent/files", // a server's files, for a person (ADR 0032)
 	"internal/agent/logs",  // reading logs, and keeping those of removed containers (ADR 0025)
+	"internal/backup",      // taking and restoring backups on this server (ADR 0033)
 	"internal/buildinfo",
 	"internal/cli",
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build
@@ -63,6 +64,7 @@ var agentPackages = []string{
 	"internal/resource/variable", // the names and kinds a service's Validate checks what it uses by
 	"internal/resource/volume",
 	"internal/ticket",
+	"internal/volumetool", // reading and writing a volume's bytes, in a throwaway container (ADR 0033)
 }
 
 // agentModules are the other modules the agent build may link packages of.

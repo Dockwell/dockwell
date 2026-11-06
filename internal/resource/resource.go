@@ -411,6 +411,8 @@ type RestoreSource struct {
 	// Undoes is a change that restored, for undoing it.
 	Undoes string `json:",omitempty"`
 	Change string `json:",omitempty"`
+	// Server is the server that holds it, by ID, the one place it can happen.
+	Server string `json:",omitempty"`
 }
 
 // RestorePlan is what a step that restores a volume does, for people to read.

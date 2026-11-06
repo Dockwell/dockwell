@@ -55,6 +55,10 @@ func ManagedBy(labels map[string]string) string {
 	return ""
 }
 
+// LabelVolumeTool marks a throwaway container that reads or writes a volume for
+// a backup or a restore (ADR 0033).
+const LabelVolumeTool = OwnPrefix + "volume-tool"
+
 // IsOwnLabel reports a label Dockwell or Compose sets, which a spec can't.
 func IsOwnLabel(key string) bool {
 	return strings.HasPrefix(key, ComposePrefix) || strings.HasPrefix(key, OwnPrefix)

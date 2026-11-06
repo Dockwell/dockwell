@@ -996,6 +996,9 @@ message PlanStep {
   // What else may still run what this step replaces, which came from a Compose
   // project. A plan says what that means in a note.
   ManagedElsewhere managed_elsewhere = 35;
+  // What a step that restores a volume from a backup does. Numbered apart, as open
+  // work adds to this message.
+  RestorePlan restore = 40;
 }
 
 // ManagedElsewhere is what else may run a container that was taken on.
@@ -1009,6 +1012,41 @@ message ManagedElsewhere {
   string project = 3;
   // Where that project runs from, which may hold what the service mounts.
   string folder = 4;
+}
+
+// BackupMethod says how a backup is taken, which says what it's worth.
+enum BackupMethod {
+  BACKUP_METHOD_UNSPECIFIED = 0;
+  // The database's own dump, taken with it running. It restores across versions.
+  BACKUP_METHOD_DUMP = 1 [(dockwell.v1.word) = "Dump"];
+  // A copy of the volume's files with nothing running on them, so exact. For a
+  // database's files, it restores only on the same version.
+  BACKUP_METHOD_COPY = 2 [(dockwell.v1.word) = "Copy"];
+  // A copy of the volume's files with its app running. Files changed as they
+  // were read, so it can hold half a write, and an app may not start from it.
+  BACKUP_METHOD_COPY_RUNNING = 3 [(dockwell.v1.word) = "Copy of a running app"];
+}
+
+// RestorePlan is what a step that restores a volume does: it says what comes
+// back, and what stops while it does. What's in the volume is replaced, and the
+// server keeps a copy of it for 7 days.
+message RestorePlan {
+  // The backup it brings back. Empty for an undo.
+  string backup_id = 1;
+  // The change it undoes, by putting back what that replaced. Empty otherwise.
+  string undoes = 2;
+  // How what it brings back was taken.
+  BackupMethod method = 3;
+  // The database of a dump, such as "PostgreSQL".
+  string database = 4;
+  // When what it brings back was taken.
+  google.protobuf.Timestamp taken_at = 5;
+  // How large that is, in bytes.
+  int64 size_bytes = 6;
+  // What stops while it happens: services by name, and anything else by its
+  // container's. It's whatever mounts the volume, and for a dump, the rest of the
+  // app on that server too.
+  repeated string stops = 7;
 }
 
 // RouteMove is a route leaving one service for another.

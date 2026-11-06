@@ -68,6 +68,9 @@ type Runtime interface {
 // Driver manages volumes.
 type Driver struct {
 	Runtime Runtime
+	// Restores brings a volume's data back from a backup, on the agent. Without
+	// it, as on the control plane, a volume can only say it can be restored.
+	Restores resource.Restorer
 }
 
 var _ resource.Driver = (*Driver)(nil)
@@ -498,6 +501,24 @@ func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired pr
 	}
 	return dec, nil
 }
+
+// JudgeRestore judges a step that restores a volume from a backup.
+func (d *Driver) JudgeRestore(ctx context.Context, ref resource.Ref, source resource.RestoreSource) (resource.Decision, bool, error) {
+	if d.Restores == nil {
+		return resource.Decision{}, false, errNoRestores
+	}
+	return d.Restores.JudgeRestore(ctx, ref, source)
+}
+
+// ApplyRestore carries out a step that restores a volume from a backup.
+func (d *Driver) ApplyRestore(ctx context.Context, step resource.Step, source resource.RestoreSource) error {
+	if d.Restores == nil {
+		return errNoRestores
+	}
+	return d.Restores.ApplyRestore(ctx, step, source)
+}
+
+var errNoRestores = errors.New("this agent can't restore volumes, as it has no Docker driver")
 
 // Observe asks Docker.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {

@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -82,6 +83,8 @@ type testServer struct {
 	// disk reads its files. dataDir is what that takes for Dockwell's directory.
 	disk    *agentfiles.Server
 	dataDir string
+	// backups takes its backups, when it has Docker.
+	backups *backup.Runner
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -122,11 +125,15 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+	cfg := agent.Config{
+		Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk,
+	}
+	if s.backups != nil {
+		cfg.Backups = backup.Calls{Runner: s.backups}
+	}
 	go func() {
-		_ = agent.Run(ctx, agent.Config{
-			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-			Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk,
-		})
+		_ = agent.Run(ctx, cfg)
 		close(done)
 	}()
 	var once sync.Once

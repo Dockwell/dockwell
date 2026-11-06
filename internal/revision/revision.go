@@ -193,6 +193,9 @@ type Edit struct {
 	Spec proto.Message
 	// Restart asks for the resource to restart, with its spec as it is.
 	Restart bool
+	// Restore asks for the resource's data to come back from a backup, with its
+	// spec as it is, on the server that holds the backup (ADR 0033).
+	Restore *resource.RestoreSource
 	// Servers places a resource of an environment-level kind, such as a
 	// service, by server ID. Nil keeps it where it runs now, on the
 	// servers still in the fleet; a new one runs on the only server when
@@ -356,6 +359,9 @@ type ResourcePlan struct {
 	Ref resource.Ref
 	// Restart says the change restarts it, which makes no revision.
 	Restart bool `json:",omitempty"`
+	// Restore says what the change brings its data back from, which makes no
+	// revision either.
+	Restore *resource.RestoreSource `json:",omitempty"`
 	// Action is what its steps on every server add up to (see
 	// item.resourcePlan), or for a kind that runs on no server, what its
 	// revision does: create, update or delete. None means nothing changes.
@@ -517,6 +523,20 @@ type item struct {
 	// no revision, so it isn't a difference between specs, and what a step makes
 	// carries it, so planning again finds it done or not.
 	restart string
+	// restore is what its data comes back from, as a restart is, on one server.
+	restore *resource.RestoreSource
+}
+
+// noRevision reports an item that acts on a resource as it is, so it has nothing
+// to roll back, and what goes wrong leaves its revision as it was.
+func (it item) noRevision() bool { return it.restart != "" || it.restore != nil }
+
+// restoreOn is what the item restores on a server, if anything.
+func (it item) restoreOn(server string) *resource.RestoreSource {
+	if it.restore == nil || it.restore.Server != server {
+		return nil
+	}
+	return it.restore
 }
 
 // changes reports whether the item makes a new revision: its spec, or
@@ -583,9 +603,17 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Restart && ed.Ref == items[i].ref }) {
 			items[i].restart = changeID
 		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Restore != nil && ed.Ref == items[i].ref }); j >= 0 {
+			restore := *p.Edits[j].Restore
+			restore.Change = changeID
+			items[i].restore = &restore
+		}
 	}
 	plan, err := e.plan(ctx, changeID, items, false)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.checkRestores(ctx, plan, items); err != nil {
 		return nil, err
 	}
 	if p.Unpinned != nil && plan.imageGone() {
@@ -706,7 +734,7 @@ func (e *Engine) dataNotes(plan *Plan, items []item, notes []Note) []Note {
 		replaces := false
 		for s := range plan.Servers {
 			step := plan.step(plan.Servers[s].Server, it.ref)
-			if step == nil || step.Action != resource.ActionReplace || it.restart != "" {
+			if step == nil || step.Action != resource.ActionReplace || it.noRevision() {
 				continue
 			}
 			replaces = true
@@ -1676,6 +1704,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		}
 		if sp.Offline || sp.Unplanned != "" {
 			for _, it := range its {
+				if it.restoreOn(server) != nil {
+					// Nothing but its server can say what a restore would stop, or
+					// whether it still has what the restore brings back.
+					return nil, fault.New(ErrOffline, "%s isn't connected, and only its agent can plan a restore of %s. Try again once it reconnects", sp.Name, it.ref.Name)
+				}
 				d, err := e.kinds.Driver(it.ref.Kind)
 				if err != nil {
 					return nil, err
@@ -1771,6 +1804,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
+			}
+			if r := s.Restore; r != nil {
+				fmt.Fprintf(fp, "  restore %s|%s|%s|%s|%d|%d|%v\n", r.Backup, r.Undoes, r.Method, r.Database, r.Taken.UnixNano(), r.Size, r.Stops)
 			}
 			// What DNS says, s.Domain, stays out, as people often set it after.
 			if i := s.Ingress; i != nil {
@@ -1901,7 +1937,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server)}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -1931,7 +1967,7 @@ func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
 	}
 	rp := ResourcePlan{
 		ID: it.id, Ref: it.ref, Base: it.base, Changes: diff(it.current, it.spec),
-		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "",
+		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", Restore: it.restore,
 	}
 	switch {
 	case slices.Contains(steps, resource.ActionReplace):
@@ -2264,6 +2300,7 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 	}
 	var c store.Change
 	var items []item
+	var held []item
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if c, err = tx.GetChange(ctx, changeID); err != nil {
@@ -2278,11 +2315,14 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		if err := e.stillUndoable(ctx, tx, c); err != nil {
 			return err
 		}
-		items, err = e.current(ctx, tx, c)
+		if items, err = e.current(ctx, tx, c); err != nil {
+			return err
+		}
+		held, err = e.holdsToo(ctx, tx, items)
 		return err
 	})
 	if err == nil {
-		err = e.claim(changeID, "", items, false)
+		err = e.claim(changeID, "", held, false)
 	}
 	if err != nil {
 		e.letGo(ctx, changeID)
@@ -2683,7 +2723,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		case err == nil:
 		case e.stoppedBy(err):
 			return interrupt(qi)
-		case (IsRollback(c) || it.restart != "") && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
+		case (IsRollback(c) || it.noRevision()) && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
 			// The agent went away: the call never reached it, or it may
 			// have run. Either way a rollback waits for the server, as for
 			// one that isn't connected, and Resume plans the step against
@@ -2836,9 +2876,9 @@ func (e *Engine) deployedImage(ctx context.Context, changeID string, it *item, s
 			return err
 		}
 		switch {
-		case failed != nil && it.restart != "":
+		case failed != nil && it.noRevision():
 			// A restart that failed leaves the revision where it was: it isn't
-			// the revision's deployment that failed.
+			// the revision's deployment that failed. So does a restore.
 			return nil
 		case failed != nil && slices.Contains(it.servers, server):
 			plain, _ := resource.Explain(failed)
@@ -3000,6 +3040,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if restarts(c, ref) {
 				it.restart = c.ID
 			}
+			it.restore = restoreIn(c, ref)
 			if err := markGone(ctx, tx, &it); err != nil {
 				return err
 			}
@@ -3030,7 +3071,16 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		}
 		return nil, reconnects(offline)
 	}
-	if err := e.claim(changeID, "", items, true); err != nil {
+	var held []item
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		held, err = e.holdsToo(ctx, tx, items)
+		return err
+	}); err != nil {
+		e.letGo(ctx, changeID)
+		return nil, err
+	}
+	if err := e.claim(changeID, "", held, true); err != nil {
 		// The change holding them asks for Resume when it lets go.
 		e.letGo(ctx, changeID)
 		return nil, fault.New(ErrPending, "%w", err)
@@ -3173,6 +3223,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		if restarts(c, ref) {
 			it.restart = c.ID
 		}
+		it.restore = restoreIn(c, ref)
 		items = append(items, it)
 	}
 	if err := e.check(ctx, tx, items); err != nil {
@@ -3272,6 +3323,40 @@ func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, eve
 	})
 }
 
+// restoring finds what a change restored, if it restored anything.
+func restoring(c store.Change) (resource.Ref, *resource.RestoreSource, bool) {
+	for i := range c.Items {
+		ref := resource.Ref{Kind: resource.Kind(c.Items[i].Kind), Scope: c.Items[i].Scope, Name: c.Items[i].Name}
+		if source := restoreIn(c, ref); source != nil {
+			return ref, source, true
+		}
+	}
+	return resource.Ref{}, nil, false
+}
+
+// restoreIn is what a change restores a resource from, as its plan says: like a
+// restart, that isn't in the spec the store keeps for the change's item.
+func restoreIn(c store.Change, ref resource.Ref) *resource.RestoreSource {
+	if len(c.Plan) == 0 {
+		return nil
+	}
+	var p struct {
+		Resources []struct {
+			Ref     resource.Ref
+			Restore *resource.RestoreSource
+		}
+	}
+	if json.Unmarshal(c.Plan, &p) != nil {
+		return nil
+	}
+	for i := range p.Resources {
+		if p.Resources[i].Ref == ref {
+			return p.Resources[i].Restore
+		}
+	}
+	return nil
+}
+
 // restarts reports a change that restarts a resource, as its plan says: a
 // restart isn't in the spec the store keeps for the change's item.
 func restarts(c store.Change, ref resource.Ref) bool {
@@ -3323,6 +3408,88 @@ func (e *Engine) Restart(ctx context.Context, ref resource.Ref, by By, summary s
 		summary = "Restart " + ref.Name
 	}
 	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: ref, Spec: it.current, Restart: true}}}, "", false)
+}
+
+// Restore plans bringing a resource's data back from source, on the server named
+// in it, with its spec as it is: a change with a plan, which makes no revision. It
+// destroys what's there, so a person has to apply it, and the server keeps a copy
+// of that for the undo window, which undoing the change puts back (ADR 0033).
+func (e *Engine) Restore(ctx context.Context, ref resource.Ref, source resource.RestoreSource, by By, summary string) (*Plan, error) {
+	return e.restore(ctx, ref, source, by, summary, "")
+}
+
+func (e *Engine) restore(ctx context.Context, ref resource.Ref, source resource.RestoreSource, by By, summary, reverts string) (*Plan, error) {
+	t, err := e.kinds.Type(ref.Kind)
+	if err != nil {
+		return nil, fault.New(ErrInvalid, "%w", err)
+	}
+	if _, ok := t.(resource.Restorer); !ok {
+		return nil, fault.New(ErrInvalid, "a %s can't be restored from a backup. Only a volume can", ref.Kind)
+	}
+	var it item
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		it, err = e.load(ctx, tx, ref)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	if it.current == nil {
+		return nil, fault.New(ErrInvalid, "there's no %s to restore. It was deleted, so make it again first, then restore the backup into it", ref)
+	}
+	if !slices.Contains(it.placed, source.Server) {
+		return nil, fault.New(ErrInvalid, "%s isn't on the server that holds this backup, so it can't be restored there. Put it back on that server first", ref.Name)
+	}
+	if summary == "" {
+		summary = "Restore " + ref.Name
+	}
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: ref, Spec: it.current, Restore: &source}}}, reverts, false)
+}
+
+// checkRestores refuses a plan without the step it was made for: an agent from
+// before backups ignores a restore, and would read as having nothing to do.
+func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) error {
+	for i := range items {
+		it := &items[i]
+		if it.restore == nil {
+			continue
+		}
+		if step := plan.step(it.restore.Server, it.ref); step == nil || step.Restore == nil {
+			names, err := e.serverNames(ctx, []string{it.restore.Server})
+			if err != nil {
+				return err
+			}
+			return fault.New(ErrInvalid, "%s's agent didn't plan a restore of %s, so it's too old to do one. Update it to the control plane's version, then try again", names[it.restore.Server], it.ref.Name)
+		}
+	}
+	return nil
+}
+
+// holdsToo is what a change holds while it applies: its items, and for a restore,
+// every service in the volume's environment. Its step stops and starts them, so a
+// deploy of one that started meanwhile would run on data that's being replaced.
+func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]item, error) {
+	held := items
+	for i := range items {
+		if items[i].restore == nil {
+			continue
+		}
+		services, err := tx.ListResources(ctx, items[i].ref.Scope, "service")
+		if err != nil {
+			return nil, err
+		}
+		for j := range services {
+			r := &services[j]
+			held = append(held, item{id: r.ID, ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}})
+		}
+	}
+	return held, nil
+}
+
+// undoRestore plans putting back what a change's restore replaced, which is all
+// there is to undo of it: it made no revision.
+func (e *Engine) undoRestore(ctx context.Context, c store.Change, ref resource.Ref, source *resource.RestoreSource, by By) (*Plan, error) {
+	return e.restore(ctx, ref, resource.RestoreSource{Undoes: c.ID, Server: source.Server}, by, "Undo: "+c.Summary, c.ID)
 }
 
 // Discard drops a planned change without applying it. It stays on record
@@ -3552,6 +3719,9 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	}
 	if err := e.withinUndoWindow(c); err != nil {
 		return nil, err
+	}
+	if ref, source, ok := restoring(c); ok {
+		return e.undoRestore(ctx, c, ref, source, by)
 	}
 	edits, err := e.reverse(ctx, changeID)
 	if err != nil {

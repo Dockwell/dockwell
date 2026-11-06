@@ -335,6 +335,13 @@ message Call {
     SaveFileCall save_file = 12;
     // Read a container as the spec of a service that takes it on.
     AdoptionCall adoption = 13;
+    // Say what backing up a volume would do. Numbered apart, as open work adds
+    // to this message.
+    BackupPreviewCall backup_preview = 20;
+    // Back up a volume. It has as long as it takes, and ends with the stream.
+    BackupCall backup = 21;
+    // Remove a backup from the disk.
+    DeleteBackupCall delete_backup = 22;
   }
 }
 
@@ -345,6 +352,41 @@ message AdoptionCall {
   string container = 1;
   // The service it would be.
   dockwell.v1.ResourceRef resource = 2;
+}
+
+// BackupPreviewCall asks what backing up a volume would do.
+message BackupPreviewCall {
+  // The volume.
+  dockwell.v1.ResourceRef volume = 1;
+}
+
+// BackupCall asks to back up a volume.
+message BackupCall {
+  // The backup's ID.
+  string id = 1;
+  // The volume.
+  dockwell.v1.ResourceRef volume = 2;
+  // Stop what runs on the volume for an exact copy, and start it again after.
+  bool stop = 3;
+}
+
+// DeleteBackupCall asks to remove a backup from the disk.
+message DeleteBackupCall {
+  // The backup's ID.
+  string id = 1;
+  // The volume it's of.
+  dockwell.v1.ResourceRef volume = 2;
+}
+
+// RestoreSource is what a step restores. Exactly one of backup_id and undoes is
+// set.
+message RestoreSource {
+  // The backup.
+  string backup_id = 1;
+  // A change that restored, whose copy of what it replaced this puts back.
+  string undoes = 2;
+  // The change that restores, which it does once.
+  string change_id = 3;
 }
 
 // ContainersCall asks which containers Docker has, as it lists them, so nothing
@@ -653,6 +695,8 @@ message DesiredResource {
   // Takes on this container, by its full ID, as what the resource runs, in place
   // of making one.
   string adopt = 7;
+  // Brings the resource's data back from a backup, with its spec as it is.
+  RestoreSource restore = 8;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.
@@ -691,6 +735,13 @@ message CallResult {
     SaveFileResult save_file = 12;
     // What an adoption call read.
     AdoptionResult adoption = 13;
+    // What a backup preview call found. Numbered apart, as open work adds to
+    // this message.
+    BackupPreviewResult backup_preview = 20;
+    // What a backup call took.
+    BackupResult backup = 21;
+    // Answers delete_backup.
+    DeleteBackupResult delete_backup = 22;
   }
 }
 
@@ -719,6 +770,33 @@ message AdoptionResult {
   // can't be taken on.
   string invalid = 7;
 }
+
+// BackupPreviewResult says what backing up a volume would do.
+message BackupPreviewResult {
+  // What it would do with nothing else asked.
+  dockwell.v1.BackupMethod method = 1;
+  // The database whose dump it takes.
+  string database = 2;
+  // What runs on the volume now.
+  repeated string running = 3;
+}
+
+// BackupResult is a backup, whole on the disk.
+message BackupResult {
+  // How it was taken.
+  dockwell.v1.BackupMethod method = 1;
+  // The database it's a dump of.
+  string database = 2;
+  // Its size, in bytes.
+  int64 size_bytes = 3;
+  // Its SHA-256, in hex.
+  string sha256 = 4;
+  // How many files changed while they were read.
+  int64 files_changed = 5;
+}
+
+// DeleteBackupResult says the backup is gone.
+message DeleteBackupResult {}
 
 // ContainersResult lists the containers Docker has.
 message ContainersResult {
