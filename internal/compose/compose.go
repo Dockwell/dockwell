@@ -621,7 +621,7 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if ctx.Err() != nil {
 		return nil, stopped(ctx)
 	}
-	m.limits, m.memory, m.notices, m.extensions, m.references = limits, memory, append(unkept, unsized...), extensions, read.references
+	m.limits, m.memory, m.notices, m.extensions, m.references = limits, memory, slices.Concat(unkept, unsized), extensions, read.references
 	if err := m.resolve(variables, in.Directory); err != nil {
 		return nil, err
 	}
