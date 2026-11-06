@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -19,8 +20,11 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -1088,6 +1092,47 @@ func (l leading) Plan(ctx context.Context, desired []resource.Desired) ([]resour
 		steps[i].Leads = *l.leads
 	}
 	return steps, err
+}
+
+// olderRule is a service as a build read it before /etc counted as root.
+type olderRule struct{ *service.Driver }
+
+func (o olderRule) HostAccess(spec proto.Message) []resource.Access {
+	out := o.Driver.HostAccess(spec)
+	for i := range out {
+		out[i].SameAsRoot = false
+	}
+	return out
+}
+
+// A plan kept from a build that read /etc as an ordinary path reads as it was read
+// then, in amber, and nobody can apply it, as what it comes to now isn't what it
+// said. Planning again says what it means. So a rule that gets stricter can't be
+// got past with a plan from before it.
+func TestAPlanKeptFromAnOlderRuleCantApply(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		e, _, db := setupDocker(t, backend, "srv_A")
+		env := production(t, db)
+		kinds := resource.NewRegistry(&container.Driver{}, olderRule{&service.Driver{}}, &volume.Driver{}, &network.Driver{})
+		then := New(db, kinds, e.agents, e.sealer, slog.New(slog.DiscardHandler))
+		ed := app(env, "nginx:1.27")
+		ed.Spec.(*resourcev1.Service).GetApp().Mounts = []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/etc"}, Target: "/x", ReadOnly: true}}
+
+		kept := propose(t, then, "Run web", ed)
+		if len(kept.Resources) != 1 || len(kept.Resources[0].HostAccess) != 1 || kept.Resources[0].HostAccess[0].AsGoodAsRoot() {
+			t.Fatalf("the older rule's plan reaches %+v, want /etc read as an ordinary path", kept.Resources)
+		}
+		if err := e.Apply(t.Context(), kept.Change); !errors.Is(err, ErrPlanChanged) {
+			t.Errorf("applying it = %v, want it refused", err)
+		}
+		if err := e.Discard(t.Context(), kept.Change, By{Actor: "usr_test", Via: ViaPanel}); err != nil {
+			t.Fatal(err)
+		}
+		again := propose(t, e, "Run web", ed)
+		if !again.Resources[0].HostAccess[0].AsGoodAsRoot() {
+			t.Errorf("planned again it reaches %+v, want /etc as good as root", again.Resources[0].HostAccess)
+		}
+	})
 }
 
 // A plan says what a path really reaches, from what the agent reads: a symlink to
