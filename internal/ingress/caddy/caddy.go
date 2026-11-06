@@ -1905,7 +1905,7 @@ func (c *Caddy) DeleteRoute(ctx context.Context, id string) error {
 	err := c.deleteRoute(ctx, id)
 	if err == nil {
 		// Nothing dials it now, and a route of its name writes it anew.
-		_ = os.Remove(filepath.Join(c.runDir(), upstreamsDir, id))
+		_ = removeIn(c.runDir(), filepath.Join(upstreamsDir, id))
 	}
 	return err
 }

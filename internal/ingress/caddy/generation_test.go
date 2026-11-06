@@ -4,6 +4,7 @@ package caddy
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -121,6 +122,46 @@ func TestWhatARouteDialsIsReadWithSuspicion(t *testing.T) {
 	}
 	if fi, err := os.Lstat(file); err != nil || fi.Mode()&os.ModeSymlink != 0 {
 		t.Errorf("it is %v, %v", fi, err)
+	}
+}
+
+// The directory that holds a route's file is Caddy's to replace, so deleting a route
+// takes its own file and nothing a link there leads to.
+func TestDeletingARouteTakesItsFileAndNothingOutsideCaddysDirectory(t *testing.T) {
+	const id = "dockwell.env_x.www"
+	dir := shortDir(t)
+	c := &Caddy{Dir: dir, Runtime: &process{dir: dir}}
+	if err := os.MkdirAll(c.runDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	through, err := c.throughFile(ingress.Route{ID: id, Upstreams: []string{"172.30.0.2:8080"}})
+	if err != nil || len(through.Upstreams) != 1 {
+		t.Fatalf("throughFile = %+v, %v", through, err)
+	}
+	file := filepath.Join(c.runDir(), upstreamsDir, id)
+	if err := c.DeleteRoute(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(file); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the route's file is still there: %v", err)
+	}
+
+	outside := t.TempDir()
+	someone := filepath.Join(outside, id)
+	if err := os.WriteFile(someone, []byte("someone's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Dir(file)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Dir(file)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteRoute(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(someone); err != nil {
+		t.Errorf("a link in Caddy's directory took a file outside it: %v", err)
 	}
 }
 
