@@ -19,7 +19,7 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 <div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
 <dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
 <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
-<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<dc-import name="Topbar" mode="fleet" reads="{{reads}}" hint-size="100%,52px"></dc-import>
 <div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
 
 <div style="display: flex; flex-direction: column; gap: 16px;">
@@ -28,7 +28,7 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 <nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--ink-muted);"><a href="Apps-List.dc.html" style="color: var(--ink-muted); text-decoration: none;">Apps</a><span aria-hidden="true">/</span><span aria-current="page">api</span></nav>
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
 <h1 class="title" style="margin: 0;">api</h1>
-<x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy"></x-import>
+<x-import component-from-global-scope="Dockwell.StatusBadge" status="{{runs}}"></x-import>
 <x-import component-from-global-scope="Dockwell.Tag" icon="branch">main</x-import>
 <code class="code-sm" style="color: var(--ink-muted);">r128</code>
 </div>
@@ -50,13 +50,17 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 </div>
 </div>
 
+<sc-if value="{{docker}}" hint-placeholder-val="{{false}}">
+<x-import component-from-global-scope="Dockwell.Callout" tone="warning" title="Nobody can say how api runs">The agent on fra-1-04 can’t read Docker, so it can’t say what runs there. Check that Docker is running on the server, with <code>systemctl status docker</code>.</x-import>
+</sc-if>
+
 <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
 
 <div style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
 <section style="display: flex; flex-direction: column; gap: 12px;">
 <div style="display: flex; align-items: baseline; gap: 8px;">
 <h2 class="heading" style="margin: 0;">Replicas</h2>
-<span style="font-size: 13px; color: var(--ink-muted);">3 of 3 healthy · one per server · limit 1 vCPU and 512 MB each</span>
+<span style="font-size: 13px; color: var(--ink-muted);">{{healthyCount}} · one per server · limit 1 vCPU and 512 MB each</span>
 <span style="flex: 1 1 auto;"></span>
 <a href="App-Settings.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none;">Scaling</a>
 </div>
@@ -107,7 +111,7 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 </section>
 
 <section class="dw-panel">
-<div class="dw-panel-head"><h2 class="dw-panel-title">Health check</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="healthy" label="3 of 3 passing"></x-import></div>
+<div class="dw-panel-head"><h2 class="dw-panel-title">Health check</h2><x-import component-from-global-scope="Dockwell.StatusBadge" status="{{checksTone}}" label="{{checks}}"></x-import></div>
 <div class="dw-panel-body">
 <dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; font-size: 13px; line-height: 20px;">
 <dt style="color: var(--ink-muted);">Request</dt><dd style="margin: 0;"><code class="code-sm">GET /healthz</code> on port <code class="code-sm">8080</code> every 10 s</dd>
@@ -138,7 +142,7 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1110}}'>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"reads":{"editor":"enum","options":["well","docker"],"default":"well"},"$preview":{"width":1440,"height":1110}}'>
 class Component extends DCLogic {
   renderVals() {
     const h = React.createElement, DW = window.Dockwell;
@@ -179,8 +183,15 @@ class Component extends DCLogic {
       { id: 'h2', kind: 'config', status: 'healthy', title: 'api is healthy again on fra-1-04', time: '3 Nov' },
       { id: 'h3', kind: 'config', status: 'down', statusLabel: 'Not running', title: 'api stopped running on fra-1-04', meta: 'The container exited, with exit code 137', time: '3 Nov' }
     ];
+    // An agent that can't read Docker costs that server, and a service is only as well as its worst.
+    const reads = this.props.reads ?? 'well';
+    const docker = reads === 'docker';
+    if (docker) replicas[0].status = 'unknown';
     return {
       theme: this.props.theme ?? 'light',
+      reads, docker, runs: docker ? 'unknown' : 'healthy',
+      healthyCount: docker ? '2 of 3 healthy' : '3 of 3 healthy',
+      checks: docker ? '2 of 3 passing' : '3 of 3 passing', checksTone: docker ? 'unknown' : 'healthy',
       replicas, replicaCols, domains, domainCols, events, health,
       reqs: wave(30, 3.4, 0.35, 2), lat: wave(30, 84, 7, 5), err: wave(30, 0.09, 0.03, 3), cpu: wave(30, 31, 5, 6),
       yes: true,

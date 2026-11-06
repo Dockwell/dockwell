@@ -86,8 +86,11 @@ class Component extends DCLogic {
       ]),
       G('Apps', [
         ['Apps-List', 'Apps', 'Every app across servers, by environment'],
+        ['Apps-List-Unreachable', 'Apps, control plane unreachable', 'What the list says when it can\u2019t read how they run'],
+        ['Apps-List-Offline', 'Apps, offline', 'The same in a browser with no connection'],
         ['Apps-New', 'New app', 'Source, placement and domain, then a plan'],
         ['App-Overview', 'App overview', 'Replicas, domains, metrics and source of api'],
+        ['App-Overview-Docker', 'App overview, can\u2019t read Docker', 'What an app says when its agent can\u2019t read Docker'],
         ['App-Deployments', 'Deployments', 'Revisions, what changed and rollback'],
         ['App-Logs', 'Logs', 'Live, filterable logs across replicas'],
         ['App-Environment', 'Environment', 'Variables, secrets and references per environment'],

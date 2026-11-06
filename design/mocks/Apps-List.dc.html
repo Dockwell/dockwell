@@ -19,13 +19,13 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 <div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
 <dc-import name="Rail" active="apps" mode="fleet" hint-size="232px,100%"></dc-import>
 <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
-<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<dc-import name="Topbar" mode="fleet" reads="{{reads}}" hint-size="100%,52px"></dc-import>
 <div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
 
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
 <div style="display: flex; flex-direction: column; gap: 4px;">
 <h1 class="title" style="margin: 0;">Apps</h1>
-<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">8 apps in storefront / production · 3 need a look · 1 deploying</p>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">{{lead}}</p>
 </div>
 <a href="Apps-New.dc.html" class="dw-btn dw-btn-primary dw-btn-md" style="text-decoration: none;"><x-import component-from-global-scope="Dockwell.Icon" name="plus" size="{{16}}"></x-import><span>New app</span></a>
 </div>
@@ -37,15 +37,18 @@ a{color:var(--link)}a:hover{text-decoration:underline}
 <div style="flex: 0 1 280px; min-width: 200px;"><x-import component-from-global-scope="Dockwell.TextField" size="sm" icon="search" placeholder="Filter by name, image or domain" aria-label="Filter apps"></x-import></div>
 <x-import component-from-global-scope="Dockwell.Button" size="sm" icon="filter">Filter</x-import>
 </div>
+<sc-if value="{{note}}" hint-placeholder-val="{{false}}">
+<div class="dw-callout dw-tone-cobalt" role="status"><span class="dw-callout-glyph dw-tone-unknown"><x-import component-from-global-scope="Dockwell.Glyph" shape="dashed-ring" size="{{10}}"></x-import></span><div class="dw-callout-body"><div class="dw-callout-text">{{note}}</div></div></div>
+</sc-if>
 <x-import component-from-global-scope="Dockwell.Table" columns="{{cols}}" rows="{{apps}}" caption="Apps in storefront / production" on-row-click="{{noop}}"></x-import>
-<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">14 apps across Acme. The other 6 are in internal-tools and data.</p>
+<p style="margin: 0; font-size: 13px; color: var(--ink-muted);">16 apps across Acme. The other 6 are in internal-tools and data.</p>
 </section>
 
 </div>
 </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":710}}'>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"reads":{"editor":"enum","options":["well","unknown","offline"],"default":"well"},"$preview":{"width":1440,"height":810}}'>
 class Component extends DCLogic {
   renderVals() {
     const h = React.createElement, DW = window.Dockwell;
@@ -56,18 +59,30 @@ class Component extends DCLogic {
     const cell = (t, s) => h('div', { className: 'dw-cell' }, h('span', { className: 'dw-cell-title' }, t), h('span', { className: 'dw-cell-sub' }, s));
     const ramp = (a, b, n) => Array.from({ length: n }, (_, i) => +(a + (b - a) * Math.pow(i / (n - 1), 1.6) + 2 * Math.sin(i / 1.7)).toFixed(1));
     // How each runs, from what its server says: Healthy only where a check passed, Running where nothing
-    // checks it, and Unknown where nobody can say. What was deployed and how that went sits beside the
-    // revision, apart. What needs a look comes first, then the rest, newest first.
-    const apps = [
+    // checks it, Starting until its check first passes, Paused where someone paused it, and Unknown where
+    // nobody can say. What was deployed and how that went sits beside the revision, apart. What needs a
+    // look comes first, then the rest, newest first.
+    const listed = [
       { id: 'worker', name: 'worker', image: 'ghcr.io/acme/worker:9a03e1b', status: 'degraded', word: 'Unhealthy', rev: 'r57', replicas: '4 of 4', servers: '3 servers', cpu: ramp(30, 88, 20), domain: '—', at: '24 min ago' },
       { id: 'plausible', name: 'plausible', image: 'ghcr.io/plausible/community-edition:v2.1.4', status: 'down', word: 'Not running', rev: 'r6', replicas: '0 of 1', servers: 'ams-1-10', cpu: wave(20, 2, 1, 6), domain: 'stats.acme.dev', at: '12 Oct' },
       { id: 'kuma', name: 'uptime-kuma', image: 'louislam/uptime-kuma:1.23.16', status: 'unknown', word: 'Unknown', rev: 'r3', replicas: '1 of 1', servers: 'fra-1-07', cpu: wave(20, 5, 1.5, 7), domain: 'status.acme.dev', at: '9 Oct' },
+      { id: 'cache', name: 'cache-ui', image: 'redis/redisinsight:2.60', status: 'stopped', word: 'Paused', rev: 'r4', replicas: '0 of 1', servers: 'fra-1-09', cpu: wave(20, 1, 0.5, 8), domain: '—', at: '2 Oct' },
+      { id: 'mailer', name: 'mailer', image: 'ghcr.io/acme/mailer:4f10c7a', status: 'deploying', word: 'Starting', rev: 'r31', replicas: '1 of 1', servers: 'ams-1-04', cpu: wave(20, 8, 2, 9), domain: '—', at: '1 min ago' },
       { id: 'web', name: 'storefront-web', image: 'ghcr.io/acme/storefront:2c71f09', status: 'healthy', word: 'Healthy', rev: 'r64', record: { status: 'deploying', word: 'Deploying' }, replicas: '3 of 3', servers: 'fra-1-15 · fra-1-16 · ams-1-09', cpu: wave(20, 24, 5, 1), domain: 'acme.dev', at: 'now' },
       { id: 'api', name: 'api', image: 'ghcr.io/acme/api:8be41d2', status: 'healthy', word: 'Healthy', rev: 'r128', replicas: '3 of 3', servers: 'fra-1-04 · fra-1-11 · ams-1-02', cpu: wave(20, 31, 5, 2), domain: 'api.acme.dev', at: '4 min ago' },
       { id: 'checkout', name: 'checkout', image: 'ghcr.io/acme/checkout:e19b2c4', status: 'healthy', word: 'Healthy', rev: 'r212', replicas: '3 of 3', servers: 'fra-1-06 · fra-1-12 · ams-1-07', cpu: wave(20, 19, 4, 3), domain: 'checkout.acme.dev', at: '6 h ago' },
       { id: 'search', name: 'search', image: 'getmeili/meilisearch:v1.11', status: 'running', word: 'Running', rev: 'r9', replicas: '1 of 1', servers: 'sfo-2-08', cpu: wave(20, 12, 3, 4), domain: '—', at: '28 Oct' },
       { id: 'images', name: 'images', image: 'darthsim/imgproxy:v3.27', status: 'running', word: 'Running', rev: 'r14', replicas: '2 of 2', servers: 'fra-1-09 · ams-1-06', cpu: wave(20, 16, 4, 5), domain: 'img.acme.dev', at: '21 Oct' }
     ];
+    // Where the panel can't read how they run, that says nothing of them: every row reads Unknown, none
+    // needs a look for it, and the list says why once, above itself.
+    const reads = this.props.reads ?? 'well';
+    const unread = reads !== 'well';
+    const apps = unread ? listed.map((a) => ({ ...a, status: 'unknown', word: 'Unknown' })) : listed;
+    const note = {
+      unknown: 'The panel can\u2019t reach the control plane, so it can\u2019t say how your apps run, and they read Unknown. It last heard 2 min ago, and keeps trying.',
+      offline: 'This browser is offline, so the panel can\u2019t say how your apps run, and they read Unknown. It last heard 2 min ago. Check your connection.'
+    }[reads];
     const cols = [
       { key: 'name', header: 'App', render: (r) => cell(r.name, r.image) },
       { key: 'status', header: 'Status', render: (r) => h(DW.StatusBadge, { status: r.status, label: r.word }) },
@@ -79,13 +94,14 @@ class Component extends DCLogic {
       { key: 'at', header: 'Deployed', align: 'right', muted: true }
     ];
     const envs = [
-      { value: 'production', label: 'Production', count: 8 },
+      { value: 'production', label: 'Production', count: 10 },
       { value: 'staging', label: 'Staging', count: 8 },
       { value: 'previews', label: 'Previews', count: 3 }
     ];
     return {
       theme: this.props.theme ?? 'light',
-      apps, cols, envs,
+      apps, cols, envs, reads, note,
+      lead: unread ? '10 apps in storefront / production · 1 deploying' : '10 apps in storefront / production · 4 need a look · 1 deploying',
       noop: () => {}
     };
   }

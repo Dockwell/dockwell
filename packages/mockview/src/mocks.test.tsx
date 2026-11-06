@@ -26,6 +26,39 @@ it("canvas.json lists every mock file", () => {
   expect(mockFiles.length).toBeGreaterThan(0);
 });
 
+/** What an artboard draws, as text. */
+async function textOf(file: string): Promise<string> {
+  const library = new MockLibrary({ load: loadMock, onProblem: () => {} });
+  await library.load(file);
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(library.element(file, {})));
+    return container.textContent ?? "";
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+}
+
+// The panel draws each of these, so a mock that leaves one out leaves it undesigned.
+it("draws all seven of how an app runs", async () => {
+  const text = await textOf("Apps-List.dc.html");
+  for (const word of ["Healthy", "Running", "Starting", "Unhealthy", "Not running", "Paused", "Unknown"]) {
+    expect(text).toContain(word);
+  }
+});
+
+it.each([
+  ["Apps-List-Unreachable.dc.html", ["can’t reach the control plane", "Unknown"]],
+  ["Apps-List-Offline.dc.html", ["You're offline", "This browser is offline"]],
+  ["App-Overview-Docker.dc.html", ["1 can't read Docker", "Nobody can say how api runs", "systemctl status docker"]],
+])("draws what %s is for", async (file, words) => {
+  const text = await textOf(file);
+  for (const word of words) expect(text).toContain(word);
+});
+
 describe.each(["light", "dark"] as const)("%s theme", (theme) => {
   it.each(boards.map((b) => b.file))("renders %s", async (file) => {
     const problems: Problem[] = [];

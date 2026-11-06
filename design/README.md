@@ -18,7 +18,7 @@ The product requirements live next door in [`docs/product/prd.md`](../docs/produ
 | [`system/brand/`](system/brand/) | Logotype, mark and app icon as SVG, in light, dark and one-colour versions. |
 | [`system/fonts/`](system/fonts/) | Host Grotesk and JetBrains Mono variable fonts, both under the SIL Open Font License (licence files alongside). |
 | `system/design-system.json` | Claude Design's index for the system. Its paths are relative to the original artifact, so `project/README.md` means `system/README.md`, and the `components/lib/` React files were not copied (React comes from npm). |
-| [`mocks/`](mocks/) | 81 artboards: 60 desktop screens, 15 phone screens, 4 shared shell pieces, a screen map and the logo sheet. |
+| [`mocks/`](mocks/) | 84 artboards: 63 desktop screens, 15 phone screens, 4 shared shell pieces, a screen map and the logo sheet. |
 | [`mocks/canvas.json`](mocks/canvas.json) | Claude Design's canvas index: each artboard's title, page (area) and size, and the page order. |
 
 ## Reading the mocks
@@ -61,9 +61,12 @@ Every screen, with the roadmap phase that builds it. Phase 1 is split into the m
 | Get started | Sign in | [`Sign-In.dc.html`](mocks/Sign-In.dc.html) | 1 · M1 |  |
 | Overview | Overview · one server | [`Overview-Single.dc.html`](mocks/Overview-Single.dc.html) | 1 · M1 |  |
 | Overview | Overview · fleet | [`Overview-Fleet.dc.html`](mocks/Overview-Fleet.dc.html) | 2 |  |
-| Apps | Apps | [`Apps-List.dc.html`](mocks/Apps-List.dc.html) | 1 · M3 |  |
+| Apps | Apps | [`Apps-List.dc.html`](mocks/Apps-List.dc.html) | 1 · M3 | All seven of how an app can run |
+| Apps | Apps, control plane unreachable | [`Apps-List-Unreachable.dc.html`](mocks/Apps-List-Unreachable.dc.html) | 1 · M3 | `Apps-List` with `reads="unknown"` |
+| Apps | Apps, offline | [`Apps-List-Offline.dc.html`](mocks/Apps-List-Offline.dc.html) | 1 · M3 | `Apps-List` with `reads="offline"` |
 | Apps | New app | [`Apps-New.dc.html`](mocks/Apps-New.dc.html) | 1 · M3 |  |
 | Apps | App · overview | [`App-Overview.dc.html`](mocks/App-Overview.dc.html) | 1 · M3 |  |
+| Apps | App · overview, can't read Docker | [`App-Overview-Docker.dc.html`](mocks/App-Overview-Docker.dc.html) | 1 · M3 | `App-Overview` with `reads="docker"` |
 | Apps | App · deployments | [`App-Deployments.dc.html`](mocks/App-Deployments.dc.html) | 1 · M3 |  |
 | Apps | App · logs | [`App-Logs.dc.html`](mocks/App-Logs.dc.html) | 1 · M3 |  |
 | Apps | App · environment | [`App-Environment.dc.html`](mocks/App-Environment.dc.html) | 1 · M3 |  |
