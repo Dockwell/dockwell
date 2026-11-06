@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // A plan asks an image's registry for an image the server hasn't got, through
@@ -26,14 +27,18 @@ import (
 //     hasn't it answers the HEAD before, which costs nothing, and the fix is to
 //     push it and plan again.
 //   - Docker Hub is asked hubAsks times at most in hubWindow, as one file from a
-//     token could otherwise spend a server's allowance. Past that a plan says
-//     nothing of an image there, and the pull finds out.
+//     token could otherwise spend a server's allowance. Past that a file's image
+//     goes unasked, and the pull finds out.
 //   - Docker pings every endpoint it might pull from, mirrors and Docker Hub alike,
 //     so a registry it can't reach costs the whole pullableWait for each image. One
 //     that doesn't answer in that time isn't asked again for silentFor, so a file
 //     of seven images on it costs one wait, not seven.
-//   - A plan waits on registries for half the time it has left at most, so the
-//     plan itself never runs out of time waiting.
+//   - A plan waits on registries for half the time it had when it began at most,
+//     in all, however many it asks, so it never runs out of time waiting.
+//
+// None of that says an image is there. An image that went unasked is its own answer
+// (notAsked), and a deploy or a rollback, which names one image, asks past the first
+// two limits, as a pin it kept for want of asking could only fail.
 const (
 	// pullableWait bounds asking a registry for one image while planning.
 	pullableWait = 10 * time.Second
@@ -82,34 +87,52 @@ func (d *Docker) now() time.Time {
 	return time.Now()
 }
 
-// notPullable says an image's registry won't give it to a pull. One that doesn't
-// answer in time, is down, is limiting how often it's asked, or isn't asked, as
-// above, says nothing of it.
-func (d *Docker) notPullable(ctx context.Context, ref string) bool {
-	host, now := registryOf(ref), d.now()
+// registryAnswer is what a plan knows of whether a pull can get an image.
+type registryAnswer int
+
+const (
+	// notAsked says a limit here held the question back, so nothing is known of the
+	// image. It never means the image is there.
+	notAsked registryAnswer = iota
+	// saidNothing says the registry was asked, and is down, slow or limiting how
+	// often it's asked, which says nothing of the image.
+	saidNothing
+	// canPull says the registry will give it.
+	canPull
+	// cantPull says the registry won't give it: it hasn't got it, or wants
+	// credentials.
+	cantPull
+)
+
+// askRegistry asks an image's registry for it, within the limits above. A deploy or a
+// rollback names one image someone asked for, and a pin rests on the answer, so it
+// asks past Docker Hub's limit and a registry's silence, which are there for files.
+// It still counts against Docker Hub's limit, and waits within the plan's time.
+func (d *Docker) askRegistry(ctx context.Context, ref string) registryAnswer {
+	host, now, named := registryOf(ref), d.now(), resource.DeployOf(ctx).Run
+	wait := pullableWait
+	if until, ok := resource.WaitsUntil(ctx); ok {
+		wait = min(wait, time.Until(until))
+	}
 	r := &d.registries
 	r.mu.Lock()
 	switch {
 	case !r.pullable[ref].IsZero() && now.Sub(r.pullable[ref]) < pullableFor:
 		r.mu.Unlock()
-		return false
-	case now.Before(r.silent[host]):
+		return canPull
+	case wait <= 0, !named && now.Before(r.silent[host]):
 		r.mu.Unlock()
-		return false
+		return notAsked
 	case host == "docker.io":
 		r.hub = trimBefore(r.hub, now.Add(-hubWindow))
-		if len(r.hub) >= hubAsks {
+		if !named && len(r.hub) >= hubAsks {
 			r.mu.Unlock()
-			return false
+			return notAsked
 		}
 		r.hub = append(r.hub, now)
 	}
 	r.mu.Unlock()
 
-	wait := pullableWait
-	if deadline, ok := ctx.Deadline(); ok {
-		wait = min(wait, time.Until(deadline)/2)
-	}
 	asking, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	err := d.Client.CheckPullable(asking, ref)
@@ -125,6 +148,9 @@ func (d *Docker) notPullable(ctx context.Context, ref string) bool {
 			forgetOldest(r.pullable)
 		}
 		r.pullable[ref] = now
+		return canPull
+	case docker.NotPullable(err):
+		return cantPull
 	case ctx.Err() == nil && (asking.Err() != nil || errors.Is(err, context.DeadlineExceeded)):
 		if r.silent == nil {
 			r.silent = map[string]time.Time{}
@@ -133,7 +159,7 @@ func (d *Docker) notPullable(ctx context.Context, ref string) bool {
 		maps.DeleteFunc(r.silent, func(_ string, until time.Time) bool { return !now.Before(until) })
 		r.silent[host] = d.now().Add(silentFor)
 	}
-	return docker.NotPullable(err)
+	return saidNothing
 }
 
 // pulled forgets what a registry said of an image the server has now pulled, so

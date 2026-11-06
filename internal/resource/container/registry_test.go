@@ -82,11 +82,17 @@ func (b *registryBench) wait(d time.Duration) {
 }
 
 func (b *registryBench) plan(ctx context.Context, images ...string) ([]resource.Step, error) {
+	return b.planned(ctx, false, images...)
+}
+
+// planned plans a service of each image, each one someone asked to run, as a deploy
+// or a rollback does, or each only part of a file.
+func (b *registryBench) planned(ctx context.Context, run bool, images ...string) ([]resource.Step, error) {
 	var desired []resource.Desired
 	for i, image := range images {
 		desired = append(desired, resource.Desired{
 			Ref:  resource.Ref{Kind: service.Kind, Scope: shapesEnv, Name: fmt.Sprintf("s%d", i)},
-			Spec: svc(&resourcev1.Container{Image: image}),
+			Spec: svc(&resourcev1.Container{Image: image}), Run: run,
 		})
 	}
 	return b.l.Plan(ctx, desired)
@@ -200,9 +206,10 @@ func TestPlansSpendABoundedShareOfDockerHubsPulls(t *testing.T) {
 
 // Docker pings each endpoint it could pull from, so a registry it can't reach costs
 // a plan the whole wait for each image. One that doesn't answer isn't asked again
-// for 5 minutes, and a plan waits on registries for half the time it has left at
-// most, so it never runs out of time waiting: the last check of #92 had seven
-// images fail a plan at its minute.
+// for 5 minutes, and a plan waits on registries for half the time it had at most, in
+// all, so it never runs out of time waiting: the last check of #92 had seven images
+// fail a plan at its minute, and the review of #135 found half of what was left, for
+// each ask, took 99.4% of a plan, and that ten registries failed it.
 func TestARegistryThatDoesntAnswerCostsAPlanOneWait(t *testing.T) {
 	b := newRegistryBench(t)
 	b.hang = func(ref string) bool { return true }
@@ -223,15 +230,19 @@ func TestARegistryThatDoesntAnswerCostsAPlanOneWait(t *testing.T) {
 		t.Errorf("planning took %s, want at most half of its 2 s", took)
 	}
 
-	// Seven registries, each silent, still fit in the time a plan has.
+	// Many registries, each silent, wait no longer than one does.
 	var many []string
-	for i := range 7 {
+	for i := range 12 {
 		many = append(many, fmt.Sprintf("registry%d.example:5000/app:1", i))
 	}
 	ctx, cancel = context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
+	start = time.Now()
 	if _, err := b.plan(ctx, many...); err != nil {
-		t.Errorf("planning with seven silent registries = %v, want it planned", err)
+		t.Errorf("planning with twelve silent registries = %v, want it planned", err)
+	}
+	if took := time.Since(start); took > 1500*time.Millisecond {
+		t.Errorf("planning with twelve silent registries took %s, want at most half of its 2 s", took)
 	}
 
 	// Silence is forgotten.
@@ -256,4 +267,96 @@ func TestARegistryThatDoesntAnswerCostsAPlanOneWait(t *testing.T) {
 	if got := b.rt.SilentRegistries(); got != 1 {
 		t.Errorf("the agent holds %d silent registries, want the one still silent", got)
 	}
+}
+
+// A plan that didn't ask for an image knows nothing of it, and mustn't read that as
+// the image being there. The review of #135 found a rollback to a digest that's gone
+// kept its pin once Docker Hub's limit was spent, or in a registry's silence, and could
+// only fail. Those limits are for files. A deploy or a rollback names one image, so it
+// asks past them, and a file's image still goes unasked.
+func TestARollbackAsksForItsDigestPastTheLimits(t *testing.T) {
+	const gone = "acme/app:1@sha256:0000000000000000000000000000000000000000000000000000000000000001"
+	unasked := func(t *testing.T, b *registryBench, ref string) {
+		t.Helper()
+		before := b.times(ref)
+		steps, err := b.plan(t.Context(), ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b.times(ref) != before || steps[0].ImageGone {
+			t.Errorf("a file's image was asked for %d times more, and reads as gone: %t, want no ask, saying nothing", b.times(ref)-before, steps[0].ImageGone)
+		}
+	}
+	asks := func(t *testing.T, b *registryBench, ref string) {
+		t.Helper()
+		before := b.times(ref)
+		steps, err := b.planned(t.Context(), true, ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b.times(ref) != before+1 || !steps[0].ImageGone {
+			t.Errorf("a rollback asked %d times, and its digest reads as gone: %t, want one ask, and gone", b.times(ref)-before, steps[0].ImageGone)
+		}
+	}
+
+	t.Run("with Docker Hub's limit spent", func(t *testing.T) {
+		b := newRegistryBench(t)
+		for i := range 20 {
+			if _, err := b.plan(t.Context(), fmt.Sprintf("acme/spent%d:1", i)); err == nil {
+				t.Fatal("an image no one has planned")
+			}
+		}
+		unasked(t, b, gone)
+		asks(t, b, gone)
+	})
+
+	t.Run("in a registry's silence", func(t *testing.T) {
+		b := newRegistryBench(t)
+		b.mu.Lock()
+		b.hang = func(string) bool { return true }
+		b.mu.Unlock()
+		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancel()
+		if _, err := b.plan(ctx, "acme/silent:1"); err != nil {
+			t.Fatal(err)
+		}
+		b.mu.Lock()
+		b.hang = nil
+		b.mu.Unlock()
+		unasked(t, b, gone)
+		asks(t, b, gone)
+	})
+
+	// With a plan's time for registries used up, nothing can be said, so one someone
+	// asked for is refused rather than planned on a guess.
+	t.Run("with a plan's time used up", func(t *testing.T) {
+		b := newRegistryBench(t)
+		b.mu.Lock()
+		b.hang = func(ref string) bool { return !strings.Contains(ref, "sha256") }
+		b.mu.Unlock()
+		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancel()
+		_, err := b.planned(ctx, true, "acme/slow:1", gone)
+		if err == nil || !strings.Contains(err.Error(), "Plan it again") {
+			t.Errorf("a pin no one could ask for = %v, want it refused, saying to plan again", err)
+		}
+	})
+
+	// A registry asked that says nothing leaves a pin as it is, as a rollback has
+	// nothing better to go on, and the pull finds out.
+	t.Run("from a registry that says nothing", func(t *testing.T) {
+		b := newRegistryBench(t)
+		b.mu.Lock()
+		b.hang = func(string) bool { return true }
+		b.mu.Unlock()
+		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancel()
+		steps, err := b.planned(ctx, true, gone)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if steps[0].ImageGone {
+			t.Error("a registry that said nothing reads as saying the image is gone")
+		}
+	})
 }

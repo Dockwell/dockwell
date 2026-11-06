@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -145,6 +146,17 @@ type Judge interface {
 
 type pullingKey struct{}
 
+type waitKey struct{}
+
+// WaitsUntil is when a plan stops waiting on what is only a head start, such as a
+// registry's answer: half the time it had when it began, for everything it waits on
+// together, so what the plan itself has to do still has time. False is outside a plan
+// with a deadline.
+func WaitsUntil(ctx context.Context) (time.Time, bool) {
+	t, ok := ctx.Value(waitKey{}).(time.Time)
+	return t, ok
+}
+
 // Pulling says a plan is judging a step that asks for its image again, so what
 // reads as the spec by its tag may not be what the tag names by the time it runs.
 func Pulling(ctx context.Context) bool {
@@ -209,6 +221,9 @@ func WithDesired(ctx context.Context, desired []Desired) context.Context {
 // fails to match.
 func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	ctx = WithDesired(ctx, desired)
+	if deadline, ok := ctx.Deadline(); ok {
+		ctx = context.WithValue(ctx, waitKey{}, time.Now().Add(time.Until(deadline)/2))
+	}
 	steps := make([]Step, 0, len(desired))
 	normal := make([]Desired, len(desired))
 	drivers := make([]Driver, len(desired))
@@ -226,7 +241,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
 		// As the step it plans will have it, once it applies.
-		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback})
+		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback, Run: want.Run})
 		if c, ok := d.(Checker); ok && spec != nil {
 			if err := c.Check(ctx, want.Ref, spec); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)

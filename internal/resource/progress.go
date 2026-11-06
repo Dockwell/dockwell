@@ -35,6 +35,9 @@ type Deploy struct {
 	Revision int
 	Change   string
 	Rollback bool
+	// Run says, as a plan judges it, that someone asked for this resource to run, as
+	// a deploy or a rollback does, and it isn't only part of a file (Desired.Run).
+	Run bool
 }
 
 type deployKey struct{}

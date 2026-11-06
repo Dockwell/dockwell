@@ -1143,7 +1143,7 @@ func (d *Docker) checkImage(ctx context.Context, t Target, ref string) error {
 	case !docker.IsNotFound(err):
 		return err
 	}
-	if d.notPullable(ctx, ref) {
+	if d.askRegistry(ctx, ref) == cantPull {
 		return fmt.Errorf("the image %s isn't on this server, and its registry won't give it to a pull, so %s can't run: it has no such image, or wants credentials, which Dockwell can't send yet. "+
 			"Build or load the image on this server, or push it where a pull can get it, then plan again", ref, t.Service)
 	}
@@ -1339,8 +1339,12 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	// A pinned image that is gone can't run: where a rollback pins one, it says so
 	// and goes back to its tag.
 	if ref := desired.GetImage(); strings.Contains(ref, "@") && (dec.Action == resource.ActionCreate || dec.Action == resource.ActionReplace) {
-		if _, err := d.Client.InspectImage(ctx, ref); docker.IsNotFound(err) && d.notPullable(ctx, ref) {
-			dec.ImageGone = true
+		if _, err := d.Client.InspectImage(ctx, ref); docker.IsNotFound(err) {
+			answer := d.askRegistry(ctx, ref)
+			dec.ImageGone = answer == cantPull
+			if answer == notAsked && resource.DeployOf(ctx).Run {
+				return fmt.Errorf("the image %s isn't on this server, and this plan used up the time it gives registries before it could ask for it, so it can't say a pull would get it. Plan it again", ref)
+			}
 		}
 	}
 	if t.Scoped && dec.Action == resource.ActionReplace {
