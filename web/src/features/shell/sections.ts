@@ -12,10 +12,10 @@ interface Section {
 }
 
 /**
- * The sections in the design's rail that have no screen yet. The rail and the
- * phone's More page show them where the design puts them, and each opens a
- * page that says so, so the panel's layout stays put as screens arrive. A
- * section with a screen gets its own route, which takes over its path.
+ * The sections in the design's rail, nearly all with no screen yet. The rail and
+ * the phone's More page show them where the design puts them, and each opens a
+ * page that says so, so the panel's layout stays put as screens arrive. A section
+ * with a screen gets its own route, which takes over its path, as Backups has.
  */
 export const UPCOMING = {
   websites: { label: msg`Websites`, icon: "browser", inMore: true },

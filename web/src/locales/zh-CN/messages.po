@@ -49,6 +49,16 @@ msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器�
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
 
+#. placeholder {0}: running.length
+#: src/features/backups/BackUpSheet.tsx
+msgid "{0, plural, one {{list} runs on this volume} other {{list} run on this volume}}"
+msgstr "{0, plural, other {{list} 正在此卷上运行}}"
+
+#. placeholder {0}: restore.stops.length
+#: src/features/changes/notices.tsx
+msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
+msgstr "{0, plural, other {{list} 会在此期间停止}}"
+
 #. placeholder {0}: state.servers.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {{servers} isn't connected} other {{servers} aren't connected}}"
@@ -73,6 +83,11 @@ msgstr "{0, plural, other {# 个应用将停止，你可以在 {deadline} 之前
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, other {# 个应用将停止。}}"
+
+#. placeholder {0}: Number(b.filesChanged)
+#: src/features/backups/BackupsPage.tsx
+msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
+msgstr "{0, plural, other {# 个文件在复制时发生了变化}}"
 
 #. placeholder {0}: lineCount(draft)
 #: src/features/files/FileViewer.tsx
@@ -328,6 +343,14 @@ msgstr "{count} 个状态未知"
 #: src/features/servers/ServerPanels.tsx
 msgid "{cpus} vCPU"
 msgstr "{cpus} 个 vCPU"
+
+#: src/features/backups/words.ts
+msgid "{database} dump"
+msgstr "{database} 转储"
+
+#: src/features/changes/notices.tsx
+msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+msgstr "{database} 会在空卷上重新启动并载入转储（{size}），因此此后新增的内容都会消失，密码也会恢复为当时的值。如果载入失败，现有内容会恢复。服务器会将现有内容的副本保留 7 天，撤销此操作即可恢复。"
 
 #: src/features/apps/DomainNote.tsx
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
@@ -1130,6 +1153,10 @@ msgstr "{path} 上的一个 {driver} 网络"
 msgid "a {type} mount ({reads})"
 msgstr "一个 {type} 挂载（{reads}）"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
+msgstr "备份的对象是卷。请为应用添加卷，或从应用目录安装数据库。"
+
 #: src/features/catalog/InstalledPanel.tsx
 msgid "A change to how {version} runs is out."
 msgstr "{version} 的运行方式有更新。"
@@ -1150,6 +1177,10 @@ msgstr "服务器自身网络上的容器直接监听服务器的端口，因此
 #: src/features/logs/LogsPage.tsx
 msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 msgstr "容器被移除时，它的日志也会一并移除。每台服务器为每个应用保留最近一个失败和最近一个被替换的容器的日志，保留 30 天，总量不超过 256 MB；已删除应用的日志保留 7 天。"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "A copy of a running app's files can hold half a write, and the app may not start from it."
+msgstr "运行中应用的文件副本可能包含写到一半的内容，应用可能无法从中启动。"
 
 #: src/features/domains/DomainsPage.tsx
 msgid "A domain sends people to an app, so run one first."
@@ -1259,6 +1290,7 @@ msgstr "{cpus} 个 vCPU 合计"
 msgid "action"
 msgstr "动作"
 
+#: src/features/backups/BackupsPage.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Actions"
@@ -1412,6 +1444,10 @@ msgstr "全部"
 #: src/features/activity/ActivityPage.tsx
 msgid "All actors"
 msgstr "所有执行者"
+
+#: src/features/backups/AppBackups.tsx
+msgid "All backups"
+msgstr "全部备份"
 
 #: src/features/logs/LogsPage.tsx
 msgid "All containers"
@@ -1634,6 +1670,10 @@ msgstr "你用 Dockwell 运行的应用在<0>应用</0>中。"
 msgid "as {0}"
 msgstr "作为 {0}"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "Asking the server what this takes"
+msgstr "正在询问服务器此操作的要求"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
 msgstr "身份验证器应用"
@@ -1659,13 +1699,41 @@ msgstr "返回 {folder}"
 msgid "Back to the server"
 msgstr "返回服务器"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "Back up"
+msgstr "备份"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "Back up {name}"
+msgstr "备份 {name}"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Back up a volume before you change what's in it. A database's backup stops nothing."
+msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何服务。"
+
+#: src/features/backups/AppBackups.tsx
+#: src/features/backups/BackupsPage.tsx
+msgid "Back up now"
+msgstr "立即备份"
+
+#: src/features/activity/describe.ts
+msgid "Backed up {volume}"
+msgstr "已备份 {volume}"
+
 #: src/app/Providers.tsx
 msgid "backup"
 msgstr "备份"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/backups/AppBackups.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Backups, newest first"
+msgstr "备份，最新的在前"
 
 #: src/features/domains/DomainsPage.tsx
 msgid "Behind a tunnel or a proxy"
@@ -1798,6 +1866,8 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -2178,6 +2248,10 @@ msgstr "复制恢复码"
 msgid "Copy command"
 msgstr "复制命令"
 
+#: src/features/backups/words.ts
+msgid "Copy of a running app"
+msgstr "运行中应用的副本"
+
 #: src/features/files/FilesPage.tsx
 msgid "Copy path {shown}"
 msgstr "复制路径 {shown}"
@@ -2438,9 +2512,22 @@ msgstr "删除 {name}"
 msgid "Delete {subject}"
 msgstr "删除 {subject}"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "Delete it"
+msgstr "删除"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Delete this app"
 msgstr "删除此应用"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Delete this backup"
+msgstr "删除此备份"
+
+#. placeholder {0}: backup.volume
+#: src/features/backups/BackupsPage.tsx
+msgid "Delete this backup of {0}"
+msgstr "删除 {0} 的这份备份"
 
 #: src/app/Providers.tsx
 msgid "deleted"
@@ -2452,6 +2539,10 @@ msgstr "已删除"
 #: src/features/changes/words.ts
 msgid "Deleted"
 msgstr "已删除"
+
+#: src/features/activity/describe.ts
+msgid "Deleted a backup of {volume}"
+msgstr "已删除 {volume} 的一份备份"
 
 #: src/features/changes/words.ts
 msgid "Deleting"
@@ -2662,6 +2753,14 @@ msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方�
 msgid "Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
 msgstr "Dockwell 目前还无法创建备份。撤销会恢复旧版本，但不会还原新版本对数据的改动，例如已迁移的数据库。请先备份不能丢失的内容。"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "Dockwell can't reach what this would back up"
+msgstr "Dockwell 无法访问要备份的内容"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Dockwell can't read its backups"
+msgstr "Dockwell 无法读取备份"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell 无法读取 {name} 运行的内容"
@@ -2841,6 +2940,7 @@ msgid "Domains"
 msgstr "域名"
 
 #: src/features/auth/TokensPanel.tsx
+#: src/features/backups/words.ts
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
 msgid "Done"
@@ -2997,8 +3097,20 @@ msgid "Events: {caption}"
 msgstr "事件：{caption}"
 
 #: src/features/activity/ActivityPage.tsx
-msgid "Every change, server event, access grant and change of health, newest first"
-msgstr "所有变更、服务器事件、访问授权和健康变化，最新的在前"
+msgid "Every change, server event, access grant, change of health and backup, newest first"
+msgstr "所有变更、服务器事件、访问授权、健康变化和备份，最新的在前"
+
+#: src/features/changes/notices.tsx
+msgid "Everything in {name} on {server} goes back to what was there before the restore"
+msgstr "{server} 上 {name} 的全部内容会回到恢复之前的状态"
+
+#: src/features/changes/notices.tsx
+msgid "Everything in {name} on {server} is replaced with the copy from {taken}"
+msgstr "{server} 上 {name} 的全部内容会被替换为 {taken} 的副本"
+
+#: src/features/changes/notices.tsx
+msgid "Everything in {name} on {server} is replaced with the dump from {taken}"
+msgstr "{server} 上 {name} 的全部内容会被替换为 {taken} 的转储"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Everything is back as it was"
@@ -3015,6 +3127,10 @@ msgstr "一切保持原样"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
+
+#: src/features/backups/words.ts
+msgid "Exact copy"
+msgstr "精确副本"
 
 #: src/features/apps/DomainNote.tsx
 #: src/features/auth/ClaimPage.tsx
@@ -3049,6 +3165,7 @@ msgstr "失败"
 #: src/features/apps/DomainNote.tsx
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 msgid "Failed"
 msgstr "失败"
@@ -3060,6 +3177,10 @@ msgstr "出现故障"
 #: src/features/servers/ServerFrame.tsx
 msgid "Files"
 msgstr "文件"
+
+#: src/features/changes/notices.tsx
+msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
+msgstr "文件在读取时发生了变化，因此可能包含写到一半的内容，应用可能无法从中启动。"
 
 #: src/features/files/FilesPage.tsx
 msgid "Files in {shown}"
@@ -3306,6 +3427,10 @@ msgstr "主机名"
 #: src/app/Providers.tsx
 msgid "Hover or focus a server to inspect it."
 msgstr "悬停或聚焦一台服务器以查看详情。"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "How"
+msgstr "方式"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
@@ -3595,6 +3720,10 @@ msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
 msgstr "在有人恢复它之前，它不提供任何服务。重启或部署也能解决这个问题。"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does."
+msgstr "它保存在服务器自己的磁盘上，所有者和权限保持不变，因此服务器损毁时它也会一并丢失。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
 msgstr "在有人做出更改之前，它会一直保持运行。请修复检查报告的问题或检查本身，然后部署。"
@@ -3618,6 +3747,10 @@ msgstr "它创建时没有设置日志轮转，因此日志可能占满磁盘。
 #: src/features/logs/LogNote.tsx
 msgid "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
 msgstr "它创建时没有设置日志轮转，日志可能占满磁盘。Dockwell 会为自己创建的容器设置轮转，下次部署此应用即可解决。"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "It wasn't deleted"
+msgstr "未能删除"
 
 #: src/features/logs/LogNote.tsx
 msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
@@ -4216,6 +4349,10 @@ msgstr "升级前不会创建备份"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "没有做过备份,数据保持现状"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "No backups yet"
+msgstr "还没有备份"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "No container matches this filter."
 msgstr "没有符合此筛选条件的容器。"
@@ -4336,6 +4473,10 @@ msgstr "无。没有检查时，“正在运行”只表示它已启动。"
 #: src/features/servers/ServerPanels.tsx
 msgid "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
 msgstr "自 {ago}起没有响应，因此无法确定这里运行着什么。请用 <0>systemctl status docker</0> 检查它是否在运行。"
+
+#: src/features/backups/AppBackups.tsx
+msgid "Not backed up yet"
+msgstr "尚未备份"
 
 #: src/features/apps/DomainNote.tsx
 #: src/features/domains/DomainsPage.tsx
@@ -4498,6 +4639,10 @@ msgstr "服务器外部暂时无法访问它。同一网络中的其他应用可
 msgid "Nothing outside the server reaches these yet."
 msgstr "服务器之外还无法访问这些应用。"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "Nothing runs on this volume, so the copy is exact."
+msgstr "此卷上没有运行任何内容，因此副本是精确的。"
+
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -4507,6 +4652,10 @@ msgstr "应用计划之前不会运行任何内容"
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing starts it again on its own. Restart it, or deploy."
 msgstr "没有任何机制会自动再次启动它。请重启或部署。"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Nothing to back up yet"
+msgstr "还没有可备份的内容"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing to change"
@@ -4556,6 +4705,10 @@ msgstr "在 {networks} 上，其他服务可以在新容器通过检查之前通
 #: src/features/apps/DomainNote.tsx
 msgid "On <0>{held}</0>"
 msgstr "位于 <0>{held}</0>"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "On each server's own disk, so they go if the server does"
+msgstr "保存在各服务器自己的磁盘上，服务器损毁时会一并丢失"
 
 #. placeholder {0}: check.http.port
 #: src/features/apps/AppOverview.tsx
@@ -5390,6 +5543,10 @@ msgstr "已替换"
 msgid "Replaced"
 msgstr "已替换"
 
+#: src/features/changes/fields.tsx
+msgid "replaced, and undoing this puts it back"
+msgstr "被替换，撤销后可恢复"
+
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "正在替换"
@@ -5436,6 +5593,10 @@ msgstr "正在重启"
 #: src/features/changes/words.ts
 msgid "Restarts"
 msgstr "重启策略"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Restore"
+msgstr "恢复"
 
 #: src/app/Providers.tsx
 msgid "Results"
@@ -5682,6 +5843,7 @@ msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只�
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/servers/containers.ts
 msgid "Running"
@@ -6106,7 +6268,9 @@ msgstr "在其他所有地方退出登录后，这个浏览器仍保持登录。
 msgid "Signing you in with a one-time link"
 msgstr "正在用一次性链接为你登录"
 
+#: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
 msgid "Size"
 msgstr "规格"
@@ -6176,6 +6340,10 @@ msgstr "日志开头"
 msgid "Start with read only, and allow writes only when the job needs them."
 msgstr "先从只读开始，只在任务需要时才允许写入。"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "Started"
+msgstr "开始时间"
+
 #: src/features/apps/Health.tsx
 msgid "Starting"
 msgstr "正在启动"
@@ -6188,6 +6356,7 @@ msgstr "状态"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
@@ -6204,6 +6373,10 @@ msgstr "各服务器的步骤"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Steps run one at a time on each server, servers side by side."
 msgstr "每台服务器上的步骤依次运行，各服务器同时进行。"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "Stop {list} while it copies"
+msgstr "复制时停止 {list}"
 
 #: src/features/apps/DeploySheet.tsx
 msgid "Stop what uses it on this server, then deploy again."
@@ -6292,6 +6465,10 @@ msgstr "验证码不匹配。请确认手机时间准确，然后输入当前的
 msgid "That code was already used. Wait for the next one in your authenticator app."
 msgstr "这个验证码已经用过了。请等待身份验证器应用中的下一个。"
 
+#: src/features/changes/notices.tsx
+msgid "That copy is {size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+msgstr "该副本大小为 {size}。此后新增的内容都会消失。服务器会将现有内容的副本保留 7 天，撤销此操作即可恢复。"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "That didn't apply"
 msgstr "未能应用"
@@ -6347,6 +6524,10 @@ msgstr "这是最后一次尝试。输错 5 次验证码已结束此次设置，
 #: src/features/auth/messages.ts
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "这样你将无法登录。请先添加另一个通行密钥或身份验证器应用。"
+
+#: src/features/changes/notices.tsx
+msgid "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
+msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。卷中现有内容会存为副本，服务器保留 7 天。"
 
 #: src/features/changes/notices.tsx
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
@@ -6411,6 +6592,10 @@ msgstr "API"
 #: src/features/auth/TotpPanel.tsx
 msgid "The authenticator app isn't set up yet"
 msgstr "身份验证器应用尚未设置"
+
+#: src/features/activity/describe.ts
+msgid "The backup of {volume} failed"
+msgstr "{volume} 的备份失败了"
 
 #: src/features/auth/messages.ts
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
@@ -6749,6 +6934,10 @@ msgstr "此应用只使用其镜像设置的内容。"
 msgid "this app wrote faster than a live view can carry."
 msgstr "这个应用的写入速度超过了实时视图的承载能力。"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "This backup failed, so nothing is on the server. This removes the record of it."
+msgstr "此备份失败了，服务器上没有留下任何内容。此操作会移除它的记录。"
+
 #: src/features/auth/SessionsPanel.tsx
 msgid "This browser"
 msgstr "这个浏览器"
@@ -6814,6 +7003,10 @@ msgstr "此容器在 {0} 上的日志没有大小限制"
 msgid "This control plane"
 msgstr "当前控制平面"
 
+#: src/features/changes/notices.tsx
+msgid "This copy was taken with the app running"
+msgstr "此副本是在应用运行时复制的"
+
 #: src/features/logs/LogsPage.tsx
 msgid "This deploy's logs are gone"
 msgstr "此次部署的日志已不存在"
@@ -6821,6 +7014,10 @@ msgstr "此次部署的日志已不存在"
 #: src/features/auth/messages.ts
 msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
 msgstr "这台设备已经有你在此处账户的通行密钥。请直接使用它，或选择其他设备或安全密钥。"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "This didn't start"
+msgstr "未能开始"
 
 #: src/features/files/FileViewer.tsx
 msgid "This file can't be edited here"
@@ -6928,6 +7125,10 @@ msgstr "这会访问服务器上的 <0>{source}</0>。需要你在计划中批�
 msgid "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 msgstr "这会重新加载 {server} 上的代理，可能重置正在进入该服务器上任何站点的连接，并可能丢失保持连接的 HTTP/1.1 上的 POST 请求。浏览器会再次发送此类请求，而应用自身的客户端可能不会"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "This removes it from the server's disk. Nothing brings it back."
+msgstr "此操作会将它从服务器磁盘上移除，且无法恢复。"
+
 #: src/features/files/FileViewer.tsx
 msgid "This save may still land"
 msgstr "这次保存可能仍会写入"
@@ -6967,6 +7168,11 @@ msgstr "此次变更在改动服务器上的任何内容之前就已停止。"
 #: src/features/changes/RollbackLine.tsx
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "此次变更在涉及它之前就已停止，Dockwell 已恢复其余部分。"
+
+#. placeholder {0}: said.database
+#: src/features/backups/BackUpSheet.tsx
+msgid "This uses {0}'s own dump, with the database running, so nothing stops. A dump restores on a newer version too."
+msgstr "这会在数据库运行时使用 {0} 自带的转储，不会停止任何服务。转储也可以恢复到更新的版本。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
@@ -7058,6 +7264,7 @@ msgid "Too many wrong codes. Wait a moment, then try again."
 msgstr "验证码错误次数过多。请稍候再试。"
 
 #: src/features/apps/AppDeployments.tsx
+#: src/features/backups/BackupsPage.tsx
 msgid "Took"
 msgstr "耗时"
 
@@ -7201,6 +7408,7 @@ msgstr "不健康"
 #: src/app/Providers.tsx
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/overview/Overview.tsx
 #: src/features/servers/containers.ts
@@ -7459,6 +7667,12 @@ msgstr "访问者将失去 {lost}"
 msgid "volume"
 msgstr "卷"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/BackupsPage.tsx
+msgid "Volume"
+msgstr "卷"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Volume or server path"
 msgstr "卷或服务器路径"
@@ -7551,6 +7765,10 @@ msgstr "失败之前运行过的版本可能已经改动了数据(例如做过�
 msgid "What runs"
 msgstr "运行内容"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "What runs keeps running, and the backup says it was copied running."
+msgstr "正在运行的内容会继续运行，备份会注明是在运行时复制的。"
+
 #: src/features/changes/words.ts
 msgid "what runs on {server} itself"
 msgstr "在 {server} 本机上运行的程序"
@@ -7558,6 +7776,14 @@ msgstr "在 {server} 本机上运行的程序"
 #: src/features/apps/AppsPage.tsx
 msgid "What runs on your servers isn't affected."
 msgstr "服务器上运行的内容不受影响。"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "What stops starts again once the copy ends, however that goes. The copy is exact."
+msgstr "无论结果如何，复制结束后被停止的内容都会重新启动。副本是精确的。"
+
+#: src/features/changes/notices.tsx
+msgid "What stops starts again once the volume is restored, however that goes."
+msgstr "无论结果如何，卷恢复后被停止的内容都会重新启动。"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
@@ -7667,6 +7893,10 @@ msgstr "执行者"
 #: src/features/changes/words.ts
 msgid "whoever comes through {list}"
 msgstr "经由 {list} 而来的任何人"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Why it failed"
+msgstr "失败原因"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Without a volume, what it writes is lost when its container is replaced."

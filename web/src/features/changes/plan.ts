@@ -159,6 +159,7 @@ export function diffResources(
       hostAccess: resource.hostAccess,
       keptPaths: [...new Set(steps.flatMap((s) => s.keptPaths))],
       destroysData: steps.some((s) => s.destroysData),
+      restores: steps.some((s) => s.restore !== undefined),
     });
     const out: PlanResource = {
       id: resource.id,

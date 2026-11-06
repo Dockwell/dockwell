@@ -14,7 +14,9 @@
 //     check the agent makes reaches what the test listens with on those addresses;
 //   - a server path under /readonly can't be mounted;
 //   - the tag "prints" writes "legacy says hello" as it starts, as a container
-//     run by hand has something in its log.
+//     run by hand has something in its log;
+//   - postgres keeps its data as one file, and dumps and loads it as its tools do,
+//     for a backup to go through a database's own dump.
 //
 // It is never part of a release. CI's Panel end to end on Docker job runs the
 // same flows on real Docker.
@@ -23,7 +25,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -53,6 +57,27 @@ func (t *tb) Fatalf(format string, a ...any)  { log.Fatalf(format, a...) }
 func (t *tb) Errorf(format string, a ...any)  { log.Printf(format, a...) }
 func (t *tb) Logf(format string, args ...any) { log.Printf(format, args...) }
 
+// postgres stands in for the database's tools: its data is one file of SQL.
+func postgres(x dockertest.Exec) int {
+	file := filepath.Join(x.Volumes["/var/lib/postgresql/data"], "data.sql")
+	script := strings.Join(x.Cmd, " ")
+	switch {
+	case strings.Contains(script, "pg_dumpall"):
+		data, err := os.ReadFile(file) //nolint:gosec // a directory of this fake's own
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return 1
+		}
+		_, _ = x.Stdout.Write(data)
+		_, _ = io.WriteString(x.Stdout, "\n-- PostgreSQL database cluster dump complete\n")
+	case strings.Contains(script, "psql"):
+		data, err := io.ReadAll(x.Stdin)
+		if err != nil || os.WriteFile(file, data, 0o600) != nil {
+			return 1
+		}
+	}
+	return 0
+}
+
 func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("fakedocker takes the directory to put its socket in, such as /tmp/fake")
@@ -78,6 +103,9 @@ func main() {
 				Cmd: []string{"serve"},
 				Env: []string{"PATH=/usr/local/bin:/usr/bin:/bin"},
 			},
+		}
+		if strings.HasPrefix(ref, "postgres:") {
+			img.Exec = postgres
 		}
 		switch {
 		case strings.HasSuffix(ref, ":nosuchtag"):

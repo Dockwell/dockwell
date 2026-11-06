@@ -60,8 +60,8 @@ describe("routes", () => {
   });
 
   it("says plainly that a section from the design isn't built yet", async () => {
-    renderAt("/backups");
-    expect(await screen.findByRole("heading", { level: 1, name: "Backups" })).toBeVisible();
+    renderAt("/websites");
+    expect(await screen.findByRole("heading", { level: 1, name: "Websites" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 2, name: "Not in this release yet" })).toBeVisible();
     expect(within(screen.getByRole("main")).getByRole("link", { name: "Go to the overview" })).toHaveAttribute(
       "href",

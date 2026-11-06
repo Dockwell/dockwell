@@ -1,0 +1,230 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { Code, ConnectError } from "@connectrpc/connect";
+import {
+  type Backup,
+  BackupMethod,
+  BackupSchema,
+  BackupState,
+  ChangeSchema,
+  ChangeState,
+  type CreateBackupRequest,
+  PlanAction,
+  PreviewBackupResponseSchema,
+  type WatchChangeResponse,
+} from "@dockwell/api";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+import { expectAccessible } from "../../test/a11y";
+import { SERVER } from "../../test/apps";
+import { type Api, feed, onPhone, renderAt } from "../../test/render";
+
+function aBackup(init: MessageInitShape<typeof BackupSchema> = {}): Backup {
+  return create(BackupSchema, {
+    id: "bkp_1",
+    environmentId: "env_1",
+    volume: "orders",
+    volumeId: "vol_1",
+    serverId: SERVER,
+    serverName: "hz-1",
+    state: BackupState.DONE,
+    method: BackupMethod.COPY,
+    sizeBytes: 312n << 20n,
+    startedAt: timestampFromDate(new Date("2026-11-06T03:00:00Z")),
+    finishedAt: timestampFromDate(new Date("2026-11-06T03:00:40Z")),
+    ...init,
+  });
+}
+
+function api(backups: Backup[], more: Api = {}): Api {
+  return {
+    backups: { listBackups: () => ({ backups }) },
+    resources: {
+      listResources: (req: { kind: string }) =>
+        req.kind === "volume"
+          ? { resources: [{ id: "vol_1", resource: { kind: "volume", scope: "env_1", name: "orders" } }] }
+          : { resources: [] },
+    },
+    ...more,
+  };
+}
+
+describe("the backups page", () => {
+  it("asks for the first backup, and says what one stops", async () => {
+    renderAt("/backups", api([]));
+    expect(await screen.findByRole("heading", { level: 2, name: "No backups yet" })).toBeVisible();
+    expect(screen.getByText(/A database's backup stops nothing/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Back up now" })).toBeVisible();
+  });
+
+  it("says there's nothing to back up, with no volume", async () => {
+    const empty = api([]);
+    empty.resources = { listResources: () => ({ resources: [] }) };
+    renderAt("/backups", empty);
+    expect(await screen.findByRole("heading", { level: 2, name: "Nothing to back up yet" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Back up now" })).toBeNull();
+  });
+
+  it("lists backups with how each was taken, and what a failure said", async () => {
+    const { container } = renderAt(
+      "/backups",
+      api([
+        aBackup(),
+        aBackup({ id: "bkp_2", method: BackupMethod.DUMP, database: "PostgreSQL" }),
+        aBackup({ id: "bkp_3", method: BackupMethod.COPY_RUNNING, filesChanged: 2n }),
+        aBackup({
+          id: "bkp_4",
+          state: BackupState.FAILED,
+          method: BackupMethod.UNSPECIFIED,
+          sizeBytes: 0n,
+          error: "The disk is full.",
+        }),
+      ]),
+    );
+    const table = await screen.findByRole("table", { name: "Backups, newest first" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toHaveTextContent("Exact copy");
+    expect(rows[0]).toHaveTextContent("312 MB");
+    expect(rows[1]).toHaveTextContent("PostgreSQL dump");
+    expect(rows[2]).toHaveTextContent("Copy of a running app");
+    expect(rows[2]).toHaveTextContent("2 files changed while it copied");
+    expect(rows[3]).toHaveTextContent("The disk is full.");
+    expect(within(rows[3] as HTMLElement).queryByRole("button", { name: "Restore" })).toBeNull();
+    await expectAccessible(container);
+  });
+
+  it("stacks on a phone", async () => {
+    onPhone();
+    renderAt("/backups", api([aBackup()]));
+    expect(await screen.findByText("orders")).toBeVisible();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("button", { name: "Restore" })).toBeVisible();
+  });
+
+  it("says a word before a copy of a running app, and stops it unless told not to", async () => {
+    const user = userEvent.setup();
+    const made = vi.fn((_: CreateBackupRequest) => ({ backup: aBackup({ state: BackupState.RUNNING }) }));
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          previewBackup: () =>
+            create(PreviewBackupResponseSchema, { method: BackupMethod.COPY_RUNNING, running: ["web", "worker"] }),
+          createBackup: made,
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Back up now" }));
+    expect(await screen.findByText("web and worker run on this volume")).toBeVisible();
+    expect(screen.getByText(/can hold half a write/)).toBeVisible();
+    const stopping = screen.getByRole("switch", { name: "Stop web and worker while it copies" });
+    expect(stopping).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Back up" }));
+    await waitFor(() => expect(made).toHaveBeenCalled());
+    expect(made.mock.calls[0]?.[0]).toMatchObject({ volumeId: "vol_1", stop: true });
+  });
+
+  it("says a database's dump stops nothing", async () => {
+    const user = userEvent.setup();
+    const made = vi.fn((_: CreateBackupRequest) => ({ backup: aBackup({ state: BackupState.RUNNING }) }));
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          previewBackup: () =>
+            create(PreviewBackupResponseSchema, { method: BackupMethod.DUMP, database: "PostgreSQL", running: ["db"] }),
+          createBackup: made,
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Back up now" }));
+    expect(await screen.findByText(/uses PostgreSQL's own dump/)).toBeVisible();
+    expect(screen.queryByRole("switch")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Back up" }));
+    await waitFor(() => expect(made).toHaveBeenCalled());
+    expect(made.mock.calls[0]?.[0]).toMatchObject({ stop: false });
+  });
+
+  it("says why a server can't answer, and takes nothing", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          previewBackup: () => {
+            throw new ConnectError(
+              "hz-1 isn't connected, and a backup runs on it. Try again once its agent reconnects",
+              Code.Unavailable,
+            );
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Back up now" }));
+    expect(await screen.findByText(/isn't connected, and a backup runs on it/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Back up" })).toBeDisabled();
+  });
+
+  it("restores through the plan sheet, which says what it replaces and what stops", async () => {
+    const user = userEvent.setup();
+    const change = create(ChangeSchema, {
+      id: "chg_restore",
+      summary: "Restore orders",
+      state: ChangeState.PLANNED,
+      plan: {
+        fingerprint: "abc",
+        destructive: true,
+        resources: [
+          {
+            id: "vol_1",
+            resource: { kind: "volume", scope: "env_1", name: "orders" },
+            action: PlanAction.REPLACE,
+            servers: [SERVER],
+          },
+        ],
+        servers: [
+          {
+            serverId: SERVER,
+            serverName: "hz-1",
+            steps: [
+              {
+                resourceId: "vol_1",
+                resource: { kind: "volume", scope: "env_1", name: "orders" },
+                action: PlanAction.REPLACE,
+                destroysData: true,
+                restore: {
+                  backupId: "bkp_1",
+                  method: BackupMethod.DUMP,
+                  database: "PostgreSQL",
+                  sizeBytes: 312n << 20n,
+                  takenAt: timestampFromDate(new Date("2026-11-06T03:00:00Z")),
+                  stops: ["db", "web"],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const watch = feed<WatchChangeResponse>();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: { listBackups: () => ({ backups: [aBackup()] }), restoreBackup: () => ({ change }) },
+        changes: { getChange: () => ({ change }), watchChange: watch.stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    expect(await screen.findByText(/Everything in orders on hz-1 is replaced with the dump from/)).toBeVisible();
+    expect(screen.getByText(/PostgreSQL starts anew on an empty volume and loads the dump, 312 MB/)).toBeVisible();
+    expect(screen.getByText(/db and web stop while this happens/)).toBeVisible();
+  });
+});

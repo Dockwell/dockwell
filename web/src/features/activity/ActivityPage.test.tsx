@@ -321,6 +321,30 @@ describe("Activity", () => {
     expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
   });
 
+  it("shows a backup that failed as worth a look, and says why", async () => {
+    const user = userEvent.setup();
+    const failed = auditEvent({
+      id: "evt_backup",
+      kind: EventKind.BACKUP,
+      action: "backup.failed",
+      time: timestampFromDate(new Date(Date.now() - HOUR)),
+      subject: { id: "vol_1", name: "orders" },
+      backup: {
+        id: "bkp_1",
+        volume: "orders",
+        serverName: "hz-1",
+        error: "The disk is full. Free some space, then try again.",
+      },
+    });
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([failed]));
+    renderActivity(watch);
+    const row = await screen.findByRole("row", { name: /The backup of orders failed/ });
+    await user.click(row);
+    expect(await screen.findByText("The disk is full. Free some space, then try again.")).toBeVisible();
+    expect(screen.getByText("hz-1")).toBeVisible();
+  });
+
   it("filters by kind and actor, in its address", async () => {
     const user = userEvent.setup();
     const requests: WatchEventsRequest[] = [];

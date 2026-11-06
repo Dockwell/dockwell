@@ -31,6 +31,12 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       if (event.kind === EventKind.CHANGE && change) return describeChange(change, summaries, i18n);
       const name = event.subject?.name ?? "";
       if (event.kind === EventKind.HEALTH) return describeHealth(event, i18n);
+      const volume = event.backup?.volume ?? name;
+      if (event.action === "backup.taken") return { title: t`Backed up ${volume}`, icon: "archive" };
+      if (event.action === "backup.failed") {
+        return { title: t`The backup of ${volume} failed`, icon: "archive", tone: "critical" };
+      }
+      if (event.action === "backup.deleted") return { title: t`Deleted a backup of ${volume}`, icon: "archive" };
       const server = name || event.subject?.id || t`a server`;
       switch (event.action) {
         case "server.join":

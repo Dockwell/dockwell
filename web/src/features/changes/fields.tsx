@@ -17,6 +17,8 @@ export interface FieldSource {
   keptPaths?: readonly string[];
   /** The change removes data its spec can't bring back. */
   destroysData?: boolean;
+  /** The change replaces data with a backup, and undoing it puts back what was there. */
+  restores?: boolean;
 }
 
 const SECRET: PlanValue = { secret: true };
@@ -235,12 +237,26 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
       return reach.some(asGoodAsRoot) ? "critical" : "warning";
     };
 
-    return ({ kind, changes, hostAccess = [], keptPaths = [], destroysData = false }: FieldSource): PlanChange[] => {
+    return ({
+      kind,
+      changes,
+      hostAccess = [],
+      keptPaths = [],
+      destroysData = false,
+      restores = false,
+    }: FieldSource): PlanChange[] => {
       const fields = changes.map((change) => ({ path: change.path.replace(/^app\./, ""), change }));
       const rows: PlanChange[] = [];
       // Data it takes away isn't a field of any spec, and leads whatever else changes.
       if (keptPaths.length > 0) {
         rows.push({ path: "data", label: t`data taken out of use`, to: keptPaths.join(", "), tone: "critical" });
+      } else if (restores) {
+        rows.push({
+          path: "data",
+          label: t`data`,
+          to: <Trans>replaced, and undoing this puts it back</Trans>,
+          tone: "critical",
+        });
       } else if (destroysData) {
         rows.push({ path: "data", label: t`data`, to: <Trans>doesn't come back</Trans>, tone: "critical" });
       }

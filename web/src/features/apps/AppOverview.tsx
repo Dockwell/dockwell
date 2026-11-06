@@ -39,6 +39,7 @@ import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
+import { AppBackups } from "../backups/AppBackups";
 import { InstalledPanel } from "../catalog/InstalledPanel";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { MachineWords } from "../changes/FailureNotice";
@@ -95,6 +96,7 @@ export function AppOverview() {
       <div className="app-aside">
         <ConfigurationPanel />
         <VolumesPanel app={appOf(service)} />
+        <AppBackups service={service} app={appOf(service)} />
         <RunsWithPanel />
         <DeletePanel />
       </div>

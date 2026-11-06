@@ -9,6 +9,7 @@ import {
   ChangeService,
   ChangeState,
   type Event,
+  type EventBackup,
   EventKind,
   type Plan,
   ResourceService,
@@ -37,7 +38,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatClock, formatDateTime, formatWeekday } from "../../lib/format";
+import { formatBytes, formatClock, formatDateTime, formatWeekday } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { initials } from "../auth/user";
@@ -57,7 +58,7 @@ import { type EventFilter, useEvents } from "./useEvents";
 import "./ActivityPage.css";
 
 /** The kinds of event Activity filters by, as its search names them. */
-export type ActivityKind = "changes" | "servers" | "access" | "health";
+export type ActivityKind = "changes" | "servers" | "access" | "health" | "backups";
 
 /** Activity's place, in its URL: the filters and the event open beside the list. */
 export interface ActivitySearch {
@@ -74,6 +75,7 @@ const KINDS: Readonly<Record<ActivityKind, EventKind>> = {
   servers: EventKind.SERVER,
   access: EventKind.ACCESS,
   health: EventKind.HEALTH,
+  backups: EventKind.BACKUP,
 };
 
 /** Dockwell, in the actor filter. */
@@ -141,6 +143,7 @@ export function ActivityPage({
     { value: "servers", label: t`Servers` },
     { value: "access", label: t`Access` },
     { value: "health", label: t`Health` },
+    { value: "backups", label: t`Backups` },
   ];
 
   let body: ReactNode;
@@ -217,7 +220,7 @@ export function ActivityPage({
   return (
     <Page
       title={t`Activity`}
-      lead={t`Every change, server event, access grant and change of health, newest first`}
+      lead={t`Every change, server event, access grant, change of health and backup, newest first`}
       status={status}
       className="activity"
     >
@@ -740,6 +743,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
               </>
             ) : null}
             {event.health ? <HealthFacts event={event} /> : null}
+            {event.backup ? <BackupFacts backup={event.backup} /> : null}
           </dl>
           {change?.because ? <BecauseNotice because={change.because} /> : null}
           {change?.state === ChangeState.FAILED ? (
@@ -805,6 +809,35 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
         </div>
       </Panel>
     </div>
+  );
+}
+
+/** What became of a backup, in the facts of an event: of what, where, and why it failed. */
+function BackupFacts({ backup }: { backup: EventBackup }) {
+  const { t, i18n } = useLingui();
+  return (
+    <>
+      <dt>{t`Volume`}</dt>
+      <dd>
+        <code className="activity-code">{backup.volume}</code>
+      </dd>
+      <dt>{t`Server`}</dt>
+      <dd>
+        <code className="activity-code">{backup.serverName}</code>
+      </dd>
+      {backup.sizeBytes > 0n ? (
+        <>
+          <dt>{t`Size`}</dt>
+          <dd>{formatBytes(backup.sizeBytes, i18n.locale)}</dd>
+        </>
+      ) : null}
+      {backup.error ? (
+        <>
+          <dt>{t`Why it failed`}</dt>
+          <dd>{backup.error}</dd>
+        </>
+      ) : null}
+    </>
   );
 }
 
