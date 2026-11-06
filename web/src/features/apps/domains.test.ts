@@ -36,6 +36,12 @@ describe("which field a refusal lands on", () => {
     for (const said of refusals) expect(refusedField(said, form)).toBe("");
   });
 
+  it("goes above the fields for a limit that names a longer name, so holds what you typed", () => {
+    const refusals = saidIn("internal/ingress/limits.go", /waiting for a certificate/);
+    expect(refusals.some((said) => said.includes("such as a.example.net"))).toBe(true);
+    for (const said of refusals) expect(refusedField(said, { ...form, domain: "example.net" })).toBe("");
+  });
+
   it("goes above the fields for the limit on what was asked", () => {
     const said =
       "150 domains were added to this server in the last 3 hours with no certificate come yet, some of them since removed or served without one, and this change adds 1 more, past the limit of 150. Each asked the certificate authority for a certificate, which removing its route doesn't take back, and Let's Encrypt allows 300 new orders for each account in 3 hours, the panel's domain's too. Point a domain's DNS here before you add it, or wait: the first of them stops counting in 2 h";
@@ -52,6 +58,17 @@ describe("which field a refusal lands on", () => {
     expect(refusedField("app.example.com is the panel's own domain, so no route can claim it", form)).toBe("domain");
     expect(refusedField("a route needs a domain, such as app.example.com", { ...form, domain: "" })).toBe("domain");
     expect(refusedField("the domain aaaa… is longer than the 253 characters DNS allows", form)).toBe("domain");
+  });
+
+  it("lands on Domain for the whole name, whatever comes after it", () => {
+    for (const said of [
+      "APP.example.com is the panel's own domain",
+      "a route already serves app.example.com/ in this environment",
+      "this can't serve app.example.com: its certificate failed",
+      "the route www serves app.example.com.",
+    ]) {
+      expect(refusedField(said, form)).toBe("domain");
+    }
   });
 
   it("names a proxy's field and a port's as before", () => {
