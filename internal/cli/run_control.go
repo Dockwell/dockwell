@@ -177,10 +177,9 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		}
 	}
 	if handsOver {
-		if ls.Ingress, err = listenForIngress(ctx, dir); err != nil {
-			closeAll()
-			return err
-		}
+		ls.Ingress = listenForIngressWhenItCan(logger, caddy.PanelSocket(dir.Ingress()), ingressListenRetry, func() (net.Listener, error) {
+			return listenForIngress(ctx, dir)
+		})
 	}
 
 	agentURL, err := advertiseURL(ctx, f.advertise, ls.Agents.Addr())

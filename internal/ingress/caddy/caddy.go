@@ -143,6 +143,8 @@ type Caddy struct {
 	// adminUIDForTest replaces the user the admin socket must answer as, in
 	// tests, which run Caddy as their own user.
 	adminUIDForTest *int
+	// startWaitForTest replaces startWait, for a test of what comes after it.
+	startWaitForTest time.Duration
 
 	once  sync.Once
 	admin *http.Client
@@ -230,10 +232,28 @@ func (c *Caddy) answersAsProxy(conn net.Conn, socket string) error {
 		return fmt.Errorf("can't tell who answers on the admin socket at %s: %w", socket, credErr)
 	}
 	if int(cred.Uid) != want {
-		return fmt.Errorf("the admin socket at %s answers as uid %d, not as Caddy's user, %d, so the agent doesn't use it, and treats Caddy as down: something other than Caddy left what stands there, such as a link to another socket. Remove it, restart Caddy with docker restart %s, and look at what else is in that directory",
-			socket, cred.Uid, want, ingress.ContainerName)
+		return &notCaddyError{socket: socket, uid: int(cred.Uid), want: want}
 	}
 	return nil
+}
+
+// notCaddyError is something other than Caddy's user answering on the admin socket.
+// It reads as Caddy being down, as the agent won't use what answers, and it says so
+// itself, as "start it" would be wrong of a Caddy that's running.
+type notCaddyError struct {
+	socket    string
+	uid, want int
+}
+
+func (e *notCaddyError) Error() string {
+	return fmt.Sprintf("the admin socket at %s answers as uid %d, not as Caddy's user, %d, so the agent doesn't use it, and treats Caddy as down: something other than Caddy left what stands there, such as a link to another socket. Remove it, restart Caddy with docker restart %s, and look at what else is in that directory",
+		e.socket, e.uid, e.want, ingress.ContainerName)
+}
+
+// answeredByAnother reports the admin socket answering as someone else.
+func answeredByAnother(err error) bool {
+	var stranger *notCaddyError
+	return errors.As(err, &stranger)
 }
 
 // errDown is Caddy's admin API not answering, as it isn't running.
@@ -750,7 +770,11 @@ func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite, plainOnly b
 	if err := c.Runtime.Run(ctx, filepath.Join(c.Runtime.Paths().Boot, bootstrapName)); err != nil {
 		return err
 	}
-	wait, cancel := context.WithTimeout(ctx, startWait)
+	limit := startWait
+	if c.startWaitForTest != 0 {
+		limit = c.startWaitForTest
+	}
+	wait, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	// Caddy's admin API answers before Caddy has its config, refusing what isn't
 	// there yet, and Caddy may then fail to load it, as when a port it needs is
@@ -763,7 +787,7 @@ func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite, plainOnly b
 			c.keepRunning(wait)
 			return nil
 		}
-		if !errors.Is(err, errDown) && wait.Err() == nil {
+		if (!errors.Is(err, errDown) || answeredByAnother(err)) && wait.Err() == nil {
 			refused = err
 		}
 		st, serr := c.Runtime.Status(wait)
@@ -776,7 +800,7 @@ func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite, plainOnly b
 				return ctx.Err()
 			}
 			if refused != nil {
-				return fmt.Errorf("caddy started, but its admin API refused the agent for %s: %w", startWait, refused)
+				return fmt.Errorf("caddy started, but its admin API refused the agent for %s: %w", limit, refused)
 			}
 			return c.failedToStart(ctx, "its admin API didn't answer within "+startWait.String())
 		case <-time.After(100 * time.Millisecond):
@@ -1272,6 +1296,15 @@ func onlyKnownKeys(raw json.RawMessage) bool {
 	return in(top, knownRouteKeys) && len(r.Match) == 1 && in(r.Match[0], knownMatchKeys) && len(r.Handle) > 0 && in(r.Handle[len(r.Handle)-1], knownHandlerKeys)
 }
 
+// whyDown is what to say of a Caddy that can't take a change. Reading its last
+// config is all that's left of it by then, so this asks again what answered.
+func (c *Caddy) whyDown(ctx context.Context) error {
+	if _, _, err := c.call(ctx, http.MethodGet, serversPath, nil, nil); answeredByAnother(err) {
+		return err
+	}
+	return fmt.Errorf("%w, so it can't change its routes. Start it with docker start %s; the agent starts it within a minute", errDown, ingress.ContainerName)
+}
+
 // mutate changes the routes as one reload, against the version it read, so a
 // change made between the two isn't lost; it tries again if there was one.
 // Routes that aren't Dockwell's stay, so a hand-added one isn't lost either.
@@ -1282,7 +1315,7 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 			return err
 		}
 		if !up {
-			return fmt.Errorf("%w, so it can't change its routes. Start it with docker start %s; the agent starts it within a minute", errDown, ingress.ContainerName)
+			return c.whyDown(ctx)
 		}
 		generation, err := c.newGeneration()
 		if err != nil {
@@ -1840,7 +1873,7 @@ func (c *Caddy) deleteRoute(ctx context.Context, id string) error {
 	err := c.mutate(ctx, func(routes []json.RawMessage) ([]json.RawMessage, error) {
 		return slices.DeleteFunc(routes, func(raw json.RawMessage) bool { return routeID(raw) == id }), nil
 	})
-	if !errors.Is(err, errDown) {
+	if !errors.Is(err, errDown) || answeredByAnother(err) {
 		return err
 	}
 	st, serr := c.Runtime.Status(ctx)

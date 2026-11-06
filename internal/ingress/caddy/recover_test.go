@@ -263,6 +263,42 @@ func TestAFIFOForTheCertificatesDoesntHangTheAgent(t *testing.T) {
 	}
 }
 
+// What isn't Caddy answering on its admin socket reads as Caddy being down, and that
+// mustn't be all anyone hears. The agent logs what Recover says each time it looks,
+// and a step that needs Caddy says who answered, not to start a Caddy that's running.
+func TestWhoAnswersTheAdminSocketIsSaid(t *testing.T) {
+	dir := shortDir(t)
+	if err := EnsureDirs(dir); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", filepath.Join(dir, "run", adminSocketName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{ReadHeaderTimeout: time.Second, Handler: http.NotFoundHandler()}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	stranger := os.Geteuid() + 1
+	c := &Caddy{Dir: dir, Runtime: &process{dir: dir}, adminUIDForTest: &stranger}
+
+	if recovered, err := c.Recover(t.Context()); err == nil || recovered || !strings.Contains(err.Error(), "answers as uid") {
+		t.Errorf("Recover = %v, %v, want it to say who answered", recovered, err)
+	}
+	for name, try := range map[string]func() error{
+		"a route going in": func() error {
+			return c.PutRoute(t.Context(), aRoute("dockwell.env.a", "a.example.net", "", "127.0.0.1:1"))
+		},
+		"a route going": func() error { return c.DeleteRoute(t.Context(), "dockwell.env.a") },
+	} {
+		err := try()
+		if err == nil || !strings.Contains(err.Error(), "answers as uid") {
+			t.Errorf("%s: %v, want it to say who answered", name, err)
+		} else if strings.Contains(err.Error(), "docker start") || strings.Contains(err.Error(), "is running and isn't answering") {
+			t.Errorf("%s says to do what doesn't help: %v", name, err)
+		}
+	}
+}
+
 // The admin socket is in Caddy's run directory, and connect follows a link, so a
 // compromised Caddy could leave one there to another socket on the server, such
 // as Docker's. What answers has to be Caddy's user.

@@ -216,6 +216,9 @@ func (c *Caddy) repairFile() (repaired bool, err error) {
 func (c *Caddy) Recover(ctx context.Context) (recovered bool, err error) {
 	running, _, err := c.call(ctx, http.MethodGet, "/config/", nil, nil)
 	switch {
+	case answeredByAnother(err):
+		// Not down at all, and the log is the one place this reaches a person.
+		return false, err
 	case errors.Is(err, errDown):
 		return c.repairFile()
 	case err != nil:

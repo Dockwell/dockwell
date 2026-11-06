@@ -6,6 +6,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -88,5 +89,25 @@ func TestACaddyThatExitsAsItStartsIsntSaidToRefuse(t *testing.T) {
 	defer rt.mu.Unlock()
 	if rt.asked < 2 {
 		t.Errorf("it asked %d times, so this proves nothing", rt.asked)
+	}
+}
+
+// keepsRunning is what answers as something else and stays up.
+type keepsRunning struct{ earlyRefuser }
+
+func (k *keepsRunning) Status(context.Context) (ingress.Status, error) {
+	return ingress.Status{Exists: true, Running: true}, nil
+}
+
+// A start that finds someone else answering says who, rather than that nothing did.
+func TestAStartSaysWhoAnsweredTheAdminSocket(t *testing.T) {
+	dir := shortDir(t)
+	rt := &keepsRunning{earlyRefuser{dir: dir}}
+	t.Cleanup(func() { _ = rt.Remove(context.Background()) })
+	stranger := os.Geteuid() + 1
+	c := &Caddy{Dir: dir, Runtime: rt, adminUIDForTest: &stranger, startWaitForTest: 300 * time.Millisecond}
+	err := c.Start(t.Context(), nil, false)
+	if err == nil || !strings.Contains(err.Error(), "answers as uid") {
+		t.Errorf("Start = %v, want it to say who answered", err)
 	}
 }
