@@ -1111,6 +1111,20 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 	}
 }
 
+// builtForAnother reports a container that stopped whose image isn't built for this
+// server. Docker often says nothing of that where anything can read it: the kernel
+// refuses the binary inside the container, which reads as one that exited. A server
+// with emulation runs such an image, so this is only asked of what has stopped, and
+// either side that can't be read says no.
+func (d *Docker) builtForAnother(ctx context.Context, c *docker.Container) bool {
+	img, err := d.Client.InspectImage(ctx, c.Image)
+	if err != nil || img.Architecture == "" {
+		return false
+	}
+	here, err := d.Client.Architecture(ctx)
+	return err == nil && here != "" && here != img.Architecture
+}
+
 // NotRunning says how the container at t isn't running, in a word.
 func (d *Docker) NotRunning(ctx context.Context, t Target) (string, error) {
 	c, err := d.current(ctx, t)
@@ -1641,8 +1655,11 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s keeps restarting: it exited with code %d. Check its command and variables, then try again.", t.Service, s.ExitCode),
 				fmt.Errorf("%s keeps restarting: it exited with code %d", name, s.ExitCode))
 		case !s.Running:
-			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s stopped right after it started, with exit code %d. Check its command and variables, then try again.", t.Service, s.ExitCode),
-				fmt.Errorf("%s stopped right after it started, with exit code %d", name, s.ExitCode))
+			stopped := fmt.Errorf("%s stopped right after it started, with exit code %d", name, s.ExitCode)
+			if s.ExitCode != 0 && d.builtForAnother(ctx, c) {
+				return wrongArchitectureFailure(t, stopped)
+			}
+			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s stopped right after it started, with exit code %d. Check its command and variables, then try again.", t.Service, s.ExitCode), stopped)
 		case s.Paused:
 			// Docker stops its checks, so what the last one said is as it left it.
 			return resource.Plainly(t.Service+" is paused, so it serves nothing and its health check doesn't run. Unpause it on this server, then try again.",

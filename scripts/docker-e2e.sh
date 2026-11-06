@@ -116,6 +116,7 @@ restore_daemon() {
 }
 cleanup() {
   restore_daemon || true
+  docker image rm e2e-wrong-arch:1 >/dev/null 2>&1 || true
   for p in $project $extra_projects; do
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
@@ -2293,6 +2294,24 @@ drift=$(dw drift list --json) || fail "drift list failed"
 # Another environment has drift of its own by now, as an ingress step above prunes
 # a network it left unused, so this asks about shop alone.
 jq -e 'any((.drift // [])[]; .resource.name == "shop") | not' <<<"$drift" >/dev/null || fail "drift with shop running as asked: $drift"
+
+step "An image for another architecture says so, where Docker reports only a container that exited"
+here=$(docker version --format '{{.Server.Arch}}') || fail "docker version failed"
+other_arch=arm64
+[[ "$here" != arm64 ]] || other_arch=amd64
+docker pull -q --platform "linux/$other_arch" alpine:3.20 >/dev/null || fail "can't pull an image for $other_arch"
+docker tag alpine:3.20 e2e-wrong-arch:1 || fail "can't tag the image for $other_arch"
+docker rmi alpine:3.20 >/dev/null || fail "can't remove the image's own tag"
+# A server with emulation runs it, and there's nothing to say.
+if docker run --rm --platform "linux/$other_arch" e2e-wrong-arch:1 true >/dev/null 2>&1; then
+  echo "docker-e2e: this machine runs $other_arch images, so there's no wrong architecture to read"
+else
+  if said=$(dw services create wrongarch --environment other --app-image e2e-wrong-arch:1 --yes 2>&1); then
+    fail "an image for $other_arch started on $here: $said"
+  fi
+  [[ "$said" == *"isn't built for this server's architecture"* ]] || fail "an image for $other_arch failed saying: $said"
+fi
+docker image rm e2e-wrong-arch:1 >/dev/null || true
 
 step "A limit changes in place, on a token, and the file's container stays"
 before=$(jq -r '.[0].Id' <<<"$inspected")

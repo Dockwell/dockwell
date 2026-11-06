@@ -246,7 +246,7 @@ func startFailure(t Target, err error) error {
 		}
 		return resource.PlainlyBecause(resource.ReasonMount, fmt.Sprintf("%s can't mount %s. Check the path on this server, then try again.", t.Service, what), err)
 	case wrongArchitecture(message):
-		return resource.PlainlyBecause(resource.ReasonImage, fmt.Sprintf("The image for %s isn't built for this server's architecture. Choose a build for this server, or another image, then try again.", t.Service), err)
+		return wrongArchitectureFailure(t, err)
 	}
 	if m := commandGone.FindStringSubmatch(message); m != nil {
 		return resource.PlainlyBecause(resource.ReasonCommand, fmt.Sprintf("The command %s isn't in the image for %s. Check the command and the image, then try again.", m[1], t.Service), err)
@@ -259,6 +259,12 @@ func startFailure(t Target, err error) error {
 	}
 	says := strings.ReplaceAll(dockerSays(message), t.Name, t.Service)
 	return resource.Plainly(fmt.Sprintf("%s didn't start, and Dockwell doesn't recognize why. Docker says: %s. Look at what it says, then try again.", t.Service, says), err)
+}
+
+// wrongArchitectureFailure says an image isn't built for this server, however that
+// came out.
+func wrongArchitectureFailure(t Target, err error) error {
+	return resource.PlainlyBecause(resource.ReasonImage, fmt.Sprintf("The image for %s isn't built for this server's architecture. Choose a build for this server, or another image, then try again.", t.Service), err)
 }
 
 // explained is what running a container at t failed with, in plain words. A
