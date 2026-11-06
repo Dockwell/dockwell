@@ -669,6 +669,7 @@ func brief(b []byte) (Brief, error) {
 			Steps []struct {
 				Destroys bool
 				Warnings []resource.Warning
+				Rollout  *resource.RolloutPlan
 			}
 		}
 	}
@@ -681,7 +682,7 @@ func brief(b []byte) (Brief, error) {
 	}
 	for i := range stored.Servers {
 		for _, st := range stored.Servers[i].Steps {
-			p.Servers[i].Steps = append(p.Servers[i].Steps, resource.Step{Decision: resource.Decision{Destroys: st.Destroys, Warnings: st.Warnings}})
+			p.Servers[i].Steps = append(p.Servers[i].Steps, resource.Step{Decision: resource.Decision{Destroys: st.Destroys, Warnings: st.Warnings, Rollout: st.Rollout}})
 		}
 	}
 	return p.Brief(), nil
