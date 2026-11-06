@@ -316,7 +316,7 @@ func readWords(c *docker.Container, out *resourcev1.Container) {
 	}
 	var words referenceWords
 	unreadable := json.Unmarshal([]byte(label), &words) != nil
-	env := envOf(c)
+	env := envOf(c.Config.Env)
 	read := func(field string, want, have []string) []string {
 		if !unreadable && want == nil {
 			return nil
@@ -392,15 +392,18 @@ func valuesInContainer(c *docker.Container) []string {
 		found, _ := binding.NamesIn(w)
 		names = append(names, found...)
 	}
-	return binding.ValuesOf(names, envOf(c))
+	return binding.ValuesOf(names, envOf(c.Config.Env))
 }
 
-// envOf is a container's environment as Docker reports it, by name.
-func envOf(c *docker.Container) map[string]string {
-	env := make(map[string]string, len(c.Config.Env))
-	for _, kv := range c.Config.Env {
-		k, v, _ := strings.Cut(kv, "=")
-		env[k] = v
+// envOf reads an environment as Docker reports it, by name. A name with no value is
+// one Docker takes out, and it keeps that in the list: docker compose up sends it for
+// a variable its shell hasn't got, so what runs hasn't got it either.
+func envOf(list []string) map[string]string {
+	env := make(map[string]string, len(list))
+	for _, kv := range list {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			env[k] = v
+		}
 	}
 	return env
 }
@@ -843,13 +846,8 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	if set["working_dir"] || c.Config.WorkingDir != img.WorkingDir {
 		out.WorkingDir = c.Config.WorkingDir
 	}
-	imageEnv := map[string]string{}
-	for _, kv := range img.Env {
-		k, v, _ := strings.Cut(kv, "=")
-		imageEnv[k] = v
-	}
-	for _, kv := range c.Config.Env {
-		k, v, _ := strings.Cut(kv, "=")
+	imageEnv := envOf(img.Env)
+	for k, v := range envOf(c.Config.Env) {
 		if iv, ok := imageEnv[k]; set["env:"+k] || !ok || iv != v {
 			if out.Env == nil {
 				out.Env = map[string]string{}
