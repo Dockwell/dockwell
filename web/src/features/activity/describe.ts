@@ -49,6 +49,14 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const path = event.subject?.path ?? "";
           return { title: t`Couldn't open ${path} on ${server}`, icon: "file", tone: "warning" };
         }
+        case "file.save": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Saved ${path} on ${server}`, icon: "file" };
+        }
+        case "file.save_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't save ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
         case "owner.claim":
           return { title: t`Claimed this install`, icon: "key" };
         case "auth.sign_in":

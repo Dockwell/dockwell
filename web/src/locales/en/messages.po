@@ -74,6 +74,11 @@ msgstr "{0, plural, one {# app stops, and you can undo this until {deadline}.} o
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, one {# app stops.} other {# apps stop.}}"
 
+#. placeholder {0}: lineCount(draft)
+#: src/features/files/FileViewer.tsx
+msgid "{0, plural, one {# line} other {# lines}}"
+msgstr "{0, plural, one {# line} other {# lines}}"
+
 #. placeholder {0}: all.length
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
@@ -197,6 +202,10 @@ msgstr "{app} is under the {license} licence."
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
+
+#: src/features/files/FileViewer.tsx
+msgid "{changes, plural, one {# line changed} other {# lines changed}}"
+msgstr "{changes, plural, one {# line changed} other {# lines changed}}"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
@@ -356,10 +365,6 @@ msgstr "{later}. Show them first puts them at the top of the list."
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 
-#: src/features/files/FileViewer.tsx
-msgid "{lines} lines"
-msgstr "{lines} lines"
-
 #: src/features/changes/ChangeSheet.tsx
 msgid "{made} is deployed"
 msgstr "{made} is deployed"
@@ -403,6 +408,10 @@ msgstr "{name} believes the proxy {path} on {server}"
 #: src/features/shell/CommandMenu.tsx
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
+msgstr "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -493,6 +502,14 @@ msgstr "{name} is still deploying. You can review this plan once that ends."
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} is waiting for its agent"
 msgstr "{name} is waiting for its agent"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
+msgstr "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} isn't a text file under 1 MB any more, so it can't be saved here."
+msgstr "{name} isn't a text file under 1 MB any more, so it can't be saved here."
 
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} isn't reporting"
@@ -1034,10 +1051,6 @@ msgstr "<0>{source}</0>, read-only"
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
 msgstr "1 h"
-
-#: src/features/files/FileViewer.tsx
-msgid "1 line"
-msgstr "1 line"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
@@ -1699,6 +1712,10 @@ msgstr "Can't read this file"
 msgid "Can't read this folder"
 msgstr "Can't read this folder"
 
+#: src/features/files/FileViewer.tsx
+msgid "Can't save this file"
+msgstr "Can't save this file"
+
 #. placeholder {0}: groupSecret(setup.secret)
 #: src/features/auth/TotpPanel.tsx
 msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
@@ -2187,6 +2204,10 @@ msgstr "Couldn't replace"
 msgid "Couldn't roll back to {revision}"
 msgstr "Couldn't roll back to {revision}"
 
+#: src/features/activity/describe.ts
+msgid "Couldn't save {path} on {server}"
+msgstr "Couldn't save {path} on {server}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't take it off {left}"
 msgstr "Couldn't take it off {left}"
@@ -2465,6 +2486,7 @@ msgid "Directory on the server"
 msgstr "Directory on the server"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/files/FileViewer.tsx
 msgid "Discard"
 msgstr "Discard"
 
@@ -2752,6 +2774,10 @@ msgstr "Each server it ran on has left the fleet, so Dockwell can't see it or ch
 #: src/features/catalog/InstallSheet.tsx
 msgid "Edit and try again"
 msgstr "Edit and try again"
+
+#: src/features/files/FileViewer.tsx
+msgid "Edited"
+msgstr "Edited"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -3629,6 +3655,10 @@ msgstr "Last 24 h"
 msgid "Last heartbeat"
 msgstr "Last heartbeat"
 
+#: src/features/files/FileViewer.tsx
+msgid "Leave {name} without saving? What you typed goes."
+msgstr "Leave {name} without saving? What you typed goes."
+
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
 msgstr "Left out as they may hold secrets"
@@ -3687,6 +3717,10 @@ msgstr "Live"
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
 msgstr "Load average"
+
+#: src/features/files/FileViewer.tsx
+msgid "Load the server's version"
+msgstr "Load the server's version"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Loading activity"
@@ -5485,12 +5519,33 @@ msgid "same as the control plane"
 msgstr "same as the control plane"
 
 #: src/features/apps/ExportSheet.tsx
+#: src/features/files/FileViewer.tsx
 msgid "Save"
 msgstr "Save"
+
+#: src/features/files/FileViewer.tsx
+msgid "Save over it"
+msgstr "Save over it"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Save your recovery codes"
 msgstr "Save your recovery codes"
+
+#: src/features/files/FileViewer.tsx
+msgid "Saved {name}"
+msgstr "Saved {name}"
+
+#: src/features/activity/describe.ts
+msgid "Saved {path} on {server}"
+msgstr "Saved {path} on {server}"
+
+#: src/features/files/FileViewer.tsx
+msgid "Saving"
+msgstr "Saving"
+
+#: src/features/files/FileViewer.tsx
+msgid "Saving replaces the file at once, and can't be undone."
+msgstr "Saving replaces the file at once, and can't be undone."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Say where the file is to review the plan"
@@ -6500,13 +6555,17 @@ msgstr "This deploy's logs are gone"
 msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
 msgstr "This device already has a passkey for your account here. Use it, or pick another device or security key."
 
+#: src/features/files/FileViewer.tsx
+msgid "This file changed on the server"
+msgstr "This file changed on the server"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 
 #: src/features/files/FileViewer.tsx
-msgid "This file is {size}, so the rest of it stays on the server. Connect to the server over SSH to see it all."
-msgstr "This file is {size}, so the rest of it stays on the server. Connect to the server over SSH to see it all."
+msgid "This file is {size}, so the rest of it stays on the server, and it can't be edited here. Connect to the server over SSH to work with it all."
+msgstr "This file is {size}, so the rest of it stays on the server, and it can't be edited here. Connect to the server over SSH to work with it all."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file is too large to read"
@@ -7257,6 +7316,10 @@ msgstr "What you see may be out of date. {0}"
 #: src/features/auth/AuthGate.tsx
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
+
+#: src/features/files/FileViewer.tsx
+msgid "What you typed is still here."
+msgstr "What you typed is still here."
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What's in front"

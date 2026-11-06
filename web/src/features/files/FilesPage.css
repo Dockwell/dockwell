@@ -201,42 +201,25 @@
   padding: var(--space-3);
 }
 
-/* Numbers and text scroll as one: each is one pre, so a long file is two text nodes. */
+/* The editor runs to the panel's edges, and takes what height the panel has. */
 .files-code {
   flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.files-code .dw-code-input {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 320px;
   max-height: 640px;
-  overflow: auto;
-  background: var(--surface-sunken);
-  font: 400 12px / 20px var(--font-mono);
+  border: 0;
+  border-radius: 0;
 }
 
-.files-gutter,
-.files-text {
-  margin: 0;
-  padding: 10px 0;
-  font: inherit;
-}
-
-.files-gutter {
-  position: sticky;
-  left: 0;
-  padding-right: var(--space-3);
-  padding-left: var(--space-3);
-  background: var(--surface-sunken);
-  color: var(--ink-muted);
-  text-align: right;
-  user-select: none;
-}
-
-.files-text {
-  padding-right: var(--space-4);
-  padding-left: var(--space-1);
-  width: max-content;
-  min-width: 100%;
-  box-sizing: border-box;
+.files-code .dw-code-input:focus-within {
+  box-shadow: inset 0 0 0 2px var(--cobalt);
 }
 
 .files-foot {
@@ -247,6 +230,61 @@
   border-top: 1px solid var(--line);
   background: var(--surface-sunken);
   font-size: 11.5px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.files-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.files-edited {
+  flex: none;
+  font: 400 12.5px / 16px var(--font-sans);
+  color: var(--ink-muted);
+}
+
+.files-save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.files-save-what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.files-save-count {
+  margin: 0;
+  color: var(--ink);
+}
+
+.files-save-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.files-saved {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 6px var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
   line-height: 16px;
   color: var(--ink-muted);
 }
@@ -280,10 +318,25 @@
   }
 
   /* An open file takes the phone's screen, as the mock has it. */
-  .files-code {
-    min-height: calc(100dvh - 260px);
+  .files-code .dw-code-input {
+    min-height: calc(100dvh - 300px);
     max-height: none;
-    font-size: 13px;
-    line-height: 22px;
+  }
+
+  /* Save stays in reach above the tab bar, however long the file. */
+  .files-save {
+    position: sticky;
+    bottom: var(--tabbar-height);
+    z-index: var(--z-sticky);
+    background: var(--surface);
+  }
+
+  .files-save-actions {
+    flex: 1 1 100%;
+  }
+
+  .files-save-actions .dw-btn {
+    flex: 1 1 0;
+    height: 48px;
   }
 }

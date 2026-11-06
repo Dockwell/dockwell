@@ -255,10 +255,24 @@ describe("Activity", () => {
       time: timestampFromDate(new Date(Date.now() - 2 * HOUR)),
       subject: { ...on, path: "/root/.ssh/id_rsa" },
     });
-    watch.push(snapshot([read, refused]));
+    const failed = auditEvent({
+      id: "evt_failed",
+      action: "file.save_failed",
+      time: timestampFromDate(new Date(Date.now() - 3 * HOUR)),
+      subject: { ...on, path: "/etc/cron.d/job" },
+    });
+    const saved = auditEvent({
+      id: "evt_saved",
+      action: "file.save",
+      time: timestampFromDate(new Date(Date.now() - 4 * HOUR)),
+      subject: { ...on, path: "/etc/nginx/conf.d/app.conf" },
+    });
+    watch.push(snapshot([read, refused, failed, saved]));
     const { router } = renderActivity(watch);
 
     await screen.findByRole("row", { name: /Couldn't open \/root\/\.ssh\/id_rsa on hz-1/ });
+    await screen.findByRole("row", { name: /Couldn't save \/etc\/cron\.d\/job on hz-1/ });
+    await screen.findByRole("row", { name: /Saved \/etc\/nginx\/conf\.d\/app\.conf on hz-1/ });
     await user.click(await screen.findByRole("row", { name: /Read \/etc\/nginx\/nginx\.conf on hz-1/ }));
     await user.click(await screen.findByRole("link", { name: "Open the file" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_1/files"));

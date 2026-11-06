@@ -3,9 +3,10 @@
 // Walks a server's files in headless Chromium, against a real `dockwell run` and
 // its own agent, on this machine's disk, in a temporary directory: browsing, a
 // file, what isn't text, what's too large, what's refused, a path that leads
-// nowhere, and a phone. Each read and refusal shows on Activity, and the CLI's
-// token is refused. With --shots <dir> it saves screenshots at 1440, 800, 390 and
-// 360 px, light and dark.
+// nowhere, and a phone. It edits and saves a file, on a desktop and a phone, finds
+// a file changed under it, keeps what it typed, and finds what it did on Activity.
+// The CLI's token is refused. With --shots <dir> it saves screenshots at 1440, 800,
+// 390 and 360 px, light and dark.
 //
 //   make e2e
 //   node web/e2e/files.ts bin/dockwell --shots /tmp/shots
@@ -13,7 +14,7 @@
 // Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
 
 import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -174,18 +175,54 @@ async function main() {
 
   step("open a file");
   await page.getByText("nginx.conf").click();
-  const code = page.getByRole("region", { name: "Contents of nginx.conf" });
+  const code = page.getByRole("textbox", { name: "Contents of nginx.conf" });
   await code.waitFor();
-  await code.getByText("listen 80;").waitFor();
+  if (!(await code.inputValue()).includes("listen 80;")) fail("the file reads as something else");
   await page.getByText("4 lines").waitFor();
   await shoot(page, "file");
+
+  step("edit a file and save it, in place");
+  const conf = join(site, "nginx.conf");
+  const inode = statSync(conf).ino;
+  await code.fill("server {\n  listen 8080;\n}\n");
+  await page.getByText("Edited").waitFor();
+  await shoot(page, "edited");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("Saved nginx.conf").first().waitFor();
+  if (readFileSync(conf, "utf8") !== "server {\n  listen 8080;\n}\n") fail("the save isn't on the disk");
+  if (statSync(conf).ino !== inode) fail("the save replaced the file, so a container that mounts it keeps the old one");
+
+  step("a file that changed since is noticed, and what you typed stays");
+  await code.fill("mine\n");
+  writeFileSync(conf, "theirs\n");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("This file changed on the server").waitFor();
+  if ((await code.inputValue()) !== "mine\n") fail("a refused save lost what was typed");
+  if (readFileSync(conf, "utf8") !== "theirs\n") fail("a refused save wrote the file");
+  await shoot(page, "conflict");
+  await page.getByRole("button", { name: "Save over it" }).click();
+  await page.getByText("Saved nginx.conf").first().waitFor();
+  if (readFileSync(conf, "utf8") !== "mine\n") fail("saving over it didn't write the file");
+
+  step("leaving what you typed asks first");
+  await code.fill("unsaved\n");
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await page.getByRole("button", { name: "Close nginx.conf" }).click();
+  await sleep(200);
+  if ((await code.inputValue()) !== "unsaved\n") fail("leaving took what was typed without asking");
+  await page.getByRole("button", { name: "Discard" }).click();
+  await page.getByRole("button", { name: "Close nginx.conf" }).click();
+  await code.waitFor({ state: "detached" });
+  await page.getByText("nginx.conf").click();
+  await code.waitFor();
 
   step("what isn't text, and what's too large");
   await page.getByText("logo.png").click();
   await page.getByText("This isn't a text file").waitFor();
   await page.getByText("huge.log").click();
   await page.getByText("Showing the first 1 MB").waitFor();
-  await page.getByRole("region", { name: "Contents of huge.log" }).getByText("a line of a log").first().waitFor();
+  await page.getByRole("textbox", { name: "Contents of huge.log" }).waitFor();
+  await page.getByText("it can't be edited here", { exact: false }).waitFor();
   await shoot(page, "large-file");
 
   step("what's refused, and what leads nowhere");
@@ -210,17 +247,21 @@ async function main() {
   await page.goto(at({ path: site }));
   await page.getByText("nginx.conf").click();
   await page.getByRole("heading", { level: 1, name: "nginx.conf" }).waitFor();
-  await page.getByRole("region", { name: "Contents of nginx.conf" }).getByText("listen 80;").waitFor();
   await noSidewaysScroll(page, "an open file");
   await page.setViewportSize({ width: 390, height: 844 });
+  await code.fill("edited on a phone\n");
+  const save = page.getByRole("button", { name: "Save", exact: true });
+  await save.click();
+  await page.getByText("Saved nginx.conf").first().waitFor();
+  if (readFileSync(conf, "utf8") !== "edited on a phone\n") fail("a phone's save isn't on the disk");
   await page.getByRole("link", { name: `Back to ${site}` }).click();
   await page.getByText("说明.txt").waitFor();
 
-  step("what was read, and what was refused, is on Activity");
+  step("what was read, saved and refused is on Activity, and opens the file");
   await page.setViewportSize({ width: 1440, height: 970 });
   await page.goto(`${origin}/activity`);
-  const conf = join(site, "nginx.conf");
   await page.getByText(`Read ${conf} on`).first().waitFor();
+  await page.getByText(`Couldn't save ${conf} on`).first().waitFor();
   for (const refused of ["server.key", "planted", "broken"]) {
     await page
       .getByText(`Couldn't open ${join(site, refused)} on`)
@@ -233,20 +274,36 @@ async function main() {
     .waitFor();
   await page.getByText("Couldn't open /proc on").first().waitFor();
   await shoot(page, "activity");
-  await page.getByText(`Read ${conf} on`).first().click();
+  await page.getByText(`Saved ${conf} on`).first().click();
   await page.getByRole("link", { name: "Open the file" }).click();
-  await page.getByRole("region", { name: "Contents of nginx.conf" }).waitFor();
+  await page.getByRole("textbox", { name: "Contents of nginx.conf" }).waitFor();
 
   step("a token is refused");
   dockwell("login", "--local");
-  const denied = spawnSync(bin, ["files", "list", "--server-id", serverId, "--path", "/", "--json"], {
-    encoding: "utf8",
-    env: env(),
-  });
-  if (denied.status === 0) fail(`the CLI's token listed files:\n${denied.stdout}`);
-  if (!`${denied.stdout}${denied.stderr}`.includes("reach a server's files")) {
-    fail(`the CLI's token was refused for another reason:\n${denied.stdout}${denied.stderr}`);
+  // The control plane refuses a list. The CLI knows a save takes a person before it asks.
+  for (const [says, ...args] of [
+    ["reach a server's files", "files", "list", "--server-id", serverId, "--path", "/", "--json"],
+    [
+      "no API token may do",
+      "files",
+      "save",
+      "--server-id",
+      serverId,
+      "--path",
+      conf,
+      "--content",
+      "x",
+      "--version",
+      "v",
+    ],
+  ] as [string, ...string[]][]) {
+    const denied = spawnSync(bin, args, { encoding: "utf8", env: env() });
+    if (denied.status === 0) fail(`the CLI's token ran ${args.join(" ")}:\n${denied.stdout}`);
+    if (!`${denied.stdout}${denied.stderr}`.includes(says)) {
+      fail(`the CLI's token was refused for another reason:\n${denied.stdout}${denied.stderr}`);
+    }
   }
+  if (readFileSync(conf, "utf8") !== "edited on a phone\n") fail("a token changed the file");
 }
 
 async function finish(code: number): Promise<never> {

@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { crumbs, join, lineCount, lineEnding, lineNumbers, nameOf, parentOf } from "./paths";
+import { changedLines, crumbs, editable, join, lineCount, lineEnding, nameOf, parentOf, restoreEndings } from "./paths";
 
 describe("paths", () => {
   it("finds a path's folder and name", () => {
@@ -38,12 +38,24 @@ describe("lines", () => {
     expect(lineCount("\n\n")).toBe(2);
   });
 
-  it("numbers them", () => {
-    expect(lineNumbers(3)).toBe("1\n2\n3");
-  });
-
   it("names their endings", () => {
     expect(lineEnding("a\nb\n")).toBe("LF");
     expect(lineEnding("a\r\nb\r\n")).toBe("CRLF");
+  });
+
+  it("go through a field and come back as they were", () => {
+    const crlf = "a\r\nb\r\n";
+    expect(editable(crlf)).toBe("a\nb\n");
+    expect(restoreEndings(editable(crlf), true)).toBe(crlf);
+    expect(restoreEndings("a\nb\n", false)).toBe("a\nb\n");
+  });
+
+  it("count what an edit touches", () => {
+    expect(changedLines("a\nb\nc\n", "a\nx\nc\n")).toBe(1);
+    expect(changedLines("a\nb\nc\n", "a\nx\ny\nc\n")).toBe(2);
+    expect(changedLines("a\nb\nc\n", "a\nc\n")).toBe(1);
+    expect(changedLines("a\n", "a\nb\n")).toBe(1);
+    expect(changedLines("a\nb\nc", "x\nb\ny")).toBe(3);
+    expect(changedLines("a", "a")).toBe(0);
   });
 });
