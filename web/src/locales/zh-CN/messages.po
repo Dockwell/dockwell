@@ -2478,6 +2478,10 @@ msgstr "Dockwell {short}：控制平面状态"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
+#: src/features/changes/notices.tsx
+msgid "Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
+msgstr "Dockwell 目前还无法创建备份。撤销会恢复旧版本，但不会还原新版本对数据的改动，例如已迁移的数据库。请先备份不能丢失的内容。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell 无法读取 {name} 运行的内容"
@@ -3904,6 +3908,10 @@ msgstr "没有此 ID 的应用"
 #: src/features/apps/AppsPage.tsx
 msgid "No apps yet"
 msgstr "还没有应用"
+
+#: src/features/changes/notices.tsx
+msgid "No backup is taken first"
+msgstr "升级前不会创建备份"
 
 #: src/features/servers/ContainersPanel.tsx
 msgid "No container matches this filter."
@@ -6711,6 +6719,14 @@ msgstr "已原地更新"
 msgid "Updating"
 msgstr "正在更新"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Upgrade to {latest}"
+msgstr "升级到 {latest}"
+
+#: src/features/catalog/InstalledPanel.tsx
+msgid "Upgrade to {next}"
+msgstr "升级到 {next}"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Use a code from your authenticator app"
 msgstr "使用身份验证器应用中的验证码"
@@ -6834,6 +6850,10 @@ msgstr "{envName} 中的变量和密钥"
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "版本"
+
+#: src/features/catalog/InstalledPanel.tsx
+msgid "Version {next} is out."
+msgstr "已发布版本 {next}。"
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Version {version}"

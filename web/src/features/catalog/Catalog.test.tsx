@@ -17,7 +17,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { SERVER } from "../../test/apps";
+import { anApp, ENV, places, SERVER } from "../../test/apps";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -125,6 +125,53 @@ describe("The catalog", () => {
       }),
     );
     expect(await screen.findByText("Couldn't read the catalog")).toBeVisible();
+  });
+});
+
+describe("A newer release", () => {
+  const behind = {
+    installs: [
+      {
+        project: "postgres",
+        projectId: "prj_1",
+        environmentId: ENV,
+        pin: { entry: "postgres", version: "17.11", release: 1 },
+        webServiceId: "svc_adminer",
+        name: "PostgreSQL",
+        upgrade: { version: "17.13", release: 2 },
+      },
+    ],
+  };
+
+  it("reads as one in the catalog and on the rail, which leads to the app", async () => {
+    renderAt("/catalog", api({ listCatalogInstalls: () => behind }));
+    const card = await screen.findByRole("link", { name: "Open PostgreSQL" });
+    expect(await within(card).findByText("Upgrade to 17.11")).toBeVisible();
+    // What it runs, not what's out.
+    expect(within(card).getByText("17.11", { exact: true })).toBeVisible();
+    expect(
+      await within(screen.getByRole("navigation", { name: "Main" })).findByRole("link", { name: "Catalog 1" }),
+    ).toBeVisible();
+  });
+
+  it("offers its plan on the app's page, by the project", async () => {
+    const user = userEvent.setup();
+    let asked = "";
+    renderAt("/apps/svc_adminer", {
+      ...api({
+        listCatalogInstalls: () => behind,
+        upgradeCatalogInstall: (req) => {
+          asked = req.id;
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }) },
+    });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    expect(await within(panel).findByText("Version 17.13 is out.")).toBeVisible();
+    await user.click(within(panel).getByRole("button", { name: "Upgrade to 17.13" }));
+    await waitFor(() => expect(asked).toBe("prj_1"));
   });
 });
 

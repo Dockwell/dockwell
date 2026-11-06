@@ -2478,6 +2478,10 @@ msgstr "Dockwell {short}: control plane status"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 
+#: src/features/changes/notices.tsx
+msgid "Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
+msgstr "Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
+
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell can't read what {name} runs"
@@ -3904,6 +3908,10 @@ msgstr "No app with this ID"
 #: src/features/apps/AppsPage.tsx
 msgid "No apps yet"
 msgstr "No apps yet"
+
+#: src/features/changes/notices.tsx
+msgid "No backup is taken first"
+msgstr "No backup is taken first"
 
 #: src/features/servers/ContainersPanel.tsx
 msgid "No container matches this filter."
@@ -6711,6 +6719,14 @@ msgstr "Updated in place"
 msgid "Updating"
 msgstr "Updating"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Upgrade to {latest}"
+msgstr "Upgrade to {latest}"
+
+#: src/features/catalog/InstalledPanel.tsx
+msgid "Upgrade to {next}"
+msgstr "Upgrade to {next}"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Use a code from your authenticator app"
 msgstr "Use a code from your authenticator app"
@@ -6834,6 +6850,10 @@ msgstr "Variables and secrets in {envName}"
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "Version"
+
+#: src/features/catalog/InstalledPanel.tsx
+msgid "Version {next} is out."
+msgstr "Version {next} is out."
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Version {version}"

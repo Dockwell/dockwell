@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 
 import { useSignedInUser } from "../auth/useAuthState";
 import { useSignOut } from "../auth/useSignOut";
+import { useUpgrades } from "../catalog/useCatalog";
 import { useFleetView } from "../servers/useFleet";
 import { Page } from "./Page";
 import { RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
@@ -22,6 +23,7 @@ import "./MorePage.css";
  */
 export function MorePage() {
   const { t, i18n } = useLingui();
+  const upgrades = useUpgrades();
   const { fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   const [theme, setTheme] = useThemePreference();
@@ -51,7 +53,7 @@ export function MorePage() {
         </Link>
         {RESOURCES.filter((id) => UPCOMING[id].inMore).map(section)}
         <Link to="/catalog" className="more-row">
-          <RowBody icon="grid" label={t`Catalog`} />
+          <RowBody icon="grid" label={t`Catalog`} value={upgrades > 0 ? String(upgrades) : undefined} />
         </Link>
       </nav>
       <nav className="dw-panel more-group" aria-label={t`Operate`}>

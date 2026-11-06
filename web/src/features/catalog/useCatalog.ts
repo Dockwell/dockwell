@@ -15,6 +15,11 @@ export function useInstalls() {
   return useQuery(CatalogService.method.listCatalogInstalls, {});
 }
 
+/** How many installs have a newer release out. */
+export function useUpgrades(): number {
+  return (useInstalls().data?.installs ?? []).filter((install) => install.upgrade).length;
+}
+
 /** The install an environment's services belong to, if they're one. */
 export function installIn(installs: readonly CatalogInstall[], environment: string): CatalogInstall | undefined {
   return installs.find((install) => install.environmentId === environment);

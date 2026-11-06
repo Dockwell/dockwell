@@ -391,6 +391,12 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       }
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
+      case "no_backup":
+        return {
+          key,
+          title: t`No backup is taken first`,
+          detail: t`Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first.`,
+        };
       case "values_latest": {
         const names = note.names.join(", ");
         return {

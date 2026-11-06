@@ -112,6 +112,12 @@
   font-weight: 550;
 }
 
+.catalog-installed.is-behind {
+  padding: 0 var(--space-2);
+  background: var(--selection);
+  color: var(--cobalt);
+}
+
 .catalog-card-summary {
   font-size: 13px;
   line-height: 18px;
@@ -177,6 +183,23 @@
 
 .catalog-installed-steps {
   margin: var(--space-2) 0 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.catalog-upgrade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.catalog-upgrade-line {
+  margin: 0;
   font-size: 13px;
   line-height: 20px;
 }
