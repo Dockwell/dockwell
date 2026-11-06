@@ -117,6 +117,34 @@ func (*Driver) Validate(spec proto.Message) error {
 	return validateMount(v)
 }
 
+// passwordNames are what an option gives a password by: CIFS takes it in o as
+// password=, pass= or password2=, the one it moves to as a password changes, and
+// a plugin may take one of its own, as vieux/sshfs takes
+// password.
+var passwordNames = []string{"password", "pass", "password2"}
+
+// HoldsPassword reports whether a volume's options give a password: an option of
+// that name, or an item of one in a list of them, such as o's
+// username=svc,password=…. A plan never shows a volume's options, but a command
+// line stays in shell history and the process list, so the CLI takes options that
+// give one from a file or the environment.
+func HoldsPassword(options map[string]string) bool {
+	named := func(name string) bool {
+		return slices.ContainsFunc(passwordNames, func(p string) bool { return strings.EqualFold(strings.TrimSpace(name), p) })
+	}
+	for k, v := range options {
+		if named(k) {
+			return true
+		}
+		for item := range strings.SplitSeq(v, ",") {
+			if name, _, ok := strings.Cut(item, "="); ok && named(name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // mountTypes are what the local driver may mount besides a bind. Anything
 // else reads paths the plan can't name: overlay takes them in o, and a
 // disk's filesystem takes a device under /dev.

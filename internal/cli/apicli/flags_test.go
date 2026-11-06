@@ -4,6 +4,7 @@ package apicli
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -200,6 +201,123 @@ func TestInlineJSONRefusesASecretsValueAlone(t *testing.T) {
 		case !c.ok && (err == nil || !strings.Contains(err.Error(), "pass --edits @file, or pipe it in with --edits -") || strings.Contains(err.Error(), "s3cret")):
 			t.Errorf("%s = %v, want it refused", what, err)
 		}
+	}
+}
+
+// A CIFS mount's password goes in a volume's o option, so it reaches the CLI as a
+// secret's value does: never from a flag's text, where shell history and the
+// process list keep it. An option that gives one comes from the environment, and
+// JSON that gives one from a file or standard input. Other options, and a
+// container's environment, go inline as before. The last check of #70 found both
+// routes open.
+func TestAVolumesPasswordNeverComesFromAFlagsText(t *testing.T) {
+	const password = "cifs-pw-7Hq2mXv9"
+	fields := []Field{{Path: "options", Sensitive: true}}
+	for what, c := range map[string]struct {
+		args []string
+		env  map[string]string
+		want map[string]string
+		says string
+	}{
+		"o with password=":  {args: []string{"--options", "o=addr=10.0.0.2,username=svc,password=" + password}, says: "Give --options o alone to take its value from o in your environment"},
+		"o with pass=":      {args: []string{"--options", "o=username=svc,pass=" + password}, says: "o gives a password"},
+		"o with password2=": {args: []string{"--options", "o=username=svc,password2=" + password}, says: "o gives a password"},
+		"a plugin's own":    {args: []string{"--options", "Password=" + password}, says: "Password gives a password"},
+		"from the environment": {
+			args: []string{"--options", "type=cifs", "--options", "o"}, env: map[string]string{"o": "username=svc,password=" + password},
+			want: map[string]string{"type": "cifs", "o": "username=svc,password=" + password},
+		},
+		"an NFS mount inline": {
+			args: []string{"--options", "type=nfs", "--options", "o=addr=10.0.0.2,ro", "--options", "device=:/export"},
+			want: map[string]string{"type": "nfs", "o": "addr=10.0.0.2,ro", "device": ":/export"},
+		},
+		"a word like it, inline": {args: []string{"--options", "o=passwd_file=/x,passive"}, want: map[string]string{"o": "passwd_file=/x,passive"}},
+	} {
+		env := &Env{Getenv: func(k string) string { return c.env[k] }, In: strings.NewReader("")}
+		var v resourcev1.Volume
+		err := parse(t, env, &v, fields, c.args...)
+		switch {
+		case c.says != "" && (err == nil || !strings.Contains(err.Error(), c.says) || strings.Contains(err.Error(), password)):
+			t.Errorf("%s = %v, want it refused, saying %q and not the password", what, err, c.says)
+		case c.says == "" && err != nil:
+			t.Errorf("%s = %v, want it read", what, err)
+		case c.says == "" && !maps.Equal(v.GetOptions(), c.want):
+			t.Errorf("%s read as %v, want %v", what, v.GetOptions(), c.want)
+		}
+	}
+	// A container's environment is configuration, as --env KEY=VALUE has it.
+	var ctr resourcev1.Container
+	if err := parse(t, &Env{Getenv: func(string) string { return "" }}, &ctr, []Field{{Path: "env", Sensitive: true}}, "--env", "DB=password=x"); err != nil {
+		t.Errorf("a container's environment inline = %v", err)
+	}
+
+	file := filepath.Join(t.TempDir(), "edit.json")
+	share := `{"resource":{"name":"share"},"spec":{"volume":{"options":{"type":"cifs","o":"username=svc,password=` + password + `"}}}}`
+	if err := os.WriteFile(file, []byte(share), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	edits := []Field{{Path: "edits"}}
+	for what, c := range map[string]struct {
+		value, in string
+		ok        bool
+	}{
+		"a volume's password inline":      {value: share},
+		"a volume's password from a file": {value: "@" + file, ok: true},
+		"a volume's password from stdin":  {value: "-", in: share, ok: true},
+		"an NFS volume inline":            {value: `{"resource":{"name":"nfs"},"spec":{"volume":{"options":{"type":"nfs","o":"addr=10.0.0.2"}}}}`, ok: true},
+	} {
+		env := &Env{Getenv: func(string) string { return "" }, In: strings.NewReader(c.in)}
+		var req dockwellv1.ProposeChangeRequest
+		err := parse(t, env, &req, edits, "--edits", c.value)
+		switch {
+		case c.ok && err != nil:
+			t.Errorf("%s = %v, want it read", what, err)
+		case !c.ok && (err == nil || !strings.Contains(err.Error(), "gives a volume a password") || !strings.Contains(err.Error(), "pass --edits @file, or pipe it in with --edits -") || strings.Contains(err.Error(), password)):
+			t.Errorf("%s = %v, want it refused", what, err)
+		}
+	}
+}
+
+// A Compose file can give a volume a CIFS password in its driver_opts, so --compose
+// reads a file, or standard input, and refuses such a file given on the command
+// line. Any other file goes inline as before. The last check of #70 found no way to
+// keep one off the command line.
+func TestAComposeFileComesFromAFile(t *testing.T) {
+	const password = "cifs-pw-7Hq2mXv9"
+	withPassword := "services:\n  app:\n    image: nginx:1.27\n    volumes: [share:/x]\nvolumes:\n  share:\n    driver_opts: {type: cifs, device: //nas/share, o: \"username=svc,password=" + password + "\"}\n"
+	plain := "services:\n  app:\n    image: nginx:1.27\n"
+	dir := t.TempDir()
+	file := filepath.Join(dir, "compose.yaml")
+	if err := os.WriteFile(file, []byte(withPassword), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fields := []Field{{Path: "compose", FromFile: true}}
+	for what, c := range map[string]struct {
+		value, in, want string
+		says            string
+	}{
+		"a file":                         {value: "@" + file, want: withPassword},
+		"standard input":                 {value: "-", in: withPassword, want: withPassword},
+		"inline, with no password":       {value: plain, want: plain},
+		"inline, with a volume password": {value: withPassword, says: "the file gives the volume share a password in its driver_opts"},
+		"a file that isn't there":        {value: "@" + filepath.Join(dir, "gone.yaml"), says: "can't read"},
+	} {
+		env := &Env{Getenv: func(string) string { return "" }, In: strings.NewReader(c.in)}
+		var req dockwellv1.ImportComposeRequest
+		err := parse(t, env, &req, fields, "--compose", c.value)
+		switch {
+		case c.says != "" && (err == nil || !strings.Contains(err.Error(), c.says) || strings.Contains(err.Error(), password)):
+			t.Errorf("%s = %v, want it refused, saying %q", what, err, c.says)
+		case c.says == "" && (err != nil || req.GetCompose() != c.want):
+			t.Errorf("%s = %q, %v, want %q", what, req.GetCompose(), err, c.want)
+		}
+	}
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	if _, err := bind(fs, &Env{}, (&dockwellv1.ImportComposeRequest{}).ProtoReflect().Descriptor(), fields); err != nil {
+		t.Fatal(err)
+	}
+	if usage := fs.FlagUsages(); !strings.Contains(usage, "--compose text") || !strings.Contains(usage, "@file to read it from a file, or - from standard input") {
+		t.Errorf("--compose's help doesn't say how to read a file:\n%s", usage)
 	}
 }
 

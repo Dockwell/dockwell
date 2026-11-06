@@ -307,6 +307,14 @@ var file_dockwell_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 		Filename:      "dockwell/v1/options.proto",
 	},
 	{
+		ExtendedType:  (*descriptorpb.FieldOptions)(nil),
+		ExtensionType: (*bool)(nil),
+		Field:         50101,
+		Name:          "dockwell.v1.from_file",
+		Tag:           "varint,50101,opt,name=from_file",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
 		ExtendedType:  (*descriptorpb.EnumValueOptions)(nil),
 		ExtensionType: (*string)(nil),
 		Field:         50100,
@@ -360,6 +368,12 @@ var (
 	//
 	// optional string flag = 50100;
 	E_Flag = &file_dockwell_v1_options_proto_extTypes[5]
+	// The dockwell CLI's flag for a request's text field also reads it from a
+	// file, as --compose @compose.yaml, or from standard input with -, as a JSON
+	// flag does, so a file that may hold a secret needn't go on the command line.
+	//
+	// optional bool from_file = 50101;
+	E_FromFile = &file_dockwell_v1_options_proto_extTypes[6]
 )
 
 // Extension fields to descriptorpb.EnumValueOptions.
@@ -369,7 +383,7 @@ var (
 	// HEALTH_STATE_NO_CHECK. Most values leave it unset.
 	//
 	// optional string word = 50100;
-	E_Word = &file_dockwell_v1_options_proto_extTypes[6]
+	E_Word = &file_dockwell_v1_options_proto_extTypes[7]
 )
 
 var File_dockwell_v1_options_proto protoreflect.FileDescriptor
@@ -399,7 +413,8 @@ const file_dockwell_v1_options_proto_rawDesc = "" +
 	"\vneeds_grant\x12\x1e.google.protobuf.MethodOptions\x18\xb7\x87\x03 \x01(\x0e2\x17.dockwell.v1.TokenGrantR\n" +
 	"needsGrant:J\n" +
 	"\x05nouns\x12\x1f.google.protobuf.ServiceOptions\x18\xb4\x87\x03 \x03(\v2\x11.dockwell.v1.NounR\x05nouns:3\n" +
-	"\x04flag\x12\x1d.google.protobuf.FieldOptions\x18\xb4\x87\x03 \x01(\tR\x04flag:7\n" +
+	"\x04flag\x12\x1d.google.protobuf.FieldOptions\x18\xb4\x87\x03 \x01(\tR\x04flag:<\n" +
+	"\tfrom_file\x12\x1d.google.protobuf.FieldOptions\x18\xb5\x87\x03 \x01(\bR\bfromFile:7\n" +
 	"\x04word\x12!.google.protobuf.EnumValueOptions\x18\xb4\x87\x03 \x01(\tR\x04wordB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fOptionsProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -434,15 +449,16 @@ var file_dockwell_v1_options_proto_depIdxs = []int32{
 	4,  // 3: dockwell.v1.needs_grant:extendee -> google.protobuf.MethodOptions
 	5,  // 4: dockwell.v1.nouns:extendee -> google.protobuf.ServiceOptions
 	6,  // 5: dockwell.v1.flag:extendee -> google.protobuf.FieldOptions
-	7,  // 6: dockwell.v1.word:extendee -> google.protobuf.EnumValueOptions
-	0,  // 7: dockwell.v1.effect:type_name -> dockwell.v1.Effect
-	2,  // 8: dockwell.v1.command:type_name -> dockwell.v1.Command
-	1,  // 9: dockwell.v1.needs_grant:type_name -> dockwell.v1.TokenGrant
-	3,  // 10: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	7,  // [7:11] is the sub-list for extension type_name
-	0,  // [0:7] is the sub-list for extension extendee
+	6,  // 6: dockwell.v1.from_file:extendee -> google.protobuf.FieldOptions
+	7,  // 7: dockwell.v1.word:extendee -> google.protobuf.EnumValueOptions
+	0,  // 8: dockwell.v1.effect:type_name -> dockwell.v1.Effect
+	2,  // 9: dockwell.v1.command:type_name -> dockwell.v1.Command
+	1,  // 10: dockwell.v1.needs_grant:type_name -> dockwell.v1.TokenGrant
+	3,  // 11: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	8,  // [8:12] is the sub-list for extension type_name
+	0,  // [0:8] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
 }
 
@@ -458,7 +474,7 @@ func file_dockwell_v1_options_proto_init() {
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_options_proto_rawDesc), len(file_dockwell_v1_options_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   2,
-			NumExtensions: 7,
+			NumExtensions: 8,
 			NumServices:   0,
 		},
 		GoTypes:           file_dockwell_v1_options_proto_goTypes,

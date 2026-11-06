@@ -3706,9 +3706,11 @@ components:
                 compose:
                     type: string
                     description: |-
-                        The Compose file, as YAML, such as --compose "$(cat compose.yaml)", of
-                         up to 256 KiB. A path relative to the file needs directory, as it runs on
-                         servers where it otherwise means nothing.
+                        The Compose file, as YAML, of up to 256 KiB. The CLI reads it from a file,
+                         --compose @compose.yaml, or standard input, --compose -, and refuses it on
+                         the command line when it gives a volume a password, which would stay in
+                         shell history and the process list. A path relative to the file needs
+                         directory, as it runs on servers where it otherwise means nothing.
                 variables:
                     type: object
                     additionalProperties:

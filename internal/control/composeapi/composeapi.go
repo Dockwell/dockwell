@@ -63,7 +63,7 @@ func invalid(err error) error {
 func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwellv1.ImportComposeRequest]) (*connect.Response[dockwellv1.ImportComposeResponse], error) {
 	m := req.Msg
 	if strings.TrimSpace(m.GetCompose()) == "" {
-		return nil, invalid(errors.New("the request has no Compose file. Pass one in compose, such as --compose \"$(cat compose.yaml)\""))
+		return nil, invalid(errors.New("the request has no Compose file. Pass one in compose, such as --compose @compose.yaml"))
 	}
 	stack, err := compose.Read(ctx, compose.Input{File: []byte(m.GetCompose()), Variables: m.GetVariables(), Env: m.GetEnv(), Directory: m.GetDirectory()})
 	if err != nil {

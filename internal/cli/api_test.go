@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/cli/apicmd"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
 // runIn runs the CLI with standard input and, when interactive, as if a
@@ -640,6 +641,54 @@ func TestASecretsValueNeverComesFromAFlagsText(t *testing.T) {
 	}
 	if want := []string{"changes propose edits"}; !slices.Equal(held, want) {
 		t.Errorf("the flags whose JSON may hold a secret's value are %v, want %v, which refuses it inline", held, want)
+	}
+}
+
+// A CIFS mount's password goes in a volume's options, so it stays off the command
+// line as a secret's value does: a volume's --options takes an option that gives
+// one from the environment alone, the one flag whose JSON may hold a volume
+// refuses it inline, and --compose reads a file. A new flag that may hold one
+// fails here, to be looked at.
+func TestAVolumesPasswordNeverComesFromAFlagsText(t *testing.T) {
+	root, err := newRootCmd(IO{Out: io.Discard, Err: io.Discard, Getenv: func(string) string { return "" }, In: strings.NewReader("")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, verb := range []string{"create", "update"} {
+		cmd, _, err := root.Find([]string{"volumes", verb})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := cmd.Flags().Lookup("options")
+		if f == nil || !strings.Contains(f.Usage, "A value that gives a password, as a CIFS mount's o does, comes from your environment") {
+			t.Errorf("dockwell volumes %s --options doesn't say a password comes from the environment: %+v", verb, f)
+		}
+	}
+	for _, verb := range []string{"import", "check"} {
+		cmd, _, err := root.Find([]string{"compose", verb})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f := cmd.Flags().Lookup("compose"); f == nil || f.Value.Type() != "text" || !strings.Contains(f.Usage, "@file") {
+			t.Errorf("dockwell compose %s --compose doesn't read a file: %+v", verb, f)
+		}
+	}
+	var held []string
+	for _, m := range apicmd.Methods() {
+		desc, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(m.Name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields := desc.(protoreflect.MethodDescriptor).Input().Fields()
+		for _, f := range m.Fields {
+			fd := fields.ByName(protoreflect.Name(strings.SplitN(f.Path, ".", 2)[0]))
+			if fd != nil && fd.Message() != nil && resource.MayHold(fd.Message(), &volume.Driver{}) {
+				held = append(held, m.Noun+" "+m.Verb+" "+f.Path)
+			}
+		}
+	}
+	if want := []string{"changes propose edits"}; !slices.Equal(held, want) {
+		t.Errorf("the flags whose JSON may hold a volume are %v, want %v, which refuses a password inline", held, want)
 	}
 }
 

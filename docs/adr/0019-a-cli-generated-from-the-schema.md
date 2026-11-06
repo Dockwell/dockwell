@@ -67,7 +67,8 @@ The binary is one (ADR 0007), so the CLI ships inside `dockwell` beside `run`, `
   - an enum by its value without the prefix, such as `--scope read-write`, or by its full name;
   - a timestamp in RFC 3339, and a duration as Go writes one or in days, such as `90d`;
   - a repeated field by repeating the flag, and a map as `KEY=VALUE`;
-  - any other message as JSON in the API's shape, `@file` or `-` for standard input.
+  - any other message as JSON in the API's shape, `@file` or `-` for standard input;
+  - a text field marked `(dockwell.v1.from_file)` as typed, `@file` or `-` too, as a Compose file is `--compose @compose.yaml`.
 - Two fields of one oneof can't go together, and the error names both flags.
 - Values are checked as they are parsed, so a mistake names its flag and is a usage error, with exit status 2.
 

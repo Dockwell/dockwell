@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/options.proto.
  */
 export const file_dockwell_v1_options: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9vcHRpb25zLnByb3RvEgtkb2Nrd2VsbC52MSIlCgdDb21tYW5kEgwKBG5vdW4YASABKAkSDAoEdmVyYhgCIAEoCSIiCgROb3VuEgwKBG5hbWUYASABKAkSDAoEaGVscBgCIAEoCSpsCgZFZmZlY3QSFgoSRUZGRUNUX1VOU1BFQ0lGSUVEEAASDwoLRUZGRUNUX1JFQUQQARIPCgtFRkZFQ1RfUExBThACEhAKDEVGRkVDVF9BUFBMWRADEhYKEkVGRkVDVF9ERVNUUlVDVElWRRAEKj8KClRva2VuR3JhbnQSGwoXVE9LRU5fR1JBTlRfVU5TUEVDSUZJRUQQABIUChBUT0tFTl9HUkFOVF9MT0dTEAE6TQoGZWZmZWN0Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtIcDIAEoDjITLmRvY2t3ZWxsLnYxLkVmZmVjdFIGZWZmZWN0OlAKB2NvbW1hbmQSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxi1hwMgASgLMhQuZG9ja3dlbGwudjEuQ29tbWFuZFIHY29tbWFuZDpFCg1uZWVkc19zZXNzaW9uEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtocDIAEoCFIMbmVlZHNTZXNzaW9uOloKC25lZWRzX2dyYW50Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYt4cDIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnRSCm5lZWRzR3JhbnQ6SgoFbm91bnMSHy5nb29nbGUucHJvdG9idWYuU2VydmljZU9wdGlvbnMYtIcDIAMoCzIRLmRvY2t3ZWxsLnYxLk5vdW5SBW5vdW5zOjMKBGZsYWcSHS5nb29nbGUucHJvdG9idWYuRmllbGRPcHRpb25zGLSHAyABKAlSBGZsYWc6NwoEd29yZBIhLmdvb2dsZS5wcm90b2J1Zi5FbnVtVmFsdWVPcHRpb25zGLSHAyABKAlSBHdvcmRCpQEKD2NvbS5kb2Nrd2VsbC52MUIMT3B0aW9uc1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_google_protobuf_descriptor]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9vcHRpb25zLnByb3RvEgtkb2Nrd2VsbC52MSIlCgdDb21tYW5kEgwKBG5vdW4YASABKAkSDAoEdmVyYhgCIAEoCSIiCgROb3VuEgwKBG5hbWUYASABKAkSDAoEaGVscBgCIAEoCSpsCgZFZmZlY3QSFgoSRUZGRUNUX1VOU1BFQ0lGSUVEEAASDwoLRUZGRUNUX1JFQUQQARIPCgtFRkZFQ1RfUExBThACEhAKDEVGRkVDVF9BUFBMWRADEhYKEkVGRkVDVF9ERVNUUlVDVElWRRAEKj8KClRva2VuR3JhbnQSGwoXVE9LRU5fR1JBTlRfVU5TUEVDSUZJRUQQABIUChBUT0tFTl9HUkFOVF9MT0dTEAE6TQoGZWZmZWN0Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtIcDIAEoDjITLmRvY2t3ZWxsLnYxLkVmZmVjdFIGZWZmZWN0OlAKB2NvbW1hbmQSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxi1hwMgASgLMhQuZG9ja3dlbGwudjEuQ29tbWFuZFIHY29tbWFuZDpFCg1uZWVkc19zZXNzaW9uEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtocDIAEoCFIMbmVlZHNTZXNzaW9uOloKC25lZWRzX2dyYW50Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYt4cDIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnRSCm5lZWRzR3JhbnQ6SgoFbm91bnMSHy5nb29nbGUucHJvdG9idWYuU2VydmljZU9wdGlvbnMYtIcDIAMoCzIRLmRvY2t3ZWxsLnYxLk5vdW5SBW5vdW5zOjMKBGZsYWcSHS5nb29nbGUucHJvdG9idWYuRmllbGRPcHRpb25zGLSHAyABKAlSBGZsYWc6PAoJZnJvbV9maWxlEh0uZ29vZ2xlLnByb3RvYnVmLkZpZWxkT3B0aW9ucxi1hwMgASgIUghmcm9tRmlsZTo3CgR3b3JkEiEuZ29vZ2xlLnByb3RvYnVmLkVudW1WYWx1ZU9wdGlvbnMYtIcDIAEoCVIEd29yZEKlAQoPY29tLmRvY2t3ZWxsLnYxQgxPcHRpb25zUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_google_protobuf_descriptor]);
 
 /**
  * Command names a method's command in the dockwell CLI, dockwell <noun>
@@ -217,6 +217,16 @@ export const flag: GenExtension<FieldOptions, string> = /*@__PURE__*/
   extDesc(file_dockwell_v1_options, 5);
 
 /**
+ * The dockwell CLI's flag for a request's text field also reads it from a
+ * file, as --compose @compose.yaml, or from standard input with -, as a JSON
+ * flag does, so a file that may hold a secret needn't go on the command line.
+ *
+ * @generated from extension: bool from_file = 50101;
+ */
+export const from_file: GenExtension<FieldOptions, boolean> = /*@__PURE__*/
+  extDesc(file_dockwell_v1_options, 6);
+
+/**
  * What people read for a value, where that isn't its name in words: the
  * dockwell CLI's word for it, which the panel says too, such as "Running" for
  * HEALTH_STATE_NO_CHECK. Most values leave it unset.
@@ -224,5 +234,5 @@ export const flag: GenExtension<FieldOptions, string> = /*@__PURE__*/
  * @generated from extension: string word = 50100;
  */
 export const word: GenExtension<EnumValueOptions, string> = /*@__PURE__*/
-  extDesc(file_dockwell_v1_options, 6);
+  extDesc(file_dockwell_v1_options, 7);
 

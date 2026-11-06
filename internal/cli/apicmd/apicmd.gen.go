@@ -229,7 +229,7 @@ func Methods() []*apicli.Method {
 			Long:      "Read a Compose file as dockwell compose import would and says what it would\nmake, or why it can't, without planning anything or recording a change, so a\nform can check a file as someone types it. It is a POST, as a file doesn't fit\nin a URL.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
-				{Path: "compose", Help: "The Compose file, as YAML, as dockwell compose import takes it."},
+				{Path: "compose", Help: "The Compose file, as YAML, as dockwell compose import takes it.", FromFile: true},
 				{Path: "variables", Help: "Values for the variables the file uses, as dockwell compose import takes them."},
 				{Path: "env", Help: "The .env file beside the Compose file, as dockwell compose import takes it. A variable it gives needs no other value.", Sensitive: true},
 				{Path: "directory", Help: "The directory the file is in on the servers, as dockwell compose import takes it."},
@@ -265,7 +265,7 @@ func Methods() []*apicli.Method {
 				{Path: "summary", Help: "What the change is for, such as \"Run the shop's stack\". Empty says it came from a Compose file."},
 				{Path: "project", Help: "The project it belongs to, by name or ID, such as \"shop\". One that doesn't exist yet comes to life with the plan. Left out, the file's name: names it. With neither, the file goes in the default project, only while that has no apps: otherwise it is refused, as a service of the same name would change the one that is there."},
 				{Path: "environment", Help: "The environment, by name or ID. Leave it out while its project has only one. A project the plan brings to life starts with this one, or with production. A file exported from here goes back to the environment it came from unless this names another of its project."},
-				{Path: "compose", Help: "The Compose file, as YAML, such as --compose \"$(cat compose.yaml)\", of up to 256 KiB. A path relative to the file needs directory, as it runs on servers where it otherwise means nothing."},
+				{Path: "compose", Help: "The Compose file, as YAML, of up to 256 KiB. The CLI reads it from a file, --compose @compose.yaml, or standard input, --compose -, and refuses it on the command line when it gives a volume a password, which would stay in shell history and the process list. A path relative to the file needs directory, as it runs on servers where it otherwise means nothing.", FromFile: true},
 				{Path: "variables", Help: "Values for the variables the file uses, such as ${TAG}. A variable with no value here, in env or as a default in the file is refused. They win over env, as a shell's win over an .env file."},
 				{Path: "servers", Help: "Where the services, volumes and networks run, by server ID, as an edit's servers. Empty keeps what exists where it runs, and puts what is new on the only server; once there are several, name them."},
 				{Path: "remove_orphans", Help: "Also deletes the environment's services and networks that aren't in the file, as docker compose up --remove-orphans does. Volumes stay, with their data; delete one on its own to remove it."},
