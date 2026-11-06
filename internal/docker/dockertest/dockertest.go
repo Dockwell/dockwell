@@ -709,7 +709,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		h.RestartPolicy = body.RestartPolicy
 		writeJSON(w, http.StatusOK, map[string]any{"Warnings": []string{}})
 	case r.Method == http.MethodDelete && action == "":
-		if c.State.Running && r.URL.Query().Get("force") != "true" {
+		if c.State.Running && !truthy(r.URL.Query().Get("force")) {
 			fail(w, http.StatusConflict, "cannot remove container %s: container is running: stop the container before removing or force remove", c.Name)
 			return
 		}
@@ -766,6 +766,9 @@ func (c *container) matches(f map[string][]string) bool {
 	return passes("name", func(v string) bool {
 		re, err := regexp.Compile(v)
 		return err == nil && (re.MatchString(c.Name) || re.MatchString(strings.TrimPrefix(c.Name, "/")))
+	}) && passes("id", func(v string) bool {
+		re, err := regexp.Compile(v)
+		return err == nil && re.MatchString(c.ID)
 	}) && passes("volume", func(v string) bool {
 		return slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == v || m.Source == v || m.Destination == v })
 	}) && passes("network", func(v string) bool {
@@ -797,13 +800,23 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 		}
 		if c.matches(f) {
 			out = append(out, docker.ContainerSummary{
-				ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Ports: summaryPorts(c),
+				ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Image: e.listedImage(c), Ports: summaryPorts(c), Mounts: c.Mounts,
 				State: c.State.Status, Status: statusLine(c), NetworkSettings: docker.SummaryNetworks{Networks: c.NetworkSettings.Networks},
 			})
 		}
 	}
 	slices.SortFunc(out, func(a, b docker.ContainerSummary) int { return int(b.Created - a.Created) })
 	writeJSON(w, http.StatusOK, out)
+}
+
+// listedImage is what a list says a container runs: the name it was made from
+// while that still means the image it runs, or else the image's ID, as Moby v28.5.2's
+// daemon/list.go has it in refreshImage.
+func (e *Engine) listedImage(c *container) string {
+	if img := e.image(c.Config.Image); c.Image == "" || img != nil && img.id == c.Image {
+		return c.Config.Image // AddContainer can make one of no image in particular
+	}
+	return c.Image
 }
 
 // statusLine says how a container is, as a list has it for people, with its
@@ -838,7 +851,7 @@ func summaryPorts(c *container) []docker.SummaryPort {
 					addresses = []string{"0.0.0.0", "::"}
 				}
 				for _, ip := range addresses {
-					out = append(out, docker.SummaryPort{IP: ip, PublicPort: uint16(n), Type: proto(port)})
+					out = append(out, docker.SummaryPort{IP: ip, PrivatePort: privatePort(port), PublicPort: uint16(n), Type: proto(port)})
 				}
 			}
 		}
@@ -916,6 +929,23 @@ func overlap(a, b string) bool {
 func proto(port string) string {
 	_, p, _ := strings.Cut(port, "/")
 	return p
+}
+
+// truthy reads a query's flag as Moby v28.5.2's httputils.BoolValue does: anything
+// but these is true, so force=1 forces as force=true does.
+func truthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "0", "no", "false", "none":
+		return false
+	}
+	return true
+}
+
+// privatePort is the container's side of a port such as "80/tcp".
+func privatePort(port string) uint16 {
+	number, _, _ := strings.Cut(port, "/")
+	n, _ := strconv.ParseUint(number, 10, 16)
+	return uint16(n)
 }
 
 // attach and detach keep each network's list of running containers.

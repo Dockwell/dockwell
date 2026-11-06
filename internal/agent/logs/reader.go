@@ -151,7 +151,8 @@ func (r *Reader) sources(ctx context.Context, project, service string, kept bool
 	}
 	out := make([]*source, 0, len(list))
 	have := map[string]bool{}
-	for _, s := range list {
+	for i := range list {
+		s := &list[i]
 		if s.Labels[docker.LabelOneoff] == "True" {
 			continue
 		}

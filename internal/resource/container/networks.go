@@ -291,7 +291,8 @@ func (d *Docker) checkNetworks(ctx context.Context, t Target, spec *resourcev1.C
 		if err != nil {
 			return err
 		}
-		for _, other := range list {
+		for i := range list {
+			other := &list[i]
 			if other.Labels[docker.LabelProject] == t.Project && other.Labels[docker.LabelService] == t.Service {
 				continue // itself, or what a replace left of it
 			}

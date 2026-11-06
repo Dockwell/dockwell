@@ -30,7 +30,7 @@ const (
 // ownLabel marks Caddy's container as Dockwell's, and versionLabel says which
 // version it runs, for people, as a digest doesn't.
 const (
-	ownLabel     = docker.OwnPrefix + "ingress"
+	ownLabel     = docker.LabelIngress
 	versionLabel = docker.OwnPrefix + "ingress.version"
 )
 
