@@ -325,7 +325,10 @@ export function NewAppSheet({
         review(res.change, count === 1 ? "app" : "list");
       } catch (err) {
         if (reasonOf(err) === "needs_project") setErrors({ project: sentence(err) });
-        else setFailure(portRefusal(sentence(err)) ?? sentence(err));
+        else {
+          const message = tidyMessage(sentence(err));
+          setFailure(portRefusal(message) ?? message);
+        }
       } finally {
         setBusy(false);
       }
