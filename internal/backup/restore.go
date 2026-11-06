@@ -332,7 +332,8 @@ func (r *Runner) replaceWithDump(ctx context.Context, ref resource.Ref, t volume
 		return failed
 	}
 	resource.Progress(ctx, "Putting back what was there")
-	back := context.WithoutCancel(ctx)
+	back, cancel := resource.Finishing(ctx, putBackWait)
+	defer cancel()
 	if err := r.Client.StopContainer(back, db.id, db.stopWait); err != nil {
 		return errors.Join(failed, fmt.Errorf("can't stop %s to put back what was there: %w", db.name, err))
 	}
@@ -343,13 +344,24 @@ func (r *Runner) replaceWithDump(ctx context.Context, ref resource.Ref, t volume
 	return fmt.Errorf("the dump didn't load: %w. The volume holds what it held before", failed)
 }
 
-// startWait bounds starting what a restore stopped, however it ended.
-const startWait = 5 * time.Minute
+const (
+	// startWait bounds starting what a run stopped, however it ended.
+	startWait = 5 * time.Minute
+	// putBackWait bounds putting back what a dump that wouldn't load replaced.
+	putBackWait = time.Hour
+)
+
+// startAgain starts what a run stopped, whatever became of its context.
+func (r *Runner) startAgain(ctx context.Context, run string, containers []*user) error {
+	ctx, cancel := resource.Finishing(ctx, startWait)
+	defer cancel()
+	return r.start(ctx, run, containers)
+}
 
 // startAll starts what a run stopped, the database first, whatever became of its
 // context, and forgets it.
 func (r *Runner) startAll(ctx context.Context, run string, u *users, db *database) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), startWait)
+	ctx, cancel := resource.Finishing(ctx, startWait)
 	defer cancel()
 	r.mu.Lock()
 	list, err := r.readStopped()

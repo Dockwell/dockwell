@@ -68,8 +68,10 @@ func postgresLoadFailed(line string) bool {
 	if !strings.Contains(line, "ERROR:") && !strings.Contains(line, "FATAL:") {
 		return false
 	}
-	return !strings.Contains(line, "current user cannot be dropped") &&
-		!(strings.Contains(line, "role \"") && strings.Contains(line, "already exists"))
+	if strings.Contains(line, "current user cannot be dropped") {
+		return false
+	}
+	return !strings.Contains(line, "role \"") || !strings.Contains(line, "already exists")
 }
 
 // kindOf finds a known database by what a container runs and where it has the
@@ -236,7 +238,7 @@ func verifyDump(k *databaseKind) verifier {
 		}
 		defer gz.Close()
 		end := &tail{}
-		if _, err := io.Copy(end, gz); err != nil {
+		if _, err := io.Copy(end, gz); err != nil { //nolint:gosec // a backup this agent wrote, read once and kept to its last 4 KiB
 			return fmt.Errorf("the dump stops short or is damaged: %w", err)
 		}
 		if !strings.Contains(end.String(), k.complete) {
@@ -271,7 +273,7 @@ func (r *Runner) awaitReady(ctx context.Context, db *database) error {
 		case err != nil:
 			last = err
 		default:
-			last = fmt.Errorf("it isn't taking connections yet")
+			last = errors.New("it isn't taking connections yet")
 		}
 		select {
 		case <-ctx.Done():
@@ -290,13 +292,11 @@ type lines struct {
 func (l *lines) Write(b []byte) (int, error) {
 	l.buf.Write(b)
 	for {
-		line, err := l.buf.ReadString('\n')
-		if err != nil {
-			l.buf.Reset()
-			l.buf.WriteString(line)
+		i := bytes.IndexByte(l.buf.Bytes(), '\n')
+		if i < 0 {
 			return len(b), nil
 		}
-		l.fn(strings.TrimRight(line, "\r\n"))
+		l.fn(strings.TrimRight(string(l.buf.Next(i+1)), "\r\n"))
 	}
 }
 

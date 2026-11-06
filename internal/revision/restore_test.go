@@ -73,7 +73,7 @@ func (d drop) Plan(ctx context.Context, desired []resource.Desired) ([]resource.
 
 // withVolume is an engine with one server that has a volume, and a service
 // beside it.
-func withVolume(t *testing.T, b store.Backend) (*Engine, *restores, onDocker, resource.Ref, string, *store.DB) {
+func withVolume(t *testing.T, b store.Backend) *restoreBench {
 	t.Helper()
 	e, engines, db := setupDocker(t, b, "srv_A")
 	env := production(t, db)
@@ -84,7 +84,16 @@ func withVolume(t *testing.T, b store.Backend) (*Engine, *restores, onDocker, re
 	drivers := resource.NewRegistry(&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, Restores: r})
 	agents["srv_A"] = twoAgents{Local: local, volumes: resource.Local{Drivers: drivers}}
 	ref := resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}
-	return e, r, agents, ref, env, db
+	return &restoreBench{e, r, agents, ref, env, db}
+}
+
+type restoreBench struct {
+	e      *Engine
+	r      *restores
+	agents onDocker
+	ref    resource.Ref
+	env    string
+	db     *store.DB
 }
 
 // twoAgents sends what's about volumes to a driver that restores, and the rest
@@ -135,7 +144,8 @@ func restoreBy() By { return By{Actor: "usr_test", Via: ViaPanel} }
 // destroys data, so it reads as what it is, and it happens once.
 func TestARestoreIsAPlanThatMakesNoRevision(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, r, _, ref, env, db := withVolume(t, b)
+		x := withVolume(t, b)
+		e, r, ref, env, db := x.e, x.r, x.ref, x.env, x.db
 		withData(t, e, env)
 		before := latest(t, db, ref)
 
@@ -195,7 +205,8 @@ func latest(t *testing.T, db *store.DB, ref resource.Ref) int {
 // What a server must say can't be guessed from its last known state.
 func TestARestoreNeedsItsServer(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, _, agents, ref, env, _ := withVolume(t, b)
+		x := withVolume(t, b)
+		e, agents, ref, env := x.e, x.agents, x.ref, x.env
 		withData(t, e, env)
 		delete(agents, "srv_A")
 		_, err := e.Restore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Server: "srv_A"}, restoreBy(), "")
@@ -208,7 +219,8 @@ func TestARestoreNeedsItsServer(t *testing.T) {
 // A volume that isn't on the server with the backup can't take it.
 func TestARestoreGoesWhereTheBackupIs(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, _, _, ref, env, _ := withVolume(t, b)
+		x := withVolume(t, b)
+		e, ref, env := x.e, x.ref, x.env
 		withData(t, e, env)
 		_, err := e.Restore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Server: "srv_B"}, restoreBy(), "")
 		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "isn't on the server") {
@@ -227,7 +239,8 @@ func TestARestoreGoesWhereTheBackupIs(t *testing.T) {
 // done with nothing restored.
 func TestAnAgentThatCantRestoreIsToldToUpdate(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, _, agents, ref, env, _ := withVolume(t, b)
+		x := withVolume(t, b)
+		e, agents, ref, env := x.e, x.agents, x.ref, x.env
 		withData(t, e, env)
 		agents["srv_A"] = drop{agents["srv_A"]}
 		_, err := e.Restore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Server: "srv_A"}, restoreBy(), "")
@@ -241,7 +254,8 @@ func TestAnAgentThatCantRestoreIsToldToUpdate(t *testing.T) {
 // volume stays where it was on record.
 func TestARestoreThatFailsSaysSo(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, r, _, ref, env, db := withVolume(t, b)
+		x := withVolume(t, b)
+		e, r, ref, env, db := x.e, x.r, x.ref, x.env, x.db
 		withData(t, e, env)
 		r.apply = func(context.Context) error { return errors.New("the backup is damaged") }
 		plan, err := e.Restore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Server: "srv_A"}, restoreBy(), "")
@@ -264,7 +278,8 @@ func TestARestoreThatFailsSaysSo(t *testing.T) {
 // A deploy can't start on data that's being replaced, nor a restore under a deploy.
 func TestARestoreHoldsItsEnvironmentsServices(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, r, _, ref, env, _ := withVolume(t, b)
+		x := withVolume(t, b)
+		e, r, ref, env := x.e, x.r, x.ref, x.env
 		withData(t, e, env)
 		started, release := make(chan struct{}), make(chan struct{})
 		r.apply = func(context.Context) error {
@@ -298,7 +313,8 @@ func TestARestoreHoldsItsEnvironmentsServices(t *testing.T) {
 // says how far it got, so it never runs twice.
 func TestARestoreResumesWithoutRunningTwice(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, r, _, ref, env, db := withVolume(t, b)
+		x := withVolume(t, b)
+		e, r, ref, env, db := x.e, x.r, x.ref, x.env, x.db
 		withData(t, e, env)
 		plan, err := e.Restore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Server: "srv_A"}, restoreBy(), "")
 		if err != nil {

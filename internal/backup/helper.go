@@ -45,9 +45,9 @@ func (r *Runner) tool(ctx context.Context, t volume.Target, verb string, s docke
 	if err := r.importHelper(ctx, image); err != nil {
 		return stats, err
 	}
-	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), helperCleanup)
-	defer cancel()
 	defer func() {
+		cleanup, cancel := resource.Finishing(ctx, r.helperCleanup())
+		defer cancel()
 		if err := r.Client.RemoveImage(cleanup, image); err != nil {
 			r.logger().Warn("can't remove a helper's image; the agent removes it when it next starts", "image", image, "error", err.Error())
 		}
@@ -70,6 +70,8 @@ func (r *Runner) tool(ctx context.Context, t volume.Target, verb string, s docke
 		return stats, fmt.Errorf("docker can't make the helper that reads the volume: %w", err)
 	}
 	defer func() {
+		cleanup, cancel := resource.Finishing(ctx, r.helperCleanup())
+		defer cancel()
 		if err := r.Client.RemoveContainer(cleanup, id, true); err != nil && !docker.IsNotFound(err) {
 			r.logger().Warn("can't remove a helper; the agent removes it when it next starts", "container", id, "error", err.Error())
 		}
@@ -91,6 +93,13 @@ func (r *Runner) tool(ctx context.Context, t volume.Target, verb string, s docke
 		return stats, errors.New("the helper ended without saying it had finished")
 	}
 	return stats, nil
+}
+
+func (r *Runner) helperCleanup() time.Duration {
+	if r.CleanupWait > 0 {
+		return r.CleanupWait
+	}
+	return helperCleanup
 }
 
 // importHelper makes an image of one file, this agent's binary. It's static, so
@@ -149,13 +158,11 @@ func (t *toolReport) Write(b []byte) (int, error) {
 	defer t.mu.Unlock()
 	t.buf.Write(b)
 	for {
-		line, err := t.buf.ReadString('\n')
-		if err != nil {
-			t.buf.Reset()
-			t.buf.WriteString(line)
+		i := bytes.IndexByte(t.buf.Bytes(), '\n')
+		if i < 0 {
 			return len(b), nil
 		}
-		t.line(strings.TrimSpace(line))
+		t.line(strings.TrimSpace(string(t.buf.Next(i + 1))))
 	}
 }
 

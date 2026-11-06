@@ -60,7 +60,7 @@ func (e *Engine) volumeDir(name string) string {
 		e.volumeRoot = dir
 	}
 	dir := filepath.Join(e.volumeRoot, name)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		panic(err)
 	}
 	return dir
@@ -164,7 +164,7 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	stdin := truthy(r.URL.Query().Get("stdin"))
-	if stdin && !(c.Config.OpenStdin && c.Config.StdinOnce) {
+	if stdin && (!c.Config.OpenStdin || !c.Config.StdinOnce) {
 		fail(w, http.StatusBadRequest, "a container made without OpenStdin and StdinOnce never hears the end of its stdin")
 		return
 	}
@@ -203,9 +203,6 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	e.mu.Unlock()
 	if code < 0 {
-		if os.Getenv("DOCKERTEST_TOOL_DELAY") != "" {
-			time.Sleep(time.Second)
-		}
 		code = volumetool.Main(args, in, stdout, stderr)
 	}
 	e.mu.Lock()

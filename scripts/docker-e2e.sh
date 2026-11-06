@@ -13,8 +13,9 @@
 # and reaches another project on it by name, and a route with no certificate
 # reaches it there, as it does a service on the server's own network, by its port
 # alone. Each app in the catalog installs as a project of its own and signs in with
-# a password no one typed, but for the tunnel, which stops at its plan. Then the
-# agent build joins the
+# a password no one typed, but for the tunnel, which stops at its plan. A volume,
+# PostgreSQL and MySQL each back up, lose their data, and get it back through a
+# plan, with owners and modes as they were. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
@@ -138,6 +139,7 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
+  docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
   docker rm --force e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   docker volume rm e2e-by-hand-data e2e-take-on-data >/dev/null 2>&1 || true
   docker network rm e2e-by-hand-net >/dev/null 2>&1 || true
@@ -3055,6 +3057,110 @@ catalog_generated() {
   echo "$value"
 }
 
+# volume_id finds a volume by its name and its environment's Compose project.
+volume_id() {
+  local listed
+  listed=$(dw resources list --kind volume --json) || fail "listing volumes failed"
+  jq -r --arg name "$1" --arg project "$2" \
+    '.resources[] | select(.resource.name == $name and (.resource.scope | ascii_downcase) == $project) | .id' <<<"$listed"
+}
+# backup_field reads a field of a backup.
+backup_field() { dw backups get "$1" --json | jq -r ".backup.$2"; }
+# backup_take backs up a volume, waits for it, says its ID, and fails unless it's
+# whole. It leaves nothing of its helper behind, and Docker no copy in a log.
+backup_take() {
+  local made id state="" left
+  made=$(dw backups create --volume-id "$1" "${@:2}" --yes --json) || fail "backing up $1 failed: $made"
+  id=$(jq -r .backup.id <<<"$made") || fail "backups create printed what isn't JSON: $made"
+  for _ in $(seq 240); do
+    state=$(backup_field "$id" state) || state=""
+    [[ "$state" != BACKUP_STATE_RUNNING ]] && break
+    sleep 0.5
+  done
+  [[ "$state" == BACKUP_STATE_DONE ]] || fail "backup $id is $state: $(dw backups get "$id" --json)"
+  left=$(docker ps --all --quiet --filter label=dev.dockwell.volume-tool; docker images --quiet dockwell-volume-tool) || fail "docker ps failed"
+  [[ -z "$left" ]] || fail "a backup left its helper behind: $left"
+  echo "$id"
+}
+# backup_plan plans restoring a backup, and says its change. A token can plan it and
+# not apply it, and it says it destroys data and what stops.
+backup_plan() {
+  local planned change
+  planned=$(dw backups restore "$1" --plan-only --json) || fail "planning to restore $1 failed: $planned"
+  jq -e --argjson stops "$2" '.change.plan.destructive == true and (.change.plan.servers[0].steps[0] | .destroysData == true and .restore.stops == $stops)' <<<"$planned" >/dev/null ||
+    fail "the plan doesn't say what it replaces and that $2 stop: $planned"
+  change=$(jq -r .change.id <<<"$planned")
+  token_refused "$change"
+  echo "$change"
+}
+# backup_healthy waits for what a restore started to be healthy again.
+backup_healthy() {
+  local health=""
+  for _ in $(seq 180); do
+    health=$(docker inspect --format '{{.State.Health.Status}}' "$1") || fail "docker inspect $1 failed"
+    [[ "$health" == healthy ]] && return 0
+    sleep 0.5
+  done
+  fail "$1 reads $health 90 s after a restore, want healthy: $(docker logs --tail 20 "$1" 2>&1)"
+}
+# backup_undo undoes a restore, which a person has to apply too.
+backup_undo() {
+  local planned change
+  planned=$(dw changes undo "$1" --plan-only --json) || fail "planning to undo $1 failed: $planned"
+  change=$(jq -r .change.id <<<"$planned")
+  person_apply "$change"
+}
+
+step "Backups: a volume comes back as it was, owners, modes and links, through a plan"
+backup_file=$(printf 'name: e2e-backups\nservices:\n  files:\n    image: nginx:1.27-alpine\n    volumes: [data:/srv/data]\nvolumes:\n  data: {}\n')
+dw compose import --compose "$backup_file" --yes || fail "importing e2e-backups failed"
+backup_files=$(docker ps --filter label=com.docker.compose.service=files --format '{{.Names}}') || fail "docker ps failed"
+[[ -n "$backup_files" ]] || fail "e2e-backups runs nothing"
+backup_project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$backup_files") || fail "docker inspect failed"
+extra_projects+=" $backup_project"
+backup_volume=$(volume_id data "$backup_project")
+[[ -n "$backup_volume" ]] || fail "there's no volume data in $backup_project: $(dw resources list --kind volume --json)"
+docker exec "$backup_files" sh -c '
+  cd /srv/data && mkdir -p owned/deep shared empty &&
+  echo the original >owned/file && echo private >owned/deep/key &&
+  chown 1234:5678 owned/file && chmod 640 owned/file &&
+  chown -R 999:998 owned/deep && chmod 600 owned/deep/key && chmod 700 owned/deep &&
+  chmod 2750 owned && chmod 1777 shared && chown 33:33 . && chmod 750 . &&
+  ln -s owned/file link && ln -s /etc/passwd outward && ln owned/file hard && mkfifo pipe && chmod 620 pipe &&
+  touch -d "2020-02-03 04:05:06" owned/file' || fail "can't fill the volume"
+# What a volume is, beyond what's in its files: each path's owner, mode, type, links and time.
+backup_tree() { docker exec "$backup_files" sh -c 'cd /srv/data && find . -exec stat -c "%n %u:%g %a %F %h %N" {} + | sort; find . -type f -exec stat -c "%n %Y" {} + | sort'; }
+tree_before=$(backup_tree) || fail "can't read the volume"
+[[ "$tree_before" == *"./owned/file 1234:5678 640"* && "$tree_before" == *"./owned 0:0 2750"* && "$tree_before" == *". 33:33 750"* ]] ||
+  fail "the volume isn't as this step made it: $tree_before"
+said=$(dw backups preview --volume-id "$backup_volume" --json) || fail "previewing a backup failed: $said"
+jq -e '.method == "BACKUP_METHOD_COPY_RUNNING" and .running == ["files"]' <<<"$said" >/dev/null || fail "the preview says: $said"
+started=$(docker inspect --format '{{.State.StartedAt}}' "$backup_files") || fail "docker inspect failed"
+backup=$(backup_take "$backup_volume" --stop)
+[[ "$(backup_field "$backup" method)" == BACKUP_METHOD_COPY ]] || fail "a copy with the app stopped says $(backup_field "$backup" method)"
+[[ "$(docker inspect --format '{{.State.Running}}' "$backup_files")" == true ]] || fail "what a backup stopped didn't start again"
+[[ "$(docker inspect --format '{{.State.StartedAt}}' "$backup_files")" != "$started" ]] || fail "the backup said it stopped the app, and it didn't"
+backup_file_on_disk="$data/agent/backups/$(jq -r .backup.environmentId <<<"$(dw backups get "$backup" --json)")/data/$backup.tar.gz"
+# With nothing of Dockwell's: plain tar reads it, with the owners as numbers.
+listing=$(priv tar --numeric-owner -tvzf "$backup_file_on_disk") || fail "plain tar can't read $backup_file_on_disk"
+[[ "$listing" == *"1234/5678"* ]] || fail "the archive has no numeric owners: $listing"
+mode=$(priv stat -c %a "$backup_file_on_disk") || fail "stat failed"
+[[ "$mode" == 600 ]] || fail "the backup is readable by more than its owner: $mode"
+
+docker exec "$backup_files" sh -c 'cd /srv/data && rm -rf owned link && echo made since >new && chmod 777 .' || fail "can't change the volume"
+tree_changed=$(backup_tree) || fail "can't read the volume"
+change=$(backup_plan "$backup" '["files"]')
+person_apply "$change"
+tree_after=$(backup_tree) || fail "can't read the volume"
+[[ "$tree_after" == "$tree_before" ]] || fail "the volume didn't come back as it was:
+$(diff <(printf '%s\n' "$tree_before") <(printf '%s\n' "$tree_after"))"
+[[ "$(docker inspect --format '{{.State.Running}}' "$backup_files")" == true ]] || fail "the app didn't start again after a restore"
+[[ "$(docker exec "$backup_files" cat /srv/data/owned/file)" == "the original" ]] || fail "the file's bytes didn't come back"
+backup_undo "$change"
+tree_undone=$(backup_tree) || fail "can't read the volume"
+[[ "$tree_undone" == "$tree_changed" ]] || fail "undoing the restore didn't put back what it replaced:
+$(diff <(printf '%s\n' "$tree_changed") <(printf '%s\n' "$tree_undone"))"
+
 step "Catalog: PostgreSQL installs by digest with a password no one typed, and Adminer signs in with it"
 catalog_install postgres
 postgres_db=$(catalog_container db)
@@ -3085,6 +3191,39 @@ page=$(adminer_sign_in "$password")
 page=$(adminer_sign_in not-the-password)
 [[ "$page" != *"id='logout'"* ]] || fail "Adminer signed in with a wrong password"
 
+step "Backups: PostgreSQL dumps with nothing stopped, and a restore brings back what a migration took"
+pg() { docker exec "$postgres_db" psql -X -q -U postgres -d "$1" -tAc "$2"; }
+pg postgres 'CREATE DATABASE shop' || fail "can't make a database"
+pg postgres "CREATE ROLE shopper LOGIN PASSWORD 'shopper-password'" || fail "can't make a role"
+# shellcheck disable=SC2016 # $$ quotes text for PostgreSQL.
+pg shop 'CREATE TABLE orders (id int PRIMARY KEY, item text); INSERT INTO orders SELECT n, $$item $$ || n FROM generate_series(1, 5000) n; ALTER TABLE orders OWNER TO shopper' ||
+  fail "can't fill the database"
+postgres_volume=$(volume_id data "$catalog_project")
+[[ -n "$postgres_volume" ]] || fail "there's no volume data in $catalog_project"
+said=$(dw backups preview --volume-id "$postgres_volume" --json) || fail "previewing a backup failed: $said"
+jq -e '.method == "BACKUP_METHOD_DUMP" and .database == "PostgreSQL"' <<<"$said" >/dev/null || fail "the preview says: $said"
+started=$(docker inspect --format '{{.State.StartedAt}}' "$postgres_db") || fail "docker inspect failed"
+backup=$(backup_take "$postgres_volume")
+[[ "$(backup_field "$backup" method)" == BACKUP_METHOD_DUMP ]] || fail "PostgreSQL wasn't dumped: $(dw backups get "$backup" --json)"
+[[ "$(docker inspect --format '{{.State.StartedAt}}' "$postgres_db")" == "$started" ]] || fail "a dump restarted the database"
+pg shop 'DROP TABLE orders' || fail "can't drop the table"
+pg postgres 'CREATE DATABASE made_since' || fail "can't make a database"
+change=$(backup_plan "$backup" '["adminer","db"]')
+person_apply "$change"
+backup_healthy "$postgres_db"
+backup_healthy "$adminer"
+[[ "$(pg shop 'SELECT count(*) FROM orders')" == 5000 ]] || fail "the orders didn't come back: $(pg shop 'SELECT count(*) FROM orders' 2>&1)"
+[[ "$(pg shop 'SELECT item FROM orders WHERE id = 42')" == "item 42" ]] || fail "the orders came back wrong"
+[[ "$(pg shop "SELECT tableowner FROM pg_tables WHERE tablename = 'orders'")" == shopper ]] || fail "the table's owner didn't come back"
+[[ "$(pg postgres "SELECT count(*) FROM pg_roles WHERE rolname = 'shopper'")" == 1 ]] || fail "the role didn't come back"
+[[ "$(pg postgres "SELECT count(*) FROM pg_database WHERE datname = 'made_since'")" == 0 ]] || fail "what was made since the backup is still there"
+page=$(adminer_sign_in "$password")
+[[ "$page" == *"id='logout'"* ]] || fail "Adminer can't sign in after a restore: $(sign_in_says "$page" "$password")"
+backup_undo "$change"
+backup_healthy "$postgres_db"
+[[ "$(pg postgres "SELECT count(*) FROM pg_database WHERE datname = 'made_since'")" == 1 ]] || fail "undoing the restore didn't bring back what it replaced"
+[[ -z "$(pg shop "SELECT tablename FROM pg_tables WHERE tablename = 'orders'")" ]] || fail "undoing the restore left the orders"
+
 step "Catalog: MySQL runs with a password of its own, and phpMyAdmin signs in with it"
 catalog_install mysql
 mysql_db=$(catalog_container db)
@@ -3113,6 +3252,31 @@ page=$(phpmyadmin_sign_in "$password")
 [[ "$page" == *route=/logout* ]] || fail "phpMyAdmin can't sign in to MySQL with its password: $(sign_in_says "$page" "$password")"
 page=$(phpmyadmin_sign_in not-the-password)
 [[ "$page" != *route=/logout* ]] || fail "phpMyAdmin signed in with a wrong password"
+
+step "Backups: MySQL dumps with nothing stopped, and a restore brings back what a migration took"
+my() { docker exec "$mysql_db" sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD exec mysql -uroot -h127.0.0.1 -N -e "$1"' sh "$1"; }
+my "CREATE DATABASE shop; CREATE TABLE shop.orders (id INT PRIMARY KEY, item VARCHAR(64)); INSERT INTO shop.orders VALUES (1, 'first'), (2, 'second'); CREATE USER 'shopper'@'%' IDENTIFIED BY 'shopper-password'; GRANT ALL ON shop.* TO 'shopper'@'%'" ||
+  fail "can't fill the database"
+mysql_volume=$(volume_id data "$catalog_project")
+[[ -n "$mysql_volume" ]] || fail "there's no volume data in $catalog_project"
+said=$(dw backups preview --volume-id "$mysql_volume" --json) || fail "previewing a backup failed: $said"
+jq -e '.method == "BACKUP_METHOD_DUMP" and .database == "MySQL"' <<<"$said" >/dev/null || fail "the preview says: $said"
+started=$(docker inspect --format '{{.State.StartedAt}}' "$mysql_db") || fail "docker inspect failed"
+backup=$(backup_take "$mysql_volume")
+[[ "$(docker inspect --format '{{.State.StartedAt}}' "$mysql_db")" == "$started" ]] || fail "a dump restarted the database"
+my "DROP TABLE shop.orders; CREATE DATABASE made_since" || fail "can't change the database"
+change=$(backup_plan "$backup" '["db","phpmyadmin"]')
+person_apply "$change"
+backup_healthy "$mysql_db"
+backup_healthy "$phpmyadmin"
+[[ "$(my 'SELECT item FROM shop.orders WHERE id = 2')" == second ]] || fail "the orders didn't come back: $(my 'SELECT item FROM shop.orders WHERE id = 2' 2>&1)"
+[[ -z "$(my "SHOW DATABASES LIKE 'made\\_since'")" ]] || fail "what was made since the backup is still there"
+[[ "$(my "SELECT count(*) FROM mysql.user WHERE user = 'shopper'")" == 1 ]] || fail "the user didn't come back"
+page=$(phpmyadmin_sign_in "$password")
+[[ "$page" == *route=/logout* ]] || fail "phpMyAdmin can't sign in after a restore: $(sign_in_says "$page" "$password")"
+backup_undo "$change"
+backup_healthy "$mysql_db"
+[[ -n "$(my "SHOW DATABASES LIKE 'made\\_since'")" ]] || fail "undoing the restore didn't bring back what it replaced"
 
 step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"
 catalog_install nginx-proxy-manager --values ADMIN_EMAIL=owner@example.com

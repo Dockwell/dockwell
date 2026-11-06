@@ -168,7 +168,7 @@ func (p *packer) add(name string) error {
 	if fi.Mode().IsRegular() {
 		// Not following a link, and not waiting on a pipe, as a file may have
 		// been swapped for one since.
-		file, err = os.OpenFile(full, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		file, err = os.OpenFile(full, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0) //nolint:gosec // what's in the volume, which is what this is for, in a container with nothing else
 		switch {
 		case errors.Is(err, fs.ErrNotExist), errors.Is(err, syscall.ELOOP):
 			p.stats.Changed++
@@ -361,7 +361,7 @@ func extract(r io.Reader, dir string, progress Progress, h hooks) (Stats, *tar.H
 		tick.tell(stats)
 	}
 	// The archive's end is only the tar's: the gzip's own check comes after it.
-	if _, err := io.Copy(io.Discard, gz); err != nil {
+	if _, err := io.Copy(io.Discard, gz); err != nil { //nolint:gosec // to its end, which is the point
 		return stats, nil, fmt.Errorf("the archive is damaged: %w", err)
 	}
 	if top == nil {
@@ -525,7 +525,7 @@ func Verify(r io.Reader) (Stats, error) {
 		if err != nil {
 			return stats, fmt.Errorf("the archive stops short or is damaged after %d files: %w", stats.Files, err)
 		}
-		n, err := io.Copy(io.Discard, tr)
+		n, err := io.Copy(io.Discard, tr) //nolint:gosec // to its end, which is the point
 		if err != nil {
 			return stats, fmt.Errorf("the archive stops short or is damaged after %d files: %w", stats.Files, err)
 		}
@@ -534,7 +534,7 @@ func Verify(r io.Reader) (Stats, error) {
 		}
 		stats.Bytes += n
 	}
-	if _, err := io.Copy(io.Discard, gz); err != nil {
+	if _, err := io.Copy(io.Discard, gz); err != nil { //nolint:gosec // to its end, which is the point
 		return stats, fmt.Errorf("the archive is damaged: %w", err)
 	}
 	stats.Done = true

@@ -559,9 +559,9 @@ export const BackupService: GenService<{
     output: typeof PreviewBackupResponseSchema;
   },
   /**
-   * CreateBackup starts backing up a volume on its server, and returns the
-   * backup running. It ends whether or not the caller waits: follow it with
-   * GetBackup. The server has to be connected.
+   * CreateBackup starts a backup of a volume on its server, which has to be
+   * connected. It returns the backup running, and the backup ends whether or not
+   * the caller waits: follow it with GetBackup.
    *
    * @generated from rpc dockwell.v1.BackupService.CreateBackup
    */

@@ -76,9 +76,15 @@ type Runner struct {
 	// Now is the clock; nil means time.Now.
 	Now    func() time.Time
 	Logger *slog.Logger
+	// CleanupWait bounds removing a helper, once its run has ended. Zero means a
+	// minute.
+	CleanupWait time.Duration
 
 	mu      sync.Mutex
 	working map[string]bool // volumes in Docker with a backup or restore under way
+	// running are the runs under way that stopped something, which isn't for
+	// Recover to start.
+	running map[string]bool
 }
 
 func (r *Runner) now() time.Time {
@@ -209,22 +215,21 @@ func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, use
 	}
 	running := users.running()
 	m.Method = resource.BackupCopy
-	if len(running) > 0 {
-		if !take.Stop {
-			m.Method = resource.BackupCopyRunning
-		} else {
-			if err := r.stop(ctx, take.ID, running, false); err != nil {
-				return errors.Join(err, r.start(context.WithoutCancel(ctx), take.ID, running))
-			}
-			defer func() {
-				if err := r.start(context.WithoutCancel(ctx), take.ID, running); err != nil {
-					r.logger().Error("a backup stopped containers and can't start them again", slog.String("error", err.Error()))
-				}
-			}()
+	stopped := len(running) > 0 && take.Stop
+	if len(running) > 0 && !take.Stop {
+		m.Method = resource.BackupCopyRunning
+	}
+	if stopped {
+		if err := r.stop(ctx, take.ID, running, false); err != nil {
+			return errors.Join(err, r.startAgain(ctx, take.ID, running))
 		}
 	}
 	return r.write(take.Ref, m, func(w io.Writer) (int64, error) {
 		stats, err := r.tool(ctx, t, "pack", docker.Streams{Stdout: w})
+		// As soon as the copy ends: reading it back holds up nothing.
+		if stopped {
+			err = errors.Join(err, r.startAgain(ctx, take.ID, running))
+		}
 		return stats.Changed, err
 	}, verifyArchive)
 }
@@ -237,7 +242,7 @@ type verifier func(io.Reader) error
 func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int64, error), verify verifier) (err error) {
 	dir := r.dir(ref)
 	partial := filepath.Join(dir, m.ID+".partial")
-	f, err := os.OpenFile(partial, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(partial, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // under the agent's own directory, named by an ID
 	if err != nil {
 		return fmt.Errorf("can't write the backup: %w", err)
 	}
@@ -262,11 +267,10 @@ func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int6
 	if err = check(partial, m, verify); err != nil {
 		return fmt.Errorf("the backup didn't read back whole, so it isn't kept: %w. Try again, and check the server's disk if it happens again", err)
 	}
-	final := filepath.Join(dir, m.ID+"."+m.Format)
-	if err = writeManifest(filepath.Join(dir, m.ID+".json"), m); err != nil {
+	if err = writeManifest(filepath.Join(dir, m.ID+".json"), m); err != nil { //nolint:gocritic // the deferred check reads this err
 		return err
 	}
-	if err = os.Rename(partial, final); err != nil {
+	if err = os.Rename(partial, filepath.Join(dir, m.ID+"."+m.Format)); err != nil {
 		_ = os.Remove(filepath.Join(dir, m.ID+".json"))
 		return fmt.Errorf("can't write the backup: %w", err)
 	}
@@ -403,6 +407,12 @@ func (r *Runner) readStopped() (stoppedFile, error) {
 // stop stops containers, noting them first, beside what the run stopped before
 // it died, if it did.
 func (r *Runner) stop(ctx context.Context, run string, containers []*user, restore bool) error {
+	r.mu.Lock()
+	if r.running == nil {
+		r.running = map[string]bool{}
+	}
+	r.running[run] = true
+	r.mu.Unlock()
 	err := r.noteStopped(func(l stoppedFile) {
 		ids := l[run].Containers
 		for _, c := range containers {
@@ -433,6 +443,9 @@ func (r *Runner) start(ctx context.Context, run string, containers []*user) erro
 			errs = append(errs, fmt.Errorf("can't start %s: %w. Start it with docker start %s", c.name, err, c.name))
 		}
 	}
+	r.mu.Lock()
+	delete(r.running, run)
+	r.mu.Unlock()
 	if err := errors.Join(errs...); err != nil {
 		return err
 	}
@@ -443,6 +456,40 @@ func (r *Runner) start(ctx context.Context, run string, containers []*user) erro
 // files, and what it stopped, which starts again. A restore isn't started again
 // here: its change resumes it, and what it stopped has to stay stopped till then.
 func (r *Runner) Recover(ctx context.Context) error {
+	// Docker may only just be back, with a run started in the time that took.
+	r.mu.Lock()
+	idle := len(r.working) == 0
+	r.mu.Unlock()
+	if idle {
+		if err := r.clearLeftovers(ctx); err != nil {
+			return err
+		}
+	}
+	r.mu.Lock()
+	list, err := r.readStopped()
+	active := maps.Clone(r.running)
+	r.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	for _, run := range slices.Sorted(maps.Keys(list)) {
+		if list[run].Restore || active[run] {
+			continue
+		}
+		containers := make([]*user, 0, len(list[run].Containers))
+		for _, id := range list[run].Containers {
+			containers = append(containers, &user{id: id, name: shortID(id)})
+		}
+		r.logger().Warn("a backup stopped containers and the agent stopped before it started them again, so it starts them now", slog.Int("containers", len(containers)))
+		if err := r.start(ctx, run, containers); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// clearLeftovers removes the helpers, images and unfinished files of a run that died.
+func (r *Runner) clearLeftovers(ctx context.Context) error {
 	helpers, err := r.Client.ListContainers(ctx, map[string][]string{"label": {labelHelper}})
 	if err != nil {
 		return err
@@ -467,25 +514,6 @@ func (r *Runner) Recover(ctx context.Context) error {
 	}
 	for _, p := range partials {
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-	}
-	r.mu.Lock()
-	list, err := r.readStopped()
-	r.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	for _, run := range slices.Sorted(maps.Keys(list)) {
-		if list[run].Restore {
-			continue
-		}
-		containers := make([]*user, 0, len(list[run].Containers))
-		for _, id := range list[run].Containers {
-			containers = append(containers, &user{id: id, name: shortID(id)})
-		}
-		r.logger().Warn("a backup stopped containers and the agent stopped before it started them again, so it starts them now", slog.Int("containers", len(containers)))
-		if err := r.start(ctx, run, containers); err != nil {
 			return err
 		}
 	}

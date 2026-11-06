@@ -66,9 +66,9 @@ type BackupServiceClient interface {
 	// runs on it now. A copy of a running app's files can hold half a write, so
 	// when something runs on a volume that has no dump, ask CreateBackup to stop it.
 	PreviewBackup(context.Context, *connect.Request[v1.PreviewBackupRequest]) (*connect.Response[v1.PreviewBackupResponse], error)
-	// CreateBackup starts backing up a volume on its server, and returns the
-	// backup running. It ends whether or not the caller waits: follow it with
-	// GetBackup. The server has to be connected.
+	// CreateBackup starts a backup of a volume on its server, which has to be
+	// connected. It returns the backup running, and the backup ends whether or not
+	// the caller waits: follow it with GetBackup.
 	CreateBackup(context.Context, *connect.Request[v1.CreateBackupRequest]) (*connect.Response[v1.CreateBackupResponse], error)
 	// DeleteBackup removes a backup from its server and from the record. Nothing
 	// brings it back, so it needs a person. A backup that failed has nothing on the
@@ -187,9 +187,9 @@ type BackupServiceHandler interface {
 	// runs on it now. A copy of a running app's files can hold half a write, so
 	// when something runs on a volume that has no dump, ask CreateBackup to stop it.
 	PreviewBackup(context.Context, *connect.Request[v1.PreviewBackupRequest]) (*connect.Response[v1.PreviewBackupResponse], error)
-	// CreateBackup starts backing up a volume on its server, and returns the
-	// backup running. It ends whether or not the caller waits: follow it with
-	// GetBackup. The server has to be connected.
+	// CreateBackup starts a backup of a volume on its server, which has to be
+	// connected. It returns the backup running, and the backup ends whether or not
+	// the caller waits: follow it with GetBackup.
 	CreateBackup(context.Context, *connect.Request[v1.CreateBackupRequest]) (*connect.Response[v1.CreateBackupResponse], error)
 	// DeleteBackup removes a backup from its server and from the record. Nothing
 	// brings it back, so it needs a person. A backup that failed has nothing on the

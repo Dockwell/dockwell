@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -148,9 +149,9 @@ func (b *bench) has(name string) bool {
 	return err == nil
 }
 
-func (b *bench) take(id string, stop bool) *Manifest {
+func (b *bench) take(stop bool) *Manifest {
 	b.t.Helper()
-	m, err := b.runner.Take(b.t.Context(), Take{ID: id, Ref: ref, Stop: stop})
+	m, err := b.runner.Take(b.t.Context(), Take{ID: "bkp_1", Ref: ref, Stop: stop})
 	if err != nil {
 		b.t.Fatalf("Take: %v", err)
 	}
@@ -186,7 +187,7 @@ func (b *bench) files() []string {
 func TestACopyGoesThroughAHelperThatLeavesNothing(t *testing.T) {
 	b := newBench(t)
 	b.write("page.html", "hello")
-	m := b.take("bkp_1", false)
+	m := b.take(false)
 	if m.Method != resource.BackupCopy || m.Format != formatArchive || m.Size == 0 || m.SHA256 == "" {
 		t.Errorf("manifest = %+v", m)
 	}
@@ -230,6 +231,32 @@ func TestACopyGoesThroughAHelperThatLeavesNothing(t *testing.T) {
 	}
 }
 
+// Removing a helper gets its own time once the helper is done, however long the copy
+// took: a large volume mustn't leave one behind.
+func TestAHelperGoesHoweverLongItRan(t *testing.T) {
+	b := newBench(t)
+	b.write("page.html", "hello")
+	b.runner.CleanupWait = 500 * time.Millisecond
+	var once sync.Once
+	slow := writerFunc(func(p []byte) (int, error) {
+		once.Do(func() { time.Sleep(700 * time.Millisecond) })
+		return len(p), nil
+	})
+	if _, err := b.runner.tool(t.Context(), b.target, "pack", docker.Streams{Stdout: slow}); err != nil {
+		t.Fatal(err)
+	}
+	if got := b.engine.Containers(); len(got) != 0 {
+		t.Errorf("containers left: %v", got)
+	}
+	if got := b.engine.Images(helperRepository); len(got) != 0 {
+		t.Errorf("images left: %v", got)
+	}
+}
+
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) { return f(p) }
+
 func TestACopyOfARunningAppSaysSo(t *testing.T) {
 	b := newBench(t)
 	b.write("page.html", "hello")
@@ -241,7 +268,7 @@ func TestACopyOfARunningAppSaysSo(t *testing.T) {
 	if p.Method != resource.BackupCopyRunning || !slices.Equal(p.Running, []string{"web"}) {
 		t.Errorf("preview = %+v", p)
 	}
-	if m := b.take("bkp_1", false); m.Method != resource.BackupCopyRunning {
+	if m := b.take(false); m.Method != resource.BackupCopyRunning {
 		t.Errorf("method = %q", m.Method)
 	}
 	if !b.running(id) || b.engine.Started(docker.ContainerName(b.target.Project, "web")) != 1 {
@@ -254,7 +281,7 @@ func TestACopyStopsWhatItWasAskedToAndStartsItAgain(t *testing.T) {
 	b.write("page.html", "hello")
 	id := b.run("web", "nginx:1", "/data")
 	other := b.run("cache", "nginx:1", "")
-	if m := b.take("bkp_1", true); m.Method != resource.BackupCopy {
+	if m := b.take(true); m.Method != resource.BackupCopy {
 		t.Errorf("method = %q", m.Method)
 	}
 	if !b.running(id) || !b.running(other) {
@@ -299,7 +326,7 @@ func TestARunningDatabaseIsDumpedAndNothingStops(t *testing.T) {
 	if p.Method != resource.BackupDump || p.Database != "PostgreSQL" {
 		t.Errorf("preview = %+v", p)
 	}
-	m := b.take("bkp_1", true) // asking to stop changes nothing for a dump
+	m := b.take(true) // asking to stop changes nothing for a dump
 	if m.Method != resource.BackupDump || m.Format != formatDump || m.Database != "PostgreSQL" || m.Image != "postgres:17" {
 		t.Errorf("manifest = %+v", m)
 	}
@@ -333,7 +360,7 @@ func TestAStoppedDatabaseIsCopied(t *testing.T) {
 	if err := b.client.StopContainer(t.Context(), id, time.Second); err != nil {
 		t.Fatal(err)
 	}
-	if m := b.take("bkp_1", false); m.Method != resource.BackupCopy || m.Image != "postgres:17" {
+	if m := b.take(false); m.Method != resource.BackupCopy || m.Image != "postgres:17" {
 		t.Errorf("manifest = %+v", m)
 	}
 }
@@ -403,7 +430,7 @@ func TestARestoreOfACopyReplacesWhatsThereAndCanBeUndone(t *testing.T) {
 	b := newBench(t)
 	b.write("kept.txt", "from the backup")
 	id := b.run("web", "nginx:1", "/data")
-	m := b.take("bkp_1", true)
+	m := b.take(true)
 
 	b.write("kept.txt", "changed since")
 	b.write("new.txt", "made since")
@@ -459,7 +486,7 @@ func TestARestoreOfADumpMakesTheDatabaseAnew(t *testing.T) {
 	b.write("data.sql", "CREATE TABLE notes;")
 	db := b.run("db", "postgres:17", "/var/lib/postgresql/data")
 	web := b.run("web", "nginx:1", "")
-	b.take("bkp_1", false)
+	b.take(false)
 
 	b.write("data.sql", "DROP TABLE notes;")
 	b.write("base/made-since", "a whole database made since")
@@ -499,7 +526,7 @@ func TestADumpThatWontLoadPutsBackWhatWasThere(t *testing.T) {
 	b := newBench(t)
 	b.write("data.sql", "CREATE TABLE notes;")
 	db := b.run("db", "postgres:17", "/var/lib/postgresql/data")
-	b.take("bkp_1", false)
+	b.take(false)
 	b.write("data.sql", "what the app has now")
 	b.loadFails = true
 	err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"})
@@ -539,7 +566,7 @@ func TestADamagedBackupStopsNothing(t *testing.T) {
 	b := newBench(t)
 	b.write("page.html", "hello")
 	id := b.run("web", "nginx:1", "/data")
-	b.take("bkp_1", true)
+	b.take(true)
 	path := filepath.Join(b.runner.dir(ref), "bkp_1.tar.gz")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -577,7 +604,7 @@ func TestADumpNeedsADatabaseToLoadInto(t *testing.T) {
 	b := newBench(t)
 	b.write("data.sql", "x")
 	id := b.run("db", "postgres:17", "/var/lib/postgresql/data")
-	b.take("bkp_1", false)
+	b.take(false)
 	if err := b.client.RemoveContainer(t.Context(), id, true); err != nil {
 		t.Fatal(err)
 	}
@@ -593,7 +620,7 @@ func TestARestoreCutShortGoesOn(t *testing.T) {
 	b := newBench(t)
 	b.write("kept.txt", "from the backup")
 	id := b.run("web", "nginx:1", "/data")
-	b.take("bkp_1", true)
+	b.take(true)
 	b.write("kept.txt", "changed since")
 
 	source := resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}
@@ -671,7 +698,9 @@ func TestAnAgentThatDiedStartsWhatABackupStopped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := b.runner.Recover(t.Context()); err != nil {
+	// A new agent, with only what's on the disk.
+	again := &Runner{Client: b.client, Root: b.runner.Root}
+	if err := again.Recover(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if !b.running(id) {
@@ -688,10 +717,37 @@ func TestAnAgentThatDiedStartsWhatABackupStopped(t *testing.T) {
 	}
 }
 
+// Recover runs as soon as Docker answers, which can be after a run has started.
+func TestRecoverLeavesARunUnderWay(t *testing.T) {
+	b := newBench(t)
+	id := b.run("web", "nginx:1", "/data")
+	release, err := b.runner.hold(b.target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	web := &user{id: id, name: "web", stopWait: time.Second}
+	if err := b.runner.stop(t.Context(), "bkp_1", []*user{web}, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.client.ImportImage(t.Context(), helperRepository+":under-way", strings.NewReader("tar")); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.runner.Recover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if b.running(id) {
+		t.Error("it started what a run under way stopped")
+	}
+	if got := b.engine.Images(helperRepository); len(got) != 1 {
+		t.Errorf("it removed a run's helper: %v", got)
+	}
+}
+
 func TestWhatARestoreReplacedGoesAfter7Days(t *testing.T) {
 	b := newBench(t)
 	b.write("kept.txt", "x")
-	b.take("bkp_1", false)
+	b.take(false)
 	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}); err != nil {
 		t.Fatal(err)
 	}
@@ -713,7 +769,7 @@ func TestWhatARestoreReplacedGoesAfter7Days(t *testing.T) {
 func TestDeleteRemovesABackup(t *testing.T) {
 	b := newBench(t)
 	b.write("kept.txt", "x")
-	b.take("bkp_1", false)
+	b.take(false)
 	if err := b.runner.Delete(t.Context(), ref, "bkp_1"); err != nil {
 		t.Fatal(err)
 	}

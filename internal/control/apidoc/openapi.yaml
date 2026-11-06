@@ -76,9 +76,9 @@ paths:
             tags:
                 - BackupService
             description: |-
-                CreateBackup starts backing up a volume on its server, and returns the
-                 backup running. It ends whether or not the caller waits: follow it with
-                 GetBackup. The server has to be connected.
+                CreateBackup starts a backup of a volume on its server, which has to be
+                 connected. It returns the backup running, and the backup ends whether or not
+                 the caller waits: follow it with GetBackup.
             operationId: BackupService_CreateBackup
             requestBody:
                 content:

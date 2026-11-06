@@ -85,7 +85,7 @@ func makeNode(path string, hdr *tar.Header) error {
 	case tar.TypeFifo:
 		mode |= syscall.S_IFIFO
 	}
-	return unix.Mknod(path, mode, int(unix.Mkdev(uint32(hdr.Devmajor), uint32(hdr.Devminor))))
+	return unix.Mknod(path, mode, int(unix.Mkdev(uint32(hdr.Devmajor), uint32(hdr.Devminor)))) //nolint:gosec // device numbers fit, as Linux gives them
 }
 
 // setTime sets a file's time, and a link's own rather than what it leads to.

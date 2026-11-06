@@ -78,8 +78,8 @@ func Methods() []*apicli.Method {
 			HTTP:      "POST /v1/backups",
 			Noun:      "backups",
 			Verb:      "create",
-			Short:     "Start backing up a volume on its server",
-			Long:      "Start backing up a volume on its server, and returns the backup running. It ends\nwhether or not the caller waits: follow it with dockwell backups get. The server\nhas to be connected.",
+			Short:     "Start a backup of a volume on its server",
+			Long:      "Start a backup of a volume on its server, which has to be connected. It returns\nthe backup running, and the backup ends whether or not the caller waits: follow\nit with dockwell backups get.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "volume_id", Help: "The volume's ID."},

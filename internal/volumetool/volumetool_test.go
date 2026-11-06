@@ -57,9 +57,9 @@ func TestARestoreBringsBackWhatTheVolumeWas(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	at := time.Date(2026, 3, 1, 12, 30, 15, 123456789, time.UTC)
 	write(t, filepath.Join(src, "plain.txt"), "hello", 0o644)
-	write(t, filepath.Join(src, "secret/key.pem"), "private", 0o600)
-	write(t, filepath.Join(src, "bin/run"), "#!/bin/sh\n", 0o755)
-	write(t, filepath.Join(src, "bin/setuid"), "x", 0o755|os.ModeSetuid)
+	write(t, filepath.Join(src, "secret", "key.pem"), "private", 0o600)
+	write(t, filepath.Join(src, "bin", "run"), "#!/bin/sh\n", 0o755)
+	write(t, filepath.Join(src, "bin", "setuid"), "x", 0o755|os.ModeSetuid)
 	write(t, filepath.Join(src, "big.bin"), strings.Repeat("0123456789abcdef", 1<<16), 0o640)
 	for _, p := range []string{"plain.txt", "secret/key.pem"} {
 		if err := os.Chtimes(filepath.Join(src, p), at, at); err != nil {
@@ -81,7 +81,7 @@ func TestARestoreBringsBackWhatTheVolumeWas(t *testing.T) {
 	if err := os.Symlink("/etc/shadow", filepath.Join(src, "outward")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Link(filepath.Join(src, "plain.txt"), filepath.Join(src, "secret/hard")); err != nil {
+	if err := os.Link(filepath.Join(src, "plain.txt"), filepath.Join(src, "secret", "hard")); err != nil {
 		t.Fatal(err)
 	}
 	if err := syscall.Mkfifo(filepath.Join(src, "pipe"), 0o640); err != nil {
@@ -95,7 +95,7 @@ func TestARestoreBringsBackWhatTheVolumeWas(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	write(t, filepath.Join(dst, "stale/gone.txt"), "from before", 0o644)
+	write(t, filepath.Join(dst, "stale", "gone.txt"), "from before", 0o644)
 	stats, err := Unpack(bytes.NewReader(pack(t, src)), dst, nil)
 	if err != nil {
 		t.Fatalf("Unpack: %v", err)
@@ -116,8 +116,13 @@ func TestARestoreBringsBackWhatTheVolumeWas(t *testing.T) {
 		name string
 		mode os.FileMode
 	}{
-		{"plain.txt", 0o644}, {"secret/key.pem", 0o600}, {"bin/run", 0o755}, {"bin/setuid", 0o755 | os.ModeSetuid},
-		{"empty", 0o700 | os.ModeDir}, {"shared", 0o777 | os.ModeDir | os.ModeSticky}, {"pipe", 0o640 | os.ModeNamedPipe},
+		{"plain.txt", 0o644},
+		{"secret/key.pem", 0o600},
+		{"bin/run", 0o755},
+		{"bin/setuid", 0o755 | os.ModeSetuid},
+		{"empty", 0o700 | os.ModeDir},
+		{"shared", 0o777 | os.ModeDir | os.ModeSticky},
+		{"pipe", 0o640 | os.ModeNamedPipe},
 	} {
 		fi, err := os.Lstat(filepath.Join(dst, c.name))
 		if err != nil {
@@ -137,11 +142,11 @@ func TestARestoreBringsBackWhatTheVolumeWas(t *testing.T) {
 		}
 	}
 	a, _ := os.Stat(filepath.Join(dst, "plain.txt"))
-	b, _ := os.Stat(filepath.Join(dst, "secret/hard"))
+	b, _ := os.Stat(filepath.Join(dst, "secret", "hard"))
 	if !os.SameFile(a, b) {
 		t.Error("a hard link came back as two files")
 	}
-	if fi, _ := os.Stat(filepath.Join(dst, "secret/key.pem")); !fi.ModTime().Equal(at) {
+	if fi, _ := os.Stat(filepath.Join(dst, "secret", "key.pem")); !fi.ModTime().Equal(at) {
 		t.Errorf("a file's time came back as %v, want %v", fi.ModTime(), at)
 	}
 	if fi, _ := os.Stat(filepath.Join(dst, "secret")); !fi.ModTime().Equal(at) {
@@ -163,7 +168,7 @@ func TestARestoreBringsBackWhatTheVolumeWas(t *testing.T) {
 // mean to the app, whose users the server may not have.
 func TestOwnersTravelAsNumbers(t *testing.T) {
 	src := t.TempDir()
-	write(t, filepath.Join(src, "data/file"), "x", 0o600)
+	write(t, filepath.Join(src, "data", "file"), "x", 0o600)
 	uid, gid := os.Getuid(), os.Getgid()
 	tr := tar.NewReader(mustGunzip(t, pack(t, src)))
 	seen := 0
@@ -252,11 +257,11 @@ func TestABadArchiveLeavesTheVolumeAsItWas(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			dst := t.TempDir()
-			write(t, filepath.Join(dst, "keep/me.txt"), "still here", 0o644)
+			write(t, filepath.Join(dst, "keep", "me.txt"), "still here", 0o644)
 			if _, err := Unpack(bytes.NewReader(archive), dst, nil); err == nil {
 				t.Fatal("Unpack took a bad archive")
 			}
-			if b, err := os.ReadFile(filepath.Join(dst, "keep/me.txt")); err != nil || string(b) != "still here" {
+			if b, err := os.ReadFile(filepath.Join(dst, "keep", "me.txt")); err != nil || string(b) != "still here" {
 				t.Errorf("the volume changed: %q, %v", b, err)
 			}
 			if entries, _ := os.ReadDir(dst); len(entries) != 1 {
@@ -417,7 +422,7 @@ func TestWhatChangesDuringACopyIsCounted(t *testing.T) {
 
 func TestEmptyLeavesTheVolumeEmpty(t *testing.T) {
 	dir := t.TempDir()
-	write(t, filepath.Join(dir, "a/b/c"), "x", 0o444)
+	write(t, filepath.Join(dir, "a", "b", "c"), "x", 0o444)
 	write(t, filepath.Join(dir, ".hidden"), "x", 0o644)
 	if err := Empty(dir); err != nil {
 		t.Fatal(err)
