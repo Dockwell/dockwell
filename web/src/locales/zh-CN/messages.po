@@ -1490,10 +1490,6 @@ msgstr "正在应用"
 msgid "Apps"
 msgstr "应用"
 
-#: src/features/catalog/CatalogPage.tsx
-msgid "Apps you can install in one step"
-msgstr "一步即可安装的应用"
-
 #. placeholder {0}: use.name
 #: src/features/variables/VariablesPage.tsx
 msgid "as {0}"
@@ -4212,6 +4208,10 @@ msgstr "打开 {name} 的变量和密钥"
 #: src/features/shell/CommandMenu.tsx
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Open-source apps you can install in one step"
+msgstr "一步即可安装的开源应用"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Opens a plan"

@@ -75,10 +75,26 @@ func TestTheBuiltInEntries(t *testing.T) {
 		})
 	}
 	// The first set: a database with its admin tool, a reverse proxy's
-	// replacement, a tunnel, and something that runs AI agents.
-	for _, want := range []string{"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "n8n"} {
+	// replacement and a tunnel.
+	for _, want := range []string{"postgres", "mysql", "nginx-proxy-manager", "cloudflared"} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the catalog has no %s: %v", want, ids)
+		}
+	}
+}
+
+// The catalog's page says its apps are open source, which each has to be. A licence
+// new to this list needs a look before it goes on it, and an app that isn't open
+// source needs the page's words changed.
+func TestEveryAppIsOpenSource(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	open := []string{"Apache-2.0", "GPL-2.0-only", "MIT", "PostgreSQL"}
+	for _, e := range c.All() {
+		if !slices.Contains(open, e.GetAppLicense()) {
+			t.Errorf("%s is under %s, and the catalog's page says it's open source", e.GetId(), e.GetAppLicense())
 		}
 	}
 }

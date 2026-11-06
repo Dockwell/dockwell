@@ -2674,16 +2674,6 @@ signed_in=$(curl -sS --max-time 15 -H 'Content-Type: application/json' -d "{\"id
   "http://127.0.0.1:$admin_port/api/tokens") || fail "Nginx Proxy Manager doesn't answer on port $admin_port"
 jq -e '.token | length > 0' <<<"$signed_in" >/dev/null 2>&1 || fail "Nginx Proxy Manager won't sign in with its password: ${signed_in//"$password"/<the password>}"
 
-step "Catalog: n8n runs, and answers on its port"
-catalog_install n8n
-n8n=$(catalog_container n8n)
-catalog_pinned "$n8n"
-catalog_healthy "$n8n"
-catalog_generated "$n8n" N8N_ENCRYPTION_KEY >/dev/null
-n8n_port=$(catalog_value n8n PORT)
-page=$(curl -fsS --max-time 10 "http://127.0.0.1:$n8n_port/healthz") || fail "n8n doesn't answer on port $n8n_port"
-[[ "$page" == *ok* ]] || fail "n8n's health says: ${page:0:300}"
-
 step "Catalog: a tunnel takes a token, and a person approves what it reaches"
 # Nothing here can reach Cloudflare's edge, as ADR 0030 says, so it stops at the plan,
 # and the one thing a server's own run would read first is its health check's flags.

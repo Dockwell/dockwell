@@ -36,7 +36,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker }: C
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
-  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "n8n"]) {
+  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel"]) {
     await page.getByRole("link", { name: `Install ${app}` }).waitFor();
   }
   await shoot(page, "catalog");
@@ -49,7 +49,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker }: C
   if (!page.url().includes("category=networking")) fail(`the URL doesn't keep the category: ${page.url()}`);
   await chips.getByRole("button", { name: "All" }).click();
   await page.getByRole("textbox", { name: "Search apps" }).fill("relational");
-  await page.getByRole("link", { name: "Install n8n" }).waitFor({ state: "hidden" });
+  await page.getByRole("link", { name: "Install Nginx Proxy Manager" }).waitFor({ state: "hidden" });
   await page.getByRole("link", { name: "Install MySQL" }).waitFor();
   await page.getByRole("textbox", { name: "Search apps" }).fill("");
 

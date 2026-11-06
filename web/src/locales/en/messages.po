@@ -1490,10 +1490,6 @@ msgstr "Applying"
 msgid "Apps"
 msgstr "Apps"
 
-#: src/features/catalog/CatalogPage.tsx
-msgid "Apps you can install in one step"
-msgstr "Apps you can install in one step"
-
 #. placeholder {0}: use.name
 #: src/features/variables/VariablesPage.tsx
 msgid "as {0}"
@@ -4212,6 +4208,10 @@ msgstr "Open the variables and secrets of {name}"
 #: src/features/shell/CommandMenu.tsx
 msgid "Open your profile and security settings"
 msgstr "Open your profile and security settings"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Open-source apps you can install in one step"
+msgstr "Open-source apps you can install in one step"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Opens a plan"

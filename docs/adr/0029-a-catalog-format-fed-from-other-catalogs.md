@@ -107,7 +107,7 @@ This is our reading of the licences, not legal advice. Counsel confirms it befor
 - **A form asks only what it must.** Every app gets a name and its ports. Domains, memory limits and backups in the `Catalog-Install` mock wait: a domain has its own form on the app's page, with what a tunnel needs, and the other two have nothing to set yet.
 - **An entry's text is English for now.** The panel's own words are translated, and an entry's are data, so translations belong in the format once the catalog is big enough to need them.
 
-The first set is what the two real servers ran, with one change. They ran an AI agent runner, and the well-known choice is OpenClaw, but its Control UI needs `openclaw devices approve` run inside the container on first connection, and Dockwell has no way to run a command in one yet. So the first set has n8n, which is ready from its own page. It's under the Sustainable Use License, not an open-source one, so the catalog says "apps", not "open-source apps", and each install sheet names the app's licence. OpenClaw can join once that's possible.
+The first set is what the two real servers ran but for their AI agent runner, which comes with an entry of its own: an app that publishes with no account of its own belongs to whoever reaches it first, so an entry doesn't do that. Every app in the set is open source, which the catalog's page says and a test holds it to.
 
 ### What we turned down
 

@@ -54,7 +54,7 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries.Msg.GetEntries()) < 5 {
+	if len(entries.Msg.GetEntries()) < 4 {
 		t.Fatalf("the catalog has %d entries", len(entries.Msg.GetEntries()))
 	}
 	first, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "postgres"}))
