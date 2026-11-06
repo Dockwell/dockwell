@@ -126,7 +126,7 @@ func tooFull(d disk, needs int64) error {
 	if needs > 0 {
 		left += ", and this backup takes about " + human.Size(needs)
 	}
-	return fmt.Errorf("%s, and a backup leaves %s alone, so it stopped, with nothing changed. Delete old backups or free some space, then try again", left, human.Size(d.reserve))
+	return fmt.Errorf("%s, and a backup leaves %s alone, so it stopped, with nothing changed. Delete old backups, keep fewer, or free some space, then try again", left, human.Size(d.reserve))
 }
 
 // roomToRestore refuses a restore the server has no room for, before anything stops

@@ -20,7 +20,10 @@ func (c Calls) Preview(ctx context.Context, call *agentv1.BackupPreviewCall) (*a
 	if err != nil {
 		return nil, err
 	}
-	return &agentv1.BackupPreviewResult{Method: resourcepb.BackupMethod(p.Method), Database: p.Database, Running: p.Running}, nil
+	return &agentv1.BackupPreviewResult{
+		Method: resourcepb.BackupMethod(p.Method), Database: p.Database, Running: p.Running,
+		EstimateBytes: p.Estimate, FreeBytes: p.Free, ReserveBytes: p.Reserve,
+	}, nil
 }
 
 // Take takes a backup.

@@ -966,6 +966,22 @@ type Use struct {
 	Revision int
 }
 
+// Unplaced is a Type that lives in an environment and runs on no server, as a
+// valuer doesn't: the control plane acts on it alone, as it runs a backup policy's
+// schedule. It has revisions and plans, and no steps.
+type Unplaced interface {
+	Unplaced()
+}
+
+// RunsOnNoServer reports a Type whose resources run on no server, whatever its level.
+func RunsOnNoServer(t Type) bool {
+	if _, ok := t.(Valuer); ok {
+		return true
+	}
+	_, ok := t.(Unplaced)
+	return ok
+}
+
 // Binder is a Type whose specs use other resources of their scope by name,
 // such as a service that uses its environment's variables and secrets.
 // The revision store checks that each is there, pins each use to the

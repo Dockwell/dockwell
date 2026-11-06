@@ -49,6 +49,9 @@ const (
 	// BackupServiceDeleteBackupProcedure is the fully-qualified name of the BackupService's
 	// DeleteBackup RPC.
 	BackupServiceDeleteBackupProcedure = "/dockwell.v1.BackupService/DeleteBackup"
+	// BackupServiceListBackupPoliciesProcedure is the fully-qualified name of the BackupService's
+	// ListBackupPolicies RPC.
+	BackupServiceListBackupPoliciesProcedure = "/dockwell.v1.BackupService/ListBackupPolicies"
 	// BackupServiceRestoreBackupProcedure is the fully-qualified name of the BackupService's
 	// RestoreBackup RPC.
 	BackupServiceRestoreBackupProcedure = "/dockwell.v1.BackupService/RestoreBackup"
@@ -74,6 +77,10 @@ type BackupServiceClient interface {
 	// brings it back, so it needs a person. A backup that failed has nothing on the
 	// server, and its record goes all the same.
 	DeleteBackup(context.Context, *connect.Request[v1.DeleteBackupRequest]) (*connect.Response[v1.DeleteBackupResponse], error)
+	// ListBackupPolicies returns the schedules of backups, with when each next runs
+	// and how its last run went. A policy is a resource: create, change and delete
+	// one as a change, of kind "backup.policy".
+	ListBackupPolicies(context.Context, *connect.Request[v1.ListBackupPoliciesRequest]) (*connect.Response[v1.ListBackupPoliciesResponse], error)
 	// RestoreBackup plans replacing what's in a backup's volume with what the
 	// backup holds, as a change. Its plan says what it replaces and what stops, and
 	// it destroys data, so only a person can apply it, with the plan's fingerprint.
@@ -126,6 +133,13 @@ func NewBackupServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(backupServiceMethods.ByName("DeleteBackup")),
 			connect.WithClientOptions(opts...),
 		),
+		listBackupPolicies: connect.NewClient[v1.ListBackupPoliciesRequest, v1.ListBackupPoliciesResponse](
+			httpClient,
+			baseURL+BackupServiceListBackupPoliciesProcedure,
+			connect.WithSchema(backupServiceMethods.ByName("ListBackupPolicies")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		restoreBackup: connect.NewClient[v1.RestoreBackupRequest, v1.RestoreBackupResponse](
 			httpClient,
 			baseURL+BackupServiceRestoreBackupProcedure,
@@ -137,12 +151,13 @@ func NewBackupServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // backupServiceClient implements BackupServiceClient.
 type backupServiceClient struct {
-	listBackups   *connect.Client[v1.ListBackupsRequest, v1.ListBackupsResponse]
-	getBackup     *connect.Client[v1.GetBackupRequest, v1.GetBackupResponse]
-	previewBackup *connect.Client[v1.PreviewBackupRequest, v1.PreviewBackupResponse]
-	createBackup  *connect.Client[v1.CreateBackupRequest, v1.CreateBackupResponse]
-	deleteBackup  *connect.Client[v1.DeleteBackupRequest, v1.DeleteBackupResponse]
-	restoreBackup *connect.Client[v1.RestoreBackupRequest, v1.RestoreBackupResponse]
+	listBackups        *connect.Client[v1.ListBackupsRequest, v1.ListBackupsResponse]
+	getBackup          *connect.Client[v1.GetBackupRequest, v1.GetBackupResponse]
+	previewBackup      *connect.Client[v1.PreviewBackupRequest, v1.PreviewBackupResponse]
+	createBackup       *connect.Client[v1.CreateBackupRequest, v1.CreateBackupResponse]
+	deleteBackup       *connect.Client[v1.DeleteBackupRequest, v1.DeleteBackupResponse]
+	listBackupPolicies *connect.Client[v1.ListBackupPoliciesRequest, v1.ListBackupPoliciesResponse]
+	restoreBackup      *connect.Client[v1.RestoreBackupRequest, v1.RestoreBackupResponse]
 }
 
 // ListBackups calls dockwell.v1.BackupService.ListBackups.
@@ -170,6 +185,11 @@ func (c *backupServiceClient) DeleteBackup(ctx context.Context, req *connect.Req
 	return c.deleteBackup.CallUnary(ctx, req)
 }
 
+// ListBackupPolicies calls dockwell.v1.BackupService.ListBackupPolicies.
+func (c *backupServiceClient) ListBackupPolicies(ctx context.Context, req *connect.Request[v1.ListBackupPoliciesRequest]) (*connect.Response[v1.ListBackupPoliciesResponse], error) {
+	return c.listBackupPolicies.CallUnary(ctx, req)
+}
+
 // RestoreBackup calls dockwell.v1.BackupService.RestoreBackup.
 func (c *backupServiceClient) RestoreBackup(ctx context.Context, req *connect.Request[v1.RestoreBackupRequest]) (*connect.Response[v1.RestoreBackupResponse], error) {
 	return c.restoreBackup.CallUnary(ctx, req)
@@ -195,6 +215,10 @@ type BackupServiceHandler interface {
 	// brings it back, so it needs a person. A backup that failed has nothing on the
 	// server, and its record goes all the same.
 	DeleteBackup(context.Context, *connect.Request[v1.DeleteBackupRequest]) (*connect.Response[v1.DeleteBackupResponse], error)
+	// ListBackupPolicies returns the schedules of backups, with when each next runs
+	// and how its last run went. A policy is a resource: create, change and delete
+	// one as a change, of kind "backup.policy".
+	ListBackupPolicies(context.Context, *connect.Request[v1.ListBackupPoliciesRequest]) (*connect.Response[v1.ListBackupPoliciesResponse], error)
 	// RestoreBackup plans replacing what's in a backup's volume with what the
 	// backup holds, as a change. Its plan says what it replaces and what stops, and
 	// it destroys data, so only a person can apply it, with the plan's fingerprint.
@@ -243,6 +267,13 @@ func NewBackupServiceHandler(svc BackupServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(backupServiceMethods.ByName("DeleteBackup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backupServiceListBackupPoliciesHandler := connect.NewUnaryHandler(
+		BackupServiceListBackupPoliciesProcedure,
+		svc.ListBackupPolicies,
+		connect.WithSchema(backupServiceMethods.ByName("ListBackupPolicies")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	backupServiceRestoreBackupHandler := connect.NewUnaryHandler(
 		BackupServiceRestoreBackupProcedure,
 		svc.RestoreBackup,
@@ -261,6 +292,8 @@ func NewBackupServiceHandler(svc BackupServiceHandler, opts ...connect.HandlerOp
 			backupServiceCreateBackupHandler.ServeHTTP(w, r)
 		case BackupServiceDeleteBackupProcedure:
 			backupServiceDeleteBackupHandler.ServeHTTP(w, r)
+		case BackupServiceListBackupPoliciesProcedure:
+			backupServiceListBackupPoliciesHandler.ServeHTTP(w, r)
 		case BackupServiceRestoreBackupProcedure:
 			backupServiceRestoreBackupHandler.ServeHTTP(w, r)
 		default:
@@ -290,6 +323,10 @@ func (UnimplementedBackupServiceHandler) CreateBackup(context.Context, *connect.
 
 func (UnimplementedBackupServiceHandler) DeleteBackup(context.Context, *connect.Request[v1.DeleteBackupRequest]) (*connect.Response[v1.DeleteBackupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BackupService.DeleteBackup is not implemented"))
+}
+
+func (UnimplementedBackupServiceHandler) ListBackupPolicies(context.Context, *connect.Request[v1.ListBackupPoliciesRequest]) (*connect.Response[v1.ListBackupPoliciesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BackupService.ListBackupPolicies is not implemented"))
 }
 
 func (UnimplementedBackupServiceHandler) RestoreBackup(context.Context, *connect.Request[v1.RestoreBackupRequest]) (*connect.Response[v1.RestoreBackupResponse], error) {

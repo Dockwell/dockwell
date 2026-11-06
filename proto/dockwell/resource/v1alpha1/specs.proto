@@ -419,6 +419,40 @@ message Volume {
   map<string, string> labels = 3;
 }
 
+// BackupPolicy backs up a volume in its environment on a schedule, on every server
+// that has it, and keeps the newest of those backups. A backup someone takes by
+// hand is theirs, and no policy deletes it. The control plane runs the schedule, so
+// a run due while it's down happens when it's back.
+message BackupPolicy {
+  // How often it runs.
+  enum Every {
+    EVERY_UNSPECIFIED = 0;
+    // Each hour, at the minutes of at.
+    EVERY_HOUR = 1;
+    // Each day, at at. The default.
+    EVERY_DAY = 2;
+    // Each week, on weekday, at at.
+    EVERY_WEEK = 3;
+  }
+
+  // The volume, by name, in this environment.
+  string volume = 1;
+  // How often it runs.
+  Every every = 2;
+  // The time it runs, as 24-hour HH:MM: "03:00" unless set.
+  string at = 3;
+  // The day it runs each week, as 0 for Sunday to 6 for Saturday.
+  int32 weekday = 4;
+  // The time zone at is in, such as "Europe/Amsterdam": "UTC" unless set.
+  string time_zone = 5;
+  // How many of its backups to keep, on each server, newest first: 7 unless set.
+  uint32 keep = 6;
+  // Stop what runs on the volume for an exact copy of its files, and start it again
+  // after. A database's dump stops nothing. Without it, a copy of a running app's
+  // files can hold half a write.
+  bool stop = 7;
+}
+
 // Network is a Docker network in an environment, which its services join
 // by name, as a Compose file's networks. A service reaches another on a
 // network they share by the other's name. Docker can't change a network,
@@ -518,5 +552,8 @@ message Spec {
     Secret secret = 9;
     // A domain or path sent to a service, kind "route".
     Route route = 10;
+    // A schedule of backups of a volume, kind "backup.policy". Numbered apart,
+    // as open work adds to this message.
+    BackupPolicy backup_policy = 20;
   }
 }

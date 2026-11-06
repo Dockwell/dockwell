@@ -22,6 +22,8 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -360,6 +362,159 @@ func testADumpThroughTheAPI(t *testing.T, backend store.Backend) {
 			t.Errorf("%s isn't running", service)
 		}
 	}
+}
+
+// policyEdit is a daily policy on the volume data that keeps keep backups.
+func policyEdit(keep uint32) *dockwellv1.Edit {
+	return &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.Kind), Name: "data-daily"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_BackupPolicy{BackupPolicy: &resourcev1.BackupPolicy{Volume: "data", Keep: keep, At: "03:00"}}},
+	}
+}
+
+// A schedule is a plan, its runs are Dockwell's, and it keeps what it says it keeps,
+// never what someone took by hand, and nothing when a run fails.
+func TestAPolicyRunsAndKeepsWhatItSays(t *testing.T) {
+	storetest.Each(t, testAPolicyRunsAndKeepsWhatItSays)
+}
+
+func testAPolicyRunsAndKeepsWhatItSays(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+	volumeID, dir := webWithData(t, e, c)
+	writeData(t, dir, "orders.db", "the orders")
+
+	planned := propose(t, c, "Back up data each night", policyEdit(2))
+	if len(planned.GetPlan().GetServers()) != 0 {
+		t.Errorf("a policy planned steps on servers: %v", planned.GetPlan().GetServers())
+	}
+	if done := apply(t, c, planned); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the policy ended %v: %v", done.GetState(), done.GetError())
+	}
+
+	byHand, err := bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: volumeID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitBackup(t, bc, byHand.Msg.GetBackup().GetId())
+
+	h := f.server.backups
+	now := time.Now()
+	if err := h.RunDue(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := backupsOf(t, bc); len(got) != 1 {
+		t.Fatalf("a new policy ran at once: %v", got)
+	}
+	day := func(n int) {
+		t.Helper()
+		h.Now = func() time.Time { return now.Add(time.Duration(n) * 25 * time.Hour) }
+		if err := h.RunDue(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		// Once a day: the same moment runs nothing twice.
+		if err := h.RunDue(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(10 * time.Second)
+		for {
+			got := backupsOf(t, bc)
+			// A run shows as done a moment before what it pushes out has gone.
+			kept := 0
+			for _, one := range got {
+				if one.GetPolicyId() != "" && one.GetState() == dockwellv1.BackupState_BACKUP_STATE_DONE {
+					kept++
+				}
+			}
+			if kept <= 2 && !slices.ContainsFunc(got, func(b *dockwellv1.Backup) bool { return b.GetState() == dockwellv1.BackupState_BACKUP_STATE_RUNNING }) {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("still running: %v", got)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	day(1)
+	day(2)
+	day(3)
+	all := backupsOf(t, bc)
+	if len(all) != 3 {
+		t.Fatalf("after 3 runs, keeping 2, there are %d: %v", len(all), all)
+	}
+	var fromPolicy int
+	for _, one := range all {
+		if one.GetPolicyId() != "" {
+			fromPolicy++
+			if one.GetActor().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL {
+				t.Errorf("a scheduled backup's actor = %v", one.GetActor())
+			}
+		}
+	}
+	if fromPolicy != 2 || !slices.ContainsFunc(all, func(b *dockwellv1.Backup) bool { return b.GetId() == byHand.Msg.GetBackup().GetId() }) {
+		t.Errorf("the policy took what someone took by hand, or keeps %d: %v", fromPolicy, all)
+	}
+	policies, err := bc.ListBackupPolicies(t.Context(), connect.NewRequest(&dockwellv1.ListBackupPoliciesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := policies.Msg.GetPolicies(); len(got) != 1 || got[0].GetKept() != 2 || got[0].GetLast() == nil || got[0].GetNextRun() == nil || got[0].GetSpec().GetVolume() != "data" {
+		t.Errorf("policies = %v", got)
+	}
+
+	// Failing takes nothing away, and says so where someone looks.
+	f.lastDocker.backups.Binary = filepath.Join(t.TempDir(), "gone")
+	day(4)
+	day(5)
+	all = backupsOf(t, bc)
+	var good, bad int
+	for _, one := range all {
+		switch {
+		case one.GetPolicyId() == "":
+		case one.GetState() == dockwellv1.BackupState_BACKUP_STATE_DONE:
+			good++
+		case one.GetState() == dockwellv1.BackupState_BACKUP_STATE_FAILED:
+			bad++
+		}
+	}
+	if good != 2 || bad != 2 {
+		t.Errorf("after 2 failed runs: %d good and %d failed: %v", good, bad, all)
+	}
+	events, err := eventClient(b, b.origin).ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_BACKUP}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first := events.Msg.GetEvents()[0]; first.GetAction() != "backup.failed" || first.GetActor().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL || first.GetSurface() != dockwellv1.Surface_SURFACE_AUTOMATIC {
+		t.Errorf("the newest event = %v", first)
+	}
+
+	// A server that isn't there fails its run, out loud.
+	f.lastDocker.stop()
+	waitConnected(t, f, f.lastDocker.id.ServerID, false)
+	day(6)
+	newest := backupsOf(t, bc)[0]
+	if newest.GetState() != dockwellv1.BackupState_BACKUP_STATE_FAILED || !strings.Contains(newest.GetError(), "wasn't connected") {
+		t.Errorf("with its server away: %v", newest)
+	}
+
+	// A volume a policy backs up can't go until the policy does.
+	if _, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Remove", Edits: []*dockwellv1.Edit{
+		{Resource: &dockwellv1.ResourceRef{Kind: string(volume.Kind), Name: "data"}, Delete: true},
+		{Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Name: "web"}, Delete: true},
+	}})); err == nil || !strings.Contains(err.Error(), "data-daily") {
+		t.Errorf("a volume with a policy on it went: %v", err)
+	}
+}
+
+func backupsOf(t *testing.T, bc dockwellv1connect.BackupServiceClient) []*dockwellv1.Backup {
+	t.Helper()
+	res, err := bc.ListBackups(t.Context(), connect.NewRequest(&dockwellv1.ListBackupsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.Msg.GetBackups()
 }
 
 // fakePostgres keeps its data as one file of SQL, and answers as the official

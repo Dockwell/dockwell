@@ -16,6 +16,7 @@ func Commands() []string {
 	return []string{
 		"api-tokens",
 		"auth-state",
+		"backup-policies",
 		"backups",
 		"catalog",
 		"changes",

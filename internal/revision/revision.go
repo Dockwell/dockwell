@@ -1124,8 +1124,7 @@ func (e *Engine) load(ctx context.Context, tx *store.Tx, ref resource.Ref) (item
 	if err != nil {
 		return item{}, fault.New(ErrInvalid, "%w", err)
 	}
-	_, valuer := t.(resource.Valuer)
-	it := item{ref: ref, level: t.Level(), runs: t.Level().RunsOnServers() && !valuer, sealed: resource.Sealed(t)}
+	it := item{ref: ref, level: t.Level(), runs: t.Level().RunsOnServers() && !resource.RunsOnNoServer(t), sealed: resource.Sealed(t)}
 	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
 	switch {
 	case errors.Is(err, store.ErrNotFound):

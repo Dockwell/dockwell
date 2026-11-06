@@ -791,6 +791,38 @@ func TestWhatARestoreReplacedGoesAfter7Days(t *testing.T) {
 	}
 }
 
+// What a backup will cost is said first, and it never takes the last of the disk.
+func TestABackupSaysWhatItCostsAndLeavesRoom(t *testing.T) {
+	b := newBench(t)
+	b.write("data.bin", strings.Repeat("x", 1<<20))
+	b.runner.Disk = func() disk { return disk{free: 8 << 30, reserve: 1 << 30} }
+	p, err := b.runner.Preview(t.Context(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Estimate != 1<<20 || p.Free != 8<<30 || p.Reserve != 1<<30 {
+		t.Errorf("before the first, preview = %+v", p)
+	}
+	m := b.take(true)
+	p, err = b.runner.Preview(t.Context(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Estimate != m.Size {
+		t.Errorf("after the first, the estimate is %d, want the last one's %d", p.Estimate, m.Size)
+	}
+	b.runner.Disk = func() disk { return disk{free: 1 << 30, reserve: 1 << 30} }
+	id := b.run("web", "nginx:1", "/data")
+	starts := b.engine.Started(docker.ContainerName(b.target.Project, "web"))
+	_, err = b.runner.Take(t.Context(), Take{ID: "bkp_2", Ref: ref, Stop: true})
+	if err == nil || !strings.Contains(err.Error(), "free") || !strings.Contains(err.Error(), "keep fewer") {
+		t.Fatalf("Take with no room = %v", err)
+	}
+	if !b.running(id) || b.engine.Started(docker.ContainerName(b.target.Project, "web")) != starts {
+		t.Error("a backup with no room stopped the app")
+	}
+}
+
 func TestDeleteRemovesABackup(t *testing.T) {
 	b := newBench(t)
 	b.write("kept.txt", "x")

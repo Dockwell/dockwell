@@ -779,6 +779,12 @@ message BackupPreviewResult {
   string database = 2;
   // What runs on the volume now.
   repeated string running = 3;
+  // About how much a backup will take on the disk, in bytes.
+  int64 estimate_bytes = 4;
+  // What's free on the disk that holds backups, in bytes.
+  int64 free_bytes = 5;
+  // How much of that a backup leaves alone, in bytes.
+  int64 reserve_bytes = 6;
 }
 
 // BackupResult is a backup, whole on the disk.

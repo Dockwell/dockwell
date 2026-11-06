@@ -36,15 +36,17 @@ type Backup struct {
 	Error         string
 	StartedAt     time.Time
 	FinishedAt    *time.Time
+	// PolicyID is the policy that took it. Empty for one someone took.
+	PolicyID string
 }
 
-const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at`
+const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id`
 
 func scanBackup(row interface{ Scan(...any) error }) (Backup, error) {
 	var b Backup
 	var started int64
 	var finished sql.NullInt64
-	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished)
+	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID)
 	if err != nil {
 		return Backup{}, err
 	}
@@ -54,8 +56,8 @@ func scanBackup(row interface{ Scan(...any) error }) (Backup, error) {
 
 // CreateBackup records a backup that's starting.
 func (t *Tx) CreateBackup(ctx context.Context, b Backup) error {
-	_, err := t.exec(ctx, `INSERT INTO backups (id, environment_id, volume, volume_id, server_id, state, actor, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		b.ID, b.EnvironmentID, b.Volume, b.VolumeID, b.ServerID, b.State, b.Actor, millis(b.StartedAt))
+	_, err := t.exec(ctx, `INSERT INTO backups (id, environment_id, volume, volume_id, server_id, state, actor, started_at, policy_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		b.ID, b.EnvironmentID, b.Volume, b.VolumeID, b.ServerID, b.State, b.Actor, millis(b.StartedAt), b.PolicyID)
 	if err != nil {
 		return fmt.Errorf("can't record backup %s: %w", b.ID, err)
 	}
@@ -94,7 +96,7 @@ func (t *Tx) DeleteBackup(ctx context.Context, id string) error {
 
 // BackupFilter narrows a list of backups.
 type BackupFilter struct {
-	VolumeID, EnvironmentID string
+	VolumeID, EnvironmentID, PolicyID, ServerID string
 	// After is the last backup of the page before, by time and ID.
 	AfterAt *time.Time
 	AfterID string
@@ -110,6 +112,12 @@ func (t *Tx) ListBackups(ctx context.Context, f BackupFilter) ([]Backup, error) 
 	}
 	if f.EnvironmentID != "" {
 		where, args = append(where, "environment_id = ?"), append(args, f.EnvironmentID)
+	}
+	if f.PolicyID != "" {
+		where, args = append(where, "policy_id = ?"), append(args, f.PolicyID)
+	}
+	if f.ServerID != "" {
+		where, args = append(where, "server_id = ?"), append(args, f.ServerID)
 	}
 	if f.AfterAt != nil {
 		at := millis(*f.AfterAt)

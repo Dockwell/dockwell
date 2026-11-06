@@ -4213,7 +4213,13 @@ type BackupPreviewResult struct {
 	// The database whose dump it takes.
 	Database string `protobuf:"bytes,2,opt,name=database,proto3" json:"database,omitempty"`
 	// What runs on the volume now.
-	Running       []string `protobuf:"bytes,3,rep,name=running,proto3" json:"running,omitempty"`
+	Running []string `protobuf:"bytes,3,rep,name=running,proto3" json:"running,omitempty"`
+	// About how much a backup will take on the disk, in bytes.
+	EstimateBytes int64 `protobuf:"varint,4,opt,name=estimate_bytes,json=estimateBytes,proto3" json:"estimate_bytes,omitempty"`
+	// What's free on the disk that holds backups, in bytes.
+	FreeBytes int64 `protobuf:"varint,5,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
+	// How much of that a backup leaves alone, in bytes.
+	ReserveBytes  int64 `protobuf:"varint,6,opt,name=reserve_bytes,json=reserveBytes,proto3" json:"reserve_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4267,6 +4273,27 @@ func (x *BackupPreviewResult) GetRunning() []string {
 		return x.Running
 	}
 	return nil
+}
+
+func (x *BackupPreviewResult) GetEstimateBytes() int64 {
+	if x != nil {
+		return x.EstimateBytes
+	}
+	return 0
+}
+
+func (x *BackupPreviewResult) GetFreeBytes() int64 {
+	if x != nil {
+		return x.FreeBytes
+	}
+	return 0
+}
+
+func (x *BackupPreviewResult) GetReserveBytes() int64 {
+	if x != nil {
+		return x.ReserveBytes
+	}
+	return 0
 }
 
 // BackupResult is a backup, whole on the disk.
@@ -5103,11 +5130,15 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\amanager\x18\x04 \x01(\tR\amanager\x12\x16\n" +
 	"\x06folder\x18\x05 \x01(\tR\x06folder\x12\x1b\n" +
 	"\tleaned_on\x18\x06 \x03(\tR\bleanedOn\x12\x18\n" +
-	"\ainvalid\x18\a \x01(\tR\ainvalid\"~\n" +
+	"\ainvalid\x18\a \x01(\tR\ainvalid\"\xe9\x01\n" +
 	"\x13BackupPreviewResult\x121\n" +
 	"\x06method\x18\x01 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x18\n" +
-	"\arunning\x18\x03 \x03(\tR\arunning\"\xb9\x01\n" +
+	"\arunning\x18\x03 \x03(\tR\arunning\x12%\n" +
+	"\x0eestimate_bytes\x18\x04 \x01(\x03R\restimateBytes\x12\x1d\n" +
+	"\n" +
+	"free_bytes\x18\x05 \x01(\x03R\tfreeBytes\x12#\n" +
+	"\rreserve_bytes\x18\x06 \x01(\x03R\freserveBytes\"\xb9\x01\n" +
 	"\fBackupResult\x121\n" +
 	"\x06method\x18\x01 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1d\n" +

@@ -492,6 +492,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.logs != nil {
 		api.Go(func() { s.logs.KeepTelling(apiCtx) })
 	}
+	if s.backups != nil {
+		api.Go(func() { s.backups.KeepRunning(apiCtx) })
+	}
 	if ls.Ingress != nil {
 		run(func() error {
 			return serve.Serve(apiCtx, ls.Ingress, authapi.ViaIngress(s.api), serve.Options{Name: "panel behind the ingress", Logger: s.logger})
