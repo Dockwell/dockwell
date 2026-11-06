@@ -110,6 +110,21 @@ This is our reading of the licences, not legal advice. Counsel confirms it befor
 
 The first set is what the two real servers ran but for their AI agent runner, which comes with an entry of its own: an app that publishes with no account of its own belongs to whoever reaches it first, so an entry doesn't do that. Every app in the set is open source, which the catalog's page says and a test holds it to.
 
+### Upgrades, before backups exist
+
+*Added 6 Nov 2026, with #89.*
+
+An upgrade is a plan: `CatalogService.UpgradeCatalogInstall` reads the install's pin and proposes the entry's newest release, with the pin in the same change, so an undo puts back both.
+
+- **A newer release is a higher `release`.** The panel says so on the catalog's card, on the rail and on each of the app's pages, which holds the button.
+- **The entry owns what's in its file.** What it sets changes, and what the file no longer has goes, but for volumes, as `remove_orphans` leaves them.
+- **What a person added stays:** a port, a mount, what's in a service's environment and what it uses. Without this, the port a person added on an app's page would go at the next upgrade. A name the file sets stays the file's.
+- **Its secrets stay as they are, and nothing reads them.** A secret the install has is filled in with a value that means nothing, which the service then uses by name, so the value is never opened. A secret a release adds is generated, or asked for.
+- **There's no backup first, and the plan says so.** The issue asks for one, but backups don't exist yet (#88), so that box stays open. A note, `no_backup`, says none is taken, and that an undo puts the old version back but not what the new one changed in its data.
+- **`DOCKWELL_CATALOG_DIR` names a directory of entries,** read each time, that take over from built-in ones of the same ID. Before a feed exists it's how a newer release reaches a server for a test, and how to try an entry. The panel's flow and the Docker end to end use it. A feed takes over from it, as from what's built in.
+
+Choosing to stay on a version, skipping one, and upgrading a whole fleet in one go are later work. A release that adds an input needs its value from `dockwell catalog upgrade --values`, as the panel has no form for it yet.
+
 ### What we turned down
 
 - **Running 1Panel's format directly.** It would tie the product to a format that can't express plans, secrets or backups, and it would run scripts on the host.

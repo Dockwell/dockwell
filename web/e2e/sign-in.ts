@@ -51,6 +51,7 @@ const shots = values.shots ? resolve(values.shots) : undefined;
 const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
+const catalogDir = mkdtempSync(join(tmpdir(), "dockwell-e2e-catalog-"));
 
 let server: ChildProcess | undefined;
 let docker: ChildProcess | undefined;
@@ -143,7 +144,7 @@ async function start(): Promise<string> {
     ],
     {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ...engine, USER: "mira" },
+      env: { ...process.env, ...engine, USER: "mira", DOCKWELL_CATALOG_DIR: catalogDir },
     },
   );
   let out = "";
@@ -799,7 +800,7 @@ async function main() {
         return () => server?.kill("SIGCONT");
       },
     });
-    await catalogFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket) });
+    await catalogFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), catalogDir });
     await containersFlow(page, {
       origin,
       step,

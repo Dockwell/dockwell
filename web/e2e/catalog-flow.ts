@@ -3,8 +3,12 @@
 // The catalog end to end, on the fake Docker Engine of scripts/fakedocker: the rail
 // to the catalog, an app through its form and its plan, and onto the working app with
 // a way to reach it, what to do first and where its secrets are. Then an app that
-// needs a token and reaches past its containers. scripts/docker-e2e.sh runs these
-// apps on real Docker.
+// needs a token and reaches past its containers, and a newer release of an app, which
+// the panel says is out, through its plan and its undo. scripts/docker-e2e.sh runs
+// these apps on real Docker.
+
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import type { Locator, Page } from "playwright-core";
 
@@ -18,6 +22,43 @@ export interface CatalogFlowOptions {
   shoot: (page: Page, name: string) => Promise<void>;
   /** Says what Docker itself runs. */
   docker: DockerProbe;
+  /** The directory the control plane reads more entries from, for a release newer than the first. */
+  catalogDir: string;
+}
+
+const FIRST_DIGEST = `sha256:${"1".repeat(64)}`;
+const SECOND_DIGEST = `sha256:${"2".repeat(64)}`;
+
+/** A release of an entry that exists only to be upgraded. */
+function release(number: number, version: string, digest: string): string {
+  return `id: e2e-notes
+name: E2E Notes
+summary: Something to upgrade
+category: storage
+version: "${version}"
+release: ${number}
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+web:
+  service: web
+inputs:
+  - name: PORT
+    label: Port
+    type: INPUT_TYPE_PORT
+    defaultValue: "18300"
+compose: |
+  services:
+    web:
+      image: notes:${version}@${digest}
+      ports:
+        - "\${PORT}:80"
+      volumes:
+        - data:/data
+  volumes:
+    data: {}
+`;
 }
 
 function fail(message: string): never {
@@ -31,7 +72,7 @@ async function chooseServer(sheet: Locator) {
   await servers.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();
 }
 
-export async function catalogFlow(page: Page, { origin, step, shoot, docker }: CatalogFlowOptions) {
+export async function catalogFlow(page: Page, { origin, step, shoot, docker, catalogDir }: CatalogFlowOptions) {
   step("catalog: the rail leads to it, and it lists the first set");
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
@@ -116,4 +157,50 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker }: C
   await plan.getByRole("button", { name: /Cancel/ }).click();
   await tunnel.getByRole("button", { name: /Cancel/ }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
+
+  step("catalog: a newer release: the panel says so where you'd look for it");
+  const entry = join(catalogDir, "e2e-notes.yaml");
+  writeFileSync(entry, release(1, "1.0", FIRST_DIGEST));
+  await page.goto(`${origin}/catalog/e2e-notes`);
+  const notes = page.getByRole("dialog", { name: "Install E2E Notes" });
+  await notes.getByLabel("Port").waitFor();
+  await chooseServer(notes);
+  await notes.getByRole("button", { name: /Review plan/ }).click();
+  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await page.getByRole("button", { name: "Open E2E Notes", exact: true }).click({ timeout: 120_000 });
+  const panel = page.getByRole("region", { name: "From the catalog" });
+  await panel.getByText("E2E Notes 1.0").waitFor();
+  if ((await panel.getByRole("button", { name: /Upgrade to/ }).count()) !== 0)
+    fail("the newest release offers an upgrade");
+  writeFileSync(entry, release(2, "2.0", SECOND_DIGEST));
+  await page.reload();
+  const upgrade = panel.getByRole("button", { name: "Upgrade to 2.0" });
+  await upgrade.waitFor();
+  await panel.getByText("Version 2.0 is out.").waitFor();
+  await page
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("link", { name: /Catalog/ })
+    .getByText("1")
+    .waitFor();
+  await shoot(page, "catalog-upgrade");
+
+  step("catalog: upgrading is a plan that says no backup is taken, and it has an undo");
+  await upgrade.click();
+  await plan.waitFor({ timeout: 30_000 });
+  await plan.getByText("No backup is taken first").waitFor();
+  await shoot(page, "catalog-upgrade-plan");
+  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  const undo = page.getByRole("button", { name: /Undo/ });
+  await undo.waitFor({ timeout: 120_000 });
+  const now = (await docker()).filter((c) => c.image.startsWith("notes:")).map((c) => c.image);
+  if (now.length !== 1 || !now[0]?.includes(SECOND_DIGEST)) fail(`after the upgrade, Docker runs ${now.join(", ")}`);
+  await undo.click();
+  await page
+    .getByRole("dialog", { name: "Review plan" })
+    .getByRole("button", { name: /Apply plan/ })
+    .click();
+  await page.getByRole("button", { name: /^Done/ }).click({ timeout: 120_000 });
+  await panel.getByRole("button", { name: "Upgrade to 2.0" }).waitFor({ timeout: 30_000 });
+  const back = (await docker()).filter((c) => c.image.startsWith("notes:")).map((c) => c.image);
+  if (back.length !== 1 || !back[0]?.includes(FIRST_DIGEST)) fail(`after the undo, Docker runs ${back.join(", ")}`);
 }
