@@ -2940,7 +2940,7 @@ image=$(jq -r '.entry.compose' <<<"$entry" | sed -n 's/^ *image: //p')
 said=$(docker run --rm "$image" tunnel --metrics 127.0.0.1:20241 ready 2>&1) && fail "a tunnel with nothing running reads as ready: $said"
 [[ "$said" != *"flag provided but not defined"* && "$said" != *"Incorrect Usage"* ]] || fail "cloudflared doesn't take its health check: $said"
 
-step "Catalog: a newer release reads as one, and upgrading keeps the data, the password and the port a person added"
+step "Catalog: a newer release reads as one, and upgrading keeps the data, the password, and what a person added and changed"
 # An earlier step may have pushed the same image to a registry of its own, so this
 # reads Docker Hub's digest by its name.
 digest_of() {
@@ -2996,6 +2996,16 @@ notes=$(catalog_container web)
 password=$(catalog_generated "$notes" NOTES_PASSWORD)
 docker exec "$notes" sh -c 'echo kept >/data/marker' || fail "can't write to the install's volume"
 dw services add-port web --project e2e-notes --host-port 18301 --container-port 80 --yes >/dev/null || fail "adding a port to what's installed failed"
+# What a person does to what's installed: a service the file doesn't name, and the
+# file's own port closed to this server. The whole spec goes back, as an edit sets all of it.
+dw services create mine --project e2e-notes --app-image nginx:1.27-alpine --yes >/dev/null || fail "adding a service to what's installed failed"
+mine=$(docker inspect --format '{{.Id}}' "$(catalog_container mine)") || fail "docker inspect of the service a person added failed"
+listed=$(dw services list --project e2e-notes --environment production --json) || fail "services list failed"
+closed=$(jq -c '.services[] | select(.resource.name == "web") |
+  {resource: .resource, spec: {service: (.spec | .app.ports |= map(if .hostPort == 18300 then .hostIp = "127.0.0.1" else . end))}}' <<<"$listed") ||
+  fail "can't write the edit that closes the port: $listed"
+[[ "$closed" == *'"hostIp":"127.0.0.1"'* ]] || fail "the edit that closes the port doesn't, from: $listed"
+dw changes propose --summary "Close the app to other hosts" --edits "$closed" --yes >/dev/null || fail "closing the port failed"
 installs=$(dw catalog installs --json) || fail "catalog installs failed"
 jq -e '.installs[] | select(.project == "e2e-notes") | has("upgrade") | not' <<<"$installs" >/dev/null || fail "the newest release offers an upgrade: $installs"
 if said=$(dw catalog upgrade e2e-notes --plan-only 2>&1); then fail "upgrading what's up to date planned: $said"; fi
@@ -3019,6 +3029,10 @@ catalog_runs() {
   for port in 18300 18301; do
     curl -fsS --max-time 10 -o /dev/null "http://127.0.0.1:$port/" || fail "it doesn't serve on port $port"
   done
+  bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$at") || fail "docker inspect $at failed"
+  jq -e '."80/tcp" | length == 2 and any(.HostPort == "18300" and .HostIp == "127.0.0.1")' <<<"$bound" >/dev/null ||
+    fail "the port a person closed reads: $bound"
+  [[ "$(docker inspect --format '{{.Id}}' "$(catalog_container mine)")" == "$mine" ]] || fail "the service a person added didn't keep running"
 }
 catalog_runs "$release_second"
 installs=$(dw catalog installs --json) || fail "catalog installs failed"
