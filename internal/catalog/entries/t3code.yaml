@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: t3code
+name: T3 Code
+summary: Run coding agents on your server, and reach them from any device
+category: ai
+version: "0.26.5"
+release: 1
+homepage: https://github.com/dizys/t3code-docker
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/t3code.yaml
+web:
+  service: t3code
+firstSteps: >-
+  It answers only on this server until you add a domain, as anyone who reaches it
+  unencrypted gets a shell. Add one on its page, over HTTPS or behind your tunnel,
+  then open /__setup on it and sign in with the T3_SETUP_KEY secret. From there, pair
+  your devices and sign in your agents, which install in the background on first
+  start and bring their own licences and accounts.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "3773"
+  - name: T3_SETUP_KEY
+    label: Setup key
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    t3code:
+      image: ghcr.io/dizys/t3code-docker:0.26.5-browser@sha256:ae38393bc6867e67fcb36975e3fcf5dbf50b3f2f480bd7fbe08c83297696f40a
+      restart: unless-stopped
+      stop_grace_period: 30s
+      environment:
+        T3_SETUP_KEY: ${T3_SETUP_KEY}
+        T3_SINGLE_PORT: "8080"
+      ports:
+        - "127.0.0.1:${PORT}:8080"
+      volumes:
+        - home:/home/t3
+        - workspace:/workspace
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:8080/.well-known/t3/environment"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 120s
+  volumes:
+    home: {}
+    workspace: {}

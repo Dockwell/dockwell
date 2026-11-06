@@ -265,6 +265,15 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 		}
 	}
 
+	// T3 Code takes no approval: it reaches nothing on the server, and nothing reaches it.
+	agents := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "t3code"})
+	if agents.GetPlan().GetHostAccess() || agents.GetPlan().GetDestructive() {
+		t.Errorf("host access %t, destructive %t, for T3 Code", agents.GetPlan().GetHostAccess(), agents.GetPlan().GetDestructive())
+	}
+	if _, err := changeClient(b, b.origin).DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: agents.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+
 	const token = "a-tunnel-token-from-cloudflare"
 	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "cloudflared", Values: map[string]string{"TUNNEL_TOKEN": token}})
 	if !planned.GetPlan().GetHostAccess() {

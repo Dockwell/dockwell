@@ -2924,6 +2924,39 @@ signed_in=$(curl -sS --max-time 15 -H 'Content-Type: application/json' -d "{\"id
   "http://127.0.0.1:$admin_port/api/tokens") || fail "Nginx Proxy Manager doesn't answer on port $admin_port"
 jq -e '.token | length > 0' <<<"$signed_in" >/dev/null 2>&1 || fail "Nginx Proxy Manager won't sign in with its password: ${signed_in//"$password"/<the password>}"
 
+step "Catalog: T3 Code runs, stays on this server, and its setup page takes the key no one typed"
+catalog_install t3code
+t3code=$(catalog_container t3code)
+catalog_pinned "$t3code"
+catalog_healthy "$t3code"
+key=$(catalog_generated "$t3code" T3_SETUP_KEY)
+t3_port=$(catalog_value t3code PORT)
+bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$t3code") || fail "docker inspect $t3code failed"
+jq -e '[.[][] | .HostIp] == ["127.0.0.1"]' <<<"$bound" >/dev/null || fail "T3 Code is published past loopback: $bound"
+said=$(docker logs "$t3code" 2>&1) || fail "docker logs $t3code failed"
+[[ "$said" != *"$key"* ]] || fail "T3 Code's log holds its setup key"
+[[ "$said" != *"anonymous volume"* ]] || fail "T3 Code says a folder of its is on an anonymous volume: ${said:0:600}"
+answer=$(curl -fsS --max-time 10 "http://127.0.0.1:$t3_port/.well-known/t3/environment") || fail "T3 Code doesn't answer on port $t3_port"
+jq -e . <<<"$answer" >/dev/null || fail "T3 Code says what isn't JSON: ${answer:0:300}"
+setup_login() {
+  curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Accept: application/json' --data-urlencode "key=$1" \
+    "http://127.0.0.1:$t3_port/__setup/login"
+}
+refused=$(setup_login not-the-key) || fail "T3 Code's setup page didn't answer"
+[[ "$refused" == 401 ]] || fail "T3 Code's setup page answered $refused to a wrong key, want 401"
+taken=$(setup_login "$key") || fail "T3 Code's setup page didn't answer"
+[[ "$taken" == 200 ]] || fail "T3 Code's setup page answered $taken to its key, want 200"
+
+step "Catalog: a route reaches T3 Code, which is how a person gets to it from elsewhere"
+t3_site=t3.e2e-dockwell.example.net
+dw routes create t3 --project t3code --domain "$t3_site" --service t3code --port 8080 --tls off --yes >/dev/null || fail "a route to T3 Code failed"
+page=$(curl -fsS --max-time 10 --resolve "$t3_site:80:127.0.0.1" "http://$t3_site/__setup/hello") || fail "http://$t3_site/__setup/hello doesn't answer through Caddy"
+[[ "$page" == *t3-setup* ]] || fail "http://$t3_site/__setup/hello answers something else: ${page:0:300}"
+# Unlike an app with a first-visitor wizard, it lets in only what it paired.
+session=$(curl -fsS --max-time 10 --resolve "$t3_site:80:127.0.0.1" "http://$t3_site/api/auth/session") || fail "http://$t3_site/api/auth/session doesn't answer through Caddy"
+jq -e '.authenticated == false and .auth.policy == "remote-reachable"' <<<"$session" >/dev/null || fail "T3 Code reads a visitor with no pairing as: ${session:0:300}"
+dw routes delete t3 --project t3code --yes >/dev/null || fail "routes delete t3 failed"
+
 step "Catalog: a tunnel takes a token, and a person approves what it reaches"
 # Nothing here can reach Cloudflare's edge, as ADR 0030 says, so it stops at the plan,
 # and the one thing a server's own run would read first is its health check's flags.
