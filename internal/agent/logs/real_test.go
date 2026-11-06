@@ -4,11 +4,17 @@ package logs_test
 
 import (
 	"context"
+	"errors"
+	"io"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -328,6 +334,34 @@ func TestLogsOnRealDocker(t *testing.T) {
 	}
 	t.Logf("read back %d of %d lines of %s across its rotated files, oldest %v", read, written, rot, all.scans[0].GetOldestTime().AsTime())
 
+	// A reader who comes back with a place from before what rotated away hears that
+	// those lines are gone, and from when to when.
+	rotated, err := client.ContainerNamed(t.Context(), docker.ContainerName(project, rot))
+	if err != nil {
+		t.Fatal(err)
+	}
+	back2 := newCollector()
+	ctx6, cancel6 := context.WithCancel(t.Context())
+	defer cancel6()
+	place2 := timestamppb.New(rotated.State.StartedAt.Add(-2 * time.Second))
+	go func() {
+		_ = reader.Stream(ctx6, &agentv1.LogsCall{
+			Resource: refRot, Follow: true,
+			After: []*agentv1.LogCursor{{SourceId: rotated.ID[:12], Time: place2, Count: 1}}, ResumeFrom: place2,
+		}, back2.send)
+	}()
+	waitForLong(t, "a marker for what rotated away", func() bool {
+		back2.mu.Lock()
+		defer back2.mu.Unlock()
+		for _, g := range back2.gaps {
+			if g.GetReason() == dockwellv1.LogGapReason_LOG_GAP_REASON_GONE && g.GetEndTime().AsTime().After(place2.AsTime()) {
+				return true
+			}
+		}
+		return false
+	})
+	cancel6()
+
 	// What Docker keeps of it stays within the bound, which what it wrote is past,
 	// with its older files compressed. Compressing comes a moment after rotating.
 	rotating, err := client.ContainerNamed(t.Context(), docker.ContainerName(project, rot))
@@ -364,6 +398,284 @@ func TestLogsOnRealDocker(t *testing.T) {
 	}
 	if plain > 10<<20+1<<20 {
 		t.Errorf("Docker keeps %d bytes uncompressed, more than one file of 10 MiB: %v", plain, files)
+	}
+}
+
+// runWith runs a command as a service's container on a real engine, as someone
+// running docker by hand would, with a log config of its own, which the driver
+// doesn't offer. It says which driver Docker took.
+func runWith(t *testing.T, client *docker.Client, project, service string, lc *docker.LogConfig, command string) *docker.Container {
+	t.Helper()
+	id, err := client.CreateContainer(t.Context(), project+"-"+service+"-1", &docker.CreateRequest{
+		Config: docker.Config{
+			Image:  realImage,
+			Cmd:    []string{"sh", "-c", command},
+			Labels: map[string]string{docker.LabelProject: project, docker.LabelService: service, docker.LabelNumber: "1"},
+		},
+		HostConfig: docker.HostConfig{LogConfig: lc},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	c, err := client.InspectContainer(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// sourceSays waits for a source to say why its log can't be read, however it's read.
+func sourceSays(t *testing.T, reader *logs.Reader, ref *dockwellv1.ResourceRef, c *docker.Container, follows bool) string {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	seen := newCollector()
+	go func() {
+		_ = reader.Stream(ctx, &agentv1.LogsCall{Resource: ref, Follow: follows, Tail: 10}, seen.send)
+	}()
+	var said string
+	waitForLong(t, "the source to say why", func() bool {
+		seen.mu.Lock()
+		defer seen.mu.Unlock()
+		said = seen.sources[c.ID[:12]].GetLogError()
+		return said != ""
+	})
+	if n := seen.count(); n != 0 {
+		t.Errorf("%d lines came from a log that can't be read", n)
+	}
+	return said
+}
+
+// Docker reads some drivers' logs and not others', and that's all Dockwell sees of
+// them. A driver it can't read says so where a reader is, and how to look further,
+// whether they follow or read to the end. One it can, through its dual logging, as
+// syslog with its cache on, reads and follows as any other.
+func TestLogDriversOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	scope := dockertest.Scope(t)
+	project := docker.Project(scope)
+	dockertest.Cleanup(t, client, project)
+	if err := client.PullImage(t.Context(), realImage, nil); err != nil {
+		t.Fatal(err)
+	}
+	reader := &logs.Reader{Client: client, Archive: &logs.Archive{Dir: t.TempDir(), Client: client}}
+	syslog := func(extra map[string]string) *docker.LogConfig {
+		// Nothing has to listen: UDP sends either way, and what is read is Docker's copy.
+		config := map[string]string{"syslog-address": "udp://127.0.0.1:5514"}
+		for k, v := range extra {
+			config[k] = v
+		}
+		return &docker.LogConfig{Type: "syslog", Config: config}
+	}
+	for service, lc := range map[string]*docker.LogConfig{
+		"none":    {Type: "none"},
+		"nocache": syslog(map[string]string{"cache-disabled": "true"}),
+	} {
+		t.Run(service, func(t *testing.T) {
+			c := runWith(t, client, project, service, lc, `echo printed; sleep 60`)
+			ref := &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: service}
+			for _, follows := range []bool{true, false} {
+				said := sourceSays(t, reader, ref, c, follows)
+				if !strings.Contains(said, "logging driver") || !strings.Contains(said, "docker inspect "+c.ID[:12]) {
+					t.Errorf("following %v, a log Docker can't read says %q", follows, said)
+				}
+			}
+		})
+	}
+	for service, lc := range map[string]*docker.LogConfig{
+		"cached": syslog(nil),
+		"local":  {Type: "local"},
+	} {
+		t.Run(service, func(t *testing.T) {
+			runWith(t, client, project, service, lc, `echo printed; sleep 1; echo later; sleep 60`)
+			ref := &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: service}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			seen := newCollector()
+			go func() { _ = reader.Stream(ctx, &agentv1.LogsCall{Resource: ref, Follow: true, Tail: 10}, seen.send) }()
+			waitFor(t, "what it printed", func() bool {
+				seen.mu.Lock()
+				defer seen.mu.Unlock()
+				return seen.byLine["printed"] != nil && seen.byLine["later"] != nil
+			})
+			cancel()
+			read := newCollector()
+			if err := reader.Stream(t.Context(), &agentv1.LogsCall{Resource: ref, Tail: 10}, read.send); err != nil {
+				t.Fatal(err)
+			}
+			if read.byLine["printed"] == nil {
+				t.Errorf("a read of this log found %q", read.got())
+			}
+		})
+	}
+}
+
+// EnvSmallDisk names a directory on a disk of a few MiB, which root can remount
+// read-only with sudo, as CI's job makes one.
+const envSmallDisk = "DOCKWELL_TEST_SMALL_DISK"
+
+// smallDisk makes a directory of its own on the small disk, or skips.
+func smallDisk(t *testing.T) string {
+	t.Helper()
+	disk := os.Getenv(envSmallDisk)
+	if disk == "" {
+		t.Skipf("%s names no small disk", envSmallDisk)
+	}
+	dir, err := os.MkdirTemp(disk, "logs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
+// waitForLine waits for a line in a container's log, as a real engine has it.
+func waitForLine(t *testing.T, client *docker.Client, id, text string) {
+	t.Helper()
+	waitForLong(t, "the line "+text, func() bool {
+		rd, err := client.ContainerLogs(t.Context(), id, false, docker.LogOptions{Tail: 1})
+		if err != nil {
+			return false
+		}
+		defer rd.Close()
+		for {
+			e, err := rd.Next()
+			if errors.Is(err, io.EOF) || err != nil {
+				return false
+			}
+			if string(e.Text) == text {
+				return true
+			}
+		}
+	})
+}
+
+// A log bigger than the disk, past what the 1 GiB rule would have stopped as this
+// says there's room, as a disk that fills during a copy would: the replace goes on,
+// nothing half done stays, and the archive works when there's room again.
+func TestADiskThatFillsOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	dir := smallDisk(t)
+	scope := dockertest.Scope(t)
+	project := docker.Project(scope)
+	dockertest.Cleanup(t, client, project)
+	archive := &logs.Archive{Dir: filepath.Join(dir, "kept"), Client: client, Free: func(string) (uint64, error) { return 1 << 40, nil }}
+	reader := &logs.Reader{Client: client, Archive: archive}
+	rt := &container.Docker{Client: client, Logs: archive}
+	ref := &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: "web"}
+
+	big := runReal(t, client, rt, project, "web", `head -c 6000000 /dev/urandom | base64 -w 120; echo written; sleep 60`, 1)
+	waitForLine(t, client, big.ID, "written")
+	next := runReal(t, client, rt, project, "web", `echo second; sleep 60`, 2)
+	archive.WaitPruned()
+
+	dir2 := filepath.Join(archive.Dir, project, "web")
+	entries, err := os.ReadDir(dir2)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".copying-") {
+			t.Errorf("a copy that couldn't finish stayed, as %s", e.Name())
+		}
+	}
+	for _, k := range archive.List(project, "web") {
+		t.Logf("what fit of it stayed, as %s", k.ContainerID)
+	}
+	seen := newCollector()
+	if err := reader.Stream(t.Context(), &agentv1.LogsCall{Resource: ref, Tail: 10}, seen.send); err != nil {
+		t.Fatal(err)
+	}
+	if seen.byLine["second"] == nil {
+		t.Errorf("reading the new container found %q", seen.got())
+	}
+
+	// With room again, the next one is kept.
+	if err := archive.Prune(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(archive.Dir, project)); err != nil {
+		t.Fatal(err)
+	}
+	runReal(t, client, rt, project, "web", `echo third; sleep 60`, 3)
+	archive.WaitPruned()
+	kept := false
+	for _, k := range archive.List(project, "web") {
+		kept = kept || k.ContainerID == next.ID[:12]
+	}
+	if !kept {
+		t.Error("with room again, a replace kept no log")
+	}
+}
+
+// A disk that turns read-only, as a failing one does: what was kept still reads, a
+// replace goes on without keeping a log, and a prune that can't remove anything says
+// so and leaves it for when it can.
+func TestADiskThatTurnsReadOnlyOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	dir := smallDisk(t)
+	mount := func(how string) error {
+		out, err := exec.CommandContext(context.WithoutCancel(t.Context()), "sudo", "-n", "mount", "-o", "remount,"+how, os.Getenv(envSmallDisk)).CombinedOutput()
+		if err != nil {
+			return errors.New(string(out))
+		}
+		return nil
+	}
+	scope := dockertest.Scope(t)
+	project := docker.Project(scope)
+	dockertest.Cleanup(t, client, project)
+	at := time.Now()
+	archive := &logs.Archive{
+		Dir: filepath.Join(dir, "kept"), Client: client,
+		Free: func(string) (uint64, error) { return 1 << 40, nil },
+		Now:  func() time.Time { return at },
+	}
+	reader := &logs.Reader{Client: client, Archive: archive}
+	rt := &container.Docker{Client: client, Logs: archive}
+	ref := &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: "web"}
+
+	first := runReal(t, client, rt, project, "web", `echo first; sleep 60`, 1)
+	waitForLine(t, client, first.ID, "first")
+	runReal(t, client, rt, project, "web", `echo second; sleep 60`, 2)
+	archive.WaitPruned()
+	if got := archive.List(project, "web"); len(got) != 1 {
+		t.Fatalf("the archive holds %d logs, want the first", len(got))
+	}
+
+	if err := mount("ro"); err != nil {
+		t.Fatalf("making the disk read-only: %v", err)
+	}
+	t.Cleanup(func() { _ = mount("rw") })
+
+	third := runReal(t, client, rt, project, "web", `echo third; sleep 60`, 3)
+	archive.WaitPruned()
+	waitForLine(t, client, third.ID, "third")
+	read := newCollector()
+	if err := reader.Stream(t.Context(), &agentv1.LogsCall{Resource: ref, IncludeKept: true, Revision: 1, Tail: 10}, read.send); err != nil {
+		t.Fatal(err)
+	}
+	if read.byLine["first"] == nil {
+		t.Errorf("what was kept doesn't read on a read-only disk: %q", read.got())
+	}
+
+	at = at.Add(logs.RetainFor + time.Hour)
+	if err := archive.Prune(); err == nil {
+		t.Error("a prune that couldn't remove a log past its time said nothing")
+	}
+	if got := archive.List(project, "web"); len(got) != 1 {
+		t.Errorf("the archive lists %d logs on a read-only disk, want what it couldn't remove", len(got))
+	}
+	if err := mount("rw"); err != nil {
+		t.Fatalf("making the disk writable again: %v", err)
+	}
+	if err := archive.Prune(); err != nil {
+		t.Fatal(err)
+	}
+	if got := archive.List(project, "web"); len(got) != 0 {
+		t.Errorf("the archive lists %d logs past their time once it could remove them", len(got))
 	}
 }
 
