@@ -1023,6 +1023,13 @@ type Unplaced interface {
 	Unplaced()
 }
 
+// Rotates is a Type whose sensitive fields plan as a change whenever an edit sets
+// them, as a secret's value does, and are never compared with what's there, so a
+// plan can't confirm a guess at one (ADR 0022).
+type Rotates interface {
+	RotatesSensitive()
+}
+
 // RunsOnNoServer reports a Type whose resources run on no server, whatever its level.
 func RunsOnNoServer(t Type) bool {
 	if _, ok := t.(Valuer); ok {

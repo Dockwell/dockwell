@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/backup/s3/s3test"
+	"github.com/dockwell/dockwell/internal/backup/seal"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -823,20 +825,137 @@ func TestABackupSaysWhatItCostsAndLeavesRoom(t *testing.T) {
 	}
 }
 
+// destination is a fake bucket, and what reaches it.
+func (b *bench) destination(t *testing.T) (*Destination, *s3test.Server) {
+	t.Helper()
+	store := s3test.New(t)
+	b.runner.HTTP = store.Client()
+	return &Destination{Endpoint: store.URL(), Bucket: "acme", Prefix: "dockwell", AccessKey: "key", SecretKey: "a-secret", Passphrase: "a long passphrase"}, store
+}
+
+// A backup leaves sealed, and comes back whole on a server that's lost its copy.
+func TestABackupGoesToItsDestinationAndComesBack(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", strings.Repeat("the orders ", 1<<18))
+	d, store := b.destination(t)
+	m, err := b.runner.Take(t.Context(), Take{ID: "bkp_1", Ref: ref, Destination: d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Copied == nil || m.CopyError != "" {
+		t.Fatalf("copied = %+v, error %q", m.Copied, m.CopyError)
+	}
+	wantKey := "dockwell/" + env + "/data/bkp_1.tar.gz.sealed"
+	if m.Copied.Key != wantKey {
+		t.Errorf("key = %q, want %q", m.Copied.Key, wantKey)
+	}
+	objects := store.Objects()
+	sealed := objects["/acme/"+wantKey]
+	if int64(len(sealed)) != m.Copied.Bytes || int64(len(sealed)) != seal.Size(m.Size) {
+		t.Errorf("stored %d bytes, says %d, sealing %d makes %d", len(sealed), m.Copied.Bytes, m.Size, seal.Size(m.Size))
+	}
+	local, err := os.ReadFile(filepath.Join(b.runner.dir(ref), "bkp_1.tar.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(sealed, local[:64]) {
+		t.Error("the bucket holds the backup as it is")
+	}
+	for path, object := range objects {
+		if bytes.Contains(object, []byte("a-secret")) || bytes.Contains(object, []byte("a long passphrase")) || strings.Contains(path, "secret") {
+			t.Errorf("%s holds what signs in", path)
+		}
+	}
+
+	// The server loses it, and someone asks for it back.
+	if err := b.runner.Delete(t.Context(), ref, "bkp_1", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.runner.Fetch(t.Context(), ref, "bkp_1", m.Copied.Key, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SHA256 != m.SHA256 || got.Size != m.Size {
+		t.Errorf("fetched %+v, want %+v", got, m)
+	}
+	b.write("orders.db", "lost")
+	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}); err != nil {
+		t.Fatalf("restoring what came back: %v", err)
+	}
+	if got := b.read("orders.db"); !strings.HasPrefix(got, "the orders ") {
+		t.Errorf("orders.db = %q", got[:min(len(got), 20)])
+	}
+
+	// Deleted from both.
+	if err := b.runner.Delete(t.Context(), ref, "bkp_1", m.Copied.Key, d); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.Objects(); len(got) != 0 {
+		t.Errorf("left in the bucket: %d objects", len(got))
+	}
+}
+
+// Storage that says no fails the copy, not the backup, which is whole on the server.
+func TestABackupStaysWhenItsCopyFails(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", "the orders")
+	d, store := b.destination(t)
+	store.Refuse = "AccessDenied"
+	m, err := b.runner.Take(t.Context(), Take{ID: "bkp_1", Ref: ref, Destination: d})
+	if err != nil {
+		t.Fatalf("a copy that failed failed the backup: %v", err)
+	}
+	if m.Copied != nil || !strings.Contains(m.CopyError, "AccessDenied") {
+		t.Errorf("copied = %+v, error %q", m.Copied, m.CopyError)
+	}
+	if strings.Contains(m.CopyError, "a-secret") || strings.Contains(m.CopyError, "a long passphrase") {
+		t.Errorf("the error holds what signs in: %q", m.CopyError)
+	}
+	if got := b.files(); !slices.Contains(got, "bkp_1.tar.gz") {
+		t.Errorf("on disk: %v", got)
+	}
+}
+
+// What comes back has to be what went: the wrong passphrase, or a bucket's copy
+// changed, leaves nothing on the disk.
+func TestAFetchThatDoesntMatchLeavesNothing(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", "the orders")
+	d, _ := b.destination(t)
+	m, err := b.runner.Take(t.Context(), Take{ID: "bkp_1", Ref: ref, Destination: d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.runner.Delete(t.Context(), ref, "bkp_1", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	wrong := *d
+	wrong.Passphrase = "another long passphrase"
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", m.Copied.Key, &wrong); err == nil || !strings.Contains(err.Error(), "passphrase is wrong") {
+		t.Errorf("Fetch with the wrong passphrase = %v", err)
+	}
+	if got := b.files(); len(got) != 0 {
+		t.Errorf("it left %v", got)
+	}
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_other", m.Copied.Key, d); err == nil {
+		t.Error("it took one backup for another")
+	}
+}
+
 func TestDeleteRemovesABackup(t *testing.T) {
 	b := newBench(t)
 	b.write("kept.txt", "x")
 	b.take(false)
-	if err := b.runner.Delete(t.Context(), ref, "bkp_1"); err != nil {
+	if err := b.runner.Delete(t.Context(), ref, "bkp_1", "", nil); err != nil {
 		t.Fatal(err)
 	}
 	if got := b.files(); len(got) != 0 {
 		t.Errorf("on disk: %v", got)
 	}
-	if err := b.runner.Delete(t.Context(), ref, "bkp_1"); err != nil {
+	if err := b.runner.Delete(t.Context(), ref, "bkp_1", "", nil); err != nil {
 		t.Errorf("deleting one that's gone: %v", err)
 	}
-	if err := b.runner.Delete(t.Context(), ref, "../../other"); err == nil {
+	if err := b.runner.Delete(t.Context(), ref, "../../other", "", nil); err == nil {
 		t.Error("it took a path for an ID")
 	}
 }

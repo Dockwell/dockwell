@@ -452,6 +452,35 @@ message BackupPolicy {
   // after. A database's dump stops nothing. Without it, a copy of a running app's
   // files can hold half a write.
   bool stop = 7;
+  // The backup destination each backup also goes to, by name. Empty keeps them on
+  // the server alone, so they go if it does.
+  string destination = 8;
+}
+
+// BackupDestination is S3-compatible storage that backups go to as well as the
+// server's disk, so they outlive it: Amazon S3, Cloudflare R2, Backblaze B2, MinIO
+// and the like. It lives in the organization, and any environment's backups can use
+// it. A backup is encrypted on its server before it leaves, so the storage never
+// reads what it holds. Dockwell keeps this encrypted, and sends it only to the server
+// that's sending a backup, for that one call. See
+// docs/adr/0033-backups-of-volumes-and-databases.md.
+message BackupDestination {
+  // The storage's address, such as "https://<account>.r2.cloudflarestorage.com".
+  string endpoint = 1;
+  // The bucket's region: "auto" unless set.
+  string region = 2;
+  // The bucket.
+  string bucket = 3;
+  // What each object's name starts with, such as "dockwell". Empty uses the bucket
+  // from the top.
+  string prefix = 4;
+  // The access key's ID.
+  string access_key = 5 [(sensitive) = true];
+  // The access key's secret.
+  string secret_key = 6 [(sensitive) = true];
+  // What backups are encrypted with before they leave. Nothing but this opens them,
+  // and dockwell open-backup needs it: keep a copy somewhere that isn't this install.
+  string passphrase = 7 [(sensitive) = true];
 }
 
 // Network is a Docker network in an environment, which its services join
@@ -556,5 +585,7 @@ message Spec {
     // A schedule of backups of a volume, kind "backup.policy". Numbered apart,
     // as open work adds to this message.
     BackupPolicy backup_policy = 20;
+    // S3-compatible storage backups go to, kind "backup.destination".
+    BackupDestination backup_destination = 21;
   }
 }

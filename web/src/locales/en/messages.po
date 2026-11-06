@@ -149,6 +149,12 @@ msgstr "{0, plural, one {This makes # app} other {This makes # apps}}"
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, one {Volume} other {Volumes}}"
 
+#. placeholder {0}: d.backups
+#. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
+#: src/features/backups/DestinationsPanel.tsx
+msgid "{0} backups, {1}"
+msgstr "{0} backups, {1}"
+
 #. placeholder {0}: failing.serverName
 #: src/features/logs/LogNote.tsx
 msgid "{0} can't read a container's log"
@@ -1330,6 +1336,10 @@ msgstr "About {stepSpan} down"
 msgid "Access"
 msgstr "Access"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Access key"
+msgstr "Access key"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
@@ -1354,10 +1364,15 @@ msgstr "Activity"
 msgid "Actor"
 msgstr "Actor"
 
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
 msgstr "Add"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Add a destination"
+msgstr "Add a destination"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppOverview.tsx
@@ -1554,6 +1569,11 @@ msgstr "Also created {list}"
 #: src/features/changes/words.ts
 msgid "Also creates {list}"
 msgstr "Also creates {list}"
+
+#. placeholder {0}: b.destination
+#: src/features/backups/BackupsPage.tsx
+msgid "Also on {0}"
+msgstr "Also on {0}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
@@ -1805,6 +1825,10 @@ msgstr "backup"
 msgid "Backups"
 msgstr "Backups"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
+msgstr "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
+
 #: src/features/backups/PolicySheet.tsx
 msgid "Backups to keep"
 msgstr "Backups to keep"
@@ -1853,6 +1877,10 @@ msgstr "Bring them back"
 #: src/features/changes/PlanSteps.tsx
 msgid "Brings back the data the server kept"
 msgstr "Brings back the data the server kept"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Bucket"
+msgstr "Bucket"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
@@ -1958,6 +1986,7 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2769,6 +2798,10 @@ msgstr "Deployment"
 msgid "Deployments"
 msgstr "Deployments"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Destinations"
+msgstr "Destinations"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Destroys data"
 msgstr "Destroys data"
@@ -2985,6 +3018,10 @@ msgstr "Dockwell is putting <0>{previous}</0> back"
 msgid "Dockwell is putting things back as they were"
 msgstr "Dockwell is putting things back as they were"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Dockwell keeps it encrypted, and sends it only to a server sending a backup."
+msgstr "Dockwell keeps it encrypted, and sends it only to a server sending a backup."
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Dockwell keeps trying."
@@ -3108,6 +3145,10 @@ msgstr "driver options"
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "Each app rolls back to what it runs now if this fails"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Each backup is encrypted with this before it leaves its server, so your storage provider can't read it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open what's in the bucket."
+msgstr "Each backup is encrypted with this before it leaves its server, so your storage provider can't read it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open what's in the bucket."
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
 msgstr "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
@@ -3133,9 +3174,17 @@ msgstr "Edited"
 msgid "Email"
 msgstr "Email"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Encrypted on each server before upload"
+msgstr "Encrypted on each server before upload"
+
 #: src/features/activity/describe.ts
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "Ended an authenticator app's setup after 5 wrong codes"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Endpoint"
+msgstr "Endpoint"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
@@ -3309,6 +3358,14 @@ msgstr "Failed"
 #: src/features/domains/DomainsPage.tsx
 msgid "Failing"
 msgstr "Failing"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Fetch"
+msgstr "Fetch"
+
+#: src/features/activity/describe.ts
+msgid "Fetched a backup of {volume} from {destination}"
+msgstr "Fetched a backup of {volume} from {destination}"
 
 #: src/features/servers/ServerFrame.tsx
 msgid "Files"
@@ -3600,6 +3657,10 @@ msgstr "https:// addresses get an error, and browsers that saw HSTS from it refu
 msgid "I saved them"
 msgstr "I saved them"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "I've kept a copy of the passphrase"
+msgstr "I've kept a copy of the passphrase"
+
 #: src/features/changes/notices.tsx
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
@@ -3759,6 +3820,12 @@ msgstr "It can't be read meanwhile, and it goes once the server is back and the 
 #: src/features/changes/RollbackLine.tsx
 msgid "It can't tell what is running there until then. Check that the server and its agent are up."
 msgstr "It can't tell what is running there until then. Check that the server and its agent are up."
+
+#. placeholder {0}: b.destination
+#. placeholder {1}: b.copyError
+#: src/features/backups/BackupsPage.tsx
+msgid "It didn't reach {0}: {1}"
+msgstr "It didn't reach {0}: {1}"
 
 #: src/features/apps/Health.tsx
 msgid "It has no container on this server."
@@ -4057,6 +4124,10 @@ msgstr "Keep it on"
 msgid "Keep this only if you trust what it runs."
 msgstr "Keep this only if you trust what it runs."
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Keep this passphrase somewhere else"
+msgstr "Keep this passphrase somewhere else"
+
 #. placeholder {0}: formatBytes(total, i18n.locale)
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
 #: src/features/backups/PolicySheet.tsx
@@ -4111,6 +4182,11 @@ msgstr "Last heartbeat"
 msgid "Last run failed"
 msgstr "Last run failed"
 
+#. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Last upload {0}"
+msgstr "Last upload {0}"
+
 #. placeholder {0}: base.where
 #: src/features/files/FileViewer.tsx
 msgid "Leads to <0>{0}</0>"
@@ -4119,6 +4195,10 @@ msgstr "Leads to <0>{0}</0>"
 #: src/features/files/FileViewer.tsx
 msgid "Leave {name} without saving? What you typed goes."
 msgstr "Leave {name} without saving? What you typed goes."
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Leave it out for storage that has none, such as R2."
+msgstr "Leave it out for storage that has none, such as R2."
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
@@ -4386,6 +4466,7 @@ msgstr "Move to another app"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
@@ -4904,6 +4985,11 @@ msgstr "Nothing yet. It runs once the deploy finishes."
 msgid "now"
 msgstr "now"
 
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/PolicySheet.tsx
+msgid "Nowhere else"
+msgstr "Nowhere else"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "of {total}"
@@ -4933,6 +5019,10 @@ msgstr "On {networks}, other services can reach the new container by its service
 #: src/features/apps/DomainNote.tsx
 msgid "On <0>{held}</0>"
 msgstr "On <0>{held}</0>"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "On each server's own disk, unencrypted, and sealed on a destination where you ask for it"
+msgstr "On each server's own disk, unencrypted, and sealed on a destination where you ask for it"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "On each server's own disk, unencrypted, so they go if the server does"
@@ -5726,6 +5816,10 @@ msgstr "Recreates its container"
 msgid "Refused"
 msgstr "Refused"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Region"
+msgstr "Region"
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Remove"
 msgstr "Remove"
@@ -5754,6 +5848,10 @@ msgstr "Remove the secret {name}"
 #: src/features/variables/VariablesPage.tsx
 msgid "Remove the variable {name}"
 msgstr "Remove the variable {name}"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Remove this destination"
+msgstr "Remove this destination"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Remove this port"
@@ -5903,6 +6001,7 @@ msgstr "Revealed the secret {name}"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -6268,6 +6367,10 @@ msgstr "Secret"
 msgid "Secret {from}"
 msgstr "Secret {from}"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Secret key"
+msgstr "Secret key"
+
 #: src/features/apps/words.ts
 msgid "secrets"
 msgstr "secrets"
@@ -6300,13 +6403,27 @@ msgstr "SELinux label"
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
 
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/PolicySheet.tsx
+msgid "Send a copy to"
+msgstr "Send a copy to"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Send a domain to one of your apps. You review a plan before anything changes."
 msgstr "Send a domain to one of your apps. You review a plan before anything changes."
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Send backups to {name}"
+msgstr "Send backups to {name}"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
 msgstr "Sending"
+
+#. placeholder {0}: b.destination
+#: src/features/backups/BackupsPage.tsx
+msgid "Sending to {0}"
+msgstr "Sending to {0}"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -6702,6 +6819,11 @@ msgstr "Stop {running} for each backup"
 msgid "Stop backing up {volume} on a schedule"
 msgstr "Stop backing up {volume} on a schedule"
 
+#. placeholder {0}: d.name
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Stop sending backups to {0}"
+msgstr "Stop sending backups to {0}"
+
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Stop this schedule"
 msgstr "Stop this schedule"
@@ -6924,6 +7046,10 @@ msgstr "The API"
 #: src/features/auth/TotpPanel.tsx
 msgid "The authenticator app isn't set up yet"
 msgstr "The authenticator app isn't set up yet"
+
+#: src/features/activity/describe.ts
+msgid "The backup of {volume} didn't reach {destination}"
+msgstr "The backup of {volume} didn't reach {destination}"
 
 #: src/features/activity/describe.ts
 msgid "The backup of {volume} failed"
@@ -7294,6 +7420,10 @@ msgstr "This app runs with only what its image sets."
 #: src/features/logs/LogFoot.tsx
 msgid "this app wrote faster than a live view can carry."
 msgstr "this app wrote faster than a live view can carry."
+
+#: src/features/backups/BackupsPage.tsx
+msgid "This backup didn't come back"
+msgstr "This backup didn't come back"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "This backup failed, so nothing is on the server. This removes the record of it."

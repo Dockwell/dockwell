@@ -13,14 +13,12 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
-	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -159,7 +157,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 	}
 	b := store.Backup{
 		ID: id.New(id.Backup), EnvironmentID: run.volume.Scope, Volume: run.volume.Name, VolumeID: run.volume.ID, ServerID: run.server.ID,
-		State: store.BackupRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id,
+		State: store.BackupRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id, Destination: run.policy.spec.GetDestination(),
 	}
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		h.logger.ErrorContext(ctx, "can't record a backup", slog.String("error", err.Error()))
@@ -167,6 +165,11 @@ func (h *Handler) start(ctx context.Context, run due) {
 	}
 	if !ok {
 		h.finish(ctx, b, nil, fmt.Errorf("%s wasn't connected when %s fell due, so this backup didn't run. It runs again on schedule", run.server.Name, run.policy.name), store.SurfaceAutomatic)
+		return
+	}
+	destination, err := h.destination(ctx, b.Destination)
+	if err != nil {
+		h.finish(ctx, b, nil, fmt.Errorf("%s names the destination %s, and it can't be read: %w. Choose another", run.policy.name, b.Destination, err), store.SurfaceAutomatic)
 		return
 	}
 	ref := resource.Ref{Kind: volume.Kind, Scope: run.volume.Scope, Name: run.volume.Name}
@@ -177,7 +180,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 		select {
 		case turn <- struct{}{}:
 			defer func() { <-turn }()
-			h.run(s, b, ref, stop, store.SurfaceAutomatic, keep)
+			h.run(s, b, ref, stop, store.SurfaceAutomatic, keep, destination)
 		case <-h.base.Done():
 			h.finish(context.WithoutCancel(h.base), b, nil, h.base.Err(), store.SurfaceAutomatic)
 		}
@@ -236,8 +239,7 @@ func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup
 			continue
 		}
 		if old.State == store.BackupDone {
-			ref := resource.Ref{Kind: volume.Kind, Scope: old.EnvironmentID, Name: old.Volume}
-			if err := s.DeleteBackup(ctx, &agentv1.DeleteBackupCall{Id: old.ID, Volume: resourcepb.Ref(ref)}); err != nil {
+			if err := h.deleteOn(ctx, s, old); err != nil {
 				h.logger.WarnContext(ctx, "can't remove a backup past what its policy keeps; the next run tries again", slog.String("backup", old.ID), slog.String("error", err.Error()))
 				continue
 			}

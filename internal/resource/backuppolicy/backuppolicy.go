@@ -9,8 +9,11 @@ package backuppolicy
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	_ "time/tzdata" // a server's own zone files aren't always there
 
@@ -136,4 +139,72 @@ func Next(p *resourcev1.BackupPolicy, after time.Time) time.Time {
 		next = time.Date(t.Year(), t.Month(), t.Day()+1, hour, minute, 0, 0, zone)
 	}
 	return next
+}
+
+// DestinationKind is the backup destination kind.
+const DestinationKind resource.Kind = "backup.destination"
+
+// Destination is the kind of S3-compatible storage backups go to. It lives in the
+// organization, on the control plane alone, as what signs in to it goes to a server
+// only for the call that needs it.
+type Destination struct{}
+
+var (
+	_ resource.Type    = Destination{}
+	_ resource.Rotates = Destination{}
+)
+
+// Kind returns "backup.destination".
+func (Destination) Kind() resource.Kind { return DestinationKind }
+
+// Level is the organization: any environment's backups can use one.
+func (Destination) Level() resource.Level { return resource.LevelOrganization }
+
+// IDPrefix is "bds".
+func (Destination) IDPrefix() string { return "bds" }
+
+// New returns an empty BackupDestination.
+func (Destination) New() proto.Message { return &resourcev1.BackupDestination{} }
+
+// RotatesSensitive says setting what signs in always plans as a change, and is never
+// compared with what's there, so a plan can't confirm a guess at it (ADR 0022).
+func (Destination) RotatesSensitive() {}
+
+// CheckName takes what fits in a URL.
+func (Destination) CheckName(name string) error {
+	return resource.CheckLabel("backup destination", name, "r2")
+}
+
+// Validate refuses what can't work, in words that hold nothing of what signs in.
+func (Destination) Validate(spec proto.Message) error {
+	d := spec.(*resourcev1.BackupDestination)
+	u, err := url.Parse(d.GetEndpoint())
+	switch {
+	case err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http"):
+		return errors.New("a destination's endpoint is the storage's address, such as https://<account>.r2.cloudflarestorage.com")
+	case u.Scheme == "http" && !loopback(u.Hostname()):
+		return errors.New("a destination's endpoint has to use HTTPS, as what signs in goes with each request. Only an address on this server may use plain HTTP")
+	case d.GetBucket() == "":
+		return errors.New("a destination needs a bucket")
+	case d.GetAccessKey() == "" || d.GetSecretKey() == "":
+		return errors.New("a destination needs an access key and its secret")
+	case len(d.GetPassphrase()) < minPassphrase:
+		return fmt.Errorf("a destination's passphrase needs at least %d characters, as it's all that keeps a backup from whoever holds the bucket. Let the panel make one, or use a long one of your own", minPassphrase)
+	}
+	d.Prefix = strings.Trim(d.GetPrefix(), "/")
+	if d.GetRegion() == "" {
+		d.Region = "auto"
+	}
+	return nil
+}
+
+// minPassphrase is the shortest passphrase a destination takes.
+const minPassphrase = 16
+
+func loopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

@@ -1237,19 +1237,49 @@ func (s *Session) BackupPreview(ctx context.Context, volume resource.Ref) (*agen
 const BackupTimeout = 24 * time.Hour
 
 // Backup asks the agent to back up a volume, and waits until it has. Progress
-// comes through ctx (resource.WithProgress).
-func (s *Session) Backup(ctx context.Context, call *agentv1.BackupCall) (*agentv1.BackupResult, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Backup{Backup: call}}, BackupTimeout, nil)
+// comes through ctx (resource.WithProgress). destination is where the backup goes as
+// well, sealed to whichever stream the call goes out on, so it opens on no other.
+func (s *Session) Backup(ctx context.Context, call *agentv1.BackupCall, destination map[string]string) (*agentv1.BackupResult, error) {
+	prepare := s.sealing(call.GetVolume(), destination, func(sealed []byte) { call.Destination = sealed })
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Backup{Backup: call}}, BackupTimeout, prepare)
 	if err != nil {
 		return nil, err
 	}
 	return r.GetBackup(), nil
 }
 
-// DeleteBackup asks the agent to remove a backup from the disk.
-func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCall) error {
-	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, ObserveTimeout, nil)
+// FetchBackup asks the agent to bring a backup back from where it was sent.
+func (s *Session) FetchBackup(ctx context.Context, call *agentv1.FetchBackupCall, destination map[string]string) (*agentv1.BackupResult, error) {
+	prepare := s.sealing(call.GetVolume(), destination, func(sealed []byte) { call.Destination = sealed })
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_FetchBackup{FetchBackup: call}}, BackupTimeout, prepare)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetFetchBackup(), nil
+}
+
+// DeleteBackup asks the agent to remove a backup from the disk, and from where it
+// was sent, if destination says.
+func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) error {
+	prepare := s.sealing(call.GetVolume(), destination, func(sealed []byte) { call.Destination = sealed })
+	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, ApplyTimeout, prepare)
 	return err
+}
+
+// sealing readies a call that carries a destination, for each stream it goes out on.
+func (s *Session) sealing(volume *dockwellv1.ResourceRef, destination map[string]string, set func([]byte)) func(*Session) error {
+	if len(destination) == 0 {
+		return nil
+	}
+	ref := resourcepb.FromRef(volume)
+	return func(on *Session) error {
+		sealed, err := on.seal(ref, destination)
+		if err != nil {
+			return err
+		}
+		set(sealed)
+		return nil
+	}
 }
 
 // Forgotten tells a server which services' kept logs are out of reach.

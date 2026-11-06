@@ -5,6 +5,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type Backup,
+  BackupCopy,
   BackupMethod,
   BackupPolicy_Every,
   BackupSchema,
@@ -36,6 +37,7 @@ function aBackup(init: MessageInitShape<typeof BackupSchema> = {}): Backup {
     serverId: SERVER,
     serverName: "hz-1",
     state: BackupState.DONE,
+    onServer: true,
     method: BackupMethod.COPY,
     sizeBytes: 312n << 20n,
     startedAt: timestampFromDate(new Date("2026-11-06T03:00:00Z")),
@@ -83,6 +85,7 @@ describe("the backups page", () => {
         aBackup({
           id: "bkp_4",
           state: BackupState.FAILED,
+          onServer: false,
           method: BackupMethod.UNSPECIFIED,
           sizeBytes: 0n,
           error: "The disk is full.",
@@ -320,7 +323,9 @@ describe("the backups page", () => {
         changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Add" }));
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", { name: "Add" }),
+    );
     expect(
       await screen.findByText(/keeping 7 takes about 960 MB while the next is taken, and the disk has 9 GB to give/),
     ).toBeVisible();
@@ -356,7 +361,9 @@ describe("the backups page", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Add" }));
+    await user.click(
+      await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", { name: "Add" }),
+    );
     expect(await screen.findByText(/can't say yet what each backup takes.*the disk has 9 GB to give/i)).toBeVisible();
   });
 
@@ -466,5 +473,65 @@ describe("the backups page", () => {
     expect(within(panel).getByText("Keeps 7, holding 3 now (936 MB)")).toBeVisible();
     expect(within(panel).getByText("Last run failed")).toBeVisible();
     expect(within(panel).getByText("The disk is full.")).toBeVisible();
+  });
+
+  it("adds storage only once the passphrase is kept, and never shows what signs in again", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_: ProposeChangeRequest) => ({
+      change: create(ChangeSchema, {
+        id: "chg_d",
+        summary: "Send backups to r2",
+        state: ChangeState.PLANNED,
+        plan: { fingerprint: "abc" },
+      }),
+    }));
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Destinations" });
+    await user.click(within(panel).getByRole("button", { name: "Add" }));
+    await user.type(await screen.findByLabelText("Name"), "r2");
+    await user.type(screen.getByLabelText("Endpoint"), "https://acme.r2.cloudflarestorage.com");
+    await user.type(screen.getByLabelText("Bucket"), "acme-backups");
+    await user.type(screen.getByLabelText("Access key"), "AKIA");
+    await user.type(screen.getByLabelText("Secret key"), "the-secret");
+    const review = screen.getByRole("button", { name: "Review plan" });
+    expect(review).toBeDisabled();
+    await user.click(screen.getByLabelText("I've kept a copy of the passphrase"));
+    await user.click(review);
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const value = proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { passphrase: string; secretKey: string };
+    expect(value.secretKey).toBe("the-secret");
+    expect(value.passphrase.length).toBeGreaterThan(32);
+  });
+
+  it("fetches a backup its server lost, and offers no restore until then", async () => {
+    const user = userEvent.setup();
+    const fetched = vi.fn(() => ({ backup: aBackup() }));
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({
+            backups: [aBackup({ onServer: false, destination: "r2", copy: BackupCopy.STORED })],
+          }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          fetchBackup: fetched,
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Fetch" }));
+    await waitFor(() => expect(fetched).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    expect(screen.getByText("Also on r2")).toBeVisible();
   });
 });

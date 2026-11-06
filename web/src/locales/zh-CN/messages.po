@@ -149,6 +149,12 @@ msgstr "{0, plural, other {这会创建 # 个应用}}"
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, other {卷}}"
 
+#. placeholder {0}: d.backups
+#. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
+#: src/features/backups/DestinationsPanel.tsx
+msgid "{0} backups, {1}"
+msgstr "{0} 份备份，{1}"
+
 #. placeholder {0}: failing.serverName
 #: src/features/logs/LogNote.tsx
 msgid "{0} can't read a container's log"
@@ -1330,6 +1336,10 @@ msgstr "约 {stepSpan} 不可用"
 msgid "Access"
 msgstr "访问"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Access key"
+msgstr "访问密钥"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
@@ -1354,10 +1364,15 @@ msgstr "动态"
 msgid "Actor"
 msgstr "执行者"
 
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
 msgstr "添加"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Add a destination"
+msgstr "添加目的地"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppOverview.tsx
@@ -1554,6 +1569,11 @@ msgstr "还创建了{list}"
 #: src/features/changes/words.ts
 msgid "Also creates {list}"
 msgstr "还会创建{list}"
+
+#. placeholder {0}: b.destination
+#: src/features/backups/BackupsPage.tsx
+msgid "Also on {0}"
+msgstr "同时保存在 {0}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
@@ -1805,6 +1825,10 @@ msgstr "备份"
 msgid "Backups"
 msgstr "备份"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
+msgstr "在添加其他存放位置之前，备份只保存在各服务器的磁盘上。任何兼容 S3 的存储都可以，例如 Cloudflare R2、Backblaze B2 或 Amazon S3。"
+
 #: src/features/backups/PolicySheet.tsx
 msgid "Backups to keep"
 msgstr "保留的备份数"
@@ -1853,6 +1877,10 @@ msgstr "恢复这些更改"
 #: src/features/changes/PlanSteps.tsx
 msgid "Brings back the data the server kept"
 msgstr "恢复服务器保留的数据"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Bucket"
+msgstr "存储桶"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
@@ -1958,6 +1986,7 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2769,6 +2798,10 @@ msgstr "部署"
 msgid "Deployments"
 msgstr "部署"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Destinations"
+msgstr "目的地"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Destroys data"
 msgstr "会销毁数据"
@@ -2985,6 +3018,10 @@ msgstr "Dockwell 正在恢复 <0>{previous}</0>"
 msgid "Dockwell is putting things back as they were"
 msgstr "Dockwell 正在恢复原样"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Dockwell keeps it encrypted, and sends it only to a server sending a backup."
+msgstr "Dockwell 会加密保存它，只发送给正在传送备份的服务器。"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Dockwell keeps trying."
@@ -3108,6 +3145,10 @@ msgstr "驱动选项"
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "如果失败，每个应用都会回滚到当前运行的版本"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Each backup is encrypted with this before it leaves its server, so your storage provider can't read it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open what's in the bucket."
+msgstr "每份备份在离开服务器之前都会用它加密，因此存储服务商无法读取。只有它能打开备份，且 Dockwell 只在此处显示一次。如果失去此安装，你需要用它打开存储桶中的内容。"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
 msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的邮箱登录一次。它们只在此时显示。请把它们保存在安全的地方，不要和手机放在一起。"
@@ -3133,9 +3174,17 @@ msgstr "已编辑"
 msgid "Email"
 msgstr "邮箱"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Encrypted on each server before upload"
+msgstr "上传前在各服务器上加密"
+
 #: src/features/activity/describe.ts
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Endpoint"
+msgstr "端点"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
@@ -3309,6 +3358,14 @@ msgstr "失败"
 #: src/features/domains/DomainsPage.tsx
 msgid "Failing"
 msgstr "出现故障"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Fetch"
+msgstr "取回"
+
+#: src/features/activity/describe.ts
+msgid "Fetched a backup of {volume} from {destination}"
+msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
 #: src/features/servers/ServerFrame.tsx
 msgid "Files"
@@ -3600,6 +3657,10 @@ msgstr "https:// 地址将报错，已看到其 HSTS 的浏览器在 HSTS 过期
 msgid "I saved them"
 msgstr "我已保存"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "I've kept a copy of the passphrase"
+msgstr "我已保存密码短语的副本"
+
 #: src/features/changes/notices.tsx
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
@@ -3759,6 +3820,12 @@ msgstr "在此期间无法读取；服务器恢复连接且满 7 天后，这些
 #: src/features/changes/RollbackLine.tsx
 msgid "It can't tell what is running there until then. Check that the server and its agent are up."
 msgstr "在此之前，无法确定那里正在运行什么。请检查服务器及其代理是否正常运行。"
+
+#. placeholder {0}: b.destination
+#. placeholder {1}: b.copyError
+#: src/features/backups/BackupsPage.tsx
+msgid "It didn't reach {0}: {1}"
+msgstr "未能送达 {0}：{1}"
 
 #: src/features/apps/Health.tsx
 msgid "It has no container on this server."
@@ -4057,6 +4124,10 @@ msgstr "保持开启"
 msgid "Keep this only if you trust what it runs."
 msgstr "请仅在信任其运行内容时保留。"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Keep this passphrase somewhere else"
+msgstr "请将此密码短语保存到其他地方"
+
 #. placeholder {0}: formatBytes(total, i18n.locale)
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
 #: src/features/backups/PolicySheet.tsx
@@ -4111,6 +4182,11 @@ msgstr "最后心跳"
 msgid "Last run failed"
 msgstr "上次运行失败"
 
+#. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Last upload {0}"
+msgstr "上次上传 {0}"
+
 #. placeholder {0}: base.where
 #: src/features/files/FileViewer.tsx
 msgid "Leads to <0>{0}</0>"
@@ -4119,6 +4195,10 @@ msgstr "指向 <0>{0}</0>"
 #: src/features/files/FileViewer.tsx
 msgid "Leave {name} without saving? What you typed goes."
 msgstr "不保存就离开 {name} 吗？你输入的内容会丢失。"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Leave it out for storage that has none, such as R2."
+msgstr "没有区域的存储（例如 R2）可留空。"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
@@ -4386,6 +4466,7 @@ msgstr "换到另一个应用"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
@@ -4904,6 +4985,11 @@ msgstr "暂无。部署完成后开始运行。"
 msgid "now"
 msgstr "现在"
 
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/PolicySheet.tsx
+msgid "Nowhere else"
+msgstr "不发送"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "/ {total}"
@@ -4933,6 +5019,10 @@ msgstr "在 {networks} 上，其他服务可以在新容器通过检查之前通
 #: src/features/apps/DomainNote.tsx
 msgid "On <0>{held}</0>"
 msgstr "位于 <0>{held}</0>"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "On each server's own disk, unencrypted, and sealed on a destination where you ask for it"
+msgstr "保存在各服务器自己的磁盘上，未加密；在你要求时也会加密保存到目标位置"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "On each server's own disk, unencrypted, so they go if the server does"
@@ -5726,6 +5816,10 @@ msgstr "重建它的容器"
 msgid "Refused"
 msgstr "已拒绝"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Region"
+msgstr "区域"
+
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Remove"
 msgstr "移除"
@@ -5754,6 +5848,10 @@ msgstr "移除密钥 {name}"
 #: src/features/variables/VariablesPage.tsx
 msgid "Remove the variable {name}"
 msgstr "移除变量 {name}"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Remove this destination"
+msgstr "移除此目的地"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Remove this port"
@@ -5903,6 +6001,7 @@ msgstr "显示了密钥 {name}"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -6268,6 +6367,10 @@ msgstr "密钥"
 msgid "Secret {from}"
 msgstr "密钥 {from}"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Secret key"
+msgstr "私密密钥"
+
 #: src/features/apps/words.ts
 msgid "secrets"
 msgstr "密钥"
@@ -6300,13 +6403,27 @@ msgstr "SELinux 标签"
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
 
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/PolicySheet.tsx
+msgid "Send a copy to"
+msgstr "发送副本到"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Send a domain to one of your apps. You review a plan before anything changes."
 msgstr "把域名指向你的某个应用。任何改动生效前，你都会先审阅计划。"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Send backups to {name}"
+msgstr "将备份发送到 {name}"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
 msgstr "发送"
+
+#. placeholder {0}: b.destination
+#: src/features/backups/BackupsPage.tsx
+msgid "Sending to {0}"
+msgstr "正在发送到 {0}"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -6702,6 +6819,11 @@ msgstr "每次备份时停止 {running}"
 msgid "Stop backing up {volume} on a schedule"
 msgstr "停止按计划备份 {volume}"
 
+#. placeholder {0}: d.name
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Stop sending backups to {0}"
+msgstr "停止将备份发送到 {0}"
+
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Stop this schedule"
 msgstr "停止此计划"
@@ -6924,6 +7046,10 @@ msgstr "API"
 #: src/features/auth/TotpPanel.tsx
 msgid "The authenticator app isn't set up yet"
 msgstr "身份验证器应用尚未设置"
+
+#: src/features/activity/describe.ts
+msgid "The backup of {volume} didn't reach {destination}"
+msgstr "{volume} 的备份未能送达 {destination}"
 
 #: src/features/activity/describe.ts
 msgid "The backup of {volume} failed"
@@ -7294,6 +7420,10 @@ msgstr "此应用只使用其镜像设置的内容。"
 #: src/features/logs/LogFoot.tsx
 msgid "this app wrote faster than a live view can carry."
 msgstr "这个应用的写入速度超过了实时视图的承载能力。"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "This backup didn't come back"
+msgstr "未能取回此备份"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "This backup failed, so nothing is on the server. This removes the record of it."

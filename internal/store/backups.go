@@ -38,15 +38,24 @@ type Backup struct {
 	FinishedAt    *time.Time
 	// PolicyID is the policy that took it. Empty for one someone took.
 	PolicyID string
+	// Destination is where it goes as well, by name. CopyKey is its name there once
+	// it's stored, CopyBytes what it takes there, and CopyError why it isn't.
+	Destination string
+	CopyKey     string
+	CopyBytes   int64
+	CopyError   string
+	// OffServer says its server no longer has it, as retention or a person removed
+	// it there, or the server went.
+	OffServer bool
 }
 
-const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id`
+const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id, destination, copy_key, copy_bytes, copy_error, off_server`
 
 func scanBackup(row interface{ Scan(...any) error }) (Backup, error) {
 	var b Backup
 	var started int64
 	var finished sql.NullInt64
-	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID)
+	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID, &b.Destination, &b.CopyKey, &b.CopyBytes, &b.CopyError, &b.OffServer)
 	if err != nil {
 		return Backup{}, err
 	}
@@ -56,8 +65,8 @@ func scanBackup(row interface{ Scan(...any) error }) (Backup, error) {
 
 // CreateBackup records a backup that's starting.
 func (t *Tx) CreateBackup(ctx context.Context, b Backup) error {
-	_, err := t.exec(ctx, `INSERT INTO backups (id, environment_id, volume, volume_id, server_id, state, actor, started_at, policy_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		b.ID, b.EnvironmentID, b.Volume, b.VolumeID, b.ServerID, b.State, b.Actor, millis(b.StartedAt), b.PolicyID)
+	_, err := t.exec(ctx, `INSERT INTO backups (id, environment_id, volume, volume_id, server_id, state, actor, started_at, policy_id, destination) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		b.ID, b.EnvironmentID, b.Volume, b.VolumeID, b.ServerID, b.State, b.Actor, millis(b.StartedAt), b.PolicyID, b.Destination)
 	if err != nil {
 		return fmt.Errorf("can't record backup %s: %w", b.ID, err)
 	}
@@ -66,10 +75,19 @@ func (t *Tx) CreateBackup(ctx context.Context, b Backup) error {
 
 // FinishBackup records how a backup ended.
 func (t *Tx) FinishBackup(ctx context.Context, b Backup) error {
-	_, err := t.exec(ctx, `UPDATE backups SET state = ?, method = ?, database_name = ?, size_bytes = ?, sha256 = ?, files_changed = ?, error = ?, finished_at = ? WHERE id = ?`,
-		b.State, b.Method, b.Database, b.SizeBytes, b.SHA256, b.FilesChanged, b.Error, nullMillis(b.FinishedAt), b.ID)
+	_, err := t.exec(ctx, `UPDATE backups SET state = ?, method = ?, database_name = ?, size_bytes = ?, sha256 = ?, files_changed = ?, error = ?, finished_at = ?,
+		copy_key = ?, copy_bytes = ?, copy_error = ? WHERE id = ?`,
+		b.State, b.Method, b.Database, b.SizeBytes, b.SHA256, b.FilesChanged, b.Error, nullMillis(b.FinishedAt), b.CopyKey, b.CopyBytes, b.CopyError, b.ID)
 	if err != nil {
 		return fmt.Errorf("can't record how backup %s ended: %w", b.ID, err)
+	}
+	return nil
+}
+
+// MoveBackup says which server has a backup now, as fetching it does.
+func (t *Tx) MoveBackup(ctx context.Context, id, serverID string) error {
+	if _, err := t.exec(ctx, `UPDATE backups SET server_id = ?, off_server = ? WHERE id = ?`, serverID, false, id); err != nil {
+		return fmt.Errorf("can't record where backup %s is: %w", id, err)
 	}
 	return nil
 }

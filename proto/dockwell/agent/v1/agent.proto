@@ -393,6 +393,8 @@ message Call {
     BackupCall backup = 21;
     // Remove a backup from the disk.
     DeleteBackupCall delete_backup = 22;
+    // Bring a backup back from where it was sent.
+    FetchBackupCall fetch_backup = 23;
   }
 }
 
@@ -419,6 +421,21 @@ message BackupCall {
   dockwell.v1.ResourceRef volume = 2;
   // Stop what runs on the volume for an exact copy, and start it again after.
   bool stop = 3;
+  // Where it goes as well, sealed to this stream's delivery key as a backup
+  // destination's values are (ADR 0022). Unset keeps it on the server.
+  bytes destination = 4;
+}
+
+// FetchBackupCall asks to bring a backup back from where it was sent.
+message FetchBackupCall {
+  // The backup's ID.
+  string id = 1;
+  // The volume it's of, as it's named on the server it came from.
+  dockwell.v1.ResourceRef volume = 2;
+  // Where it is, sealed as in BackupCall.
+  bytes destination = 3;
+  // Its name there.
+  string key = 4;
 }
 
 // DeleteBackupCall asks to remove a backup from the disk.
@@ -427,6 +444,10 @@ message DeleteBackupCall {
   string id = 1;
   // The volume it's of.
   dockwell.v1.ResourceRef volume = 2;
+  // Where it was sent, sealed as in BackupCall, to remove it from there too.
+  bytes destination = 3;
+  // Its name there.
+  string key = 4;
 }
 
 // RestoreSource is what a step restores. Exactly one of backup_id and undoes is
@@ -809,6 +830,8 @@ message CallResult {
     BackupResult backup = 21;
     // Answers delete_backup.
     DeleteBackupResult delete_backup = 22;
+    // What fetch_backup brought back.
+    BackupResult fetch_backup = 23;
   }
 }
 
@@ -866,6 +889,12 @@ message BackupResult {
   string sha256 = 4;
   // How many files changed while they were read.
   int64 files_changed = 5;
+  // Its name where it was sent, once it's there.
+  string key = 6;
+  // How much it takes there, in bytes, sealed.
+  int64 stored_bytes = 7;
+  // Why it didn't get there. The backup is on the server all the same.
+  string copy_error = 8;
 }
 
 // DeleteBackupResult says the backup is gone.

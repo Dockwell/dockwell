@@ -97,6 +97,33 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await schedules.getByText("Daily at 03:00").waitFor({ timeout: 15_000 });
   await schedules.getByText("Hasn't run yet").waitFor();
 
+  step("backups: a destination asks for what signs in, keeps a passphrase out of the way, and the plan shows neither");
+  const destinations = page.getByRole("region", { name: "Destinations" });
+  await destinations.getByRole("button", { name: "Add" }).click();
+  const adding = page.getByRole("dialog", { name: "Add a destination" });
+  const signsIn = "e2e-secret-that-signs-in";
+  await adding.getByLabel("Name").fill("e2e-bucket");
+  await adding.getByLabel("Endpoint").fill("https://storage.example.com");
+  await adding.getByLabel("Bucket").fill("backups");
+  await adding.getByLabel("Access key").fill("e2e-access-key");
+  await adding.getByLabel("Secret key").fill(signsIn);
+  const review = adding.getByRole("button", { name: "Review plan" });
+  if (!(await review.isDisabled())) fail("a destination goes ahead with no word that its passphrase is kept");
+  const passphrase = await adding.locator(".backup-passphrase").innerText();
+  await adding.getByLabel("I've kept a copy of the passphrase").check();
+  await shoot(page, "backups-destination");
+  await review.click();
+  const sending = page.locator(".plan-sheet");
+  const applying = sending.getByRole("button", { name: /Apply plan/ });
+  await applying.waitFor({ timeout: 15_000 });
+  const shown = await sending.innerText();
+  if (shown.includes(signsIn) || shown.includes(passphrase)) fail("a destination's plan shows what signs in");
+  await applying.click();
+  await sending.getByRole("button", { name: "Done" }).waitFor({ timeout: 30_000 });
+  await sending.getByRole("button", { name: "Done" }).click();
+  await destinations.getByText("e2e-bucket").waitFor({ timeout: 15_000 });
+  await shoot(page, "backups-destinations");
+
   step("backups: an app's page shows its newest, and takes another");
   // journal has a db too, so go by the app. A link that has no width can't be clicked,
   // which holds the list to showing its names with two servers at this width.

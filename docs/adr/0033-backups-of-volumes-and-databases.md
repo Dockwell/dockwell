@@ -98,10 +98,21 @@ What was settled already:
 - **A backup says what it will cost.** `PreviewBackup` gives the last one's size, or what's in the volume before there's been one, and what's free.
 - **A backup never takes the last of the disk.** It leaves 5% alone, between 256 MB and 2 GB. It's refused before anything stops if the last one, and a fifth more, wouldn't fit, and it stops partway if it's about to go below that. Either way nothing is kept of it, and the failure says what to do. A restore's copy of what's there goes through the same check, so a full disk stops a restore before it touches anything.
 
+### S3-compatible storage
+
+- **A destination is a resource,** kind `backup.destination`, in the organization, so any environment's backups can use one. A policy or a backup names it. Its access key, secret and passphrase are `(sensitive)`, so its specs are sealed (ADR 0022) and a plan says only that they changed.
+- **Setting one always plans as a change,** as a secret's value does, so a plan can't confirm a guess at it.
+- **What signs in goes to a server for one call.** The control plane opens the spec, and seals it to the agent's stream with the same HPKE as a step's values, bound to that server and volume. The agent opens it in memory, clears it when the call ends, and writes it nowhere. No request carries it: each is signed with Signature Version 4.
+- **A backup is whole on its server first.** Sending it comes after, so storage that's down costs a copy, not a backup. A copy that fails says so on the backup and on the timeline as `backup.copy_failed`, and the next backup goes on.
+- **It's sealed before it leaves,** so a provider, or anyone with the bucket, holds nothing readable. A sealed file is a header with a salt, then chunks of 1 MiB under AES-256-GCM, with a key derived from the destination's passphrase by HKDF. Each chunk's nonce is its number and whether it's the last, so nothing can be moved, dropped or cut short. A part of an upload is a whole number of chunks, so a part that fails is made again from its place in the file, with no second copy on the disk.
+- **Nothing but the passphrase opens one,** and it's on no server at rest. So the panel says to keep a copy somewhere that isn't this install. `dockwell open-backup` opens a file with that alone, in either build, with no control plane.
+- **The agent has a small S3 client of its own,** in `internal/backup/s3`, with no SDK and no `encoding/xml`, as what it links costs every server (ADR 0023). It's checked against AWS's own worked signatures, and on a real S3 server, versitygw, in `scripts/docker-e2e.sh`.
+- **`FetchBackup` brings one back** onto a server that has the volume, the one it came from or another once that's gone, and it has to read back to the hash it left with. Then it restores as any backup does, so there's one path through a restore.
+- **Deleting a backup takes it from both.** So does retention. A destination that was deleted is the bucket's to look after: Dockwell has nothing to sign in with.
+
 ### Left for later
 
 These come with the next slices of #88 or their own issues, and each is built on the above:
-- S3-compatible storage, with credentials sealed, and encrypted before upload;
 - a backup before a catalog upgrade;
 - bind mounts, which aren't volumes, and websites;
 - restoring to another server or a new volume, and restore drills.
@@ -111,5 +122,6 @@ These come with the next slices of #88 or their own issues, and each is built on
 - A backup depends only on Docker's API, so it works for any volume driver, and for an agent that doesn't run as root.
 - Each run imports the agent's binary as an image for a moment, so it needs that much room in Docker's storage. A crash can leave one behind, which the agent removes when it next starts.
 - A restore needs room for the copy of what's there as well as the backup, and for a copy, for the old and new files side by side in the volume. Without it, the restore is refused before anything is touched. A volume too large to measure in 10 seconds goes ahead on what the disk says as it's written.
-- Backups on the server's own disk go with the server. That protects against a bad deploy, not a lost server, until S3-compatible storage arrives. The panel says so.
+- Backups on the server's own disk go with the server. That protects against a bad deploy, not a lost server, without a destination. The panel says so.
+- Whoever loses a destination's passphrase loses what's in that bucket. That is what keeps it from the provider too, and Dockwell can't get around it.
 - A database on an image Dockwell doesn't know is backed up as files, with the app stopped. That is exact, but it only restores on the same version.

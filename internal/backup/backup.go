@@ -18,6 +18,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -66,6 +67,11 @@ type Manifest struct {
 	// Unpacked is how large it is once it's out of its file, for a restore to know
 	// it fits.
 	Unpacked int64 `json:"unpacked,omitempty"`
+	// CopyError says why it didn't reach its destination. It isn't kept: it's for the
+	// call that took it.
+	CopyError string `json:"-"`
+	// Copied is what became of it there.
+	Copied *Copied `json:"-"`
 }
 
 // Runner takes and restores backups on this server.
@@ -84,6 +90,8 @@ type Runner struct {
 	CleanupWait time.Duration
 	// Disk stands in for the disk that holds backups, for a test.
 	Disk func() disk
+	// HTTP reaches a destination; http.DefaultClient unless set.
+	HTTP *http.Client
 
 	mu      sync.Mutex
 	working map[string]bool // volumes in Docker with a backup or restore under way
@@ -187,6 +195,8 @@ type Take struct {
 	// Stop stops what runs on the volume for an exact copy, and starts it again
 	// after. A database's dump stops nothing.
 	Stop bool
+	// Destination is where it goes as well. Nil keeps it here.
+	Destination *Destination
 }
 
 // Take takes a backup, and says what it is once it's whole on the disk. Nothing
@@ -223,6 +233,14 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	if take.Destination != nil {
+		// What's here is whole, and stays so whatever comes of this: the control
+		// plane says so on the timeline, and a failure here fails no backup.
+		file := filepath.Join(r.dir(take.Ref), m.ID+"."+m.Format)
+		if m.Copied, err = r.send(ctx, m, file, take.Destination); err != nil {
+			m.CopyError = err.Error()
+		}
 	}
 	return m, nil
 }
@@ -380,10 +398,16 @@ func readManifest(path string) (*Manifest, error) {
 	return &m, nil
 }
 
-// Delete removes a backup from the disk. One that's gone already is no error.
-func (r *Runner) Delete(_ context.Context, ref resource.Ref, id string) error {
+// Delete removes a backup from the disk, and from where it was sent if that's given.
+// One that's gone already is no error.
+func (r *Runner) Delete(ctx context.Context, ref resource.Ref, id, key string, d *Destination) error {
 	if strings.ContainsAny(id, "/\\") || id == "" || strings.HasPrefix(id, ".") {
 		return fmt.Errorf("%q isn't a backup's ID", id)
+	}
+	if d != nil && key != "" {
+		if err := r.deleteRemote(ctx, key, d); err != nil {
+			return fmt.Errorf("can't remove the backup from where it was sent: %w", err)
+		}
 	}
 	dir := r.dir(ref)
 	for _, name := range []string{id + "." + formatArchive, id + "." + formatDump, id + ".json", id + ".partial"} {

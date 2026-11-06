@@ -1076,7 +1076,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
 				}
-				it.rotates = rotate && e.valuer(ed.Ref.Kind) && resource.SetsSensitive(it.spec)
+				it.rotates = rotate && e.rotating(ed.Ref.Kind) && resource.SetsSensitive(it.spec)
 			} else if it.current == nil {
 				return fault.New(ErrInvalid, "there's no %s to delete. Check its kind, name and scope", ed.Ref)
 			}

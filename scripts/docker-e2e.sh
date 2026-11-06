@@ -15,7 +15,8 @@
 # alone. Each app in the catalog installs as a project of its own and signs in with
 # a password no one typed, but for the tunnel, which stops at its plan. A volume,
 # PostgreSQL and MySQL each back up, lose their data, and get it back through a
-# plan, with owners and modes as they were. Then the agent build joins the
+# plan, with owners and modes as they were, and a backup goes sealed to an S3 server and
+# comes back. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
@@ -144,7 +145,7 @@ cleanup() {
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
-  docker rm --force e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   docker volume rm e2e-by-hand-data e2e-take-on-data >/dev/null 2>&1 || true
   docker network rm e2e-by-hand-net >/dev/null 2>&1 || true
   moving_tidy
@@ -3264,6 +3265,64 @@ backup_undo "$change"
 tree_undone=$(backup_tree) || fail "can't read the volume"
 [[ "$tree_undone" == "$tree_changed" ]] || fail "undoing the restore didn't put back what it replaced:
 $(diff <(printf '%s\n' "$tree_changed") <(printf '%s\n' "$tree_undone"))"
+
+step "Backups: one goes sealed to S3-compatible storage, the server loses it, and it comes back"
+s3_port=${E2E_S3_PORT:-19000}
+s3_image=versity/versitygw:v1.9.0
+s3_key=e2e-access-key
+s3_secret=e2e-secret-that-signs-in
+passphrase=e2e-a-passphrase-of-its-own
+docker run --detach --name e2e-s3 --publish "127.0.0.1:$s3_port:7070" -e ROOT_ACCESS_KEY="$s3_key" -e ROOT_SECRET_KEY="$s3_secret" \
+  "$s3_image" --port :7070 posix /tmp/vgw >/dev/null || fail "the S3 server didn't start"
+for _ in $(seq 100); do
+  curl -sS --max-time 2 -o /dev/null "http://127.0.0.1:$s3_port/" 2>/dev/null && break
+  sleep 0.2
+done
+curl -fsS --max-time 10 --aws-sigv4 aws:amz:us-east-1:s3 --user "$s3_key:$s3_secret" -X PUT "http://127.0.0.1:$s3_port/e2e-backups" ||
+  fail "can't make a bucket on the S3 server"
+# From a file, as a command line stays in the process list.
+jq -cn --arg endpoint "http://127.0.0.1:$s3_port" --arg key "$s3_key" --arg secret "$s3_secret" --arg phrase "$passphrase" \
+  '{resource: {kind: "backup.destination", name: "e2e-s3"}, spec: {backupDestination: {endpoint: $endpoint, bucket: "e2e-backups", region: "us-east-1", accessKey: $key, secretKey: $secret, passphrase: $phrase}}}' \
+  >"$data/destination.json" || fail "can't write the destination's edit"
+planned=$(dw changes propose --summary "Send backups to an S3 server" --edits "@$data/destination.json" --plan-only --json) || fail "planning a destination failed: $planned"
+[[ "$planned" != *"$s3_secret"* && "$planned" != *"$passphrase"* ]] || fail "the plan holds what signs in: $planned"
+dw changes apply "$(jq -r .change.id <<<"$planned")" --yes >/dev/null || fail "applying a destination failed"
+# Its own files: the step before ends by undoing a restore, which took these away.
+docker exec "$backup_files" sh -c 'mkdir -p /srv/data/owned && echo the original >/srv/data/owned/file' || fail "can't write to the volume"
+tree_before=$(backup_tree) || fail "can't read the volume"
+backup=$(backup_take "$backup_volume" --stop --destination e2e-s3)
+[[ "$(backup_field "$backup" copy)" == BACKUP_COPY_STORED ]] || fail "the copy says: $(dw backups get "$backup" --json)"
+object_key=$(curl -fsS --max-time 10 --aws-sigv4 aws:amz:us-east-1:s3 --user "$s3_key:$s3_secret" "http://127.0.0.1:$s3_port/e2e-backups?list-type=2") ||
+  fail "can't list the bucket"
+[[ "$object_key" == *"$backup.tar.gz.sealed"* ]] || fail "the bucket holds: $object_key"
+object=$(mktemp)
+curl -fsS --max-time 30 --aws-sigv4 aws:amz:us-east-1:s3 --user "$s3_key:$s3_secret" -o "$object" \
+  "http://127.0.0.1:$s3_port/e2e-backups/$(jq -r .backup.environmentId <<<"$(dw backups get "$backup" --json)")/data/$backup.tar.gz.sealed" || fail "can't read the object"
+if tar -tzf "$object" >/dev/null 2>&1; then fail "what's in the bucket opens with no passphrase"; fi
+# With nothing of Dockwell's but the command: the passphrase opens it, and plain tar reads it.
+opened=$(mktemp)
+rm -f "$opened"
+DOCKWELL_BACKUP_PASSPHRASE=$passphrase "$bin" open-backup "$object" --output "$opened" || fail "dockwell open-backup can't open what's in the bucket"
+listing=$(tar --numeric-owner -tvzf "$opened") || fail "what dockwell open-backup wrote isn't an archive"
+[[ "$listing" == *"1234/5678"* ]] || fail "what came out has no numeric owners: $listing"
+if DOCKWELL_BACKUP_PASSPHRASE=not-the-passphrase-at-all "$bin" open-backup "$object" --output "$opened.wrong" 2>/dev/null; then fail "the wrong passphrase opened a backup"; fi
+rm -f "$object" "$opened"
+priv rm -f "$data/agent/backups/$(jq -r .backup.environmentId <<<"$(dw backups get "$backup" --json)")/data/$backup.tar.gz" || fail "can't lose the server's copy"
+docker exec "$backup_files" sh -c 'rm -rf /srv/data/owned' || fail "can't change the volume"
+if said=$(dw backups restore "$backup" --plan-only --json 2>&1); then fail "a backup the server lost planned a restore: $said"; fi
+dw backups fetch "$backup" --yes --json >/dev/null || fail "fetching the backup failed"
+for _ in $(seq 240); do
+  [[ -z "$(priv ls "$data/agent/backups/$(dw backups get "$backup" --json | jq -r .backup.environmentId)/data/$backup.tar.gz" 2>/dev/null)" ]] || break
+  sleep 0.5
+done
+change=$(backup_plan "$backup" '["files"]')
+person_apply "$change"
+tree_after=$(backup_tree) || fail "can't read the volume"
+[[ "$tree_after" == "$tree_before" ]] || fail "what came back from the S3 server isn't what went:
+$(diff <(printf '%s\n' "$tree_before") <(printf '%s\n' "$tree_after"))"
+said=$(grep -c "$s3_secret" "$log" 2>/dev/null || true)
+[[ "$said" == 0 ]] || fail "the log holds the destination's secret"
+docker rm --force e2e-s3 >/dev/null || true
 
 step "Catalog: PostgreSQL installs by digest with a password no one typed, and Adminer signs in with it"
 catalog_install postgres

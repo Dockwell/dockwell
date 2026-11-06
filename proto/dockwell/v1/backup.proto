@@ -77,6 +77,31 @@ service BackupService {
     option (google.api.http) = {get: "/v1/backup-policies"};
   }
 
+  // ListBackupDestinations returns the S3-compatible storage backups can go to, and
+  // never what signs in to it. A destination is a resource: create and delete one as
+  // a change, of kind "backup.destination".
+  rpc ListBackupDestinations(ListBackupDestinationsRequest) returns (ListBackupDestinationsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.command) = {
+      noun: "backups"
+      verb: "destinations"
+    };
+    option (google.api.http) = {get: "/v1/backup-destinations"};
+  }
+
+  // FetchBackup brings a backup back from its destination onto a server that has the
+  // volume, to restore there: the one it came from, or another once that's gone. It
+  // returns the backup, whose server is the one it's fetching to. It reads the backup
+  // back whole before it counts. The server has to be connected.
+  rpc FetchBackup(FetchBackupRequest) returns (FetchBackupResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/backups/{id}:fetch"
+      body: "*"
+    };
+  }
+
   // RestoreBackup plans replacing what's in a backup's volume with what the
   // backup holds, as a change. Its plan says what it replaces and what stops, and
   // it destroys data, so only a person can apply it, with the plan's fingerprint.
@@ -140,6 +165,69 @@ message Backup {
   string progress = 17;
   // The policy that took it, by ID. Empty for one someone took.
   string policy_id = 18;
+  // The destination it went to, by name. Empty for one that stayed on its server.
+  string destination = 19;
+  // Where it stands there.
+  BackupCopy copy = 20;
+  // Why it isn't there, for people. Empty unless the copy failed.
+  string copy_error = 21;
+  // True while its server has it, so it can be restored now. A backup on its
+  // destination alone has to be fetched first.
+  bool on_server = 22;
+}
+
+// BackupCopy says where a backup stands on its destination.
+enum BackupCopy {
+  BACKUP_COPY_UNSPECIFIED = 0;
+  // It's on its way, or waits for the backup to finish.
+  BACKUP_COPY_PENDING = 1 [(dockwell.v1.word) = "Sending"];
+  // It's there, sealed, and it read back the size it was sent.
+  BACKUP_COPY_STORED = 2 [(dockwell.v1.word) = "Stored"];
+  // It didn't get there. The backup is still on its server.
+  BACKUP_COPY_FAILED = 3 [(dockwell.v1.word) = "Failed"];
+}
+
+// BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
+message BackupDestinationInfo {
+  // The destination's ID.
+  string id = 1;
+  // Its name.
+  string name = 2;
+  // The storage's address.
+  string endpoint = 3;
+  // The bucket.
+  string bucket = 4;
+  // What each object's name starts with.
+  string prefix = 5;
+  // How many backups are there.
+  int32 backups = 6;
+  // How much those take, in bytes.
+  int64 used_bytes = 7;
+  // When the last one got there. Unset until one has.
+  google.protobuf.Timestamp last_upload = 8;
+}
+
+// ListBackupDestinationsRequest asks for the destinations.
+message ListBackupDestinationsRequest {}
+
+// ListBackupDestinationsResponse lists them.
+message ListBackupDestinationsResponse {
+  // The destinations, by name.
+  repeated BackupDestinationInfo destinations = 1;
+}
+
+// FetchBackupRequest asks to bring a backup back from its destination.
+message FetchBackupRequest {
+  // The backup's ID.
+  string id = 1;
+  // The server, by name or ID, when the volume is on several.
+  string server = 2;
+}
+
+// FetchBackupResponse is the backup, on a server again.
+message FetchBackupResponse {
+  // The backup.
+  Backup backup = 1;
 }
 
 // BackupPolicyInfo is a schedule of backups, as it stands.
@@ -241,6 +329,8 @@ message CreateBackupRequest {
   // Stop what runs on the volume for an exact copy of its files, and start it again
   // after, whatever comes of the backup. A database's dump stops nothing.
   bool stop = 3;
+  // A backup destination it goes to as well, by name.
+  string destination = 4;
 }
 
 // CreateBackupResponse is the backup, running.

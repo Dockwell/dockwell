@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { BackupMethod, BackupService } from "@dockwell/api";
+import { type BackupDestinationInfo, BackupMethod, BackupService } from "@dockwell/api";
 import { Button, Callout, Icon, PHONE_QUERY, SelectField, Sheet, Switch, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
+import { destinationOptions } from "./DestinationsPanel";
 import { useVolumeOptions, type VolumeChoice } from "./useBackups";
 import "./Backups.css";
 
@@ -22,10 +23,12 @@ import "./Backups.css";
  */
 export function BackUpSheet({
   volumes,
+  destinations = [],
   chosen,
   onClose,
 }: {
   volumes: readonly VolumeChoice[];
+  destinations?: readonly BackupDestinationInfo[];
   chosen?: string;
   onClose: () => void;
 }) {
@@ -36,6 +39,7 @@ export function BackUpSheet({
   const client = useMemo(() => createClient(BackupService, transport), [transport]);
   const [volumeId, setVolumeId] = useState(chosen ?? volumes[0]?.id ?? "");
   const [stop, setStop] = useState(true);
+  const [destination, setDestination] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const preview = useQuery(
@@ -54,7 +58,7 @@ export function BackUpSheet({
     setBusy(true);
     setFailure(undefined);
     try {
-      await client.createBackup({ volumeId, stop: risky && stop });
+      await client.createBackup({ volumeId, stop: risky && stop, destination });
       await queries.invalidateQueries({
         queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
       });
@@ -148,6 +152,14 @@ export function BackUpSheet({
             <Trans>Nothing runs on this volume, so the copy is exact.</Trans>
           </p>
         )}
+        {destinations.length > 0 ? (
+          <SelectField
+            label={t`Send a copy to`}
+            value={destination}
+            options={destinationOptions(destinations, t`Nowhere else`)}
+            onChange={(event) => setDestination(event.target.value)}
+          />
+        ) : null}
         <p className="backup-sheet-note">
           <Trans>
             It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does.

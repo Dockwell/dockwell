@@ -45,7 +45,8 @@ const (
 	// A service turned unhealthy, stopped running, or came back, as its server's
 	// agent saw, outside any change.
 	EventKind_EVENT_KIND_HEALTH EventKind = 4
-	// A backup was taken, failed or was deleted. Restoring one is a change.
+	// A backup was taken, failed, was deleted, didn't reach its destination or was
+	// fetched from it. Restoring one is a change.
 	EventKind_EVENT_KIND_BACKUP EventKind = 5
 )
 
@@ -597,7 +598,9 @@ type EventBackup struct {
 	// Its size, in bytes.
 	SizeBytes int64 `protobuf:"varint,5,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	// Why it failed, for people. Empty unless it did.
-	Error         string `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	Error string `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	// The destination it went to or didn't, by name.
+	Destination   string `protobuf:"bytes,7,opt,name=destination,proto3" json:"destination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -670,6 +673,13 @@ func (x *EventBackup) GetSizeBytes() int64 {
 func (x *EventBackup) GetError() string {
 	if x != nil {
 		return x.Error
+	}
+	return ""
+}
+
+func (x *EventBackup) GetDestination() string {
+	if x != nil {
+		return x.Destination
 	}
 	return ""
 }
@@ -961,7 +971,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x06health\x18\t \x01(\v2\x18.dockwell.v1.EventHealthR\x06health\x120\n" +
 	"\x06backup\x18\n" +
 	" \x01(\v2\x18.dockwell.v1.EventBackupR\x06backup\x12F\n" +
-	"\x0epublic_address\x18\v \x01(\v2\x1f.dockwell.v1.EventPublicAddressR\rpublicAddress\"\xbe\x01\n" +
+	"\x0epublic_address\x18\v \x01(\v2\x1f.dockwell.v1.EventPublicAddressR\rpublicAddress\"\xe0\x01\n" +
 	"\vEventBackup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06volume\x18\x02 \x01(\tR\x06volume\x12\x1f\n" +
@@ -970,7 +980,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x06method\x18\x04 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12\x14\n" +
-	"\x05error\x18\x06 \x01(\tR\x05error\"J\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\x12 \n" +
+	"\vdestination\x18\a \x01(\tR\vdestination\"J\n" +
 	"\x12EventPublicAddress\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
 	"\bprevious\x18\x02 \x01(\tR\bprevious\"\x91\x02\n" +

@@ -518,7 +518,7 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject)}
 		e.Backup = &dockwellv1.EventBackup{ServerName: look.Name(a.Target)}
 		if told, ok := backups.ReadTold(a.Detail); ok {
-			e.Backup.Id, e.Backup.Volume, e.Backup.SizeBytes, e.Backup.Error = told.ID, told.Volume, told.Size, told.Error
+			e.Backup.Id, e.Backup.Volume, e.Backup.SizeBytes, e.Backup.Error, e.Backup.Destination = told.ID, told.Volume, told.Size, told.Error, told.Destination
 			e.Backup.Method = resourcepb.BackupMethod(told.Method)
 		}
 		return e

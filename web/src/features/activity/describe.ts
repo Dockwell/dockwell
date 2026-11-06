@@ -37,6 +37,13 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         return { title: t`The backup of ${volume} failed`, icon: "archive", tone: "critical" };
       }
       if (event.action === "backup.deleted") return { title: t`Deleted a backup of ${volume}`, icon: "archive" };
+      const destination = event.backup?.destination ?? "";
+      if (event.action === "backup.copy_failed") {
+        return { title: t`The backup of ${volume} didn't reach ${destination}`, icon: "archive", tone: "critical" };
+      }
+      if (event.action === "backup.fetched") {
+        return { title: t`Fetched a backup of ${volume} from ${destination}`, icon: "archive" };
+      }
       const server = name || event.subject?.id || t`a server`;
       switch (event.action) {
         case "server.join":

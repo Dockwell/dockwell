@@ -82,6 +82,62 @@ func (BackupState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{0}
 }
 
+// BackupCopy says where a backup stands on its destination.
+type BackupCopy int32
+
+const (
+	BackupCopy_BACKUP_COPY_UNSPECIFIED BackupCopy = 0
+	// It's on its way, or waits for the backup to finish.
+	BackupCopy_BACKUP_COPY_PENDING BackupCopy = 1
+	// It's there, sealed, and it read back the size it was sent.
+	BackupCopy_BACKUP_COPY_STORED BackupCopy = 2
+	// It didn't get there. The backup is still on its server.
+	BackupCopy_BACKUP_COPY_FAILED BackupCopy = 3
+)
+
+// Enum value maps for BackupCopy.
+var (
+	BackupCopy_name = map[int32]string{
+		0: "BACKUP_COPY_UNSPECIFIED",
+		1: "BACKUP_COPY_PENDING",
+		2: "BACKUP_COPY_STORED",
+		3: "BACKUP_COPY_FAILED",
+	}
+	BackupCopy_value = map[string]int32{
+		"BACKUP_COPY_UNSPECIFIED": 0,
+		"BACKUP_COPY_PENDING":     1,
+		"BACKUP_COPY_STORED":      2,
+		"BACKUP_COPY_FAILED":      3,
+	}
+)
+
+func (x BackupCopy) Enum() *BackupCopy {
+	p := new(BackupCopy)
+	*p = x
+	return p
+}
+
+func (x BackupCopy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BackupCopy) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_backup_proto_enumTypes[1].Descriptor()
+}
+
+func (BackupCopy) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_backup_proto_enumTypes[1]
+}
+
+func (x BackupCopy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BackupCopy.Descriptor instead.
+func (BackupCopy) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{1}
+}
+
 // Backup is one backup of one volume.
 type Backup struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -120,7 +176,16 @@ type Backup struct {
 	// How one under way is going, for people, such as "Copying data: 1.2 GB so far".
 	Progress string `protobuf:"bytes,17,opt,name=progress,proto3" json:"progress,omitempty"`
 	// The policy that took it, by ID. Empty for one someone took.
-	PolicyId      string `protobuf:"bytes,18,opt,name=policy_id,json=policyId,proto3" json:"policy_id,omitempty"`
+	PolicyId string `protobuf:"bytes,18,opt,name=policy_id,json=policyId,proto3" json:"policy_id,omitempty"`
+	// The destination it went to, by name. Empty for one that stayed on its server.
+	Destination string `protobuf:"bytes,19,opt,name=destination,proto3" json:"destination,omitempty"`
+	// Where it stands there.
+	Copy BackupCopy `protobuf:"varint,20,opt,name=copy,proto3,enum=dockwell.v1.BackupCopy" json:"copy,omitempty"`
+	// Why it isn't there, for people. Empty unless the copy failed.
+	CopyError string `protobuf:"bytes,21,opt,name=copy_error,json=copyError,proto3" json:"copy_error,omitempty"`
+	// True while its server has it, so it can be restored now. A backup on its
+	// destination alone has to be fetched first.
+	OnServer      bool `protobuf:"varint,22,opt,name=on_server,json=onServer,proto3" json:"on_server,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -281,6 +346,327 @@ func (x *Backup) GetPolicyId() string {
 	return ""
 }
 
+func (x *Backup) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
+func (x *Backup) GetCopy() BackupCopy {
+	if x != nil {
+		return x.Copy
+	}
+	return BackupCopy_BACKUP_COPY_UNSPECIFIED
+}
+
+func (x *Backup) GetCopyError() string {
+	if x != nil {
+		return x.CopyError
+	}
+	return ""
+}
+
+func (x *Backup) GetOnServer() bool {
+	if x != nil {
+		return x.OnServer
+	}
+	return false
+}
+
+// BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
+type BackupDestinationInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The destination's ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Its name.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// The storage's address.
+	Endpoint string `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	// The bucket.
+	Bucket string `protobuf:"bytes,4,opt,name=bucket,proto3" json:"bucket,omitempty"`
+	// What each object's name starts with.
+	Prefix string `protobuf:"bytes,5,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	// How many backups are there.
+	Backups int32 `protobuf:"varint,6,opt,name=backups,proto3" json:"backups,omitempty"`
+	// How much those take, in bytes.
+	UsedBytes int64 `protobuf:"varint,7,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	// When the last one got there. Unset until one has.
+	LastUpload    *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_upload,json=lastUpload,proto3" json:"last_upload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BackupDestinationInfo) Reset() {
+	*x = BackupDestinationInfo{}
+	mi := &file_dockwell_v1_backup_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BackupDestinationInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BackupDestinationInfo) ProtoMessage() {}
+
+func (x *BackupDestinationInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_backup_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BackupDestinationInfo.ProtoReflect.Descriptor instead.
+func (*BackupDestinationInfo) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *BackupDestinationInfo) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *BackupDestinationInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *BackupDestinationInfo) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *BackupDestinationInfo) GetBucket() string {
+	if x != nil {
+		return x.Bucket
+	}
+	return ""
+}
+
+func (x *BackupDestinationInfo) GetPrefix() string {
+	if x != nil {
+		return x.Prefix
+	}
+	return ""
+}
+
+func (x *BackupDestinationInfo) GetBackups() int32 {
+	if x != nil {
+		return x.Backups
+	}
+	return 0
+}
+
+func (x *BackupDestinationInfo) GetUsedBytes() int64 {
+	if x != nil {
+		return x.UsedBytes
+	}
+	return 0
+}
+
+func (x *BackupDestinationInfo) GetLastUpload() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastUpload
+	}
+	return nil
+}
+
+// ListBackupDestinationsRequest asks for the destinations.
+type ListBackupDestinationsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBackupDestinationsRequest) Reset() {
+	*x = ListBackupDestinationsRequest{}
+	mi := &file_dockwell_v1_backup_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBackupDestinationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBackupDestinationsRequest) ProtoMessage() {}
+
+func (x *ListBackupDestinationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_backup_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBackupDestinationsRequest.ProtoReflect.Descriptor instead.
+func (*ListBackupDestinationsRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{2}
+}
+
+// ListBackupDestinationsResponse lists them.
+type ListBackupDestinationsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The destinations, by name.
+	Destinations  []*BackupDestinationInfo `protobuf:"bytes,1,rep,name=destinations,proto3" json:"destinations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBackupDestinationsResponse) Reset() {
+	*x = ListBackupDestinationsResponse{}
+	mi := &file_dockwell_v1_backup_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBackupDestinationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBackupDestinationsResponse) ProtoMessage() {}
+
+func (x *ListBackupDestinationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_backup_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBackupDestinationsResponse.ProtoReflect.Descriptor instead.
+func (*ListBackupDestinationsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListBackupDestinationsResponse) GetDestinations() []*BackupDestinationInfo {
+	if x != nil {
+		return x.Destinations
+	}
+	return nil
+}
+
+// FetchBackupRequest asks to bring a backup back from its destination.
+type FetchBackupRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The backup's ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The server, by name or ID, when the volume is on several.
+	Server        string `protobuf:"bytes,2,opt,name=server,proto3" json:"server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchBackupRequest) Reset() {
+	*x = FetchBackupRequest{}
+	mi := &file_dockwell_v1_backup_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchBackupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchBackupRequest) ProtoMessage() {}
+
+func (x *FetchBackupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_backup_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchBackupRequest.ProtoReflect.Descriptor instead.
+func (*FetchBackupRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *FetchBackupRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *FetchBackupRequest) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+// FetchBackupResponse is the backup, on a server again.
+type FetchBackupResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The backup.
+	Backup        *Backup `protobuf:"bytes,1,opt,name=backup,proto3" json:"backup,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchBackupResponse) Reset() {
+	*x = FetchBackupResponse{}
+	mi := &file_dockwell_v1_backup_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchBackupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchBackupResponse) ProtoMessage() {}
+
+func (x *FetchBackupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_backup_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchBackupResponse.ProtoReflect.Descriptor instead.
+func (*FetchBackupResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FetchBackupResponse) GetBackup() *Backup {
+	if x != nil {
+		return x.Backup
+	}
+	return nil
+}
+
 // BackupPolicyInfo is a schedule of backups, as it stands.
 type BackupPolicyInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -306,7 +692,7 @@ type BackupPolicyInfo struct {
 
 func (x *BackupPolicyInfo) Reset() {
 	*x = BackupPolicyInfo{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[1]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -318,7 +704,7 @@ func (x *BackupPolicyInfo) String() string {
 func (*BackupPolicyInfo) ProtoMessage() {}
 
 func (x *BackupPolicyInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[1]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -331,7 +717,7 @@ func (x *BackupPolicyInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackupPolicyInfo.ProtoReflect.Descriptor instead.
 func (*BackupPolicyInfo) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *BackupPolicyInfo) GetId() string {
@@ -399,7 +785,7 @@ type ListBackupPoliciesRequest struct {
 
 func (x *ListBackupPoliciesRequest) Reset() {
 	*x = ListBackupPoliciesRequest{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[2]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -411,7 +797,7 @@ func (x *ListBackupPoliciesRequest) String() string {
 func (*ListBackupPoliciesRequest) ProtoMessage() {}
 
 func (x *ListBackupPoliciesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[2]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -424,7 +810,7 @@ func (x *ListBackupPoliciesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBackupPoliciesRequest.ProtoReflect.Descriptor instead.
 func (*ListBackupPoliciesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{7}
 }
 
 // ListBackupPoliciesResponse lists them.
@@ -438,7 +824,7 @@ type ListBackupPoliciesResponse struct {
 
 func (x *ListBackupPoliciesResponse) Reset() {
 	*x = ListBackupPoliciesResponse{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[3]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -450,7 +836,7 @@ func (x *ListBackupPoliciesResponse) String() string {
 func (*ListBackupPoliciesResponse) ProtoMessage() {}
 
 func (x *ListBackupPoliciesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[3]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -463,7 +849,7 @@ func (x *ListBackupPoliciesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBackupPoliciesResponse.ProtoReflect.Descriptor instead.
 func (*ListBackupPoliciesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListBackupPoliciesResponse) GetPolicies() []*BackupPolicyInfo {
@@ -491,7 +877,7 @@ type ListBackupsRequest struct {
 
 func (x *ListBackupsRequest) Reset() {
 	*x = ListBackupsRequest{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[4]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -503,7 +889,7 @@ func (x *ListBackupsRequest) String() string {
 func (*ListBackupsRequest) ProtoMessage() {}
 
 func (x *ListBackupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[4]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -516,7 +902,7 @@ func (x *ListBackupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBackupsRequest.ProtoReflect.Descriptor instead.
 func (*ListBackupsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListBackupsRequest) GetPageSize() int32 {
@@ -560,7 +946,7 @@ type ListBackupsResponse struct {
 
 func (x *ListBackupsResponse) Reset() {
 	*x = ListBackupsResponse{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[5]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -572,7 +958,7 @@ func (x *ListBackupsResponse) String() string {
 func (*ListBackupsResponse) ProtoMessage() {}
 
 func (x *ListBackupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[5]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -585,7 +971,7 @@ func (x *ListBackupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBackupsResponse.ProtoReflect.Descriptor instead.
 func (*ListBackupsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListBackupsResponse) GetBackups() []*Backup {
@@ -613,7 +999,7 @@ type GetBackupRequest struct {
 
 func (x *GetBackupRequest) Reset() {
 	*x = GetBackupRequest{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[6]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -625,7 +1011,7 @@ func (x *GetBackupRequest) String() string {
 func (*GetBackupRequest) ProtoMessage() {}
 
 func (x *GetBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[6]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -638,7 +1024,7 @@ func (x *GetBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBackupRequest.ProtoReflect.Descriptor instead.
 func (*GetBackupRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetBackupRequest) GetId() string {
@@ -659,7 +1045,7 @@ type GetBackupResponse struct {
 
 func (x *GetBackupResponse) Reset() {
 	*x = GetBackupResponse{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[7]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -671,7 +1057,7 @@ func (x *GetBackupResponse) String() string {
 func (*GetBackupResponse) ProtoMessage() {}
 
 func (x *GetBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[7]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -684,7 +1070,7 @@ func (x *GetBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBackupResponse.ProtoReflect.Descriptor instead.
 func (*GetBackupResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetBackupResponse) GetBackup() *Backup {
@@ -707,7 +1093,7 @@ type PreviewBackupRequest struct {
 
 func (x *PreviewBackupRequest) Reset() {
 	*x = PreviewBackupRequest{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[8]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -719,7 +1105,7 @@ func (x *PreviewBackupRequest) String() string {
 func (*PreviewBackupRequest) ProtoMessage() {}
 
 func (x *PreviewBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[8]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -732,7 +1118,7 @@ func (x *PreviewBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewBackupRequest.ProtoReflect.Descriptor instead.
 func (*PreviewBackupRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *PreviewBackupRequest) GetVolumeId() string {
@@ -774,7 +1160,7 @@ type PreviewBackupResponse struct {
 
 func (x *PreviewBackupResponse) Reset() {
 	*x = PreviewBackupResponse{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[9]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -786,7 +1172,7 @@ func (x *PreviewBackupResponse) String() string {
 func (*PreviewBackupResponse) ProtoMessage() {}
 
 func (x *PreviewBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[9]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -799,7 +1185,7 @@ func (x *PreviewBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewBackupResponse.ProtoReflect.Descriptor instead.
 func (*PreviewBackupResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PreviewBackupResponse) GetMethod() BackupMethod {
@@ -853,14 +1239,16 @@ type CreateBackupRequest struct {
 	Server string `protobuf:"bytes,2,opt,name=server,proto3" json:"server,omitempty"`
 	// Stop what runs on the volume for an exact copy of its files, and start it again
 	// after, whatever comes of the backup. A database's dump stops nothing.
-	Stop          bool `protobuf:"varint,3,opt,name=stop,proto3" json:"stop,omitempty"`
+	Stop bool `protobuf:"varint,3,opt,name=stop,proto3" json:"stop,omitempty"`
+	// A backup destination it goes to as well, by name.
+	Destination   string `protobuf:"bytes,4,opt,name=destination,proto3" json:"destination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateBackupRequest) Reset() {
 	*x = CreateBackupRequest{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[10]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -872,7 +1260,7 @@ func (x *CreateBackupRequest) String() string {
 func (*CreateBackupRequest) ProtoMessage() {}
 
 func (x *CreateBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[10]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -885,7 +1273,7 @@ func (x *CreateBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBackupRequest.ProtoReflect.Descriptor instead.
 func (*CreateBackupRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CreateBackupRequest) GetVolumeId() string {
@@ -909,6 +1297,13 @@ func (x *CreateBackupRequest) GetStop() bool {
 	return false
 }
 
+func (x *CreateBackupRequest) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
 // CreateBackupResponse is the backup, running.
 type CreateBackupResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -920,7 +1315,7 @@ type CreateBackupResponse struct {
 
 func (x *CreateBackupResponse) Reset() {
 	*x = CreateBackupResponse{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[11]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -932,7 +1327,7 @@ func (x *CreateBackupResponse) String() string {
 func (*CreateBackupResponse) ProtoMessage() {}
 
 func (x *CreateBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[11]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -945,7 +1340,7 @@ func (x *CreateBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBackupResponse.ProtoReflect.Descriptor instead.
 func (*CreateBackupResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CreateBackupResponse) GetBackup() *Backup {
@@ -966,7 +1361,7 @@ type DeleteBackupRequest struct {
 
 func (x *DeleteBackupRequest) Reset() {
 	*x = DeleteBackupRequest{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[12]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -978,7 +1373,7 @@ func (x *DeleteBackupRequest) String() string {
 func (*DeleteBackupRequest) ProtoMessage() {}
 
 func (x *DeleteBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[12]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -991,7 +1386,7 @@ func (x *DeleteBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBackupRequest.ProtoReflect.Descriptor instead.
 func (*DeleteBackupRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DeleteBackupRequest) GetId() string {
@@ -1010,7 +1405,7 @@ type DeleteBackupResponse struct {
 
 func (x *DeleteBackupResponse) Reset() {
 	*x = DeleteBackupResponse{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[13]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1022,7 +1417,7 @@ func (x *DeleteBackupResponse) String() string {
 func (*DeleteBackupResponse) ProtoMessage() {}
 
 func (x *DeleteBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[13]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1035,7 +1430,7 @@ func (x *DeleteBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBackupResponse.ProtoReflect.Descriptor instead.
 func (*DeleteBackupResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{18}
 }
 
 // RestoreBackupRequest asks to restore a backup.
@@ -1051,7 +1446,7 @@ type RestoreBackupRequest struct {
 
 func (x *RestoreBackupRequest) Reset() {
 	*x = RestoreBackupRequest{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[14]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1063,7 +1458,7 @@ func (x *RestoreBackupRequest) String() string {
 func (*RestoreBackupRequest) ProtoMessage() {}
 
 func (x *RestoreBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[14]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1076,7 +1471,7 @@ func (x *RestoreBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreBackupRequest.ProtoReflect.Descriptor instead.
 func (*RestoreBackupRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RestoreBackupRequest) GetId() string {
@@ -1104,7 +1499,7 @@ type RestoreBackupResponse struct {
 
 func (x *RestoreBackupResponse) Reset() {
 	*x = RestoreBackupResponse{}
-	mi := &file_dockwell_v1_backup_proto_msgTypes[15]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1116,7 +1511,7 @@ func (x *RestoreBackupResponse) String() string {
 func (*RestoreBackupResponse) ProtoMessage() {}
 
 func (x *RestoreBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_backup_proto_msgTypes[15]
+	mi := &file_dockwell_v1_backup_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1129,7 +1524,7 @@ func (x *RestoreBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreBackupResponse.ProtoReflect.Descriptor instead.
 func (*RestoreBackupResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RestoreBackupResponse) GetChange() *Change {
@@ -1143,7 +1538,7 @@ var File_dockwell_v1_backup_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/backup.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfe\x04\n" +
+	"\x18dockwell/v1/backup.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x89\x06\n" +
 	"\x06Backup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x16\n" +
@@ -1167,7 +1562,31 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x05error\x18\x0f \x01(\tR\x05error\x12#\n" +
 	"\rfiles_changed\x18\x10 \x01(\x03R\ffilesChanged\x12\x1a\n" +
 	"\bprogress\x18\x11 \x01(\tR\bprogress\x12\x1b\n" +
-	"\tpolicy_id\x18\x12 \x01(\tR\bpolicyId\"\xae\x02\n" +
+	"\tpolicy_id\x18\x12 \x01(\tR\bpolicyId\x12 \n" +
+	"\vdestination\x18\x13 \x01(\tR\vdestination\x12+\n" +
+	"\x04copy\x18\x14 \x01(\x0e2\x17.dockwell.v1.BackupCopyR\x04copy\x12\x1d\n" +
+	"\n" +
+	"copy_error\x18\x15 \x01(\tR\tcopyError\x12\x1b\n" +
+	"\ton_server\x18\x16 \x01(\bR\bonServer\"\xfd\x01\n" +
+	"\x15BackupDestinationInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
+	"\bendpoint\x18\x03 \x01(\tR\bendpoint\x12\x16\n" +
+	"\x06bucket\x18\x04 \x01(\tR\x06bucket\x12\x16\n" +
+	"\x06prefix\x18\x05 \x01(\tR\x06prefix\x12\x18\n" +
+	"\abackups\x18\x06 \x01(\x05R\abackups\x12\x1d\n" +
+	"\n" +
+	"used_bytes\x18\a \x01(\x03R\tusedBytes\x12;\n" +
+	"\vlast_upload\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastUpload\"\x1f\n" +
+	"\x1dListBackupDestinationsRequest\"h\n" +
+	"\x1eListBackupDestinationsResponse\x12F\n" +
+	"\fdestinations\x18\x01 \x03(\v2\".dockwell.v1.BackupDestinationInfoR\fdestinations\"<\n" +
+	"\x12FetchBackupRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06server\x18\x02 \x01(\tR\x06server\"B\n" +
+	"\x13FetchBackupResponse\x12+\n" +
+	"\x06backup\x18\x01 \x01(\v2\x13.dockwell.v1.BackupR\x06backup\"\xae\x02\n" +
 	"\x10BackupPolicyInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12%\n" +
@@ -1204,11 +1623,12 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x0eestimate_bytes\x18\x04 \x01(\x03R\restimateBytes\x12\x1d\n" +
 	"\n" +
 	"free_bytes\x18\x05 \x01(\x03R\tfreeBytes\x12#\n" +
-	"\rreserve_bytes\x18\x06 \x01(\x03R\freserveBytes\"^\n" +
+	"\rreserve_bytes\x18\x06 \x01(\x03R\freserveBytes\"\x80\x01\n" +
 	"\x13CreateBackupRequest\x12\x1b\n" +
 	"\tvolume_id\x18\x01 \x01(\tR\bvolumeId\x12\x16\n" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x12\n" +
-	"\x04stop\x18\x03 \x01(\bR\x04stop\"C\n" +
+	"\x04stop\x18\x03 \x01(\bR\x04stop\x12 \n" +
+	"\vdestination\x18\x04 \x01(\tR\vdestination\"C\n" +
 	"\x14CreateBackupResponse\x12+\n" +
 	"\x06backup\x18\x01 \x01(\v2\x13.dockwell.v1.BackupR\x06backup\"%\n" +
 	"\x13DeleteBackupRequest\x12\x0e\n" +
@@ -1224,7 +1644,15 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x14BACKUP_STATE_RUNNING\x10\x01\x1a\v\xa2\xbb\x18\aRunning\x12\x1f\n" +
 	"\x11BACKUP_STATE_DONE\x10\x02\x1a\b\xa2\xbb\x18\x04Done\x12#\n" +
 	"\x13BACKUP_STATE_FAILED\x10\x03\x1a\n" +
-	"\xa2\xbb\x18\x06Failed2\xf2\x06\n" +
+	"\xa2\xbb\x18\x06Failed*\x97\x01\n" +
+	"\n" +
+	"BackupCopy\x12\x1b\n" +
+	"\x17BACKUP_COPY_UNSPECIFIED\x10\x00\x12$\n" +
+	"\x13BACKUP_COPY_PENDING\x10\x01\x1a\v\xa2\xbb\x18\aSending\x12\"\n" +
+	"\x12BACKUP_COPY_STORED\x10\x02\x1a\n" +
+	"\xa2\xbb\x18\x06Stored\x12\"\n" +
+	"\x12BACKUP_COPY_FAILED\x10\x03\x1a\n" +
+	"\xa2\xbb\x18\x06Failed2\xa2\t\n" +
 	"\rBackupService\x12l\n" +
 	"\vListBackups\x12\x1f.dockwell.v1.ListBackupsRequest\x1a .dockwell.v1.ListBackupsResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/backups\x90\x02\x01\x12k\n" +
 	"\tGetBackup\x12\x1d.dockwell.v1.GetBackupRequest\x1a\x1e.dockwell.v1.GetBackupResponse\"\x1f\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/backups/{id}\x90\x02\x01\x12z\n" +
@@ -1232,7 +1660,10 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\fCreateBackup\x12 .dockwell.v1.CreateBackupRequest\x1a!.dockwell.v1.CreateBackupResponse\"\x1a\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/backups\x12u\n" +
 	"\fDeleteBackup\x12 .dockwell.v1.DeleteBackupRequest\x1a!.dockwell.v1.DeleteBackupResponse\" \xa0\xbb\x18\x04\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12*\x10/v1/backups/{id}\x12\xa0\x01\n" +
 	"\x12ListBackupPolicies\x12&.dockwell.v1.ListBackupPoliciesRequest\x1a'.dockwell.v1.ListBackupPoliciesResponse\"9\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
-	"\abackups\x12\bpolicies\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/backup-policies\x90\x02\x01\x12\x7f\n" +
+	"\abackups\x12\bpolicies\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/backup-policies\x90\x02\x01\x12\xb4\x01\n" +
+	"\x16ListBackupDestinations\x12*.dockwell.v1.ListBackupDestinationsRequest\x1a+.dockwell.v1.ListBackupDestinationsResponse\"A\xa0\xbb\x18\x01\xaa\xbb\x18\x17\n" +
+	"\abackups\x12\fdestinations\x82\xd3\xe4\x93\x02\x19\x12\x17/v1/backup-destinations\x90\x02\x01\x12w\n" +
+	"\vFetchBackup\x12\x1f.dockwell.v1.FetchBackupRequest\x1a .dockwell.v1.FetchBackupResponse\"%\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/backups/{id}:fetch\x12\x7f\n" +
 	"\rRestoreBackup\x12!.dockwell.v1.RestoreBackupRequest\x1a\".dockwell.v1.RestoreBackupResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/backups/{id}:restoreB\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vBackupProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -1248,66 +1679,80 @@ func file_dockwell_v1_backup_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_backup_proto_rawDescData
 }
 
-var file_dockwell_v1_backup_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_backup_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_dockwell_v1_backup_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_v1_backup_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_dockwell_v1_backup_proto_goTypes = []any{
-	(BackupState)(0),                   // 0: dockwell.v1.BackupState
-	(*Backup)(nil),                     // 1: dockwell.v1.Backup
-	(*BackupPolicyInfo)(nil),           // 2: dockwell.v1.BackupPolicyInfo
-	(*ListBackupPoliciesRequest)(nil),  // 3: dockwell.v1.ListBackupPoliciesRequest
-	(*ListBackupPoliciesResponse)(nil), // 4: dockwell.v1.ListBackupPoliciesResponse
-	(*ListBackupsRequest)(nil),         // 5: dockwell.v1.ListBackupsRequest
-	(*ListBackupsResponse)(nil),        // 6: dockwell.v1.ListBackupsResponse
-	(*GetBackupRequest)(nil),           // 7: dockwell.v1.GetBackupRequest
-	(*GetBackupResponse)(nil),          // 8: dockwell.v1.GetBackupResponse
-	(*PreviewBackupRequest)(nil),       // 9: dockwell.v1.PreviewBackupRequest
-	(*PreviewBackupResponse)(nil),      // 10: dockwell.v1.PreviewBackupResponse
-	(*CreateBackupRequest)(nil),        // 11: dockwell.v1.CreateBackupRequest
-	(*CreateBackupResponse)(nil),       // 12: dockwell.v1.CreateBackupResponse
-	(*DeleteBackupRequest)(nil),        // 13: dockwell.v1.DeleteBackupRequest
-	(*DeleteBackupResponse)(nil),       // 14: dockwell.v1.DeleteBackupResponse
-	(*RestoreBackupRequest)(nil),       // 15: dockwell.v1.RestoreBackupRequest
-	(*RestoreBackupResponse)(nil),      // 16: dockwell.v1.RestoreBackupResponse
-	(BackupMethod)(0),                  // 17: dockwell.v1.BackupMethod
-	(*timestamppb.Timestamp)(nil),      // 18: google.protobuf.Timestamp
-	(*Actor)(nil),                      // 19: dockwell.v1.Actor
-	(*v1alpha1.BackupPolicy)(nil),      // 20: dockwell.resource.v1alpha1.BackupPolicy
-	(*Change)(nil),                     // 21: dockwell.v1.Change
+	(BackupState)(0),                       // 0: dockwell.v1.BackupState
+	(BackupCopy)(0),                        // 1: dockwell.v1.BackupCopy
+	(*Backup)(nil),                         // 2: dockwell.v1.Backup
+	(*BackupDestinationInfo)(nil),          // 3: dockwell.v1.BackupDestinationInfo
+	(*ListBackupDestinationsRequest)(nil),  // 4: dockwell.v1.ListBackupDestinationsRequest
+	(*ListBackupDestinationsResponse)(nil), // 5: dockwell.v1.ListBackupDestinationsResponse
+	(*FetchBackupRequest)(nil),             // 6: dockwell.v1.FetchBackupRequest
+	(*FetchBackupResponse)(nil),            // 7: dockwell.v1.FetchBackupResponse
+	(*BackupPolicyInfo)(nil),               // 8: dockwell.v1.BackupPolicyInfo
+	(*ListBackupPoliciesRequest)(nil),      // 9: dockwell.v1.ListBackupPoliciesRequest
+	(*ListBackupPoliciesResponse)(nil),     // 10: dockwell.v1.ListBackupPoliciesResponse
+	(*ListBackupsRequest)(nil),             // 11: dockwell.v1.ListBackupsRequest
+	(*ListBackupsResponse)(nil),            // 12: dockwell.v1.ListBackupsResponse
+	(*GetBackupRequest)(nil),               // 13: dockwell.v1.GetBackupRequest
+	(*GetBackupResponse)(nil),              // 14: dockwell.v1.GetBackupResponse
+	(*PreviewBackupRequest)(nil),           // 15: dockwell.v1.PreviewBackupRequest
+	(*PreviewBackupResponse)(nil),          // 16: dockwell.v1.PreviewBackupResponse
+	(*CreateBackupRequest)(nil),            // 17: dockwell.v1.CreateBackupRequest
+	(*CreateBackupResponse)(nil),           // 18: dockwell.v1.CreateBackupResponse
+	(*DeleteBackupRequest)(nil),            // 19: dockwell.v1.DeleteBackupRequest
+	(*DeleteBackupResponse)(nil),           // 20: dockwell.v1.DeleteBackupResponse
+	(*RestoreBackupRequest)(nil),           // 21: dockwell.v1.RestoreBackupRequest
+	(*RestoreBackupResponse)(nil),          // 22: dockwell.v1.RestoreBackupResponse
+	(BackupMethod)(0),                      // 23: dockwell.v1.BackupMethod
+	(*timestamppb.Timestamp)(nil),          // 24: google.protobuf.Timestamp
+	(*Actor)(nil),                          // 25: dockwell.v1.Actor
+	(*v1alpha1.BackupPolicy)(nil),          // 26: dockwell.resource.v1alpha1.BackupPolicy
+	(*Change)(nil),                         // 27: dockwell.v1.Change
 }
 var file_dockwell_v1_backup_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.Backup.state:type_name -> dockwell.v1.BackupState
-	17, // 1: dockwell.v1.Backup.method:type_name -> dockwell.v1.BackupMethod
-	18, // 2: dockwell.v1.Backup.started_at:type_name -> google.protobuf.Timestamp
-	18, // 3: dockwell.v1.Backup.finished_at:type_name -> google.protobuf.Timestamp
-	19, // 4: dockwell.v1.Backup.actor:type_name -> dockwell.v1.Actor
-	20, // 5: dockwell.v1.BackupPolicyInfo.spec:type_name -> dockwell.resource.v1alpha1.BackupPolicy
-	18, // 6: dockwell.v1.BackupPolicyInfo.next_run:type_name -> google.protobuf.Timestamp
-	1,  // 7: dockwell.v1.BackupPolicyInfo.last:type_name -> dockwell.v1.Backup
-	2,  // 8: dockwell.v1.ListBackupPoliciesResponse.policies:type_name -> dockwell.v1.BackupPolicyInfo
-	1,  // 9: dockwell.v1.ListBackupsResponse.backups:type_name -> dockwell.v1.Backup
-	1,  // 10: dockwell.v1.GetBackupResponse.backup:type_name -> dockwell.v1.Backup
-	17, // 11: dockwell.v1.PreviewBackupResponse.method:type_name -> dockwell.v1.BackupMethod
-	1,  // 12: dockwell.v1.CreateBackupResponse.backup:type_name -> dockwell.v1.Backup
-	21, // 13: dockwell.v1.RestoreBackupResponse.change:type_name -> dockwell.v1.Change
-	5,  // 14: dockwell.v1.BackupService.ListBackups:input_type -> dockwell.v1.ListBackupsRequest
-	7,  // 15: dockwell.v1.BackupService.GetBackup:input_type -> dockwell.v1.GetBackupRequest
-	9,  // 16: dockwell.v1.BackupService.PreviewBackup:input_type -> dockwell.v1.PreviewBackupRequest
-	11, // 17: dockwell.v1.BackupService.CreateBackup:input_type -> dockwell.v1.CreateBackupRequest
-	13, // 18: dockwell.v1.BackupService.DeleteBackup:input_type -> dockwell.v1.DeleteBackupRequest
-	3,  // 19: dockwell.v1.BackupService.ListBackupPolicies:input_type -> dockwell.v1.ListBackupPoliciesRequest
-	15, // 20: dockwell.v1.BackupService.RestoreBackup:input_type -> dockwell.v1.RestoreBackupRequest
-	6,  // 21: dockwell.v1.BackupService.ListBackups:output_type -> dockwell.v1.ListBackupsResponse
-	8,  // 22: dockwell.v1.BackupService.GetBackup:output_type -> dockwell.v1.GetBackupResponse
-	10, // 23: dockwell.v1.BackupService.PreviewBackup:output_type -> dockwell.v1.PreviewBackupResponse
-	12, // 24: dockwell.v1.BackupService.CreateBackup:output_type -> dockwell.v1.CreateBackupResponse
-	14, // 25: dockwell.v1.BackupService.DeleteBackup:output_type -> dockwell.v1.DeleteBackupResponse
-	4,  // 26: dockwell.v1.BackupService.ListBackupPolicies:output_type -> dockwell.v1.ListBackupPoliciesResponse
-	16, // 27: dockwell.v1.BackupService.RestoreBackup:output_type -> dockwell.v1.RestoreBackupResponse
-	21, // [21:28] is the sub-list for method output_type
-	14, // [14:21] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	23, // 1: dockwell.v1.Backup.method:type_name -> dockwell.v1.BackupMethod
+	24, // 2: dockwell.v1.Backup.started_at:type_name -> google.protobuf.Timestamp
+	24, // 3: dockwell.v1.Backup.finished_at:type_name -> google.protobuf.Timestamp
+	25, // 4: dockwell.v1.Backup.actor:type_name -> dockwell.v1.Actor
+	1,  // 5: dockwell.v1.Backup.copy:type_name -> dockwell.v1.BackupCopy
+	24, // 6: dockwell.v1.BackupDestinationInfo.last_upload:type_name -> google.protobuf.Timestamp
+	3,  // 7: dockwell.v1.ListBackupDestinationsResponse.destinations:type_name -> dockwell.v1.BackupDestinationInfo
+	2,  // 8: dockwell.v1.FetchBackupResponse.backup:type_name -> dockwell.v1.Backup
+	26, // 9: dockwell.v1.BackupPolicyInfo.spec:type_name -> dockwell.resource.v1alpha1.BackupPolicy
+	24, // 10: dockwell.v1.BackupPolicyInfo.next_run:type_name -> google.protobuf.Timestamp
+	2,  // 11: dockwell.v1.BackupPolicyInfo.last:type_name -> dockwell.v1.Backup
+	8,  // 12: dockwell.v1.ListBackupPoliciesResponse.policies:type_name -> dockwell.v1.BackupPolicyInfo
+	2,  // 13: dockwell.v1.ListBackupsResponse.backups:type_name -> dockwell.v1.Backup
+	2,  // 14: dockwell.v1.GetBackupResponse.backup:type_name -> dockwell.v1.Backup
+	23, // 15: dockwell.v1.PreviewBackupResponse.method:type_name -> dockwell.v1.BackupMethod
+	2,  // 16: dockwell.v1.CreateBackupResponse.backup:type_name -> dockwell.v1.Backup
+	27, // 17: dockwell.v1.RestoreBackupResponse.change:type_name -> dockwell.v1.Change
+	11, // 18: dockwell.v1.BackupService.ListBackups:input_type -> dockwell.v1.ListBackupsRequest
+	13, // 19: dockwell.v1.BackupService.GetBackup:input_type -> dockwell.v1.GetBackupRequest
+	15, // 20: dockwell.v1.BackupService.PreviewBackup:input_type -> dockwell.v1.PreviewBackupRequest
+	17, // 21: dockwell.v1.BackupService.CreateBackup:input_type -> dockwell.v1.CreateBackupRequest
+	19, // 22: dockwell.v1.BackupService.DeleteBackup:input_type -> dockwell.v1.DeleteBackupRequest
+	9,  // 23: dockwell.v1.BackupService.ListBackupPolicies:input_type -> dockwell.v1.ListBackupPoliciesRequest
+	4,  // 24: dockwell.v1.BackupService.ListBackupDestinations:input_type -> dockwell.v1.ListBackupDestinationsRequest
+	6,  // 25: dockwell.v1.BackupService.FetchBackup:input_type -> dockwell.v1.FetchBackupRequest
+	21, // 26: dockwell.v1.BackupService.RestoreBackup:input_type -> dockwell.v1.RestoreBackupRequest
+	12, // 27: dockwell.v1.BackupService.ListBackups:output_type -> dockwell.v1.ListBackupsResponse
+	14, // 28: dockwell.v1.BackupService.GetBackup:output_type -> dockwell.v1.GetBackupResponse
+	16, // 29: dockwell.v1.BackupService.PreviewBackup:output_type -> dockwell.v1.PreviewBackupResponse
+	18, // 30: dockwell.v1.BackupService.CreateBackup:output_type -> dockwell.v1.CreateBackupResponse
+	20, // 31: dockwell.v1.BackupService.DeleteBackup:output_type -> dockwell.v1.DeleteBackupResponse
+	10, // 32: dockwell.v1.BackupService.ListBackupPolicies:output_type -> dockwell.v1.ListBackupPoliciesResponse
+	5,  // 33: dockwell.v1.BackupService.ListBackupDestinations:output_type -> dockwell.v1.ListBackupDestinationsResponse
+	7,  // 34: dockwell.v1.BackupService.FetchBackup:output_type -> dockwell.v1.FetchBackupResponse
+	22, // 35: dockwell.v1.BackupService.RestoreBackup:output_type -> dockwell.v1.RestoreBackupResponse
+	27, // [27:36] is the sub-list for method output_type
+	18, // [18:27] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_backup_proto_init() }
@@ -1322,8 +1767,8 @@ func file_dockwell_v1_backup_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_backup_proto_rawDesc), len(file_dockwell_v1_backup_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   16,
+			NumEnums:      2,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -34,6 +34,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -48,13 +49,15 @@ const previewWait = 15 * time.Second
 
 // What the audit log calls what becomes of a backup, each on the timeline.
 const (
-	ActionTaken   = "backup.taken"
-	ActionFailed  = "backup.failed"
-	ActionDeleted = "backup.deleted"
+	ActionTaken      = "backup.taken"
+	ActionFailed     = "backup.failed"
+	ActionDeleted    = "backup.deleted"
+	ActionCopyFailed = "backup.copy_failed"
+	ActionFetched    = "backup.fetched"
 )
 
 // Actions are all of them.
-var Actions = []string{ActionTaken, ActionFailed, ActionDeleted}
+var Actions = []string{ActionTaken, ActionFailed, ActionDeleted, ActionCopyFailed, ActionFetched}
 
 // Told is what an audit event says of a backup, in its detail, which the timeline
 // reads. It holds no path and nothing of what's in the backup.
@@ -64,6 +67,8 @@ type Told struct {
 	Method string `json:"method,omitempty"`
 	Size   int64  `json:"size,omitempty"`
 	Error  string `json:"error,omitempty"`
+	// Destination is where it went or didn't, by name.
+	Destination string `json:"destination,omitempty"`
 }
 
 // ReadTold reads an audit event's detail.
@@ -79,6 +84,7 @@ type Handler struct {
 	engine  *revision.Engine
 	agents  *agentapi.Agents
 	db      *store.DB
+	keeper  *secrets.Keeper
 	logger  *slog.Logger
 	names   *actors.Names
 
@@ -99,10 +105,10 @@ type Handler struct {
 var _ dockwellv1connect.BackupServiceHandler = (*Handler)(nil)
 
 // New returns a handler that reaches servers through agents.
-func New(ch *changes.Handler, engine *revision.Engine, agents *agentapi.Agents, db *store.DB, logger *slog.Logger) *Handler {
+func New(ch *changes.Handler, engine *revision.Engine, agents *agentapi.Agents, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
 	base, cancel := context.WithCancel(context.Background())
 	return &Handler{
-		changes: ch, engine: engine, agents: agents, db: db, logger: logger, names: actors.New(),
+		changes: ch, engine: engine, agents: agents, db: db, keeper: keeper, logger: logger, names: actors.New(),
 		base: base, cancel: cancel, progress: map[string]string{},
 	}
 }
@@ -248,14 +254,18 @@ func (h *Handler) CreateBackup(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, err
 	}
+	destination, err := h.destination(ctx, m.GetDestination())
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
 	b := store.Backup{
 		ID: id.New(id.Backup), EnvironmentID: ref.Scope, Volume: ref.Name, VolumeID: m.GetVolumeId(), ServerID: server.ID,
-		State: store.BackupRunning, Actor: p.Actor(), StartedAt: h.now(),
+		State: store.BackupRunning, Actor: p.Actor(), StartedAt: h.now(), Destination: m.GetDestination(),
 	}
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	h.wg.Go(func() { h.run(s, b, ref, m.GetStop(), client.Surface(p), 0) })
+	h.wg.Go(func() { h.run(s, b, ref, m.GetStop(), client.Surface(p), 0, destination) })
 	out, err := h.proto(ctx, b)
 	if err != nil {
 		return nil, h.fail(ctx, err)
@@ -264,7 +274,8 @@ func (h *Handler) CreateBackup(ctx context.Context, req *connect.Request[dockwel
 }
 
 // run takes a backup on its server, and records how that went.
-func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, stop bool, surface string, keep int) {
+func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, stop bool, surface string, keep int, destination map[string]string) {
+	defer clear(destination)
 	ctx := resource.WithProgress(h.base, func(message string) {
 		h.mu.Lock()
 		h.progress[b.ID] = message
@@ -280,7 +291,7 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 	if b.PolicyID != "" {
 		h.prune(ctx, s, b, keep)
 	}
-	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop})
+	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop}, destination)
 	h.finish(context.WithoutCancel(ctx), b, got, err, surface)
 	// Only once it's whole: a run that fails takes nothing away.
 	if err == nil && b.PolicyID != "" {
@@ -304,6 +315,7 @@ func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.Backu
 		b.State = store.BackupDone
 		b.Method, b.Database = resourcepb.BackupMethodFrom(got.GetMethod()), got.GetDatabase()
 		b.SizeBytes, b.SHA256, b.FilesChanged = got.GetSizeBytes(), got.GetSha256(), got.GetFilesChanged()
+		b.CopyKey, b.CopyBytes, b.CopyError = got.GetKey(), got.GetStoredBytes(), got.GetCopyError()
 	}
 	detail, err := json.Marshal(Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes, Error: b.Error})
 	if err != nil {
@@ -314,8 +326,20 @@ func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.Backu
 		if err := tx.FinishBackup(ctx, b); err != nil {
 			return err
 		}
-		return tx.RecordEvent(ctx, store.Event{
+		if err := tx.RecordEvent(ctx, store.Event{
 			ID: id.New(id.Event), At: now, Actor: b.Actor, Action: action, Subject: b.VolumeID, Target: b.ServerID, Detail: string(detail), Surface: surface,
+		}); err != nil {
+			return err
+		}
+		if b.CopyError == "" {
+			return nil
+		}
+		said, err := json.Marshal(Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination, Error: b.CopyError})
+		if err != nil {
+			return err
+		}
+		return tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: now, Actor: b.Actor, Action: ActionCopyFailed, Subject: b.VolumeID, Target: b.ServerID, Detail: string(said), Surface: surface,
 		})
 	})
 	if err != nil {
@@ -418,16 +442,22 @@ func (h *Handler) DeleteBackup(ctx context.Context, req *connect.Request[dockwel
 
 // forget takes a backup off the record, and says so on the timeline.
 func (h *Handler) forget(ctx context.Context, b *store.Backup, actor, surface string) error {
-	detail, err := json.Marshal(Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes})
+	told := Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes}
+	return h.say(ctx, b, ActionDeleted, told, actor, surface, func(tx *store.Tx) error { return tx.DeleteBackup(ctx, b.ID) })
+}
+
+// say records what became of a backup, with what goes with it, on the timeline.
+func (h *Handler) say(ctx context.Context, b *store.Backup, action string, told Told, actor, surface string, also func(*store.Tx) error) error {
+	detail, err := json.Marshal(told)
 	if err != nil {
 		return err
 	}
 	return h.db.Update(ctx, func(tx *store.Tx) error {
-		if err := tx.DeleteBackup(ctx, b.ID); err != nil {
+		if err := also(tx); err != nil {
 			return err
 		}
 		return tx.RecordEvent(ctx, store.Event{
-			ID: id.New(id.Event), At: h.now(), Actor: actor, Action: ActionDeleted, Subject: b.VolumeID, Target: b.ServerID, Detail: string(detail), Surface: surface,
+			ID: id.New(id.Event), At: h.now(), Actor: actor, Action: action, Subject: b.VolumeID, Target: b.ServerID, Detail: string(detail), Surface: surface,
 		})
 	})
 }
@@ -453,11 +483,33 @@ func (h *Handler) removeFromServer(ctx context.Context, b store.Backup) error {
 	if err != nil {
 		return err
 	}
-	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
-	if err := s.DeleteBackup(ctx, &agentv1.DeleteBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}); err != nil {
+	if err := h.deleteOn(ctx, s, &b); err != nil {
 		return h.agentError(server, err)
 	}
 	return nil
+}
+
+// deleteOn removes a backup from a server's disk, and from its destination if it
+// went to one that's still there.
+func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Backup) error {
+	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
+	call := &agentv1.DeleteBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}
+	var destination map[string]string
+	if b.CopyKey != "" {
+		var err error
+		destination, err = h.destination(ctx, b.Destination)
+		var cerr *connect.Error
+		switch {
+		case errors.As(err, &cerr) && cerr.Code() == connect.CodeNotFound:
+			// The destination was deleted, so what's there is the bucket's now.
+		case err != nil:
+			return err
+		default:
+			call.Key = b.CopyKey
+			defer clear(destination)
+		}
+	}
+	return s.DeleteBackup(ctx, call, destination)
 }
 
 // RestoreBackup plans restoring a backup, as a change.
@@ -496,7 +548,18 @@ func (h *Handler) proto(ctx context.Context, b store.Backup) (*dockwellv1.Backup
 }
 
 func (h *Handler) protoIn(look actors.Lookup, b *store.Backup) *dockwellv1.Backup {
+	copied := dockwellv1.BackupCopy_BACKUP_COPY_UNSPECIFIED
+	switch {
+	case b.Destination == "" || b.State == store.BackupFailed:
+	case b.CopyKey != "":
+		copied = dockwellv1.BackupCopy_BACKUP_COPY_STORED
+	case b.CopyError != "":
+		copied = dockwellv1.BackupCopy_BACKUP_COPY_FAILED
+	default:
+		copied = dockwellv1.BackupCopy_BACKUP_COPY_PENDING
+	}
 	out := &dockwellv1.Backup{
+		Destination: b.Destination, Copy: copied, CopyError: b.CopyError, OnServer: b.State == store.BackupDone && !b.OffServer,
 		Id: b.ID, EnvironmentId: b.EnvironmentID, Volume: b.Volume, VolumeId: b.VolumeID, ServerId: b.ServerID, ServerName: look.Name(b.ServerID),
 		State: states[b.State], Method: resourcepb.BackupMethod(b.Method), Database: b.Database, SizeBytes: b.SizeBytes, Sha256: b.SHA256,
 		StartedAt: timestamppb.New(b.StartedAt), Actor: look.Actor(b.Actor), Error: b.Error, FilesChanged: b.FilesChanged, PolicyId: b.PolicyID,

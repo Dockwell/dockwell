@@ -3,7 +3,7 @@
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
-import { type Backup, BackupMethod, BackupService, BackupState } from "@dockwell/api";
+import { type Backup, BackupCopy, BackupMethod, BackupService, BackupState } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -29,6 +29,7 @@ import { useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { BackUpSheet } from "./BackUpSheet";
+import { DestinationsPanel, useDestinations } from "./DestinationsPanel";
 import { PoliciesPanel, usePolicies } from "./PoliciesPanel";
 import { PolicySheet } from "./PolicySheet";
 import { useBackups, useVolumes } from "./useBackups";
@@ -50,11 +51,25 @@ export function BackupsPage() {
   const [taking, setTaking] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [deleting, setDeleting] = useState<Backup>();
+  const [bringBackFailure, setBringBackFailure] = useState<string>();
+  const queries = useQueryClient();
   const backups = query.data?.backups ?? [];
   const policies = usePolicies().data?.policies ?? [];
+  const destinations = useDestinations().data?.destinations ?? [];
 
   const restore = (backup: Backup) => {
     sheet.open({ kind: "plan", make: () => client.restoreBackup({ id: backup.id }) });
+  };
+  const bringBack = async (backup: Backup) => {
+    setBringBackFailure(undefined);
+    try {
+      await client.fetchBackup({ id: backup.id });
+      await queries.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
+      });
+    } catch (error) {
+      setBringBackFailure(sentence(error));
+    }
   };
   const action =
     volumes.length > 0 ? (
@@ -63,12 +78,20 @@ export function BackupsPage() {
       </Button>
     ) : null;
 
-  const where = t`On each server's own disk, unencrypted, so they go if the server does`;
+  const where =
+    destinations.length > 0
+      ? t`On each server's own disk, unencrypted, and sealed on a destination where you ask for it`
+      : t`On each server's own disk, unencrypted, so they go if the server does`;
   return (
     <Page title={t`Backups`} lead={where} phoneSub={where} back="/more" actions={backups.length > 0 ? action : null}>
       {query.error ? (
         <Callout tone="critical" title={t`Dockwell can't read its backups`}>
           {sentence(query.error)}
+        </Callout>
+      ) : null}
+      {bringBackFailure ? (
+        <Callout tone="critical" title={t`This backup didn't come back`}>
+          {bringBackFailure}
         </Callout>
       ) : null}
       {query.isPending ? null : backups.length === 0 ? (
@@ -86,12 +109,20 @@ export function BackupsPage() {
       ) : (
         <>
           {phone ? <div className="backup-phone-action">{action}</div> : null}
-          <BackupsList backups={backups} onRestore={restore} onDelete={setDeleting} />
+          <BackupsList
+            backups={backups}
+            onRestore={restore}
+            onFetch={(b) => void bringBack(b)}
+            onDelete={setDeleting}
+          />
         </>
       )}
       {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
-      {taking ? <BackUpSheet volumes={volumes} onClose={() => setTaking(false)} /> : null}
-      {scheduling ? <PolicySheet volumes={volumes} onClose={() => setScheduling(false)} /> : null}
+      <DestinationsPanel destinations={destinations} />
+      {taking ? <BackUpSheet volumes={volumes} destinations={destinations} onClose={() => setTaking(false)} /> : null}
+      {scheduling ? (
+        <PolicySheet volumes={volumes} destinations={destinations} onClose={() => setScheduling(false)} />
+      ) : null}
       {deleting ? <DeleteSheet backup={deleting} client={client} onClose={() => setDeleting(undefined)} /> : null}
     </Page>
   );
@@ -100,10 +131,12 @@ export function BackupsPage() {
 function BackupsList({
   backups,
   onRestore,
+  onFetch,
   onDelete,
 }: {
   backups: readonly Backup[];
   onRestore: (backup: Backup) => void;
+  onFetch: (backup: Backup) => void;
   onDelete: (backup: Backup) => void;
 }) {
   const { t, i18n } = useLingui();
@@ -128,6 +161,11 @@ function BackupsList({
       <StatusBadge status={backupStatus(b)} label={stateWord(b)} labelIsState />
       {b.state === BackupState.FAILED ? <span className="backup-why">{b.error}</span> : null}
       {b.state === BackupState.RUNNING && b.progress ? <span className="backup-why">{b.progress}</span> : null}
+      {b.copy === BackupCopy.STORED ? <span className="backup-why">{t`Also on ${b.destination}`}</span> : null}
+      {b.copy === BackupCopy.PENDING ? <span className="backup-why">{t`Sending to ${b.destination}`}</span> : null}
+      {b.copy === BackupCopy.FAILED ? (
+        <span className="backup-why">{t`It didn't reach ${b.destination}: ${b.copyError}`}</span>
+      ) : null}
       {b.filesChanged > 0n ? (
         <span className="backup-why">
           {plural(Number(b.filesChanged), {
@@ -141,9 +179,14 @@ function BackupsList({
   const actions = (b: Backup) =>
     b.state === BackupState.RUNNING ? null : (
       <span className="backup-actions">
-        {b.state === BackupState.DONE ? (
+        {b.onServer ? (
           <Button size="sm" icon="undo" onClick={() => onRestore(b)}>
             <Trans>Restore</Trans>
+          </Button>
+        ) : null}
+        {b.copy === BackupCopy.STORED ? (
+          <Button size="sm" variant="ghost" onClick={() => onFetch(b)}>
+            <Trans>Fetch</Trans>
           </Button>
         ) : null}
         <Button size="sm" variant="ghost" icon="trash" aria-label={t`Delete this backup`} onClick={() => onDelete(b)} />
