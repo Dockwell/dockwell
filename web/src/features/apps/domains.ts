@@ -1,10 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createQueryOptions, useQuery, useTransport } from "@connectrpc/connect-query";
-import { CertificateState, type Domain, type DomainRoute, DomainService, type ServiceInfo } from "@dockwell/api";
+import { createClient } from "@connectrpc/connect";
+import { createConnectQueryKey, createQueryOptions, useQuery, useTransport } from "@connectrpc/connect-query";
+import {
+  CertificateState,
+  type Domain,
+  type DomainRoute,
+  DomainService,
+  type ListDomainsResponse,
+  type ServiceInfo,
+} from "@dockwell/api";
 import { useQueries } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
+import { READ_EVERY_MS, READ_TIMEOUT_MS, type StandingRead, useStandingRead } from "../../lib/standing";
 import { useFleetView } from "../servers/useFleet";
 import { environmentOf, nameOf, tidyMessage } from "./app";
 
@@ -73,6 +82,34 @@ export interface DomainLook {
   stale?: { id: string; name: string };
   /** What that server last said, for one that isn't connected. */
   said?: DomainLook;
+}
+
+/** The ways the list of domains sorts them, in the order it offers them. */
+export const DOMAIN_GROUPS = ["failing", "waiting", "serving", "tunnel", "not-connected"] as const;
+
+export type DomainGroup = (typeof DOMAIN_GROUPS)[number];
+
+/**
+ * Which way a domain's look sorts it: what's going wrong, even while it serves, then
+ * what's on its way, and what serves. A server that isn't connected comes before them
+ * all, as nothing is known of those any more.
+ */
+export function groupOf(look: DomainLook): DomainGroup {
+  if (look.stale) return "not-connected";
+  if (look.state === "failed" || look.warning || look.orphaned) return "failing";
+  if (look.state === "pending") return "waiting";
+  return look.noCertificate ? "tunnel" : "serving";
+}
+
+/** Whether a person should look: it's failing, or nobody can say. */
+export function domainNeedsALook(look: DomainLook): boolean {
+  const group = groupOf(look);
+  return group === "failing" || group === "not-connected";
+}
+
+/** True when a domain's certificate can't come, and a tunnel or a proxy in front may be why. */
+export function mayBeBehind(look: DomainLook): boolean {
+  return /set tls to off/.test(look.message);
 }
 
 /** True when a domain asks for no certificate, as TLS ends before its server: there's none to say it's getting, whatever the server has yet to report. */
@@ -260,6 +297,34 @@ export function useAppDomains(service: ServiceInfo): {
     retrying: query.isFetching,
     retry: () => void query.refetch(),
   };
+}
+
+/**
+ * Every domain, for a list of them. It reads all the time, where an app's own page stops
+ * once its domains serve, as a list that stopped would go on saying so whatever became
+ * of them. What a server has said of a domain stands as long as any reading (ADR 0027),
+ * and it's read again at once as a server connects or goes.
+ */
+export function useAllDomains(): StandingRead<ListDomainsResponse> {
+  const transport = useTransport();
+  const domains = useStandingRead<ListDomainsResponse>({
+    queryKey: createConnectQueryKey({
+      schema: DomainService.method.listDomains,
+      input: {},
+      transport,
+      cardinality: "finite",
+    }),
+    read: (signal) => createClient(DomainService, transport).listDomains({}, { signal, timeoutMs: READ_TIMEOUT_MS }),
+    every: (last) => {
+      // A server that has said nothing is a server to go and look at, not something about to change.
+      const looks = (last?.domains ?? []).map(lookOf);
+      return looks.some((look) => look.state === "pending" && !look.unreported && !look.orphaned)
+        ? POLL_MS
+        : READ_EVERY_MS;
+    },
+  });
+  useReadAgainAsServersMove(domains.readAgain);
+  return domains;
 }
 
 /** What a change brought to life in one environment, or sends there: services and routes, by name. */

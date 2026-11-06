@@ -42,8 +42,14 @@ export function useSilent(look: DomainLook): boolean {
   return useLongWhile(look.unreported !== undefined, SILENT_AFTER_MS);
 }
 
+/** Whom a route sends to: its app, or a port on the server that's no app's. */
+export function useRouteTarget(): (route: { service: string; hostPort: number }) => string {
+  const { t } = useLingui();
+  return ({ service, hostPort }) => service || t`port ${hostPort} on the server`;
+}
+
 /** A state's shape and word, as every state has in the brand book. */
-function useDomainWord(domain: Domain, look: DomainLook, silent: boolean): [Status, string] {
+export function useDomainWord(domain: Domain, look: DomainLook, silent: boolean): [Status, string] {
   const { t } = useLingui();
   if (look.stale) return ["stopped", t`Not connected`];
   if (look.state === "failed") return ["down", t`Failed`];

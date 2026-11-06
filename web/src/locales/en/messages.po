@@ -227,6 +227,10 @@ msgstr "{count, plural, one {# container, {running} running} other {# containers
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, one {# day} other {# days}}"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "{count, plural, one {# domain} other {# domains}}"
+msgstr "{count, plural, one {# domain} other {# domains}}"
+
 #: src/lib/time.ts
 msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, one {# hour} other {# hours}}"
@@ -673,6 +677,7 @@ msgid "{name}'s tmpfs at {target} has no size"
 msgstr "{name}'s tmpfs at {target} has no size"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "{needing, plural, one {# needs a look} other {# need a look}}"
 msgstr "{needing, plural, one {# needs a look} other {# need a look}}"
 
@@ -1121,6 +1126,10 @@ msgstr "A container on the server's own network listens on the server's ports it
 msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 msgstr "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 
+#: src/features/domains/DomainsPage.tsx
+msgid "A domain sends people to an app, so run one first."
+msgstr "A domain sends people to an app, so run one first."
+
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -1244,8 +1253,10 @@ msgstr "Actor"
 msgid "Add"
 msgstr "Add"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Add a domain"
 msgstr "Add a domain"
 
@@ -1402,8 +1413,13 @@ msgid "All of it"
 msgstr "All of it"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "All servers"
 msgstr "All servers"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "All states"
+msgstr "All states"
 
 #: src/features/logs/LogsPage.tsx
 msgid "All the servers keep"
@@ -1540,6 +1556,7 @@ msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a s
 msgid "app"
 msgstr "app"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "App"
@@ -1625,6 +1642,10 @@ msgstr "backup"
 msgid "Backups"
 msgstr "Backups"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Behind a tunnel or a proxy"
+msgstr "Behind a tunnel or a proxy"
+
 #: src/features/servers/containers.ts
 msgid "Being removed"
 msgstr "Being removed"
@@ -1684,6 +1705,10 @@ msgstr "Can't load the apps"
 msgid "Can't load the deployments"
 msgstr "Can't load the deployments"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Can't load the domains"
+msgstr "Can't load the domains"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Can't load this app"
 msgstr "Can't load this app"
@@ -1727,6 +1752,10 @@ msgstr "Can't read this file"
 #: src/features/files/FilesPage.tsx
 msgid "Can't read this folder"
 msgstr "Can't read this folder"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Can't read your apps"
+msgstr "Can't read your apps"
 
 #: src/features/files/FileViewer.tsx
 msgid "Can't save this file"
@@ -1870,6 +1899,14 @@ msgstr "Choose a file"
 msgid "Choose a longer range, or follow what it writes next."
 msgstr "Choose a longer range, or follow what it writes next."
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Choose an app"
+msgstr "Choose an app"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Choose the app this domain reaches."
+msgstr "Choose the app this domain reaches."
+
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 msgid "Choose where it runs."
@@ -1898,6 +1935,10 @@ msgstr "Claimed this install"
 #: src/features/logs/LogsPage.tsx
 msgid "Clear filters"
 msgstr "Clear filters"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Clear the filters"
+msgstr "Clear the filters"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Clear the search"
@@ -2740,10 +2781,13 @@ msgid "domain"
 msgstr "domain"
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Domain"
 msgstr "Domain"
 
-#: src/features/shell/sections.ts
+#: src/features/domains/DomainsPage.tsx
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
 msgid "Domains"
 msgstr "Domains"
 
@@ -2958,6 +3002,10 @@ msgstr "failed"
 msgid "Failed"
 msgstr "Failed"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Failing"
+msgstr "Failing"
+
 #: src/features/servers/ServerFrame.tsx
 msgid "Files"
 msgstr "Files"
@@ -2981,6 +3029,10 @@ msgstr "Filter by name, image or project"
 #: src/features/servers/ContainersPanel.tsx
 msgid "Filter containers"
 msgstr "Filter containers"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Filter domains"
+msgstr "Filter domains"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Filter log lines"
@@ -3513,6 +3565,7 @@ msgid "It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Co
 msgstr "It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Connect to the server over SSH to work with it."
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "It's behind a tunnel or a proxy"
 msgstr "It's behind a tunnel or a proxy"
 
@@ -3758,6 +3811,10 @@ msgstr "Loading apps"
 #: src/features/apps/AppOverview.tsx
 msgid "Loading deployments"
 msgstr "Loading deployments"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Loading domains"
+msgstr "Loading domains"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Loading passkeys"
@@ -4015,6 +4072,7 @@ msgstr "never used"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "New app"
 msgstr "New app"
@@ -4082,6 +4140,14 @@ msgstr "No backup was taken, and the data stays as it is now"
 #: src/features/servers/ContainersPanel.tsx
 msgid "No container matches this filter."
 msgstr "No container matches this filter."
+
+#: src/features/domains/DomainsPage.tsx
+msgid "No domain here matches what you've chosen. Try part of a name, or another state."
+msgstr "No domain here matches what you've chosen. Try part of a name, or another state."
+
+#: src/features/domains/DomainsPage.tsx
+msgid "No domains yet"
+msgstr "No domains yet"
 
 #: src/features/changes/PlanSteps.tsx
 msgid "No downtime"
@@ -4192,6 +4258,7 @@ msgid "Not answering, since {ago}, so nobody can say what runs here. Check that 
 msgstr "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Not connected"
 msgstr "Not connected"
@@ -4319,6 +4386,7 @@ msgid "Nothing listens on port {number} yet, so this answers 502 until something
 msgstr "Nothing listens on port {number} yet, so this answers 502 until something does"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Nothing matches"
 msgstr "Nothing matches"
 
@@ -4482,6 +4550,7 @@ msgid "Open {name}"
 msgstr "Open {name}"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Open {where}"
 msgstr "Open {where}"
 
@@ -4504,6 +4573,10 @@ msgstr "Open the apps"
 #: src/features/auth/ClaimPage.tsx
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the domains"
+msgstr "Open the domains"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Open the file"
@@ -4758,9 +4831,9 @@ msgstr "Point its DNS at your tunnel or proxy."
 msgid "port"
 msgstr "port"
 
-#: src/features/apps/AddDomainSheet.tsx
-msgid "port {leavesPort} on the server"
-msgstr "port {leavesPort} on the server"
+#: src/features/apps/DomainNote.tsx
+msgid "port {hostPort} on the server"
+msgstr "port {hostPort} on the server"
 
 #: src/features/apps/AppOverview.tsx
 msgid "port {target}"
@@ -5465,6 +5538,10 @@ msgstr "Rotated the key that wraps every secret"
 msgid "route"
 msgstr "route"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Routes to"
+msgstr "Routes to"
+
 #: src/features/changes/fields.tsx
 msgid "rule"
 msgstr "rule"
@@ -5672,6 +5749,10 @@ msgstr "SELinux label"
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Send a domain to one of your apps. You review a plan before anything changes."
+msgstr "Send a domain to one of your apps. You review a plan before anything changes."
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
 msgstr "Sending"
@@ -5685,6 +5766,7 @@ msgstr "server"
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
@@ -5722,6 +5804,10 @@ msgstr "Servers"
 #: src/app/Providers.tsx
 msgid "service"
 msgstr "service"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Serving"
+msgstr "Serving"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "Sessions"
@@ -5989,12 +6075,14 @@ msgid "Starting"
 msgstr "Starting"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "State"
 msgstr "State"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
 msgstr "Status"
@@ -6358,6 +6446,14 @@ msgstr "The panel can't reach the control plane, so it can't say how your apps r
 msgid "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
 msgstr "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
 
+#: src/features/domains/DomainsPage.tsx
+msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It keeps trying."
+msgstr "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It keeps trying."
+
+#: src/features/domains/DomainsPage.tsx
+msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It last heard {ago}, and keeps trying."
+msgstr "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It last heard {ago}, and keeps trying."
+
 #: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
@@ -6550,6 +6646,14 @@ msgstr "This browser is offline, so the panel can't say how your apps run, and t
 #: src/features/servers/FleetNotes.tsx
 msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
 msgstr "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
+
+#: src/features/domains/DomainsPage.tsx
+msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. Check your connection."
+msgstr "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. Check your connection."
+
+#: src/features/domains/DomainsPage.tsx
+msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. It last heard {ago}. Check your connection."
+msgstr "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. It last heard {ago}. Check your connection."
 
 #: src/features/changes/notices.tsx
 msgid "This changes what runs: a service of the same name in the file replaces it, and {deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own."
@@ -6848,6 +6952,7 @@ msgstr "trend"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Try again"
 msgstr "Try again"
@@ -7006,6 +7111,10 @@ msgstr "Unlocked codes from an authenticator app"
 #: src/features/system/Unreachable.tsx
 msgid "Unreachable"
 msgstr "Unreachable"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Until then, a domain doesn't lead to its app, and you can't add one here."
+msgstr "Until then, a domain doesn't lead to its app, and you can't add one here."
 
 #: src/features/servers/ServersPanel.tsx
 msgid "Up"
@@ -7224,6 +7333,7 @@ msgid "Volumes"
 msgstr "Volumes"
 
 #: src/features/changes/words.ts
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Waiting"
 msgstr "Waiting"
@@ -7369,6 +7479,10 @@ msgstr "What you see may be out of date. Check that dockwell run is still runnin
 #: src/features/files/FileViewer.tsx
 msgid "What you typed is still here."
 msgstr "What you typed is still here."
+
+#: src/features/domains/DomainsPage.tsx
+msgid "What your domains serve isn't affected."
+msgstr "What your domains serve isn't affected."
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What's in front"

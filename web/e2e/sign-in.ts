@@ -14,8 +14,9 @@
 // access, and the panel applies it at the address the CLI sends a person to,
 // /changes/<id>. It adds a secret in the panel, reveals it with the passkey, and
 // checks an API token can't. Then it runs the app screens from apps-flow.ts, the
-// plan sheet's every state from plan-flow.ts, and an install from
-// catalog-flow.ts, on the fake Docker Engine of scripts/fakedocker. Everything
+// plan sheet's every state from plan-flow.ts, an install from catalog-flow.ts,
+// and the Domains section from domains-flow.ts, on the fake Docker Engine of
+// scripts/fakedocker. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
 // screenshots of every screen at 1440, 800, 390 and 360 px, light and dark.
@@ -39,6 +40,7 @@ import { appsFlow } from "./apps-flow.ts";
 import { catalogFlow } from "./catalog-flow.ts";
 import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
+import { domainsFlow } from "./domains-flow.ts";
 import { healthFlow } from "./health-flow.ts";
 import { planFlow } from "./plan-flow.ts";
 
@@ -801,6 +803,7 @@ async function main() {
       },
     });
     await catalogFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), catalogDir });
+    await domainsFlow(page, { origin, step, shoot });
     await containersFlow(page, {
       origin,
       step,

@@ -17,6 +17,7 @@ import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
+import { bytes, number } from "./wire.ts";
 
 export interface PlanFlowOptions {
   origin: string;
@@ -161,18 +162,6 @@ const addPort = (port: number) => async (form: ReturnType<Page["getByRole"]>) =>
  * on its certificate. The fake engine can't run the ingress, so this stands in for a route.
  */
 function aPendingDomain(name: string, service: string, message: string): Buffer {
-  const length = (n: number) => {
-    const out: number[] = [];
-    let left = n;
-    for (; left > 127; left >>>= 7) out.push((left & 127) | 128);
-    out.push(left);
-    return Buffer.from(out);
-  };
-  const bytes = (field: number, value: Buffer | string) => {
-    const body = Buffer.from(value);
-    return Buffer.concat([Buffer.from([(field << 3) | 2]), length(body.length), body]);
-  };
-  const number = (field: number, value: number) => Buffer.from([field << 3, value]);
   const route = Buffer.concat([bytes(1, "rte_stub"), bytes(2, "stub"), bytes(4, service), number(5, 80)]);
   const certificate = Buffer.concat([number(1, 1), bytes(3, message)]);
   const status = Buffer.concat([bytes(1, name), bytes(2, certificate)]);

@@ -45,7 +45,7 @@ import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
 import { CopyButton } from "../servers/CopyButton";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
-import { AddDomainSheet, type MoveBehind } from "./AddDomainSheet";
+import { AddDomainSheet, type MoveBehind, moveBehindOf } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
 import {
@@ -63,7 +63,7 @@ import {
   valuesOf,
 } from "./app";
 import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
-import { lookOf, routeWhere, useAppDomains, visitorUrl } from "./domains";
+import { lookOf, mayBeBehind, routeWhere, useAppDomains, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, RunsOnServers, useRunsNow } from "./Health";
 import { type AppHealth, runsAsFarAsAnyoneKnows, useHealth } from "./health";
@@ -539,8 +539,6 @@ function DomainRow({
   const look = lookOf(domain);
   const silent = useSilent(look);
   const where = routeWhere(domain, route);
-  // Its certificate can't come, and a tunnel or a proxy in front may be why.
-  const mayBeBehind = /set tls to off/.test(look.message);
   return (
     <li
       className={cx(
@@ -571,7 +569,7 @@ function DomainRow({
       </div>
       <p className="app-domain-note">
         <DomainNote domain={domain} look={look} silent={silent} />
-        {mayBeBehind ? (
+        {mayBeBehind(look) ? (
           <>
             {" "}
             <button type="button" className="app-panel-link" onClick={onMoveBehind}>
@@ -674,14 +672,7 @@ function ReachedAt({
             domain={domain}
             route={route}
             onRemove={() => remove(routeWhere(domain, route), route.name)}
-            onMoveBehind={() =>
-              onMoveBehind({
-                domain: domain.name,
-                port: String(route.hostPort || route.port),
-                route: route.name,
-                routes: domain.routes,
-              })
-            }
+            onMoveBehind={() => onMoveBehind(moveBehindOf(domain, route))}
           />
         ))}
         {rows.map((row) => {

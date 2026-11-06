@@ -6,6 +6,7 @@ import {
   type Change,
   ChangeService,
   ChangeState,
+  type Domain,
   type DomainRoute,
   DomainService,
   type ServiceInfo,
@@ -29,7 +30,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { appOf, environmentOf, nameOf } from "./app";
-import { useTunnelSwitchName } from "./DomainNote";
+import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { formRefusal, proxyList, refusedField, routeName } from "./domains";
 import { validPort } from "./form";
 
@@ -43,6 +44,31 @@ export interface MoveBehind {
   routes: readonly DomainRoute[];
 }
 
+/** What the form asks to move a domain behind a tunnel or a proxy, from the route someone asked from. */
+export function moveBehindOf(domain: Domain, route: DomainRoute): MoveBehind {
+  return {
+    domain: domain.name,
+    port: String(route.hostPort || route.port),
+    route: route.name,
+    routes: domain.routes,
+  };
+}
+
+/** An app the form can send a domain to, and what to call it where there's a choice. */
+export interface AppChoice {
+  service: ServiceInfo;
+  label: string;
+}
+
+/** The port a domain likely goes to on an app, to start from. */
+function portOf(service: ServiceInfo | undefined): string {
+  const app = service ? appOf(service) : undefined;
+  // On the server's own network, there's no port it's likely to be: 80 is the proxy's.
+  if (app?.hostNetwork) return "";
+  const published = app?.ports[0]?.containerPort;
+  return published ? String(published) : "80";
+}
+
 /** What ends TLS in front of this server, which says who the route answers. */
 type InFront = "tunnel" | "cloudflare" | "proxy" | "anyone";
 
@@ -53,14 +79,20 @@ type InFront = "tunnel" | "cloudflare" | "proxy" | "anyone";
  * proxy in front handles HTTPS, when there's none to get, and you say what's in front,
  * as that's who the route answers and who the app believes on who a visitor is. An app
  * on the server's own network can't be dialled by name, so the route names it and dials
- * its port on the server. The plan says what each of those means.
+ * its port on the server. The plan says what each of those means. Opened from the app
+ * it's for, or from a list of domains, which isn't about any one app: then the form
+ * asks which, once there's more than one, and what it starts from follows that choice.
  */
 export function AddDomainSheet({
-  service,
+  service: given,
+  apps,
   onClose,
   start,
 }: {
-  service: ServiceInfo;
+  /** The app it's for, when it's opened from one. */
+  service?: ServiceInfo;
+  /** The apps to choose from, when it isn't. */
+  apps?: readonly AppChoice[];
   onClose: () => void;
   /** A domain that needs moving behind a tunnel, as it's refused a certificate. */
   start?: MoveBehind;
@@ -69,17 +101,20 @@ export function AddDomainSheet({
   const transport = useTransport();
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(ChangeService, transport), [transport]);
-  const name = nameOf(service);
-  const environment = environmentOf(service);
-  const known = useQuery(DomainService.method.listDomains, { environment });
-  const app = appOf(service);
-  const onServer = app?.hostNetwork ?? false;
-  const published = app?.ports[0]?.containerPort;
-  const servers = service.deployments;
+  const [chosen, setChosen] = useState("");
+  const choosing = given === undefined && (apps?.length ?? 0) > 1;
+  const service = given ?? (choosing ? apps?.find((a) => a.service.id === chosen) : apps?.[0])?.service;
+  const name = service ? nameOf(service) : "";
+  const environment = service ? environmentOf(service) : "";
+  const known = useQuery(DomainService.method.listDomains, { environment }, { enabled: service !== undefined });
+  const onServer = (service && appOf(service)?.hostNetwork) ?? false;
+  const servers = service?.deployments ?? [];
   const [server, setServer] = useState(servers[0]?.serverId ?? "");
   const [domain, setDomain] = useState(start?.domain ?? "");
-  // On the server's own network, there's no port it's likely to be: 80 is the proxy's.
-  const [port, setPort] = useState(start?.port ?? (onServer ? "" : published ? String(published) : "80"));
+  const [port, setPort] = useState(start?.port ?? portOf(service));
+  // What you typed stays as you choose another app. What it started from follows.
+  const portTyped = useRef(false);
+  const [appError, setAppError] = useState<string>();
   const [noCertificate, setNoCertificate] = useState(start !== undefined);
   const [inFront, setInFront] = useState<InFront>("tunnel");
   const [proxies, setProxies] = useState("");
@@ -97,17 +132,25 @@ export function AddDomainSheet({
   const typed = domain.trim().toLowerCase();
   const held = known.data?.domains.find((d) => d.name === typed)?.routes.find((route) => route.path === "");
   const leaves = !start && held && held.service !== name ? held : undefined;
-  const leavesPort = leaves?.hostPort ?? 0;
-  const leavesApp = leaves?.service || t`port ${leavesPort} on the server`;
+  const target = useRouteTarget();
+  const leavesApp = leaves ? target(leaves) : "";
   const choiceName = useId();
 
   /** Takes you to the first field that was refused, ready to change, as New app does. */
   const revealError = () =>
     requestAnimationFrame(() => {
-      const refused = form.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]');
+      const refused = form.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
       refused?.focus();
-      refused?.select();
+      if (refused instanceof HTMLInputElement) refused.select();
     });
+
+  const choose = (id: string) => {
+    const next = apps?.find((a) => a.service.id === id)?.service;
+    setChosen(id);
+    setAppError(undefined);
+    setServer(next?.deployments[0]?.serverId ?? "");
+    if (!portTyped.current) setPort(portOf(next));
+  };
 
   // Back from a plan that failed, what it said is at the field, ready to change.
   const reveal = useRef(false);
@@ -152,11 +195,12 @@ export function AddDomainSheet({
     const portOk = validPort(port);
     const named = proxyList(proxies);
     const proxiesOk = !noCertificate || inFront !== "proxy" || named.length > 0;
+    setAppError(service ? undefined : t`Choose the app this domain reaches.`);
     setDomainError(domainOk ? undefined : t`Name the domain, such as app.example.com.`);
     setPortError(portOk ? undefined : t`Use a port from 1 to 65535.`);
     setProxiesError(proxiesOk ? undefined : t`Name what connects to this server, as an address or a range.`);
     setFailure(undefined);
-    if (!domainOk || !portOk || !proxiesOk) {
+    if (!service || !domainOk || !portOk || !proxiesOk) {
       revealError();
       return;
     }
@@ -268,7 +312,7 @@ export function AddDomainSheet({
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={field}
-      title={start ? t`Move ${typed} behind what's in front` : t`Add a domain to ${name}`}
+      title={start ? t`Move ${typed} behind what's in front` : choosing ? t`Add a domain` : t`Add a domain to ${name}`}
       subtitle={
         !noCertificate
           ? t`People reach the app at this name, over HTTPS`
@@ -332,6 +376,18 @@ export function AddDomainSheet({
             setDomainError(undefined);
           }}
         />
+        {choosing ? (
+          <SelectField
+            label={t`App`}
+            error={appError}
+            value={chosen}
+            options={[
+              { value: "", label: t`Choose an app` },
+              ...(apps ?? []).map((a) => ({ value: a.service.id, label: a.label })),
+            ]}
+            onChange={(event) => choose(event.target.value)}
+          />
+        ) : null}
         {leaves ? (
           <Callout tone="warning">
             <Trans>
@@ -351,6 +407,7 @@ export function AddDomainSheet({
               : t`What the app listens on, such as 80.`
           }
           onChange={(event) => {
+            portTyped.current = true;
             setPort(event.target.value);
             setPortError(undefined);
           }}

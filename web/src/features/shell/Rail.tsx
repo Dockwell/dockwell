@@ -9,7 +9,15 @@ import { useSignedInUser } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
 import { useUpgrades } from "../catalog/useCatalog";
 import type { FleetView } from "../servers/server";
-import { firstSegment, inActivity, OPERATE, RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
+import {
+  AFTER_DOMAINS,
+  BEFORE_DOMAINS,
+  firstSegment,
+  inActivity,
+  OPERATE,
+  UPCOMING,
+  type UpcomingSection,
+} from "./sections";
 import { shortVersion } from "./version";
 
 /**
@@ -58,7 +66,11 @@ export function Rail({ view }: { view: FleetView }) {
       <Link to="/apps" {...current(segment === "apps")}>
         <ItemBody icon="service" label={t`Apps`} />
       </Link>
-      {RESOURCES.map(section)}
+      {BEFORE_DOMAINS.map(section)}
+      <Link to="/domains" {...current(segment === "domains")}>
+        <ItemBody icon="link" label={t`Domains`} />
+      </Link>
+      {AFTER_DOMAINS.map(section)}
       <Link to="/catalog" {...current(segment === "catalog")}>
         <ItemBody icon="grid" label={t`Catalog`} count={upgrades > 0 ? String(upgrades) : undefined} />
       </Link>

@@ -3,9 +3,10 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { CertificateState, type Domain } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { refusedField } from "./domains";
+import { domainNeedsALook, groupOf, lookOf, refusedField } from "./domains";
 
 /**
  * What the server says, from its source, with values in place of its verbs, so this
@@ -74,5 +75,50 @@ describe("which field a refusal lands on", () => {
   it("names a proxy's field and a port's as before", () => {
     expect(refusedField("a route names 40 trusted proxies, and it takes at most 32", form)).toBe("proxies");
     expect(refusedField("the port its service listens on is out of range", form)).toBe("port");
+  });
+});
+
+describe("how a domain sorts in the list of them", () => {
+  const onServer = (server: object = {}) =>
+    ({
+      name: "app.example.com",
+      routes: [{ tls: "" }],
+      servers: [{ serverId: "srv_1", ...server }],
+    }) as unknown as Domain;
+  const certificate = (state: CertificateState, message = "") => ({ status: { certificate: { state, message } } });
+  const sorted = (domain: Domain) => groupOf(lookOf(domain));
+
+  it("says serving only of a certificate a server has said it has", () => {
+    expect(sorted(onServer(certificate(CertificateState.ISSUED)))).toBe("serving");
+    expect(sorted(onServer())).toBe("waiting");
+    expect(sorted(onServer(certificate(CertificateState.UNSPECIFIED)))).toBe("waiting");
+    expect(sorted(onServer(certificate(CertificateState.PENDING)))).toBe("waiting");
+  });
+
+  it("sorts what's going wrong as failing, even while it serves", () => {
+    expect(sorted(onServer(certificate(CertificateState.FAILED, "DNS has no record.")))).toBe("failing");
+    expect(sorted(onServer(certificate(CertificateState.ISSUED, "Renewing it is failing.")))).toBe("failing");
+    expect(sorted(onServer({ ingress: { message: "Something else holds port 80." } }))).toBe("failing");
+    expect(sorted({ ...onServer(), servers: [] } as Domain)).toBe("failing");
+  });
+
+  it("says behind a tunnel only of what a server has said takes no certificate", () => {
+    expect(sorted(onServer(certificate(CertificateState.NONE)))).toBe("tunnel");
+  });
+
+  it("says nothing of how it stands while a server isn't connected, whatever that server last said", () => {
+    const issued = { ...certificate(CertificateState.ISSUED), stale: true };
+    const failed = { ...certificate(CertificateState.FAILED, "DNS has no record."), stale: true };
+    expect(sorted(onServer(issued))).toBe("not-connected");
+    expect(sorted(onServer(failed))).toBe("not-connected");
+  });
+
+  it("asks for a look at what's failing and what nobody can say, not what's on its way", () => {
+    const needs = (domain: Domain) => domainNeedsALook(lookOf(domain));
+    expect(needs(onServer(certificate(CertificateState.FAILED, "DNS has no record.")))).toBe(true);
+    expect(needs(onServer({ ...certificate(CertificateState.ISSUED), stale: true }))).toBe(true);
+    expect(needs(onServer(certificate(CertificateState.ISSUED)))).toBe(false);
+    expect(needs(onServer(certificate(CertificateState.PENDING)))).toBe(false);
+    expect(needs(onServer(certificate(CertificateState.NONE)))).toBe(false);
   });
 });
