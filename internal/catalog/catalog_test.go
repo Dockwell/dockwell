@@ -61,8 +61,8 @@ func TestTheBuiltInEntries(t *testing.T) {
 		})
 	}
 	// The first set: a database with its admin tool, a reverse proxy's
-	// replacement and a tunnel.
-	for _, want := range []string{"postgres", "mysql", "nginx-proxy-manager", "cloudflared"} {
+	// replacement, a tunnel, and something that runs AI agents.
+	for _, want := range []string{"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code"} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the catalog has no %s: %v", want, ids)
 		}
@@ -138,6 +138,45 @@ func TestNginxProxyManagersPasswordIsMarkedLogged(t *testing.T) {
 		if want := in.GetName() == "ADMIN_PASSWORD"; in.GetLogged() != want {
 			t.Errorf("%s has logged %t, want %t", in.GetName(), in.GetLogged(), want)
 		}
+	}
+}
+
+// Whoever reaches T3 Code gets a shell in it, so it's published on loopback alone, its
+// setup key is a secret it uses by name, and both of its folders are named volumes, as
+// recreating a container loses an anonymous one.
+func TestT3CodeStaysOnThisServer(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := c.Entry("t3code")
+	if !ok {
+		t.Fatal("the catalog has no t3code")
+	}
+	filled, err := catalog.Fill(e, nil, catalog.Suggest(e, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filled.Secrets["T3_SETUP_KEY"]) != 32 {
+		t.Errorf("its setup key isn't generated: %v", filled.Secrets)
+	}
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := stack.Services[0].Spec.GetApp()
+	if ports := app.GetPorts(); len(ports) != 1 || ports[0].GetHostIp() != "127.0.0.1" {
+		t.Errorf("it publishes %v, want loopback alone", ports)
+	}
+	var targets []string
+	for _, m := range app.GetMounts() {
+		if m.GetVolume() != "" {
+			targets = append(targets, m.GetTarget())
+		}
+	}
+	slices.Sort(targets)
+	if !slices.Equal(targets, []string{"/home/t3", "/workspace"}) {
+		t.Errorf("its named volumes hold %v", targets)
 	}
 }
 

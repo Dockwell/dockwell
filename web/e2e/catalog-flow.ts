@@ -77,7 +77,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
-  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel"]) {
+  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "T3 Code"]) {
     await page.getByRole("link", { name: `Install ${app}` }).waitFor();
   }
   await shoot(page, "catalog");

@@ -108,7 +108,14 @@ This is our reading of the licences, not legal advice. Counsel confirms it befor
 - **A form asks only what it must.** Every app gets a name and its ports. Domains, memory limits and backups in the `Catalog-Install` mock wait: a domain has its own form on the app's page, with what a tunnel needs, and the other two have nothing to set yet.
 - **An entry's text is English for now.** The panel's own words are translated, and an entry's are data, so translations belong in the format once the catalog is big enough to need them.
 
-The first set is what the two real servers ran but for their AI agent runner, which comes with an entry of its own: an app that publishes with no account of its own belongs to whoever reaches it first, so an entry doesn't do that. Every app in the set is open source, which the catalog's page says and a test holds it to.
+The first set is what the two real servers ran, and every app in it is open source, which the catalog's page says and a test holds it to. Their AI agent runner is T3 Code, from the recipe its owner keeps, [`dizys/t3code-docker`](https://github.com/dizys/t3code-docker). Three things about that entry are worth saying:
+
+- **It's published on loopback alone,** as the recipe asks: anyone who reaches it gets a shell in the container, so it must never be served unencrypted. A person reaches it through a domain, with one route to the one port `T3_SINGLE_PORT` serves, and the page says to add one first.
+- **It has an access control of its own,** unlike an app with a first-visitor wizard. A domain reaches it, and only a device with a single-use pairing token gets in, which the setup page makes for whoever holds its key.
+- **Its setup key is generated and sealed,** so it needs no reading of logs. With the key set, the image prints nothing of it.
+- **It pins the image the real server runs,** which is days old rather than the 14 we hold other dependencies back, as that's what has been tried. The image moves quickly, so its entry will need releases often.
+
+What it does without: `shm_size`, which Dockwell doesn't take yet, so the image's Chromium gets Docker's default 64 MB of shared memory where the recipe asks for 1 GB, and the recipe's troubleshooting names crashes as what that causes. A tmpfs volume on `/dev/shm` would do it, but it counts as host access, which would have a person approve what reaches nothing. The agents the image installs on first start have their own licences and accounts, which the entry says.
 
 ### Upgrades, before backups exist
 
