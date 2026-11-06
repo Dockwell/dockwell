@@ -1961,6 +1961,25 @@ describe("the plan sheet, once it runs", () => {
       await waitFor(() => expect(done).not.toHaveTextContent("its certificate can't come"));
     });
 
+    it("names no private address as where to point DNS", async () => {
+      const change = applied(aServicePlan());
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) {
+        step.domainCheck = create(DomainCheckSchema, {
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          here: ["10.0.0.25"],
+        });
+      }
+      arrivedWith([aDomain("app.example.com", CertificateState.PENDING, "Asking")], [], change);
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
+      await within(done).findByText("Asking");
+      expect(done).toHaveTextContent(
+        "Point an A record at this server's public address. Dockwell only sees 10.0.0.25 here, which is private, so the internet can't reach it",
+      );
+      expect(done).not.toHaveTextContent("record at 10.0.0.25");
+    });
+
     it("keeps saying what DNS said while it hasn't served", async () => {
       const change = applied(aServicePlan());
       const step = change.plan?.servers[0]?.steps[0];

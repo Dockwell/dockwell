@@ -10,6 +10,7 @@ import { RouterTabLink } from "../../lib/links";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
 import { Connecting, usePageReconnecting } from "./FleetNotes";
+import { ServerAddress } from "./ServerAddress";
 import { primaryAddress, useServerWords } from "./server";
 import { useFleet, useFleetUnread } from "./useFleet";
 
@@ -89,7 +90,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
   const hostname = inv?.hostname && inv.hostname !== server.name && inv.hostname !== address ? inv.hostname : "";
   const parts: { key: string; node: ReactNode }[] = [
     { key: "hostname", node: hostname },
-    { key: "address", node: address ? <span className="server-address">{address}</span> : "" },
+    { key: "address", node: address ? <ServerAddress address={address} className="server-address" /> : "" },
     { key: "up", node: up },
   ].filter((part) => part.node);
   const lead =

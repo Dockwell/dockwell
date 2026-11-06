@@ -6,8 +6,9 @@ import { ConnectError } from "@connectrpc/connect";
 import { Connection, ServerInventorySchema } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
+import addresses from "../../../../internal/resource/testdata/addresses.json";
 import { aServer, sample } from "../../test/servers";
-import { fleetView, serverStatus } from "./server";
+import { fleetView, isPrivateAddress, serverStatus } from "./server";
 
 const hz1 = aServer({
   id: "srv_1",
@@ -16,6 +17,17 @@ const hz1 = aServer({
   inventory: create(ServerInventorySchema, { addresses: ["10.0.0.2", "49.12.33.7"] }),
 });
 const hz2 = aServer({ id: "srv_2", name: "hz-2", stats: sample(20) });
+
+describe("isPrivateAddress", () => {
+  // The table Go's resource.IsPublicAddress reads, so the two can't drift apart.
+  it.each(addresses)("$address", ({ address, public: isPublic }) => {
+    expect(isPrivateAddress(address)).toBe(!isPublic);
+  });
+
+  it("takes a server's name for no address", () => {
+    expect(isPrivateAddress("10.hz-1")).toBe(false);
+  });
+});
 
 describe("fleetView", () => {
   it("knows nothing until the first snapshot", () => {

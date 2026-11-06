@@ -66,6 +66,7 @@ import { readHealthSoon, useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
+import { PrivateTag } from "../servers/ServerAddress";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
@@ -1329,6 +1330,8 @@ function Impact({ plan }: { plan: Plan | undefined }) {
 /** A port an arrival says it's reached at. */
 interface PortReach {
   at: string;
+  /** The address or the name it's at, without its port. */
+  host: string;
   local: boolean;
   target: number;
   udp: boolean;
@@ -1496,7 +1499,7 @@ function useReach(plan: Plan | undefined, change: Change | undefined, landed: bo
         const local = port.hostIp === "127.0.0.1" || port.hostIp === "::1";
         const host = port.hostIp && port.hostIp !== "0.0.0.0" && port.hostIp !== "::" ? port.hostIp : address;
         const at = `${host.includes(":") ? `[${host}]` : host}:${port.hostPort}`;
-        return { at, local, target: port.containerPort, udp: port.protocol === 2 };
+        return { at, host, local, target: port.containerPort, udp: port.protocol === 2 };
       }),
     );
   });
@@ -1756,7 +1759,7 @@ function Arrival({
               </li>
             ),
           )}
-          {ports.map(({ at, local, target, udp }) => (
+          {ports.map(({ at, host, local, target, udp }) => (
             <li key={at} className="plan-reach-row">
               <Icon name="globe" size={16} />
               {local || udp ? (
@@ -1767,7 +1770,7 @@ function Arrival({
                   <Icon name="external" size={14} />
                 </a>
               )}
-              {local ? <span className="plan-reach-how">{t`only on the server`}</span> : null}
+              {local ? <span className="plan-reach-how">{t`only on the server`}</span> : <PrivateTag address={host} />}
               {udp ? <span className="plan-reach-how">{t`port ${target}, UDP`}</span> : null}
               <CopyButton text={at} label={t`Copy ${at}`} />
             </li>

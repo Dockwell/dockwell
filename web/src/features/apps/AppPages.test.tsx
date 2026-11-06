@@ -407,6 +407,14 @@ describe("an app's frame", () => {
 });
 
 describe("an app's overview", () => {
+  it("tags a port at a private address, as the internet can't reach it there", async () => {
+    const behindNAT = aServer({ id: SERVER, name: "hz-1", inventory: { addresses: ["10.0.0.25"] } });
+    renderAt("/apps/svc_web", api([web], {}, behindNAT));
+    const running = await screen.findByRole("region", { name: "What runs" });
+    await within(running).findByRole("link", { name: "Open 10.0.0.25:8080" });
+    expect(within(running).getByText("Private")).toBeVisible();
+  });
+
   it("says what runs, where it is reached, and how it is set up", async () => {
     const { container } = renderAt("/apps/svc_web", api());
     const running = await screen.findByRole("region", { name: "What runs" });

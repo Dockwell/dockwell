@@ -44,6 +44,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
 import { CopyButton } from "../servers/CopyButton";
+import { PrivateTag } from "../servers/ServerAddress";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { AddDomainSheet, type MoveBehind, moveBehindOf } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
@@ -656,7 +657,7 @@ function ReachedAt({
       const at = `${host.includes(":") ? `[${host}]` : host}:${port.hostPort}`;
       const udp = port.protocol === Protocol.UDP;
       // The same port over TCP and over UDP are two rows at one address.
-      return { key: `${at}/${udp ? "udp" : "tcp"}`, at, local, target: port.containerPort, udp };
+      return { key: `${at}/${udp ? "udp" : "tcp"}`, at, host, local, target: port.containerPort, udp };
     }),
   );
   const routes = domains.flatMap((domain) =>
@@ -688,6 +689,7 @@ function ReachedAt({
             <li key={row.key} className="app-reach-row">
               <Icon name="globe" size={16} />
               <code className="app-reach-at">{row.at}</code>
+              {row.local ? null : <PrivateTag address={row.host} />}
               <span className="app-reach-to">
                 {row.udp ? <Trans>port {target}, UDP</Trans> : <Trans>port {target}</Trans>}
                 {row.local ? <span> · {t`only on the server`}</span> : null}

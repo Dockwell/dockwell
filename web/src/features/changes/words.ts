@@ -28,6 +28,7 @@ import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useCallback, useMemo } from "react";
 
+import { isPrivateAddress } from "../servers/server";
 import { type Fold, kindWord } from "./plan";
 
 /** How a step is going, as a status and a word. */
@@ -404,13 +405,23 @@ export function useChangeWords(): ChangeWords {
         const { domain } = check;
         const found = check.found.join(", ");
         const here = check.here.join(", ");
+        // A record pointed at a private address can't work, so none is named as where to point one.
+        const publics = check.here.filter((ip) => !isPrivateAddress(ip)).join(", ");
+        const point =
+          here === ""
+            ? t`Point an A or AAAA record at this server's public address`
+            : check.here.length === 1
+              ? t`Point an A record at this server's public address. Dockwell only sees ${here} here, which is private, so the internet can't reach it`
+              : t`Point an A record at this server's public address. Dockwell only sees ${here} here, which are private, so the internet can't reach it`;
         switch (check.state) {
           case DomainCheckState.NO_RECORD:
-            return here === ""
-              ? t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do`
-              : t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${here}; it comes once you do`;
+            return publics === ""
+              ? t`${domain} has no DNS record yet, so its certificate can't come until it has one. ${point}`
+              : t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${publics}; it comes once you do`;
           case DomainCheckState.ELSEWHERE:
-            return t`DNS for ${domain} points at ${found}, not this server (${here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
+            return publics === ""
+              ? t`DNS for ${domain} points at ${found}, not this server, so its certificate can't come yet. ${point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`
+              : t`DNS for ${domain} points at ${found}, not this server (${publics}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
           case DomainCheckState.CANT_TELL:
             return t`DNS for ${domain} points at ${found}. This server's own addresses are private (${here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
         }

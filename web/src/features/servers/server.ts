@@ -156,12 +156,32 @@ function sameView(a: FleetView, b: FleetView): boolean {
   );
 }
 
-/** Whether ip is in a private, shared or unique-local range, so not reachable from the internet. */
+/**
+ * Whether an address isn't one the internet can route to: private, shared, link-local
+ * or loopback. resource.IsPublicAddress is the definition, and this mirrors it, held
+ * to the same table by internal/resource/testdata/addresses.json.
+ */
 export function isPrivateAddress(ip: string): boolean {
-  if (ip.includes(":")) return /^f[cd]/i.test(ip);
-  const [a = 0, b = 0] = ip.split(".").map(Number);
+  const unmapped = ip.toLowerCase().replace(/^::ffff:(?=\d+\.)/, "");
+  if (unmapped.includes(":")) {
+    const first = Number.parseInt(unmapped.split(":")[0] || "0", 16);
+    const unique = (first & 0xfe00) === 0xfc00;
+    const linkLocal = (first & 0xffc0) === 0xfe80;
+    const multicast = (first & 0xff00) === 0xff00;
+    return unmapped === "::" || unmapped === "::1" || unique || linkLocal || multicast || unmapped.includes("%");
+  }
+  // A server with no address yet goes by its name in the same places.
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(unmapped)) return false;
+  const [a = 0, b = 0] = unmapped.split(".").map(Number);
   return (
-    a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127)
+    a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    a === 127 ||
+    a >= 224 ||
+    unmapped === "0.0.0.0"
   );
 }
 

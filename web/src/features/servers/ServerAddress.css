@@ -1,0 +1,7 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.server-address-tagged {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
