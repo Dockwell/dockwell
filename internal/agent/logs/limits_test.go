@@ -1155,6 +1155,66 @@ func TestAKeptLogMarksTheHoleItsLastCopyLeft(t *testing.T) {
 	}
 }
 
+// A power cut can leave a kept log with an empty record, as nothing syncs it. With no
+// record it has no age and no size, so the 30 days and the budget would never reach
+// it. It leaves, and what stands beside it doesn't.
+func TestAKeptLogWithNoRecordLeaves(t *testing.T) {
+	for name, damage := range map[string]func(record string) error{
+		"missing": os.Remove,
+		"empty":   func(record string) error { return os.WriteFile(record, nil, 0o600) },
+		"cut off": func(record string) error { return os.WriteFile(record, []byte(`{"container_id":"ab`), 0o600) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			r := newReader(t, e)
+			addContainer(t, e, "app-1", 1)
+			e.Print("app-1", docker.Stdout, "failed")
+			fine := keep(t, r, e, "app-1", true)
+			addContainer(t, e, "app-2", 2)
+			e.Print("app-2", docker.Stdout, "replaced")
+			broken := keep(t, r, e, "app-2", false)
+			dir := filepath.Join(r.Archive.Dir, testProject, testService)
+			if err := damage(filepath.Join(dir, broken, "kept.json")); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.Archive.Prune(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, broken)); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("a kept log with no record is still there: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, fine)); err != nil {
+				t.Errorf("the kept log beside it went too: %v", err)
+			}
+		})
+	}
+}
+
+// A record that can't be reached for now is no reason to lose what it describes.
+func TestAKeptLogStaysThroughARecordItCantReachForNow(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads every file, so nothing here is out of reach")
+	}
+	e := dockertest.New(t)
+	r := newReader(t, e)
+	addContainer(t, e, "app-1", 1)
+	e.Print("app-1", docker.Stdout, "failed")
+	id := keep(t, r, e, "app-1", true)
+	record := filepath.Join(r.Archive.Dir, testProject, testService, id, "kept.json")
+	if err := os.Chmod(record, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Archive.Prune(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(record, 0o600); err != nil {
+		t.Fatalf("it went, record and all: %v", err)
+	}
+	if got := r.Archive.List(testProject, testService); len(got) != 1 {
+		t.Errorf("the archive lists %d kept logs, want the one it had", len(got))
+	}
+}
+
 // A kept log's reader hears what is wrong with it: the container has gone, so Docker
 // has nothing to do with it, and no path on the server reaches them.
 func TestAKeptLogThatCantBeReadSaysWhatWentWrong(t *testing.T) {
