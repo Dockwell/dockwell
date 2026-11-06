@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { useQuery } from "@connectrpc/connect-query";
+import { ContainerService, type ServerContainer } from "@dockwell/api";
+import { Icon, Panel, StatusBadge } from "@dockwell/ui";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
+import { useRef } from "react";
+
+import { LogsPage, type LogsSearch } from "../logs/LogsPage";
+import { LogsSearchButton } from "../logs/phoneSearch";
+import { Page } from "../shell/Page";
+import { useMadeWords } from "./ContainersPanel";
+import { mountSource, portWords, READ_EVERY_MS, statusOf, useContainerStateWord } from "./containers";
+import { useFleet } from "./useFleet";
+import "./ContainersPanel.css";
+
+/**
+ * A container Dockwell didn't make: what it is and what it prints, which reads like an
+ * app's logs. Dockwell only reads it, and this page has nothing that changes it.
+ */
+export function ContainerPage({
+  serverId,
+  name,
+  search,
+  onSearch,
+}: {
+  serverId: string;
+  name: string;
+  search: LogsSearch;
+  onSearch: (next: LogsSearch) => void;
+}) {
+  const { t } = useLingui();
+  const fleet = useFleet();
+  const serverName = (fleet.status === "connecting" ? [] : fleet.servers).find((s) => s.id === serverId)?.name ?? "";
+  const stateWord = useContainerStateWord();
+  const list = useQuery(
+    ContainerService.method.listContainers,
+    { server: serverId },
+    { refetchInterval: READ_EVERY_MS, retry: false },
+  );
+  const container = list.data?.containers.find((c) => c.name === name);
+  const searchButton = useRef<(() => void) | null>(null);
+  const back = (
+    <Link
+      to="/servers/$serverId"
+      params={{ serverId }}
+      className="mobile-header-button"
+      aria-label={t`Back to the server`}
+    >
+      <Icon name="arrow-left" size={20} />
+    </Link>
+  );
+  return (
+    <LogsSearchButton value={searchButton}>
+      <Page
+        title={name}
+        machineTitle
+        phoneMachineTitle
+        breadcrumb={
+          <nav className="container-crumbs" aria-label={t`Breadcrumb`}>
+            <Link to="/servers/$serverId" params={{ serverId }}>
+              {serverName || t`Server`}
+            </Link>
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">{name}</span>
+          </nav>
+        }
+        badge={
+          container ? (
+            <StatusBadge status={statusOf(container.state)} label={stateWord(container.state)} labelIsState />
+          ) : null
+        }
+        lead={container ? <code>{container.image}</code> : undefined}
+        phoneSub={container ? stateWord(container.state) : undefined}
+        backLink={back}
+        phoneAction={
+          <button
+            type="button"
+            className="mobile-header-button"
+            aria-label={t`Search logs`}
+            onClick={() => searchButton.current?.()}
+          >
+            <Icon name="search" size={20} />
+          </button>
+        }
+      >
+        {container ? <Facts container={container} /> : null}
+        <LogsPage id={name} server={serverId} search={search} onSearch={onSearch} />
+      </Page>
+    </LogsSearchButton>
+  );
+}
+
+function Facts({ container }: { container: ServerContainer }) {
+  const { t } = useLingui();
+  const made = useMadeWords()(container);
+  const ports = container.ports.map(portWords);
+  const { mounts, morePorts, moreMounts } = container;
+  return (
+    <Panel title={t`What Docker says of it`}>
+      <dl className="container-facts">
+        <dt>
+          <Trans>Status</Trans>
+        </dt>
+        <dd>
+          <code>{container.status}</code>
+        </dd>
+        {made ? (
+          <>
+            <dt>
+              <Trans>Made</Trans>
+            </dt>
+            <dd>{made}</dd>
+          </>
+        ) : null}
+        {container.composeProject ? (
+          <>
+            <dt>
+              <Trans>Compose project</Trans>
+            </dt>
+            <dd>
+              <code>{container.composeProject}</code>
+              {container.composeService ? (
+                <>
+                  {" · "}
+                  <code>{container.composeService}</code>
+                </>
+              ) : null}
+            </dd>
+          </>
+        ) : null}
+        <dt>
+          <Trans>Ports</Trans>
+        </dt>
+        <dd>
+          {ports.length > 0 ? (
+            <ul>
+              {ports.map((port) => (
+                <li key={port}>
+                  <code>{port}</code>
+                </li>
+              ))}
+              {morePorts > 0 ? <li>{t`and ${morePorts} more`}</li> : null}
+            </ul>
+          ) : (
+            <Trans>It publishes none now.</Trans>
+          )}
+        </dd>
+        <dt>
+          <Trans>Volumes</Trans>
+        </dt>
+        <dd>
+          {mounts.length > 0 ? (
+            <ul>
+              {mounts.map((mount) => (
+                <li key={mount.target}>
+                  <code>
+                    {mountSource(mount)}→{mount.target}
+                  </code>
+                  {mount.readOnly ? ` (${t`read-only`})` : ""}
+                </li>
+              ))}
+              {moreMounts > 0 ? <li>{t`and ${moreMounts} more`}</li> : null}
+            </ul>
+          ) : (
+            <Trans>It mounts none.</Trans>
+          )}
+        </dd>
+      </dl>
+    </Panel>
+  );
+}

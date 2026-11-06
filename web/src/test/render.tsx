@@ -7,6 +7,7 @@ import {
   CatalogService,
   ChangeService,
   ComposeService,
+  ContainerService,
   DomainService,
   EventService,
   GetVersionResponseSchema,
@@ -47,6 +48,7 @@ export type Api = {
   catalog?: Partial<ServiceImpl<typeof CatalogService>>;
   logs?: Partial<ServiceImpl<typeof LogService>>;
   health?: Partial<ServiceImpl<typeof HealthService>>;
+  containers?: Partial<ServiceImpl<typeof ContainerService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -91,6 +93,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(CatalogService, { listCatalogEntries: () => ({}), listCatalogInstalls: () => ({}), ...api.catalog });
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
+      service(ContainerService, { listContainers: () => ({}), ...api.containers });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

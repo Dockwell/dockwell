@@ -104,6 +104,28 @@ export interface LogsSearch {
   nowrap?: boolean;
 }
 
+const RANGES: readonly LogRange[] = ["15m", "1h", "24h"];
+
+/** Reads a view of logs from its URL, leaving out what isn't one. */
+export function readLogsSearch(search: Record<string, unknown>): LogsSearch {
+  const out: LogsSearch = {};
+  const text = (key: string) => {
+    const value = search[key];
+    return typeof value === "string" && value !== "" ? value : undefined;
+  };
+  const range = text("range");
+  if (range && (RANGES as readonly string[]).includes(range)) out.range = range as LogRange;
+  for (const key of ["levels", "replica", "q", "change"] as const) {
+    const value = text(key);
+    if (value) out[key] = value;
+  }
+  if (search["deep"] === true) out.deep = true;
+  if (search["nowrap"] === true) out.nowrap = true;
+  const revision = Number(search["revision"]);
+  if (Number.isSafeInteger(revision) && revision > 0) out.revision = revision;
+  return out;
+}
+
 const LEVEL_NAMES: ReadonlyMap<string, LogLevel> = new Map([
   ["info", LogLevel.INFO],
   ["warn", LogLevel.WARN],
@@ -129,14 +151,17 @@ function levelNames(levels: ReadonlySet<LogLevel>): string | undefined {
 /**
  * A service's logs: following live, a time range, or one deploy's, with filters
  * by level and replica, and search (App-Logs, M-Logs). It sits in an app's tab,
- * and the page around it says which app.
+ * and the page around it says which app. With a server, id is a container
+ * Dockwell didn't make there, which reads the same way.
  */
 export function LogsPage({
-  serviceId,
+  id,
+  server = "",
   search,
   onSearch,
 }: {
-  serviceId: string;
+  id: string;
+  server?: string;
   search: LogsSearch;
   onSearch: (next: LogsSearch) => void;
 }) {
@@ -146,7 +171,7 @@ export function LogsPage({
   const deepStore = useMemo(() => new LogStore(), []);
   const pane = useRef<LogStreamHandle>(null);
 
-  const sources = useQuery(LogService.method.listLogSources, { id: serviceId }, { refetchOnWindowFocus: false });
+  const sources = useQuery(LogService.method.listLogSources, { id, server }, { refetchOnWindowFocus: false });
   const service = sources.data?.service;
   const allSources = sources.data?.sources;
   const deploys = useMemo(() => deploysOf(allSources ?? []), [allSources]);
@@ -184,11 +209,11 @@ export function LogsPage({
   const [rangeRead, setRangeRead] = useState(0);
   const request = useMemo(() => {
     if (!loaded || deployGone) return undefined;
-    const base = { id: serviceId, changeId: chosenChange, revision: chosenRevision };
+    const base = { id, server, changeId: chosenChange, revision: chosenRevision };
     if (range) return { ...base, last: durationFromMs(RANGE_MS[range]), tail: MAX_LINES, once: true };
     if (reading) return { ...base, tail: MAX_LINES, once: true };
     return { ...base, tail: LIVE_TAIL };
-  }, [serviceId, range, chosenChange, chosenRevision, reading, deployGone, loaded]);
+  }, [id, server, range, chosenChange, chosenRevision, reading, deployGone, loaded]);
   const asking = request;
   // biome-ignore lint/correctness/useExhaustiveDependencies: a range is read again when it changes, and reaches to then
   const rangeEnd = useMemo(() => Date.now(), [range, rangeRead]);
@@ -197,7 +222,7 @@ export function LogsPage({
   const levels = useMemo(() => levelsOf({ ...(search.levels ? { levels: search.levels } : {}) }), [search.levels]);
   const deepOn = Boolean(search.deep && search.q);
   const deepLevels = useMemo(() => [...levels], [levels]);
-  const deep = useDeepSearch(serviceId, deepOn, search.q ?? "", deepLevels, deepStore);
+  const deep = useDeepSearch(id, server, deepOn, search.q ?? "", deepLevels, deepStore);
   const active = deepOn ? deepStore : store;
 
   // How entries are drawn: their time, their source's name and the words of a note.
@@ -478,9 +503,13 @@ export function LogsPage({
   }
   if (missing) {
     return (
-      <EmptyState icon="service" title={t`This app isn't here`}>
+      <EmptyState icon="service" title={server ? t`This container isn't here` : t`This app isn't here`}>
         <p>
-          <Trans>It may have been deleted. Dockwell has no logs under this address.</Trans>
+          {server ? (
+            <Trans>It may have been removed. Docker keeps a container's log only as long as the container.</Trans>
+          ) : (
+            <Trans>It may have been deleted. Dockwell has no logs under this address.</Trans>
+          )}
         </p>
       </EmptyState>
     );
@@ -633,6 +662,7 @@ export function LogsPage({
         stopped={stopped === false ? [] : stopped}
         logErrors={logErrors}
         unbounded={unbounded}
+        outside={server !== ""}
         chosen={chosen}
         rolledBackTo={chosen?.failed && currentDeploy ? deployRevision(currentDeploy) : undefined}
         noCurrent={noCurrent && !asked}
@@ -716,7 +746,7 @@ export function LogsPage({
               </div>
             ) : undefined
           ) : !search.q ? (
-            <EarlierLines serviceId={serviceId} store={active} chosen={chosen} search={search} />
+            <EarlierLines id={id} server={server} store={active} chosen={chosen} search={search} />
           ) : undefined
         }
         stream={stream}
@@ -780,7 +810,7 @@ export function LogsPage({
         </Sheet>
       ) : null}
       {context ? (
-        <LogContext serviceId={serviceId} entry={context} sources={sourceMap} onClose={() => setContext(undefined)} />
+        <LogContext id={id} server={server} entry={context} sources={sourceMap} onClose={() => setContext(undefined)} />
       ) : null}
     </section>
   );
@@ -1136,12 +1166,14 @@ function SearchSaid({ store, deep, typed }: { store: LogStore; deep: DeepSearch 
 
 /** A way to read the lines before those loaded, at the top of the log. */
 function EarlierLines({
-  serviceId,
+  id,
+  server,
   store,
   chosen,
   search,
 }: {
-  serviceId: string;
+  id: string;
+  server: string;
   store: LogStore;
   chosen: Deploy | undefined;
   search: LogsSearch;
@@ -1181,7 +1213,8 @@ function EarlierLines({
     setState((was) => ({ ...was, loading: true, error: undefined }));
     void createClient(LogService, transport)
       .readLogs({
-        id: serviceId,
+        id,
+        server,
         pageSize: OLDER_PAGE,
         pageToken: state.token,
         changeId: chosen?.change ?? "",

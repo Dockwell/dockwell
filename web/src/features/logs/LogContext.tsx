@@ -24,12 +24,14 @@ const LINES = 500;
  * search where it was.
  */
 export function LogContext({
-  serviceId,
+  id,
+  server,
   entry,
   sources,
   onClose,
 }: {
-  serviceId: string;
+  id: string;
+  server: string;
   entry: Entry;
   sources: ReadonlyMap<string, LogSource>;
   onClose: () => void;
@@ -53,7 +55,8 @@ export function LogContext({
     void createClient(LogService, transport)
       .readLogs(
         {
-          id: serviceId,
+          id,
+          server,
           sourceIds: [entry.source],
           since: timestampFromMs(entry.ms - BEFORE_MS),
           until: timestampFromMs(entry.ms + AFTER_MS),
@@ -69,7 +72,7 @@ export function LogContext({
         if (!abort.signal.aborted) setError(ConnectError.from(err));
       });
     return () => abort.abort();
-  }, [store, serviceId, entry, transport]);
+  }, [store, id, server, entry, transport]);
 
   // Once it has them, it opens on the line it was asked about.
   useLayoutEffect(() => {

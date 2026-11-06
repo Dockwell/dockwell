@@ -85,7 +85,7 @@ func (h *Handler) Find(ctx context.Context, serverName, name string) (Server, *d
 		return Server{}, nil, err
 	}
 	if found.GetIngress() > 0 {
-		return Server{}, nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs this server's ingress, which is Dockwell's own, so it isn't among the containers Dockwell didn't make. See what it prints with docker logs %s on the server", name, name), "invalid")
+		return Server{}, nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("%s runs this server's ingress, which is Dockwell's own, so it isn't among the containers Dockwell didn't make. See what it prints with docker logs %s on the server", name, name), "not_found")
 	}
 	if len(found.GetContainers()) == 0 {
 		return Server{}, nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no container %s on %s. See what's there with dockwell containers list --server %s", name, s.Name, s.Name), "not_found")
@@ -96,7 +96,7 @@ func (h *Handler) Find(ctx context.Context, serverName, name string) (Server, *d
 	}
 	if len(others) == 0 {
 		c := found.GetContainers()[0]
-		return Server{}, nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is the container of %s, which Dockwell runs. Read its logs with dockwell logs read %s", c.GetName(), c.GetComposeService(), c.GetComposeService()), "invalid")
+		return Server{}, nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("%s is the container of %s, which Dockwell runs. Read its logs with dockwell logs read %s", c.GetName(), c.GetComposeService(), c.GetComposeService()), "not_found")
 	}
 	return s, others[0], nil
 }

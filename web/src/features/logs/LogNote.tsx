@@ -73,6 +73,7 @@ export function LogNote({
   stopped,
   logErrors,
   unbounded,
+  outside,
   chosen,
   rolledBackTo,
   noCurrent,
@@ -84,6 +85,8 @@ export function LogNote({
   stopped: readonly LogSource[];
   logErrors: readonly LogSource[];
   unbounded: readonly LogSource[];
+  /** The logs are of a container Dockwell didn't make, which it leaves as it is. */
+  outside: boolean;
   chosen: Deploy | undefined;
   rolledBackTo: string | undefined;
   noCurrent: boolean;
@@ -139,10 +142,17 @@ export function LogNote({
   if (wild) {
     return (
       <LogCallout tone="warning" title={t`This container's log has no limit on ${wild.serverName}`}>
-        <Trans>
-          It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes,
-          so the next deploy of this app fixes it.
-        </Trans>
+        {outside ? (
+          <Trans>
+            It was made without rotation, so its log can fill the disk. Dockwell didn't make it, so it leaves that as it
+            is. Recreate it with a log limit, as <code>docker run --log-opt max-size=10m</code> sets one.
+          </Trans>
+        ) : (
+          <Trans>
+            It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it
+            makes, so the next deploy of this app fixes it.
+          </Trans>
+        )}
       </LogCallout>
     );
   }
