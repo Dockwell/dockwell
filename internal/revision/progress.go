@@ -438,10 +438,19 @@ func resumed(before Progress, plan *Plan, items []item) Progress {
 	for i := range p.Steps {
 		s := &p.Steps[i]
 		if !todo[i] && !s.State.Final() {
-			s.State, s.Message = StepDone, "The server already has it"
+			s.State, s.Message = StepDone, alreadyHasIt
 		}
 	}
 	return p
+}
+
+// alreadyHasIt ends a step that found the server as it was to leave it.
+const alreadyHasIt = "The server already has it"
+
+// began reports a step on a server that some run started, which may have got
+// anywhere before it stopped.
+func (p Progress) began(server string, ref resource.Ref) bool {
+	return slices.ContainsFunc(p.Steps, func(s StepProgress) bool { return s.Server == server && s.Ref == ref && !s.Started.IsZero() })
 }
 
 // verbs words each action for a step's messages: to do, doing, done.
@@ -549,8 +558,9 @@ type Rollback struct {
 	ID string
 	// State is one of the Rollback states.
 	State string
-	// Steps counts its steps. None means the servers still had what was
-	// there before, as the failed change stopped before it changed them.
+	// Steps counts its steps, without one that found the server had what it was
+	// to put back. None means the servers still had what was there before, as
+	// the failed change stopped before it changed them.
 	Steps int
 	// WaitingFor names the servers it waits for, in RollbackWaiting.
 	WaitingFor []string
@@ -569,29 +579,13 @@ func (e *Engine) rollbackOf(c *store.Change) (*Rollback, error) {
 		Servers []struct {
 			Server, Name, Unplanned string
 			Steps                   []struct {
-				Ref     struct{ Name string }
+				Ref     resource.Ref
 				Rollout *resource.RolloutPlan
 			}
 		}
 	}
 	if err := json.Unmarshal(c.Plan, &plan); err != nil {
 		return nil, fmt.Errorf("can't read a stored plan: %w", err)
-	}
-	r := &Rollback{ID: c.ID, State: RollbackApplying}
-	names := make(map[string]string, len(plan.Servers))
-	for i := range plan.Servers {
-		names[plan.Servers[i].Server] = plan.Servers[i].Name
-		r.Steps += len(plan.Servers[i].Steps)
-		for _, step := range plan.Servers[i].Steps {
-			// A rolling deploy that failed leaves what ran serving, and the step only takes
-			// away what failed, so it has put nothing back.
-			if step.Rollout.AlreadyRuns() {
-				continue
-			}
-			if !slices.Contains(r.Restored, step.Ref.Name) {
-				r.Restored = append(r.Restored, step.Ref.Name)
-			}
-		}
 	}
 	var progress Progress
 	if p := e.progress(c.ID); p != nil {
@@ -600,6 +594,32 @@ func (e *Engine) rollbackOf(c *store.Change) (*Rollback, error) {
 		var err error
 		if progress, err = decodeProgress(c.Progress); err != nil {
 			return nil, err
+		}
+	}
+	// The plan says what a step was to do, which it made before anyone could ask the
+	// server, and only the step can say whether it had to.
+	foundDone := func(server string, ref resource.Ref) bool {
+		return slices.ContainsFunc(progress.Steps, func(s StepProgress) bool {
+			return s.Server == server && s.Ref == ref && s.Did != nil && *s.Did == resource.ActionNone
+		})
+	}
+	r := &Rollback{ID: c.ID, State: RollbackApplying}
+	names := make(map[string]string, len(plan.Servers))
+	for i := range plan.Servers {
+		names[plan.Servers[i].Server] = plan.Servers[i].Name
+		for _, step := range plan.Servers[i].Steps {
+			if foundDone(plan.Servers[i].Server, step.Ref) {
+				continue
+			}
+			r.Steps++
+			// A rolling deploy that failed leaves what ran serving, and the step only takes
+			// away what failed, so it has put nothing back.
+			if step.Rollout.AlreadyRuns() {
+				continue
+			}
+			if !slices.Contains(r.Restored, step.Ref.Name) {
+				r.Restored = append(r.Restored, step.Ref.Name)
+			}
 		}
 	}
 	switch c.State {

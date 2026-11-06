@@ -2886,8 +2886,9 @@ type RollbackStatus struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Where it is.
 	State RollbackState `protobuf:"varint,2,opt,name=state,proto3,enum=dockwell.v1.RollbackState" json:"state,omitempty"`
-	// How many steps it takes. None means the servers still had what was there
-	// before, as the failed change stopped before it changed them.
+	// How many steps it takes, without one that found the server had what it was
+	// to put back. None means the servers still had what was there before, as the
+	// failed change stopped before it changed them.
 	Steps int32 `protobuf:"varint,3,opt,name=steps,proto3" json:"steps,omitempty"`
 	// The servers it waits for, by name, while it waits.
 	WaitingFor []string `protobuf:"bytes,4,rep,name=waiting_for,json=waitingFor,proto3" json:"waiting_for,omitempty"`

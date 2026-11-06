@@ -2586,7 +2586,11 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		if told.Did != nil {
 			did = *told.Did
 		}
-		p, u := e.finished(c.ID, q.index, cmp.Or(told.Note, stepMessage(StepDone, q.step, q.name)), did)
+		said := cmp.Or(told.Note, stepMessage(StepDone, q.step, q.name))
+		if q.step.NeverBegan {
+			did, said = resource.ActionNone, alreadyHasIt
+		}
+		p, u := e.finished(c.ID, q.index, said, did)
 		digests[at{q.server, it.ref}] = told.Digest
 		if e.deployedImage(ctx, c.ID, it, q.server, nil, p, told.Digest) {
 			e.announce(c.ID, u)
@@ -2961,6 +2965,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if was != nil && step.Action != resource.ActionDelete {
 				step.Restores = step.Restores || was.Restores
 			}
+			step.NeverBegan = step.Finishing && !before.began(s.Server, step.Ref)
 			// Planning again may find two writers the first plan couldn't read, as what
 			// it shares may be a volume this change made. Nobody approved that, and it
 			// stays so, so the step stops at it, as it does in a run that isn't cut short.

@@ -1054,8 +1054,9 @@ export type RollbackStatus = Message<"dockwell.v1.RollbackStatus"> & {
   state: RollbackState;
 
   /**
-   * How many steps it takes. None means the servers still had what was there
-   * before, as the failed change stopped before it changed them.
+   * How many steps it takes, without one that found the server had what it was
+   * to put back. None means the servers still had what was there before, as the
+   * failed change stopped before it changed them.
    *
    * @generated from field: int32 steps = 3;
    */
