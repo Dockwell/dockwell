@@ -22,7 +22,10 @@
 # runs under load through that Caddy, with an app slow to turn healthy and one that
 # never does, counting every request, and an app and its route go to a new port in
 # one change. A container run by hand lists and reads through the CLI, and nothing
-# touches it. It uses throwaway data directories and removes
+# touches it. A tag listed for two architectures in that local registry says what
+# ran, and two projects' routes reach a service of one name each through one Caddy.
+# One change reaches two servers, with the agent build as the second, and one offline
+# is refused by name. It uses throwaway data directories and removes
 # what it made, so it never touches a real install. It needs Docker with the compose
 # plugin, Go, curl, jq, openssl, pgrep and iproute2's ss, a free port (E2E_WEB_PORT,
 # 18080 by default), and ports 80 and 443 free, for the ingress's own part. With
@@ -60,6 +63,7 @@ digest_first=""
 digest_second=""
 digest_third=""
 built=""
+multi_repo=""
 # A registry, by digest, for the images of the step about a tag that moves.
 registry_image=registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
 
@@ -100,6 +104,7 @@ start_dockwell
 moving_tidy() {
   docker rm --force --volumes e2e-registry >/dev/null 2>&1 || true
   [[ -z "$built" ]] || docker rmi "$built" >/dev/null 2>&1 || true
+  [[ -z "$multi_repo" ]] || docker rmi "$multi_repo:1" "$multi_repo:one" >/dev/null 2>&1 || true
   docker rmi e2e-moving:first e2e-moving:second e2e-moving:third "$moving_repo:latest" "$moving_repo@$digest_first" "$moving_repo@$digest_second" "$moving_repo@$digest_third" >/dev/null 2>&1 || true
   [[ -z "$moving_dir" ]] || rm -rf "$moving_dir"
   moving_dir=""
@@ -127,7 +132,7 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-by-hand e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-by-hand e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   docker volume rm e2e-by-hand-data >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
@@ -1157,6 +1162,70 @@ jq -e '.revisions | length == 2' <<<"$revisions" >/dev/null || fail "a build und
 dw services delete built --yes || fail "services delete built failed"
 docker rmi "$built" >/dev/null || fail "can't remove the image built here"
 built=""
+
+step "A multi-architecture tag: what ran is its index, and a build for another architecture leaves this server's image"
+# One image, listed for each architecture, as a registry holds what buildx pushes.
+# Each entry can name the one manifest: only this server's is ever pulled.
+multi_repo=127.0.0.1:$registry_port/e2e-multi
+multi_api=http://127.0.0.1:$registry_port/v2/e2e-multi
+multi=$multi_repo:1
+here=$(docker version --format '{{.Server.Arch}}') || fail "docker version failed"
+printf 'multi\n' >"$moving_dir/index.html"
+docker build -q -t "$multi_repo:one" "$moving_dir" >/dev/null || fail "can't build the image for a multi-architecture tag"
+one=$(docker push "$multi_repo:one" | awk '/digest: /{ print $3 }')
+[[ "$one" == sha256:* ]] || fail "pushing the image said its digest is '$one'"
+# On containerd's image store a push makes an index already, so the entry is its first.
+accept='application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json'
+# To a file, as a shell variable would lose a last newline, and with it the size.
+pushed=$moving_dir/pushed.json
+curl -fsS -H "Accept: $accept" -o "$pushed" "$multi_api/manifests/$one" || fail "can't read the pushed manifest"
+if jq -e 'has("manifests")' "$pushed" >/dev/null; then
+  entry=$(jq -c '.manifests[0] | {mediaType, digest, size}' "$pushed")
+else
+  entry=$(jq -cn --arg media "$(jq -r .mediaType "$pushed")" --arg digest "$one" --argjson size "$(wc -c <"$pushed")" '{mediaType: $media, digest: $digest, size: $size}')
+fi
+# push_index PLATFORMS TAG puts an index of those architectures under a tag, and says its digest.
+push_index() {
+  local file=$moving_dir/index.json
+  jq -cn --argjson entry "$entry" --arg archs "$1" \
+    '{schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json", manifests: [$archs | split(" ")[] | . as $arch | $entry + {platform: {os: "linux", architecture: $arch}}]}' >"$file"
+  curl -fsS -o /dev/null -X PUT -H 'Content-Type: application/vnd.oci.image.index.v1+json' --data-binary "@$file" "$multi_api/manifests/$2" ||
+    fail "the registry refused an index of $1"
+  echo "sha256:$(sha256sum "$file" | cut -d' ' -f1)"
+}
+docker rmi "$multi_repo:one" >/dev/null || fail "can't remove the image here"
+index_first=$(push_index "$here riscv64" 1)
+multi_id() { docker ps -aq --no-trunc --filter label=com.docker.compose.service=multi; }
+dw services create multi --app-image "$multi" --app-ports "$ports" --yes || fail "services create multi failed"
+moving_serves multi
+ran=$(dw services revisions multi --json | jq -r '.revisions[0].deployments[0].digest') || fail "services revisions failed"
+[[ "$ran" == "$index_first" ]] || fail "a multi-architecture tag ran $ran, want its index, $index_first"
+
+# Its image ID is this server's own image, unless containerd keeps them, where it's
+# the index, which is what ADR 0021 accepts.
+index_second=$(push_index "$here riscv64 ppc64le" 1)
+[[ "$index_second" != "$index_first" ]] || fail "the second index is the first"
+store=$(docker info --format '{{range .DriverStatus}}{{println .}}{{end}}') || fail "docker info failed"
+want=PLAN_ACTION_NONE
+[[ "$store" != *io.containerd.snapshotter* ]] || want=PLAN_ACTION_REPLACE
+echo "docker-e2e: Docker's image store says: $store, so a build for another architecture should do $want"
+before=$(multi_id)
+planned=$(dw services deploy multi --image "$multi" --plan-only --json 2>/dev/null) || fail "planning the deploy failed"
+change=$(jq -r .change.id <<<"$planned")
+said=$(dw changes apply "$change" --yes 2>&1) || fail "deploying a build for another architecture failed: $said"
+moving_did "$change" "$want"
+if [[ "$want" == PLAN_ACTION_NONE ]]; then
+  [[ "$(multi_id)" == "$before" ]] || fail "a build for another architecture replaced this server's container"
+fi
+moving_serves multi
+
+# Docker's own words for a tag with nothing for this server, which only it can say.
+push_index riscv64 other >/dev/null
+if said=$(dw services deploy multi --image "$multi_repo:other" --yes 2>&1); then fail "a tag with no build for this server deployed: $said"; fi
+[[ "$said" == *"has no build for this server's platform"* ]] || fail "a tag with no build for this server failed some other way: $said"
+moving_serves multi
+dw services delete multi --yes || fail "services delete multi failed"
+docker rmi "$multi" "$multi_repo@$index_first" "$multi_repo@$index_second" >/dev/null 2>&1 || true
 moving_tidy
 
 step "Ingress: Pebble, Let's Encrypt's test CA, on this machine"
@@ -2665,6 +2734,31 @@ members=$(docker network inspect --format '{{range .Containers}}{{.Name}} {{end}
 docker network inspect "${wiki_project}_default" >/dev/null || fail "wiki has no network of its own"
 listed=$(docker compose -p "$blog_project" ps --format '{{.Service}}') || fail "docker compose -p $blog_project ps failed"
 [[ "$listed" == db ]] || fail "docker compose lists '$listed' in blog's project, want db"
+
+step "Ingress: each project's route reaches its own service, with one name between them, through one Caddy"
+blog_site=blog.e2e-dockwell.example.net
+wiki_site=wiki.e2e-dockwell.example.net
+# In the container, and not its spec: all that's needed is to tell them apart.
+docker exec "${blog_project}-db-1" sh -c 'echo blog >/usr/share/nginx/html/index.html' || fail "can't write in blog's db"
+docker exec "${wiki_project}-db-1" sh -c 'echo wiki >/usr/share/nginx/html/index.html' || fail "can't write in wiki's db"
+dw routes create site --project blog --domain "$blog_site" --service db --port 80 --tls off --yes >/dev/null || fail "routes create for blog failed"
+dw routes create site --project wiki --domain "$wiki_site" --service db --port 80 --tls off --yes >/dev/null || fail "routes create for wiki failed"
+site_serves() {
+  local got=""
+  for _ in $(seq 100); do
+    got=$(curl -sS --max-time 2 --resolve "$1:80:127.0.0.1" "http://$1/" 2>/dev/null) || got=""
+    [[ "$got" == "$2" ]] && return 0
+    sleep 0.1
+  done
+  fail "http://$1/ serves '$got', want '$2'"
+}
+site_serves "$blog_site" blog
+site_serves "$wiki_site" wiki
+# One going leaves the other's.
+dw routes delete site --project blog --yes >/dev/null || fail "routes delete for blog failed"
+site_serves "$wiki_site" wiki
+dw routes delete site --project wiki --yes >/dev/null || fail "routes delete for wiki failed"
+
 # Naming one again updates it, and doesn't touch the other.
 wiki_state() { docker inspect --format '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}' "${wiki_project}-db-1"; }
 wiki_before=$(wiki_state) || fail "wiki's db isn't called ${wiki_project}-db-1"
@@ -2894,5 +2988,55 @@ on_agent=$(dw containers list --server e2e-agent --json) || fail "containers lis
 jq -e '.ownContainers >= 1' <<<"$on_agent" >/dev/null || fail "the list on the agent build doesn't say what it left out: $on_agent"
 dw containers delete e2e-agent-web --on e2e-agent --yes || fail "containers delete on the agent build failed"
 if docker inspect e2e-agent-web >/dev/null 2>&1; then fail "e2e-agent-web is left after deleting it"; fi
+
+step "One change reaches two servers, each with its own agent"
+# Both on this one Docker, so each container has a name of its own. What runs the same
+# service on two Dockers stays on the fake engine, as ADR 0021 says.
+own_id=$(dw servers list --json | jq -r --arg agent "$agent_id" '[.servers[] | select(.id != $agent) | .id] | first // empty') || fail "servers list failed"
+[[ -n "$own_id" ]] || fail "the control server isn't in the list of servers: $(dw servers list --json)"
+two_edit() {
+  printf '{"resource":{"kind":"container","scope":"%s","name":"%s"},"spec":{"container":{"image":"%s"}}}' "$1" "$2" "$3"
+}
+both() { dw changes propose --summary "$1" --edits "$(two_edit "$own_id" e2e-two-own "$2")" --edits "$(two_edit "$agent_id" e2e-two-agent "$2")" "${@:3}"; }
+both "Run one on each server" nginx:1.27-alpine --yes || fail "a change on two servers failed"
+image_of() { docker inspect --format '{{.Config.Image}}' "$1"; }
+for name in e2e-two-own e2e-two-agent; do
+  [[ "$(image_of "$name")" == nginx:1.27-alpine ]] || fail "$name runs $(image_of "$name")"
+done
+
+step "With a server offline, a change that needs it is refused by name, and touches nothing, until it's back"
+kill "$agent_pid"
+wait "$agent_pid" || true
+connection() { agent_server | jq -r '.server.connection // empty'; }
+state=""
+for _ in $(seq 100); do
+  state=$(connection)
+  [[ -n "$state" && "$state" != CONNECTION_CONNECTED ]] && break
+  sleep 0.1
+done
+[[ -n "$state" && "$state" != CONNECTION_CONNECTED ]] || fail "with its agent stopped, the server reads '$state'"
+planned=$(both "Move both" nginx:1.28-alpine --plan-only --json 2>/dev/null) || fail "planning with a server offline failed"
+jq -e '.change.plan.servers | any(.offline == true)' <<<"$planned" >/dev/null || fail "the plan doesn't say a server is offline: $planned"
+change=$(jq -r .change.id <<<"$planned")
+if said=$(dw changes apply "$change" --yes 2>&1); then fail "a change that needs an offline server applied: $said"; fi
+[[ "$said" == *"e2e-agent isn't connected"* ]] || fail "a change that needs an offline server was refused saying: $said"
+for name in e2e-two-own e2e-two-agent; do
+  [[ "$(image_of "$name")" == nginx:1.27-alpine ]] || fail "a refused change touched $name, which runs $(image_of "$name")"
+done
+dw changes discard "$change" >/dev/null || fail "discarding the change failed"
+"$agent" run --data-dir "$agent_data" --log-format json >>"$agent_log" 2>&1 &
+agent_pid=$!
+for _ in $(seq 300); do
+  state=$(connection)
+  [[ "$state" == CONNECTION_CONNECTED ]] && break
+  sleep 0.1
+done
+[[ "$state" == CONNECTION_CONNECTED ]] || fail "the agent didn't come back within 30 s: it reads '$state'"
+both "Move both" nginx:1.28-alpine --yes || fail "the change failed with its server back"
+for name in e2e-two-own e2e-two-agent; do
+  [[ "$(image_of "$name")" == nginx:1.28-alpine ]] || fail "with its server back, $name runs $(image_of "$name")"
+done
+dw containers delete e2e-two-own --on "$own_id" --yes || fail "deleting e2e-two-own failed"
+dw containers delete e2e-two-agent --on "$agent_id" --yes || fail "deleting e2e-two-agent failed"
 
 echo "docker-e2e: ok"
