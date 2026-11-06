@@ -393,5 +393,7 @@ func testOpenAllReadsEachKeyOnce(t *testing.T, backend store.Backend) {
 	}
 	if _, _, err := read([]store.StoredSpec{{At: secretAt("sec_0"), Spec: []byte("plain")}}); !errors.Is(err, secrets.ErrUnsealed) {
 		t.Errorf("a spec that should be sealed and isn't = %v, want ErrUnsealed", err)
+	} else if !strings.Contains(err.Error(), "sec_0") || !strings.Contains(err.Error(), "Restore the database from a backup") {
+		t.Errorf("a list's spec that should be sealed and isn't = %v, want it to name the row and say what to do", err)
 	}
 }
