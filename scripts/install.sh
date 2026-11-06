@@ -939,6 +939,14 @@ That removes this server's identity. On a control server it also removes the
 record of every server that joined, so each of them would have to join again.
 EOF
 	fi
+	if [ -d "$DATA/agent/kept-logs" ]; then
+		cat <<EOF
+
+The logs it kept of removed containers are in $DATA/agent/kept-logs. They may
+hold secrets, and with Dockwell gone nothing removes them after their 30 days.
+To delete only those, run: rm -rf $DATA/agent/kept-logs
+EOF
+	fi
 }
 
 # ingress_containers lists the containers of Dockwell's ingress, running or not:

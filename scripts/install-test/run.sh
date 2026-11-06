@@ -357,8 +357,10 @@ ok "refused v$OLD over v$NEW, said why, and the service kept running"
 
 step "Uninstall"
 stop_direct
+mkdir -p "$DATA/agent/kept-logs"
 run_install good --uninstall || die "uninstalling failed"
 said "Removed Dockwell"
+said "$DATA/agent/kept-logs"
 [ ! -e "$BIN" ] || die "$BIN is still there"
 if [ -e "$UNIT" ] || [ -e "$INITD" ]; then die "the service is still there"; fi
 [ ! -e /etc/systemd/system/multi-user.target.wants/dockwell.service ] || die "dockwell.service is still enabled"
@@ -553,6 +555,7 @@ said "is already installed on this server, as the agent build"
 said "already belongs to the control plane at"
 stop_direct
 run_install good --uninstall || die "uninstalling the agent failed"
+if grep -qF "kept-logs" "$log/out"; then die "uninstalling names kept logs on a server that has none"; fi
 
 step "A server that joined with v$OLD switches to the agent build"
 # v$OLD stands in for a release from before the agent build: it has only the
