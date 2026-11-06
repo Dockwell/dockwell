@@ -34,6 +34,8 @@ const (
 	whyDev        = "the server's devices, its disks among them"
 	whyRun        = "what running services keep for now, each container's environment among it"
 	whyDockerCopy = "a copy of what Docker keeps of a container or a volume, with the secrets in it"
+	whyPrivateKey = "a private key"
+	whyHashes     = "a list of password hashes"
 )
 
 // shutPlaces are the server's own directories no one reads through here.

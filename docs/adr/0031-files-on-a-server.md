@@ -36,7 +36,7 @@ The agent refuses these whoever asks. No step-up opens them.
 | Dockwell's data directory | The install's key and the database, which together open every secret; the agent's key; the proxy's certificates |
 | Docker's data root, other than each volume's `_data`, and containerd's | `containers/<id>/config.v2.json` holds a container's environment, secrets' values included, and a volume's `opts.json` a CIFS password |
 | `/proc`, `/sys`, `/dev`, `/run` | These aren't files. `/proc/<pid>/environ` is a process's environment, `/proc/<pid>/root` a container's disk, `/dev/sda` the server's, and `/run/containerd` holds each container's runtime spec with its environment |
-| `/etc/shadow`, `/etc/gshadow` and their backups, `.pgpass`, and any file whose text holds a PEM private key | They can be told for certain, and have no reason to be in a browser. SSH host keys, users' SSH keys and TLS keys are all PEM |
+| `/etc/shadow`, `/etc/gshadow`, `.pgpass`, and any file whose text holds password hashes or a PEM private key | They can be told for certain, and have no reason to be in a browser. A backup of a shadow file goes by what it holds, as its name proves nothing. SSH host keys, users' SSH keys and TLS keys are all PEM |
 | Anything that isn't a regular file or a directory | Sockets, FIFOs and devices have nothing to show, and reading a FIFO would hang |
 
 A step-up doesn't open these because one tap would open every secret at once, where ADR 0022 asks one tap for each.

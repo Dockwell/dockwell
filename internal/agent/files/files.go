@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -194,16 +195,14 @@ func (s *Server) Read(ctx context.Context, p string) (*agentv1.ReadFileResult, e
 		return &agentv1.ReadFileResult{Refusal: refusal}, nil
 	}
 	out := &dockwellv1.ReadFileResponse{Path: where, File: entry(w.last().name, &w.st, owners{}), Truncated: truncated}
-	switch {
-	case isBinary(text):
+	if isBinary(text) {
 		out.Binary, out.Truncated = true, false
-	case holdsPrivateKey(text):
-		return &agentv1.ReadFileResult{Refusal: refused(where, "a private key")}, nil
-	case holdsDockerState(text):
-		return &agentv1.ReadFileResult{Refusal: refused(where, whyDockerCopy)}, nil
-	default:
-		out.Content = string(text)
+		return &agentv1.ReadFileResult{File: out}, nil
 	}
+	if why := whatItHolds(text); why != "" {
+		return &agentv1.ReadFileResult{Refusal: refused(where, why)}, nil
+	}
+	out.Content = string(text)
 	return &agentv1.ReadFileResult{File: out}, nil
 }
 
@@ -258,31 +257,48 @@ func isBinary(text []byte) bool {
 	return bytes.IndexByte(text, 0) >= 0 || !utf8.Valid(text)
 }
 
-// holdsPrivateKey finds a PEM private key on a line of its own, which is how
-// every tool writes one, and which a document that only mentions one isn't.
-func holdsPrivateKey(text []byte) bool {
-	for rest := text; ; {
-		i := bytes.Index(rest, []byte("-----BEGIN "))
-		if i < 0 {
-			return false
-		}
-		atStart := i == 0 || rest[i-1] == '\n'
-		rest = rest[i:]
-		line, after, _ := bytes.Cut(rest, []byte("\n"))
-		if atStart && bytes.HasSuffix(bytes.TrimRight(line, "\r "), []byte("PRIVATE KEY-----")) {
-			return true
-		}
-		rest = after
+// whatItHolds says what a text is when it holds something that goes by what it
+// holds, whatever the file is called, or nothing.
+func whatItHolds(text []byte) string {
+	switch {
+	case holdsPrivateKey(text):
+		return whyPrivateKey
+	case hashLine.Match(text):
+		return whyHashes
+	case holdsDockerState(text):
+		return whyDockerCopy
 	}
+	return ""
 }
 
+// beforeKey is what can come before a key on its line: an indent, as in YAML, and
+// the byte order mark at the start of a file.
+const beforeKey = " \t\ufeff"
+
+// holdsPrivateKey finds a PEM private key on a line of its own, indented or not,
+// which is how every tool writes one, and which a document that only mentions one
+// isn't.
+func holdsPrivateKey(text []byte) bool {
+	for line := range bytes.Lines(text) {
+		line = bytes.TrimRight(bytes.TrimLeft(line, beforeKey), " \t\r\n")
+		if bytes.HasPrefix(line, []byte("-----BEGIN ")) && bytes.HasSuffix(line, []byte("PRIVATE KEY-----")) {
+			return true
+		}
+	}
+	return false
+}
+
+// hashLine is a line of a password file, as /etc/shadow and its copies have it,
+// and .htpasswd: a name, then a hash in crypt's $id$ form, locked or not.
+var hashLine = regexp.MustCompile(`(?m)^[^:\s#]+:[!*]*\$[0-9a-z-]{1,16}\$\S`)
+
 // credentials says what a path holds when it is one of the server's own
-// credentials by its name, or nothing. What's in a private key's name proves
-// nothing, so those go by what they hold.
+// credentials by its name, or nothing, for what a listing can mark. A name proves
+// little, so what's read goes by what it holds too (whatItHolds).
 func credentials(p string) string {
 	switch p {
 	case "/etc/shadow", "/etc/shadow-", "/etc/gshadow", "/etc/gshadow-":
-		return "the server's password hashes"
+		return whyHashes
 	}
 	switch path.Base(p) {
 	case ".pgpass":

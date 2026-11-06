@@ -693,3 +693,69 @@ func TestWhatDockerKeepsIsRefusedWhereverItTurnsUp(t *testing.T) {
 		t.Errorf("the listing reads as %v", l.GetEntries())
 	}
 }
+
+func TestPasswordHashesAreRefusedByWhatTheyHold(t *testing.T) {
+	d := newDisk(t)
+	sha := "root:$6$saltsalt$abcdefghijklmnopqrstuvwxyz:19000:0:99999:7:::\n"
+	for name, content := range map[string]string{
+		"var/backups/shadow.bak": sha,
+		"etc/shadow~":            sha,
+		"etc/shadow.bak":         sha,
+		"mnt/root/etc/shadow":    sha,
+		"yescrypt":               "daemon:*:19000::::::\nmira:$y$j9T$abcdefgh$ijklmnopqrstuvwxyz:19000:0:99999:7:::\n",
+		"bcrypt":                 "mira:$2b$12$abcdefghijklmnopqrstuv:19000::::::\n",
+		"locked":                 "mira:!$6$saltsalt$abcdefgh:19000::::::\n",
+		"htpasswd":               "mira:$apr1$abcdefgh$ijklmnopqrstuv\n",
+	} {
+		p := filepath.Join(d.root, "hashes", name)
+		write(t, p, content)
+		if got := refusalOf(t, d, p); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED || !strings.Contains(got.GetMessage(), "password hashes") {
+			t.Errorf("%s: %v", name, got)
+		}
+	}
+	for name, content := range map[string]string{
+		"passwd":   "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n",
+		"shell":    "export PATH=$HOME/bin:$PATH\nfoo:$(bar)\n",
+		"yaml":     "image: nginx:$TAG\nport: $PORT$\n",
+		"comment":  "# root:$6$saltsalt$abcdefgh\n",
+		"prices":   "total: $5$ and more\n",
+		"makefile": "all:$(OBJ)\n\t$(CC) -o $@ $^\n",
+	} {
+		p := filepath.Join(d.root, "plain", name)
+		write(t, p, content)
+		if d.read(t, p).GetFile() == nil {
+			t.Errorf("%s reads as hashes", name)
+		}
+	}
+}
+
+func TestAPrivateKeyIsRefusedHoweverItIsSetIn(t *testing.T) {
+	d := newDisk(t)
+	const bom = "\xef\xbb\xbf"
+	for name, content := range map[string]string{
+		"column-0":   "-----BEGIN PRIVATE KEY-----\nMIIE\n",
+		"indented":   "tls:\n  key: |\n    -----BEGIN PRIVATE KEY-----\n    MIIE\n",
+		"tab":        "\t-----BEGIN RSA PRIVATE KEY-----\nMIIE\n",
+		"bom":        bom + "-----BEGIN OPENSSH PRIVATE KEY-----\nMIIE\n",
+		"bom-spaces": bom + "  -----BEGIN EC PRIVATE KEY-----\r\nMIIE\r\n",
+		"crlf":       "a\r\n\t  -----BEGIN ENCRYPTED PRIVATE KEY-----  \r\nMIIE\r\n",
+		"after-cert": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n   -----BEGIN PRIVATE KEY-----\nMIIE\n",
+	} {
+		p := filepath.Join(d.root, "keys", name)
+		write(t, p, content)
+		if got := refusalOf(t, d, p); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Errorf("%s: %v", name, got)
+		}
+	}
+	for name, content := range map[string]string{
+		"mention":     "Paste -----BEGIN PRIVATE KEY----- here\n",
+		"public":      "  -----BEGIN PUBLIC KEY-----\nMIIB\n",
+		"certificate": "\t-----BEGIN CERTIFICATE-----\nMIIB\n",
+	} {
+		p := filepath.Join(d.root, "plain-keys", name)
+		write(t, p, content)
+		if d.read(t, p).GetFile() == nil {
+			t.Errorf("%s reads as a key", name)
+		}
+	}
+}

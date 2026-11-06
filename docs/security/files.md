@@ -26,7 +26,8 @@ The agent refuses these whoever asks, over every surface, and no step-up opens t
 | `/proc`, `/sys`, `/dev` and `/run` | They aren't files: a process's environment, a container's disk through `/proc/<pid>/root`, the server's disks, and each container's runtime spec, which holds its environment. `/var/run` leads to `/run` |
 | `/etc/shadow`, `/etc/shadow-`, `/etc/gshadow`, `/etc/gshadow-` | The server's password hashes |
 | Any file named `.pgpass` | It can hold the control plane's database password |
-| Any file whose text has a PEM private key on a line of its own | SSH host keys, users' SSH keys and TLS keys, wherever they are and whatever they are called |
+| Any file whose text has lines of password hashes, `name:$id$…`, locked or not | A copy of a shadow file, such as `/var/backups/shadow.bak`, or a `.htpasswd`, whatever it is called |
+| Any file whose text has a PEM private key on a line of its own, indented or not, or after a byte order mark | SSH host keys, users' SSH keys and TLS keys, wherever they are and whatever they are called, in a YAML file too |
 | Anything that isn't a regular file or a directory | Sockets, FIFOs and devices have nothing to show |
 
 ## Who we consider
@@ -70,7 +71,7 @@ It can't reach past its container on its own. What it can do is leave things for
 | Fill a directory with entries, or with long link targets, to take the agent's stream down | A listing stops at 5,000 entries and 4 MiB, and says so |
 | Name a file so it can't be sent, with bytes that aren't UTF-8 | The listing carries on, and shows that one name as well as it can, marked. It can't be opened from the panel |
 | Write markup in a file, to run in the panel | Contents are text in a `<pre>`, with nothing rendered, whatever the file's name says |
-| Hide a private key from the check | It can. The check finds PEM on a line of its own. See [known gaps](#known-gaps) |
+| Hide a private key from the check | It can. The check finds PEM on a line of its own, indented or not. See [known gaps](#known-gaps) |
 
 ### Something unprivileged on the server
 
