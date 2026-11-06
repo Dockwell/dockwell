@@ -22,10 +22,12 @@
 # runs under load through that Caddy, with an app slow to turn healthy and one that
 # never does, counting every request, and an app and its route go to a new port in
 # one change. A container run by hand lists and reads through the CLI, and nothing
-# touches it. A tag listed for two architectures in that local registry says what
-# ran, and two projects' routes reach a service of one name each through one Caddy.
-# One change reaches two servers, with the agent build as the second, and one offline
-# is refused by name. It uses throwaway data directories and removes
+# touches it, and one is taken on with no restart, its image changes, and that
+# undoes, keeping its volume, environment and network. A tag listed for two
+# architectures in that local registry says what ran, and two projects' routes reach
+# a service of one name each through one Caddy. One change reaches two servers, with
+# the agent build as the second, and one offline is refused by name. It uses
+# throwaway data directories and removes
 # what it made, so it never touches a real install. It needs Docker with the compose
 # plugin, Go, curl, jq, openssl, pgrep and iproute2's ss, a free port (E2E_WEB_PORT,
 # 18080 by default), and ports 80 and 443 free, for the ingress's own part. With
@@ -136,8 +138,9 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-by-hand e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
-  docker volume rm e2e-by-hand-data >/dev/null 2>&1 || true
+  docker rm --force e2e-by-hand e2e-take-on e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker volume rm e2e-by-hand-data e2e-take-on-data >/dev/null 2>&1 || true
+  docker network rm e2e-by-hand-net >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
@@ -435,6 +438,68 @@ docker compose -p e2e-remade -f "$remade_file" down --volumes --timeout 1 >/dev/
 rm -f "$remade_file"
 docker rm --force e2e-by-hand >/dev/null || fail "docker rm e2e-by-hand failed"
 docker volume rm e2e-by-hand-data >/dev/null || fail "docker volume rm e2e-by-hand-data failed"
+
+step "A container run by hand is taken on with no restart, its image changes with a plan, and that undoes"
+# On a network of its own, with a port, a volume holding what it wrote, and a value
+# nothing may show, as the container someone moved here runs.
+docker network create e2e-by-hand-net >/dev/null || fail "docker network create failed"
+docker run --detach --name e2e-take-on --restart always --network e2e-by-hand-net --env E2E_TAKEN=not-in-any-plan \
+  --publish 127.0.0.1:18096:80 --volume e2e-take-on-data:/data nginx:1.26-alpine \
+  sh -c 'echo kept-through-it-all >/data/note; echo e2e-take-on-says-hello; exec nginx -g "daemon off;"' >/dev/null ||
+  fail "docker run e2e-take-on failed"
+take_on_started=$(touched e2e-take-on) || fail "docker inspect e2e-take-on failed"
+adopted=$(dw containers adopt e2e-take-on --service taken --plan-only --json) || fail "containers adopt failed: $adopted"
+[[ "$adopted" != *not-in-any-plan* ]] || fail "the plan shows a value of the container's environment: $adopted"
+adopt_change=$(jq -r '.change.id' <<<"$adopted") || fail "containers adopt printed what isn't JSON: $adopted"
+token_refused "$adopt_change"
+person_apply "$adopt_change"
+[[ "$(touched e2e-take-on)" == "$take_on_started" ]] ||
+  fail "taking it on touched e2e-take-on: $take_on_started, then $(touched e2e-take-on)"
+[[ "$(docker inspect --format '{{.Name}}' e2e-take-on)" == /e2e-take-on ]] || fail "taking it on renamed it"
+listed=$(dw containers list --json) || fail "containers list failed"
+[[ "$listed" != *'"e2e-take-on"'* ]] || fail "e2e-take-on is still among what Dockwell didn't make: $listed"
+said=$(dw logs read taken) || fail "logs read taken failed"
+[[ "$said" == *e2e-take-on-says-hello* ]] || fail "the service's log doesn't have what the container printed: $said"
+drift=$(dw drift list --json) || fail "drift list failed"
+[[ "$(jq '.drift // [] | length' <<<"$drift")" == 0 ]] || fail "what was taken on reads as drift: $drift"
+history=$(dw changes list --json) || fail "changes list failed"
+[[ "$history" != *not-in-any-plan* ]] || fail "the change's record shows a value of the environment: $history"
+
+# The point of it all: a new tag is an ordinary plan, and what it had comes through.
+dw services deploy taken --image nginx:1.27-alpine --yes || fail "deploying a new image of taken failed"
+if docker inspect e2e-take-on >/dev/null 2>&1; then fail "the container taken on is still there after a change of image"; fi
+image_change=$(dw changes list --json | jq -r '.changes[0].id') || fail "changes list failed"
+taken_container() {
+  docker ps --filter "label=com.docker.compose.service=taken" --format '{{.Names}}' | head -1
+}
+holds() {
+  local want_image=$1 name
+  name=$(taken_container)
+  [[ -n "$name" ]] || fail "nothing runs as taken: $(docker ps -a --format '{{.Names}} {{.Status}}')"
+  [[ "$(docker inspect --format '{{.Config.Image}}' "$name")" == "$want_image" ]] ||
+    fail "taken runs $(docker inspect --format '{{.Config.Image}}' "$name"), want $want_image"
+  docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$name" | grep -qx 'E2E_TAKEN=not-in-any-plan' ||
+    fail "taken lost its environment"
+  [[ "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$name")" == always ]] || fail "taken lost its restart policy"
+  [[ "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' "$name")" == e2e-take-on-data ]] ||
+    fail "taken doesn't mount the volume it came with: $(docker inspect --format '{{json .Mounts}}' "$name")"
+  [[ "$(docker exec "$name" cat /data/note)" == kept-through-it-all ]] || fail "what taken wrote to its volume is gone"
+  docker inspect --format '{{range $n, $e := .NetworkSettings.Networks}}{{println $n}}{{end}}' "$name" | grep -qx e2e-by-hand-net ||
+    fail "taken left the network it was on"
+  docker inspect --format '{{json .NetworkSettings.Networks}}' "$name" | grep -q '"e2e-take-on"' ||
+    fail "taken no longer answers to the name it came with: $(docker inspect --format '{{json .NetworkSettings.Networks}}' "$name")"
+  for _ in $(seq 100); do
+    curl -fsS -o /dev/null http://127.0.0.1:18096/ && return 0
+    sleep 0.1
+  done
+  fail "taken doesn't answer on its port"
+}
+holds nginx:1.27-alpine
+dw changes undo "$image_change" --yes || fail "undoing the change of image failed"
+holds nginx:1.26-alpine
+dw services delete taken --yes || fail "deleting taken failed"
+docker network rm e2e-by-hand-net >/dev/null || fail "docker network rm e2e-by-hand-net failed"
+docker volume rm e2e-take-on-data >/dev/null || fail "docker volume rm e2e-take-on-data failed"
 
 step "It changes, and the change undoes"
 dw services update web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hi --yes ||
