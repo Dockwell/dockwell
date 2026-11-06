@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.agent.v1;
 
 import "dockwell/v1/change.proto";
+import "dockwell/v1/container.proto";
 import "dockwell/v1/domain.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/log.proto";
@@ -300,7 +301,16 @@ message Call {
     LogsCall logs = 7;
     // Says which services' kept logs are out of reach.
     ForgottenCall forgotten = 8;
+    // List the containers Docker has.
+    ContainersCall containers = 9;
   }
+}
+
+// ContainersCall asks which containers Docker has, as it lists them, so nothing
+// is touched and no container's environment is read.
+message ContainersCall {
+  // Only this container, by its full ID or its exact name. Empty lists them all.
+  string container = 1;
 }
 
 // LogSourcesCall asks which containers a service has logs from.
@@ -310,6 +320,8 @@ message LogSourcesCall {
   // What the server kept of revisions up to this isn't listed, as a deletion put it
   // out of reach.
   int64 forgotten_up_to = 2;
+  // In place of a service, a container Dockwell didn't make, by its full ID.
+  string container = 3;
 }
 
 // ForgottenCall says which services' kept logs a deletion put out of reach, for what
@@ -380,6 +392,9 @@ message LogsCall {
   // What the server kept of revisions up to this isn't read, as a deletion put it
   // out of reach.
   int64 forgotten_up_to = 18;
+  // In place of a service, a container Dockwell didn't make, by its full ID. The
+  // server keeps nothing of such a container, so what Docker has is all there is.
+  string container = 19;
 }
 
 // LogCursor is a place in one source's lines.
@@ -533,7 +548,21 @@ message CallResult {
     LogsResult logs = 7;
     // Answers forgotten.
     ForgottenResult forgotten = 8;
+    // The containers a containers call found.
+    ContainersResult containers = 9;
   }
+}
+
+// ContainersResult lists the containers Docker has.
+message ContainersResult {
+  // The containers, as far as they fit in one message on the agent's stream, and
+  // leaving out what runs the server's ingress, which is Dockwell's own whatever
+  // the control plane knows of the server.
+  repeated dockwell.v1.ServerContainer containers = 1;
+  // How many this leaves out for being what runs the ingress.
+  int32 ingress = 2;
+  // How many more Docker has that didn't fit.
+  int32 unlisted = 3;
 }
 
 // LogSourcesResult lists the containers a service has logs from.

@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// ContainerService reads the containers on a server that Dockwell didn't make:
+// those that were there before it, and those someone runs by hand or with a
+// Compose file of their own. Reading them changes nothing, and nothing here
+// comes from a container's environment, which may hold secrets, or its labels
+// and command, which may too. See docs/adr/0031-containers-dockwell-didnt-make.md.
+//
+// A service's containers aren't here: they are the service's. ReadLogs and
+// WatchLogs read what one of these prints, given its server.
+service ContainerService {
+  // ListContainers returns the containers on a server that Dockwell didn't
+  // make, by name, running or not.
+  rpc ListContainers(ListContainersRequest) returns (ListContainersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/containers"};
+  }
+}
+
+// ListContainersRequest names a server.
+message ListContainersRequest {
+  // The server, by name or ID. It can be left out while there is only one.
+  string server = 1;
+}
+
+// ListContainersResponse lists a server's containers that Dockwell didn't make.
+message ListContainersResponse {
+  // The containers, by name.
+  repeated ServerContainer containers = 1;
+  // How many containers on the server are Dockwell's own, which aren't listed:
+  // those of its services, and what runs its ingress.
+  int32 own_containers = 2;
+  // How many more the server has than fit in a list, which are left out, and may
+  // be Dockwell's own or not. Zero while the list is whole.
+  int32 unlisted = 3;
+}
+
+// ServerContainer is a container on a server, as Docker lists it.
+message ServerContainer {
+  // Its full ID.
+  string id = 1;
+  // Its name, such as "nginx".
+  string name = 2;
+  // The image it was made from, such as "nginx:1.27". Once that name means
+  // another image, or none, this is the ID of the one it runs, such as
+  // "sha256:3f2a…", as Docker lists it.
+  string image = 3;
+  // Where it is now.
+  ContainerState state = 4;
+  // How it is, in Docker's own words, such as "Up 3 hours (healthy)" or
+  // "Exited (137) 2 days ago".
+  string status = 5;
+  // When it was made.
+  google.protobuf.Timestamp create_time = 6;
+  // The ports it publishes on the server now, by port. A stopped container
+  // publishes none, and one on the server's own network needs none.
+  repeated ContainerPort ports = 7;
+  // How many more ports it publishes than are listed.
+  int32 more_ports = 8;
+  // The volumes and server paths mounted in it, by where it mounts them.
+  repeated ContainerMount mounts = 9;
+  // How many more it mounts than are listed.
+  int32 more_mounts = 10;
+  // The Compose project it is part of, as its labels say. Empty for a
+  // container on its own.
+  string compose_project = 11;
+  // Its service in that project.
+  string compose_service = 12;
+  // True for a container that docker compose run made for one command.
+  bool one_off = 13;
+}
+
+// ContainerState is where a container is, as Docker says it.
+enum ContainerState {
+  CONTAINER_STATE_UNSPECIFIED = 0;
+  // Made, and not started yet.
+  CONTAINER_STATE_CREATED = 1;
+  // Running.
+  CONTAINER_STATE_RUNNING = 2;
+  // Paused: its processes are frozen.
+  CONTAINER_STATE_PAUSED = 3;
+  // Exited, and Docker is restarting it.
+  CONTAINER_STATE_RESTARTING = 4;
+  // Docker is removing it.
+  CONTAINER_STATE_REMOVING = 5;
+  // Stopped.
+  CONTAINER_STATE_EXITED = 6;
+  // Docker couldn't remove it, and it can't run again.
+  CONTAINER_STATE_DEAD = 7;
+}
+
+// ContainerPort is a port a container publishes on the server.
+message ContainerPort {
+  // The port on the server, such as 8080.
+  uint32 server_port = 1;
+  // The port in the container, such as 80.
+  uint32 container_port = 2;
+  // The server address it is bound to. Empty means every address.
+  string address = 3;
+  // "tcp" or "udp".
+  string protocol = 4;
+}
+
+// ContainerMount is a volume or a server path mounted in a container.
+message ContainerMount {
+  // The volume's name. Empty for a server path.
+  string volume = 1;
+  // True for a volume Docker made for a path in the image, with no name of its own.
+  bool anonymous = 2;
+  // The server path. Empty for a volume.
+  string host_path = 3;
+  // Where the container sees it, such as "/var/lib/postgresql/data".
+  string target = 4;
+  // True when the container can't write to it.
+  bool read_only = 5;
+}

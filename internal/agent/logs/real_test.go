@@ -252,7 +252,7 @@ func TestLogsOnRealDocker(t *testing.T) {
 	}
 	cancel5()
 
-	found, err := reader.Sources(t.Context(), ref, 0)
+	found, err := reader.Sources(t.Context(), &agentv1.LogSourcesCall{Resource: ref})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -32,10 +32,12 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -90,12 +92,13 @@ const (
 
 // Handler implements LogService.
 type Handler struct {
-	agents  *agentapi.Agents
-	changes *changes.Handler
-	db      *store.DB
-	logger  *slog.Logger
-	now     func() time.Time
-	options Options
+	agents     *agentapi.Agents
+	changes    *changes.Handler
+	containers *containers.Handler
+	db         *store.DB
+	logger     *slog.Logger
+	now        func() time.Time
+	options    Options
 
 	auditMu sync.Mutex
 	audited map[string]time.Time
@@ -201,7 +204,7 @@ func New(agents *agentapi.Agents, ch *changes.Handler, db *store.DB, logger *slo
 		options.Now = time.Now
 	}
 	h := &Handler{
-		agents: agents, changes: ch, db: db, logger: logger, now: options.Now, options: options,
+		agents: agents, changes: ch, containers: containers.New(agents, db, logger), db: db, logger: logger, now: options.Now, options: options,
 		audited: map[string]time.Time{}, pages: map[string]int{},
 	}
 	agents.OnConnect(func(server string) { h.tell(context.Background(), server) })
@@ -216,11 +219,14 @@ type server struct {
 	placed bool
 }
 
-// target is a service asked for by a request.
+// target is a service asked for by a request, or a container Dockwell didn't make.
 type target struct {
 	id          string
 	ref         resource.Ref
 	environment string
+	// container is the full ID of a container Dockwell didn't make, for a target that
+	// is one. It runs on the one server in servers, which ref's scope names.
+	container string
 	// deleted says it has no spec now, which a deletion leaves, and so does a first
 	// deploy that failed and was rolled back, whose logs can be read.
 	deleted bool
@@ -231,6 +237,46 @@ type target struct {
 
 func (t *target) proto() *dockwellv1.LoggedService {
 	return &dockwellv1.LoggedService{Id: t.id, Name: t.ref.Name, Environment: t.environment, Deleted: t.deleted}
+}
+
+// subject is what the audit log says was read: a service, or the server of a
+// container, as a container has no ID of Dockwell's. It goes by the server's own,
+// which lasts longer than a container does.
+func (t *target) subject() string {
+	if t.container != "" {
+		return t.ref.Scope
+	}
+	return t.id
+}
+
+// said is how the audit log names what was read.
+func (t *target) said() string {
+	if t.container != "" {
+		return "the container " + t.ref.Name + " on " + t.servers[0].name
+	}
+	return t.ref.Name
+}
+
+// resolveAny finds what a request names: a service, or with a server, a container
+// Dockwell didn't make there.
+func (h *Handler) resolveAny(ctx context.Context, name, project, environment, onServer string) (*target, error) {
+	if onServer == "" {
+		return h.resolve(ctx, name, project, environment)
+	}
+	if name == "" {
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("name a container, by its name or its full ID"), "invalid")
+	}
+	if project != "" || environment != "" {
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("a server names a container, which lives in no project or environment, so leave those out"), "invalid")
+	}
+	s, c, err := h.containers.Find(ctx, onServer, name)
+	if err != nil {
+		return nil, err
+	}
+	return &target{
+		id: c.GetId(), container: c.GetId(), ref: resource.Ref{Kind: container.Kind, Scope: s.ID, Name: c.GetName()},
+		servers: []server{{id: s.ID, name: s.Name, placed: true}},
+	}, nil
 }
 
 // resolve finds the service a request names. One with no spec can be asked for by
@@ -369,8 +415,8 @@ func (h *Handler) record(ctx context.Context, t *target, what string) error {
 	client, _ := authapi.ClientFrom(ctx)
 	err := h.db.Update(ctx, func(tx *store.Tx) error {
 		return tx.RecordEvent(ctx, store.Event{
-			ID: id.New(id.Event), At: now, Actor: actor, Action: "logs.read", Subject: t.id, Target: t.id,
-			Detail: what + " " + t.ref.Name, Surface: client.Surface(p),
+			ID: id.New(id.Event), At: now, Actor: actor, Action: "logs.read", Subject: t.subject(), Target: t.subject(),
+			Detail: what + " " + t.said(), Surface: client.Surface(p),
 		})
 	})
 	if err != nil {
@@ -413,8 +459,8 @@ func (h *Handler) recordEnd(ctx context.Context, t *target, began time.Time) {
 	client, _ := authapi.ClientFrom(ctx)
 	err := h.db.Update(ctx, func(tx *store.Tx) error {
 		return tx.RecordEvent(ctx, store.Event{
-			ID: id.New(id.Event), At: now, Actor: actor, Action: "logs.read", Subject: t.id, Target: t.id,
-			Detail: "stopped following " + t.ref.Name + " after " + human.Duration(lasted.Round(time.Second)), Surface: client.Surface(p),
+			ID: id.New(id.Event), At: now, Actor: actor, Action: "logs.read", Subject: t.subject(), Target: t.subject(),
+			Detail: "stopped following " + t.said() + " after " + human.Duration(lasted.Round(time.Second)), Surface: client.Surface(p),
 		})
 	})
 	if err != nil {
@@ -437,7 +483,7 @@ func (h *Handler) forgetOldest() {
 // ListLogSources returns the containers a service has logs from.
 func (h *Handler) ListLogSources(ctx context.Context, req *connect.Request[dockwellv1.ListLogSourcesRequest]) (*connect.Response[dockwellv1.ListLogSourcesResponse], error) {
 	m := req.Msg
-	t, err := h.resolve(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
+	t, err := h.resolveAny(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), m.GetServer())
 	if err != nil {
 		return nil, err
 	}
@@ -470,7 +516,7 @@ func (h *Handler) sourcesOn(ctx context.Context, t *target, s server) ([]*dockwe
 	}
 	ctx, cancel := context.WithTimeout(ctx, callWait)
 	defer cancel()
-	sources, err := session.LogSources(ctx, resourceRef(t.ref), int64(t.forgotten.UpTo))
+	sources, err := session.LogSources(ctx, &agentv1.LogSourcesCall{Resource: resourceRef(t.ref), ForgottenUpTo: int64(t.forgotten.UpTo), Container: t.container})
 	if err != nil {
 		return nil, unavailable(s, err)
 	}
@@ -571,7 +617,7 @@ func (h *Handler) takePageFor(ctx context.Context, who string) error {
 // ReadLogs returns a page of a service's log lines.
 func (h *Handler) ReadLogs(ctx context.Context, req *connect.Request[dockwellv1.ReadLogsRequest]) (*connect.Response[dockwellv1.ReadLogsResponse], error) {
 	m := req.Msg
-	t, err := h.resolve(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
+	t, err := h.resolveAny(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), m.GetServer())
 	if err != nil {
 		return nil, err
 	}
@@ -616,7 +662,7 @@ func (h *Handler) ReadLogs(ctx context.Context, req *connect.Request[dockwellv1.
 		return &agentv1.LogsCall{
 			Resource: resourceRef(t.ref), Since: m.GetSince(), Last: m.GetLast(), Until: m.GetUntil(), Tail: int32(size), //nolint:gosec // bounded by MaxPageSize
 			SourceIds: sources, Revision: m.GetRevision(), ChangeId: m.GetChangeId(), ForgottenUpTo: int64(t.forgotten.UpTo),
-			Levels: m.GetLevels(), Query: m.GetQuery(), IncludeKept: true, Before: before.cursors(server), Reader: who,
+			Levels: m.GetLevels(), Query: m.GetQuery(), IncludeKept: true, Before: before.cursors(server), Reader: who, Container: t.container,
 		}
 	}
 	page := newPage(size, before)
@@ -1135,7 +1181,7 @@ type event struct {
 // WatchLogs sends a service's newest lines, then follows them.
 func (h *Handler) WatchLogs(ctx context.Context, req *connect.Request[dockwellv1.WatchLogsRequest], stream *connect.ServerStream[dockwellv1.WatchLogsResponse]) error {
 	m := req.Msg
-	t, err := h.resolve(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
+	t, err := h.resolveAny(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), m.GetServer())
 	if err != nil {
 		return err
 	}
@@ -1169,7 +1215,7 @@ func (h *Handler) WatchLogs(ctx context.Context, req *connect.Request[dockwellv1
 	base := &agentv1.LogsCall{
 		Resource: resourceRef(t.ref), Since: m.GetSince(), Last: m.GetLast(), Until: m.GetUntil(), Tail: tail, Follow: !m.GetOnce(),
 		SourceIds: m.GetSourceIds(), Revision: m.GetRevision(), ChangeId: m.GetChangeId(), ForgottenUpTo: int64(t.forgotten.UpTo),
-		Levels: m.GetLevels(), Query: m.GetQuery(), Reader: reader(ctx),
+		Levels: m.GetLevels(), Query: m.GetQuery(), Reader: reader(ctx), Container: t.container,
 		// A range and a read to the end take in what the servers kept, as lines
 		// of that time may be there. Following shows what runs now.
 		IncludeKept: m.GetOnce() || m.GetSince() != nil || m.GetLast() != nil || m.GetUntil() != nil,
@@ -1340,8 +1386,12 @@ func (w *watch) caughtUp(m *dockwellv1.WatchLogsResponse) {
 
 // lookAgain finds servers the service moved to since the stream started, and ends
 // the stream if a deletion has put what it reads out of reach since then. A service
-// made again since is read afresh, for what the new one wrote alone.
+// made again since is read afresh, for what the new one wrote alone. A container
+// goes nowhere: its agent says if it goes.
 func (w *watch) lookAgain() error {
+	if w.t.container != "" {
+		return nil
+	}
 	t := *w.t
 	err := w.h.db.View(w.ctx, func(tx *store.Tx) error {
 		res, err := tx.GetResourceByID(w.ctx, w.t.id)
@@ -1481,6 +1531,6 @@ func cloneCall(c *agentv1.LogsCall) *agentv1.LogsCall {
 		Resource: c.GetResource(), Since: c.GetSince(), Until: c.GetUntil(), Tail: c.GetTail(), Follow: c.GetFollow(),
 		SourceIds: c.GetSourceIds(), Revision: c.GetRevision(), ChangeId: c.GetChangeId(), Levels: c.GetLevels(),
 		Query: c.GetQuery(), IncludeKept: c.GetIncludeKept(), Reader: c.GetReader(), Last: c.GetLast(),
-		ForgottenUpTo: c.GetForgottenUpTo(),
+		ForgottenUpTo: c.GetForgottenUpTo(), Container: c.GetContainer(),
 	}
 }

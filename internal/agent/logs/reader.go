@@ -9,6 +9,7 @@ package logs
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -110,9 +111,17 @@ func (r *Reader) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// Sources lists the containers a service has logs from, newest first.
-func (r *Reader) Sources(ctx context.Context, ref *dockwellv1.ResourceRef, forgottenUpTo int64) ([]*dockwellv1.LogSource, error) {
-	found, err := r.sources(ctx, docker.Project(ref.GetScope()), ref.GetName(), true, forgottenUpTo)
+// Sources lists the containers a service has logs from, newest first, or the one
+// container a call names.
+func (r *Reader) Sources(ctx context.Context, call *agentv1.LogSourcesCall) ([]*dockwellv1.LogSource, error) {
+	var found []*source
+	var err error
+	if call.GetContainer() != "" {
+		found, err = r.container(ctx, call.GetContainer())
+	} else {
+		ref := call.GetResource()
+		found, err = r.sources(ctx, docker.Project(ref.GetScope()), ref.GetName(), true, call.GetForgottenUpTo())
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +186,19 @@ func (r *Reader) sources(ctx context.Context, project, service string, kept bool
 		return b.proto.GetCreateTime().AsTime().Compare(a.proto.GetCreateTime().AsTime())
 	})
 	return out, nil
+}
+
+// container is the one source of a container Dockwell didn't make, by its full ID.
+// The server keeps nothing of those, so once Docker doesn't have it, there is none.
+func (r *Reader) container(ctx context.Context, id string) ([]*source, error) {
+	c, err := r.Client.InspectContainer(ctx, id)
+	if docker.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return []*source{{proto: dockerSource(c), id: c.ID, tty: c.Config.Tty}}, nil
 }
 
 // theReplica is the replica of every container of a service, as a service has one on
@@ -262,7 +284,7 @@ func (r *Reader) Stream(ctx context.Context, call *agentv1.LogsCall, send func(*
 	defer cancel(nil)
 	s := &stream{
 		r: r, call: call, ctx: ctx, cancel: cancel, start: time.Now(),
-		project: docker.Project(call.GetResource().GetScope()), service: call.GetResource().GetName(), reader: call.GetReader(),
+		project: docker.Project(call.GetResource().GetScope()), service: cmp.Or(call.GetContainer(), call.GetResource().GetName()), reader: call.GetReader(),
 		out:  make(chan *agentv1.SendLogsRequest, queued),
 		rate: newBucket(),
 		shed: &pacer{},
@@ -594,10 +616,18 @@ func readBrokeWords(src *source) string {
 	return "Docker stopped partway through this container's log, so the rest of it doesn't show. Read it on the server with docker logs " + src.proto.GetId()
 }
 
+// found is the sources there are for this stream.
+func (s *stream) found() ([]*source, error) {
+	if id := s.call.GetContainer(); id != "" {
+		return s.r.container(s.ctx, id)
+	}
+	return s.r.sources(s.ctx, s.project, s.service, true, s.call.GetForgottenUpTo())
+}
+
 // scan finds the sources there are, says what changed of them, and starts
 // reading those not being read.
 func (s *stream) scan(first bool) error {
-	found, err := s.r.sources(s.ctx, s.project, s.service, true, s.call.GetForgottenUpTo())
+	found, err := s.found()
 	if err != nil {
 		return err
 	}

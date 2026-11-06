@@ -402,7 +402,10 @@ type ListLogSourcesRequest struct {
 	// The project a service's name is in, by name or ID.
 	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment a service's name is in, by name or ID.
-	Environment   string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
+	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
+	// A server's ID or name, to read a container Dockwell didn't make there
+	// instead of a service. id is then the container, by its name or its full ID.
+	Server        string `protobuf:"bytes,4,opt,name=server,proto3" json:"server,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -454,6 +457,13 @@ func (x *ListLogSourcesRequest) GetProject() string {
 func (x *ListLogSourcesRequest) GetEnvironment() string {
 	if x != nil {
 		return x.Environment
+	}
+	return ""
+}
+
+func (x *ListLogSourcesRequest) GetServer() string {
+	if x != nil {
+		return x.Server
 	}
 	return ""
 }
@@ -522,14 +532,15 @@ func (x *ListLogSourcesResponse) GetServers() []*ServerLogStatus {
 	return nil
 }
 
-// LoggedService says which service logs are from.
+// LoggedService says which service logs are from, or which container, for one
+// Dockwell didn't make.
 type LoggedService struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Its ID.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Its name, such as "web".
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// The name of its environment, such as "production".
+	// The name of its environment, such as "production". Empty for a container.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
 	// True when the service isn't there now. When its first deploy failed and
 	// was rolled back, what its servers kept can still be read. When it was
@@ -634,7 +645,10 @@ type ReadLogsRequest struct {
 	// plain text, not a pattern. Each server scans what it still has for it: at
 	// most the newest 1,000,000 lines of each container, and for at most 30
 	// seconds.
-	Query         string `protobuf:"bytes,13,opt,name=query,proto3" json:"query,omitempty"`
+	Query string `protobuf:"bytes,13,opt,name=query,proto3" json:"query,omitempty"`
+	// A server's ID or name, to read a container Dockwell didn't make there
+	// instead of a service. id is then the container, by its name or its full ID.
+	Server        string `protobuf:"bytes,14,opt,name=server,proto3" json:"server,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -756,6 +770,13 @@ func (x *ReadLogsRequest) GetLevels() []LogLevel {
 func (x *ReadLogsRequest) GetQuery() string {
 	if x != nil {
 		return x.Query
+	}
+	return ""
+}
+
+func (x *ReadLogsRequest) GetServer() string {
+	if x != nil {
+		return x.Server
 	}
 	return ""
 }
@@ -916,7 +937,10 @@ type WatchLogsRequest struct {
 	// last message it sent. Pass the same filters with it. Lines a server
 	// still has aren't sent twice or missed, and a marker says so where it
 	// no longer has them.
-	ResumeToken   string `protobuf:"bytes,14,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
+	ResumeToken string `protobuf:"bytes,14,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
+	// A server's ID or name, to read a container Dockwell didn't make there
+	// instead of a service. id is then the container, by its name or its full ID.
+	Server        string `protobuf:"bytes,15,opt,name=server,proto3" json:"server,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1045,6 +1069,13 @@ func (x *WatchLogsRequest) GetQuery() string {
 func (x *WatchLogsRequest) GetResumeToken() string {
 	if x != nil {
 		return x.ResumeToken
+	}
+	return ""
+}
+
+func (x *WatchLogsRequest) GetServer() string {
+	if x != nil {
+		return x.Server
 	}
 	return ""
 }
@@ -1650,11 +1681,12 @@ var File_dockwell_v1_log_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_log_proto_rawDesc = "" +
 	"\n" +
-	"\x15dockwell/v1/log.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"c\n" +
+	"\x15dockwell/v1/log.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"{\n" +
 	"\x15ListLogSourcesRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x03 \x01(\tR\venvironment\"\xb8\x01\n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x16\n" +
+	"\x06server\x18\x04 \x01(\tR\x06server\"\xb8\x01\n" +
 	"\x16ListLogSourcesResponse\x124\n" +
 	"\aservice\x18\x01 \x01(\v2\x1a.dockwell.v1.LoggedServiceR\aservice\x120\n" +
 	"\asources\x18\x02 \x03(\v2\x16.dockwell.v1.LogSourceR\asources\x126\n" +
@@ -1663,7 +1695,7 @@ const file_dockwell_v1_log_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x18\n" +
-	"\adeleted\x18\x04 \x01(\bR\adeleted\"\xc9\x03\n" +
+	"\adeleted\x18\x04 \x01(\bR\adeleted\"\xe1\x03\n" +
 	"\x0fReadLogsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -1680,7 +1712,8 @@ const file_dockwell_v1_log_proto_rawDesc = "" +
 	" \x01(\x03R\brevision\x12\x1b\n" +
 	"\tchange_id\x18\v \x01(\tR\bchangeId\x12-\n" +
 	"\x06levels\x18\f \x03(\x0e2\x15.dockwell.v1.LogLevelR\x06levels\x12\x14\n" +
-	"\x05query\x18\r \x01(\tR\x05query\"\x94\x03\n" +
+	"\x05query\x18\r \x01(\tR\x05query\x12\x16\n" +
+	"\x06server\x18\x0e \x01(\tR\x06server\"\x94\x03\n" +
 	"\x10ReadLogsResponse\x12-\n" +
 	"\x06chunks\x18\x01 \x03(\v2\x15.dockwell.v1.LogChunkR\x06chunks\x120\n" +
 	"\asources\x18\x02 \x03(\v2\x16.dockwell.v1.LogSourceR\asources\x126\n" +
@@ -1689,7 +1722,7 @@ const file_dockwell_v1_log_proto_rawDesc = "" +
 	"\x10searched_back_to\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0esearchedBackTo\x12%\n" +
 	"\x0esearched_lines\x18\x06 \x01(\x04R\rsearchedLines\x12(\n" +
 	"\x10search_cut_short\x18\a \x01(\bR\x0esearchCutShort\x12(\n" +
-	"\x10search_timed_out\x18\b \x01(\bR\x0esearchTimedOut\"\xd9\x03\n" +
+	"\x10search_timed_out\x18\b \x01(\bR\x0esearchTimedOut\"\xf1\x03\n" +
 	"\x10WatchLogsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -1706,7 +1739,8 @@ const file_dockwell_v1_log_proto_rawDesc = "" +
 	"\tchange_id\x18\v \x01(\tR\bchangeId\x12-\n" +
 	"\x06levels\x18\f \x03(\x0e2\x15.dockwell.v1.LogLevelR\x06levels\x12\x14\n" +
 	"\x05query\x18\r \x01(\tR\x05query\x12!\n" +
-	"\fresume_token\x18\x0e \x01(\tR\vresumeToken\"\xec\x01\n" +
+	"\fresume_token\x18\x0e \x01(\tR\vresumeToken\x12\x16\n" +
+	"\x06server\x18\x0f \x01(\tR\x06server\"\xec\x01\n" +
 	"\x11WatchLogsResponse\x12-\n" +
 	"\x06chunks\x18\x01 \x03(\v2\x15.dockwell.v1.LogChunkR\x06chunks\x120\n" +
 	"\asources\x18\x02 \x03(\v2\x16.dockwell.v1.LogSourceR\asources\x126\n" +
