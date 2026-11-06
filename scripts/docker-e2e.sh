@@ -2579,6 +2579,23 @@ catalog_env() {
   all=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$1") || fail "docker inspect $1 failed"
   sed -n "s/^$2=//p" <<<"$all"
 }
+# form_token reads the token a login form carries, by its first mention. Adminer and
+# phpMyAdmin each take a sign-in only with it, and without it show the form again and
+# say nothing, as a form on another site can't have it. A browser sends it unasked.
+form_token() {
+  sed -n "/name=[\"']token[\"']/{s/.*name=[\"']token[\"'] value=[\"']\([^\"']*\)[\"'].*/\1/p;q;}" <<<"$1"
+}
+# sign_in_says prints why a sign-in failed: the page's title and what it says of it,
+# which a page's first lines stop short of. $2 is the password, which a log never holds.
+sign_in_says() {
+  local page=$1 title="" words=""
+  [[ "$page" =~ \<title\>([^\<]*) ]] && title=${BASH_REMATCH[1]}
+  [[ "$page" =~ \<div\ class=\'error\'\>([^\<]*) ]] && words=${BASH_REMATCH[1]}
+  [[ "$page" =~ (Cannot\ log\ in[^\<]*) ]] && words=${BASH_REMATCH[1]}
+  [[ "$page" =~ (real_connect[^\<]*) ]] && words+=" ${BASH_REMATCH[1]}"
+  words="the page $title says: ${words:-nothing}"
+  echo "${words//"$2"/<the password>}"
+}
 # catalog_generated reads a generated secret, and says nothing but that shows it.
 catalog_generated() {
   local value
@@ -2599,15 +2616,25 @@ password=$(catalog_generated "$postgres_db" POSTGRES_PASSWORD)
 seen=$(dw changes list --json; dw catalog installs --json; dw compose export --project postgres) || fail "reading the install back failed"
 [[ "$seen" != *"$password"* ]] || fail "what anyone can read holds the generated password"
 admin_port=$(catalog_value postgres ADMIN_PORT)
-jar=$(mktemp)
-curl -fsS --max-time 10 -c "$jar" -b "$jar" -o /dev/null "http://127.0.0.1:$admin_port/" || fail "Adminer doesn't answer on port $admin_port"
-page=$(curl -sS -L --max-time 30 -c "$jar" -b "$jar" --data-urlencode 'auth[driver]=pgsql' --data-urlencode 'auth[server]=db' \
-  --data-urlencode 'auth[username]=postgres' --data-urlencode "auth[password]=$password" --data-urlencode 'auth[db]=postgres' \
-  "http://127.0.0.1:$admin_port/") || fail "signing in to Adminer failed"
-rm -f "$jar"
-[[ "$page" == *"id='logout'"* ]] || fail "Adminer can't sign in to the database with its password: ${page:0:400}"
+# As the entry's first steps say: PostgreSQL, the server it offers, and Database left empty.
+adminer_sign_in() {
+  local jar form token
+  jar=$(mktemp)
+  form=$(curl -fsS --max-time 10 -c "$jar" -b "$jar" "http://127.0.0.1:$admin_port/") || fail "Adminer doesn't answer on port $admin_port"
+  [[ "$form" == *"name='auth[server]' value='db'"* ]] || fail "Adminer doesn't offer the server db: ${form:0:400}"
+  token=$(form_token "$form")
+  [[ -n "$token" ]] || fail "Adminer's login form has no token: ${form:0:400}"
+  curl -sS -L --max-time 30 -c "$jar" -b "$jar" --data-urlencode "token=$token" --data-urlencode 'auth[driver]=pgsql' --data-urlencode 'auth[server]=db' \
+    --data-urlencode 'auth[username]=postgres' --data-urlencode "auth[password]=$1" --data-urlencode 'auth[db]=' "http://127.0.0.1:$admin_port/" ||
+    fail "signing in to Adminer got no answer"
+  rm -f "$jar"
+}
+page=$(adminer_sign_in "$password")
+[[ "$page" == *"id='logout'"* ]] || fail "Adminer can't sign in to the database with its password: $(sign_in_says "$page" "$password")"
+page=$(adminer_sign_in not-the-password)
+[[ "$page" != *"id='logout'"* ]] || fail "Adminer signed in with a wrong password"
 
-step "Catalog: MySQL runs with a password of its own, and phpMyAdmin is on its network"
+step "Catalog: MySQL runs with a password of its own, and phpMyAdmin signs in with it"
 catalog_install mysql
 mysql_db=$(catalog_container db)
 phpmyadmin=$(catalog_container phpmyadmin)
@@ -2619,10 +2646,22 @@ password=$(catalog_generated "$mysql_db" MYSQL_ROOT_PASSWORD)
 answer=$(docker exec "$mysql_db" sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -uroot -h127.0.0.1 -N -e "select 41 + 1"') ||
   fail "MySQL doesn't take the password it was given"
 [[ "$answer" == 42 ]] || fail "MySQL answered '$answer'"
-docker exec "$phpmyadmin" getent hosts db >/dev/null || fail "phpMyAdmin can't find the database by name"
 admin_port=$(catalog_value mysql ADMIN_PORT)
-page=$(curl -fsS --max-time 10 "http://127.0.0.1:$admin_port/") || fail "phpMyAdmin doesn't answer on port $admin_port"
-[[ "$page" == *phpMyAdmin* ]] || fail "port $admin_port answers something else: ${page:0:300}"
+phpmyadmin_sign_in() {
+  local jar form token
+  jar=$(mktemp)
+  form=$(curl -fsS --max-time 15 -c "$jar" -b "$jar" "http://127.0.0.1:$admin_port/") || fail "phpMyAdmin doesn't answer on port $admin_port"
+  [[ "$form" == *pma_username* ]] || fail "port $admin_port answers something else: ${form:0:400}"
+  token=$(form_token "$form")
+  [[ -n "$token" ]] || fail "phpMyAdmin's login form has no token: ${form:0:400}"
+  curl -sS -L --max-time 30 -c "$jar" -b "$jar" --data-urlencode "token=$token" --data-urlencode 'pma_username=root' --data-urlencode "pma_password=$1" \
+    --data-urlencode 'server=1' --data-urlencode 'route=/' "http://127.0.0.1:$admin_port/index.php?route=/" || fail "signing in to phpMyAdmin got no answer"
+  rm -f "$jar"
+}
+page=$(phpmyadmin_sign_in "$password")
+[[ "$page" == *route=/logout* ]] || fail "phpMyAdmin can't sign in to MySQL with its password: $(sign_in_says "$page" "$password")"
+page=$(phpmyadmin_sign_in not-the-password)
+[[ "$page" != *route=/logout* ]] || fail "phpMyAdmin signed in with a wrong password"
 
 step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"
 catalog_install nginx-proxy-manager --values ADMIN_EMAIL=owner@example.com
@@ -2631,9 +2670,9 @@ catalog_pinned "$proxy"
 catalog_healthy "$proxy"
 password=$(catalog_generated "$proxy" INITIAL_ADMIN_PASSWORD)
 admin_port=$(catalog_value nginx-proxy-manager ADMIN_PORT)
-signed_in=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' -d "{\"identity\":\"owner@example.com\",\"secret\":\"$password\"}" \
-  "http://127.0.0.1:$admin_port/api/tokens") || fail "Nginx Proxy Manager won't sign in with its password"
-jq -e '.token | length > 0' <<<"$signed_in" >/dev/null || fail "signing in to Nginx Proxy Manager gave no token"
+signed_in=$(curl -sS --max-time 15 -H 'Content-Type: application/json' -d "{\"identity\":\"owner@example.com\",\"secret\":\"$password\"}" \
+  "http://127.0.0.1:$admin_port/api/tokens") || fail "Nginx Proxy Manager doesn't answer on port $admin_port"
+jq -e '.token | length > 0' <<<"$signed_in" >/dev/null 2>&1 || fail "Nginx Proxy Manager won't sign in with its password: ${signed_in//"$password"/<the password>}"
 
 step "Catalog: n8n runs, and answers on its port"
 catalog_install n8n
