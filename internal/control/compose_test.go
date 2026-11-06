@@ -5,6 +5,7 @@ package control
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -32,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -1076,6 +1078,80 @@ func testUndoPutsAVolumeBackWhereItRan(t *testing.T, backend store.Backend) {
 			t.Errorf("hz-1 has %+v after the rollback", engines["hz-1"].Volume(name("failed")))
 		}
 	})
+}
+
+// An undo can send a volume's password to a server it left because that server keeps
+// the volume for 7 days, as long as an undo is open (ADR 0022). The window was read
+// only as an undo was proposed, so one left planned could be applied weeks on, when
+// hz-2 had pruned its copy. Applying plans again first, so hz-2 heard a password it no
+// longer held, and only then was it refused. The review of #150 found this.
+func TestAPlannedUndoCantOutliveItsWindow(t *testing.T) {
+	storetest.Each(t, testAPlannedUndoCantOutliveItsWindow)
+}
+
+func testAPlannedUndoCantOutliveItsWindow(t *testing.T, backend store.Backend) {
+	const password, there = "cifs-pw-2Lk9sDf4Gh7Jm3Np", "addr=10.0.0.2,username=svc,password="
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	f.addServerNamed(t, "hz-1", nil, nil)
+	one := f.lastDocker.id.ServerID
+	heard := &planHeard{}
+	f.volumes = func(d *volume.Driver) resource.Type {
+		heard.Driver = d
+		return heard
+	}
+	hz2 := f.addServerNamed(t, "hz-2", nil, nil)
+	f.volumes = nil
+	two := f.lastDocker.id.ServerID
+	c := changeClient(b, b.origin)
+	edit := func(options map[string]string, servers ...string) *dockwellv1.ProposeChangeRequest {
+		return &dockwellv1.ProposeChangeRequest{Summary: "Share", Edits: []*dockwellv1.Edit{{
+			Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "share"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: options}}},
+			Servers:  servers,
+		}}}
+	}
+	made, err := c.ProposeChange(t.Context(), connect.NewRequest(edit(map[string]string{"type": "cifs", "device": "//nas/share", "o": there + password}, one, two)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, made.Msg.GetChange())
+	off, err := c.ProposeChange(t.Context(), connect.NewRequest(edit(nil, one)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, off.Msg.GetChange())
+
+	script := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	tc := dockwellv1connect.NewChangeServiceClient(script, b.origin, connect.WithProtoJSON())
+	planned, err := tc.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: off.Msg.GetChange().GetId()}))
+	if err != nil {
+		t.Fatalf("a token's undo, within the window = %v, want it planned", err)
+	}
+	back := planned.Msg.GetChange()
+
+	// Its 7 days go by, and hz-2 prunes what it kept.
+	storetest.Exec(t, f.db, fmt.Sprintf("UPDATE changes SET applied_at = applied_at - %d WHERE id = '%s'",
+		(revision.UndoWindow+time.Hour).Milliseconds(), off.Msg.GetChange().GetId()))
+	name := docker.Project(listedEnv(t, b)) + "_share"
+	if err := hz2.Client().RemoveVolume(t.Context(), name); err != nil {
+		t.Fatal(err)
+	}
+	// What it reaches on hz-2 is a person's to approve, so a token gets no further.
+	before := len(heard.options())
+	if _, err := tc.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: back.GetId(), Fingerprint: back.GetPlan().GetFingerprint()})); reasonOf(err) != "needs_session" {
+		t.Errorf("a token applying it = %v, want a person to", err)
+	}
+	_, err = c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: back.GetId(), Fingerprint: back.GetPlan().GetFingerprint()}))
+	if brought := heard.options()[before:]; slices.ContainsFunc(brought, func(o string) bool { return strings.Contains(o, password) }) {
+		t.Errorf("hz-2 no longer holds the password, and a plan call brought it: %q", brought)
+	}
+	if reasonOf(err) != "cant_undo" || !strings.Contains(err.Error(), "changes can be undone for 7 days") {
+		t.Errorf("applying the undo past its window = %v, want it refused, saying so", err)
+	}
+	if got := hz2.Volume(name); got != nil {
+		t.Errorf("hz-2 has %+v", got)
+	}
 }
 
 // Someone remakes a volume by hand with a new password, and drift shows it. Adopting
