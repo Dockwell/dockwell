@@ -88,10 +88,13 @@ type Command = CommandItem & { run: Run; keepOpen?: "step" | "note" };
 const NAME = /^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /**
- * What the bar is asking for, after an action that takes a name. An
+ * What the bar is asking for, after an action that takes a name or a project. An
  * environment's project is asked for only once there is a choice.
  */
-type Prompt = { kind: "project" } | { kind: "environment"; project?: Resource | undefined };
+type Prompt =
+  | { kind: "project" }
+  | { kind: "environment"; project?: Resource | undefined }
+  | { kind: "delete-project" };
 
 /** The project a new environment is for: the one chosen, or the only one there is. */
 function projectFor(prompt: Prompt, projects: readonly Resource[] | undefined): Resource | undefined {
@@ -302,6 +305,18 @@ function Commands({ onClose }: { onClose: () => void }) {
       // Which project it is for is asked once the projects are in, and only if there is a choice.
       run: () => setPrompt({ kind: "environment" }),
     });
+    // The organization keeps a project, so the only one has nothing to offer.
+    if ((projects?.length ?? 0) > 1) {
+      list.push({
+        id: "delete-project",
+        group: actions,
+        icon: "trash",
+        label: t`Delete a project`,
+        hint: t`Opens a plan`,
+        keepOpen: "step",
+        run: () => setPrompt({ kind: "delete-project" }),
+      });
+    }
 
     const themes: { id: ThemePreference; label: string; icon: CommandItem["icon"] }[] = [
       { id: "light", label: t`Use the light theme`, icon: "sun" },
@@ -346,11 +361,13 @@ function Commands({ onClose }: { onClose: () => void }) {
     ? undefined
     : prompt.kind === "project"
       ? t`Name the new project, such as shop`
-      : project
-        ? t`Name the new environment, such as staging`
-        : projects
-          ? t`Which project is it for?`
-          : t`Finding your projects`;
+      : prompt.kind === "delete-project"
+        ? t`Which project do you want to delete?`
+        : project
+          ? t`Name the new environment, such as staging`
+          : projects
+            ? t`Which project is it for?`
+            : t`Finding your projects`;
 
   // Each question has a bar of its own, which starts empty.
   const question = prompt ? `${prompt.kind}:${project?.id ?? (projects ? "choose" : "loading")}` : "commands";
@@ -376,7 +393,7 @@ function Commands({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** The items while the bar asks for a name, or which project, for a new project or environment. */
+/** The items while the bar asks for a name, or which project, for a new project or environment, or one to delete. */
 function promptItems(
   prompt: Prompt,
   name: string,
@@ -386,6 +403,25 @@ function promptItems(
   propose: (opening: Opening) => void,
 ): Command[] {
   const projects = loaded ?? [];
+  if (prompt.kind === "delete-project") {
+    // Its plan says what goes with it, and the API says what keeps it, by name.
+    return projects.map((project) => {
+      const projectName = project.resource?.name ?? project.id;
+      const label = i18n._(msg`Delete the project ${projectName}`);
+      return {
+        id: `prompt:delete:${project.id}`,
+        icon: "trash",
+        label,
+        hint: i18n._(msg`Opens a plan`),
+        run: () =>
+          propose({
+            kind: "propose",
+            summary: label,
+            edits: [{ resource: { kind: "project", name: projectName }, delete: true }],
+          }),
+      };
+    });
+  }
   if (prompt.kind === "environment" && !projectFor(prompt, loaded)) {
     // Until the projects are in, there is nothing to choose from yet.
     if (!loaded) return [];

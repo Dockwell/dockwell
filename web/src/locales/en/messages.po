@@ -2520,9 +2520,17 @@ msgstr "Delete {name}"
 msgid "Delete {subject}"
 msgstr "Delete {subject}"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Delete a project"
+msgstr "Delete a project"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "Delete it"
 msgstr "Delete it"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Delete the project {projectName}"
+msgstr "Delete the project {projectName}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Delete this app"
@@ -7892,6 +7900,10 @@ msgstr "Where SELinux is enforced, Docker relabels everything there, to share it
 #: src/features/apps/NewAppSheet.tsx
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
 msgstr "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Which project do you want to delete?"
+msgstr "Which project do you want to delete?"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Which project is it for?"
