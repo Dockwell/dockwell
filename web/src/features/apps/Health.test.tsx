@@ -564,6 +564,24 @@ describe("what was read stands by its age, however reads go", () => {
     focusManager.setFocused(undefined);
   });
 
+  it("reads Checking once, then stays Unknown with its note, where health never arrives", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderAt("/apps", api([web], { listHealth: () => new Promise(() => {}) }));
+    const row = await screen.findByRole("row", { name: /web/ });
+    const seen = await watch(row, 60);
+    const noted: boolean[] = [];
+    for (let i = 0; i < 30; i++) {
+      await vi.advanceTimersByTimeAsync(1_000);
+      noted.push(document.querySelector(".apps-unread") !== null);
+    }
+    // One read's time, and then it holds, through every read that goes out and hangs.
+    const from = seen.indexOf("Unknown");
+    expect(from).toBeGreaterThan(0);
+    expect(seen.slice(0, from).every((word) => word === "Checking")).toBe(true);
+    expect(seen.slice(from).every((word) => word === "Unknown")).toBe(true);
+    expect(noted.every(Boolean)).toBe(true);
+  });
+
   it("keeps no reading trusted for the length of a clock's step back", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     let hang = false;
