@@ -197,19 +197,26 @@ func (d *Docker) Adopt(ctx context.Context, t Target, id string, spec *resourcev
 }
 
 // takenOn is the full ID of what t runs, while that is a container that was taken on
-// and is all t runs: a rollout partway has replaced it already.
-func (d *Docker) takenOn(ctx context.Context, t Target) string {
+// and is all t runs: a rollout partway has replaced it already. What can't be read
+// is an error, and never none: that would read as Dockwell's to remove.
+func (d *Docker) takenOn(ctx context.Context, t Target) (string, error) {
 	if d.Client.Adopted == nil {
-		return ""
+		return "", nil
 	}
 	all, err := d.instances(ctx, t)
-	if err != nil || len(all) != 1 || all[0].Config.Labels[docker.LabelAdopted] == "" {
-		return ""
+	if err != nil {
+		return "", fmt.Errorf("can't read what %s runs, so it can't say whether that was taken on, which goes on running, or is Dockwell's to remove: %w", t.Service, err)
 	}
-	return all[0].ID
+	if len(all) != 1 || all[0].Config.Labels[docker.LabelAdopted] == "" {
+		return "", nil
+	}
+	return all[0].ID, nil
 }
 
 // lettingGo says deleting t hands back a container that was taken on, which goes on
 // running. Dockwell never made it, so deleting a service is no reason to remove it,
 // and an undo of taking it on leaves it as it was.
-func (d *Docker) lettingGo(ctx context.Context, t Target) bool { return d.takenOn(ctx, t) != "" }
+func (d *Docker) lettingGo(ctx context.Context, t Target) (bool, error) {
+	id, err := d.takenOn(ctx, t)
+	return id != "", err
+}

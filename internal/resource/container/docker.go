@@ -1406,9 +1406,15 @@ func owned(t Target, c *docker.Container) error {
 // how it replaces what runs, and why; and a recreated container's health check,
 // its image's included, says how long it may take to be healthy.
 func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Container, dec *resource.Decision) error {
-	if dec.Action == resource.ActionDelete && d.lettingGo(ctx, t) {
-		dec.Releases = true
-		return nil
+	if dec.Action == resource.ActionDelete {
+		letsGo, err := d.lettingGo(ctx, t)
+		if err != nil {
+			return err
+		}
+		if letsGo {
+			dec.Releases = true
+			return nil
+		}
 	}
 	if dec.Action == resource.ActionDelete && d.Logs != nil && t.Scoped {
 		dec.HidesLogs = true
@@ -1636,7 +1642,11 @@ func (d *Docker) Update(ctx context.Context, t Target, spec *resourcev1.Containe
 // days, so a container of the name made again in that time, as undoing the
 // deletion does, mounts them again.
 func (d *Docker) Remove(ctx context.Context, t Target) error {
-	if id := d.takenOn(ctx, t); id != "" {
+	id, err := d.takenOn(ctx, t)
+	if err != nil {
+		return err
+	}
+	if id != "" {
 		return d.Client.Adopted.Forget(id)
 	}
 	c, err := d.find(ctx, t.Name)
