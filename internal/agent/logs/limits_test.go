@@ -343,6 +343,111 @@ func TestADeadContainerSaysWhyItsLogDoesntShow(t *testing.T) {
 	})
 }
 
+// Docker going away partway through a stopped container's log is no end to it, or a
+// read would pass for all there is, with no marker and no look at the rest.
+func TestAReadThatBreaksOnAStoppedContainerReadsOn(t *testing.T) {
+	lines := make([]string, 40)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %d", i)
+	}
+	calls := map[string]*agentv1.LogsCall{
+		"following":    {Resource: testRef, Follow: true, Tail: 100},
+		"to the end":   {Resource: testRef, Tail: 100},
+		"a search":     {Resource: testRef, Query: "line"},
+		"up to a time": {Resource: testRef, Tail: 40, Until: timestamppb.New(time.Now().Add(time.Hour))},
+	}
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			addContainer(t, e, "app-1", 1)
+			e.Print("app-1", docker.Stdout, lines...)
+			e.Stop("app-1")
+			e.BreakLog("app-1", 6)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			c := newCollector()
+			done := make(chan error, 1)
+			go func() { done <- newReader(t, e).Stream(ctx, call, c.send) }()
+			waitFor(t, "all of it", func() bool { return c.count() >= len(lines) })
+			if call.GetFollow() {
+				time.Sleep(700 * time.Millisecond) // a further look, which has nothing more to read
+				cancel()
+			}
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			if got := c.got(); !slices.Equal(got, lines) {
+				t.Errorf("read %d lines, want each of %d once, in order: %q", len(got), len(lines), got)
+			}
+		})
+	}
+}
+
+// A log that goes on breaking stops being tried, and a reader hears so, however it
+// reads, rather than taking what came for all there is.
+func TestALogThatKeepsBreakingSaysSo(t *testing.T) {
+	for _, follows := range []bool{true, false} {
+		name := "to the end"
+		if follows {
+			name = "following"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			ctr := addContainer(t, e, "app-1", 1)
+			e.Print("app-1", docker.Stdout, "first", "second")
+			e.Stop("app-1")
+			for range 12 {
+				e.BreakLog("app-1", 0)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			c := newCollector()
+			done := make(chan error, 1)
+			go func() {
+				done <- newReader(t, e).Stream(ctx, &agentv1.LogsCall{Resource: testRef, Tail: 100, Follow: follows}, c.send)
+			}()
+			waitFor(t, "the source to say why", func() bool {
+				c.mu.Lock()
+				defer c.mu.Unlock()
+				return strings.Contains(c.sources[ctr.ID[:12]].GetLogError(), "docker logs "+ctr.ID[:12])
+			})
+			cancel()
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			reads := 0
+			for _, req := range e.Seen() {
+				if strings.HasSuffix(req, "/logs") {
+					reads++
+				}
+			}
+			if reads > 3 {
+				t.Errorf("it read %d times, and it shouldn't go on trying", reads)
+			}
+		})
+	}
+}
+
+// One that has no fix but to wait says so to a read to the end too, which has no
+// later look to say it from.
+func TestAReadToTheEndSaysWhatItCouldntRead(t *testing.T) {
+	e := dockertest.New(t)
+	ctr := e.AddContainer(docker.Container{
+		Name: "/app-1",
+		Config: docker.Config{Image: "app:1", Labels: map[string]string{
+			docker.LabelProject: testProject, docker.LabelService: testService,
+		}},
+		HostConfig: docker.HostConfig{LogConfig: &docker.LogConfig{Type: "none"}},
+	})
+	c := newCollector()
+	if err := newReader(t, e).Stream(t.Context(), &agentv1.LogsCall{Resource: testRef, Tail: 10}, c.send); err != nil {
+		t.Fatal(err)
+	}
+	if msg := c.sources[ctr.ID[:12]].GetLogError(); !strings.Contains(msg, "logging driver") {
+		t.Errorf("a read of a log Docker can't read says %q", msg)
+	}
+}
+
 // One that restarts and is gone between two looks reads what the last run said,
 // and what it had read already, once.
 func TestAFollowReadsARestartItDidNotSee(t *testing.T) {

@@ -299,3 +299,21 @@ func TestALogSaysWhichContainerWroteIt(t *testing.T) {
 		t.Errorf("the list reads:\n%s", table.String())
 	}
 }
+
+// A source whose lines can't be read says why, once, or a reader would take no
+// lines for a quiet service. It goes to standard error, as standard output is the
+// lines, and what Docker said passes through what makes a terminal safe.
+func TestASourceSaysWhyItsLinesDontShow(t *testing.T) {
+	var out, errs bytes.Buffer
+	p := newLogPrinter(&out, &errs)
+	why := "Docker can't read this container's log: \x1b]0;title\x07it broke. Check its logging driver"
+	for range 3 {
+		p.watch(&dockwellv1.WatchLogsResponse{Sources: []*dockwellv1.LogSource{{Id: "a", LogError: why}}})
+	}
+	if got, want := errs.String(), "Docker can't read this container's log: it broke. Check its logging driver.\n"; got != want {
+		t.Errorf("standard error reads %q, want %q", got, want)
+	}
+	if out.Len() != 0 {
+		t.Errorf("standard output reads %q, want only lines", out.String())
+	}
+}

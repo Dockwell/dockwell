@@ -26,6 +26,8 @@ type containerLog struct {
 	wake  chan struct{}
 	ended bool
 	flood *Flood
+	// breaks says after how many lines each next read's connection breaks.
+	breaks []int
 }
 
 type loggedLine struct {
@@ -246,10 +248,17 @@ func (e *Engine) serveLogs(w http.ResponseWriter, r *http.Request) bool {
 	if tail >= 0 && tail < len(lines) {
 		lines = lines[len(lines)-tail:]
 	}
+	cut := c.log.nextBreak()
 	for _, l := range lines {
 		if (!since.IsZero() && l.at.Before(since)) || (!until.IsZero() && l.at.After(until)) {
 			continue
 		}
+		if cut == 0 {
+			_ = out.Flush()
+			flusher.Flush()
+			panic(http.ErrAbortHandler) // the connection goes, with no end to the body
+		}
+		cut--
 		if err := send(l.stream, l.at, l.text); err != nil {
 			return true
 		}
@@ -339,6 +348,30 @@ func logBound(s string) time.Time {
 		nano, _ = strconv.ParseInt((nanos + "000000000")[:9], 10, 64)
 	}
 	return time.Unix(sec, nano).UTC()
+}
+
+// BreakLog cuts the connection of the next read of a container's log after so
+// many lines, as Docker going away partway does. Each call cuts one more read.
+func (e *Engine) BreakLog(name string, after int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil {
+		c.log.mu.Lock()
+		defer c.log.mu.Unlock()
+		c.log.breaks = append(c.log.breaks, after)
+	}
+}
+
+// nextBreak says after how many lines this read's connection breaks, if it does.
+func (l *containerLog) nextBreak() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.breaks) == 0 {
+		return -1
+	}
+	after := l.breaks[0]
+	l.breaks = l.breaks[1:]
+	return after
 }
 
 // Removing marks a stopped container as Docker does while it removes one: it is
