@@ -7,6 +7,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -559,6 +560,37 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		r = run(t, env, "changes", "list")
 		if !strings.Contains(r.out, "Local access on") || !strings.Contains(r.out, "read-write") {
 			t.Errorf("the change isn't by the local token:\n%s", r.out)
+		}
+		// One from before local access's tokens could read logs is replaced as it
+		// reads them, and goes on doing what it did, for as long as it had.
+		var writer localToken
+		raw, _ = os.ReadFile(cached)
+		if err := json.Unmarshal(raw, &writer); err != nil {
+			t.Fatal(err)
+		}
+		state, err := sql.Open("sqlite", "file:"+filepath.Join(dir, "control", "state.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = state.ExecContext(t.Context(), `UPDATE api_tokens SET grants = '' WHERE id = ?`, writer.ID)
+		if cerr := state.Close(); err != nil || cerr != nil {
+			t.Fatalf("taking the grant away = %v, %v", err, cerr)
+		}
+		r = run(t, local, "logs", "sources", "web", "--project", "wiki")
+		if strings.Contains(r.err, "can't read logs") {
+			t.Errorf("reading logs with a token from before there were grants = %d %q", r.code, r.err)
+		}
+		var regranted localToken
+		raw, _ = os.ReadFile(cached)
+		if err := json.Unmarshal(raw, &regranted); err != nil {
+			t.Fatal(err)
+		}
+		if regranted.ID == writer.ID || regranted.Scope != writer.Scope || !regranted.Expires.Equal(writer.Expires) {
+			t.Errorf("replaced for want of a grant, %+v became %+v, and should do what it did, for as long", writer, regranted)
+		}
+		r = run(t, local, "projects", "create", "wikis", "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "Applied chg_") {
+			t.Errorf("a change after reading logs = %d:\n%s%s", r.code, r.out, r.err)
 		}
 		if r = run(t, local, "logout", "--local"); r.code != exitOK || !strings.Contains(r.out, "Revoked local access's token") {
 			t.Errorf("logout --local = %d:\n%s%s", r.code, r.out, r.err)

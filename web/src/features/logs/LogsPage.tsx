@@ -46,7 +46,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { EmptyState } from "../shell/EmptyState";
 import { drawEntry } from "./draw";
 import { LogContext } from "./LogContext";
-import { DeepWords, LogFoot } from "./LogFoot";
+import { DeepWords, LogFoot, SearchCount } from "./LogFoot";
 import { LogNote } from "./LogNote";
 import { useLogsSearchButton } from "./phoneSearch";
 import { type Entry, LogStore, MAX_LINES } from "./store";
@@ -412,7 +412,9 @@ export function LogsPage({
   const noneReading =
     statuses.length > 0 &&
     statuses.every((s) => s.state === ServerLogState.OFFLINE || s.state === ServerLogState.UNAVAILABLE);
-  const live = !deepOn && !search.range && !reading && stream.status === "live" && !noneReading;
+  // A dropped stream carries on by itself, so what a reader chose stands while it does.
+  const streaming = stream.status === "live" || stream.status === "reconnecting";
+  const live = !deepOn && !search.range && !reading && streaming && !noneReading;
   // A failed deploy opens at what went wrong, not at its last line.
   const opensAtError = Boolean(chosen?.failed && !chosen.current && !search.q);
   const [follow, setFollow] = useState(true);
@@ -598,13 +600,7 @@ export function LogsPage({
         action={
           typed ? (
             <span className="logs-search-end">
-              {!search.deep && search.q ? (
-                <span className="logs-search-count">
-                  {step !== undefined
-                    ? t`${step.toLocaleString(i18n.locale)} of ${active.matches.toLocaleString(i18n.locale)}`
-                    : active.matches.toLocaleString(i18n.locale)}
-                </span>
-              ) : null}
+              {!search.deep && search.q ? <SearchCount store={active} query={search.q} step={step} /> : null}
               {phone ? null : (
                 <Button size="sm" variant="ghost" icon="x" aria-label={t`Clear the search`} onClick={clearSearch} />
               )}

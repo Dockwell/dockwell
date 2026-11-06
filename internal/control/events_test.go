@@ -469,7 +469,7 @@ func testTheCLIOnTheTimeline(t *testing.T, backend store.Backend) {
 
 	// As dockwell does with no token on the control server.
 	const shell = "cli:mira@hz-1"
-	local, err := f.auth.CreateLocalToken(t.Context(), shell, "Local access on hz-1, read-write", store.ScopeReadWrite)
+	local, err := f.auth.CreateLocalToken(t.Context(), shell, "Local access on hz-1, read-write", store.ScopeReadWrite, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -67,6 +67,14 @@ const (
 	// idleLive is how long a container's log can stay quiet before what it had
 	// counts as read: its first line can take longer.
 	idleLive, idleFirst = 250 * time.Millisecond, time.Second
+	// refusedLooks is how many looks in a row Docker can refuse a log before a
+	// reader hears why: a moment for a container being removed, for ever for a dead
+	// one, and neither ends the looking.
+	refusedLooks = 20
+	// brokenReads is how many reads in a row can stop partway with no line read
+	// before a reader hears why, and the log isn't tried again. A read to the end,
+	// with no next look to go on, takes this many looks of its own.
+	brokenReads = 3
 	// gapEvery is how often a stream says what it dropped of one source, at
 	// most, so a flood doesn't fill the view with markers.
 	gapEvery = time.Second
@@ -84,6 +92,9 @@ type Reader struct {
 	StuckAfter time.Duration
 	// SearchLines replaces how many lines a search reads of a container, in tests.
 	SearchLines int
+	// RefusedLooks replaces how many looks Docker can refuse a log before a reader
+	// hears why, in tests.
+	RefusedLooks int
 
 	placesMu sync.Mutex
 	places   map[*stream]bool
@@ -365,6 +376,13 @@ func (s *stream) searchLines() int {
 	return searchTail
 }
 
+func (s *stream) refusedLooks() int32 {
+	if s.r.RefusedLooks > 0 {
+		return int32(s.r.RefusedLooks) //nolint:gosec // a test's small number
+	}
+	return refusedLooks
+}
+
 // key says which service a stream reads, for dividing what a server carries.
 func (s *stream) key() string { return s.project + "/" + s.service }
 
@@ -394,8 +412,10 @@ type sourceState struct {
 	// runRead is when the run the last read covered started, which also only
 	// that goroutine reads: a run since then has lines no read has seen.
 	runRead int64
-	// live is set once what the source had when the call came has been read.
+	// live is set once what the source had when the call came has been read, or
+	// no read is under way to wait for. reached says a read did get through it.
 	live     atomic.Bool
+	reached  atomic.Bool
 	reading  atomic.Bool
 	lastRead atomic.Int64 // unix nanoseconds
 	started  atomic.Bool  // a line has been read
@@ -406,6 +426,13 @@ type sourceState struct {
 	problem atomic.Pointer[string]
 	// unread says its last read never got to the log, so it counts for nothing.
 	unread atomic.Bool
+	// refused counts the reads in a row Docker refused, as it does a container dead
+	// or being removed. It says nothing of the next look, which reads what was kept
+	// once it has gone.
+	refused atomic.Int32
+	// breaks counts the reads in a row that stopped partway with no line read, which
+	// one read at a time touches.
+	breaks int
 	// cursor is the last line kept, for following it again.
 	cursorMu sync.Mutex
 	cursor   time.Time
@@ -435,25 +462,25 @@ func (s *stream) run() error {
 		return err
 	}
 	if !s.call.GetFollow() {
-		done := make(chan struct{})
-		go func() {
-			s.wg.Wait()
-			close(done)
-		}()
-		tick := time.NewTicker(flushEvery)
-		defer tick.Stop()
-		for {
+		s.waitForReads()
+		// A follow looks again by itself. This takes those looks here, for what a read
+		// couldn't get to or finish, or it would pass for all there is.
+		for look := 0; look < brokenReads && s.anyUnread(); look++ {
 			select {
-			case <-done:
-				s.setCaught()
-				return nil
-			case <-tick.C:
-				s.flush(false)
+			case <-time.After(scanEvery):
 			case <-s.ctx.Done():
-				<-done
 				return nil
 			}
+			if err := s.scan(true); err != nil {
+				return err
+			}
+			s.waitForReads()
 		}
+		s.sayWhatsWrong()
+		if s.ctx.Err() == nil {
+			s.setCaught()
+		}
+		return nil
 	}
 	flush := time.NewTicker(flushEvery)
 	defer flush.Stop()
@@ -488,6 +515,84 @@ func (s *stream) run() error {
 	}
 }
 
+// waitForReads waits for the reads under way, sending what gathers meanwhile.
+func (s *stream) waitForReads() {
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+	tick := time.NewTicker(flushEvery)
+	defer tick.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-tick.C:
+			s.flush(false)
+		case <-s.ctx.Done():
+			<-done
+			return
+		}
+	}
+}
+
+// anyUnread reports a source whose last read counts for nothing.
+func (s *stream) anyUnread() bool {
+	for _, st := range s.states {
+		if st.unread.Load() {
+			return true
+		}
+	}
+	return false
+}
+
+// sayWhatsWrong says why a read to the end has lines missing, as no further look
+// will: a source says what is wrong with it as that look finds it.
+func (s *stream) sayWhatsWrong() {
+	var told []*dockwellv1.LogSource
+	for id, st := range s.states {
+		if st.src == nil {
+			continue
+		}
+		why := s.whyNot(st, st.src)
+		if why == "" {
+			continue
+		}
+		p := proto.Clone(st.src.proto).(*dockwellv1.LogSource)
+		p.LogError = why
+		if text := describe(p); text != s.said[id] {
+			s.said[id] = text
+			told = append(told, p)
+		}
+	}
+	if len(told) > 0 {
+		s.mu.Lock()
+		s.updates = append(s.updates, told...)
+		s.mu.Unlock()
+	}
+}
+
+// whyNot says why a source's lines don't show, if something is keeping them.
+func (s *stream) whyNot(st *sourceState, src *source) string {
+	follow := s.call.GetFollow()
+	switch why := st.problem.Load(); {
+	case why != nil:
+		return *why
+	case src.kept != nil:
+		return ""
+	case st.refused.Load() >= s.refusedLooks(), !follow && st.refused.Load() > 0:
+		return "Docker won't read this container's log, as it's dead or being removed. If it stays like this, remove it with docker rm -f " + src.proto.GetId()
+	case !follow && st.unread.Load():
+		return readBrokeWords(src)
+	}
+	return ""
+}
+
+func readBrokeWords(src *source) string {
+	return "Docker stopped partway through this container's log, so the rest of it doesn't show. Read it on the server with docker logs " + src.proto.GetId()
+}
+
 // scan finds the sources there are, says what changed of them, and starts
 // reading those not being read.
 func (s *stream) scan(first bool) error {
@@ -510,11 +615,11 @@ func (s *stream) scan(first bool) error {
 		// What a search holds of each container depends on how many there are.
 		s.ringEach.Store(int64(max(min(matchBytes, streamMatchBytes/wanted), minMatchBytes)))
 		roomless := !s.startReading(st, src, first)
-		switch why := st.problem.Load(); {
-		case why != nil:
-			src.proto.LogError = *why
-		case roomless:
+		if roomless {
 			src.proto.LogError = "This stream reads at most " + strconv.Itoa(MaxSourcesPerStream) + " containers at once, so this one's lines don't show. Choose one replica or deploy to read it"
+		}
+		if why := s.whyNot(st, src); why != "" {
+			src.proto.LogError = why
 		}
 		if text := describe(src.proto); text != s.said[id] {
 			s.said[id] = text
@@ -618,9 +723,10 @@ func (s *stream) startReading(st *sourceState, src *source, first bool) bool {
 		return true // it was read to its end, and nothing more will come
 	}
 	// A container that went since the call came was what a follower was there to
-	// see, as when a deploy fails and is rolled back in between two looks.
-	// Otherwise what was kept isn't read unless asked for.
-	if s.outsideTime(st, src.proto) || (kept && !s.wantsKept() && src.kept.wentBefore(s.start)) {
+	// see, as when a deploy fails and is rolled back in between two looks. So was one
+	// a look found and couldn't read, whenever it went. Otherwise what was kept isn't
+	// read unless asked for.
+	if s.outsideTime(st, src.proto) || (kept && !s.wantsKept() && !st.unread.Load() && src.kept.wentBefore(s.start)) {
 		return true
 	}
 	if s.reading.Load() >= MaxSourcesPerStream {
@@ -661,6 +767,21 @@ func (s *stream) since(st *sourceState) time.Time {
 	return since
 }
 
+// pastTail is when lines are wanted from a source a follow has read before and
+// has no place in, as it asked for no tail or its tail found no line to keep. That
+// tail has been read, so all that's wanted now is what came since the follow began.
+// A read Docker refused, or that broke before the end of its tail, hasn't read it.
+func (s *stream) pastTail(st *sourceState, since time.Time) time.Time {
+	if !s.call.GetFollow() || st.tail == 0 || !st.reached.Load() {
+		return since
+	}
+	st.tail = 0
+	if since.Before(s.start) {
+		return s.start
+	}
+	return since
+}
+
 // outsideTime reports a container whose life is outside the call's time range.
 func (s *stream) outsideTime(st *sourceState, p *dockwellv1.LogSource) bool {
 	if t := s.since(st); !t.IsZero() && p.GetFinishTime() != nil && p.GetFinishTime().AsTime().Before(t) {
@@ -689,6 +810,8 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 		cursor, skip = st.after.GetTime().AsTime(), st.after.GetCount()
 		o.Since = cursor
 		resuming = true
+	default:
+		o.Since = s.pastTail(st, o.Since)
 	}
 	if !st.before.IsZero() {
 		o.Until = st.before
@@ -729,8 +852,10 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 		return
 	}
 	defer rd.Close()
+	st.refused.Store(0)
 	if follow && o.Tail < 0 {
 		st.live.Store(true)
+		st.reached.Store(true)
 	}
 	var ring *lineRing
 	if ringed {
@@ -741,10 +866,12 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 		ring = newLineRing(want, int(s.ringEach.Load()))
 	}
 	scan := &agentv1.LogScan{SourceId: src.proto.GetId()}
+	broke, moved := false, false
 	for {
 		e, err := rd.Next()
 		if err != nil {
 			if !errors.Is(err, io.EOF) && ctx.Err() == nil {
+				broke = true
 				s.r.logger().Warn("a container's log stopped partway", slog.String("container", src.proto.GetContainerName()), slog.String("error", err.Error()))
 			}
 			if ringed && ctx.Err() != nil && s.ctx.Err() == nil {
@@ -778,8 +905,9 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 		if timed && !st.before.IsZero() && t.After(st.before) {
 			continue
 		}
-		if timed && follow && !st.live.Load() && t.After(s.start) {
+		if timed && follow && !st.reached.Load() && t.After(s.start) {
 			st.live.Store(true)
+			st.reached.Store(true)
 		}
 		if ringed {
 			scan.Lines++
@@ -791,7 +919,18 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 			}
 			continue
 		}
+		moved = true
 		s.offer(st, src, e, t)
+	}
+	if !broke {
+		st.reached.Store(true)
+	}
+	if broke {
+		// What a ring holds hasn't gone out, and a look reads it all again.
+		s.readBroke(st, src, moved && !ringed)
+		if ringed {
+			return
+		}
 	}
 	if ringed {
 		// What is left only waits to be sent, which may take as long as its
@@ -847,10 +986,37 @@ func (s *stream) readFailed(st *sourceState, src *source, err error) {
 		st.unread.Store(true)
 		return
 	}
+	// It is dead or being removed, which Docker answers with a conflict, and which
+	// says nothing of its logging driver. One being removed has gone by a later look.
+	if docker.IsConflict(err) {
+		st.unread.Store(true)
+		st.refused.Add(1)
+		return
+	}
 	s.r.logger().Warn("can't read a container's log", slog.String("container", src.proto.GetContainerName()), slog.String("error", err.Error()))
 	// By its ID, as Docker may have it under another name for now, as a rollout stops it.
 	why := fmt.Sprintf("Docker can't read this container's log: %v. Check its logging driver with docker inspect %s", err, src.proto.GetId())
 	st.problem.Store(&why)
+}
+
+// readBroke handles a read that stopped partway, as Docker going away does. A running
+// container is read again anyway; a stopped one would count as read, with the rest of
+// its log missing and nothing to say so. The next look reads on from its last line,
+// and one that keeps breaking with no line to show for it says so, and stops.
+func (s *stream) readBroke(st *sourceState, src *source, moved bool) {
+	if s.call.GetFollow() && src.proto.GetState() == dockwellv1.LogSourceState_LOG_SOURCE_STATE_RUNNING {
+		return
+	}
+	if moved {
+		st.breaks = 0
+	}
+	st.breaks++
+	if st.breaks >= brokenReads {
+		why := readBrokeWords(src)
+		st.problem.Store(&why)
+		return
+	}
+	st.unread.Store(true)
 }
 
 // keptFailed handles a kept log that can't be read. The container has gone, so
@@ -1100,8 +1266,11 @@ func (s *stream) checkCaughtUp() {
 			idle = idleLive
 		}
 		last := st.lastRead.Load()
-		if st.reading.Load() && (st.waiting.Load() || now-last < idle.Nanoseconds()) {
-			return
+		if st.reading.Load() {
+			if st.waiting.Load() || now-last < idle.Nanoseconds() {
+				return
+			}
+			st.reached.Store(true)
 		}
 		st.live.Store(true)
 	}
@@ -1119,6 +1288,9 @@ func (s *stream) readKept(st *sourceState, src *source) {
 	st.cursorMu.Unlock()
 	if cursor.IsZero() && st.after != nil {
 		cursor, skip = st.after.GetTime().AsTime(), st.after.GetCount()
+	}
+	if cursor.IsZero() {
+		since = s.pastTail(st, since)
 	}
 	// A read of no lines has nothing to do, whatever it would have filtered.
 	if st.tail < 0 && cursor.IsZero() {

@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { englishStrings, UIStringsProvider } from "../../lib/strings";
 import { expectAccessible } from "../../test/a11y";
-import { type LogLine, LogStream, type LogStreamHandle, prettyJson } from "./LogStream";
+import { type LogLine, type LogLines, LogStream, type LogStreamHandle, prettyJson } from "./LogStream";
 
 const lines: LogLine[] = [
   { id: 1, time: "14:16:02.118", source: "api-7f9c-1", text: "GET /healthz 200 2 ms" },
@@ -360,6 +360,106 @@ describe("LogStream", () => {
     expect(onFollowChange).not.toHaveBeenCalled();
     scroll.scrollTo(900);
     expect(onFollowChange).toHaveBeenCalledWith(true);
+  });
+
+  describe("keeps a paused reader's place through a filter", () => {
+    const ROW = 19;
+    const all: LogLine[] = Array.from({ length: 1000 }, (_, i) => ({
+      id: i,
+      time: "t",
+      source: "a",
+      text: `line ${i}`,
+    }));
+    let epoch = 0;
+    /** What a store offers: the lines a filter keeps, each by its ID. */
+    const showing = (keeps: (id: number) => boolean): LogLines => {
+      const kept = all.filter((l) => keeps(l.id as number));
+      epoch++;
+      return {
+        length: kept.length,
+        start: 0,
+        version: epoch,
+        epoch,
+        at: (p) => kept[p],
+        positionOf: (id) => {
+          const p = kept.findIndex((l) => l.id === id);
+          return p < 0 ? undefined : p;
+        },
+        positionNear: (id) => {
+          if (kept.length === 0) return undefined;
+          const p = kept.findIndex((l) => (l.id as number) >= (id as number));
+          return p < 0 ? kept.length - 1 : p;
+        },
+      };
+    };
+    const atLine500 = (log: HTMLElement) => {
+      const scroll = fakeScroll(log, { scrollHeight: 19_000, clientHeight: 240 });
+      scroll.scrollTo(500 * ROW + 5);
+      return scroll;
+    };
+    const paused = (lines: LogLines) => <LogStream lines={lines} follow={false} live />;
+
+    it("through a search that found nothing", () => {
+      const { rerender } = render(paused(showing(() => true)));
+      const scroll = atLine500(screen.getByRole("log"));
+      rerender(paused(showing(() => false)));
+      scroll.scrollTo(0); // the browser's, as what there is to scroll has gone
+      rerender(paused(showing(() => true)));
+      expect(scroll.top).toBe(500 * ROW + 5);
+    });
+
+    it("through a search that found nothing, typed a key at a time", () => {
+      const { rerender } = render(paused(showing(() => true)));
+      const scroll = atLine500(screen.getByRole("log"));
+      rerender(paused(showing((id) => id % 100 === 7)));
+      rerender(paused(showing(() => false)));
+      scroll.scrollTo(0);
+      rerender(paused(showing(() => true)));
+      expect(scroll.top).toBe(500 * ROW + 5);
+    });
+
+    it("through a search that found other lines, going to the nearest", () => {
+      const { rerender } = render(paused(showing(() => true)));
+      const scroll = atLine500(screen.getByRole("log"));
+      rerender(paused(showing((id) => id % 100 === 7)));
+      expect(scroll.top).toBe(5 * ROW); // line 507, the sixth match
+      rerender(paused(showing((id) => id % 50 === 7)));
+      expect(scroll.top).toBe(10 * ROW); // still by the line a reader is on
+      rerender(paused(showing(() => true)));
+      expect(scroll.top).toBe(500 * ROW + 5);
+    });
+
+    it("going to the last that shows when nothing comes after", () => {
+      const { rerender } = render(paused(showing(() => true)));
+      const scroll = atLine500(screen.getByRole("log"));
+      rerender(paused(showing((id) => id < 10)));
+      expect(scroll.top).toBe(9 * ROW);
+      rerender(paused(showing(() => true)));
+      expect(scroll.top).toBe(500 * ROW + 5);
+    });
+
+    it("staying where a reader went within it", () => {
+      const { rerender } = render(paused(showing(() => true)));
+      const scroll = atLine500(screen.getByRole("log"));
+      rerender(paused(showing((id) => id % 100 === 7)));
+      vi.spyOn(performance, "now").mockReturnValue(performance.now() + 1000); // past the browser's own scrolling
+      scroll.scrollTo(2 * ROW); // line 207
+      rerender(paused(showing(() => true)));
+      expect(scroll.top).toBe(207 * ROW);
+      vi.restoreAllMocks();
+    });
+
+    it("staying at what a step went to", () => {
+      const ref = createRef<LogStreamHandle>();
+      const page = (lines: LogLines) => <LogStream ref={ref} lines={lines} follow={false} live />;
+      const { rerender } = render(page(showing(() => true)));
+      const scroll = atLine500(screen.getByRole("log"));
+      rerender(page(showing((id) => id % 100 === 7)));
+      act(() => ref.current?.show(3)); // line 307, with the matches before it above it
+      expect(scroll.top).toBe(0);
+      rerender(page(showing(() => true)));
+      expect(scroll.top).toBe(304 * ROW); // as far down what shows as it was
+    });
   });
 
   it("says a lot of new lines without a number that can't be read", () => {

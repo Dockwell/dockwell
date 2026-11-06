@@ -230,6 +230,8 @@ That removes those two containers and the network, by Dockwell's label, and take
 
 To delete your data too, run `rm -rf /var/lib/dockwell`. Do it after removing the ingress: Caddy's container mounts directories under it, which Docker would make again as root the next time it restarts, and Caddy couldn't read them, so it would restart for ever. Deleting it removes the server's identity, and on a control server, the record of every server that joined it. Your services' containers and volumes stay until you remove them with `docker`.
 
+**The logs Dockwell kept of removed containers stay too,** in `/var/lib/dockwell/agent/kept-logs`, and the script says so when there are any. They may hold secrets, and while Dockwell runs they leave after 30 days at most. With Dockwell gone nothing removes them, so delete them yourself if you won't install it again: `rm -rf /var/lib/dockwell/agent/kept-logs`.
+
 ## Options
 
 | Option | Environment | What it does |

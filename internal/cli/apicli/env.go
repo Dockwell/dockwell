@@ -48,8 +48,9 @@ type Settings struct {
 	URL   string
 	Token string
 	// Renew asks local access for a new token, and Moved for where the
-	// control plane answers now.
-	Renew, Moved bool
+	// control plane answers now. Regrant goes with Renew for a token refused only
+	// for want of a grant: the new one can do what it could, for as long.
+	Renew, Moved, Regrant bool
 	// Locate asks only where the control plane is, for a message: the
 	// client it gives has no token, and local access makes none.
 	Locate bool

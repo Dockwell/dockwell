@@ -250,6 +250,271 @@ func TestAFollowReadsAContainerThatGoesBeforeItsLogIsAskedFor(t *testing.T) {
 	}
 }
 
+// Docker answers 409 for a container being removed, whatever its logging driver.
+// A follower that looks then reads what was kept once it has gone, and hears
+// nothing of drivers, whether it came before the container went or as it did.
+func TestAFollowReadsWhatWasKeptOfAContainerBeingRemoved(t *testing.T) {
+	for _, late := range []bool{false, true} {
+		name := "there as it went"
+		if late {
+			name = "there only once it had stopped"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			r := newReader(t, e)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			c := newCollector()
+			refused := func() int {
+				n := 0
+				for _, req := range e.Seen() {
+					if strings.HasSuffix(req, "/logs") {
+						n++
+					}
+				}
+				return n
+			}
+			begin := func() { follow(ctx, r, &agentv1.LogsCall{Tail: 100}, c) }
+			if !late {
+				begin()
+				waitFor(t, "a first look, which finds nothing", c.isCaughtUp)
+			}
+			ctr := addContainer(t, e, "app-1", 1)
+			e.Print("app-1", docker.Stdout, "can't reach the database")
+			k := r.Archive.Begin(t.Context(), e.Container("app-1"), true)
+			e.Stop("app-1")
+			k.Finish(t.Context(), e.Container("app-1"))
+			r.Archive.WaitPruned()
+			e.Removing("app-1")
+			kept := refused()
+			if late {
+				time.Sleep(2 * time.Millisecond) // so it stopped before this began
+				begin()
+			}
+			waitFor(t, "a look that Docker refuses", func() bool { return refused() > kept })
+			if err := r.Client.RemoveContainer(t.Context(), ctr.ID, true); err != nil {
+				t.Fatal(err)
+			}
+			waitFor(t, "why it failed", func() bool { return slices.Contains(c.got(), "can't reach the database") })
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			if msg := c.sources[ctr.ID[:12]].GetLogError(); msg != "" {
+				t.Errorf("the source says %q, and nothing is wrong with it", msg)
+			}
+		})
+	}
+}
+
+// A dead container is refused for as long as it stays, so a reader hears why, and
+// what to do. It isn't given up on: once it has gone, what was kept reads.
+func TestADeadContainerSaysWhyItsLogDoesntShow(t *testing.T) {
+	e := dockertest.New(t)
+	ctr := addContainer(t, e, "app-1", 1)
+	e.Print("app-1", docker.Stdout, "last words")
+	r := newReader(t, e)
+	r.RefusedLooks = 2
+	k := r.Archive.Begin(t.Context(), e.Container("app-1"), true)
+	e.Stop("app-1")
+	k.Finish(t.Context(), e.Container("app-1"))
+	r.Archive.WaitPruned()
+	e.Dead("app-1")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	follow(ctx, r, &agentv1.LogsCall{Tail: 100}, c)
+	var said string
+	waitFor(t, "the source to say why", func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		said = c.sources[ctr.ID[:12]].GetLogError()
+		return said != ""
+	})
+	if want := "docker rm -f " + ctr.ID[:12]; !strings.Contains(said, want) || strings.Contains(said, "driver") {
+		t.Errorf("a dead container says %q, want how to remove it, and nothing of drivers", said)
+	}
+	if err := r.Client.RemoveContainer(t.Context(), ctr.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "what was kept", func() bool { return slices.Contains(c.got(), "last words") })
+	waitFor(t, "the source to stop saying so", func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return c.sources[ctr.ID[:12]].GetLogError() == ""
+	})
+}
+
+// Docker going away partway through a stopped container's log is no end to it, or a
+// read would pass for all there is, with no marker and no look at the rest.
+func TestAReadThatBreaksOnAStoppedContainerReadsOn(t *testing.T) {
+	lines := make([]string, 40)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %d", i)
+	}
+	calls := map[string]*agentv1.LogsCall{
+		"following":    {Resource: testRef, Follow: true, Tail: 100},
+		"to the end":   {Resource: testRef, Tail: 100},
+		"a search":     {Resource: testRef, Query: "line"},
+		"up to a time": {Resource: testRef, Tail: 40, Until: timestamppb.New(time.Now().Add(time.Hour))},
+	}
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			addContainer(t, e, "app-1", 1)
+			e.Print("app-1", docker.Stdout, lines...)
+			e.Stop("app-1")
+			e.BreakLog("app-1", 6)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			c := newCollector()
+			done := make(chan error, 1)
+			go func() { done <- newReader(t, e).Stream(ctx, call, c.send) }()
+			waitFor(t, "all of it", func() bool { return c.count() >= len(lines) })
+			if call.GetFollow() {
+				time.Sleep(700 * time.Millisecond) // a further look, which has nothing more to read
+				cancel()
+			}
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			if got := c.got(); !slices.Equal(got, lines) {
+				t.Errorf("read %d lines, want each of %d once, in order: %q", len(got), len(lines), got)
+			}
+		})
+	}
+}
+
+// A follow with no place yet that broke before the end of its tail hasn't read that
+// tail, however quiet it has been since: the next look still reads it.
+func TestAFollowThatBrokeBeforeItsTailStillReadsIt(t *testing.T) {
+	e := dockertest.New(t)
+	addContainer(t, e, "app-1", 1)
+	e.Print("app-1", docker.Stdout, "first", "second")
+	e.Stop("app-1")
+	e.BreakLog("app-1", 0)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	follow(ctx, newReader(t, e), &agentv1.LogsCall{Tail: 10}, c)
+	waitFor(t, "its tail", func() bool { return c.count() == 2 })
+	if got := c.got(); !slices.Equal(got, []string{"first", "second"}) {
+		t.Errorf("read %q, want its tail once", got)
+	}
+}
+
+// A log that goes on breaking stops being tried, and a reader hears so, however it
+// reads, rather than taking what came for all there is.
+func TestALogThatKeepsBreakingSaysSo(t *testing.T) {
+	for _, follows := range []bool{true, false} {
+		name := "to the end"
+		if follows {
+			name = "following"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			ctr := addContainer(t, e, "app-1", 1)
+			e.Print("app-1", docker.Stdout, "first", "second")
+			e.Stop("app-1")
+			for range 12 {
+				e.BreakLog("app-1", 0)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			c := newCollector()
+			done := make(chan error, 1)
+			go func() {
+				done <- newReader(t, e).Stream(ctx, &agentv1.LogsCall{Resource: testRef, Tail: 100, Follow: follows}, c.send)
+			}()
+			waitFor(t, "the source to say why", func() bool {
+				c.mu.Lock()
+				defer c.mu.Unlock()
+				return strings.Contains(c.sources[ctr.ID[:12]].GetLogError(), "docker logs "+ctr.ID[:12])
+			})
+			cancel()
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			reads := 0
+			for _, req := range e.Seen() {
+				if strings.HasSuffix(req, "/logs") {
+					reads++
+				}
+			}
+			if reads > 3 {
+				t.Errorf("it read %d times, and it shouldn't go on trying", reads)
+			}
+		})
+	}
+}
+
+// One that has no fix but to wait says so to a read to the end too, which has no
+// later look to say it from.
+func TestAReadToTheEndSaysWhatItCouldntRead(t *testing.T) {
+	e := dockertest.New(t)
+	ctr := e.AddContainer(docker.Container{
+		Name: "/app-1",
+		Config: docker.Config{Image: "app:1", Labels: map[string]string{
+			docker.LabelProject: testProject, docker.LabelService: testService,
+		}},
+		HostConfig: docker.HostConfig{LogConfig: &docker.LogConfig{Type: "none"}},
+	})
+	c := newCollector()
+	if err := newReader(t, e).Stream(t.Context(), &agentv1.LogsCall{Resource: testRef, Tail: 10}, c.send); err != nil {
+		t.Fatal(err)
+	}
+	if msg := c.sources[ctr.ID[:12]].GetLogError(); !strings.Contains(msg, "logging driver") {
+		t.Errorf("a read of a log Docker can't read says %q", msg)
+	}
+}
+
+// A follow that starts with no lines, or with a tail that found none, has no place
+// in a container's log. A restart between two looks still reads whatever that run
+// said, from when the follow began, and nothing from before it.
+func TestAFollowWithNoPlaceReadsARestart(t *testing.T) {
+	for _, tail := range []int32{-1, 2} {
+		for _, removed := range []bool{false, true} {
+			name := fmt.Sprintf("tail %d", tail)
+			if removed {
+				name += ", then removed"
+			}
+			t.Run(name, func(t *testing.T) {
+				e := dockertest.New(t)
+				ctr := addContainer(t, e, "app-1", 1)
+				if tail < 0 {
+					e.Print("app-1", docker.Stdout, "from before it began")
+				}
+				r := newReader(t, e)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				c := newCollector()
+				follow(ctx, r, &agentv1.LogsCall{Tail: tail}, c)
+				waitFor(t, "caught up", c.isCaughtUp)
+				waitFor(t, "it to be following", func() bool { return e.Followers() == 1 })
+				e.Stop("app-1")
+				waitFor(t, "the follow to end", func() bool { return e.Followers() == 0 })
+				if err := r.Client.StartContainer(t.Context(), ctr.ID); err != nil {
+					t.Fatal(err)
+				}
+				// More than the tail, so a tail asked for again wouldn't reach the first.
+				e.Print("app-1", docker.Stdout, "one", "two", "three", "four")
+				e.Stop("app-1")
+				if removed {
+					k := r.Archive.Begin(t.Context(), e.Container("app-1"), true)
+					k.Finish(t.Context(), e.Container("app-1"))
+					r.Archive.WaitPruned()
+					if err := r.Client.RemoveContainer(t.Context(), ctr.ID, true); err != nil {
+						t.Fatal(err)
+					}
+				}
+				waitFor(t, "what that run said", func() bool { return slices.Contains(c.got(), "four") })
+				time.Sleep(700 * time.Millisecond) // a further look, which has nothing more to read
+				if got := c.got(); !slices.Equal(got, []string{"one", "two", "three", "four"}) {
+					t.Errorf("read %q, want what the second run said, once", got)
+				}
+			})
+		}
+	}
+}
+
 // One that restarts and is gone between two looks reads what the last run said,
 // and what it had read already, once.
 func TestAFollowReadsARestartItDidNotSee(t *testing.T) {
@@ -887,6 +1152,66 @@ func TestAKeptLogMarksTheHoleItsLastCopyLeft(t *testing.T) {
 	g := c.gaps[0]
 	if !g.GetStartTime().AsTime().Equal(base) || !g.GetEndTime().AsTime().After(base) {
 		t.Errorf("the marker says from %v to %v", g.GetStartTime().AsTime(), g.GetEndTime().AsTime())
+	}
+}
+
+// A power cut can leave a kept log with an empty record, as nothing syncs it. With no
+// record it has no age and no size, so the 30 days and the budget would never reach
+// it. It leaves, and what stands beside it doesn't.
+func TestAKeptLogWithNoRecordLeaves(t *testing.T) {
+	for name, damage := range map[string]func(record string) error{
+		"missing": os.Remove,
+		"empty":   func(record string) error { return os.WriteFile(record, nil, 0o600) },
+		"cut off": func(record string) error { return os.WriteFile(record, []byte(`{"container_id":"ab`), 0o600) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			r := newReader(t, e)
+			addContainer(t, e, "app-1", 1)
+			e.Print("app-1", docker.Stdout, "failed")
+			fine := keep(t, r, e, "app-1", true)
+			addContainer(t, e, "app-2", 2)
+			e.Print("app-2", docker.Stdout, "replaced")
+			broken := keep(t, r, e, "app-2", false)
+			dir := filepath.Join(r.Archive.Dir, testProject, testService)
+			if err := damage(filepath.Join(dir, broken, "kept.json")); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.Archive.Prune(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, broken)); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("a kept log with no record is still there: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, fine)); err != nil {
+				t.Errorf("the kept log beside it went too: %v", err)
+			}
+		})
+	}
+}
+
+// A record that can't be reached for now is no reason to lose what it describes.
+func TestAKeptLogStaysThroughARecordItCantReachForNow(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads every file, so nothing here is out of reach")
+	}
+	e := dockertest.New(t)
+	r := newReader(t, e)
+	addContainer(t, e, "app-1", 1)
+	e.Print("app-1", docker.Stdout, "failed")
+	id := keep(t, r, e, "app-1", true)
+	record := filepath.Join(r.Archive.Dir, testProject, testService, id, "kept.json")
+	if err := os.Chmod(record, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Archive.Prune(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(record, 0o600); err != nil {
+		t.Fatalf("it went, record and all: %v", err)
+	}
+	if got := r.Archive.List(testProject, testService); len(got) != 1 {
+		t.Errorf("the archive lists %d kept logs, want the one it had", len(got))
 	}
 }
 

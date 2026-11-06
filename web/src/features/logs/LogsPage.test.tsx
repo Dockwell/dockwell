@@ -556,6 +556,33 @@ describe("LogsPage", () => {
     await waitFor(() => expect(requests.at(-1)?.resumeToken).toBe("place-1"), { timeout: 3000 });
   });
 
+  // A stream that drops comes back by itself, so what a reader chose stands: holding
+  // what shows still, and being able to follow again.
+  it("keeps a pause through a dropped stream, with Follow there to press", async () => {
+    const { logs, stream } = api();
+    renderAt(URL, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          sources: [running],
+          chunks: [{ sourceId: running.id, lines: [line("before")] }],
+          resumeToken: "place-1",
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("before");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Pause" }));
+    await act(() => stream.send(message({ chunks: [{ sourceId: running.id, lines: [line("while paused", 1)] }] })));
+    await screen.findByRole("button", { name: "1 new line" });
+    await act(() => stream.fail(new ConnectError("gone", Code.Unavailable)));
+    await screen.findByText("Reconnecting to the control server");
+    expect(document.querySelector(".dw-live.is-paused")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Follow" })).toBeEnabled();
+    expect(screen.queryByText("while paused")).toBeNull();
+  });
+
   it("speaks Chinese", async () => {
     await act(() => activateLocale("zh-CN"));
     const { logs, stream } = api();

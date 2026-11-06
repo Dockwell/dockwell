@@ -522,6 +522,9 @@ func (a *Archive) listIn(dir string) []*Kept {
 	return out
 }
 
+// errBrokenRecord means a kept log's record is there, and can't be what commit wrote.
+var errBrokenRecord = errors.New("its record is broken")
+
 func readKept(dir string) (*Kept, error) {
 	b, err := os.ReadFile(filepath.Join(dir, "kept.json")) //nolint:gosec // a path of the archive's own
 	if err != nil {
@@ -529,7 +532,7 @@ func readKept(dir string) (*Kept, error) {
 	}
 	var k Kept
 	if err := json.Unmarshal(b, &k); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", errBrokenRecord, err)
 	}
 	k.dir = dir
 	return &k, nil
@@ -658,19 +661,31 @@ func (a *Archive) Prune() error {
 	return nil
 }
 
-// removeAbandoned clears copies a crash left behind, once they are old.
+// removeAbandoned clears what can never be read back: copies a crash left behind,
+// once they are old, and a kept log with no record it can read. With no record, it
+// has no age and no size, so nothing else here would ever remove it. A record that
+// can't be reached for now isn't that, and stays for the next prune.
 func (a *Archive) removeAbandoned(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), ".copying-") {
+		name := filepath.Join(dir, e.Name())
+		if strings.HasPrefix(e.Name(), ".copying-") {
+			info, err := e.Info()
+			if err == nil && a.now().Sub(info.ModTime()) > time.Hour {
+				_ = os.RemoveAll(name)
+			}
 			continue
 		}
-		info, err := e.Info()
-		if err == nil && a.now().Sub(info.ModTime()) > time.Hour {
-			_ = os.RemoveAll(filepath.Join(dir, e.Name()))
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if _, err := readKept(name); errors.Is(err, fs.ErrNotExist) || errors.Is(err, errBrokenRecord) {
+			if err := os.RemoveAll(name); err != nil {
+				a.logger().Warn("can't remove a kept log with no record; the next prune tries again", slog.String("dir", e.Name()), slog.String("error", err.Error()))
+			}
 		}
 	}
 }

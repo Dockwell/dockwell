@@ -4,7 +4,7 @@ import { LogGapReason } from "@dockwell/api";
 import { Button } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { formatDay } from "../../lib/format";
 import type { LogStore } from "./store";
@@ -34,6 +34,21 @@ function useOncePerSecond(store: LogStore, on: boolean) {
     return () => clearInterval(timer);
   }, [store, on]);
   return rate;
+}
+
+/** How many lines a search found, once the store has that search, and where a reader is among them. */
+export function SearchCount({ store, query, step }: { store: LogStore; query: string; step: number | undefined }) {
+  const { t, i18n } = useLingui();
+  useSyncExternalStore(store.subscribe, () => store.epoch);
+  return (
+    <span className="logs-search-count">
+      {store.query !== query
+        ? null
+        : step !== undefined
+          ? t`${step.toLocaleString(i18n.locale)} of ${store.matches.toLocaleString(i18n.locale)}`
+          : store.matches.toLocaleString(i18n.locale)}
+    </span>
+  );
 }
 
 /** What goes between two sentences: a space, except in Chinese, whose full stop has room of its own. */
@@ -147,6 +162,8 @@ export function LogFoot({
 }) {
   const { t, i18n } = useLingui();
   const rate = useOncePerSecond(store, live);
+  // What a new search found as soon as it's known, and not with each batch of lines.
+  useSyncExternalStore(store.subscribe, () => store.epoch);
   let words: ReactNode = null;
   if (stale) {
     words = <Trans>Press Enter to search all the servers keep.</Trans>;
@@ -156,8 +173,9 @@ export function LogFoot({
   } else if (query) {
     const shown = store.matches.toLocaleString(i18n.locale);
     const total = store.total.toLocaleString(i18n.locale);
+    // Until the store has this search, what it counts is the search before.
     words =
-      store.matches === 0
+      store.query !== query || store.matches === 0
         ? null
         : plural(store.matches, {
             one: `${shown} of the ${total} lines loaded matches.`,

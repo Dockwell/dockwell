@@ -166,7 +166,7 @@ func newLogReader(body io.ReadCloser, tty bool) *LogReader {
 func (r *LogReader) Close() error { return r.body.Close() }
 
 // Next returns the next line of the log, or the error that ended it: io.EOF
-// at its end.
+// at its end, and anything else if it stopped before that.
 func (r *LogReader) Next() (*LogEntry, error) {
 	if r.tty {
 		return r.nextRaw()
@@ -230,12 +230,10 @@ func (r *LogReader) nextRaw() (*LogEntry, error) {
 	}
 }
 
-// ended gives what a broken or finished stream left under way, then its
-// error.
+// ended gives what a broken or finished stream left under way, then its error:
+// io.EOF for a log that was read to its end, and io.ErrUnexpectedEOF for one
+// cut off, as when Docker goes away partway.
 func (r *LogReader) ended(err error) (*LogEntry, error) {
-	if errors.Is(err, io.ErrUnexpectedEOF) {
-		err = io.EOF
-	}
 	for s := range r.parts {
 		if p := &r.parts[s]; len(p.buf) > 0 || p.cut > 0 {
 			e := r.finish(LogStream(s), p)

@@ -763,6 +763,46 @@ async function main() {
   );
   await search.fill("");
 
+  step("a search leaves a paused reader where they were");
+  const topLine = () =>
+    logBody(page).evaluate((el) => {
+      const top = el.getBoundingClientRect().top;
+      const rows = [...el.querySelectorAll(".dw-log-row")];
+      return rows.find((row) => row.getBoundingClientRect().bottom > top + 1)?.textContent ?? "";
+    });
+  await sleep(500);
+  const place = await topLine();
+  if (!place) fail("no line shows at the top of the log");
+  const stillThere = async (search_: string) => {
+    await search.press("Escape");
+    await sleep(500);
+    const back = await topLine();
+    if (back !== place) fail(`after ${search_}, the log went from ${JSON.stringify(place)} to ${JSON.stringify(back)}`);
+  };
+  await search.fill("no line says this");
+  await page.getByText("Nothing in the 100,000 lines loaded", { exact: false }).waitFor({ timeout: 10_000 });
+  await stillThere("a search that found nothing");
+  await search.pressSequentially("products/nothing", { delay: 180 });
+  await page.getByText("Nothing in the 100,000 lines loaded", { exact: false }).waitFor({ timeout: 10_000 });
+  await stillThere("a search that found nothing, typed a key at a time");
+  await search.fill("products/");
+  await page
+    .getByText(/of the 100,000 lines loaded/)
+    .first()
+    .waitFor({ timeout: 10_000 });
+  await stillThere("a search that found some lines");
+
+  step("a dropped stream leaves a pause as it was, with Follow there to press");
+  await page.context().setOffline(true);
+  await page.getByText("Reconnecting to the control server").waitFor({ timeout: 15_000 });
+  await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
+  await page.getByRole("button", { name: "Follow", exact: true }).waitFor({ timeout: 2000 });
+  if ((await topLine()) !== place) fail("the stream dropping moved a paused reader");
+  await page.context().setOffline(false);
+  await page.getByText("Reconnecting to the control server").waitFor({ state: "hidden", timeout: 30_000 });
+  await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
+  if ((await topLine()) !== place) fail("the stream coming back moved a paused reader");
+
   step("a flood gets a marker saying how many lines it missed");
   await post("/flood?size=200");
   await page.getByRole("button", { name: "Follow", exact: true }).click();
@@ -800,11 +840,18 @@ async function main() {
       return row?.textContent ?? "";
     });
   const held = await reading();
-  await sleep(8000);
+  // As long as a run once took to lose Follow, which a stream dropping would do.
+  let down = 0;
+  for (let second = 0; second < 40; second++) {
+    await sleep(1000);
+    if ((await page.getByText("Reconnecting to the control server").count()) > 0) down++;
+  }
+  step(`  paused for 40 s at 16,000 lines a second, with the stream down for ${down} s of them`);
   if (!held || (await reading()) !== held)
     fail("the line being read changed while paused, under 16,000 lines a second");
   await page.getByText(/Paused at \d\d:\d\d:\d\d\. [\d,]+ lines since\./).waitFor();
   await page.getByRole("button", { name: /10k\+ new lines/ }).waitFor();
+  await page.getByRole("button", { name: "Follow", exact: true }).waitFor({ timeout: 2000 });
   await post("/rate?lines=0");
   await page.getByRole("button", { name: "Follow", exact: true }).click();
 

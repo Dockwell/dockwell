@@ -72,8 +72,13 @@ func (p *logPrinter) read(m *dockwellv1.ReadLogsResponse) {
 	}
 }
 
+// sourcesChanged notes what each source is, and says why its lines don't show
+// when that's new, as a reader would otherwise take no lines for a quiet service.
 func (p *logPrinter) sourcesChanged(sources []*dockwellv1.LogSource) {
 	for _, s := range sources {
+		if why := s.GetLogError(); why != "" && why != p.sources[s.GetId()].GetLogError() {
+			fmt.Fprintln(p.err, sentence(terminalSafe(why, false)))
+		}
 		p.sources[s.GetId()] = s
 	}
 }

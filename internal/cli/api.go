@@ -269,8 +269,9 @@ func readLocalToken(dir datadir.Dir) (localToken, bool, error) {
 // install already, as for dockwell recover. The token is read-only unless
 // dockwell login --local asked for more, and lasts LocalTokenTTL. Renew
 // makes a new read-only one, as when the control plane rejected the one it
-// had; Moved reads where the control plane answers now, and keeps the
-// token; Locate only finds where it answers, and makes no token.
+// had, or with Regrant one that does what the one it had did, for as long;
+// Moved reads where the control plane answers now, and keeps the token;
+// Locate only finds where it answers, and makes no token.
 //
 // Local access opens the control plane's state as it is, and never
 // migrates it: see openLocalState.
@@ -311,7 +312,11 @@ func (a *apiAccess) local(ctx context.Context, s apicli.Settings) (*apicli.Clien
 	if usable && !s.Renew {
 		return a.client(t.URL, t.Secret, true), nil
 	}
-	made, err := a.makeLocalToken(ctx, dir, store.ScopeReadOnly, t)
+	tokenScope, until := store.ScopeReadOnly, time.Time{}
+	if usable && s.Regrant {
+		tokenScope, until = t.Scope, t.Expires
+	}
+	made, err := a.makeLocalToken(ctx, dir, tokenScope, until, t)
 	if err != nil {
 		return nil, err
 	}
@@ -431,9 +436,10 @@ func (a *apiAccess) cantReadDataDir(dir datadir.Dir) error {
 		"Run it as root, with sudo, or sign in with dockwell login", dir.Root)
 }
 
-// makeLocalToken makes a token for local access with scope, replacing
-// old, and keeps it in the data directory.
-func (a *apiAccess) makeLocalToken(ctx context.Context, dir datadir.Dir, tokenScope string, old localToken) (localToken, error) {
+// makeLocalToken makes a token for local access with scope, lasting until a
+// time, or LocalTokenTTL with none, replacing old, and keeps it in the data
+// directory.
+func (a *apiAccess) makeLocalToken(ctx context.Context, dir datadir.Dir, tokenScope string, until time.Time, old localToken) (localToken, error) {
 	logger, err := a.g.logger(a.stdio.Err)
 	if err != nil {
 		return localToken{}, err
@@ -457,7 +463,7 @@ func (a *apiAccess) makeLocalToken(ctx context.Context, dir datadir.Dir, tokenSc
 	} else {
 		name += ", read-only"
 	}
-	made, err := people.CreateLocalToken(ctx, actor(), name, tokenScope)
+	made, err := people.CreateLocalToken(ctx, actor(), name, tokenScope, until)
 	if err != nil {
 		return localToken{}, err
 	}
@@ -593,7 +599,7 @@ func (a *apiAccess) loginLocal(cmd *cobra.Command) error {
 	if errors.Is(err, fs.ErrPermission) {
 		return a.cantReadDataDir(dir)
 	}
-	t, err := a.makeLocalToken(cmd.Context(), dir, store.ScopeReadWrite, old)
+	t, err := a.makeLocalToken(cmd.Context(), dir, store.ScopeReadWrite, time.Time{}, old)
 	if err != nil {
 		return err
 	}

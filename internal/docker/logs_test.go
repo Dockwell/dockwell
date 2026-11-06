@@ -110,11 +110,16 @@ func TestReadsATerminalsPlainLines(t *testing.T) {
 	}
 }
 
-func TestALineCutOffAtTheEndStillComes(t *testing.T) {
+// What came before a log was cut off still counts, and whoever reads it hears it
+// was cut off, rather than taking that for its end.
+func TestALogCutOffPartwaySaysSo(t *testing.T) {
 	r := reader(false, frame(Stdout, stamp+" whole\n"), frame(Stdout, stamp+" cut")[:12])
-	lines := readAll(t, r)
-	if len(lines) != 1 || lines[0].text != "whole" {
-		t.Fatalf("lines = %+v", lines)
+	e, err := r.Next()
+	if err != nil || string(e.Text) != "whole" {
+		t.Fatalf("Next = %+v, %v", e, err)
+	}
+	if e, err := r.Next(); !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("Next on a log cut off = %+v, %v, want io.ErrUnexpectedEOF", e, err)
 	}
 }
 
