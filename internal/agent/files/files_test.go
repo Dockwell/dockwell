@@ -1113,3 +1113,96 @@ func TestAFileSwappedAfterItsCheckIsntSavedOver(t *testing.T) {
 		t.Errorf("left %v", left)
 	}
 }
+
+// A project can hold directories called containers and volumes. It isn't Docker's.
+func TestAProjectWithDockersNamesIsAProject(t *testing.T) {
+	d := newDisk(t)
+	stack := filepath.Join(d.root, "srv", "stack")
+	compose := filepath.Join(stack, "docker-compose.yml")
+	dockerfile := filepath.Join(stack, "containers", "web", "Dockerfile")
+	sql := filepath.Join(stack, "volumes", "db", "init.sql")
+	write(t, compose, "services: {}\n")
+	write(t, dockerfile, "FROM nginx\n")
+	write(t, sql, "select 1;\n")
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
+	for _, p := range []string{compose, dockerfile, sql} {
+		if got := d.read(t, p); got.GetFile() == nil {
+			t.Errorf("%s: %v", p, got.GetRefusal())
+		}
+	}
+	for _, e := range d.list(t, stack).GetListing().GetEntries() {
+		if e.GetRefused() {
+			t.Errorf("%s is marked as refused", e.GetName())
+		}
+	}
+	// Plenty of Docker's names, but no containers, is no root either.
+	other := filepath.Join(d.root, "srv", "site")
+	write(t, filepath.Join(other, "image", "logo.png.txt"), "x")
+	write(t, filepath.Join(other, "network", "hosts"), "x")
+	write(t, filepath.Join(other, "volumes", "db", "init.sql"), "x")
+	write(t, filepath.Join(other, "index.html"), "x")
+	if got := d.read(t, filepath.Join(other, "index.html")); got.GetFile() == nil {
+		t.Errorf("a site with no containers: %v", got.GetRefusal())
+	}
+}
+
+// A real root can keep a part of itself elsewhere, and is still one, which a check
+// that doesn't follow links can't see. Each of these holds what a container printed
+// or was given.
+func TestARootWithPartsElsewhereIsStillOne(t *testing.T) {
+	d := newDisk(t)
+	root := filepath.Join(d.root, "bigdisk", "docker")
+	secrets := []string{
+		filepath.Join(root, "containers", "abc", "mounts", "secrets", "db_password"),
+		filepath.Join(root, "containers", "abc", "abc-json.log"),
+		filepath.Join(root, "overlay2", "abc", "diff", "app", ".env"),
+	}
+	for _, p := range secrets {
+		write(t, p, "hunter2\n")
+	}
+	write(t, filepath.Join(root, "image", "overlay2", "repositories.json"), "{}")
+	write(t, filepath.Join(d.root, "elsewhere", "vols", "web", "_data", "index.html"), "<h1>hello</h1>")
+	link(t, filepath.Join(d.root, "elsewhere", "vols"), filepath.Join(root, "volumes"))
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
+	for _, p := range secrets {
+		if got := refusalOf(t, d, p); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Errorf("%s: %v", p, got)
+		}
+	}
+	// With links as the only way it adds up: it's the link that makes it a root.
+	sparse := filepath.Join(d.root, "bigdisk", "sparse")
+	log := filepath.Join(sparse, "containers", "abc", "abc-json.log")
+	write(t, log, "hunter2\n")
+	write(t, filepath.Join(sparse, "image", "x"), "x")
+	link(t, filepath.Join(d.root, "elsewhere", "vols"), filepath.Join(sparse, "volumes"))
+	if got := refusalOf(t, d, log); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Errorf("with volumes a link: %v", got)
+	}
+	// And with containers the link, what's left of the root is still shut.
+	moved := filepath.Join(d.root, "bigdisk", "moved")
+	diff := filepath.Join(moved, "overlay2", "abc", "diff", ".env")
+	write(t, diff, "hunter2\n")
+	write(t, filepath.Join(moved, "image", "x"), "x")
+	write(t, filepath.Join(d.root, "elsewhere", "ctrs", "abc", "f"), "x")
+	link(t, filepath.Join(d.root, "elsewhere", "ctrs"), filepath.Join(moved, "containers"))
+	if got := refusalOf(t, d, diff); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Errorf("with containers a link: %v", got)
+	}
+}
+
+// A root with its containers elsewhere: they're walked by where they really are.
+func TestARootWhoseContainersAreElsewhereIsStillOne(t *testing.T) {
+	d := newDisk(t)
+	big := filepath.Join(d.root, "big")
+	secret := filepath.Join(big, "containers", "abc", "abc-json.log")
+	write(t, secret, "hunter2\n")
+	write(t, filepath.Join(big, "image", "x"), "x")
+	write(t, filepath.Join(big, "overlay2", "x"), "x")
+	root := filepath.Join(d.root, "docker2")
+	write(t, filepath.Join(root, "volumes", "web", "_data", "x"), "x")
+	link(t, filepath.Join(big, "containers"), filepath.Join(root, "containers"))
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
+	if got := refusalOf(t, d, filepath.Join(root, "containers", "abc", "abc-json.log")); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Errorf("through the link: %v", got)
+	}
+}

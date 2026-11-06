@@ -20,7 +20,7 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | Refused | Why |
 | --- | --- |
 | Dockwell's data directory, as configured and at `/var/lib/dockwell` | It holds the assets above |
-| Docker's data root, other than the list of volumes and each volume's `_data`: at `/var/lib/docker`, where the engine says it is now, wherever it has said before, which the agent keeps on disk, and any directory that holds both `containers` and `volumes` | Each container's `config.v2.json` holds its environment. A volume's `opts.json` holds its options. Not knowing where the data is doesn't open it |
+| Docker's data root, other than the list of volumes and each volume's `_data`: at `/var/lib/docker`, where the engine says it is now, wherever it has said before, which the agent keeps on disk, and any directory that holds `containers` and at least two more of Docker's own directories, with links followed. A project with its own `containers` and `volumes` isn't one | Each container's `config.v2.json` holds its environment. A volume's `opts.json` holds its options. Not knowing where the data is doesn't open it |
 | `config.v2.json`, `hostconfig.json`, an `opts.json` under a `volumes` directory, and any text with Docker's own keys in it, such as `MountOpts`, or `ResolvConfPath` with `Env`, which `docker inspect` prints | The same files, wherever a copy or a moved root leaves them |
 | `/var/lib/containerd` | It holds what Docker's does, on an engine that keeps images there |
 | `/proc`, `/sys`, `/dev` and `/run` | They aren't files: a process's environment, a container's disk through `/proc/<pid>/root`, the server's disks, and each container's runtime spec, which holds its environment. `/var/run` leads to `/run` |
@@ -94,7 +94,7 @@ A network mount or FUSE file system whose far end is down holds a system call fo
 | Take the server offline, as the agent waits on the call when its stream ends | The agent never waits on a file call. Stopping leaves it behind, and the next stream opens. Tested with a call that never returns, end to end |
 | Take every place a call runs in, so Files only says it's busy | A call left behind gives its place back within 15 s, and healthy paths carry on. Tested |
 | Leave a person waiting | They hear that the path isn't answering within 15 s, or at once if it's already known. A folder around it lists by name alone |
-| Pile up calls that can't be stopped | A place known not to answer takes no more calls: the whole mount, for a network file system or FUSE. At most 8 are left behind, and past that no call starts until one comes back. Tested |
+| Pile up calls that can't be stopped | A place known not to answer takes no more calls: the whole mount, for a network file system or FUSE. At most 8 are left behind: no call starts once 5 are, as the 3 more that could be under way can be left behind too. Tested |
 
 ### Something unprivileged on the server
 
@@ -117,8 +117,8 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **An `EnvironmentFile` with `DOCKWELL_DATABASE` in it** is named by the operator, so Dockwell can't refuse it by its path. Keep the password in `/root/.pgpass`, which is refused. The database holds sealed specs, and reaching it isn't reaching the key.
 - **Credentials in other forms.** A key that isn't PEM, such as a PuTTY key or one in the body of a config file, isn't refused, and neither is a token in a dotfile, such as the CLI's own.
 - **A file over 1 MiB** is checked for a key only in what is read of it, and only that part goes out.
-- **Eight stuck calls stop Files on that server** until one comes back, for paths and mounts alike. The agent, its stream and everything else on the server carry on. A call stuck in the kernel can also outlast the agent's own stop, as nothing can end it until the mount answers.
+- **Five stuck calls stop Files on that server** until one comes back, for paths and mounts alike. The agent, its stream and everything else on the server carry on. A call stuck in the kernel can also outlast the agent's own stop, as nothing can end it until the mount answers.
 - **A hard link to a refused file,** made by root, reads as what it is: a file somewhere else.
 - **Activity shows paths.** Anyone who can read events, a read-only token included, sees which files were read, saved and refused, not what's in them.
-- **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding both `containers` and `volumes`. A backup of `overlay2` alone, or a root that has never answered and holds only one of them, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.
+- **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding `containers` and at least two more of Docker's own directories. A backup of `overlay2` alone, or of `containers` alone, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.
 - **A save has a moment in the open.** The file is read and written moments apart, so a writer that lands between them is lost. A reader can catch a file half written, as a save writes in place to keep what a container mounts. A power cut in that moment can leave it half written, and the copy of what was saved beside it, as `.dockwell-save-…`.

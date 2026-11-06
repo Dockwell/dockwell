@@ -166,11 +166,11 @@ func TestWhatsLeftBehindIsBounded(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if n := s.stuckCount(); n != maxStuck {
-		t.Errorf("%d calls left behind, want %d", n, maxStuck)
+	if n := s.stuckCount(); n != stopAt {
+		t.Errorf("%d calls left behind, want %d", n, stopAt)
 	}
-	if n := runtime.NumGoroutine() - before; n > maxStuck+2 {
-		t.Errorf("%d more goroutines, with %d left behind", n, maxStuck)
+	if n := runtime.NumGoroutine() - before; n > stopAt+2 {
+		t.Errorf("%d more goroutines, with %d left behind", n, stopAt)
 	}
 	got := within(t, time.Second, func() *agentv1.ReadFileResult { return d.read(t, well) })
 	if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING || !strings.Contains(got.GetRefusal().GetMessage(), "aren't answering") {
@@ -211,6 +211,50 @@ func TestOneCallStuckOnARemoteMountKeepsTheRestOffIt(t *testing.T) {
 	if got := d.read(t, filepath.Join(d.root, "well")); got.GetFile().GetContent() != "fine" {
 		t.Errorf("a path off the mount reads as %v", got)
 	}
+}
+
+// Calls under way as the last place goes can be left behind too, and they count: the
+// limit holds with every slot in flight.
+func TestTheLimitHoldsWithCallsInFlight(t *testing.T) {
+	d := newDisk(t)
+	dead := filepath.Join(d.root, "mnt")
+	s := d.server
+	s.AnswerWithin = 200 * time.Millisecond
+	gone := make(chan struct{})
+	var once sync.Once
+	back := func() { once.Do(func() { close(gone) }) }
+	t.Cleanup(back)
+	s.Touching = func(p string) {
+		if strings.HasPrefix(p, dead+"/") {
+			<-gone
+		}
+	}
+	for i := range maxStuck * 2 {
+		write(t, filepath.Join(dead, itoa(i), "f"), "x")
+	}
+	for i := range maxStuck - 1 { // as near the limit as calls will go, one at a time
+		if _, err := s.Read(t.Context(), filepath.Join(dead, itoa(i), "f")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var calls sync.WaitGroup
+	for i := range slots {
+		calls.Go(func() {
+			release, err := s.Take(t.Context())
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer release()
+			_, _ = s.Read(t.Context(), filepath.Join(dead, itoa(maxStuck+i), "f"))
+		})
+	}
+	calls.Wait()
+	if n := s.stuckCount(); n > maxStuck {
+		t.Errorf("%d calls left behind, with a limit of %d", n, maxStuck)
+	}
+	back()
+	waitFor(t, "them to come back", func() bool { return s.stuckCount() == 0 })
 }
 
 func TestACallThatComesBackLateSettlesItself(t *testing.T) {

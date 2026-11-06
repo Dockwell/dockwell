@@ -23,7 +23,8 @@ import (
 //
 // The next call that comes to the same place is told at once, rather than left
 // behind too, so a dead mount costs one wait. maxStuck bounds what can be left
-// behind, by paths apart on mounts this can't tell are remote.
+// behind, by paths apart on mounts this can't tell are remote, and calls stop
+// starting at stopAt to keep to it.
 
 const (
 	// answerWithin is how long a person waits on a path. It is under the 30 s the
@@ -32,6 +33,9 @@ const (
 	// maxStuck is how many calls can be left behind. Each holds a goroutine and a
 	// thread, a descriptor for each part of its path, and at most what it read.
 	maxStuck = 8
+	// stopAt is when calls stop starting: each of the slots under way could be left
+	// behind too, so stopping here is what holds what's left behind to maxStuck.
+	stopAt = maxStuck - slots + 1
 )
 
 // trail is one call's way across the disk: what it is touching now, so that a call
@@ -84,7 +88,7 @@ type outcome[T any] struct {
 // attempt does work on a goroutine of its own, and waits for it until its bound or
 // until the caller goes, whichever is first. gaveUp says what a refusal comes to.
 func attempt[T any](parent context.Context, s *Server, p string, work func(context.Context, *trail) (T, error), gaveUp func(*agentv1.FileRefusal) T) (T, error) {
-	if n := s.stuckCount(); n >= maxStuck {
+	if n := s.stuckCount(); n >= stopAt {
 		return gaveUp(tooManyStuck(n)), nil
 	}
 	within := s.AnswerWithin

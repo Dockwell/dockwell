@@ -41,7 +41,7 @@ The agent refuses these whoever asks. No step-up opens them.
 
 A step-up doesn't open these because one tap would open every secret at once, where ADR 0022 asks one tap for each.
 
-Not knowing where Docker's data is must never mean serving it. The engine says where it is whenever it answers, and the agent keeps each place it has said on disk, so a restart with Docker away, or a root that moved, still knows. A directory that holds both `containers` and `volumes` counts as a data root whoever says so. `config.v2.json`, `hostconfig.json`, a volume's `opts.json`, and text with Docker's own keys in it are refused wherever they turn up.
+Not knowing where Docker's data is must never mean serving it. The engine says where it is whenever it answers, and the agent keeps each place it has said on disk, so a restart with Docker away, or a root that moved, still knows. A directory that holds `containers` and at least two more of Docker's own directories, such as `image` and `network`, counts as a data root whoever says so, links followed, so a project with its own `containers` and `volumes` isn't one. `config.v2.json`, `hostconfig.json`, a volume's `opts.json`, and text with Docker's own keys in it are refused wherever they turn up.
 
 `.env`, `wp-config.php` and the like stay readable. Dockwell can't tell a config with a password in it from one without, and reading them beside a running app is what the screen is for. [The threat model](../security/files.md) says so.
 
@@ -91,7 +91,7 @@ A network mount whose far end is down can hold a system call for as long as it s
 - Each call does its disk work on a goroutine of its own, and what waits for it stops after 15 s, with the reason `path_not_answering`. The stream can end without it.
 - What's left behind gives back its place and stays until the mount answers, however long that is.
 - The next call to the same place is told at once: the whole mount, for a network file system or FUSE, or that path alone on anything else. So a dead mount costs one wait, and a folder with a link into one lists around it.
-- At most 8 calls can be left behind. Past that no call starts until one comes back, which bounds what a stuck call holds.
+- At most 8 calls can be left behind, which bounds what a stuck call holds. Calls stop starting once 5 are, as the 3 more that could be under way can be left behind too.
 
 A network mount isn't refused before it's walked into, as a share is a fair thing to browse, and most of the time it answers.
 
