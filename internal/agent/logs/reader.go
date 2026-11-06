@@ -412,8 +412,10 @@ type sourceState struct {
 	// runRead is when the run the last read covered started, which also only
 	// that goroutine reads: a run since then has lines no read has seen.
 	runRead int64
-	// live is set once what the source had when the call came has been read.
+	// live is set once what the source had when the call came has been read, or
+	// no read is under way to wait for. reached says a read did get through it.
 	live     atomic.Bool
+	reached  atomic.Bool
 	reading  atomic.Bool
 	lastRead atomic.Int64 // unix nanoseconds
 	started  atomic.Bool  // a line has been read
@@ -765,6 +767,21 @@ func (s *stream) since(st *sourceState) time.Time {
 	return since
 }
 
+// pastTail is when lines are wanted from a source a follow has read before and
+// has no place in, as it asked for no tail or its tail found no line to keep. That
+// tail has been read, so all that's wanted now is what came since the follow began.
+// A read Docker refused, or that broke before the end of its tail, hasn't read it.
+func (s *stream) pastTail(st *sourceState, since time.Time) time.Time {
+	if !s.call.GetFollow() || st.tail == 0 || !st.reached.Load() {
+		return since
+	}
+	st.tail = 0
+	if since.Before(s.start) {
+		return s.start
+	}
+	return since
+}
+
 // outsideTime reports a container whose life is outside the call's time range.
 func (s *stream) outsideTime(st *sourceState, p *dockwellv1.LogSource) bool {
 	if t := s.since(st); !t.IsZero() && p.GetFinishTime() != nil && p.GetFinishTime().AsTime().Before(t) {
@@ -793,6 +810,8 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 		cursor, skip = st.after.GetTime().AsTime(), st.after.GetCount()
 		o.Since = cursor
 		resuming = true
+	default:
+		o.Since = s.pastTail(st, o.Since)
 	}
 	if !st.before.IsZero() {
 		o.Until = st.before
@@ -836,6 +855,7 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 	st.refused.Store(0)
 	if follow && o.Tail < 0 {
 		st.live.Store(true)
+		st.reached.Store(true)
 	}
 	var ring *lineRing
 	if ringed {
@@ -885,8 +905,9 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 		if timed && !st.before.IsZero() && t.After(st.before) {
 			continue
 		}
-		if timed && follow && !st.live.Load() && t.After(s.start) {
+		if timed && follow && !st.reached.Load() && t.After(s.start) {
 			st.live.Store(true)
+			st.reached.Store(true)
 		}
 		if ringed {
 			scan.Lines++
@@ -900,6 +921,9 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 		}
 		moved = true
 		s.offer(st, src, e, t)
+	}
+	if !broke {
+		st.reached.Store(true)
 	}
 	if broke {
 		// What a ring holds hasn't gone out, and a look reads it all again.
@@ -1242,8 +1266,11 @@ func (s *stream) checkCaughtUp() {
 			idle = idleLive
 		}
 		last := st.lastRead.Load()
-		if st.reading.Load() && (st.waiting.Load() || now-last < idle.Nanoseconds()) {
-			return
+		if st.reading.Load() {
+			if st.waiting.Load() || now-last < idle.Nanoseconds() {
+				return
+			}
+			st.reached.Store(true)
 		}
 		st.live.Store(true)
 	}
@@ -1261,6 +1288,9 @@ func (s *stream) readKept(st *sourceState, src *source) {
 	st.cursorMu.Unlock()
 	if cursor.IsZero() && st.after != nil {
 		cursor, skip = st.after.GetTime().AsTime(), st.after.GetCount()
+	}
+	if cursor.IsZero() {
+		since = s.pastTail(st, since)
 	}
 	// A read of no lines has nothing to do, whatever it would have filtered.
 	if st.tail < 0 && cursor.IsZero() {

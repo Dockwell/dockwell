@@ -383,6 +383,24 @@ func TestAReadThatBreaksOnAStoppedContainerReadsOn(t *testing.T) {
 	}
 }
 
+// A follow with no place yet that broke before the end of its tail hasn't read that
+// tail, however quiet it has been since: the next look still reads it.
+func TestAFollowThatBrokeBeforeItsTailStillReadsIt(t *testing.T) {
+	e := dockertest.New(t)
+	addContainer(t, e, "app-1", 1)
+	e.Print("app-1", docker.Stdout, "first", "second")
+	e.Stop("app-1")
+	e.BreakLog("app-1", 0)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	follow(ctx, newReader(t, e), &agentv1.LogsCall{Tail: 10}, c)
+	waitFor(t, "its tail", func() bool { return c.count() == 2 })
+	if got := c.got(); !slices.Equal(got, []string{"first", "second"}) {
+		t.Errorf("read %q, want its tail once", got)
+	}
+}
+
 // A log that goes on breaking stops being tried, and a reader hears so, however it
 // reads, rather than taking what came for all there is.
 func TestALogThatKeepsBreakingSaysSo(t *testing.T) {
@@ -445,6 +463,55 @@ func TestAReadToTheEndSaysWhatItCouldntRead(t *testing.T) {
 	}
 	if msg := c.sources[ctr.ID[:12]].GetLogError(); !strings.Contains(msg, "logging driver") {
 		t.Errorf("a read of a log Docker can't read says %q", msg)
+	}
+}
+
+// A follow that starts with no lines, or with a tail that found none, has no place
+// in a container's log. A restart between two looks still reads whatever that run
+// said, from when the follow began, and nothing from before it.
+func TestAFollowWithNoPlaceReadsARestart(t *testing.T) {
+	for _, tail := range []int32{-1, 2} {
+		for _, removed := range []bool{false, true} {
+			name := fmt.Sprintf("tail %d", tail)
+			if removed {
+				name += ", then removed"
+			}
+			t.Run(name, func(t *testing.T) {
+				e := dockertest.New(t)
+				ctr := addContainer(t, e, "app-1", 1)
+				if tail < 0 {
+					e.Print("app-1", docker.Stdout, "from before it began")
+				}
+				r := newReader(t, e)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				c := newCollector()
+				follow(ctx, r, &agentv1.LogsCall{Tail: tail}, c)
+				waitFor(t, "caught up", c.isCaughtUp)
+				waitFor(t, "it to be following", func() bool { return e.Followers() == 1 })
+				e.Stop("app-1")
+				waitFor(t, "the follow to end", func() bool { return e.Followers() == 0 })
+				if err := r.Client.StartContainer(t.Context(), ctr.ID); err != nil {
+					t.Fatal(err)
+				}
+				// More than the tail, so a tail asked for again wouldn't reach the first.
+				e.Print("app-1", docker.Stdout, "one", "two", "three", "four")
+				e.Stop("app-1")
+				if removed {
+					k := r.Archive.Begin(t.Context(), e.Container("app-1"), true)
+					k.Finish(t.Context(), e.Container("app-1"))
+					r.Archive.WaitPruned()
+					if err := r.Client.RemoveContainer(t.Context(), ctr.ID, true); err != nil {
+						t.Fatal(err)
+					}
+				}
+				waitFor(t, "what that run said", func() bool { return slices.Contains(c.got(), "four") })
+				time.Sleep(700 * time.Millisecond) // a further look, which has nothing more to read
+				if got := c.got(); !slices.Equal(got, []string{"one", "two", "three", "four"}) {
+					t.Errorf("read %q, want what the second run said, once", got)
+				}
+			})
+		}
 	}
 }
 
