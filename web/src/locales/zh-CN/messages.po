@@ -3917,6 +3917,10 @@ msgstr "还没有应用"
 msgid "No backup is taken first"
 msgstr "升级前不会创建备份"
 
+#: src/features/changes/notices.tsx
+msgid "No backup was taken, and the data stays as it is now"
+msgstr "没有做过备份,数据保持现状"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "No container matches this filter."
 msgstr "没有符合此筛选条件的容器。"
@@ -6984,6 +6988,10 @@ msgstr "外部连接使用的端口，例如 8080。"
 #: src/features/changes/RollbackLine.tsx
 msgid "What ran before runs again"
 msgstr "之前运行的内容已重新运行"
+
+#: src/features/changes/notices.tsx
+msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't."
+msgstr "失败之前运行过的版本可能已经改动了数据(例如做过迁移),现在运行的版本可能拒绝读取或读错。请检查应用能否读取数据,如果不能,请恢复你自己的备份。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "What runs"

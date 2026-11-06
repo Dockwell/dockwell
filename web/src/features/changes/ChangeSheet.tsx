@@ -70,7 +70,7 @@ import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
-import { type Notice, needsConfirming, useAsides, useRisks, useWarnings } from "./notices";
+import { type Notice, needsConfirming, useAsides, useDataLeft, useRisks, useWarnings } from "./notices";
 import { PlanSteps } from "./PlanSteps";
 import {
   canUndo,
@@ -921,6 +921,7 @@ function PlanBody({
     read && lookOf(read.domain).state === "serving" ? [read.domain.name] : [],
   );
   const warnings = useWarnings(plan, phase !== "review", serving);
+  const dataLeft = useDataLeft(plan);
   const asides = useAsides(plan);
   const fleet = isFleet(plan);
   if (phase === "planning") {
@@ -1001,6 +1002,11 @@ function PlanBody({
             onSettled={onRollbackSettled}
             record={!witnessed}
           />
+          {dataLeft ? (
+            <Callout tone="warning" title={dataLeft.title}>
+              {dataLeft.detail}
+            </Callout>
+          ) : null}
           {wentOffline(change) ? null : (
             <>
               <FailureNotice

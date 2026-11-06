@@ -3917,6 +3917,10 @@ msgstr "No apps yet"
 msgid "No backup is taken first"
 msgstr "No backup is taken first"
 
+#: src/features/changes/notices.tsx
+msgid "No backup was taken, and the data stays as it is now"
+msgstr "No backup was taken, and the data stays as it is now"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "No container matches this filter."
 msgstr "No container matches this filter."
@@ -6984,6 +6988,10 @@ msgstr "What people connect to, such as 8080."
 #: src/features/changes/RollbackLine.tsx
 msgid "What ran before runs again"
 msgstr "What ran before runs again"
+
+#: src/features/changes/notices.tsx
+msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't."
+msgstr "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't."
 
 #: src/features/apps/AppOverview.tsx
 msgid "What runs"

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -567,6 +568,15 @@ func (u *upgrading) edit(summary, name string, spec *resourcev1.Service) {
 	u.applied(p.Msg.GetChange())
 }
 
+func (u *upgrading) install() *dockwellv1.CatalogInstall {
+	u.t.Helper()
+	res, err := u.cat.ListCatalogInstalls(u.t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil {
+		u.t.Fatal(err)
+	}
+	return res.Msg.GetInstalls()[0]
+}
+
 func planHas(ch *dockwellv1.Change, kind, name string) bool {
 	return slices.ContainsFunc(ch.GetPlan().GetResources(), func(r *dockwellv1.PlannedResource) bool {
 		return r.GetResource().GetKind() == kind && r.GetResource().GetName() == name && r.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_NONE
@@ -664,9 +674,66 @@ func testAReleaseCanTakeAwayWhatItGave(t *testing.T, backend store.Backend) {
 	}
 }
 
+// A new version that won't start hurts nothing a person set: the old one runs again with
+// the password it had, the install stays on its release, and the upgrade is still there to try.
+func TestAFailedUpgradeGoesBackToWhatRan(t *testing.T) {
+	storetest.Each(t, testAFailedUpgradeGoesBackToWhatRan)
+}
+
+func testAFailedUpgradeGoesBackToWhatRan(t *testing.T, backend store.Backend) {
+	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	password := func() string {
+		t.Helper()
+		for _, kv := range u.web().Config.Env {
+			if v, ok := strings.CutPrefix(kv, "PASSWORD="); ok {
+				return v
+			}
+		}
+		t.Fatal("web has no password")
+		return ""
+	}
+	before := password()
+	u.e.Find = func(ref string) (dockertest.Image, bool) {
+		return dockertest.Image{Exits: strings.Contains(ref, "thing:2")}, true
+	}
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+	up := u.upgrade()
+	if got := apply(t, u.c, up); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+		t.Fatalf("an upgrade that won't start ended %v, so this proves nothing", got.GetState())
+	}
+	var failed *dockwellv1.Change
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		res, err := u.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: up.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if failed = res.Msg.GetChange(); failed.GetRollbackStatus().GetState() == dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED {
+			break
+		}
+	}
+	if got := failed.GetRollbackStatus().GetState(); got != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED {
+		t.Fatalf("the failed upgrade's rollback reads %v", got)
+	}
+	if got := u.web(); got.Config.Image != firstRelease || got.State.Status != "running" {
+		t.Errorf("web runs %s, %s, after the rollback", got.Config.Image, got.State.Status)
+	}
+	if password() != before {
+		t.Error("the rollback changed web's password")
+	}
+	if got := u.install(); got.GetPin().GetRelease() != 1 || got.GetUpgrade().GetRelease() != 2 {
+		t.Errorf("the install reads pin %d, upgrade %d, after a failed upgrade", got.GetPin().GetRelease(), got.GetUpgrade().GetRelease())
+	}
+	// The sheet says what this left in the data from what the plan said.
+	if !slices.ContainsFunc(failed.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "no_backup" }) {
+		t.Errorf("the failed upgrade's plan lost its no_backup note: %v", failed.GetPlan().GetNotes())
+	}
+}
+
 // Undoing an upgrade puts the old version back on what the new one left, so the plan says
 // that before anyone applies it, and an undo of anything else doesn't.
-func TestUndoingAnUpgradeWarnsOfItsData(t *testing.T) { storetest.Each(t, testUndoingAnUpgradeWarnsOfItsData) }
+func TestUndoingAnUpgradeWarnsOfItsData(t *testing.T) {
+	storetest.Each(t, testUndoingAnUpgradeWarnsOfItsData)
+}
 
 func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
 	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
@@ -717,14 +784,7 @@ func TestAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges(t *testing.T) {
 
 func testAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges(t *testing.T, backend store.Backend) {
 	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
-	install := func() *dockwellv1.CatalogInstall {
-		t.Helper()
-		res, err := u.cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return res.Msg.GetInstalls()[0]
-	}
+	install := u.install
 	u.release(strings.Replace(testEntry(2, "1.0", firstRelease, ""), "Something to upgrade", "Something to upgrade, spelled right", 1))
 	if got := install().GetUpgrade(); got != nil {
 		t.Errorf("a release that changes nothing that runs offers %v", got)

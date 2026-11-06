@@ -361,6 +361,19 @@ export function useRisks(plan: Plan | undefined): Notice[] {
 }
 
 /**
+ * What a failed plan left in the data, when it took no backup: a rollback puts back
+ * what runs, and whatever ran meanwhile may have changed what that runs on.
+ */
+export function useDataLeft(plan: Plan | undefined): Omit<Notice, "key"> | undefined {
+  const { t } = useLingui();
+  if (!plan?.notes.some((note) => note.reason === "no_backup" || note.reason === "undo_no_backup")) return undefined;
+  return {
+    title: t`No backup was taken, and the data stays as it is now`,
+    detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't.`,
+  };
+}
+
+/**
  * What a person should know before applying a plan, which stops nobody: a folder
  * of the server's that an app reaches, a rollback leaving a service's data as it
  * is, or a Compose variable written where anyone can read it. The API says a
