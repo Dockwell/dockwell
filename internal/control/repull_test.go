@@ -297,10 +297,8 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	}
 }
 
-// An image built on the server can be deployed under its own tag. The change
-// applies, and says where the image came from: with nothing built since, it writes
-// no revision and nothing stops, and a build under that tag runs as any newer image
-// does, as a revision of its own.
+// An image built on the server can be deployed under its own tag with nothing built
+// since, which writes no revision, and stops nothing.
 func TestDeployingAnImageBuiltHereUnderItsOwnTag(t *testing.T) {
 	b := newBench(t, store.SQLite)
 	const built = "acme/built-here:1"
@@ -324,17 +322,71 @@ func TestDeployingAnImageBuiltHereUnderItsOwnTag(t *testing.T) {
 	if revs := b.revisions(t, web.GetId()); len(revs) != 1 {
 		t.Errorf("with nothing built since, the revisions are %v", revs)
 	}
+}
 
-	b.e.AddLocalImage(built, dockertest.Image{Config: docker.Config{Cmd: []string{"new"}}})
-	got = applied(t, b.c, b.deploy(t, web.GetId(), built))
-	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
-		t.Fatalf("after a build, the deploy ended %v: %s", got.GetState(), got.GetError())
-	}
-	if ctr := b.e.Serving(name); ctr.ID == before || ctr.Config.Cmd[0] != "new" {
-		t.Errorf("after a build, it runs %+v", ctr)
-	}
-	if revs := b.revisions(t, web.GetId()); len(revs) != 2 || revs[0].GetDeployments()[0].GetState() != dockwellv1.DeploymentState_DEPLOYMENT_STATE_LIVE {
-		t.Errorf("after a build, the revisions are %v", revs)
+// A new build under the tag that runs has nothing to go back to: it has no digest, and
+// the spec is the same, so a rollback that replaces what ran would fail or say nothing
+// changed, with the build left running and what ran gone. So it's refused before it
+// touches anything, for a service that rolls and one that stops first, and a build that
+// fails its check never gets to fail it. A new tag is the way in.
+func TestABuildUnderTheTagThatRunsIsRefused(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		ports   string
+		rolling bool
+	}{
+		{"a service that rolls", "", true},
+		{"a service that stops first", "    ports: [\"8080:80\"]\n", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b := newBench(t, store.SQLite)
+			const built = "acme/built-here:1"
+			file := func(image string) *dockwellv1.ImportComposeRequest {
+				return &dockwellv1.ImportComposeRequest{Compose: "name: shop\nservices:\n  web:\n    image: " + image + "\n" + c.ports}
+			}
+			b.e.AddLocalImage(built, dockertest.Image{Config: docker.Config{Cmd: []string{"old"}}})
+			env := b.run(t, file(built))
+			name := docker.ContainerName(docker.Project(env), "web")
+			web := b.service(t, "shop", "web")
+			before := b.e.Serving(name).ID
+
+			b.e.AddLocalImage(built, dockertest.Image{Unhealthy: true, CheckSays: "503", Config: docker.Config{
+				Cmd: []string{"new"}, Healthcheck: &docker.Healthcheck{Test: []string{"CMD", "curl", "-f", "http://localhost/healthz"}},
+			}})
+			plan := b.deploy(t, web.GetId(), built)
+			if rolling := plan.GetPlan().GetServers()[0].GetSteps()[0].GetRollout().GetRolling(); rolling != c.rolling {
+				t.Fatalf("the plan's step rolls: %t, want %t, so this isn't the case it says", rolling, c.rolling)
+			}
+			got := applied(t, b.c, plan)
+			if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED ||
+				!strings.Contains(got.GetError(), "a rollback would have nothing to go back to") ||
+				!strings.Contains(got.GetError(), "Give the build a tag of its own, then deploy that") {
+				t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
+			}
+			if step := got.GetSteps()[0]; step.GetReason() != "image" {
+				t.Errorf("the step's reason is %q", step.GetReason())
+			}
+			if got.GetRolledBackBy() != "" {
+				t.Errorf("nothing changed, and %s rolled it back", got.GetRolledBackBy())
+			}
+			if ctr := b.e.Serving(name); ctr == nil || ctr.ID != before || !ctr.State.Running || ctr.Config.Cmd[0] != "old" {
+				t.Fatalf("after the refusal it runs %+v, want what ran", ctr)
+			}
+			revs := b.revisions(t, web.GetId())
+			if len(revs) != 1 || revs[0].GetDeployments()[0].GetState() != dockwellv1.DeploymentState_DEPLOYMENT_STATE_LIVE {
+				t.Fatalf("after the refusal the revisions are %v", revs)
+			}
+
+			// What it says to do works.
+			const next = "acme/built-here:2"
+			b.e.AddLocalImage(next, dockertest.Image{Config: docker.Config{Cmd: []string{"new"}}})
+			if got := applied(t, b.c, b.deploy(t, web.GetId(), next)); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+				t.Fatalf("under a tag of its own, the deploy ended %v: %s", got.GetState(), got.GetError())
+			}
+			if ctr := b.e.Serving(name); ctr == nil || ctr.Config.Cmd[0] != "new" {
+				t.Errorf("under a tag of its own it runs %+v", ctr)
+			}
+		})
 	}
 }
 

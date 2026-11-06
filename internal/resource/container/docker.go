@@ -1090,7 +1090,8 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 // server has will do, which is how someone gets a service back while its registry
 // is down. An image that came from no registry isn't waiting on one: a registry
 // that says it hasn't got it has said all there is, so what the server has under
-// that tag stands, and a build under the tag gets deployed this way.
+// that tag stands. Unless that's a new build over what's there, as nothing but the
+// tag it just lost names what ran, so nothing could go back to it, and it's refused.
 func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container, ref string) error {
 	resource.Progress(ctx, "Pulling "+ref+" again")
 	err := d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+" again, "+p) })
@@ -1100,6 +1101,10 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 	}
 	if docker.NotPullable(err) {
 		if img, have := d.Client.InspectImage(ctx, docker.WithTag(ref)); have == nil && img.Digest(ref) == "" {
+			if old != nil && resource.BareImage(old.Config.Image) == resource.BareImage(ref) && old.Image != img.ID {
+				resource.Report(ctx, resource.Outcome{Untouched: true})
+				return builtOverFailure(t, old, ref, err)
+			}
 			resource.Report(ctx, resource.Outcome{Note: fmt.Sprintf("%s was built or loaded on this server, and no registry gives it to a pull, so %s runs the image this server has under that tag", ref, t.Service)})
 			return nil
 		}

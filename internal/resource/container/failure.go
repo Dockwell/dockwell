@@ -177,6 +177,18 @@ func mountReason(message string) string {
 	return s
 }
 
+// builtOverFailure says why a new build under the tag of the container at t won't
+// replace it: only that tag named what's there, and no registry has it, so a rollback
+// would have nothing to go back to.
+func builtOverFailure(t Target, old *docker.Container, ref string, err error) error {
+	left := "Nothing was replaced."
+	if notRunning(old) == "" {
+		left = "Nothing was replaced, and what runs goes on running."
+	}
+	plain := fmt.Sprintf("%s is a new build under the tag %s has, and no registry has either, so a rollback would have nothing to go back to. %s Give the build a tag of its own, then deploy that.", ref, t.Service, left)
+	return resource.PlainlyBecause(resource.ReasonImage, plain, fmt.Errorf("can't pull %s again: %w", ref, err))
+}
+
 // pullFailure says why an image can't be pulled, and says so if it can't tell.
 func pullFailure(ref string, err error) error {
 	plain, reason := pullWords(ref, messageOf(err))

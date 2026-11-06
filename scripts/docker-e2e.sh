@@ -63,6 +63,7 @@ digest_first=""
 digest_second=""
 digest_third=""
 built=""
+built_next=""
 multi_repo=""
 # A registry, by digest, for the images of the step about a tag that moves.
 registry_image=registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
@@ -104,6 +105,7 @@ start_dockwell
 moving_tidy() {
   docker rm --force --volumes e2e-registry >/dev/null 2>&1 || true
   [[ -z "$built" ]] || docker rmi "$built" >/dev/null 2>&1 || true
+  [[ -z "$built_next" ]] || docker rmi "$built_next" >/dev/null 2>&1 || true
   [[ -z "$multi_repo" ]] || docker rmi "$multi_repo:1" "$multi_repo:one" >/dev/null 2>&1 || true
   docker rmi e2e-moving:first e2e-moving:second e2e-moving:third "$moving_repo:latest" "$moving_repo@$digest_first" "$moving_repo@$digest_second" "$moving_repo@$digest_third" >/dev/null 2>&1 || true
   [[ -z "$moving_dir" ]] || rm -rf "$moving_dir"
@@ -1134,10 +1136,11 @@ moving_serves third
 dw services delete moving --yes || fail "services delete moving failed"
 [[ -z "$(docker ps -aq --filter label=com.docker.compose.service=moving)" ]] || fail "deleting the app left its container"
 
-step "An image built on this server deploys under its own tag, and a build under that tag runs"
+step "An image built on this server deploys under its own tag, and a new build needs a tag of its own"
 # Named for this registry, which has never heard of it, and not Docker Hub, which
 # would then have to be up, so this is Docker's real answer for a name no registry has.
 built=127.0.0.1:$registry_port/e2e-built-here:1
+built_next=127.0.0.1:$registry_port/e2e-built-here:2
 build_here() {
   printf '%s\n' "$1" >"$moving_dir/index.html"
   docker build -q -t "$built" "$moving_dir" >/dev/null || fail "can't build the image $1"
@@ -1153,15 +1156,22 @@ said=$(dw changes apply "$change" --yes 2>&1) || fail "deploying an image built 
 grep -qF "$built was built or loaded on this server" <<<"$said" || fail "with nothing built since, it says: $said"
 moving_did "$change" PLAN_ACTION_NONE
 [[ "$(built_id)" == "$before" ]] || fail "with nothing built since, the container was replaced"
+# A rollback couldn't go back from it, so it's refused, and what runs stays.
 build_here built-two
-said=$(dw services deploy built --image "$built" --yes 2>&1) || fail "deploying a build under its own tag failed: $said"
-[[ "$(built_id)" != "$before" ]] || fail "after a build, the container wasn't replaced"
+if said=$(dw services deploy built --image "$built" --yes 2>&1); then fail "a new build under the tag that runs deployed: $said"; fi
+grep -qF "Give the build a tag of its own" <<<"$said" || fail "a new build under the tag that runs was refused saying: $said"
+[[ "$(built_id)" == "$before" ]] || fail "a refused build replaced the container"
+moving_serves built-one
+docker tag "$built" "$built_next" || fail "can't give the build a tag of its own"
+dw services deploy built --image "$built_next" --yes >/dev/null || fail "deploying the build under a tag of its own failed"
+[[ "$(built_id)" != "$before" ]] || fail "under a tag of its own, the container wasn't replaced"
 moving_serves built-two
 revisions=$(dw services revisions built --json) || fail "services revisions failed"
-jq -e '.revisions | length == 2' <<<"$revisions" >/dev/null || fail "a build under its own tag isn't one more revision: $revisions"
+jq -e '.revisions | length == 2' <<<"$revisions" >/dev/null || fail "a build under a tag of its own isn't one more revision: $revisions"
 dw services delete built --yes || fail "services delete built failed"
-docker rmi "$built" >/dev/null || fail "can't remove the image built here"
+docker rmi "$built" "$built_next" >/dev/null || fail "can't remove the images built here"
 built=""
+built_next=""
 
 step "A multi-architecture tag: what ran is its index, and a build for another architecture leaves this server's image"
 # One image, listed for each architecture, as a registry holds what buildx pushes.

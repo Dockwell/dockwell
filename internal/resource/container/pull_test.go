@@ -62,10 +62,11 @@ func pullStep(t *testing.T, d *container.Driver, ref resource.Ref, spec *resourc
 }
 
 // An image built on the server has no registry, and a pull of it fails, which read
-// the same as a registry that's down, so the only way to deploy a rebuild was a new
-// tag. A registry saying it hasn't got an image that came from none says nothing is
-// wrong: what the server has under the tag stands.
-func TestAnImageBuiltHereDeploysUnderItsOwnTag(t *testing.T) {
+// the same as a registry that's down. A registry saying it hasn't got an image that
+// came from none says nothing is wrong: what the server has under the tag stands. But
+// a new build under that tag can't take over: only the tag named what ran, so nothing
+// could go back to it. So that's refused, with what to do, whether or not it's running.
+func TestAnImageBuiltHereStaysUnderItsOwnTagAndABuildOverItIsRefused(t *testing.T) {
 	e := dockertest.New(t)
 	const image = "acme/built-here:1"
 	e.AddLocalImage(image, dockertest.Image{Config: docker.Config{Cmd: []string{"old"}}})
@@ -88,13 +89,30 @@ func TestAnImageBuiltHereDeploysUnderItsOwnTag(t *testing.T) {
 		t.Errorf("it told %+v, want it saying where the image came from, with no digest, and not a failed step", told)
 	}
 
-	// Built again under the same tag, a deploy runs it.
+	// Built again under the same tag, nothing replaces what's there.
 	e.AddLocalImage(image, dockertest.Image{Config: docker.Config{Cmd: []string{"new"}}})
-	if _, err := pullStep(t, d, ref, spec); err != nil {
-		t.Fatalf("after building it again = %v", err)
+	told, err = pullStep(t, d, ref, spec)
+	plain, _ := resource.Explain(err)
+	if !strings.Contains(plain, "a rollback would have nothing to go back to") || !strings.Contains(plain, "and what runs goes on running") ||
+		!strings.Contains(plain, "Give the build a tag of its own, then deploy that") || resource.ReasonOf(err) != resource.ReasonImage {
+		t.Errorf("a build over what runs says %q, for the reason %q", plain, resource.ReasonOf(err))
 	}
-	if c := e.Container("web"); c.ID == running || !c.State.Running || c.Config.Cmd[0] != "new" {
-		t.Errorf("after building it again, it's %+v", c)
+	if !told.Untouched {
+		t.Errorf("it told %+v, want nothing touched", told)
+	}
+	if c := e.Container("web"); c.ID != running || !c.State.Running || c.Config.Cmd[0] != "old" {
+		t.Errorf("after a refused build, it's %+v", c)
+	}
+
+	// Stopped, nothing runs to go on running, and what's there is still all there is.
+	e.Stop("web")
+	_, err = pullStep(t, d, ref, spec)
+	plain, _ = resource.Explain(err)
+	if !strings.Contains(plain, "Nothing was replaced. Give the build a tag of its own") || strings.Contains(plain, "goes on running") {
+		t.Errorf("a build over what's stopped says %q", plain)
+	}
+	if c := e.Container("web"); c.ID != running {
+		t.Errorf("a refused build replaced what was stopped: %+v", c)
 	}
 }
 
