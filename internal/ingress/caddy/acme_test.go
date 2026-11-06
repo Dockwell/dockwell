@@ -12,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -290,6 +291,61 @@ func TestTheBootstrapNamesItsCA(t *testing.T) {
 }
 
 // issuerOf reads who signed the certificate a name is served with.
+// handoverDark is how long handshakes may fail as Caddy's own certificate takes over
+// from the panel's. ADR 0024 accepts about a millisecond, and this is room for a busy
+// machine, far short of what would mean the panel had gone dark.
+const handoverDark = 2 * time.Second
+
+// ownCertificateComes waits for read to name an issuer that isn't the panel's own, for
+// up to wait, with handshakes failing in a row for no longer than dark.
+func ownCertificateComes(read func() (string, error), wait, dark, nap time.Duration) error {
+	deadline := time.Now().Add(wait)
+	var failing time.Time
+	for {
+		issuer, err := read()
+		switch {
+		case err == nil && issuer != "the panel's own CA":
+			return nil
+		case err == nil:
+			failing = time.Time{}
+		case failing.IsZero():
+			failing = time.Now()
+		case time.Since(failing) > dark:
+			return fmt.Errorf("handshakes on the panel's domain failed for over %s, where ADR 0024 accepts about a millisecond: %w", dark, err)
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("caddy still serves a certificate from %q, %v", issuer, err) //nolint:errorlint // err may be nil here
+		}
+		time.Sleep(nap)
+	}
+}
+
+func TestAHandoverIsAMomentNotAnOutage(t *testing.T) {
+	reads := func(answers ...error) func() (string, error) {
+		return func() (string, error) {
+			if len(answers) == 0 {
+				return "Pebble", nil
+			}
+			next := answers[0]
+			answers = answers[1:]
+			return "the panel's own CA", next
+		}
+	}
+	failed := errors.New("remote error: tls: internal error")
+	if err := ownCertificateComes(reads(nil, failed, nil), time.Minute, time.Minute, time.Millisecond); err != nil {
+		t.Errorf("a handshake that fails in the moment = %v", err)
+	}
+	dark := func() (string, error) { return "", failed }
+	err := ownCertificateComes(dark, 200*time.Millisecond, 10*time.Millisecond, time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "failed for over 10ms") {
+		t.Errorf("a panel that stays dark = %v, want it said as that", err)
+	}
+	err = ownCertificateComes(func() (string, error) { return "the panel's own CA", nil }, 10*time.Millisecond, time.Minute, time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "still serves") {
+		t.Errorf("a certificate that never comes = %v", err)
+	}
+}
+
 func issuerOf(t *testing.T, c *realCaddy, name string) string {
 	t.Helper()
 	issuer, err := issuerNow(t, c, name)
@@ -399,18 +455,9 @@ func TestThePanelKeepsItsCertificateUntilCaddysOwnComesOnRealCaddy(t *testing.T)
 	if good := c.readGood(); bytes.Contains(good, []byte("PRIVATE KEY")) {
 		t.Error("the panel's key is still in the agent's copy")
 	}
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		// A handshake can fail as the loaded certificate goes and Caddy's own takes
-		// over, for about a millisecond, which ADR 0024 accepts.
-		issuer, err := issuerNow(t, c, "panel.example.net")
-		if err == nil && issuer != "the panel's own CA" {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("Caddy still serves a certificate from %q, %v", issuer, err)
-		}
-		time.Sleep(100 * time.Millisecond)
+	read := func() (string, error) { return issuerNow(t, c, "panel.example.net") }
+	if err := ownCertificateComes(read, 20*time.Second, handoverDark, 100*time.Millisecond); err != nil {
+		t.Fatal(err)
 	}
 	if got := c.whoAt(t, "panel.example.net", "/who"); got["proto"] == "" {
 		t.Errorf("on its own certificate, the panel's site answers %v", got)

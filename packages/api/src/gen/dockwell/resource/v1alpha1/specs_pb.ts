@@ -933,7 +933,7 @@ export type Route = Message<"dockwell.resource.v1alpha1.Route"> & {
    * at all, for something that isn't a Dockwell service. The proxy dials 127.0.0.1 on it,
    * so what's there sees every caller as local. It reaches past containers, so a
    * person approves it, and any change to where it answers. Dockwell's own ports,
-   * and Docker's API on 2375 and 2376, aren't taken.
+   * and Docker's API, on 2375, 2376 or wherever dockerd listens, aren't taken.
    *
    * @generated from field: uint32 host_port = 7;
    */
