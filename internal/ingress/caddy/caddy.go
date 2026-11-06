@@ -1190,11 +1190,17 @@ var (
 	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers", "transport"}
 )
 
+// servesARoute reports the ID of one of Dockwell's routes, rather than another's, or
+// one it writes for its own ends.
+func servesARoute(id string) bool {
+	return strings.HasPrefix(id, "dockwell.") && !strings.HasPrefix(id, panelRouteID) && !strings.HasPrefix(id, derivedPrefix) && id != closedRouteID && !isGeneration(id)
+}
+
 // readRoute reads one of Dockwell's routes; ok is false for another's, which
 // Dockwell leaves alone.
 func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	id := routeID(raw)
-	if !strings.HasPrefix(id, "dockwell.") || strings.HasPrefix(id, panelRouteID) || strings.HasPrefix(id, derivedPrefix) || id == closedRouteID || isGeneration(id) {
+	if !servesARoute(id) {
 		return ingress.Route{}, false
 	}
 	out := ingress.Route{ID: id}
@@ -1344,6 +1350,13 @@ func (c *Caddy) mutate(ctx context.Context, edit func([]json.RawMessage) ([]json
 		}
 		if !up {
 			return c.whyDown(ctx)
+		}
+		loaded, err := c.loadCopyFirst(ctx, servers)
+		if err != nil {
+			return err
+		}
+		if loaded {
+			continue
 		}
 		generation, err := c.newGeneration()
 		if err != nil {

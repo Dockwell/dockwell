@@ -67,6 +67,8 @@ type Image struct {
 // Engine is a fake Docker Engine.
 type Engine struct {
 	memoryKills []memoryKill
+	// EventsFail makes GET /events fail.
+	EventsFail bool
 
 	// Socket is where it listens.
 	Socket string
@@ -1578,6 +1580,10 @@ func (e *Engine) KillForMemory(name string, at time.Time) {
 // serveEvents answers GET /events for the kind of event Dockwell asks after, and
 // closes, as Docker does when asked up to now.
 func (e *Engine) serveEvents(w http.ResponseWriter, r *http.Request) {
+	if e.EventsFail {
+		http.Error(w, "the daemon is busy", http.StatusInternalServerError)
+		return
+	}
 	var filters map[string][]string
 	if err := json.Unmarshal([]byte(r.URL.Query().Get("filters")), &filters); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

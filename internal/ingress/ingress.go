@@ -102,6 +102,8 @@ type Status struct {
 	// limit.
 	Restarts    int
 	OutOfMemory bool
+	// RestartUnread says it can't tell yet why the last restart happened.
+	RestartUnread bool
 }
 
 // Route is what a proxy serves. It holds what the proxy has, not intent:
@@ -1255,8 +1257,8 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	}
 	// Before anything reads a config that a full disk or a power cut damaged,
 	// and takes what it finds for a server with no routes.
-	recovered, err := m.Proxy.Recover(ctx)
-	if err != nil {
+	recovered, recoverErr := m.Proxy.Recover(ctx)
+	if err := recoverErr; err != nil {
 		m.logger().WarnContext(ctx, "can't check the ingress's last config, or keep a copy of it; the agent tries again within a minute", slog.String("error", err.Error()))
 	}
 	if recovered {
@@ -1272,6 +1274,11 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		return err
 	}
 	if len(routes) == 0 {
+		// With what would bring the routes back having failed, none here isn't
+		// none to serve, and stopping takes the copy it's trying to load with it.
+		if recoverErr != nil {
+			return nil
+		}
 		// A step that stopped partway, between the last route and the stop.
 		if err := m.releaseUnused(ctx); err != nil {
 			return err
@@ -1315,6 +1322,11 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	}
 	if networkErr != nil {
 		m.report(&problem{kind: dockwellv1.IngressProblem_INGRESS_PROBLEM_SUBNET_TAKEN, message: networkErr.Error()})
+		// With nothing left that dials a container, the network is no reason for
+		// what's left to stay closed, whatever closed it while something did.
+		if !dialsContainers(routes) {
+			return errors.Join(networkErr, m.Proxy.SetClosed(ctx, false))
+		}
 		return networkErr
 	}
 	if err := m.releaseUnused(ctx); err != nil {
@@ -1367,6 +1379,10 @@ func (m *Manager) noteOutdated(ctx context.Context, st Status) {
 // there: connections do, such as many WebSockets held open, from one client or
 // many (docs/security/ingress.md).
 func (m *Manager) noteRestarts(ctx context.Context, st Status) {
+	// Not read yet isn't seen: it's asked again at the next look.
+	if st.RestartUnread {
+		return
+	}
 	b := &m.status
 	b.mu.Lock()
 	seen, known := b.restarts, b.restartsKnown

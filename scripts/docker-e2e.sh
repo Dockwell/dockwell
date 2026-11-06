@@ -1068,6 +1068,12 @@ if docker inspect dockwell-ingress >/dev/null 2>&1; then fail "the ingress ran b
 # OpenResty is, so the plan says so.
 docker run -d --name e2e-returns --restart=always -p 80:80 nginx:1.27-alpine >/dev/null || fail "can't run a container on port 80"
 docker stop --time 1 e2e-returns >/dev/null || fail "can't stop e2e-returns"
+# docker stop can return before the list of what's running has caught up, and that's
+# what a plan reads for who holds a port.
+for _ in $(seq 100); do
+  [[ -n "$(docker ps --quiet --filter name=^e2e-returns\$)" ]] || break
+  sleep 0.1
+done
 first=$(dw routes create www --domain "$domain" --service web --port 80 --yes) || fail "routes create www failed: $first"
 grep -q 'Docker starts e2e-returns again' <<<"$first" || fail "the plan doesn't warn of a stopped container that comes back: $first"
 grep -q 'docker update --restart=no e2e-returns' <<<"$first" || fail "the plan doesn't say how to keep it stopped: $first"
@@ -1297,7 +1303,13 @@ for _ in $(seq 300); do
   sleep 0.1
 done
 [[ -n "$restarted" ]] || fail "e2e-oom wasn't started again: $state (restarts, running, restarting)"
-oom=$(docker events --since "$oom_from" --until "$(date +%s.%N)" --filter container=e2e-oom --filter event=oom --format '{{.Action}}') || fail "docker events failed"
+# Docker can show it running again before it has the event, which the agent allows for.
+oom=""
+for _ in $(seq 40); do
+  oom=$(docker events --since "$oom_from" --until "$(date +%s.%N)" --filter container=e2e-oom --filter event=oom --format '{{.Action}}') || fail "docker events failed"
+  [[ -z "$oom" ]] || break
+  sleep 0.5
+done
 docker rm --force e2e-oom >/dev/null || fail "can't remove e2e-oom"
 [[ "$oom" == *oom* ]] || fail "Docker's events say nothing of a container going past its memory limit, so the agent wouldn't say why every site dropped: '$oom'"
 

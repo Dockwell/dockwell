@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"slices"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/ingress"
 )
 
 // Caddy saves its config with a truncating write, so a full disk or a power cut
@@ -276,10 +278,10 @@ func (c *Caddy) Recover(ctx context.Context) (recovered bool, err error) {
 	return true, nil
 }
 
-// startedBare reports a whole config with no generation route on either of
-// Dockwell's servers. Every change writes one, and the bootstrap has none, so this
-// is a Caddy that started from that rather than from what it last ran, or a config
-// loaded by hand.
+// startedBare reports a whole config with nothing of the agent's on either of
+// Dockwell's servers. Every change writes a generation route, and the bootstrap has
+// none, so this is a Caddy that started from that rather than from what it last ran,
+// or a config loaded by hand.
 func startedBare(config []byte) bool {
 	var top struct {
 		Apps struct {
@@ -291,18 +293,45 @@ func startedBare(config []byte) bool {
 	if json.Unmarshal(config, &top) != nil {
 		return false
 	}
+	return bareServers(top.Apps.HTTP.Servers)
+}
+
+// loadCopyFirst is for a change about to go in. On a Caddy running none of what the
+// agent last gave it, as when its last config went missing, a change would write over
+// the agent's copy, and removing a route would read as the last one going, so Caddy
+// would stop and take the copy with it. So the copy goes back in first, and if Caddy
+// won't take it, the change waits, with the copy as it was for the next try.
+func (c *Caddy) loadCopyFirst(ctx context.Context, servers map[string]json.RawMessage) (loaded bool, err error) {
+	if !bareServers(servers) {
+		return false, nil
+	}
+	good := c.readGood()
+	if good == nil || startedBare(good) {
+		return false, nil
+	}
+	if _, _, err := c.call(ctx, http.MethodPost, "/load", good, nil); err != nil {
+		return false, fmt.Errorf("caddy is running without the routes the agent last gave it, and won't load the agent's copy of them, so this change wasn't made, as it would replace them. The copy stays, and the agent tries to load it again within a minute. Read why with docker logs %s, then apply this again: %w", ingress.ContainerName, err)
+	}
+	return true, nil
+}
+
+// bareServers reports servers holding nothing the agent gave them: no generation
+// route, which every change writes, and no route of Dockwell's. A route left where a
+// person replaced the list by hand, which takes the generation route with it, is
+// still what the agent gave it, and reads as an edit, not as a Caddy that lost it all.
+func bareServers(servers map[string]json.RawMessage) bool {
 	for _, name := range []string{serverName, httpServerName} {
 		var server struct {
 			Routes json.RawMessage `json:"routes"`
 		}
-		if len(top.Apps.HTTP.Servers[name]) == 0 || json.Unmarshal(top.Apps.HTTP.Servers[name], &server) != nil {
+		if len(servers[name]) == 0 || json.Unmarshal(servers[name], &server) != nil {
 			continue
 		}
 		routes, err := decodeRoutes(server.Routes)
 		if err != nil {
 			continue
 		}
-		if slices.ContainsFunc(routes, func(r json.RawMessage) bool { return isGeneration(routeID(r)) }) {
+		if slices.ContainsFunc(routes, func(r json.RawMessage) bool { return isGeneration(routeID(r)) || servesARoute(routeID(r)) }) {
 			return false
 		}
 	}
