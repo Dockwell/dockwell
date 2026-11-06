@@ -1111,11 +1111,13 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 	}
 }
 
-// builtForAnother reports a container that stopped whose image isn't built for this
-// server. Docker often says nothing of that where anything can read it: the kernel
-// refuses the binary inside the container, which reads as one that exited. A server
-// with emulation runs such an image, so this is only asked of what has stopped, and
-// either side that can't be read says no.
+// builtForAnother reports a container that won't stay up whose image isn't built for
+// this server. Docker says nothing of that where anything can read it: the kernel
+// refuses the binary inside the container, which reads as one that exited with 255,
+// and under a restart policy, as a service has, as one that keeps restarting. So this
+// compares what the image says it's built for with what the engine runs on. That's a
+// fact whatever made it stop. A server with emulation runs such an image, so this is
+// only asked of what has failed, and either side that can't be read says no.
 func (d *Docker) builtForAnother(ctx context.Context, c *docker.Container) bool {
 	img, err := d.Client.InspectImage(ctx, c.Image)
 	if err != nil || img.Architecture == "" {
@@ -1651,9 +1653,12 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 		}
 		switch {
 		case s.Restarting || c.RestartCount > restarts:
+			restarting := fmt.Errorf("%s keeps restarting: it exited with code %d", name, s.ExitCode)
+			if d.builtForAnother(ctx, c) {
+				return wrongArchitectureFailure(t, restarting)
+			}
 			// No word of docker logs in the plain words: a rollback takes this container away.
-			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s keeps restarting: it exited with code %d. Check its command and variables, then try again.", t.Service, s.ExitCode),
-				fmt.Errorf("%s keeps restarting: it exited with code %d", name, s.ExitCode))
+			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s keeps restarting: it exited with code %d. Check its command and variables, then try again.", t.Service, s.ExitCode), restarting)
 		case !s.Running:
 			stopped := fmt.Errorf("%s stopped right after it started, with exit code %d", name, s.ExitCode)
 			if s.ExitCode != 0 && d.builtForAnother(ctx, c) {
