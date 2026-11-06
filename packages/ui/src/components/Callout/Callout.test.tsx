@@ -8,6 +8,18 @@ import { Button } from "../Button/Button";
 import { Callout } from "./Callout";
 
 describe("Callout", () => {
+  it("draws not knowing in its own grey, in whatever tone it's said", () => {
+    const { container } = render(
+      <Callout tone="info" shape="dashed-ring">
+        Nobody can say.
+      </Callout>,
+    );
+    expect(container.querySelector(".dw-callout")).toHaveClass("dw-tone-cobalt");
+    expect(container.querySelector(".dw-callout-glyph")).toHaveClass("dw-tone-unknown");
+    const { container: plain } = render(<Callout tone="info">Something to know.</Callout>);
+    expect(plain.querySelector(".dw-callout-glyph")).not.toHaveClass("dw-tone-unknown");
+  });
+
   it("is a polite status with the tone's shape, by default info", async () => {
     const { container } = render(
       <Callout title="Firewall changes can’t lock you out">Dockwell keeps port 22 open to your address.</Callout>,

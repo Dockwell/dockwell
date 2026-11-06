@@ -31,7 +31,8 @@ export function Callout({ tone = "info", title, children, actions, shape, classN
       className={cx("dw-callout", `dw-tone-${spec.tone}`, className)}
       role={tone === "critical" ? "alert" : "status"}
     >
-      <span className="dw-callout-glyph">
+      {/* Not knowing is grey wherever it's drawn, as that shape is, whatever the tone around it. */}
+      <span className={cx("dw-callout-glyph", shape === "dashed-ring" && "dw-tone-unknown")}>
         <Glyph shape={shape ?? spec.shape} size={10} />
       </span>
       <div className="dw-callout-body">

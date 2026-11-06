@@ -437,6 +437,15 @@ services:
         .locator(".apps-unread")
         .getByText(/The panel can't reach the control plane, so it can't say how your apps run/)
         .waitFor({ timeout: 30_000 });
+      const grey = await page.locator(".apps-unread .dw-callout-glyph").evaluate((glyph) => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--unknown)";
+        document.body.append(probe);
+        const want = getComputedStyle(probe).color;
+        probe.remove();
+        return getComputedStyle(glyph).color === want;
+      });
+      if (!grey) fail("the glyph of not knowing isn't its own grey in the note");
       if ((await row("checked").locator(".dw-tone-healthy").count()) > 0)
         fail("with the control plane frozen, a row is green");
       await shoot(page, "health-control-plane-frozen");

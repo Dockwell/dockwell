@@ -521,6 +521,8 @@ describe("what was read stands by its age, however reads go", () => {
     onlineManager.setOnline(false);
     window.dispatchEvent(new Event("offline"));
     await waitFor(() => expect(top).toHaveTextContent("You're offline"));
+    // Not knowing is grey, as work in flight is cobalt.
+    expect(top.querySelector(".fleet-reconnecting")).toHaveClass("is-offline");
     expect(top.querySelector(".dw-tone-healthy")).toBeNull();
   });
 

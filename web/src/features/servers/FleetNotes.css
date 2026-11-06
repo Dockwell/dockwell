@@ -13,6 +13,11 @@
   color: var(--cobalt);
 }
 
+/* Not knowing is grey, as work in flight is cobalt. */
+.fleet-reconnecting.is-offline .dw-glyph {
+  color: var(--unknown);
+}
+
 .fleet-note {
   color: var(--ink-muted);
 }

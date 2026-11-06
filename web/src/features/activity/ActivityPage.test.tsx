@@ -619,6 +619,26 @@ describe("Activity", () => {
 });
 
 describe("Activity's restarts", () => {
+  it("counts them in Chinese in the plan's words", async () => {
+    await activateLocale("zh-CN");
+    try {
+      const restart = applied(shopPlanned(), new Date(Date.now() - 2 * 60_000));
+      restart.id = "chg_restart";
+      restart.summary = "Restart web";
+      restart.restart = true;
+      if (restart.plan?.summary) {
+        restart.plan.summary.create = 0;
+        restart.plan.summary.replace = 1;
+      }
+      renderAt("/activity", {
+        events: { watchEvents: feedOf(snapshot([changeEvent(restart)])), listEvents: () => ({}) },
+      });
+      expect(await screen.findByRole("row", { name: /Restart web/ })).toHaveTextContent("1 项待重启");
+    } finally {
+      await activateLocale("en");
+    }
+  });
+
   it("counts what a restart replaces as restarted, not replaced", async () => {
     const restart = applied(shopPlanned(), new Date(Date.now() - 2 * 60_000));
     restart.id = "chg_restart";
@@ -713,6 +733,22 @@ describe("Activity's health", () => {
     // Its time is the last it was told, as it goes on.
     expect(rows[0]).toHaveTextContent("1 h ago");
     await expectAccessible(document.body);
+  });
+
+  it("reads in Chinese as the plan does, with no space before what ends the phrase", async () => {
+    await activateLocale("zh-CN");
+    try {
+      renderAt("/activity", {
+        events: {
+          watchEvents: feedOf(snapshot([health("evt_1", HealthState.UNHEALTHY, 12, 54_000)])),
+          listEvents: () => ({}),
+        },
+      });
+      const row = (await screen.findAllByRole("row")).find((r) => r.textContent?.includes("次"));
+      expect(row).toHaveTextContent("54 秒内变化了 12 次");
+    } finally {
+      await activateLocale("en");
+    }
   });
 
   it("says what an event from before the server said since when counted", async () => {

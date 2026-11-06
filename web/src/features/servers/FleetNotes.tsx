@@ -56,7 +56,7 @@ export function Reconnecting() {
   // A browser that is offline can't reconnect until it isn't, which is the reader's to fix.
   const online = useOnline();
   return (
-    <span className="fleet-reconnecting" role="status">
+    <span className={online ? "fleet-reconnecting" : "fleet-reconnecting is-offline"} role="status">
       <Glyph shape={online ? "spinner" : "dashed-ring"} />
       {online ? <Trans>Reconnecting</Trans> : <Trans>You're offline</Trans>}
     </span>

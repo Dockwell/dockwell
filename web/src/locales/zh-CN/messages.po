@@ -178,7 +178,7 @@ msgstr "{0} 项替换"
 #. placeholder {0}: s.replace
 #: src/features/activity/describe.ts
 msgid "{0} to restart"
-msgstr "{0} 项重启"
+msgstr "{0} 项待重启"
 
 #. placeholder {0}: s.change
 #: src/features/activity/describe.ts
@@ -229,7 +229,7 @@ msgstr "{count, plural, other {# 台服务器}}"
 
 #: src/features/activity/describe.ts
 msgid "{count, plural, one {It changed once in {span}.} other {It changed # times in {span}.}}"
-msgstr "{count, plural, other {在 {span} 内变化了 # 次。}}"
+msgstr "{count, plural, other {在 {span}内变化了 # 次。}}"
 
 #: src/features/activity/describe.ts
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
