@@ -7,12 +7,14 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -168,9 +170,217 @@ func TestRunStartsWithoutThePanelsSocket(t *testing.T) {
 		"--domain", "panel.example.com", "--https-listen", "127.0.0.1:443", "--http-listen", "127.0.0.1:80",
 		"--acme-directory-url", "https://acme.invalid/directory")
 	defer stop()
-	if !strings.Contains(logs.String(), "can't listen for what the ingress sends the panel") {
-		t.Errorf("it doesn't say the panel's domain is down:\n%s", logs.String())
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(logs.String(), "can't listen for what the ingress sends the panel") {
+		if time.Now().After(deadline) {
+			t.Fatalf("it doesn't say the panel's domain is down:\n%s", logs.String())
+		}
+		time.Sleep(time.Millisecond)
 	}
+}
+
+// A compromised Caddy can leave a directory at run/panel.sock and go on writing in it.
+// Clearing that has no end while it writes: with 2 or 4 writers it was still running
+// after 15 s and 700,000 files, and start waited for it, and with it the panel and the
+// SSH tunnel. Nothing does now, so dockwell run serves with a writer still going, and
+// the panel takes its socket once they stop.
+func TestRunServesWhileSomethingFillsThePanelsSocket(t *testing.T) {
+	dir, err := os.MkdirTemp("", "dwf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	d := datadir.Dir{Root: dir}
+	if err := caddy.EnsureDirs(d.Ingress()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d.Ingress(), "active"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := caddy.PanelSocket(d.Ingress())
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	var wrote atomic.Int64
+	quiet := make(chan struct{})
+	var writers sync.WaitGroup
+	for w := range 4 {
+		writers.Go(func() {
+			for i := 0; ; i++ {
+				select {
+				case <-quiet:
+					return
+				default:
+				}
+				if os.WriteFile(filepath.Join(path, fmt.Sprintf("%d-%d", w, i)), nil, 0o600) != nil {
+					_ = os.Mkdir(path, 0o700) // as Caddy would, while it can
+				}
+				wrote.Add(1)
+			}
+		})
+	}
+	silence := sync.OnceFunc(func() {
+		close(quiet)
+		writers.Wait()
+	})
+	t.Cleanup(silence)
+	// Past how long start gets, so a run that waits for them fails, and doesn't wait for
+	// ever. This outlives a failure, as stopping dockwell run waits for it too.
+	watchdog := time.AfterFunc(12*time.Second, silence)
+	t.Cleanup(func() { watchdog.Stop() })
+
+	// out is only printed once the panel serves, so that is start finished.
+	_, logs, stop := startRunWithLogs(t, dir, "/claim#",
+		"--domain", "panel.example.com", "--https-listen", "127.0.0.1:443", "--http-listen", "127.0.0.1:80",
+		"--acme-directory-url", "https://acme.invalid/directory")
+	defer stop()
+	at := wrote.Load()
+	deadline := time.Now().Add(5 * time.Second)
+	for wrote.Load() == at {
+		if time.Now().After(deadline) {
+			t.Fatal("the writers stopped before start finished, so this proves nothing")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	silence()
+	// Clearing what they left takes a moment, and a try that gave up waits for the next.
+	deadline = time.Now().Add(30 * time.Second)
+	for {
+		conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", path)
+		if err == nil {
+			_ = conn.Close()
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("it never took the socket, once nothing was writing there: %v\n%s", err, logs.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A try that doesn't end holds nothing up: starting, saying so, or stopping. A socket
+// it gets after that is closed, not left open with nobody serving it.
+func TestATryThatDoesntEndHoldsNothingUp(t *testing.T) {
+	logs := &syncBuffer{}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
+	release := make(chan struct{})
+	got := &closeNoted{closed: make(chan struct{})}
+	started := make(chan net.Listener, 1)
+	go func() {
+		started <- listenForIngressWhenItCan(logger, "/nowhere/panel.sock", time.Millisecond, func() (net.Listener, error) {
+			<-release
+			return got, nil
+		})
+	}()
+	var l net.Listener
+	select {
+	case l = <-started:
+	case <-time.After(5 * time.Second):
+		close(release)
+		t.Fatal("start waited for a try that doesn't end")
+	}
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(logs.String(), "hasn't finished") {
+		if time.Now().After(deadline) {
+			t.Fatalf("it doesn't say the panel's domain is waiting:\n%s", logs.String())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- l.Close() }()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Errorf("Close = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("stopping waited for a try that doesn't end")
+	}
+	close(release)
+	select {
+	case <-got.closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("what the try got after stopping was left open")
+	}
+}
+
+// A first try that took long enough to warn of says when it's over, and one that
+// didn't has nothing to take back.
+func TestALongTryThatEndsSaysSo(t *testing.T) {
+	dir, err := os.MkdirTemp("", "dwl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	path := filepath.Join(dir, "panel.sock")
+	logs := &syncBuffer{}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
+	release := make(chan struct{})
+	l := listenForIngressWhenItCan(logger, path, time.Millisecond, func() (net.Listener, error) {
+		<-release
+		return (&net.ListenConfig{}).Listen(t.Context(), "unix", path)
+	})
+	defer l.Close()
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(logs.String(), "hasn't finished") {
+		if time.Now().After(deadline) {
+			t.Fatalf("it doesn't say it's waiting:\n%s", logs.String())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(release)
+	for !strings.Contains(logs.String(), "answers on its domain again") {
+		if time.Now().After(deadline) {
+			t.Fatalf("it doesn't say the panel's back:\n%s", logs.String())
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	quiet := &syncBuffer{}
+	first := filepath.Join(dir, "first.sock")
+	at := listenForIngressWhenItCan(slog.New(slog.NewTextHandler(quiet, nil)), first, time.Hour, func() (net.Listener, error) {
+		return (&net.ListenConfig{}).Listen(t.Context(), "unix", first)
+	})
+	defer at.Close()
+	conn, err := dialWithin(t, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.Close()
+	if got := quiet.String(); got != "" {
+		t.Errorf("a socket that came at once logs:\n%s", got)
+	}
+}
+
+// dialWithin dials a socket that's on its way.
+func dialWithin(t *testing.T, path string) (net.Conn, error) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", path)
+		if err == nil || time.Now().After(deadline) {
+			return conn, err
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// closeNoted is a listener that says when it's closed.
+type closeNoted struct {
+	net.Listener
+	closed chan struct{}
+}
+
+func (c *closeNoted) Close() error {
+	close(c.closed)
+	return nil
 }
 
 // Once it can listen, what was waiting to serve on it does, and it says so.

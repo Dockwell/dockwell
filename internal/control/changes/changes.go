@@ -495,7 +495,8 @@ func (h *Handler) ListDrift(ctx context.Context, req *connect.Request[dockwellv1
 				ServerId: s, ServerName: names[s], Reason: reason, Message: err.Error(),
 			})
 		}
-		for _, d := range results[i].drift {
+		for j := range results[i].drift {
+			d := &results[i].drift[j]
 			res.Drift = append(res.Drift, &dockwellv1.Drift{
 				ServerId: s, ResourceId: d.ID, Resource: resourcepb.Ref(d.Ref), Revision: int64(d.Revision), Missing: d.Missing,
 				Changes: resourcepb.Changes(d.Changes),

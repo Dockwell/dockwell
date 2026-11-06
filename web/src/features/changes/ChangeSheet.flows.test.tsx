@@ -1242,6 +1242,28 @@ describe("a route with no certificate, on a fleet", () => {
     expect(within(steps).getByText(/It answers only what runs on hz-1 itself/)).toHaveClass("plan-step-notice");
   });
 
+  it("names a network's driver on its step, as the notice above it does", async () => {
+    const change = webPlanned();
+    const plan = change.plan;
+    const step = plan?.servers[0]?.steps[0];
+    if (!plan || !step) throw new Error("no step");
+    step.hostAccess = [
+      create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: "lan", leadsTo: "macvlan" }),
+      create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: "wan", leadsTo: "ipvlan", detail: "db" }),
+      create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: "edge" }),
+    ];
+    plan.servers.push(create(ServerPlanSchema, { serverId: "srv_2", serverName: "hz-2", steps: [] }));
+    show(change);
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const steps = await within(sheet).findByRole("region", { name: "Steps by server" });
+    expect(steps).toHaveTextContent(
+      "the macvlan network lan, which reaches past the server's firewall and is on the server already",
+    );
+    expect(steps).toHaveTextContent("the ipvlan network wan, which reaches past the server's firewall");
+    expect(steps).toHaveTextContent("where it answers to its name and to db");
+    expect(steps).toHaveTextContent("the network edge, which is on the server already");
+  });
+
   it("stands what to know apart with one server, where no steps show, and asks nothing more for it", async () => {
     const change = webPlanned();
     const step = change.plan?.servers[0]?.steps[0];

@@ -1005,6 +1005,7 @@ func TestAVisitorsForwardedHeadersStopAtCaddyOnRealCaddy(t *testing.T) {
 		"X-Forwarded-For": "6.6.6.6, 198.51.100.7", "X-Forwarded-Proto": "https", // as the edge sends them
 		"X-Forwarded-Host": "evil.example.net", "X-Forwarded-Port": "1", "X-Forwarded-Server": "evil", "X-Original-Host": "evil.example.net", // as the visitor wrote them
 		"X-Forwarded-Ssl": "on", "X-Forwarded-Scheme": "https", "Front-End-Https": "on", "X-Url-Scheme": "https", "X-Host": "evil.example.net",
+		"X-Scheme": "https", // Tornado reads this ahead of X-Forwarded-Proto
 	})
 	if got := seen.Get("X-Forwarded-Host"); got != "app.example.net" {
 		t.Errorf("X-Forwarded-Host is %q, want the route's own domain", got)
@@ -1346,6 +1347,7 @@ func TestThePanelsOwnKeyGoesAndCaddysStaysOnRealCaddy(t *testing.T) {
 type namesSeen struct {
 	mu              sync.Mutex
 	host, forwarded string
+	headers         http.Header
 }
 
 func (n *namesSeen) get() (host, forwarded string) {
@@ -1354,13 +1356,20 @@ func (n *namesSeen) get() (host, forwarded string) {
 	return n.host, n.forwarded
 }
 
+// header is what the last request had of one header.
+func (n *namesSeen) header(name string) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.headers.Get(name)
+}
+
 func startNames(t *testing.T) (seen *namesSeen, dial string) {
 	t.Helper()
 	seen = &namesSeen{}
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		seen.mu.Lock()
 		defer seen.mu.Unlock()
-		seen.host, seen.forwarded = r.Host, r.Header.Get("X-Forwarded-Host")
+		seen.host, seen.forwarded, seen.headers = r.Host, r.Header.Get("X-Forwarded-Host"), r.Header.Clone()
 	}))
 	t.Cleanup(srv.Close)
 	return seen, strings.TrimPrefix(srv.URL, "http://")
@@ -1441,30 +1450,54 @@ func TestAServiceReadsItsRoutesOwnNameOnRealCaddy(t *testing.T) {
 	}
 }
 
-// A route written before a service read its route's own name reads as Dockwell's, so
-// an upgrade isn't drift, and the next change on the server writes the name in, for
-// a route that believes a proxy too, whose steps are left as they are.
-func TestAnOlderRouteGetsItsOwnNameAtTheNextChangeOnRealCaddy(t *testing.T) {
+// A route written by an older build reads as Dockwell's, so an upgrade isn't drift,
+// and the next change on the server writes what this build does over it, for a route
+// that believes a proxy too, whose steps are left as they are. Each kind of route from
+// before a list grew is here with its own name in place too, so the list is all that
+// differs, and what gets through it before the change is what must stop after.
+func TestAnOlderRouteIsWrittenAnewAtTheNextChangeOnRealCaddy(t *testing.T) {
+	const domain = "app.example.net"
+	withName := func(h *headers) *headers { return ownName(h, domain) }
+	listed := func(kind func() *headers, list []string) func() *headers {
+		return func() *headers { return strippingOnly(kind(), list) }
+	}
+	named := func(older func() *headers) func() *headers {
+		return func() *headers { return withName(older()) }
+	}
 	for name, tc := range map[string]struct {
 		older   func() *headers
 		trusts  bool
 		handles int
+		through string // what it lets through that this build doesn't
 	}{
 		"naming no proxy":   {older: clientAddress, handles: 1},
-		"older still":       {older: olderClientAddress, handles: 1},
+		"older still":       {older: olderClientAddress, handles: 1, through: "X-Forwarded-Port"},
 		"beside a proxy":    {older: distrustingAddress, handles: 1},
 		"believing a proxy": {older: believingAddress, trusts: true, handles: 2},
 		// What Caddy ran before Client-Ip and its like were stripped.
-		"before Client-Ip":                 {older: func() *headers { return strippingOnly(clientAddress(), strippedSecond) }, handles: 1},
-		"before Client-Ip, beside a proxy": {older: func() *headers { return strippingOnly(distrustingAddress(), strippedSecond) }, handles: 1},
+		"before Client-Ip":                 {older: listed(clientAddress, strippedSecond), handles: 1, through: "Client-Ip"},
+		"before Client-Ip, beside a proxy": {older: listed(distrustingAddress, strippedSecond), handles: 1, through: "Client-Ip"},
 		"before Client-Ip, believing a proxy": {
-			older: func() *headers { return strippingOnly(believingAddress(), strippedSecond) }, trusts: true, handles: 2,
+			older: listed(believingAddress, strippedSecond), trusts: true, handles: 2, through: "Client-Ip",
+		},
+		// With its own name written, so only the list can have it written again.
+		"before Client-Ip, with its name": {older: named(listed(clientAddress, strippedSecond)), handles: 1, through: "Client-Ip"},
+		"before Client-Ip, beside a proxy, with its name": {
+			older: named(listed(distrustingAddress, strippedSecond)), handles: 1, through: "X-Original-Url",
+		},
+		"before Client-Ip, believing a proxy, with its name": {
+			older: named(listed(believingAddress, strippedSecond)), trusts: true, handles: 2, through: "X-Forwarded-Prefix",
+		},
+		"before X-Scheme, with its name":                 {older: named(listed(clientAddress, strippedThird)), handles: 1, through: "X-Scheme"},
+		"before X-Scheme, beside a proxy, with its name": {older: named(listed(distrustingAddress, strippedThird)), handles: 1, through: "X-Scheme"},
+		"before X-Scheme, believing a proxy, with its name": {
+			older: named(listed(believingAddress, strippedThird)), trusts: true, handles: 2, through: "X-Scheme",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := startPlain(t)
 			seen, up := startNames(t)
-			r := plainRoute("dockwell.env.www", "app.example.net", up)
+			r := plainRoute("dockwell.env.www", domain, up)
 			if tc.trusts {
 				r.TrustedProxies = []string{"127.0.0.1/32"}
 			}
@@ -1485,12 +1518,29 @@ func TestAnOlderRouteGetsItsOwnNameAtTheNextChangeOnRealCaddy(t *testing.T) {
 			if len(routes) != 1 || routes[0].Edited {
 				t.Fatalf("an older route reads %+v", routes)
 			}
+			claims := make(map[string]string, len(stripped()))
+			for _, h := range stripped() {
+				claims[h] = "6.6.6.6"
+			}
+			if tc.through != "" {
+				if status := c.plainGet(t, domain, "/", claims).status; status != http.StatusOK {
+					t.Fatalf("it answered %d", status)
+				}
+				if got := seen.header(tc.through); got == "" {
+					t.Fatalf("%s doesn't get through the older route, so this proves nothing", tc.through)
+				}
+			}
 			put(t, c, plainRoute("dockwell.env.other", "other.example.net", up))
-			if status := c.plainGet(t, "app.example.net:1,evil.example.org", "/", nil).status; status != http.StatusOK {
+			if status := c.plainGet(t, domain+":1,evil.example.org", "/", claims).status; status != http.StatusOK {
 				t.Fatalf("it answered %d", status)
 			}
-			if host, forwarded := seen.get(); host != "app.example.net" || forwarded != "app.example.net" {
+			if host, forwarded := seen.get(); host != domain || forwarded != domain {
 				t.Errorf("after the next change, Host is %q and X-Forwarded-Host %q", host, forwarded)
+			}
+			for _, h := range stripped() {
+				if got := seen.header(h); got != "" {
+					t.Errorf("after the next change, a visitor's %s reached the service: %q", h, got)
+				}
 			}
 			if routes, err = c.Routes(t.Context()); err != nil {
 				t.Fatal(err)

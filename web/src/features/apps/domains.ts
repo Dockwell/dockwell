@@ -99,6 +99,17 @@ export function routeWhere(domain: Domain, route: DomainRoute): string {
   return `${domain.name}${route.path}`;
 }
 
+/** Whether a message names a domain itself, not a longer name that holds it, as app.example.com holds example.com. */
+function namesDomain(text: string, domain: string): boolean {
+  const name = domain.toLowerCase();
+  for (let at = text.indexOf(name); at >= 0; at = text.indexOf(name, at + 1)) {
+    const before = text[at - 1] ?? "";
+    const after = text.slice(at + name.length);
+    if (!/[a-z0-9.-]/.test(before) && !/^(?:[a-z0-9-]|\.[a-z0-9])/.test(after)) return true;
+  }
+  return false;
+}
+
 /** Which field of the form a refusal is about, by what the server says, or "" for none. */
 export function refusedField(
   message: string,
@@ -112,7 +123,7 @@ export function refusedField(
       : /\bthe port its service\b|\bport \d+ in a container\b/.test(text)
   )
     return "port";
-  if (form.domain !== "" && text.includes(form.domain.toLowerCase())) return "domain";
+  if (form.domain !== "" && namesDomain(text, form.domain)) return "domain";
   // Each of the rest names what it's about, so those above are all that's yours. A
   // limit or the panel's domain says "domain" of something else. These two can't name it.
   if (/^(a route needs a domain|the domain )/.test(text)) return "domain";

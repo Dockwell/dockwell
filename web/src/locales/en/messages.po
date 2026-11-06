@@ -5557,6 +5557,14 @@ msgid "That would leave you no way to sign in. Add another passkey or an authent
 msgstr "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 
 #: src/features/changes/words.ts
+msgid "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+
+#: src/features/changes/words.ts
+msgid "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+msgstr "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
+
+#: src/features/changes/words.ts
 msgid "the {type} mount {at} ({reads})"
 msgstr "the {type} mount {at} ({reads})"
 

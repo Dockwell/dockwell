@@ -630,3 +630,95 @@ func testANameWithNoValueIsntInAContainersEnvironment(t *testing.T, backend stor
 		t.Errorf("drift holds the value: %v", found)
 	}
 }
+
+// A name with no value takes the image's value out of what runs, and a spec that
+// doesn't name it says the image's stands. Read as nothing at all, that was no drift,
+// though what runs had lost something. The check of #142 found this.
+func TestANameWithNoValueOverAnImagesIsDrift(t *testing.T) {
+	storetest.Each(t, testANameWithNoValueOverAnImagesIsDrift)
+}
+
+func testANameWithNoValueOverAnImagesIsDrift(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddLocalImage("acme/api:1", dockertest.Image{Config: docker.Config{Env: []string{"PATH=/bin", "LOG_FORMAT=json"}}})
+	c := changeClient(b, b.origin)
+	apply(t, c, propose(t, c, "Run api", serviceSpec("api", nil)))
+	name := docker.Project(listedEnv(t, b)) + "-api-1"
+	drift := func() []*dockwellv1.Drift {
+		t.Helper()
+		res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetDrift()
+	}
+	if d := drift(); len(d) != 0 {
+		t.Fatalf("drift with api as asked = %v", d)
+	}
+	e.Edit(name, func(c *docker.Container) {
+		i := slices.Index(c.Config.Env, "LOG_FORMAT=json")
+		if i < 0 {
+			t.Fatalf("the container doesn't have the image's value: %v", c.Config.Env)
+		}
+		c.Config.Env[i] = "LOG_FORMAT"
+	})
+	found := drift()
+	if len(found) != 1 || found[0].GetResource().GetName() != "api" || found[0].GetChanges()[0].GetPath() != "app.env[LOG_FORMAT]" {
+		t.Errorf("drift with the image's value taken out = %v, want api, at app.env[LOG_FORMAT]", found)
+	}
+	// A name of no image's takes nothing out, so it's nothing to say.
+	e.Edit(name, func(c *docker.Container) {
+		c.Config.Env[slices.Index(c.Config.Env, "LOG_FORMAT")] = "LOG_FORMAT=json"
+		c.Config.Env = append(c.Config.Env, "UNSET_IN_ITS_SHELL")
+	})
+	if d := drift(); len(d) != 0 {
+		t.Errorf("drift with a name that takes nothing out = %v", d)
+	}
+}
+
+// A known limit, by design, which ADR 0022 and docs/security/secrets.md state, and
+// this holds to what they say. Drift sees whether a service has a value it uses, and
+// never what that value is: nothing that reads a container has it to compare, and
+// comparing one is what ADR 0022 is careful not to offer. If this starts failing, what
+// they say has changed too.
+func TestDriftSeesThatAValueIsThereAndNeverWhatItIs(t *testing.T) {
+	storetest.Each(t, testDriftSeesThatAValueIsThereAndNeverWhatItIs)
+}
+
+func testDriftSeesThatAValueIsThereAndNeverWhatItIs(t *testing.T, backend store.Backend) {
+	const name, value = "DATABASE_PASSWORD", "s3cret-value-4Pz8"
+	for what, tc := range map[string]struct {
+		edit  func(env []string, i int) []string
+		drift bool
+	}{
+		"set to nothing":     {edit: func(env []string, i int) []string { env[i] = name + "="; return env }},
+		"set to a wrong one": {edit: func(env []string, i int) []string { env[i] = name + "=wrong"; return env }},
+		"a bare name":        {edit: func(env []string, i int) []string { env[i] = name; return env }, drift: true},
+		"gone":               {edit: func(env []string, i int) []string { return slices.Delete(env, i, i+1) }, drift: true},
+	} {
+		t.Run(what, func(t *testing.T) {
+			f := startFull(t, backend, nil)
+			b := signedIn(t, f)
+			e := f.addDockerServer(t)
+			e.AddLocalImage("acme/api:1", dockertest.Image{})
+			c := changeClient(b, b.origin)
+			apply(t, c, propose(t, c, "Run api", secretSpec("DB_PASSWORD", value), serviceSpec("api", map[string]string{name: "DB_PASSWORD"})))
+			e.Edit(docker.Project(listedEnv(t, b))+"-api-1", func(c *docker.Container) {
+				i := slices.IndexFunc(c.Config.Env, func(kv string) bool { return strings.HasPrefix(kv, name+"=") })
+				if i < 0 {
+					t.Fatalf("the container hasn't got the value: %v", c.Config.Env)
+				}
+				c.Config.Env = tc.edit(c.Config.Env, i)
+			})
+			res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(res.Msg.GetDrift()) == 1; got != tc.drift {
+				t.Errorf("drift = %v, want drift to be %v", res.Msg.GetDrift(), tc.drift)
+			}
+		})
+	}
+}

@@ -315,6 +315,11 @@ export function useChangeWords(): ChangeWords {
           case HostAccessKind.PANEL_DOMAIN:
             return t`the panel's domain, ${path}, which moves behind ${detail}`;
           case HostAccessKind.EXTERNAL_NETWORK:
+            if (leadsTo !== "") {
+              return detail === ""
+                ? t`the ${leadsTo} network ${path}, which reaches past the server's firewall and is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them`
+                : t`the ${leadsTo} network ${path}, which reaches past the server's firewall and is on the server already, where it answers to its name and to ${detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them`;
+            }
             return detail === ""
               ? t`the network ${path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them`
               : t`the network ${path}, which is on the server already, where it answers to its name and to ${detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them`;
