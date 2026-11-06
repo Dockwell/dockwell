@@ -48,6 +48,8 @@ type (
 		Healthcheck *healthEntry      `yaml:"healthcheck,omitempty"`
 		Labels      map[string]string `yaml:"labels,omitempty"`
 		StopGrace   string            `yaml:"stop_grace_period,omitempty"`
+		ShmSize     string            `yaml:"shm_size,omitempty"`
+		Tmpfs       []string          `yaml:"tmpfs,omitempty"`
 		Deploy      *deployEntry      `yaml:"deploy,omitempty"`
 		CapAdd      []string          `yaml:"cap_add,omitempty"`
 		CapDrop     []string          `yaml:"cap_drop,omitempty"`
@@ -243,7 +245,14 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		if n := c.GetRestartRetries(); n > 0 {
 			entry.Restart += ":" + strconv.FormatUint(uint64(n), 10)
 		}
-		entry.StopGrace = c.GetStopGracePeriod()
+		entry.StopGrace, entry.ShmSize = c.GetStopGracePeriod(), c.GetShmSize()
+		for _, t := range c.GetTmpfs() {
+			v := t.GetTarget()
+			if t.GetSize() != "" {
+				v += ":size=" + t.GetSize()
+			}
+			entry.Tmpfs = append(entry.Tmpfs, escape(v))
+		}
 		var order string
 		switch c.GetRollout().GetOrder() {
 		case resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST:

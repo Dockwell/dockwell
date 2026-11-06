@@ -49,10 +49,10 @@ var (
 		// Names.
 		"image", "container_name", "network_mode", "networks", "user", "cap_add", "cap_drop", "group_add",
 		// Numbers, and one of a few words.
-		"ports", "restart", "cpus", "mem_limit", "mem_reservation", "deploy", "privileged", "stop_grace_period",
+		"ports", "restart", "cpus", "mem_limit", "mem_reservation", "shm_size", "deploy", "privileged", "stop_grace_period",
 		"healthcheck.interval", "healthcheck.timeout", "healthcheck.start_period", "healthcheck.retries", "healthcheck.disable",
 		// Paths.
-		"volumes", "working_dir",
+		"volumes", "tmpfs", "working_dir",
 		// Changes nothing on one server, or orders the change, so neither is kept.
 		"expose", "depends_on",
 		// Container.env is sensitive, so a plan masks it and an export leaves it

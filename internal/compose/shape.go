@@ -99,7 +99,8 @@ var fileShape = sync.OnceValue(func() *shape {
 			kinds: aString | aMapping, example: `volumes: ["data:/var/lib/data"]`, fields: map[string]*shape{
 				"type": str("type: volume"), "source": str("source: data"), "target": str("target: /var/lib/data"),
 				"read_only": boolean("read_only: true"), "consistency": str("consistency: cached"),
-				"bind": object("bind: {selinux: z}", map[string]*shape{"selinux": str("selinux: z")}),
+				"bind":  object("bind: {selinux: z}", map[string]*shape{"selinux": str("selinux: z")}),
+				"tmpfs": object("tmpfs: {size: 64m}", map[string]*shape{"size": number("size: 64m")}),
 			},
 		}},
 		"networks": {
@@ -113,6 +114,8 @@ var fileShape = sync.OnceValue(func() *shape {
 		"cpus":            number("cpus: 0.5"),
 		"mem_limit":       number("mem_limit: 512M"),
 		"mem_reservation": number("mem_reservation: 256M"),
+		"shm_size":        number("shm_size: 1g"),
+		"tmpfs":           {kinds: aString | aList, item: str(`tmpfs: ["/run:size=64m"]`), example: `tmpfs: ["/run:size=64m"]`},
 		"cap_add":         {kinds: aList, item: str("cap_add: [NET_ADMIN]"), example: "cap_add: [NET_ADMIN]"},
 		"cap_drop":        {kinds: aList, item: str("cap_drop: [ALL]"), example: "cap_drop: [ALL]"},
 		"group_add":       {kinds: aList, item: shaped(aString|aNumber, `group_add: ["999"]`), example: `group_add: ["999"]`},
