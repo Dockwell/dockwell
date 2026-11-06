@@ -1219,7 +1219,7 @@ func Kinds() []*apicli.Kind {
 			Field: "project",
 			Noun:  "projects",
 			Short: "A project, kind \"project\"",
-			Long:  "Project is a product or client in the organization. It holds environments, and\nscopes members, secrets and domains. An install starts with one, named\n\"default\", which stays out of sight until there is a second.",
+			Long:  "Project is a product or client in the organization. It holds environments, and\nscopes members, secrets and domains. An install starts with one, named\n\"default\", which stays out of sight until there is a second. Deleting one takes\nits environments with it, once nothing lives in them.",
 			Fields: []apicli.Field{
 				{Path: "display_name", Help: "How the panel shows it, such as \"Acme web\". Empty shows its name, which URLs and the CLI use."},
 				{Path: "catalog.entry", Help: "The entry's ID, such as \"postgres\"."},

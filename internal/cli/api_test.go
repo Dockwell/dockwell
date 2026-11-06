@@ -316,6 +316,43 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		}
 	})
 
+	t.Run("a project goes with its environment, undoes, and stays while it holds something", func(t *testing.T) {
+		r := run(t, env, "projects", "create", "attic", "--yes")
+		if r.code != exitOK {
+			t.Fatalf("projects create = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		r = run(t, env, "projects", "delete", "attic", "--yes")
+		if r.code != exitOK {
+			t.Fatalf("projects delete = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		for _, want := range []string{"- project attic", "- environment production", "0 to create · 0 to change · 2 to delete", "Applied chg_"} {
+			if !strings.Contains(r.out, want) {
+				t.Errorf("projects delete didn't print %q:\n%s", want, r.out)
+			}
+		}
+		// Undoing it brings back the project and its environment.
+		r = run(t, env, "changes", "undo", changeRE.FindString(r.out), "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "2 to create") {
+			t.Fatalf("undoing projects delete = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		r = run(t, env, "variables", "create", "KEPT", "--project", "attic", "--value", "1", "--yes")
+		if r.code != exitOK {
+			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		r = run(t, env, "projects", "delete", "attic", "--yes")
+		if r.code == exitOK || !strings.Contains(r.err, "project attic still holds variable KEPT in production, so it stays. Delete them first, or in the same change") {
+			t.Errorf("deleting a project that holds a variable = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		r = run(t, env, "variables", "delete", "KEPT", "--project", "attic", "--yes")
+		if r.code != exitOK {
+			t.Fatalf("variables delete = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		r = run(t, env, "projects", "delete", "attic", "--yes")
+		if r.code != exitOK {
+			t.Errorf("deleting the project once it holds nothing = %d:\n%s%s", r.code, r.out, r.err)
+		}
+	})
+
 	t.Run("no means no", func(t *testing.T) {
 		r := runIn(t, env, "n\n", true, "projects", "create", "blog")
 		if r.code != exitError || !strings.Contains(r.err, "so Dockwell discarded it. Nothing changed") {

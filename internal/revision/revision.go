@@ -1075,6 +1075,9 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		if items, err = e.withFirstEnvironments(ctx, tx, items); err != nil {
 			return err
 		}
+		if items, err = e.withEnvironmentsGoing(ctx, tx, items, seen); err != nil {
+			return err
+		}
 		if items, err = e.withUsers(ctx, tx, items); err != nil {
 			return err
 		}
@@ -1284,7 +1287,8 @@ func (e *Engine) checkName(ref resource.Ref) error {
 //   - an item placed on a server that was removed;
 //   - a project that would come to life with no environment;
 //   - deleting a scope that would still hold something, or the last
-//     environment of a project, or the organization's last project;
+//     environment of a project that stays, or the organization's last
+//     project;
 //   - a resource naming one that isn't there, or isn't on its servers,
 //     such as a service mounting a volume (checkReferences);
 //   - a resource claiming what another holds, such as a domain and a path
@@ -1339,20 +1343,31 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 		if it.spec != nil || it.current == nil || it.ref.Kind != scope.ProjectKind && it.ref.Kind != scope.EnvironmentKind {
 			continue
 		}
-		// A scope goes only once what lives in it has gone, in this change
-		// or an earlier one.
-		left, err := liveIn(ctx, tx, items, it.id, "")
-		if err != nil {
-			return err
-		}
-		if len(left) > 0 {
-			return fault.New(ErrInvalid, "%s %s still holds %s. Delete them first, or in the same change", it.ref.Kind, it.ref.Name,
-				strings.Join(left, ", "))
-		}
 		// Its parent keeps a place for things to go, unless it goes too: a
-		// project keeps an environment, and the organization a project.
+		// project keeps an environment, and the organization a project. A
+		// project going says what its environments hold, all at once.
 		if parent, ok := byID[it.ref.Scope]; ok && parent.spec == nil {
 			continue
+		}
+		// A scope goes only once what lives in it has gone, in this change
+		// or an earlier one.
+		if it.ref.Kind == scope.ProjectKind {
+			held, err := projectHolds(ctx, tx, items, it.id)
+			if err != nil {
+				return err
+			}
+			if len(held) > 0 {
+				return fault.New(ErrInvalid, "project %s still holds %s, so it stays. Delete them first, or in the same change", it.ref.Name, human.List(held))
+			}
+		} else {
+			left, err := liveIn(ctx, tx, items, it.id, "")
+			if err != nil {
+				return err
+			}
+			if len(left) > 0 {
+				return fault.New(ErrInvalid, "%s %s still holds %s. Delete them first, or in the same change", it.ref.Kind, it.ref.Name,
+					strings.Join(left, ", "))
+			}
 		}
 		siblings, err := liveIn(ctx, tx, items, it.ref.Scope, it.ref.Kind)
 		if err != nil {
@@ -1601,6 +1616,72 @@ func (e *Engine) withFirstEnvironments(ctx context.Context, tx *store.Tx, items 
 		items = append(items, env)
 	}
 	return items, nil
+}
+
+// withEnvironmentsGoing takes a project's environments with it when the change
+// deletes it, so deleting a project is one edit, and undoing that brings them back.
+// A project can't be left without one, and the last can't go alone (ADR 0036). check
+// refuses it if anything would be left in them.
+func (e *Engine) withEnvironmentsGoing(ctx context.Context, tx *store.Tx, items []item, named map[resource.Ref]bool) ([]item, error) {
+	for i := range items {
+		if items[i].ref.Kind != scope.ProjectKind || items[i].spec != nil || items[i].current == nil {
+			continue
+		}
+		project := items[i].id
+		envs, err := tx.ListResources(ctx, project, string(scope.EnvironmentKind))
+		if err != nil {
+			return items, err
+		}
+		for j := range envs {
+			ref := resource.Ref{Kind: scope.EnvironmentKind, Scope: project, Name: envs[j].Name}
+			if named[ref] {
+				continue
+			}
+			env, err := e.load(ctx, tx, ref)
+			if err != nil {
+				return items, err
+			}
+			items = append(items, env)
+		}
+	}
+	return items, nil
+}
+
+// projectHolds names what would keep a project from going: what stays in it, and what
+// stays in each environment going with it, and where. Each has its kind, as that is
+// what says how to delete it.
+func projectHolds(ctx context.Context, tx *store.Tx, items []item, project string) ([]string, error) {
+	going := make(map[string]bool, len(items))
+	for i := range items {
+		if items[i].spec == nil {
+			going[items[i].id] = true
+		}
+	}
+	stored, err := tx.ListResources(ctx, project, "")
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for i := range stored {
+		if !going[stored[i].ID] {
+			out = append(out, stored[i].Kind+" "+stored[i].Name)
+			continue
+		}
+		inside, err := tx.ListResources(ctx, stored[i].ID, "")
+		if err != nil {
+			return nil, err
+		}
+		var held []string
+		for j := range inside {
+			if !going[inside[j].ID] {
+				held = append(held, inside[j].Kind+" "+inside[j].Name)
+			}
+		}
+		if len(held) > 0 {
+			out = append(out, human.List(held)+" in "+stored[i].Name)
+		}
+	}
+	return out, nil
 }
 
 // plan asks each server's agent what the items would take there. A server
