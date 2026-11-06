@@ -2127,6 +2127,10 @@ msgstr "未能部署"
 msgid "Couldn't deploy {image}"
 msgstr "无法部署 {image}"
 
+#: src/features/activity/describe.ts
+msgid "Couldn't open {path} on {server}"
+msgstr "无法打开 {server} 上的 {path}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't place it on {added}"
 msgstr "无法把它放到 {added} 上"
@@ -4410,6 +4414,10 @@ msgstr "打开应用"
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开认领链接，或通过 HTTPS 在面板的域名上打开。"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Open the file"
+msgstr "打开文件"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the overview"
 msgstr "打开概览"
@@ -4899,6 +4907,10 @@ msgstr "可访问 {server} 上的 {reach}"
 #: src/features/logs/DeployLogLinks.tsx
 msgid "Read {name}'s logs from this deploy"
 msgstr "阅读此次部署中 {name} 的日志"
+
+#: src/features/activity/describe.ts
+msgid "Read {path} on {server}"
+msgstr "已读取 {server} 上的 {path}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"

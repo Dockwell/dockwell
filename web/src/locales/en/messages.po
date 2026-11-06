@@ -2127,6 +2127,10 @@ msgstr "Couldn't deploy"
 msgid "Couldn't deploy {image}"
 msgstr "Couldn't deploy {image}"
 
+#: src/features/activity/describe.ts
+msgid "Couldn't open {path} on {server}"
+msgstr "Couldn't open {path} on {server}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't place it on {added}"
 msgstr "Couldn't place it on {added}"
@@ -4410,6 +4414,10 @@ msgstr "Open the apps"
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Open the file"
+msgstr "Open the file"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the overview"
 msgstr "Open the overview"
@@ -4899,6 +4907,10 @@ msgstr "Reaches {reach} on {server}"
 #: src/features/logs/DeployLogLinks.tsx
 msgid "Read {name}'s logs from this deploy"
 msgstr "Read {name}'s logs from this deploy"
+
+#: src/features/activity/describe.ts
+msgid "Read {path} on {server}"
+msgstr "Read {path} on {server}"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Read and write"

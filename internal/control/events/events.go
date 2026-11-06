@@ -50,6 +50,14 @@ const lateness = 30 * time.Second
 // comes with it, such as the steps of one change, to send them together.
 const gather = 100 * time.Millisecond
 
+// A person reading a server's files, and what stopped them. Not asking for a
+// passkey to read one rests on these being where the person can see them (ADR
+// 0031), as with a secret's reveal.
+const (
+	fileRead   = "file.read"
+	fileRefuse = "file.refuse"
+)
+
 // The audit log's actions that belong on the timeline, by kind. What the
 // timeline leaves out stays in the audit log: refusals, such as wrong codes
 // and refused tokens, a token's first use from an address, signing out,
@@ -64,6 +72,7 @@ var (
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
+		fileRead, fileRefuse,
 	}
 )
 
@@ -490,6 +499,9 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
+	}
+	if (a.Action == fileRead || a.Action == fileRefuse) && e.Subject != nil {
+		e.Subject.Path = a.Subject // only ever a path, cleaned by internal/control/files
 	}
 	return e
 }

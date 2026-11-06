@@ -55,16 +55,21 @@ A step-up here would stop less than it seems to, and cost more.
 
 - A session already controls every server. It can apply a plan that mounts `/etc` into a container, which takes a person's session and no passkey (ADR 0021), so a stolen cookie reaches what `FileService` serves anyway. The sign-in threat model says the same of stolen sessions.
 - This is the most used screen. A passkey prompt on it, even one that lasts some minutes, teaches people to tap through the prompt that does guard something, `RevealSecret`. It would also shut Files to anyone on a tunnel or with codes and no passkey for that address.
-- What a step-up guards today, a secret's value, is refused here outright, and the audit log keeps what a stolen session read and saved.
+- What a step-up guards today, a secret's value, is refused here outright.
+- This rests on what a stolen session does being seen. Each read and refusal is on Activity, with the path and who it was, as `secret.reveal` is, so a person can find out without reaching for the database.
 
 If plans with host access or the terminal come to take a step-up, this takes the same one, in the same record.
+
+Two limits on that reasoning. A server without Docker can't run that plan, so there Files is new reach for a stolen session. And the refused list stops Files, not a stolen session: ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach what Files refuses.
 
 ### On record
 
 - `file.read` for each `ReadFile`, naming the person, the server and the path, written before the contents go out. If it can't be written, nothing goes out, as with `secret.reveal`.
-- `file.refuse` for each refused read of a file, as someone probing for the key should show.
+- `file.refuse` for each read or listing that came to nothing, however it failed. Someone looking for credentials mostly misses, so a miss leaves a mark as a hit does.
 - `file.save` for each save, which is on the timeline too, as it changes the server.
-- A file's contents are never recorded or logged. `ListFiles` isn't recorded: it returns names, and it runs on every click.
+- All of these are on Activity, where ADR 0020 leaves other refusals in the audit log, as the case for no step-up rests on them being seen.
+- A listing that works isn't recorded: it returns names, and it runs on every click. Nor is a listing that can't reach its server, as the panel asks again by itself.
+- A file's contents are never recorded or logged. A path is cleaned before it's stored or shown, as a name can hold a newline or a terminal's escape codes, and a link can lead through one.
 
 ### Bounds
 

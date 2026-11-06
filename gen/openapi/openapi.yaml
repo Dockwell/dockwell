@@ -3631,6 +3631,9 @@ components:
                         What it lives in, by ID, for a resource that lives in another: a
                          secret's environment, as "env_…", for a secret revealed. Empty
                          otherwise.
+                path:
+                    type: string
+                    description: Which file on it, for a file read on a server, or refused. Empty otherwise.
             description: EventSubject names what an event is about.
         ExportComposeResponse:
             type: object

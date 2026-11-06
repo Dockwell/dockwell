@@ -117,6 +117,26 @@ func CheckPath(p string) error {
 	return nil
 }
 
+// maxPrintable bounds what Printable keeps: a path, and a sentence around it.
+const maxPrintable = 2 * maxPath
+
+// Printable makes text that holds a path fit to store or show. A file's name can
+// hold anything but a slash, so a link can lead through a newline, a terminal's
+// escape codes, or what turns text around. Each of those becomes a mark that shows
+// something was there, and what isn't UTF-8 does too.
+func Printable(text string) string {
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return utf8.RuneError
+		}
+		return r
+	}, strings.ToValidUTF8(text, string(utf8.RuneError)))
+	if len(text) > maxPrintable {
+		return strings.ToValidUTF8(text[:maxPrintable], "") + "…"
+	}
+	return text
+}
+
 // List returns what the directory at p holds.
 func (s *Server) List(ctx context.Context, p string) (*agentv1.ListFilesResult, error) {
 	if err := CheckPath(p); err != nil {

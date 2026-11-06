@@ -37,8 +37,9 @@ const (
 	EventKind_EVENT_KIND_SERVER EventKind = 2
 	// Someone gained or gave up a way in: claiming the install, signing in,
 	// signing other sessions out, passkeys, authenticator codes, API tokens,
-	// sign-in and claim links, and join tickets. Refusals, such as a wrong
-	// code, stay in the audit log.
+	// sign-in and claim links, and join tickets. Someone reading a server's files,
+	// and what refused them. Other refusals, such as a wrong code, stay in the
+	// audit log.
 	EventKind_EVENT_KIND_ACCESS EventKind = 3
 	// A service turned unhealthy, stopped running, or came back, as its server's
 	// agent saw, outside any change.
@@ -680,7 +681,9 @@ type EventSubject struct {
 	// What it lives in, by ID, for a resource that lives in another: a
 	// secret's environment, as "env_…", for a secret revealed. Empty
 	// otherwise.
-	Scope         string `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	Scope string `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	// Which file on it, for a file read on a server, or refused. Empty otherwise.
+	Path          string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -736,6 +739,13 @@ func (x *EventSubject) GetScope() string {
 	return ""
 }
 
+func (x *EventSubject) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
 var File_dockwell_v1_event_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_event_proto_rawDesc = "" +
@@ -787,11 +797,12 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\bprevious\x18\x04 \x01(\x0e2\x18.dockwell.v1.HealthStateR\bprevious\x12\x16\n" +
 	"\x06output\x18\x05 \x01(\tR\x06output\x12\x14\n" +
 	"\x05flips\x18\x06 \x01(\x05R\x05flips\x120\n" +
-	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"H\n" +
+	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\\\n" +
 	"\fEventSubject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
-	"\x05scope\x18\x03 \x01(\tR\x05scope*\x83\x01\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\x12\x12\n" +
+	"\x04path\x18\x04 \x01(\tR\x04path*\x83\x01\n" +
 	"\tEventKind\x12\x1a\n" +
 	"\x16EVENT_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11EVENT_KIND_CHANGE\x10\x01\x12\x15\n" +

@@ -134,7 +134,12 @@ function Files({ server, folder, file }: { server: Server; folder: string; file:
   const places = usePlaces();
   const [filter, setFilter] = useState("");
   const serverId = server.id;
-  const query = useQuery(FileService.method.listFiles, { serverId, path: folder }, { retry: retryListing });
+  // A refused listing is on record, so it isn't asked again each time the window takes focus.
+  const query = useQuery(
+    FileService.method.listFiles,
+    { serverId, path: folder },
+    { retry: retryListing, refetchOnWindowFocus: (q) => q.state.status !== "error" },
+  );
   const listing = query.data;
   const shown = listing?.path ?? folder;
 

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/proto"
 
@@ -758,5 +759,24 @@ func TestAPrivateKeyIsRefusedHoweverItIsSetIn(t *testing.T) {
 		if d.read(t, p).GetFile() == nil {
 			t.Errorf("%s reads as a key", name)
 		}
+	}
+}
+
+func TestPrintable(t *testing.T) {
+	for in, want := range map[string]string{
+		"/var/www/index.php": "/var/www/index.php",
+		"/srv/你好/a b.txt":    "/srv/你好/a b.txt",
+		"/a\nb":              "/a\uFFFDb",
+		"/a\x1b[31mb":        "/a\uFFFD[31mb",
+		"/a\u202eb":          "/a\uFFFDb",
+		"/a\xe9b":            "/a\uFFFDb",
+	} {
+		if got := Printable(in); got != want {
+			t.Errorf("Printable(%q) = %q, want %q", in, got, want)
+		}
+	}
+	long := Printable(strings.Repeat("好", maxPrintable))
+	if !strings.HasSuffix(long, "…") || !utf8.ValidString(long) || len(long) > maxPrintable+len("…") {
+		t.Errorf("a long text comes to %d bytes", len(long))
 	}
 }

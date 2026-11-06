@@ -181,8 +181,8 @@ func (w *walked) toRoot() {
 	}
 }
 
-// path is the path walked so far, as text: a link's target can lead through
-// names that aren't UTF-8, and text is what goes out in a message.
+// path is the path walked so far, as text fit to show: a link's target can lead
+// through names that aren't UTF-8, or hold what a terminal would act on.
 func (w *walked) path() string {
 	var b strings.Builder
 	for _, s := range w.steps[1:] {
@@ -192,7 +192,7 @@ func (w *walked) path() string {
 	if b.Len() == 0 {
 		return "/"
 	}
-	return strings.ToValidUTF8(b.String(), "\uFFFD")
+	return Printable(b.String())
 }
 
 // parts splits a path into what's between its slashes.
@@ -283,9 +283,9 @@ func (g *guard) follow(t *trail, w *walked, todo []string) *agentv1.FileRefusal 
 	return nil
 }
 
-// joined is name in dir, as text.
+// joined is name in dir, as text fit to show.
 func joined(dir, name string) string {
-	name = strings.ToValidUTF8(name, "\uFFFD")
+	name = Printable(name)
 	if dir == "/" {
 		return "/" + name
 	}

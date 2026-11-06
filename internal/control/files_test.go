@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -205,6 +206,191 @@ func TestAPathThatStopsAnsweringLeavesTheServerOnline(t *testing.T) {
 	}
 }
 
+// timelineFiles are the timeline's events about files, as Activity reads them.
+func timelineFiles(t *testing.T, b *browser, request *dockwellv1.ListEventsRequest) []*dockwellv1.Event {
+	t.Helper()
+	list, err := dockwellv1connect.NewEventServiceClient(b, b.origin, connect.WithProtoJSON()).ListEvents(t.Context(), connect.NewRequest(request))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return slices.DeleteFunc(list.Msg.GetEvents(), func(e *dockwellv1.Event) bool { return !strings.HasPrefix(e.GetAction(), "file.") })
+}
+
+// Not asking for a passkey to read a file rests on this: what a stolen session
+// read can be seen, by the person it was stolen from, without a database.
+func TestWhatsReadIsOnActivity(t *testing.T) { storetest.Each(t, testWhatsReadIsOnActivity) }
+
+func testWhatsReadIsOnActivity(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := filepath.Join(dir, "app.env")
+	writeFile(t, config, "s3cret-in-a-file\n")
+	c := fileClient(b, b.origin)
+	if _, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: config})); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(dir, "id_rsa")
+	if _, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: missing})); reasonOf(err) != "not_found" {
+		t.Fatal(err)
+	}
+	got := timelineFiles(t, b, &dockwellv1.ListEventsRequest{ServerId: id})
+	slices.Reverse(got)
+	if len(got) != 2 {
+		t.Fatalf("the timeline has %v", got)
+	}
+	for i, want := range []struct{ action, path string }{{"file.read", config}, {"file.refuse", missing}} {
+		e := got[i]
+		if e.GetAction() != want.action || e.GetKind() != dockwellv1.EventKind_EVENT_KIND_ACCESS || e.GetActor() == nil ||
+			e.GetSubject().GetId() != id || e.GetSubject().GetName() != "hz-1" || e.GetSubject().GetPath() != want.path {
+			t.Errorf("the timeline says %v", e)
+		}
+	}
+	access := timelineFiles(t, b, &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_ACCESS}})
+	if len(access) != 2 {
+		t.Errorf("filtering by access keeps %v", access)
+	}
+	// A plain listing isn't there: it returns names, and it runs on every click.
+	if _, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: dir})); err != nil {
+		t.Fatal(err)
+	}
+	if after := timelineFiles(t, b, &dockwellv1.ListEventsRequest{ServerId: id}); len(after) != 2 {
+		t.Errorf("a listing went on the timeline: %v", after)
+	}
+}
+
+// Someone looking for credentials mostly misses, so a miss has to leave a mark as
+// a hit does, whatever kind of refusal it was.
+func TestEveryRefusalIsOnRecord(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	server := f.addServer(t, false)
+	id := server.id.ServerID
+	dir := t.TempDir()
+	fifo := filepath.Join(dir, "fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	shut := filepath.Join(dir, "shut")
+	writeFile(t, filepath.Join(shut, "f"), "x")
+	if err := os.Chmod(shut, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(shut, 0o755) })
+	c := fileClient(b, b.origin)
+	read := func(path string) {
+		t.Helper()
+		if _, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: path})); err == nil {
+			t.Fatalf("read %s", path)
+		}
+	}
+	list := func(path string) {
+		t.Helper()
+		if _, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: path})); err == nil {
+			t.Fatalf("listed %s", path)
+		}
+	}
+	missing := filepath.Join(dir, "id_rsa")
+	read(missing)                  // nothing there
+	read(fifo)                     // not a file
+	read(dir)                      // a directory
+	read(filepath.Join(shut, "f")) // denied, unless root runs this
+	read(dir + "/a/../b")          // a path that doesn't say what it means
+	list("/proc")                  // a refused listing
+	list(missing)                  // a listing of nothing
+	want := 7
+	seen := map[string]bool{}
+	events := fileEvents(t, f)
+	for i := range events {
+		e := &events[i]
+		if e.Action != "file.refuse" || e.Target != id {
+			t.Errorf("went on record as %+v", e)
+		}
+		seen[e.Subject] = true
+	}
+	if len(events) != want {
+		t.Fatalf("%d of %d refusals are on record: %v", len(events), want, seen)
+	}
+	if !seen[fifo] || !seen[missing] || !seen["/proc"] {
+		t.Errorf("on record: %v", seen)
+	}
+
+	// Reading from a server that's gone is a failed read too. Listing one isn't
+	// kept: the panel asks again by itself while it reconnects.
+	server.stop()
+	waitConnected(t, f, id, false)
+	read(fifo)
+	if _, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: dir})); reasonOf(err) != "server_offline" {
+		t.Fatalf("listing with the server gone = %v", err)
+	}
+	if got := fileEvents(t, f); len(got) != want+1 {
+		t.Errorf("with the server gone, the audit log went from %d to %d", want, len(got))
+	}
+}
+
+// A file's name can hold anything but a slash, and a link can lead through one,
+// which is how a newline or a terminal's escape codes could reach a log or a screen.
+func TestAPathIsCleanedBeforeItsStored(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	dir := t.TempDir()
+	evil := dir + "/evil\n\x1b[31m\u202e"
+	writeFile(t, evil+"/f", "x")
+	if err := os.Symlink(evil+"/f", dir+"/link"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(evil+"/nothing", dir+"/broken"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(dir+"/gone\n\x1b[31m", dir+"/ends-badly"); err != nil {
+		t.Fatal(err)
+	}
+	c := fileClient(b, b.origin)
+	if _, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: dir + "/link"})); err != nil {
+		t.Fatal(err)
+	}
+	_, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: dir + "/broken"}))
+	if reasonOf(err) != "not_found" {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(err.Error(), "\n\x1b\u202e") {
+		t.Errorf("the refusal carries them: %q", err.Error())
+	}
+	_, err = c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: dir + "/ends-badly"}))
+	if reasonOf(err) != "not_found" {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(err.Error(), "\n\x1b") {
+		t.Errorf("the refusal carries them: %q", err.Error())
+	}
+	// What a request names is cleaned too, without the agent's help.
+	_, err = c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: dir + "/x\n\x1b[31m"}))
+	if reasonOf(err) != "invalid" {
+		t.Fatal(err)
+	}
+	events := fileEvents(t, f)
+	if len(events) != 4 {
+		t.Fatalf("the audit log has %v", events)
+	}
+	for i := range events {
+		for _, field := range []string{events[i].Subject, events[i].Detail} {
+			if strings.ContainsAny(field, "\n\x1b\u202e") {
+				t.Errorf("%s stored %q", events[i].Action, field)
+			}
+		}
+	}
+	for _, e := range timelineFiles(t, b, &dockwellv1.ListEventsRequest{ServerId: id}) {
+		if strings.ContainsAny(e.GetSubject().GetPath(), "\n\x1b\u202e") {
+			t.Errorf("the timeline shows %q", e.GetSubject().GetPath())
+		}
+	}
+}
+
 // tokenAndCookie sends a person's session with a token beside it.
 type tokenAndCookie struct {
 	browser *browser
@@ -261,9 +447,6 @@ func testWhatTheAgentRefusesReachesThePerson(t *testing.T, backend store.Backend
 	_, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: "/proc"}))
 	if reasonOf(err) != "file_refused" {
 		t.Errorf("listing /proc = %v", err)
-	}
-	if len(fileEvents(t, f)) != 3 {
-		t.Error("a refused listing went on record, and listing is a GET")
 	}
 
 	missing := filepath.Join(dir, "missing")
@@ -331,8 +514,17 @@ func TestAnAgentThatCantReadFilesSaysSo(t *testing.T) {
 	waitConnected(t, f, server.id.ServerID, false)
 	server.disk = nil
 	server.connect(t, f)
-	_, err := fileClient(b, b.origin).ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: server.id.ServerID, Path: "/"}))
+	c := fileClient(b, b.origin)
+	_, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: server.id.ServerID, Path: "/"}))
 	if reasonOf(err) != "agent_failed" || !strings.Contains(err.Error(), "hz-1") {
 		t.Errorf("got %v", err)
+	}
+	// A read that fails this way, or as its time runs out, is on record like any other.
+	_, err = c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: server.id.ServerID, Path: "/etc/hosts"}))
+	if reasonOf(err) != "agent_failed" {
+		t.Errorf("reading = %v", err)
+	}
+	if got := fileEvents(t, f); len(got) != 1 || got[0].Action != "file.refuse" || got[0].Subject != "/etc/hosts" {
+		t.Errorf("the audit log has %v", got)
 	}
 }

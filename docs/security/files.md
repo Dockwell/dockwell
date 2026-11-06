@@ -15,7 +15,7 @@ Files hands a browser a server's disk, through an agent that runs as root. This 
 
 ## What's refused
 
-The agent refuses these whoever asks, over every surface, and no step-up opens them. Each refusal says why and points at SSH, and is in the audit log.
+The agent refuses these whoever asks, over every surface, and no step-up opens them. Each refusal says why, and points at SSH. Every refused or failed read and refused listing is on Activity, whatever the reason, so a miss shows as a hit does. A listing that works isn't, as it returns names and runs on every click, and neither is one that can't reach its server, as the panel asks again by itself.
 
 | Refused | Why |
 | --- | --- |
@@ -55,9 +55,11 @@ The agent refuses these whoever asks, over every surface, and no step-up opens t
 | --- | --- |
 | Read a secret's value out of Docker's or containerd's state, or a process's environment | Refused: those paths are shut, for it and for the person it stole from |
 | Read the install's key or the database, to open every secret offline | Refused the same way |
-| Read `.env` files and app config | It can. Each read is in the audit log, by person, server and path. It reaches them with no passkey, as it reaches the server through a plan: see [known gaps](#known-gaps) |
+| Read `.env` files and app config | It can. Each read is on Activity, by person, server and path. It reaches them with no passkey, as it reaches the server through a plan: see [what this doesn't do](#what-this-doesnt-do) |
 | Read a file without leaving a record | It can't. The audit event is written before the contents leave the control plane, and a failed write returns nothing. Tested |
-| Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer, and it records nothing |
+| Look for credentials and leave no trace of what it missed | It can't. A refused or failed read is on Activity however it failed: nothing there, not a file, denied, refused, or not answering. So is a refused listing. Tested |
+| Hide in the record with a crafted path | A name can hold a newline or a terminal's escape codes, and a link can lead through one. A path is cleaned before it's stored or shown. Tested |
+| Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |
 
 ### A compromised app
 
@@ -92,6 +94,8 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 ## What this doesn't do
 
 - **Keep a stolen session out of the disk.** A session controls every server: it can apply a plan that mounts `/etc`, with no passkey ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)). There's no step-up here for that reason: it would add a prompt without closing that door.
+- **Stop a stolen session reaching what's refused.** The refused list stops Files. ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach everything here.
+- **Keep a stolen session out of a server with no Docker by any other way.** With no plan to run, Files is new reach there, and Activity is what shows it.
 - **Tell a config with a password in it from one without.** `.env`, `wp-config.php` and the like are readable with a session.
 - **Protect one person on a server from another.** Every signed-in person can read every server's files until roles come.
 
@@ -104,4 +108,5 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **A file over 1 MiB** is checked for a key only in what is read of it, and only that part goes out.
 - **Eight stuck calls stop Files on that server** until one comes back, for paths and mounts alike. The agent, its stream and everything else on the server carry on. A call stuck in the kernel can also outlast the agent's own stop, as nothing can end it until the mount answers.
 - **A hard link to a refused file,** made by root, reads as what it is: a file somewhere else.
+- **Activity shows paths.** Anyone who can read events, a read-only token included, sees which files were read and refused, not what's in them.
 - **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding both `containers` and `volumes`. A backup of `overlay2` alone, or a root that has never answered and holds only one of them, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.

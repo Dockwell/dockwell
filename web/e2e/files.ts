@@ -3,8 +3,8 @@
 // Walks a server's files in headless Chromium, against a real `dockwell run` and
 // its own agent, on this machine's disk, in a temporary directory: browsing, a
 // file, what isn't text, what's too large, what's refused, a path that leads
-// nowhere, and a phone. The CLI's token is refused, and each read and refusal is
-// in the audit log. With --shots <dir> it saves screenshots at 1440, 800, 390 and
+// nowhere, and a phone. Each read and refusal shows on Activity, and the CLI's
+// token is refused. With --shots <dir> it saves screenshots at 1440, 800, 390 and
 // 360 px, light and dark.
 //
 //   make e2e
@@ -216,7 +216,28 @@ async function main() {
   await page.getByRole("link", { name: `Back to ${site}` }).click();
   await page.getByText("说明.txt").waitFor();
 
-  step("a token is refused, and everything read is on record");
+  step("what was read, and what was refused, is on Activity");
+  await page.setViewportSize({ width: 1440, height: 970 });
+  await page.goto(`${origin}/activity`);
+  const conf = join(site, "nginx.conf");
+  await page.getByText(`Read ${conf} on`).first().waitFor();
+  for (const refused of ["server.key", "planted", "broken"]) {
+    await page
+      .getByText(`Couldn't open ${join(site, refused)} on`)
+      .first()
+      .waitFor();
+  }
+  await page
+    .getByText(`Couldn't open ${join(site, "nothing")} on`)
+    .first()
+    .waitFor();
+  await page.getByText("Couldn't open /proc on").first().waitFor();
+  await shoot(page, "activity");
+  await page.getByText(`Read ${conf} on`).first().click();
+  await page.getByRole("link", { name: "Open the file" }).click();
+  await page.getByRole("region", { name: "Contents of nginx.conf" }).waitFor();
+
+  step("a token is refused");
   dockwell("login", "--local");
   const denied = spawnSync(bin, ["files", "list", "--server-id", serverId, "--path", "/", "--json"], {
     encoding: "utf8",
