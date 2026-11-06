@@ -114,7 +114,7 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read %s now: %w", s.Name, c.GetName(), err), authapi.ReasonUnavailable)
 	}
 	if len(refused) > 0 {
-		return nil, authapi.Invalid(fmt.Errorf("%s runs with %s, which Dockwell can't keep yet, so changing its image would drop them without a word. It stays as it is. Make it again without them, then take it on", c.GetName(), human.List(refused)))
+		return nil, authapi.Invalid(fmt.Errorf("%s runs with %s, which a service can't hold yet, so changing its image would drop them without a word. It stays as it is, and nothing was taken on. Make it again without them, then take it on, or leave it outside Dockwell", c.GetName(), human.List(refused)))
 	}
 	svc, ok := spec.(*resourcev1.Service)
 	if !ok {

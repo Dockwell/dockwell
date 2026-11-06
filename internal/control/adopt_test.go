@@ -289,6 +289,60 @@ func TestWhatCantBeTakenOnSaysWhy(t *testing.T) {
 	}
 }
 
+// What a container runs with that no spec holds is what a change of image would
+// drop, so it's refused by name, and the words say what to do. Each of these is what
+// Docker reports for a flag a person can pass, and none is among what a spec holds. A
+// setting Docker adds later is refused too, as nothing here can know what it does.
+func TestWhatNoSpecHoldsIsRefusedByName(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	for name, c := range map[string]struct {
+		section string
+		keys    map[string]any
+		says    string
+	}{
+		"with-gpus":     {"HostConfig", map[string]any{"DeviceRequests": []any{map[string]any{"Driver": "nvidia", "Count": -1}}}, "gpus"},
+		"with-logging":  {"HostConfig", map[string]any{"LogConfig": map[string]any{"Type": "fluentd"}}, "logging: fluentd"},
+		"with-publish":  {"HostConfig", map[string]any{"PublishAllPorts": true}, "publish_all_ports"},
+		"with-tmpfs":    {"HostConfig", map[string]any{"Mounts": []any{map[string]any{"Type": "tmpfs", "Target": "/cache"}}}, "a tmpfs mount at /cache"},
+		"with-rslave":   {"HostConfig", map[string]any{"Binds": []any{"/srv/data:/data:rslave"}}, "rslave on /data"},
+		"with-quota":    {"HostConfig", map[string]any{"CpuQuota": 50000}, "cpu_quota"},
+		"with-swap":     {"HostConfig", map[string]any{"Memory": 1 << 30, "MemorySwap": 1 << 30}, "memswap_limit"},
+		"with-oom":      {"HostConfig", map[string]any{"OomKillDisable": true}, "oom_kill_disable"},
+		"with-userns":   {"HostConfig", map[string]any{"UsernsMode": "host"}, "userns_mode"},
+		"with-new":      {"HostConfig", map[string]any{"SomethingNew": "on"}, "HostConfig.SomethingNew"},
+		"with-mac":      {"Config", map[string]any{"MacAddress": "02:42:ac:11:00:99"}, "mac_address"},
+		"with-new-spec": {"Config", map[string]any{"AlsoNew": 1}, "Config.AlsoNew"},
+	} {
+		runByHand(t, e, name, func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+		e.Reports(name, c.section, c.keys)
+		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name}))
+		if err == nil || !strings.Contains(err.Error(), c.says) || !strings.Contains(err.Error(), "It stays as it is") {
+			t.Errorf("taking on %s: %v, want it to say %q", name, err, c.says)
+		}
+	}
+
+	// A fixed address is on the network, not in either.
+	runByHand(t, e, "with-ip", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	e.Reports("with-ip", "NetworkSettings", map[string]any{"Networks": map[string]any{
+		"bridge": map[string]any{"IPAMConfig": map[string]any{"IPv4Address": "172.17.0.99"}},
+	}})
+	if _, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "with-ip"})); err == nil ||
+		!strings.Contains(err.Error(), "ipv4_address on bridge") {
+		t.Errorf("taking on a fixed address: %v", err)
+	}
+
+	// What Docker fills in for anyone isn't a reason, nor what a spec holds.
+	runByHand(t, e, "plain", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	e.Reports("plain", "HostConfig", map[string]any{
+		"ConsoleSize": []any{0, 0}, "CgroupnsMode": "private", "IpcMode": "private", "ShmSize": 64 << 20, "Runtime": "runc",
+		"MaskedPaths": []any{"/proc/kcore"}, "ReadonlyPaths": []any{"/proc/bus"}, "OomKillDisable": false, "Memory": 1 << 30, "MemorySwap": 2 << 30,
+	})
+	adopt(t, cc, "plain", "plain")
+}
+
 // A token that can change things can't bring in a stranger's environment: it could
 // read it through a command of its own, and a stranger's was never in its reach.
 func TestATokenCantTakeOnAContainer(t *testing.T) {

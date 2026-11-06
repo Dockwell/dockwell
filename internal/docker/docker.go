@@ -207,8 +207,14 @@ func (c *Client) Ping(ctx context.Context) error {
 
 // Info is what the engine says of itself: the fields Dockwell uses.
 type Info struct {
+	// Name is the server's hostname.
+	Name string
 	// DockerRootDir is where it keeps its data, such as /var/lib/docker.
 	DockerRootDir string
+	// DefaultRuntime is what runs a container unless it asks for another, such as
+	// runc, and CgroupVersion is the server's cgroup version, 1 or 2.
+	DefaultRuntime string
+	CgroupVersion  string
 	// NCPU is how many CPUs the server has.
 	NCPU int
 	// LoggingDriver is what keeps a container's log unless it asks for

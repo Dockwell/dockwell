@@ -239,42 +239,15 @@ func TakenView(c *Container, t Taken) *Container {
 	return &view
 }
 
-// Options is what a container runs with that a replace couldn't carry, as no spec
-// holds it, for what reads a container that wasn't made from one.
+// Options is how a container runs, key by key as Docker says it, for what reads a
+// container that wasn't made from a spec. Fields would leave out whatever they don't
+// name, and what Dockwell doesn't know of is what such a reader is looking for.
 type Options struct {
-	Config struct {
-		Hostname   string `json:"Hostname"`
-		Domainname string `json:"Domainname"`
-		Tty        bool   `json:"Tty"`
-		OpenStdin  bool   `json:"OpenStdin"`
-	} `json:"Config"`
-	HostConfig struct {
-		NetworkMode    string            `json:"NetworkMode"`
-		Devices        []json.RawMessage `json:"Devices"`
-		DeviceCgroups  []string          `json:"DeviceCgroupRules"`
-		Sysctls        map[string]string `json:"Sysctls"`
-		Ulimits        []json.RawMessage `json:"Ulimits"`
-		ShmSize        int64             `json:"ShmSize"`
-		Init           *bool             `json:"Init"`
-		PidMode        string            `json:"PidMode"`
-		IpcMode        string            `json:"IpcMode"`
-		UTSMode        string            `json:"UTSMode"`
-		CgroupParent   string            `json:"CgroupParent"`
-		ExtraHosts     []string          `json:"ExtraHosts"`
-		DNS            []string          `json:"Dns"`
-		DNSSearch      []string          `json:"DnsSearch"`
-		DNSOptions     []string          `json:"DnsOptions"`
-		Links          []string          `json:"Links"`
-		VolumesFrom    []string          `json:"VolumesFrom"`
-		Runtime        string            `json:"Runtime"`
-		OomScoreAdj    int               `json:"OomScoreAdj"`
-		CPUShares      int64             `json:"CpuShares"`
-		CPUSetCPUs     string            `json:"CpusetCpus"`
-		ReadonlyRootfs bool              `json:"ReadonlyRootfs"`
-		Tmpfs          map[string]string `json:"Tmpfs"`
-		SecurityOpt    []string          `json:"SecurityOpt"`
-		PidsLimit      *int64            `json:"PidsLimit"`
-	} `json:"HostConfig"`
+	Config          map[string]json.RawMessage `json:"Config"`
+	HostConfig      map[string]json.RawMessage `json:"HostConfig"`
+	NetworkSettings struct {
+		Networks map[string]map[string]json.RawMessage `json:"Networks"`
+	} `json:"NetworkSettings"`
 }
 
 // InspectOptions reads what InspectContainer leaves out as nothing else uses it.

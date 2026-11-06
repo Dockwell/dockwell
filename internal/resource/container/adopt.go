@@ -74,59 +74,12 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (*resour
 	if img, err := d.Client.InspectImage(ctx, c.Image); err == nil && img.Config != nil {
 		imageSignal = img.Config.StopSignal
 	}
-	refused := noSpecHolds(c, options, imageSignal)
+	info, err := d.Client.Info(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't ask Docker how it runs containers, so what this one needs can't be read: %w", err)
+	}
+	refused := noSpecHolds(c, options, imageSignal, info)
 	return spec, append(refused, valuesInWords(spec)...), nil
-}
-
-// noSpecHolds lists what a container runs with that no spec can say, so a replace
-// would drop it without a word. What Dockwell can't run is refused by name, never
-// dropped (ADR 0021), and being taken on is the promise that a later change of image
-// is safe. Each is named as a Compose file names it.
-func noSpecHolds(c *docker.Container, o *docker.Options, imageSignal string) []string {
-	h := &o.HostConfig
-	const defaultShm = 64 << 20
-	set := []struct {
-		name string
-		on   bool
-	}{
-		{"hostname", o.Config.Hostname != "" && !strings.HasPrefix(c.ID, o.Config.Hostname)},
-		{"domainname", o.Config.Domainname != ""},
-		{"tty", o.Config.Tty},
-		{"stdin_open", o.Config.OpenStdin},
-		{"stop_signal", c.Config.StopSignal != "" && c.Config.StopSignal != imageSignal},
-		{"devices", len(h.Devices) > 0},
-		{"device_cgroup_rules", len(h.DeviceCgroups) > 0},
-		{"sysctls", len(h.Sysctls) > 0},
-		{"ulimits", len(h.Ulimits) > 0},
-		{"shm_size", h.ShmSize != 0 && h.ShmSize != defaultShm},
-		{"init", h.Init != nil && *h.Init},
-		{"pid", h.PidMode != ""},
-		{"ipc", h.IpcMode != "" && h.IpcMode != "private" && h.IpcMode != "shareable"},
-		{"uts", h.UTSMode != ""},
-		{"cgroup_parent", h.CgroupParent != ""},
-		{"extra_hosts", len(h.ExtraHosts) > 0},
-		{"dns", len(h.DNS) > 0},
-		{"dns_search", len(h.DNSSearch) > 0},
-		{"dns_opt", len(h.DNSOptions) > 0},
-		{"links", len(h.Links) > 0},
-		{"volumes_from", len(h.VolumesFrom) > 0},
-		{"runtime", h.Runtime != "" && h.Runtime != "runc"},
-		{"oom_score_adj", h.OomScoreAdj != 0},
-		{"cpu_shares", h.CPUShares != 0},
-		{"cpuset", h.CPUSetCPUs != ""},
-		{"read_only", h.ReadonlyRootfs},
-		{"tmpfs", len(h.Tmpfs) > 0},
-		{"security_opt", len(h.SecurityOpt) > 0},
-		{"pids_limit", h.PidsLimit != nil && *h.PidsLimit > 0},
-		{"network_mode: " + h.NetworkMode, h.NetworkMode == "none" || strings.HasPrefix(h.NetworkMode, "container:")},
-	}
-	var out []string
-	for _, s := range set {
-		if s.on {
-			out = append(out, s.name)
-		}
-	}
-	return out
 }
 
 // valuesInWords names the variables a spec's words hold the values of. A plan shows
