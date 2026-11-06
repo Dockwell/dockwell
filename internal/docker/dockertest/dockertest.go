@@ -1032,6 +1032,9 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	c.Image = img.id
 	c.Config = merge(req.Config, img.Config)
 	c.HostConfig = req.HostConfig
+	if c.HostConfig.ShmSize == 0 {
+		c.HostConfig.ShmSize = 64 << 20 // Docker reports what it took
+	}
 	c.memorySwap = 2 * req.HostConfig.Memory
 	c.State = docker.State{Status: "created"}
 	if e.UsernsRemap && req.HostConfig.NetworkMode == "host" && req.HostConfig.UsernsMode != "host" {

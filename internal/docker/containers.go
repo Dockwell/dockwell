@@ -71,6 +71,9 @@ type HostConfig struct {
 	// a tmpfs at each path, with its options.
 	ReadonlyRootfs bool              `json:"ReadonlyRootfs,omitempty"`
 	Tmpfs          map[string]string `json:"Tmpfs,omitempty"`
+	// ShmSize is the size of its /dev/shm, in bytes. Zero takes the engine's
+	// default, and the engine reports what it took.
+	ShmSize int64 `json:"ShmSize,omitempty"`
 	// LogConfig says how the engine keeps what it prints.
 	LogConfig *LogConfig `json:"LogConfig,omitempty"`
 	// Memory limits its memory, in bytes, and MemorySwap its memory and swap
@@ -87,12 +90,20 @@ type HostConfig struct {
 	SecurityOpt []string `json:"SecurityOpt,omitempty"`
 }
 
-// Mount is a volume or bind mount, as HostConfig.Mounts has it.
+// Mount is a volume, bind or tmpfs mount, as HostConfig.Mounts has it.
 type Mount struct {
-	Type     string `json:"Type"` // "volume" or "bind"
+	Type     string `json:"Type"` // "volume", "bind" or "tmpfs"
 	Source   string `json:"Source"`
 	Target   string `json:"Target"`
 	ReadOnly bool   `json:"ReadOnly,omitempty"`
+	// TmpfsOptions says more of a tmpfs. Dockwell makes none this way, and docker
+	// compose does, from a volume of type tmpfs.
+	TmpfsOptions *TmpfsOptions `json:"TmpfsOptions,omitempty"`
+}
+
+// TmpfsOptions are a tmpfs mount's options.
+type TmpfsOptions struct {
+	SizeBytes int64 `json:"SizeBytes,omitempty"`
 }
 
 // PortBinding publishes a container port on the server.

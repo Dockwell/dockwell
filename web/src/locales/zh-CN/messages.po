@@ -639,6 +639,10 @@ msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后�
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里，这可能损坏数据库。只有在应用能够承受时才应用此计划。"
 
+#: src/features/changes/notices.tsx
+msgid "{name}'s tmpfs at {target} has no size"
+msgstr "{name} 的 tmpfs({target})没有设置大小"
+
 #: src/features/apps/AppsPage.tsx
 msgid "{needing, plural, one {# needs a look} other {# need a look}}"
 msgstr "{needing, plural, other {# 个需要查看}}"
@@ -837,6 +841,10 @@ msgstr "{subject} 已删除"
 #: src/features/changes/ChangeSheet.tsx
 msgid "{subject} is replaced"
 msgstr "{subject} 已替换"
+
+#: src/features/changes/fields.tsx
+msgid "{target}, up to {size}"
+msgstr "{target},最多 {size}"
 
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
@@ -3302,6 +3310,10 @@ msgstr "它可以读写服务器上的该路径。"
 msgid "It can read that path on the server."
 msgstr "它可以读取服务器上的该路径。"
 
+#: src/features/changes/notices.tsx
+msgid "It can take half the server's memory. Give it one, such as {target}:size=64m, or give {name} a memory limit."
+msgstr "它最多可以占用服务器一半的内存。请设置大小,例如 {target}:size=64m,或者为 {name} 设置内存上限。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "这里无法隐藏值，所以不要在这里传入机密。"
@@ -5659,6 +5671,10 @@ msgstr "设置"
 msgid "Settings, status and account"
 msgstr "设置、状态和账户"
 
+#: src/features/changes/fields.tsx
+msgid "shared memory"
+msgstr "共享内存"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show"
 msgstr "显示"
@@ -6625,6 +6641,18 @@ msgstr "时间范围"
 #: src/features/apps/DomainNote.tsx
 msgid "TLS ends in front"
 msgstr "TLS 在前端终止"
+
+#: src/features/changes/fields.tsx
+msgid "tmpfs"
+msgstr "tmpfs"
+
+#: src/features/changes/fields.tsx
+msgid "tmpfs at"
+msgstr "tmpfs 位置"
+
+#: src/features/changes/fields.tsx
+msgid "tmpfs size"
+msgstr "tmpfs 大小"
 
 #: src/app/Providers.tsx
 msgid "to"

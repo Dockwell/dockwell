@@ -22,7 +22,7 @@ export interface FieldSource {
 const SECRET: PlanValue = { secret: true };
 
 /** One port or one mount of a container: a list item's fields, by name, from "ports[0].host_port". */
-const ITEM = /^(ports|mounts)\[(\d+)\]\.(.+)$/;
+const ITEM = /^(ports|mounts|tmpfs)\[(\d+)\]\.(.+)$/;
 const KEYED = /^(env|labels|options)\[(.+)\]$/;
 
 /**
@@ -43,6 +43,7 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
       restart: t`restart`,
       user: t`user`,
       working_dir: t`working directory`,
+      shm_size: t`shared memory`,
       networks: t`networks`,
       "healthcheck.test": t`health check`,
       references: t`names values in`,
@@ -162,6 +163,18 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
       });
     };
 
+    const tmpfsRows = (path: string, fields: ReadonlyMap<string, FieldChange>): PlanChange[] => {
+      const read = (at: "from" | "to"): PlanValue => {
+        const target = fields.get("target")?.[at] ?? "";
+        const size = fields.get("size")?.[at];
+        return size ? t`${target}, up to ${size}` : target;
+      };
+      const row = whole(path, [...fields.values()], t`tmpfs`, read);
+      if (row) return [row];
+      const words: Readonly<Record<string, string>> = { target: t`tmpfs at`, size: t`tmpfs size` };
+      return [...fields].map(([name, change]) => plain(`${path}.${name}`, change, words[name] ?? humanize(name)));
+    };
+
     /** A variable, a label or an option: named by its key, and hidden when it may hold a secret. */
     const keyed = (path: string, group: string, key: string, change: FieldChange): PlanChange => {
       const label = group === "env" ? t`variable` : group === "labels" ? t`label` : t`option`;
@@ -256,7 +269,10 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
           if (done.has(key)) continue;
           done.add(key);
           const parts = items.get(key) ?? new Map<string, FieldChange>();
-          rows.push(...(item[1] === "ports" ? portRows(key, parts) : mountRows(key, parts, hostAccess)));
+          const list = item[1];
+          if (list === "ports") rows.push(...portRows(key, parts));
+          else if (list === "tmpfs") rows.push(...tmpfsRows(key, parts));
+          else rows.push(...mountRows(key, parts, hostAccess));
           continue;
         }
         const entry = KEYED.exec(path);

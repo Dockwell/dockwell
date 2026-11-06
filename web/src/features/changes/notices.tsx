@@ -410,6 +410,14 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`No backup is taken first`,
           detail: t`Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first.`,
         };
+      case "tmpfs_no_size": {
+        const [target = ""] = note.names;
+        return {
+          key,
+          title: t`${name}'s tmpfs at ${target} has no size`,
+          detail: t`It can take half the server's memory. Give it one, such as ${target}:size=64m, or give ${name} a memory limit.`,
+        };
+      }
       case "undo_no_backup":
         return {
           key,

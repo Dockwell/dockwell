@@ -3,6 +3,7 @@
 package container_test
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -65,10 +66,17 @@ func TestAServiceRunsAndReadsBackAsItsSpec(t *testing.T) {
 		Resources: &resourcev1.Resources{Cpus: "1.5", Memory: "1G", MemoryReservation: "256M"},
 		CapAdd:    []string{"NET_ADMIN"}, CapDrop: []string{"NET_RAW"}, GroupAdd: []string{"999"}, Privileged: true,
 		Restart: resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE, RestartRetries: 5,
+		ShmSize: "1G", Tmpfs: []*resourcev1.Tmpfs{{Target: "/run/cache", Size: "64M"}, {Target: "/tmp"}},
 	})
 	planAndApply(t, l, webRef(), spec)
 	c := e.Container(service.ContainerName(webRef()))
 	h := c.HostConfig
+	if h.ShmSize != 1<<30 {
+		t.Errorf("/dev/shm on Docker: %d", h.ShmSize)
+	}
+	if want := map[string]string{"/run/cache": "size=67108864", "/tmp": ""}; !maps.Equal(h.Tmpfs, want) {
+		t.Errorf("tmpfs on Docker: %v", h.Tmpfs)
+	}
 	if h.NanoCPUs != 1_500_000_000 || h.Memory != 1<<30 || h.MemoryReservation != 256<<20 {
 		t.Errorf("limits on Docker: %d, %d, %d", h.NanoCPUs, h.Memory, h.MemoryReservation)
 	}
@@ -90,6 +98,42 @@ func TestAServiceRunsAndReadsBackAsItsSpec(t *testing.T) {
 	}
 	if !proto.Equal(got[0], spec) {
 		t.Errorf("reads back as a different spec, which would show as drift: %v", resource.Diff(spec, got[0]))
+	}
+}
+
+// Docker reports 64M of /dev/shm for a container that asked for none, which isn't
+// drift. A spec that asks for that same 64M reads back as asking for it.
+func TestDockersDefaultSharedMemoryIsNotDrift(t *testing.T) {
+	for _, size := range []string{"", "64M"} {
+		e, l := shapesEngine(t)
+		spec := svc(&resourcev1.Container{ShmSize: size})
+		planAndApply(t, l, webRef(), spec)
+		if got := e.Container(service.ContainerName(webRef())).HostConfig.ShmSize; size == "" && got != 64<<20 {
+			t.Fatalf("the fake engine reports %d of /dev/shm, where Docker reports 64 MiB, so this proves nothing", got)
+		}
+		got, err := l.Observe(t.Context(), []resource.Ref{webRef()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !proto.Equal(got[0], spec) {
+			t.Errorf("a spec of %q reads back as drift: %v", size, resource.Diff(spec, got[0]))
+		}
+	}
+}
+
+// docker compose sends a tmpfs in either of two forms, and a person writes its size
+// in any unit, so a container made from an export reads back as what it was made from.
+func TestBothFormsOfATmpfsReadBack(t *testing.T) {
+	c := &docker.Container{}
+	c.HostConfig.Tmpfs = map[string]string{"/a": "rw,noexec,nosuid,size=65536k", "/b": ""}
+	c.HostConfig.Mounts = []docker.Mount{
+		{Type: "tmpfs", Target: "/c", TmpfsOptions: &docker.TmpfsOptions{SizeBytes: 1 << 30}},
+		{Type: "tmpfs", Target: "/d"},
+	}
+	got := container.Project(c, nil, container.Target{}).GetTmpfs()
+	want := []*resourcev1.Tmpfs{{Target: "/a", Size: "64M"}, {Target: "/b"}, {Target: "/c", Size: "1G"}, {Target: "/d"}}
+	if !slices.EqualFunc(got, want, func(a, b *resourcev1.Tmpfs) bool { return proto.Equal(a, b) }) {
+		t.Errorf("reads back as %v", got)
 	}
 }
 
@@ -380,6 +424,15 @@ func TestWhatASpecTakes(t *testing.T) {
 		want string
 	}{
 		"too little memory":            {&resourcev1.Container{Resources: &resourcev1.Resources{Memory: "1M"}}, "Give at least 6M"},
+		"a /dev/shm that isn't a size": {&resourcev1.Container{ShmSize: "lots"}, "isn't an amount of memory"},
+		"a tmpfs that isn't a size":    {&resourcev1.Container{Tmpfs: []*resourcev1.Tmpfs{{Target: "/a", Size: "lots"}}}, "isn't an amount of memory"},
+		"a tmpfs with no target":       {&resourcev1.Container{Tmpfs: []*resourcev1.Tmpfs{{}}}, "isn't an absolute path"},
+		"a tmpfs at a relative path":   {&resourcev1.Container{Tmpfs: []*resourcev1.Tmpfs{{Target: "run"}}}, "isn't an absolute path"},
+		"a tmpfs in place of the root": {&resourcev1.Container{Tmpfs: []*resourcev1.Tmpfs{{Target: "/"}}}, "can't be the container's root"},
+		"a tmpfs with a colon":         {&resourcev1.Container{Tmpfs: []*resourcev1.Tmpfs{{Target: "/a:b"}}}, "has a colon in it"},
+		"two tmpfs at one path":        {&resourcev1.Container{Tmpfs: []*resourcev1.Tmpfs{{Target: "/a"}, {Target: "/a/"}}}, "share the target /a"},
+		"a tmpfs on a mount":           {&resourcev1.Container{Tmpfs: []*resourcev1.Tmpfs{{Target: "/a"}}, Mounts: []*resourcev1.Mount{{Target: "/a", Source: &resourcev1.Mount_Volume{Volume: "v"}}}}, "share the target /a"},
+		"/dev/shm given a size twice":  {&resourcev1.Container{ShmSize: "1G", Tmpfs: []*resourcev1.Tmpfs{{Target: "/dev/shm", Size: "2G"}}}, "sizes /dev/shm twice"},
 		"too little reserved":          {&resourcev1.Container{Resources: &resourcev1.Resources{MemoryReservation: "1M"}}, "Give at least 6M"},
 		"more reserved than the limit": {&resourcev1.Container{Resources: &resourcev1.Resources{Memory: "64M", MemoryReservation: "128M"}}, "is more than the limit"},
 		"a capability that isn't":      {&resourcev1.Container{CapAdd: []string{"MAGIC"}}, "isn't a Linux capability"},

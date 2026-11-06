@@ -796,6 +796,32 @@ describe("the plan sheet", () => {
     }
   });
 
+  it("says in its own words that a tmpfs with no size can take half the server's memory", async () => {
+    await activateLocale("zh-CN");
+    try {
+      const noted = webPlanned();
+      if (noted.plan) {
+        noted.plan.notes = [
+          create(PlanNoteSchema, {
+            reason: "tmpfs_no_size",
+            message: "In words only the server has.",
+            resource: { kind: "service", name: "web" },
+            names: ["/run/cache"],
+          }),
+        ];
+      }
+      renderSheet(proposeWeb, {
+        changes: { proposeChange: () => ({ change: noted }), watchChange: feed<WatchChangeResponse>().stream },
+      });
+      const sheet = await screen.findByRole("dialog");
+      await within(sheet).findByText(/web 的 tmpfs/);
+      expect(sheet).not.toHaveTextContent("In words only the server has");
+      expect(sheet).toHaveTextContent("/run/cache:size=64m");
+    } finally {
+      await activateLocale("en");
+    }
+  });
+
   it("warns, before an undo of an upgrade applies, of what it leaves in the data", async () => {
     const undoing = webPlanned();
     if (undoing.plan) {

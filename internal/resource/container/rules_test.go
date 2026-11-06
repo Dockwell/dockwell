@@ -294,6 +294,11 @@ func TestAContainerAsksForALimitedNumberOfMountsAndPorts(t *testing.T) {
 	if err := container.Validate(mounts(container.MaxMounts + 1)); err == nil {
 		t.Errorf("%d mounts pass", container.MaxMounts+1)
 	}
+	beside := mounts(container.MaxMounts)
+	beside.Tmpfs = []*resourcev1.Tmpfs{{Target: "/more"}}
+	if err := container.Validate(beside); err == nil {
+		t.Errorf("%d mounts and a tmpfs pass", container.MaxMounts)
+	}
 
 	ports := func(n int) *resourcev1.Container {
 		c := &resourcev1.Container{Image: "nginx:1"}

@@ -3040,6 +3040,19 @@ components:
                          $$ is a $ of its own, as in a Compose file. So a plan, an export and what
                          an agent reports show the name, a rotation reaches it, and the value is
                          written in only as the container is made. In any other field, a $ is a $.
+                shmSize:
+                    type: string
+                    description: |-
+                        The size of its /dev/shm, such as "1G", in units of 1024, as Compose's
+                         shm_size. What it holds counts against resources.memory. Empty takes
+                         Docker's default of 64M, which is too little for Chromium on a heavy page.
+                tmpfs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Tmpfs'
+                    description: |-
+                        Filesystems held in memory at paths in the container. What is in one goes
+                         when the container does, so a deploy starts it empty.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves
@@ -5176,9 +5189,10 @@ components:
                          app needs a person to know and do, "no_backup" for a catalog upgrade that runs
                          without a backup first, "upgrade_kept" for what a person changed that the upgrade
                          changes too, which stays, "upgrade_dropped" for what they changed that it
-                         drops, which goes, and "undo_no_backup" for an undo of a plan that took no
-                         backup, whose data stays as the new version left it. Another reason may come:
-                         its message says what it means.
+                         drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
+                         whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
+                         file's tmpfs that nothing stops taking half the server's memory. Another reason
+                         may come: its message says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -5193,7 +5207,8 @@ components:
                     description: |-
                         The names it is about: the variable, then the field that holds it, for
                          "exposed_variable"; the project, then the services it runs, for
-                         "updates_project"; the volumes and server paths for "volumes_stay"; the
+                         "updates_project"; the volumes and server paths for "volumes_stay"; the path
+                         for "tmpfs_no_size"; the
                          variables and secrets, by the names the service sees, for "values_latest";
                          the image, the revision and its digest for "digest_pinned" and "digest_gone",
                          and the image and the revision for "digest_differs"; the container_name, or
@@ -7061,6 +7076,18 @@ components:
                     description: The port the app listens on inside its container, such as 5432.
                     format: uint32
             description: TcpCheck is a connection the agent makes to a container.
+        Tmpfs:
+            type: object
+            properties:
+                target:
+                    type: string
+                    description: Where it appears in the container, as an absolute path.
+                size:
+                    type: string
+                    description: |-
+                        The most it may hold, such as "64M", in units of 1024. Empty sets none, so
+                         it can take half the server's memory, unless resources.memory stops it first.
+            description: Tmpfs is a filesystem held in memory, at a path in a container.
         Token:
             type: object
             properties:

@@ -33,8 +33,8 @@ These are what the warning leaves out, on purpose. `TestEveryFieldAVariableReach
 | Where | Why |
 | --- | --- |
 | `name:`, and a service's `image`, `container_name`, `network_mode`, `networks`, `user`, `cap_add`, `cap_drop` and `group_add` | Each is a name, and shows as what it is. Nearly every real file writes these from a variable, so a warning there would be on nearly every plan, and the one about a password in a command would go unread. |
-| `ports`, `restart`, `cpus`, `mem_limit`, `mem_reservation`, `deploy`, `privileged`, and a health check's times, retries and `disable` | Each is a number or one of a few words. |
-| `volumes` and `working_dir` | Each is a path, and shows as what it is. |
+| `ports`, `restart`, `cpus`, `mem_limit`, `mem_reservation`, `shm_size`, `deploy`, `privileged`, and a health check's times, retries and `disable` | Each is a number or one of a few words. |
+| `volumes`, `tmpfs` and `working_dir` | Each is a path, and shows as what it is. |
 | A volume's or a network's `driver`, and a network's `internal`, `external` and `name` | Each is a name or a word. |
 | `expose` and `depends_on` | They change nothing on one server, or order the change, so neither is kept. |
 | A value in `environment`, and a volume's `driver_opts` | They're sensitive, so they are blanked. A list entry's name isn't, so a variable in one does warn. |

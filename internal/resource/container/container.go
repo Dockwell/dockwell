@@ -194,6 +194,7 @@ func Normalize(c *resourcev1.Container) {
 	}
 	sortPorts(c)
 	sortMounts(c)
+	sortTmpfs(c)
 	slices.Sort(c.Networks)
 	slices.Sort(c.ExternalNetworks)
 	slices.Sort(c.Aliases)
@@ -266,6 +267,9 @@ func Validate(c *resourcev1.Container) error {
 		return err
 	}
 	if err := validateMounts(c); err != nil {
+		return err
+	}
+	if err := validateMemoryMounts(c); err != nil {
 		return err
 	}
 	if n := len(c.GetNetworks()); n > maxNames {
@@ -528,6 +532,52 @@ func validateMounts(c *resourcev1.Container) error {
 		seen[m.Target] = true
 	}
 	sortMounts(c)
+	return nil
+}
+
+// sortTmpfs orders them by where they go, as mounts are.
+func sortTmpfs(c *resourcev1.Container) {
+	slices.SortFunc(c.Tmpfs, func(a, b *resourcev1.Tmpfs) int { return strings.Compare(a.GetTarget(), b.GetTarget()) })
+}
+
+// validateMemoryMounts checks /dev/shm and each tmpfs, and puts their sizes in their
+// one form. Neither reaches the server: what they hold counts against the container's
+// memory, so neither is host access. They run after the mounts, which are checked.
+func validateMemoryMounts(c *resourcev1.Container) error {
+	var err error
+	if c.ShmSize, err = CanonicalMemory(c.GetShmSize()); err != nil {
+		return fmt.Errorf("the size of /dev/shm: %w", err)
+	}
+	if n := len(c.GetMounts()) + len(c.GetTmpfs()); n > MaxMounts {
+		return fmt.Errorf("the container has %d mounts, and Dockwell takes up to %d. Mount a parent path, or fewer volumes", n, MaxMounts)
+	}
+	seen := map[string]bool{}
+	for _, m := range c.GetMounts() {
+		seen[m.GetTarget()] = true
+	}
+	for _, t := range c.GetTmpfs() {
+		if !path.IsAbs(t.GetTarget()) {
+			return fmt.Errorf("a tmpfs's target %q isn't an absolute path in the container; start it with /, such as /run/cache", t.GetTarget())
+		}
+		if err := checkMountString(t.GetTarget(), "a tmpfs's target"); err != nil {
+			return err
+		}
+		t.Target = path.Clean(t.GetTarget())
+		if t.Target == "/" {
+			return errors.New("a tmpfs can't be the container's root, as the image is there. Give it a path, such as /run/cache")
+		}
+		if t.Size, err = CanonicalMemory(t.GetSize()); err != nil {
+			return fmt.Errorf("the tmpfs at %s: %w", t.Target, err)
+		}
+		if seen[t.Target] {
+			return fmt.Errorf("two mounts share the target %s; give each its own", t.Target)
+		}
+		seen[t.Target] = true
+		if t.Target == shmPath && c.GetShmSize() != "" {
+			return fmt.Errorf("the container sizes %s twice, as shm_size and as a tmpfs there, and Docker would take the tmpfs. Keep one", shmPath)
+		}
+	}
+	sortTmpfs(c)
 	return nil
 }
 

@@ -157,15 +157,16 @@ var (
 	serviceKeys = keys("image", "command", "entrypoint", "environment", "ports", "restart", "labels", "volumes",
 		"networks", "network_mode", "user", "working_dir", "healthcheck", "depends_on", "expose", "stop_grace_period",
 		"container_name", "build", "deploy", "cpus", "mem_limit", "mem_reservation",
-		"cap_add", "cap_drop", "group_add", "privileged", "logging")
+		"cap_add", "cap_drop", "group_add", "privileged", "logging", "shm_size", "tmpfs")
 	volumeKeys  = keys("driver", "driver_opts", "labels")
 	networkKeys = keys("driver", "driver_opts", "internal", "labels", "external", "name")
 	healthKeys  = keys("test", "interval", "timeout", "start_period", "retries", "disable")
 	deployKeys  = keys("resources", "replicas", "update_config")
 	updateKeys  = keys("order", "parallelism", "failure_action")
 	portKeys    = keys("target", "published", "host_ip", "protocol", "mode")
-	mountKeys   = keys("type", "source", "target", "read_only", "bind", "consistency")
+	mountKeys   = keys("type", "source", "target", "read_only", "bind", "tmpfs", "consistency")
 	bindKeys    = keys("selinux")
+	tmpfsKeys   = keys("size")
 	dependsKeys = keys("condition", "required", "restart")
 	limitsKeys  = keys("limits", "reservations")
 	amountKeys  = keys("cpus", "memory")
@@ -314,6 +315,11 @@ func checkRaw(file []byte) (map[string]any, error) {
 						return nil, err
 					}
 				}
+				if t, ok := m["tmpfs"].(map[string]any); ok {
+					if err := check(what+"'s volume's tmpfs", t, tmpfsKeys); err != nil {
+						return nil, err
+					}
+				}
 			}
 		}
 		if nets, ok := svc["networks"].(map[string]any); ok {
@@ -458,6 +464,8 @@ type model struct {
 	Networks types.Networks `yaml:"networks"`
 	// limits are each service's limits, which takeResources read.
 	limits map[string]*resourcev1.Resources
+	// memory is what each service holds in memory, which takeMemory read.
+	memory map[string]memoryAsked
 	// notices are what the plan should say of the file.
 	notices []Notice
 	// extensions are what each service's x-dockwell says.
@@ -586,6 +594,10 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if err != nil {
 		return nil, err
 	}
+	memory, unsized, err := takeMemory(dict, limits)
+	if err != nil {
+		return nil, err
+	}
 	if err := checkMountOptions(dict); err != nil {
 		return nil, err
 	}
@@ -609,7 +621,7 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if ctx.Err() != nil {
 		return nil, stopped(ctx)
 	}
-	m.limits, m.notices, m.extensions, m.references = limits, unkept, extensions, read.references
+	m.limits, m.memory, m.notices, m.extensions, m.references = limits, memory, slices.Concat(unkept, unsized), extensions, read.references
 	if err := m.resolve(variables, in.Directory); err != nil {
 		return nil, err
 	}
@@ -640,9 +652,9 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 }
 
 // A name a plan's notes say: what a service, a network, a container, an image, a
-// variable or a field can be called, and nothing that could read as words. Square
-// brackets are for an image's registry at an IPv6 address.
-var planName = regexp.MustCompile(`^[A-Za-z0-9_\[][A-Za-z0-9_.:/@+\[\]-]*$`)
+// variable, a field or a path can be called, and nothing that could read as words.
+// Square brackets are for an image's registry at an IPv6 address.
+var planName = regexp.MustCompile(`^[/A-Za-z0-9_\[][A-Za-z0-9_.:/@+\[\]-]*$`)
 
 // maxPlanName is the most of one that a plan says: an image with a long tag and a
 // digest fits.
@@ -917,6 +929,7 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 		return nil, err
 	}
 	c.CapAdd, c.CapDrop, c.GroupAdd, c.Privileged, c.Resources = s.CapAdd, s.CapDrop, s.GroupAdd, s.Privileged, p.limits[name]
+	c.ShmSize, c.Tmpfs = p.memory[name].shm, p.memory[name].tmpfs
 	for _, k := range slices.Sorted(maps.Keys(s.Environment)) {
 		v := s.Environment[k]
 		if v == nil && slices.ContainsFunc(uses, func(u resource.Use) bool { return u.As == k }) {

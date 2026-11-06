@@ -269,10 +269,7 @@ func overlapValid(a, b string) bool {
 func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Container, keep *instance, others []*instance) (*resource.RolloutPlan, error) {
 	p := &resource.RolloutPlan{Drain: drainOf(spec), Soak: d.soak()}
 	ports, volumes, paths, data, cant := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
-	targets := map[string]bool{}
-	for _, m := range spec.GetMounts() {
-		targets[m.GetTarget()] = true
-	}
+	targets := mountTargets(spec)
 	landings := map[string]landing{}
 	for _, o := range others {
 		have := Project(o.Container, nil, t)

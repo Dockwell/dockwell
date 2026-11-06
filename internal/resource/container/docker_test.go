@@ -301,6 +301,56 @@ func TestReplacingKeepsTheImagesVolumes(t *testing.T) {
 	}
 }
 
+// A tmpfs takes the path it's at, as a mount does, so the volume its image has there
+// stays off it: Docker refuses two mounts at one path.
+func TestATmpfsCoversWhatItsImageKeeps(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	db := resource.Ref{Kind: service.Kind, Scope: env, Name: "db"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17"}}}
+	apply(t, l, db, spec)
+	if got := e.Container(service.ContainerName(db)).Mounts; len(got) != 1 {
+		t.Fatalf("mounts %+v, want the image's anonymous volume", got)
+	}
+	spec.GetApp().Tmpfs = []*resourcev1.Tmpfs{{Target: "/var/lib/postgresql/data", Size: "64M"}}
+	if step := apply(t, l, db, spec); step.Action != resource.ActionReplace {
+		t.Errorf("adding a tmpfs = %+v, want a replace, as Docker can't add one to what runs", step.Decision)
+	}
+	// With nothing left to share it rolls over, so the new one has the next number.
+	for _, m := range e.Newest(docker.Project(env), "db").HostConfig.Mounts {
+		if m.Target == "/var/lib/postgresql/data" {
+			t.Errorf("the tmpfs has the image's volume on it too: %+v", m)
+		}
+	}
+	unchanged(t, l, db, spec)
+}
+
+// /dev/shm and a tmpfs changed by hand read back as they are, so each shows as drift.
+func TestHandEditsToMemoryAreDrift(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	web := resource.Ref{Kind: service.Kind, Scope: env, Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}}
+	apply(t, l, web, spec)
+	e.Edit(service.ContainerName(web), func(c *docker.Container) {
+		c.HostConfig.ShmSize = 1 << 30
+		c.HostConfig.Tmpfs = map[string]string{"/run/cache": "size=64m"}
+	})
+	observed, err := l.Observe(t.Context(), []resource.Ref{web})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, c := range resource.Diff(spec, observed[0]) {
+		paths = append(paths, c.Path)
+	}
+	if want := []string{"app.shm_size", "app.tmpfs[0].target", "app.tmpfs[0].size"}; !slices.Equal(paths, want) {
+		t.Errorf("drift = %v, want %v", paths, want)
+	}
+}
+
 // A container changed by hand reads back as it is, so it shows as drift.
 func TestHandEditsAreDrift(t *testing.T) {
 	e := dockertest.New(t)

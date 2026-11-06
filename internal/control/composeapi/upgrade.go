@@ -325,6 +325,10 @@ var keyedLists = map[protoreflect.Name]func(protoreflect.Value) string{
 		m, _ := v.Message().Interface().(*resourcev1.Mount)
 		return "mount " + m.GetTarget()
 	},
+	"tmpfs": func(v protoreflect.Value) string {
+		t, _ := v.Message().Interface().(*resourcev1.Tmpfs)
+		return "tmpfs " + t.GetTarget()
+	},
 	"networks":          word("network "),
 	"external_networks": word("network "),
 	"aliases":           word("alias "),

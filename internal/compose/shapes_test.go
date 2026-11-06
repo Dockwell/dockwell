@@ -221,6 +221,50 @@ func TestRealShapes(t *testing.T) {
 			want: func(c *resourcev1.Container) bool { return c.GetResources() == nil },
 			note: "cpu_reservation",
 		},
+		"shared memory in a person's unit": {
+			file: web + "    shm_size: 1gb\n",
+			want: func(c *resourcev1.Container) bool { return c.GetShmSize() == "1G" },
+		},
+		"shared memory as a number of bytes": {
+			file: web + "    shm_size: 1073741824\n",
+			want: func(c *resourcev1.Container) bool { return c.GetShmSize() == "1G" },
+		},
+		"shared memory of zero is Docker's default": {
+			file: web + "    shm_size: 0\n",
+			want: func(c *resourcev1.Container) bool { return c.GetShmSize() == "" },
+		},
+		"a tmpfs in a list": {
+			file: web + "    tmpfs: [\"/run:size=64m\", \"/tmp:size=1g\"]\n",
+			want: func(c *resourcev1.Container) bool { return tmpfsReads(c, "/run=64M", "/tmp=1G") },
+		},
+		"a tmpfs as one string": {
+			file: web + "    tmpfs: /run:size=64m\n",
+			want: func(c *resourcev1.Container) bool { return tmpfsReads(c, "/run=64M") },
+		},
+		"a tmpfs as a volume, beside one that isn't": {
+			file: web + "    volumes:\n      - {type: tmpfs, target: /dev/shm, tmpfs: {size: 1g}}\n      - data:/data\nvolumes: {data: {}}\n",
+			want: func(c *resourcev1.Container) bool {
+				return tmpfsReads(c, "/dev/shm=1G") && len(c.GetMounts()) == 1 && c.GetMounts()[0].GetVolume() == "data"
+			},
+		},
+		"a tmpfs with what Docker gives it anyway": {
+			file: web + "    tmpfs: [\"/run:rw,noexec,nosuid,nodev,size=65536k\"]\n",
+			want: func(c *resourcev1.Container) bool { return tmpfsReads(c, "/run=64M") },
+		},
+		"a tmpfs with no size, which can take half the server": {
+			file: web + "    tmpfs: [/run]\n",
+			want: func(c *resourcev1.Container) bool { return tmpfsReads(c, "/run=") },
+			note: "tmpfs_no_size",
+		},
+		"a volume of type tmpfs with no size": {
+			file: web + "    volumes:\n      - {type: tmpfs, target: /run}\n",
+			want: func(c *resourcev1.Container) bool { return tmpfsReads(c, "/run=") },
+			note: "tmpfs_no_size",
+		},
+		"a tmpfs with no size, and a limit that stops it first": {
+			file: web + "    mem_limit: 512M\n    tmpfs: [/run]\n",
+			want: func(c *resourcev1.Container) bool { return tmpfsReads(c, "/run=") },
+		},
 		"build beside image": {
 			file: web + "    build: ./php\n",
 			want: func(c *resourcev1.Container) bool { return c.GetImage() == "nginx:1.27" },
@@ -274,6 +318,15 @@ func TestRealShapes(t *testing.T) {
 	}
 }
 
+// tmpfsReads says whether a container has these, each as target=size, in this order.
+func tmpfsReads(c *resourcev1.Container, want ...string) bool {
+	var got []string
+	for _, t := range c.GetTmpfs() {
+		got = append(got, t.GetTarget()+"="+t.GetSize())
+	}
+	return slices.Equal(got, want)
+}
+
 // Nothing refused is dropped: each is refused by name, with the fix.
 func TestStillRefused(t *testing.T) {
 	const web = "services:\n  web:\n    image: nginx:1.27\n"
@@ -288,6 +341,16 @@ func TestStillRefused(t *testing.T) {
 		"limits that differ":        {web + "    cpus: 1\n    deploy: {resources: {limits: {cpus: 2}}}\n", "sets cpus to 1 and deploy.resources.limits.cpus to 2"},
 		"memory that differs":       {web + "    mem_limit: 1G\n    deploy: {resources: {limits: {memory: 2G}}}\n", "sets mem_limit to 1G and deploy.resources.limits.memory to 2G"},
 		"not a number of CPUs":      {web + "    cpus: lots\n", "the service web's cpus: \"lots\" isn't a number of CPUs"},
+		"shared memory that isn't":  {web + "    shm_size: lots\n", "the service web's shm_size: \"lots\" isn't an amount of memory"},
+		"a tmpfs size that isn't":   {web + "    tmpfs: [\"/run:size=lots\"]\n", "the service web's tmpfs at /run: \"lots\" isn't an amount of memory"},
+		"a tmpfs's mode":            {web + "    tmpfs: [\"/run:mode=755\"]\n", "the service web's tmpfs at /run has the option mode=755, which Dockwell can't run yet"},
+		"a tmpfs's owner":           {web + "    tmpfs: [\"/run:uid=1000,size=1m\"]\n", "has the option uid=1000"},
+		"a tmpfs that runs things":  {web + "    tmpfs: [\"/run:exec\"]\n", "has the option exec"},
+		"a tmpfs volume's mode":     {web + "    volumes:\n      - {type: tmpfs, target: /x, tmpfs: {mode: 493}}\n", "the service web's volume's tmpfs uses `mode`"},
+		"a read-only tmpfs":         {web + "    volumes:\n      - {type: tmpfs, target: /x, read_only: true}\n", "the service web's tmpfs at /x is read-only"},
+		"a tmpfs with a source":     {web + "    volumes:\n      - {type: tmpfs, source: a, target: /x}\n", "the service web's tmpfs at /x has a source"},
+		"a tmpfs volume's bind":     {web + "    volumes:\n      - {type: tmpfs, target: /x, bind: {selinux: z}}\n", "the service web's tmpfs at /x has bind options"},
+		"tmpfs options on a volume": {web + "    volumes:\n      - {type: volume, source: v, target: /x, tmpfs: {size: 1m}}\nvolumes: {v: {}}\n", "isn't a tmpfs, and has tmpfs options"},
 		"not an amount":             {web + "    mem_limit: lots\n", "the service web's mem_limit: \"lots\" isn't an amount of memory"},
 		"build alone":               {"services:\n  web:\n    build: .\n", "the service web builds an image, which Dockwell can't do yet"},
 		"network_mode none":         {web + "    network_mode: none\n", "network_mode none"},
@@ -472,6 +535,7 @@ func TestAnExportOfTheNewFieldsReadsBack(t *testing.T) {
 		"limits":                   {Resources: &resourcev1.Resources{Cpus: "0.5", Memory: "512M", MemoryReservation: "256M"}},
 		"privileges":               {CapAdd: []string{"NET_ADMIN"}, CapDrop: []string{"ALL"}, GroupAdd: []string{"999", "audio"}, Privileged: true},
 		"a count of restarts":      {Restart: resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE, RestartRetries: 5},
+		"what it holds in memory":  {ShmSize: "1G", Tmpfs: []*resourcev1.Tmpfs{{Target: "/run/cache", Size: "64M"}, {Target: "/tmp"}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			app.Image = "nginx:1.27"

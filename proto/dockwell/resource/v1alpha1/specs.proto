@@ -100,6 +100,22 @@ message Container {
   // an agent reports show the name, a rotation reaches it, and the value is
   // written in only as the container is made. In any other field, a $ is a $.
   repeated string references = 29;
+  // The size of its /dev/shm, such as "1G", in units of 1024, as Compose's
+  // shm_size. What it holds counts against resources.memory. Empty takes
+  // Docker's default of 64M, which is too little for Chromium on a heavy page.
+  string shm_size = 30;
+  // Filesystems held in memory at paths in the container. What is in one goes
+  // when the container does, so a deploy starts it empty.
+  repeated Tmpfs tmpfs = 31;
+}
+
+// Tmpfs is a filesystem held in memory, at a path in a container.
+message Tmpfs {
+  // Where it appears in the container, as an absolute path.
+  string target = 1;
+  // The most it may hold, such as "64M", in units of 1024. Empty sets none, so
+  // it can take half the server's memory, unless resources.memory stops it first.
+  string size = 2;
 }
 
 // Resources is what a container may use of its server. Docker changes these on

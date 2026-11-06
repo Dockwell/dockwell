@@ -107,6 +107,25 @@ describe("a plan's fields, in words", () => {
     expect(reads(rows)).toEqual(["server path from /srv/uploads at /uploads"]);
   });
 
+  it("reads a tmpfs as one row, with its size, and what changed in one that stayed", () => {
+    const rows = rowsOf({
+      kind: "service",
+      changes: [
+        added("app.shm_size", "1G"),
+        added("app.tmpfs[0].target", "/run/cache"),
+        added("app.tmpfs[0].size", "64M"),
+        added("app.tmpfs[1].target", "/tmp"),
+        modified("app.tmpfs[2].size", "64M", "128M"),
+      ],
+    });
+    expect(reads(rows)).toEqual([
+      "shared memory to 1G",
+      "tmpfs to /run/cache, up to 64M",
+      "tmpfs to /tmp",
+      "tmpfs size from 64M to 128M",
+    ]);
+  });
+
   it("names a variable and hides what it holds, however it changed", () => {
     const rows = rowsOf({
       kind: "service",
