@@ -847,7 +847,16 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		out.WorkingDir = c.Config.WorkingDir
 	}
 	imageEnv := envOf(img.Env)
-	for k, v := range envOf(c.Config.Env) {
+	env := envOf(c.Config.Env)
+	// A name with no value takes the image's value out of what runs. A spec that sets
+	// it reads that as gone, and one that doesn't says the image's stands, so that reads
+	// as nothing in it, which differs from what the image gives.
+	for _, name := range c.Config.Env {
+		if _, ok := imageEnv[name]; ok && !set["env:"+name] {
+			env[name] = ""
+		}
+	}
+	for k, v := range env {
 		if iv, ok := imageEnv[k]; set["env:"+k] || !ok || iv != v {
 			if out.Env == nil {
 				out.Env = map[string]string{}

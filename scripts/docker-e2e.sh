@@ -466,6 +466,23 @@ DATABASE_PASSWORD=$secret_value docker compose -f "$data/values.yaml" up --detac
 drift=$(dw drift list --json) || fail "drift list failed"
 jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift with the secret back: $drift"
 
+step "A name with no value takes an image's own value out of what runs, which reads as drift"
+# NGINX_VERSION is in the image and in no spec. Docker keeps the name in Config.Env, and
+# what runs has neither it nor the image's value, so it differs from what the spec says.
+sed -E 's/^( +)DATABASE_PASSWORD: null$/&\n\1NGINX_VERSION: null/' "$data/values.yaml" >"$data/bare-name.yaml" || fail "editing the export failed"
+grep -Eq '^ +NGINX_VERSION: null$' "$data/bare-name.yaml" || fail "the edited export doesn't name NGINX_VERSION:
+$(cat "$data/bare-name.yaml")"
+env -u NGINX_VERSION DATABASE_PASSWORD=$secret_value docker compose -f "$data/bare-name.yaml" up --detach --no-deps --force-recreate api || fail "docker compose up api failed"
+api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
+grep -qx NGINX_VERSION <<<"$api_env" || fail "docker compose didn't send NGINX_VERSION by name alone, so this reads back nothing new: $api_env"
+running=$(docker exec "$api" env) || fail "docker exec $api env failed"
+if grep -q '^NGINX_VERSION=' <<<"$running"; then fail "what runs still has the image's NGINX_VERSION, so a name with no value doesn't take it out, as ADR 0021 says"; fi
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e 'any((.drift // [])[]; .resource.name == "api")' <<<"$drift" >/dev/null || fail "api without the image's value isn't drift: $drift"
+DATABASE_PASSWORD=$secret_value docker compose -f "$data/values.yaml" up --detach --no-deps --force-recreate api || fail "docker compose up api failed"
+drift=$(dw drift list --json) || fail "drift list failed"
+jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift with the image's value back: $drift"
+
 step "A rotation reaches what docker compose made from the export"
 secret_next=e2e-s3cret-next
 printf '%s' "$secret_next" >"$data/secret-value"
