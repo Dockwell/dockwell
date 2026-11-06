@@ -311,7 +311,7 @@ func TestAnUnreadableProcNetIsAnErrorNotAPanic(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &Holders{Proc: dir}
-	_, err := h.sockets()
+	_, err := h.sockets(func(netip.Addr) bool { return true })
 	if err == nil || !strings.Contains(err.Error(), path) {
 		t.Errorf("sockets = %v, want an error naming %s", err, path)
 	}
