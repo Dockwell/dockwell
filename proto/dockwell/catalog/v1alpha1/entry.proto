@@ -85,6 +85,10 @@ message Input {
   // The value is sealed as it's made, and nothing shows it but a reveal. 0 asks
   // a person for it.
   uint32 generate = 7;
+  // The app writes this secret in its own log, as Nginx Proxy Manager does with
+  // its first password. Reading a log takes no passkey, so nothing may call it
+  // sealed, and a person hears that before they apply.
+  bool logged = 8;
 }
 
 // InputType is what an input takes.

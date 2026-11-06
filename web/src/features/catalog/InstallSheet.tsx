@@ -57,7 +57,10 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const onlyName = only?.name ?? "";
   const webService = entry?.web?.service ?? "";
   const missingLabel = missing?.label ?? "";
-  const made = generated.map((input) => input.label).join(", ");
+  const sealed = generated.filter((input) => !input.logged);
+  const logged = generated.filter((input) => input.logged);
+  const made = sealed.map((input) => input.label).join(", ");
+  const inLog = logged.map((input) => input.label).join(", ");
   const license = entry?.appLicense ?? "";
 
   const review = (change: Change | undefined) => {
@@ -200,11 +203,22 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
                 onChange={(next) => setTyped((was) => ({ ...was, [input.name]: next }))}
               />
             ))}
-            {generated.length > 0 ? (
+            {sealed.length > 0 ? (
               <p className="catalog-sheet-note">
                 <Icon name="key" size={14} />
                 <span>
                   <Trans>Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey.</Trans>
+                </span>
+              </p>
+            ) : null}
+            {logged.length > 0 ? (
+              <p className="catalog-sheet-note">
+                <Icon name="key" size={14} />
+                <span>
+                  <Trans>
+                    Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change
+                    it after you first sign in.
+                  </Trans>
                 </span>
               </p>
             ) : null}

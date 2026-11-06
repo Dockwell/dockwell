@@ -2418,6 +2418,10 @@ msgid "Dockwell didn't make that network. Whatever else is on it, other projects
 msgstr "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 
 #: src/features/catalog/InstallSheet.tsx
+msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
+msgstr "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
+
+#: src/features/catalog/InstallSheet.tsx
 msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
 msgstr "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
 

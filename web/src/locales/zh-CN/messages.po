@@ -2418,6 +2418,10 @@ msgid "Dockwell didn't make that network. Whatever else is on it, other projects
 msgstr "该网络不是 Dockwell 创建的。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
 
 #: src/features/catalog/InstallSheet.tsx
+msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
+msgstr "Dockwell 会生成{inLog}，但 {app} 会把它写入日志，而查看日志不需要通行密钥。请在首次登录后修改。"
+
+#: src/features/catalog/InstallSheet.tsx
 msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
 msgstr "Dockwell 会生成{made}并加密保存。你可以用通行密钥查看。"
 

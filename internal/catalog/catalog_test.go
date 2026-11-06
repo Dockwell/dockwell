@@ -140,6 +140,21 @@ func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 	}
 }
 
+// Upstream's backend/setup.js writes the first password in the log, which takes no
+// passkey to read, so this entry can't let the sheet call it sealed.
+func TestNginxProxyManagersPasswordIsMarkedLogged(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _ := c.Entry("nginx-proxy-manager")
+	for _, in := range e.GetInputs() {
+		if want := in.GetName() == "ADMIN_PASSWORD"; in.GetLogged() != want {
+			t.Errorf("%s has logged %t, want %t", in.GetName(), in.GetLogged(), want)
+		}
+	}
+}
+
 // The checks the catalog's CI will make, on what would get past a look.
 func TestCheckRefuses(t *testing.T) {
 	c, err := catalog.Load("")

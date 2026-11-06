@@ -48,6 +48,16 @@ const tunnel = create(EntrySchema, {
   inputs: [{ name: "TUNNEL_TOKEN", label: "Tunnel token", type: InputType.SECRET }],
 });
 
+const proxy = create(EntrySchema, {
+  id: "nginx-proxy-manager",
+  name: "Nginx Proxy Manager",
+  summary: "Reverse proxy with a web console",
+  category: "networking",
+  version: "2.16.0",
+  appLicense: "MIT",
+  inputs: [{ name: "ADMIN_PASSWORD", label: "Console password", type: InputType.SECRET, generate: 32, logged: true }],
+});
+
 function api(more: Api["catalog"] = {}): Api {
   const watch = feed<WatchServersResponse>();
   watch.push(changed(aServer({ id: SERVER, name: "hz-1" })), snapshotComplete);
@@ -57,7 +67,8 @@ function api(more: Api["catalog"] = {}): Api {
       listCatalogEntries: () => ({ entries: [tunnel, postgres] }),
       getCatalogEntry: (req) => {
         const values: Record<string, string> = req.id === "postgres" ? { ADMIN_PORT: "8085" } : {};
-        return { entry: req.id === "postgres" ? postgres : tunnel, project: req.id, values };
+        const entry = req.id === "postgres" ? postgres : req.id === proxy.id ? proxy : tunnel;
+        return { entry, project: req.id, values };
       },
       ...more,
     },
@@ -180,6 +191,14 @@ describe("Installing from the catalog", () => {
     expect(within(sheet).getByText("Give Tunnel token a value to review the plan")).toBeVisible();
     await user.type(token, "a-token");
     expect(review).toBeEnabled();
+  });
+
+  it("doesn't call a password sealed when the app writes it in its log, and says to change it", async () => {
+    renderAt("/catalog/nginx-proxy-manager", api());
+    const sheet = await screen.findByRole("dialog", { name: "Install Nginx Proxy Manager" });
+    expect(await within(sheet).findByText(/writes it in its log/)).toBeVisible();
+    expect(within(sheet).getByText(/Change it after you first sign in/)).toBeVisible();
+    expect(within(sheet).queryByText(/sealed/)).not.toBeInTheDocument();
   });
 
   it("shows a taken name at its field", async () => {

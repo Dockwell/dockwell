@@ -363,7 +363,11 @@ type Input struct {
 	// How many characters to generate for a secret that no one types, such as 32.
 	// The value is sealed as it's made, and nothing shows it but a reveal. 0 asks
 	// a person for it.
-	Generate      uint32 `protobuf:"varint,7,opt,name=generate,proto3" json:"generate,omitempty"`
+	Generate uint32 `protobuf:"varint,7,opt,name=generate,proto3" json:"generate,omitempty"`
+	// The app writes this secret in its own log, as Nginx Proxy Manager does with
+	// its first password. Reading a log takes no passkey, so nothing may call it
+	// sealed, and a person hears that before they apply.
+	Logged        bool `protobuf:"varint,8,opt,name=logged,proto3" json:"logged,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -447,6 +451,13 @@ func (x *Input) GetGenerate() uint32 {
 	return 0
 }
 
+func (x *Input) GetLogged() bool {
+	if x != nil {
+		return x.Logged
+	}
+	return false
+}
+
 // Web says what a person opens once an entry is installed.
 type Web struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -523,7 +534,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xdc\x01\n" +
+	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xf4\x01\n" +
 	"\x05Input\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
@@ -531,7 +542,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\x0e2$.dockwell.catalog.v1alpha1.InputTypeR\x04type\x12#\n" +
 	"\rdefault_value\x18\x05 \x01(\tR\fdefaultValue\x12\x1a\n" +
 	"\boptional\x18\x06 \x01(\bR\boptional\x12\x1a\n" +
-	"\bgenerate\x18\a \x01(\rR\bgenerate\"\x1f\n" +
+	"\bgenerate\x18\a \x01(\rR\bgenerate\x12\x16\n" +
+	"\x06logged\x18\b \x01(\bR\x06logged\"\x1f\n" +
 	"\x03Web\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice*~\n" +
 	"\tInputType\x12\x1a\n" +
