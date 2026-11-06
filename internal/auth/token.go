@@ -278,7 +278,11 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		if expires != nil {
 			expiry = "expires " + expires.Format(time.RFC3339)
 		}
-		return s.auditOn(ctx, tx, actor, "token.create", user.ID, tok.ID, fmt.Sprintf("token %s %q, %s, %s", tok.ID, name, scope, expiry))
+		detail := fmt.Sprintf("token %s %q, %s, %s", tok.ID, name, scope, expiry)
+		if tok.HasGrant(store.GrantLogs) {
+			detail = fmt.Sprintf("token %s %q, %s, can read logs, %s", tok.ID, name, scope, expiry)
+		}
+		return s.auditOn(ctx, tx, actor, "token.create", user.ID, tok.ID, detail)
 	})
 	if err != nil {
 		return NewToken{}, err

@@ -504,6 +504,34 @@ func (f *fixture) execSQLScan(t *testing.T, query string, dest ...any) {
 	}
 }
 
+func TestTheAuditLogSaysWhichTokensCanReadLogs(t *testing.T) {
+	storetest.Each(t, testTheAuditLogSaysWhichTokensCanReadLogs)
+}
+
+// A token that can read logs can read what apps print, so the record of making one
+// says so, and the record of one that can't says nothing of it.
+func testTheAuditLogSaysWhichTokensCanReadLogs(t *testing.T, b store.Backend) {
+	f := newFixture(t, b, "")
+	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
+	plain := f.token(t, owner, store.ScopeReadOnly, nil)
+	reader, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	details := f.auditDetails(t, "token.create")
+	if len(details) != 2 {
+		t.Fatalf("token.create = %q, want two", details)
+	}
+	for _, d := range details {
+		switch says := strings.Contains(d, "can read logs"); {
+		case strings.Contains(d, reader.Token.ID) && !says:
+			t.Errorf("token.create of a token that can read logs says %q", d)
+		case strings.Contains(d, plain.Token.ID) && says:
+			t.Errorf("token.create of a token that can't read logs says %q", d)
+		}
+	}
+}
+
 func TestLocalTokens(t *testing.T) { storetest.Each(t, testLocalTokens) }
 
 // Local access on the control server makes tokens for the owner, which
