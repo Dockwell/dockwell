@@ -220,6 +220,9 @@ type Edit struct {
 	// rollback. A stop by hand isn't drift (ADR 0021), so nothing else starts it, but
 	// for a change that replaces it anyway.
 	Run bool
+	// Observed says Spec is what a server has, as adopting drift reads it, and not
+	// what a caller said, so nothing is kept of what's stored (resource.Keeper).
+	Observed bool
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -454,6 +457,10 @@ type item struct {
 	// any field does: edits carry whole specs, so applying the same thing
 	// twice must change nothing (ADR 0022).
 	rotates bool
+	// kept is what the edit's spec kept of the resource as it is, whatever the edit
+	// said of it, such as a volume's password (resource.Keeper), for the plan to say
+	// so.
+	kept resource.Kept
 	// pull says the change asks the server for its image again (Edit.Pull).
 	pull bool
 	// pulled are the servers a run of the change stopped partway had already
@@ -569,7 +576,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if p.IfNothing != nil && plan.Empty() {
 		return nil, e.nothingToDo(ctx, items, p.IfNothing)
 	}
-	p.Notes = e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))
+	p.Notes = keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -722,6 +729,30 @@ func (e *Engine) textNotes(items []item, notes []Note) []Note {
 				Message: fmt.Sprintf("%s's %s has %s as text, as references doesn't list %s, so it runs with those words and not the value of %s. To have it name the value, list %s in its references",
 					it.ref.Name, field, human.List(spelled), field, human.List(names), field),
 			})
+		}
+	}
+	return out
+}
+
+// keeper is kind's resource.Keeper, if it is one.
+func (e *Engine) keeper(kind resource.Kind) (resource.Keeper, bool) {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return nil, false
+	}
+	k, ok := t.(resource.Keeper)
+	return k, ok
+}
+
+// keptNotes are a plan's notes, saying what an edit's resource kept of what it
+// was made with, whatever the edit said (resource.Keeper). Each says the same
+// whatever the edit gave there, so a plan never says whether a guess at a
+// volume's password is right.
+func keptNotes(items []item, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range items {
+		if k := items[i].kept; k.Reason != "" {
+			out = append(out, Note{Reason: k.Reason, Ref: items[i].ref, Message: items[i].ref.Name + " " + k.Words})
 		}
 	}
 	return out
@@ -973,6 +1004,12 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
+				// Before anything compares it with what is there.
+				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil && !ed.Observed {
+					if it.kept, err = k.Keep(it.current, it.spec); err != nil {
+						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
+					}
+				}
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
 				}
@@ -998,7 +1035,38 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		items = e.orderByReference(items)
 		return e.check(ctx, tx, items)
 	})
-	return items, err
+	if err != nil {
+		return items, err
+	}
+	return items, e.checkKept(ctx, items)
+}
+
+// checkKept refuses an edit that would take what it kept to a server that hasn't got
+// it. A plan sends a spec to every server it would run on, before anyone applies it,
+// so what a Keeper put in an edit would reach that server's agent on a proposal
+// alone (ADR 0022). Whether it refuses depends only on what the edit gave and where it
+// places the resource, never on whether what it gave is the same as what's kept.
+func (e *Engine) checkKept(ctx context.Context, items []item) error {
+	for i := range items {
+		it := &items[i]
+		if it.kept.Reason == "" {
+			continue
+		}
+		added := slices.DeleteFunc(slices.Clone(it.servers), func(s string) bool { return slices.Contains(it.placed, s) })
+		if len(added) == 0 {
+			continue
+		}
+		names, err := e.serverNames(ctx, added)
+		if err != nil {
+			return err
+		}
+		list := make([]string, len(added))
+		for j, s := range added {
+			list[j] = names[s]
+		}
+		return fault.New(ErrInvalid, "%s can't go on %s: %s", it.ref.Name, human.List(list), it.kept.Stays)
+	}
+	return nil
 }
 
 // load reads where a resource stands now.
@@ -3420,7 +3488,7 @@ func (e *Engine) Revert(ctx context.Context, d Drift, by By) (*Plan, error) {
 func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
 	// What the server runs already, so nothing restarts.
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed}}}, "", false)
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed, Observed: true}}}, "", false)
 }
 
 func encodeOrNil(m proto.Message) ([]byte, error) {

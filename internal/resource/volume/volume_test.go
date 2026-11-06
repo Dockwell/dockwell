@@ -3,7 +3,9 @@
 package volume_test
 
 import (
+	"cmp"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -283,5 +285,79 @@ func TestPruneNeverRemovesAVolumeBroughtBack(t *testing.T) {
 	}
 	if e.Volume(name) == nil {
 		t.Error("the prune removed a volume an undo brought back")
+	}
+}
+
+// An edit that gives a volume as it is but for a password keeps the password it was
+// made with, and one that gives no options keeps them all, as an export leaves them
+// out. An edit that gives a password and differs in anything else is refused, so
+// the password goes nowhere it hasn't been. What it does depends only on what the
+// edit gave.
+func TestAVolumeKeepsItsPassword(t *testing.T) {
+	made := map[string]string{"type": "cifs", "device": "//nas/share", "o": "addr=10.0.0.2,username=svc,password=real,pass=also-real,password2=next", "password": "plugin-real"}
+	guess := func(o map[string]string) map[string]string {
+		out := maps.Clone(made)
+		out["o"], out["password"] = "addr=10.0.0.2,username=svc,password=guess,pass=guess2,password2=guess3", "guess4"
+		maps.Copy(out, o)
+		return out
+	}
+	for name, c := range map[string]struct {
+		driver     string
+		edit, want map[string]string
+		reason     string
+		refused    bool
+	}{
+		"a wrong password": {edit: guess(nil), want: made, reason: "kept_password"},
+		"the right one":    {edit: maps.Clone(made), want: made, reason: "kept_password"},
+		"no options":       {edit: nil, want: made, reason: "kept_options"},
+		"no password": {
+			edit: map[string]string{"type": "nfs", "o": "addr=10.0.0.2"},
+			want: map[string]string{"type": "nfs", "o": "addr=10.0.0.2"},
+		},
+		"a word like one":               {edit: map[string]string{"o": "passwd=x,passive"}, want: map[string]string{"o": "passwd=x,passive"}},
+		"no options, on another driver": {driver: "evil/plugin"},
+		"another driver":                {driver: "evil/plugin", edit: guess(nil), refused: true},
+		"another address":               {edit: guess(map[string]string{"o": "addr=10.0.0.3,username=svc,password=guess,pass=guess2,password2=guess3"}), refused: true},
+		"another device":                {edit: guess(map[string]string{"device": "//evil/share"}), refused: true},
+		"another type":                  {edit: guess(map[string]string{"type": "nfs"}), refused: true},
+		"an option more":                {edit: guess(map[string]string{"sshcmd": "x"}), refused: true},
+		"another order":                 {edit: guess(map[string]string{"o": "username=svc,addr=10.0.0.2,password=guess,pass=guess2,password2=guess3"}), refused: true},
+		"a password more":               {edit: guess(map[string]string{"o": "addr=10.0.0.2,username=svc,password=guess,pass=guess2,password2=guess3,password=guess5"}), refused: true},
+		"a name in capitals":            {edit: guess(map[string]string{"o": "addr=10.0.0.2,username=svc,PASSWORD=guess,pass=guess2,password2=guess3"}), refused: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			current := &resourcev1.Volume{Driver: "local", Options: maps.Clone(made)}
+			desired := &resourcev1.Volume{Driver: cmp.Or(c.driver, "local"), Options: maps.Clone(c.edit)}
+			kept, err := (&volume.Driver{}).Keep(current, desired)
+			switch {
+			case c.refused && err == nil:
+				t.Fatalf("it keeps %v, want it refused", desired.GetOptions())
+			case c.refused:
+				for _, value := range []string{"real", "plugin", "guess", "evil", "10.0.0"} {
+					if strings.Contains(err.Error(), value) {
+						t.Errorf("the refusal holds %q: %v", value, err)
+					}
+				}
+				if !maps.Equal(desired.GetOptions(), c.edit) {
+					t.Errorf("it refused, and changed the edit to %v", desired.GetOptions())
+				}
+			case err != nil:
+				t.Fatalf("it refuses: %v", err)
+			case !maps.Equal(desired.GetOptions(), c.want):
+				t.Errorf("it keeps %v, want %v", desired.GetOptions(), c.want)
+			}
+			if kept.Reason != c.reason {
+				t.Errorf("it says it kept %q, want %q", kept.Reason, c.reason)
+			}
+			if (kept.Reason != "") != (kept.Stays != "") {
+				t.Errorf("it kept %q and says %q of where that goes", kept.Reason, kept.Stays)
+			}
+			if !maps.Equal(current.GetOptions(), made) {
+				t.Errorf("it changed the volume as it is: %v", current.GetOptions())
+			}
+		})
+	}
+	if kept, err := (&volume.Driver{}).Keep(&resourcev1.Volume{}, &resourcev1.Volume{}); kept.Reason != "" || err != nil {
+		t.Errorf("a volume with no options, edited with none, = %v, %v", kept, err)
 	}
 }

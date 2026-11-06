@@ -1282,9 +1282,11 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * is, "values_latest" for one that keeps the latest value of what the service
    * uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
    * one of the tag a rollback pinned, which replaces it whatever the pull finds,
-   * "starts_stopped" for what isn't running and this plan starts, and "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
-   * exactly the image a revision ran. Another reason may come: its message says
-   * what it means.
+   * "starts_stopped" for what isn't running and this plan starts, "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
+   * exactly the image a revision ran, "kept_password" for a volume that keeps the
+   * password it was made with, whatever an edit gave, and "kept_options" for one
+   * that keeps its options, as an edit gave none. Another reason may come: its
+   * message says what it means.
    *
    * @generated from field: string reason = 1;
    */
