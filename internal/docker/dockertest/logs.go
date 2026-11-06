@@ -183,6 +183,7 @@ func (e *Engine) serveLogs(w http.ResponseWriter, r *http.Request) bool {
 	e.mu.Lock()
 	e.Requests = append(e.Requests, r.Method+" "+r.URL.Path)
 	c, err := e.findContainer(m[1])
+	refused := c != nil && (c.State.Status == "removing" || c.State.Status == "dead")
 	e.mu.Unlock()
 	switch {
 	case err != nil:
@@ -190,6 +191,9 @@ func (e *Engine) serveLogs(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	case c == nil:
 		fail(w, http.StatusNotFound, "No such container: %s", m[1])
+		return true
+	case refused:
+		fail(w, http.StatusConflict, "can not get logs from container which is dead or marked for removal")
 		return true
 	}
 	q := r.URL.Query()
@@ -335,6 +339,26 @@ func logBound(s string) time.Time {
 		nano, _ = strconv.ParseInt((nanos + "000000000")[:9], 10, 64)
 	}
 	return time.Unix(sec, nano).UTC()
+}
+
+// Removing marks a stopped container as Docker does while it removes one: it is
+// still listed, and its log is refused until it has gone.
+func (e *Engine) Removing(name string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil {
+		c.State.Status = "removing"
+	}
+}
+
+// Dead marks a container as Docker does when it couldn't remove one: it is still
+// listed, and its log is refused for as long as it stays.
+func (e *Engine) Dead(name string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil {
+		c.State.Status = "dead"
+	}
 }
 
 // Restart marks a container that was stopped as running again, as Docker's

@@ -67,6 +67,10 @@ const (
 	// idleLive is how long a container's log can stay quiet before what it had
 	// counts as read: its first line can take longer.
 	idleLive, idleFirst = 250 * time.Millisecond, time.Second
+	// refusedLooks is how many looks in a row Docker can refuse a log before a
+	// reader hears why: a moment for a container being removed, for ever for a dead
+	// one, and neither ends the looking.
+	refusedLooks = 20
 	// gapEvery is how often a stream says what it dropped of one source, at
 	// most, so a flood doesn't fill the view with markers.
 	gapEvery = time.Second
@@ -84,6 +88,9 @@ type Reader struct {
 	StuckAfter time.Duration
 	// SearchLines replaces how many lines a search reads of a container, in tests.
 	SearchLines int
+	// RefusedLooks replaces how many looks Docker can refuse a log before a reader
+	// hears why, in tests.
+	RefusedLooks int
 
 	placesMu sync.Mutex
 	places   map[*stream]bool
@@ -365,6 +372,13 @@ func (s *stream) searchLines() int {
 	return searchTail
 }
 
+func (s *stream) refusedLooks() int32 {
+	if s.r.RefusedLooks > 0 {
+		return int32(s.r.RefusedLooks) //nolint:gosec // a test's small number
+	}
+	return refusedLooks
+}
+
 // key says which service a stream reads, for dividing what a server carries.
 func (s *stream) key() string { return s.project + "/" + s.service }
 
@@ -406,6 +420,10 @@ type sourceState struct {
 	problem atomic.Pointer[string]
 	// unread says its last read never got to the log, so it counts for nothing.
 	unread atomic.Bool
+	// refused counts the reads in a row Docker refused, as it does a container dead
+	// or being removed. It says nothing of the next look, which reads what was kept
+	// once it has gone.
+	refused atomic.Int32
 	// cursor is the last line kept, for following it again.
 	cursorMu sync.Mutex
 	cursor   time.Time
@@ -515,6 +533,8 @@ func (s *stream) scan(first bool) error {
 			src.proto.LogError = *why
 		case roomless:
 			src.proto.LogError = "This stream reads at most " + strconv.Itoa(MaxSourcesPerStream) + " containers at once, so this one's lines don't show. Choose one replica or deploy to read it"
+		case st.refused.Load() >= s.refusedLooks() && src.kept == nil:
+			src.proto.LogError = "Docker won't read this container's log, as it's dead or being removed. If it stays like this, remove it with docker rm -f " + id
 		}
 		if text := describe(src.proto); text != s.said[id] {
 			s.said[id] = text
@@ -618,9 +638,10 @@ func (s *stream) startReading(st *sourceState, src *source, first bool) bool {
 		return true // it was read to its end, and nothing more will come
 	}
 	// A container that went since the call came was what a follower was there to
-	// see, as when a deploy fails and is rolled back in between two looks.
-	// Otherwise what was kept isn't read unless asked for.
-	if s.outsideTime(st, src.proto) || (kept && !s.wantsKept() && src.kept.wentBefore(s.start)) {
+	// see, as when a deploy fails and is rolled back in between two looks. So was one
+	// a look found and couldn't read, whenever it went. Otherwise what was kept isn't
+	// read unless asked for.
+	if s.outsideTime(st, src.proto) || (kept && !s.wantsKept() && !st.unread.Load() && src.kept.wentBefore(s.start)) {
 		return true
 	}
 	if s.reading.Load() >= MaxSourcesPerStream {
@@ -729,6 +750,7 @@ func (s *stream) readDocker(st *sourceState, src *source) {
 		return
 	}
 	defer rd.Close()
+	st.refused.Store(0)
 	if follow && o.Tail < 0 {
 		st.live.Store(true)
 	}
@@ -845,6 +867,13 @@ func (s *stream) readFailed(st *sourceState, src *source, err error) {
 	// server kept of it if it has gone.
 	if docker.IsNotFound(err) || docker.IsUnavailable(err) {
 		st.unread.Store(true)
+		return
+	}
+	// It is dead or being removed, which Docker answers with a conflict, and which
+	// says nothing of its logging driver. One being removed has gone by a later look.
+	if docker.IsConflict(err) {
+		st.unread.Store(true)
+		st.refused.Add(1)
 		return
 	}
 	s.r.logger().Warn("can't read a container's log", slog.String("container", src.proto.GetContainerName()), slog.String("error", err.Error()))

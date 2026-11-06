@@ -250,6 +250,99 @@ func TestAFollowReadsAContainerThatGoesBeforeItsLogIsAskedFor(t *testing.T) {
 	}
 }
 
+// Docker answers 409 for a container being removed, whatever its logging driver.
+// A follower that looks then reads what was kept once it has gone, and hears
+// nothing of drivers, whether it came before the container went or as it did.
+func TestAFollowReadsWhatWasKeptOfAContainerBeingRemoved(t *testing.T) {
+	for _, late := range []bool{false, true} {
+		name := "there as it went"
+		if late {
+			name = "there only once it had stopped"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			r := newReader(t, e)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			c := newCollector()
+			refused := func() int {
+				n := 0
+				for _, req := range e.Seen() {
+					if strings.HasSuffix(req, "/logs") {
+						n++
+					}
+				}
+				return n
+			}
+			begin := func() { follow(ctx, r, &agentv1.LogsCall{Tail: 100}, c) }
+			if !late {
+				begin()
+				waitFor(t, "a first look, which finds nothing", c.isCaughtUp)
+			}
+			ctr := addContainer(t, e, "app-1", 1)
+			e.Print("app-1", docker.Stdout, "can't reach the database")
+			k := r.Archive.Begin(t.Context(), e.Container("app-1"), true)
+			e.Stop("app-1")
+			k.Finish(t.Context(), e.Container("app-1"))
+			r.Archive.WaitPruned()
+			e.Removing("app-1")
+			kept := refused()
+			if late {
+				time.Sleep(2 * time.Millisecond) // so it stopped before this began
+				begin()
+			}
+			waitFor(t, "a look that Docker refuses", func() bool { return refused() > kept })
+			if err := r.Client.RemoveContainer(t.Context(), ctr.ID, true); err != nil {
+				t.Fatal(err)
+			}
+			waitFor(t, "why it failed", func() bool { return slices.Contains(c.got(), "can't reach the database") })
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			if msg := c.sources[ctr.ID[:12]].GetLogError(); msg != "" {
+				t.Errorf("the source says %q, and nothing is wrong with it", msg)
+			}
+		})
+	}
+}
+
+// A dead container is refused for as long as it stays, so a reader hears why, and
+// what to do. It isn't given up on: once it has gone, what was kept reads.
+func TestADeadContainerSaysWhyItsLogDoesntShow(t *testing.T) {
+	e := dockertest.New(t)
+	ctr := addContainer(t, e, "app-1", 1)
+	e.Print("app-1", docker.Stdout, "last words")
+	r := newReader(t, e)
+	r.RefusedLooks = 2
+	k := r.Archive.Begin(t.Context(), e.Container("app-1"), true)
+	e.Stop("app-1")
+	k.Finish(t.Context(), e.Container("app-1"))
+	r.Archive.WaitPruned()
+	e.Dead("app-1")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c := newCollector()
+	follow(ctx, r, &agentv1.LogsCall{Tail: 100}, c)
+	var said string
+	waitFor(t, "the source to say why", func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		said = c.sources[ctr.ID[:12]].GetLogError()
+		return said != ""
+	})
+	if want := "docker rm -f " + ctr.ID[:12]; !strings.Contains(said, want) || strings.Contains(said, "driver") {
+		t.Errorf("a dead container says %q, want how to remove it, and nothing of drivers", said)
+	}
+	if err := r.Client.RemoveContainer(t.Context(), ctr.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "what was kept", func() bool { return slices.Contains(c.got(), "last words") })
+	waitFor(t, "the source to stop saying so", func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return c.sources[ctr.ID[:12]].GetLogError() == ""
+	})
+}
+
 // One that restarts and is gone between two looks reads what the last run said,
 // and what it had read already, once.
 func TestAFollowReadsARestartItDidNotSee(t *testing.T) {
