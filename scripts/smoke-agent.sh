@@ -32,10 +32,15 @@ fail() {
   exit 1
 }
 
-# Each build says which it is, in the shape install.sh reads.
-"$full" version --json | grep -q '"edition": *"BUILD_EDITION_FULL"' || fail "$full doesn't say it is the full build"
-"$agent" version --json | grep -q '"edition": *"BUILD_EDITION_AGENT"' || fail "$agent doesn't say it is the agent build"
-"$agent" version | grep -q '^build  *agent$' || fail "dockwell version doesn't say it is the agent build"
+# Each build says which it is, in the shape install.sh reads. What it says is read whole
+# and then matched: piped into grep -q, the program can die of SIGPIPE as grep leaves,
+# which pipefail reads as a failed check, though the words were there.
+said=$("$full" version --json) || fail "$full version --json failed"
+grep -q '"edition": *"BUILD_EDITION_FULL"' <<<"$said" || fail "$full doesn't say it is the full build"
+said=$("$agent" version --json) || fail "$agent version --json failed"
+grep -q '"edition": *"BUILD_EDITION_AGENT"' <<<"$said" || fail "$agent doesn't say it is the agent build"
+said=$("$agent" version) || fail "$agent version failed"
+grep -q '^build  *agent$' <<<"$said" || fail "dockwell version doesn't say it is the agent build"
 
 # Without an identity, the agent build explains, and makes nothing.
 code=0
@@ -78,7 +83,7 @@ for _ in $(seq 150); do
   sleep 0.1
 done
 ((connected >= 2)) || fail "the agent build didn't connect to the control plane within 15 s"
-grep '"msg":"server connected"' "$work/control.log" | grep -q '"name":"smoke-agent".*"build":"agent"' ||
+grep -q '"msg":"server connected".*"name":"smoke-agent".*"build":"agent"' "$work/control.log" ||
   fail "the control plane didn't see the agent build in its hello"
 
 echo "smoke-agent: the agent build says which it is, runs no control plane, says where its other commands are, and joins and connects"
