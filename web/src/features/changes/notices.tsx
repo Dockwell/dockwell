@@ -117,6 +117,21 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   const notice = ({ name, server, access }: (typeof reaches)[number], key: string): Notice => {
     // What a spec holds is quoted where it isn't what a name holds, so it can't write these words.
     const [path, leadsTo] = [plain(access.path), plain(access.leadsTo)];
+    // A relabel writes on the server, however read-only the mount is (ADR 0021).
+    const relabel =
+      access.relabel === "Z"
+        ? t`Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it.`
+        : access.relabel === "z"
+          ? t`Where SELinux is enforced, Docker relabels everything there, to share it between containers.`
+          : "";
+    const andRelabel = (detail: ReactNode): ReactNode =>
+      relabel ? (
+        <>
+          {detail} {relabel}
+        </>
+      ) : (
+        detail
+      );
     switch (access.kind) {
       case HostAccessKind.DOCKER_SOCKET:
         return {
@@ -228,33 +243,37 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           ? {
               key,
               title: t`${name} reaches ${path} on ${server}`,
-              detail: leadsTo ? (
-                <Trans>
-                  It leads to <code>{leadsTo}</code> through a symlink, and the server's security rests on what is
-                  there, so reaching it is as good as root.
-                </Trans>
-              ) : (
-                t`The server's security rests on what is there, so reaching it is as good as root.`
+              detail: andRelabel(
+                leadsTo ? (
+                  <Trans>
+                    It leads to <code>{leadsTo}</code> through a symlink, and the server's security rests on what is
+                    there, so reaching it is as good as root.
+                  </Trans>
+                ) : (
+                  t`The server's security rests on what is there, so reaching it is as good as root.`
+                ),
               ),
               trust: true,
             }
           : {
               key,
               title: t`${name} reaches ${path} on ${server}`,
-              detail: leadsTo ? (
-                access.readOnly ? (
-                  <Trans>
-                    It leads to <code>{leadsTo}</code> through a symlink, and it can read what is there.
-                  </Trans>
+              detail: andRelabel(
+                leadsTo ? (
+                  access.readOnly ? (
+                    <Trans>
+                      It leads to <code>{leadsTo}</code> through a symlink, and it can read what is there.
+                    </Trans>
+                  ) : (
+                    <Trans>
+                      It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
+                    </Trans>
+                  )
+                ) : access.readOnly ? (
+                  t`It can read that path on the server.`
                 ) : (
-                  <Trans>
-                    It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
-                  </Trans>
-                )
-              ) : access.readOnly ? (
-                t`It can read that path on the server.`
-              ) : (
-                t`It can read and write that path on the server.`
+                  t`It can read and write that path on the server.`
+                ),
               ),
             };
     }
@@ -388,6 +407,46 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           detail: t`It can't be read meanwhile, and it goes once the server is back and the 7 days are up.`,
         };
       }
+      case "updates_project": {
+        // A plan kept from before it said what would go has names all the same, and only
+        // its message says what it deletes.
+        if (!note.named) break;
+        const [project = "", ...running] = note.names;
+        const names = running.join(", ");
+        const deleted = note.deleted.join(", ");
+        return {
+          key,
+          title: t`${project} already runs ${names}`,
+          detail:
+            deleted !== ""
+              ? t`This changes what runs: a service of the same name in the file replaces it, and ${deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own.`
+              : t`This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own.`,
+        };
+      }
+      case "digest_pinned": {
+        const [image = "", revision = "", digest = ""] = note.names;
+        if (digest === "") break;
+        return {
+          key,
+          title: t`${name} runs ${image} as revision ${revision} ran it, ${digest}, even if the tag has moved since`,
+        };
+      }
+      case "digest_gone": {
+        const [image = "", revision = "", digest = ""] = note.names;
+        if (digest === "") break;
+        return {
+          key,
+          title: t`The ${image} that revision ${revision} ran, ${digest}, isn't on the server, and its registry won't give it, so ${name} runs what ${image} is now`,
+        };
+      }
+      case "digest_differs": {
+        const [image = "", revision = ""] = note.names;
+        if (revision === "") break;
+        return {
+          key,
+          title: t`Revision ${revision} ran different images of ${image} on each server, so ${name} runs what ${image} is now`,
+        };
+      }
       case "exposed_more":
         return {
           key,
@@ -406,11 +465,18 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
                 : field;
         // The API says where the value came from, and an .env is where someone may not have looked.
         const fromEnv = note.from === "env_file";
+        // A file's own field, in its own words, so its name says how many it is.
+        const several = field === "environment" || (field.endsWith("s") && field !== "dns" && field !== "tmpfs");
+        const title = several
+          ? fromEnv
+            ? t`${name}'s ${where} hold the value of ${variable} from your .env`
+            : t`${name}'s ${where} hold the value of ${variable}`
+          : fromEnv
+            ? t`${name}'s ${where} holds the value of ${variable} from your .env`
+            : t`${name}'s ${where} holds the value of ${variable}`;
         return {
           key,
-          title: fromEnv
-            ? t`${name}'s ${where} holds the value of ${variable} from your .env`
-            : t`${name}'s ${where} holds the value of ${variable}`,
+          title,
           detail:
             field === "command" || field === "entrypoint"
               ? t`Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the ${where} as a list, with each word its own variable.`

@@ -53,6 +53,7 @@ import { useFleetView } from "../servers/useFleet";
 import {
   appOf,
   environmentOf,
+  failedAtField,
   imageOf,
   nameFromImage,
   nameOf,
@@ -251,6 +252,14 @@ export function NewAppSheet({
     revealError();
   }, [plan]);
 
+  const fix = (reason: string) => {
+    // A Compose file has a command to check, which is what the server says. This form hasn't.
+    if (source === "compose") return undefined;
+    // A check that fails says what it answered, and what to do about that, which is the server's.
+    if (reason === "exits") return t`Check the image and its variables, then try again.`;
+    return reason === "command" ? t`Check the image and tag, then try again.` : undefined;
+  };
+
   const review = (change: Change | undefined, open: "app" | "list") => {
     const service = change?.plan?.resources.find((r) => r.resource?.kind === "service");
     const label = service?.resource?.name ?? "";
@@ -259,13 +268,7 @@ export function NewAppSheet({
       make: () => Promise.resolve({ change }),
       retryLabel: t`Edit and try again`,
       onDone: onClose,
-      fix: (reason) => {
-        // A Compose file has a command to check, which is what the server says. This form hasn't.
-        if (source === "compose") return undefined;
-        // A check that fails says what it answered, and what to do about that, which is the server's.
-        if (reason === "exits") return t`Check the image and its variables, then try again.`;
-        return reason === "command" ? t`Check the image and tag, then try again.` : undefined;
-      },
+      fix,
       ...(open === "app" && label ? { doneLabel: t`Open ${label}` } : {}),
       ...(open === "list" ? { doneLabel: t`Show the apps` } : {}),
       onClose: (after) => {
@@ -277,7 +280,7 @@ export function NewAppSheet({
           after.state === ChangeState.FAILED
         ) {
           if (after?.state === ChangeState.FAILED) {
-            const message = tidyMessage(after.error);
+            const message = failedAtField(after, name, fix);
             if (source === "image") {
               // What ran is what to change, unless it says what else was wrong.
               setErrors({ [fieldOf(message, image, name) || "image"]: message });
@@ -322,7 +325,10 @@ export function NewAppSheet({
         review(res.change, count === 1 ? "app" : "list");
       } catch (err) {
         if (reasonOf(err) === "needs_project") setErrors({ project: sentence(err) });
-        else setFailure(portRefusal(sentence(err)) ?? sentence(err));
+        else {
+          const message = tidyMessage(sentence(err));
+          setFailure(portRefusal(message) ?? message);
+        }
       } finally {
         setBusy(false);
       }

@@ -229,6 +229,18 @@ func (c *Client) Info(ctx context.Context) (*Info, error) {
 	return &out, nil
 }
 
+// Architecture is what the engine runs on, in the words an image says what it's
+// built for, such as amd64.
+func (c *Client) Architecture(ctx context.Context) (string, error) {
+	var v struct {
+		Arch string `json:"Arch"`
+	}
+	if err := c.raw(ctx, http.MethodGet, "/version", nil, nil, &v); err != nil {
+		return "", err
+	}
+	return v.Arch, nil
+}
+
 // Version is the API version agreed by the last Ping, and the engine's
 // own version; both are empty before one succeeds.
 func (c *Client) Version() (api, engine string) {

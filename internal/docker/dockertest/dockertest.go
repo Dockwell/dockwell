@@ -58,6 +58,8 @@ type Image struct {
 	Digest string
 	// PullError fails a pull of it, with what a registry would say.
 	PullError string
+	// Architecture is what it's built for: amd64, as the fake server is, if it's empty.
+	Architecture string
 	// PullTime is how long a pull of it takes, reporting along the way.
 	PullTime time.Duration
 	// Prints is what a container of it writes to stdout as it starts.
@@ -264,7 +266,7 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	case path == "/_ping":
 		_, _ = w.Write([]byte("OK"))
 	case path == "/version":
-		writeJSON(w, http.StatusOK, map[string]string{"Version": "27.3.1", "ApiVersion": e.APIVersion, "MinAPIVersion": e.MinAPIVersion})
+		writeJSON(w, http.StatusOK, map[string]string{"Version": "27.3.1", "ApiVersion": e.APIVersion, "MinAPIVersion": e.MinAPIVersion, "Arch": "amd64"})
 	case path == "/events":
 		e.serveEvents(w, r)
 	case path == "/info":
@@ -415,6 +417,10 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 		img := e.image(ref)
 		if img == nil {
 			fail(w, http.StatusNotFound, "No such image: %s", ref)
+			return
+		}
+		if img.Architecture != "" {
+			writeJSON(w, http.StatusOK, docker.Image{ID: img.id, Config: &img.Config, Architecture: img.Architecture})
 			return
 		}
 		cfg := img.Config

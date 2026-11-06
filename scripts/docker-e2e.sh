@@ -116,6 +116,7 @@ restore_daemon() {
 }
 cleanup() {
   restore_daemon || true
+  docker image rm e2e-wrong-arch:1 >/dev/null 2>&1 || true
   for p in $project $extra_projects; do
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
@@ -894,9 +895,9 @@ cant_pull() {
   id=$(moving_id)
   started=$(moving_started)
   if said=$(dw services deploy moving --image "$moving" --yes 2>&1); then fail "deploying with the registry stopped applied: $said"; fi
-  grep -qF "can't pull $moving again" <<<"$said" || fail "with the registry stopped, the fact isn't there: $said"
-  grep -qF "so nothing was replaced, and what runs goes on running" <<<"$said" || fail "with the registry stopped, what follows isn't there: $said"
-  grep -qF "Check that its registry answers" <<<"$said" || fail "with the registry stopped, the fix isn't there: $said"
+  grep -qF "can't reach the registry $moving is on" <<<"$said" || fail "with the registry stopped, the fact isn't there: $said"
+  grep -qF "Nothing was replaced, and what runs goes on running" <<<"$said" || fail "with the registry stopped, what follows isn't there: $said"
+  grep -qF "Check the server's network and DNS" <<<"$said" || fail "with the registry stopped, the fix isn't there: $said"
   moving_settled
   [[ "$(moving_id)" == "$id" ]] || fail "a pull that failed replaced the container"
   [[ "$(moving_started)" == "$started" ]] || fail "a pull that failed restarted the container"
@@ -2293,6 +2294,32 @@ drift=$(dw drift list --json) || fail "drift list failed"
 # Another environment has drift of its own by now, as an ingress step above prunes
 # a network it left unused, so this asks about shop alone.
 jq -e 'any((.drift // [])[]; .resource.name == "shop") | not' <<<"$drift" >/dev/null || fail "drift with shop running as asked: $drift"
+
+step "An image for another architecture says so, where Docker reports only a container that exited"
+here=$(docker version --format '{{.Server.Arch}}') || fail "docker version failed"
+other_arch=arm64
+[[ "$here" != arm64 ]] || other_arch=amd64
+docker pull -q --platform "linux/$other_arch" alpine:3.20 >/dev/null || fail "can't pull an image for $other_arch"
+docker tag alpine:3.20 e2e-wrong-arch:1 || fail "can't tag the image for $other_arch"
+docker rmi alpine:3.20 >/dev/null || fail "can't remove the image's own tag"
+# A server with emulation runs it, so nothing goes wrong, and this step proves nothing.
+if probe=$(docker run --rm --platform "linux/$other_arch" e2e-wrong-arch:1 true 2>&1); then
+  echo "docker-e2e: this machine runs $other_arch images, so there's no wrong architecture to read, and this step proves nothing"
+else
+  echo "docker-e2e: of an image for $other_arch on $here, Docker says: ${probe:0:300}"
+  if said=$(dw services create wrongarch --environment other --app-image e2e-wrong-arch:1 --yes 2>&1); then
+    fail "an image for $other_arch started on $here: $said"
+  fi
+  [[ "$said" == *"isn't built for this server's architecture"* ]] || fail "an image for $other_arch failed saying: $said"
+  if [[ "$said" == *"Check its command"* ]]; then fail "an image for $other_arch sends you to its command: $said"; fi
+  # The CLI ends as the rollback begins, and the image can't go while that runs.
+  for _ in $(seq 300); do
+    [[ -z "$(docker ps -aq --filter label=com.docker.compose.service=wrongarch)" ]] && break
+    sleep 0.1
+  done
+  [[ -z "$(docker ps -aq --filter label=com.docker.compose.service=wrongarch)" ]] || fail "the rollback left what failed: $(docker ps -a)"
+fi
+docker image rm e2e-wrong-arch:1 >/dev/null || true
 
 step "A limit changes in place, on a token, and the file's container stays"
 before=$(jq -r '.[0].Id' <<<"$inspected")

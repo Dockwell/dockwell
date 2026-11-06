@@ -861,6 +861,28 @@ describe("New app, from a Compose file", () => {
     );
   });
 
+  it("says why a file was refused as it planned, without the ID of where it would go", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/new?source=compose", {
+      ...compose({
+        checkCompose: () => create(CheckComposeResponseSchema, { services: [web] }),
+        importCompose: () => {
+          throw new ConnectError(
+            "can't plan on hz-1: can't plan service web in env_01M6RD1VW6ECB3G1B1RVTCD8JD: the image a:1 isn't on this server",
+            Code.FailedPrecondition,
+          );
+        },
+      }),
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("services:\n  web:\n    image: a:1\n");
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled());
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await within(sheet).findByText(/the image a:1 isn't on this server/);
+    expect(sheet).not.toHaveTextContent("env_");
+  });
+
   it("says when a name is here already, so the plan updates it", async () => {
     const user = userEvent.setup();
     renderAt("/apps/new?source=compose", {

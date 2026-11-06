@@ -557,6 +557,10 @@ msgstr "{name} reaches {reach} on {server}"
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} reaches the port {path} on {server}"
 
+#: src/features/changes/notices.tsx
+msgid "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
+msgstr "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
+
 #: src/features/apps/Health.tsx
 msgid "{name} runs now, and fails its health check."
 msgstr "{name} runs now, and fails its health check."
@@ -598,6 +602,14 @@ msgstr "{name}, {status}, CPU {cpu}%"
 #: src/features/changes/notices.tsx
 msgid "{name}: {0}"
 msgstr "{name}: {0}"
+
+#: src/features/changes/notices.tsx
+msgid "{name}'s {where} hold the value of {variable}"
+msgstr "{name}'s {where} hold the value of {variable}"
+
+#: src/features/changes/notices.tsx
+msgid "{name}'s {where} hold the value of {variable} from your .env"
+msgstr "{name}'s {where} hold the value of {variable} from your .env"
 
 #: src/features/changes/notices.tsx
 msgid "{name}'s {where} holds the value of {variable}"
@@ -651,6 +663,10 @@ msgstr "{path} as a proxy it believes on where a request came from: whatever els
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, one {# variable} other {# variables}}"
+
+#: src/features/changes/notices.tsx
+msgid "{project} already runs {names}"
+msgstr "{project} already runs {names}"
 
 #: src/features/changes/words.ts
 msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
@@ -2436,6 +2452,14 @@ msgstr "Dockwell hands what's set on this app to it, and never shows those value
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell is clearing this away"
 msgstr "Dockwell is clearing this away"
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "Dockwell is putting {name} back. You can review this plan once that ends."
+msgstr "Dockwell is putting {name} back. You can review this plan once that ends."
+
+#: src/features/apps/DeploySheet.tsx
+msgid "Dockwell is putting <0>{current}</0> back. You can review this plan once that ends."
+msgstr "Dockwell is putting <0>{current}</0> back. You can review this plan once that ends."
 
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell is putting <0>{image}</0> back, started {ago}"
@@ -4933,6 +4957,10 @@ msgstr "Review plan"
 msgid "Revision"
 msgstr "Revision"
 
+#: src/features/changes/notices.tsx
+msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
+msgstr "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "Revisions"
 msgstr "Revisions"
@@ -5699,6 +5727,10 @@ msgstr "That was the last try. 5 wrong codes ended this setup, and its key no lo
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 
+#: src/features/changes/notices.tsx
+msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
+msgstr "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
+
 #: src/features/changes/words.ts
 msgid "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
@@ -6091,6 +6123,14 @@ msgstr "This browser is offline, so the panel can't say how your apps run, and t
 #: src/features/servers/FleetNotes.tsx
 msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
 msgstr "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
+
+#: src/features/changes/notices.tsx
+msgid "This changes what runs: a service of the same name in the file replaces it, and {deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own."
+msgstr "This changes what runs: a service of the same name in the file replaces it, and {deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own."
+
+#: src/features/changes/notices.tsx
+msgid "This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own."
+msgstr "This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own."
 
 #: src/features/auth/messages.ts
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
@@ -6814,6 +6854,14 @@ msgstr "When"
 #: src/features/apps/words.ts
 msgid "When it exits with an error"
 msgstr "When it exits with an error"
+
+#: src/features/changes/notices.tsx
+msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
+msgstr "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
+
+#: src/features/changes/notices.tsx
+msgid "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
+msgstr "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."

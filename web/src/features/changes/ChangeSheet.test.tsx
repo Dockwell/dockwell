@@ -728,6 +728,74 @@ describe("the plan sheet", () => {
     expect(sheet.querySelector(".dw-plan-changes dt")).toBe(socket);
   });
 
+  it("keeps what a plan from before it named what goes says it deletes", async () => {
+    const kept = webPlanned();
+    if (kept.plan) {
+      kept.plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "updates_project",
+          message:
+            "shop already runs web and worker, so this changes what runs: a service of the same name in the file replaces it, and worker, which the file doesn't name, would be deleted.",
+          names: ["shop", "web", "worker"],
+        }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: kept }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByText(/which the file doesn't name, would be deleted/)).toBeVisible();
+  });
+
+  it("says what a server's note means in its own words, so they translate", async () => {
+    await activateLocale("zh-CN");
+    try {
+      const noted = webPlanned();
+      if (noted.plan) {
+        noted.plan.notes = [
+          create(PlanNoteSchema, {
+            reason: "updates_project",
+            message: "shop already runs web and worker, in words only the server has.",
+            names: ["shop", "web", "worker"],
+            deleted: ["worker"],
+            named: true,
+          }),
+          create(PlanNoteSchema, {
+            reason: "digest_pinned",
+            message: "web runs nginx:1 as revision 2 ran it, in words only the server has.",
+            resource: { kind: "service", name: "web" },
+            names: ["nginx:1", "2", "sha256:0123456789ab"],
+          }),
+          create(PlanNoteSchema, {
+            reason: "digest_gone",
+            message: "The image is gone, in words only the server has.",
+            resource: { kind: "service", name: "web" },
+            names: ["nginx:1", "2", "sha256:0123456789ab"],
+          }),
+          create(PlanNoteSchema, {
+            reason: "digest_differs",
+            message: "Revision 2 ran different images, in words only the server has.",
+            resource: { kind: "service", name: "web" },
+            names: ["nginx:1", "2"],
+          }),
+          // One kept from before it carried its names says what it can.
+          create(PlanNoteSchema, { reason: "digest_gone", message: "Kept from before. It has no names." }),
+        ];
+      }
+      renderSheet(proposeWeb, {
+        changes: { proposeChange: () => ({ change: noted }), watchChange: feed<WatchChangeResponse>().stream },
+      });
+      const sheet = await screen.findByRole("dialog");
+      await within(sheet).findByText(/Kept from before/);
+      expect(sheet).not.toHaveTextContent("in words only the server has");
+      expect(sheet).toHaveTextContent("shop 已在运行 web, worker");
+      expect(sheet).toHaveTextContent("worker");
+      expect(sheet).toHaveTextContent("sha256:0123456789ab");
+    } finally {
+      await activateLocale("en");
+    }
+  });
+
   it("leads with what a plan says about itself, and says it in its own words", async () => {
     const noted = webPlanned();
     if (noted.plan) {
@@ -773,7 +841,7 @@ describe("the plan sheet", () => {
     expect(callout).toHaveTextContent("write the command as a list, with each word its own variable.");
     expect(callout).not.toHaveTextContent("TOKEN from your .env");
     // Where it came from an .env, it says so, and what can't be hidden where it lands.
-    expect(callout).toHaveTextContent("cache's labels holds the value of REDIS_PASSWORD from your .env");
+    expect(callout).toHaveTextContent("cache's labels hold the value of REDIS_PASSWORD from your .env");
     expect(callout).toHaveTextContent("It can't be hidden there, so if it's a secret, set it in environment");
     expect(callout).toHaveTextContent("This reason is new. The panel doesn't know it yet.");
     expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(callout);

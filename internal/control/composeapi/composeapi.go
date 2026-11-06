@@ -253,12 +253,16 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			summary = "Run a Compose file"
 		}
 	}
+	updates := place.updates(running, deleted)
+	for i := range updates {
+		updates[i].Deleted, updates[i].Named = deleted, true // for a surface that says it in its own words
+	}
 	return h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
 		if choice.Level == scope.ServerLevel {
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Notes: slices.Concat(notes, place.updates(running, deleted), planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, Notes: slices.Concat(notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // servicesIn names what an environment runs now.

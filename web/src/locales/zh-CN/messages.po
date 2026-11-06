@@ -557,6 +557,10 @@ msgstr "{name} 可访问 {server} 上的 {reach}"
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} 在 {server} 上可访问端口 {path}"
 
+#: src/features/changes/notices.tsx
+msgid "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
+msgstr "{name} 按修订版本 {revision} 当时的方式运行 {image}（{digest}），即使该标签此后已指向别处"
+
 #: src/features/apps/Health.tsx
 msgid "{name} runs now, and fails its health check."
 msgstr "{name} 现在正在运行，但未通过健康检查。"
@@ -598,6 +602,14 @@ msgstr "{name}，{status}，CPU {cpu}%"
 #: src/features/changes/notices.tsx
 msgid "{name}: {0}"
 msgstr "{name}：{0}"
+
+#: src/features/changes/notices.tsx
+msgid "{name}'s {where} hold the value of {variable}"
+msgstr "{name} 的 {where} 中含有 {variable} 的值"
+
+#: src/features/changes/notices.tsx
+msgid "{name}'s {where} hold the value of {variable} from your .env"
+msgstr "{name} 的 {where} 中含有你的 .env 里 {variable} 的值"
 
 #: src/features/changes/notices.tsx
 msgid "{name}'s {where} holds the value of {variable}"
@@ -651,6 +663,10 @@ msgstr "{path}，作为它信任的代理，相信它所说的请求来源：该
 #: src/features/variables/VariablesPage.tsx
 msgid "{plain, plural, one {# variable} other {# variables}}"
 msgstr "{plain, plural, other {# 个变量}}"
+
+#: src/features/changes/notices.tsx
+msgid "{project} already runs {names}"
+msgstr "{project} 已在运行 {names}"
 
 #: src/features/changes/words.ts
 msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
@@ -2436,6 +2452,14 @@ msgstr "Dockwell 将此应用自身设置的内容交给它，且不再显示这
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell is clearing this away"
 msgstr "Dockwell 正在清理此次变更"
+
+#: src/features/apps/AddPortSheet.tsx
+msgid "Dockwell is putting {name} back. You can review this plan once that ends."
+msgstr "Dockwell 正在恢复 {name}。结束后你就可以查看此计划。"
+
+#: src/features/apps/DeploySheet.tsx
+msgid "Dockwell is putting <0>{current}</0> back. You can review this plan once that ends."
+msgstr "Dockwell 正在恢复 <0>{current}</0>。结束后你就可以查看此计划。"
 
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell is putting <0>{image}</0> back, started {ago}"
@@ -4933,6 +4957,10 @@ msgstr "审查计划"
 msgid "Revision"
 msgstr "修订版本"
 
+#: src/features/changes/notices.tsx
+msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
+msgstr "修订版本 {revision} 在各服务器上运行的 {image} 镜像不同，因此 {name} 将运行 {image} 当前指向的镜像"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "Revisions"
 msgstr "修订版本"
@@ -5699,6 +5727,10 @@ msgstr "这是最后一次尝试。输错 5 次验证码已结束此次设置，
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "这样你将无法登录。请先添加另一个通行密钥或身份验证器应用。"
 
+#: src/features/changes/notices.tsx
+msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
+msgstr "修订版本 {revision} 运行的 {image}（{digest}）已不在服务器上，其镜像仓库也不提供，因此 {name} 将运行 {image} 当前指向的镜像"
+
 #: src/features/changes/words.ts
 msgid "the {leadsTo} network {path}, which reaches past the server's firewall and is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "{leadsTo} 网络 {path}，它可绕过服务器的防火墙，已在服务器上，服务在其中以自身名称和 {detail} 响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
@@ -6091,6 +6123,14 @@ msgstr "此浏览器已离线，因此面板无法确定你的应用的运行情
 #: src/features/servers/FleetNotes.tsx
 msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
 msgstr "此浏览器已离线，因此面板无法确定你的服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+
+#: src/features/changes/notices.tsx
+msgid "This changes what runs: a service of the same name in the file replaces it, and {deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own."
+msgstr "这会改变正在运行的内容：文件中的同名服务会替换它，而文件未提到的 {deleted} 将被删除。如果这不是你的本意，请修改文件中的 name:，让它有自己的项目。"
+
+#: src/features/changes/notices.tsx
+msgid "This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own."
+msgstr "这会改变正在运行的内容：文件中的同名服务会替换它。如果这不是你的本意，请修改文件中的 name:，让它有自己的项目。"
 
 #: src/features/auth/messages.ts
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
@@ -6814,6 +6854,14 @@ msgstr "时间"
 #: src/features/apps/words.ts
 msgid "When it exits with an error"
 msgstr "出错退出时"
+
+#: src/features/changes/notices.tsx
+msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
+msgstr "在启用 SELinux 的服务器上，Docker 会把那里的所有内容重新标记为此应用私有，其他内容都无法再使用。"
+
+#: src/features/changes/notices.tsx
+msgid "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
+msgstr "在启用 SELinux 的服务器上，Docker 会重新标记那里的所有内容，以便在容器之间共享。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."

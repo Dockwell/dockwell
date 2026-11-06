@@ -692,6 +692,22 @@ describe("what a plan asks of whoever applies it", () => {
     return change;
   }
 
+  it("says a mount relabels what's there, however read-only it is", async () => {
+    show(reaching({ kind: HostAccessKind.SERVER_PATH, path: "/srv/site", readOnly: true, relabel: "Z" }));
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const notice = await within(sheet).findByText(/relabels everything there/);
+    expect(notice).toHaveTextContent("It can read that path on the server.");
+    expect(notice).toHaveTextContent("as private to this app, so nothing else can use it.");
+  });
+
+  it("says so of a shared relabel, and beside what's as good as root", async () => {
+    show(reaching({ kind: HostAccessKind.SERVER_PATH, path: "/etc", relabel: "z", sameAsRoot: true }));
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const risk = await within(sheet).findByRole("alert");
+    expect(risk).toHaveTextContent("so reaching it is as good as root.");
+    expect(risk).toHaveTextContent("Docker relabels everything there, to share it between containers.");
+  });
+
   it("warns about an ordinary folder in amber, with nothing to type, and still sends the fingerprint", async () => {
     const user = userEvent.setup();
     const { applies } = show(

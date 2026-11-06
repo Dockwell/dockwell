@@ -4844,8 +4844,11 @@ components:
                          is, "values_latest" for one that keeps the latest value of what the service
                          uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
                          one of the tag a rollback pinned, which replaces it whatever the pull finds,
-                         "starts_stopped" for what isn't running and this plan starts, "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
-                         exactly the image a revision ran, "kept_password" for a volume that keeps the
+                         "starts_stopped" for what isn't running and this plan starts, "digest_pinned"
+                         for a rollback that runs exactly the image a revision ran, "digest_gone" for
+                         one that can't as neither the server nor its registry has that image,
+                         "digest_differs" for one that can't as its servers ran different images,
+                         "kept_password" for a volume that keeps the
                          password it was made with, whatever an edit gave, and "kept_options" for one
                          that keeps its options, as an edit gave none, and "first_steps" for what a
                          catalog app needs a person to know and do. Another reason may come: its
@@ -4866,13 +4869,25 @@ components:
                          "exposed_variable"; the project, then the services it runs, for
                          "updates_project"; the volumes and server paths for "volumes_stay"; the
                          variables and secrets, by the names the service sees, for "values_latest";
-                         the container_name, or the image, or the ports. Never a variable's value.
+                         the image, the revision and its digest for "digest_pinned" and "digest_gone",
+                         and the image and the revision for "digest_differs"; the container_name, or
+                         the image, or the ports. Never a variable's value.
                 from:
                     type: string
                     description: |-
                         Where the value came from, for "exposed_variable": "env_file" for the .env
                          sent beside the file, which someone may not have read for this, and
                          "variables" for the request's own. Empty otherwise.
+                deleted:
+                    type: array
+                    items:
+                        type: string
+                    description: What it says would be deleted, for "updates_project". Empty otherwise.
+                named:
+                    type: boolean
+                    description: |-
+                        True when names and deleted hold all that message says, so a surface can say
+                         it in its own words. A note kept from before these did has only its message.
             description: PlanNote is one thing a person should know before applying a plan.
         PlanPlace:
             type: object
@@ -5493,8 +5508,9 @@ components:
                 steps:
                     type: integer
                     description: |-
-                        How many steps it takes. None means the servers still had what was there
-                         before, as the failed change stopped before it changed them.
+                        How many steps it takes, without one that found the server had what it was
+                         to put back. None means the servers still had what was there before, as the
+                         failed change stopped before it changed them.
                     format: int32
                 waitingFor:
                     type: array

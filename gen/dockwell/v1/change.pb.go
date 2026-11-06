@@ -2886,8 +2886,9 @@ type RollbackStatus struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Where it is.
 	State RollbackState `protobuf:"varint,2,opt,name=state,proto3,enum=dockwell.v1.RollbackState" json:"state,omitempty"`
-	// How many steps it takes. None means the servers still had what was there
-	// before, as the failed change stopped before it changed them.
+	// How many steps it takes, without one that found the server had what it was
+	// to put back. None means the servers still had what was there before, as the
+	// failed change stopped before it changed them.
 	Steps int32 `protobuf:"varint,3,opt,name=steps,proto3" json:"steps,omitempty"`
 	// The servers it waits for, by name, while it waits.
 	WaitingFor []string `protobuf:"bytes,4,rep,name=waiting_for,json=waitingFor,proto3" json:"waiting_for,omitempty"`
@@ -3262,8 +3263,11 @@ type PlanNote struct {
 	// is, "values_latest" for one that keeps the latest value of what the service
 	// uses, "pulls_again" for a deploy of the tag it already names, "leaves_pin" for
 	// one of the tag a rollback pinned, which replaces it whatever the pull finds,
-	// "starts_stopped" for what isn't running and this plan starts, "digest_pinned" and "digest_gone" for a rollback that does, or can't, run
-	// exactly the image a revision ran, "kept_password" for a volume that keeps the
+	// "starts_stopped" for what isn't running and this plan starts, "digest_pinned"
+	// for a rollback that runs exactly the image a revision ran, "digest_gone" for
+	// one that can't as neither the server nor its registry has that image,
+	// "digest_differs" for one that can't as its servers ran different images,
+	// "kept_password" for a volume that keeps the
 	// password it was made with, whatever an edit gave, and "kept_options" for one
 	// that keeps its options, as an edit gave none, and "first_steps" for what a
 	// catalog app needs a person to know and do. Another reason may come: its
@@ -3277,12 +3281,19 @@ type PlanNote struct {
 	// "exposed_variable"; the project, then the services it runs, for
 	// "updates_project"; the volumes and server paths for "volumes_stay"; the
 	// variables and secrets, by the names the service sees, for "values_latest";
-	// the container_name, or the image, or the ports. Never a variable's value.
+	// the image, the revision and its digest for "digest_pinned" and "digest_gone",
+	// and the image and the revision for "digest_differs"; the container_name, or
+	// the image, or the ports. Never a variable's value.
 	Names []string `protobuf:"bytes,4,rep,name=names,proto3" json:"names,omitempty"`
 	// Where the value came from, for "exposed_variable": "env_file" for the .env
 	// sent beside the file, which someone may not have read for this, and
 	// "variables" for the request's own. Empty otherwise.
-	From          string `protobuf:"bytes,5,opt,name=from,proto3" json:"from,omitempty"`
+	From string `protobuf:"bytes,5,opt,name=from,proto3" json:"from,omitempty"`
+	// What it says would be deleted, for "updates_project". Empty otherwise.
+	Deleted []string `protobuf:"bytes,6,rep,name=deleted,proto3" json:"deleted,omitempty"`
+	// True when names and deleted hold all that message says, so a surface can say
+	// it in its own words. A note kept from before these did has only its message.
+	Named         bool `protobuf:"varint,7,opt,name=named,proto3" json:"named,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3350,6 +3361,20 @@ func (x *PlanNote) GetFrom() string {
 		return x.From
 	}
 	return ""
+}
+
+func (x *PlanNote) GetDeleted() []string {
+	if x != nil {
+		return x.Deleted
+	}
+	return nil
+}
+
+func (x *PlanNote) GetNamed() bool {
+	if x != nil {
+		return x.Named
+	}
+	return false
 }
 
 // PlanSummary counts the resources a plan touches by what it does to them.
@@ -5293,13 +5318,15 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06places\x18\t \x03(\v2\x16.dockwell.v1.PlanPlaceR\x06places\"G\n" +
 	"\tPlanPlace\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x02 \x01(\tR\venvironment\"\x9c\x01\n" +
+	"\venvironment\x18\x02 \x01(\tR\venvironment\"\xcc\x01\n" +
 	"\bPlanNote\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x124\n" +
 	"\bresource\x18\x03 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +
 	"\x05names\x18\x04 \x03(\tR\x05names\x12\x12\n" +
-	"\x04from\x18\x05 \x01(\tR\x04from\"q\n" +
+	"\x04from\x18\x05 \x01(\tR\x04from\x12\x18\n" +
+	"\adeleted\x18\x06 \x03(\tR\adeleted\x12\x14\n" +
+	"\x05named\x18\a \x01(\bR\x05named\"q\n" +
 	"\vPlanSummary\x12\x16\n" +
 	"\x06create\x18\x01 \x01(\x05R\x06create\x12\x16\n" +
 	"\x06change\x18\x02 \x01(\x05R\x06change\x12\x18\n" +

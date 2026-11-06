@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -95,6 +96,13 @@ var (
 	}
 )
 
+// How much of a container's log it reads for the runtime's word on its binary, and for
+// how long, as what it finds only says why something failed.
+const (
+	logRefusalLines = 5
+	logRefusalWait  = 2 * time.Second
+)
+
 // What the runtime says when a container's command can't run: its binary is
 // for another architecture, isn't in the image, or can't be run.
 var (
@@ -171,8 +179,21 @@ func mountReason(message string) string {
 
 // pullFailure says why an image can't be pulled, and says so if it can't tell.
 func pullFailure(ref string, err error) error {
-	message := messageOf(err)
-	var plain, reason string
+	plain, reason := pullWords(ref, messageOf(err))
+	return resource.PlainlyBecause(reason, plain, fmt.Errorf("can't pull %s: %w", ref, err))
+}
+
+// pullAgainFailure is pullFailure for an image that runs now, as a deploy of its
+// own tag pulls it again: after why, it says what that left as it was.
+func pullAgainFailure(ref string, err error) error {
+	plain, reason := pullWords(ref, messageOf(err))
+	// The first full stop that a space follows, as an image's own have none after.
+	why, fix, _ := strings.Cut(plain, ". ")
+	return resource.PlainlyBecause(reason, why+". Nothing was replaced, and what runs goes on running. "+fix, fmt.Errorf("can't pull %s again: %w", ref, err))
+}
+
+// pullWords says why a pull failed, from what Docker said, and what that comes down to.
+func pullWords(ref, message string) (plain, reason string) {
 	switch {
 	case pullPlatform(message):
 		reason = resource.ReasonImage
@@ -198,7 +219,7 @@ func pullFailure(ref string, err error) error {
 	default:
 		plain = fmt.Sprintf("%s can't be pulled, and Dockwell doesn't recognize why. Docker says: %s. Look at what it says, then try again.", ref, dockerSays(message))
 	}
-	return resource.PlainlyBecause(reason, plain, fmt.Errorf("can't pull %s: %w", ref, err))
+	return plain, reason
 }
 
 // startFailure says why a container at t didn't start, from what Docker said
@@ -233,7 +254,7 @@ func startFailure(t Target, err error) error {
 		}
 		return resource.PlainlyBecause(resource.ReasonMount, fmt.Sprintf("%s can't mount %s. Check the path on this server, then try again.", t.Service, what), err)
 	case wrongArchitecture(message):
-		return resource.PlainlyBecause(resource.ReasonImage, fmt.Sprintf("The image for %s isn't built for this server's architecture. Choose a build for this server, or another image, then try again.", t.Service), err)
+		return wrongArchitectureFailure(t, err)
 	}
 	if m := commandGone.FindStringSubmatch(message); m != nil {
 		return resource.PlainlyBecause(resource.ReasonCommand, fmt.Sprintf("The command %s isn't in the image for %s. Check the command and the image, then try again.", m[1], t.Service), err)
@@ -246,6 +267,12 @@ func startFailure(t Target, err error) error {
 	}
 	says := strings.ReplaceAll(dockerSays(message), t.Name, t.Service)
 	return resource.Plainly(fmt.Sprintf("%s didn't start, and Dockwell doesn't recognize why. Docker says: %s. Look at what it says, then try again.", t.Service, says), err)
+}
+
+// wrongArchitectureFailure says an image isn't built for this server, however that
+// came out.
+func wrongArchitectureFailure(t Target, err error) error {
+	return resource.PlainlyBecause(resource.ReasonImage, fmt.Sprintf("The image for %s isn't built for this server's architecture. Choose a build for this server, or another image, then try again.", t.Service), err)
 }
 
 // explained is what running a container at t failed with, in plain words. A

@@ -653,6 +653,295 @@ func TestAnAgentLostAtEachStepRollsBackWhenItReturns(t *testing.T) {
 	})
 }
 
+// An agent lost in the middle of a pull has replaced nothing, though the rollback,
+// planned with it gone, has a step to put things back, as it can't tell. That step
+// finds the server has what it was to put back, so nothing was down, and nothing
+// says so of it.
+func TestARollbackThatFindsNothingToDoSaysWhatRanNeverStopped(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		r := setupRolling(t, b)
+		apply(t, r.engine, propose(t, r.engine, "Run web", r.edit("good:1")))
+		running := r.newest().ID
+		p := propose(t, r.engine, "Deploy", r.edit("good:2"))
+		plain := r.agents.agent
+		l := &lost{Agent: plain}
+		r.agents.agent = l
+		var once sync.Once
+		r.docker.Intercept(func(req *http.Request) error {
+			if req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/images/create") {
+				once.Do(func() {
+					l.cancel()
+					r.agents.set(false)
+				})
+				return errors.New("the client has gone")
+			}
+			return nil
+		})
+		err := r.engine.Apply(t.Context(), p.Change)
+		r.docker.Intercept(nil)
+		r.agents.agent = plain
+		var ferr *FailedError
+		if !errors.As(err, &ferr) || ferr.Rollback == "" || !errors.Is(ferr.RollbackErr, ErrPending) {
+			t.Fatalf("lost in the pull, applying = %v, want a rollback waiting for the server", err)
+		}
+		// While it waits nothing is known, so it has a step to do.
+		held, err := r.engine.Change(t.Context(), p.Change)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st := held.Rollback; st == nil || st.Steps != 1 {
+			t.Errorf("while it waits, the rollback's status is %+v", st)
+		}
+
+		r.agents.set(true)
+		if err := r.engine.Resume(t.Context()); err != nil {
+			t.Fatalf("Resume = %v", err)
+		}
+		r.engine.Wait()
+		if c := r.newest(); c.ID != running || !c.State.Running {
+			t.Fatalf("what ran is %s, running %t, want %s", c.ID, c.State.Running, running)
+		}
+		back, err := r.engine.Change(t.Context(), p.Change)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st := back.Rollback; st == nil || st.State != RollbackApplied || st.Steps != 0 || len(st.Restored) != 0 {
+			t.Errorf("the rollback's status is %+v, and should say it found what was there", st)
+		}
+		if c := stored(t, r.db, ferr.Rollback); !strings.Contains(string(c.Progress), "already has it") {
+			t.Errorf("the rollback's step says %s", c.Progress)
+		}
+	})
+}
+
+// crashAt runs a change until the check a container's start leads to, and has a new
+// control plane resume it on the same database, as after a kill or a power cut: what
+// the first held in memory is gone, and it never gets to say what it was doing.
+func crashAt(t *testing.T, r *rolling, starts int32, change string) *Engine {
+	t.Helper()
+	var started atomic.Int32
+	var once sync.Once
+	reached, release := make(chan struct{}), make(chan struct{})
+	r.docker.Intercept(func(req *http.Request) error {
+		switch {
+		case req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/start"):
+			started.Add(1)
+		case started.Load() == starts && req.Method == http.MethodGet && strings.Contains(req.URL.Path, "/containers/") && strings.HasSuffix(req.URL.Path, "/json"):
+			once.Do(func() {
+				close(reached)
+				<-release
+			})
+		}
+		return nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	// It's cut off here, as a crash would, so what it comes to says nothing.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = r.engine.Apply(ctx, change)
+	}()
+	select {
+	case <-reached:
+	case <-time.After(20 * time.Second):
+		t.Fatal("the change never reached its check")
+	}
+	r.docker.Intercept(nil)
+	next := New(r.db, r.engine.kinds, r.agents, r.engine.sealer, slog.New(slog.DiscardHandler))
+	if err := next.Resume(t.Context()); err != nil {
+		t.Fatalf("Resume = %v", err)
+	}
+	next.Wait()
+	t.Cleanup(func() {
+		close(release)
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+		}
+		r.engine.Wait()
+	})
+	return next
+}
+
+// holding is an agent that waits to be let go as a step reaches it.
+type holding struct {
+	resource.Agent
+	once             sync.Once
+	reached, release chan struct{}
+}
+
+func (h *holding) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	h.once.Do(func() {
+		close(h.reached)
+		<-h.release
+	})
+	return h.Agent.Apply(ctx, step, desired)
+}
+
+// What a step did stays in memory until it ends, so a crash as a rollback waits for
+// its check leaves it reading as queued, though it stopped what failed and started
+// what ran. Nothing can say it never began, so nothing may: the service was replaced,
+// and down, and "this stopped before it changed anything" would be false.
+func TestACrashMidRollbackDoesntSayNothingChanged(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		r := setupRolling(t, b)
+		apply(t, r.engine, propose(t, r.engine, "Run web", r.edit("db:1")))
+		first := r.newest().ID
+		p := propose(t, r.engine, "Deploy a broken db", r.edit("dbsick:1"))
+		next := crashAt(t, r, 2, p.Change)
+		if r.newest().ID == first {
+			t.Fatal("what ran wasn't replaced, so this proves nothing")
+		}
+		back, err := next.Change(t.Context(), p.Change)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st := back.Rollback; st == nil || st.Steps != 1 || !slices.Contains(st.Restored, "web") {
+			t.Errorf("after the crash the rollback's status is %+v, and should say it put web back", st)
+		}
+	})
+}
+
+// The same crash in an ordinary deploy: it replaced what ran, so its step can't say
+// the server already had it, or that it did nothing.
+func TestACrashMidDeployDoesntSayTheServerAlreadyHadIt(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		r := setupRolling(t, b)
+		apply(t, r.engine, propose(t, r.engine, "Run web", r.edit("db:1")))
+		p := propose(t, r.engine, "Deploy", r.edit("db:2"))
+		crashAt(t, r, 1, p.Change)
+		c := stored(t, r.db, p.Change)
+		if c.State != store.ChangeApplied {
+			t.Fatalf("after the crash the deploy is %s: %s", c.State, c.Error)
+		}
+		progress, err := decodeProgress(c.Progress)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range progress.Steps {
+			if s.Message == alreadyHasIt || s.Did != nil && *s.Did == resource.ActionNone {
+				t.Errorf("a step that replaced what ran did %v, and says %q", s.Did, s.Message)
+			}
+		}
+	})
+}
+
+// A wait on record says a step never began only until something resumes it: a crash
+// from there on has a step that may have run, with that wait still on record.
+func TestAResumeLeavesNoWaitOnRecord(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		r := setupRolling(t, b)
+		apply(t, r.engine, propose(t, r.engine, "Run web", r.edit("good:1")))
+		p := propose(t, r.engine, "Deploy", r.edit("good:2"))
+		plain := r.agents.agent
+		l := &lost{Agent: plain}
+		r.agents.agent = l
+		var once sync.Once
+		r.docker.Intercept(func(req *http.Request) error {
+			if req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/images/create") {
+				once.Do(func() {
+					l.cancel()
+					r.agents.set(false)
+				})
+				return errors.New("the client has gone")
+			}
+			return nil
+		})
+		err := r.engine.Apply(t.Context(), p.Change)
+		r.docker.Intercept(nil)
+		r.agents.agent = plain
+		var ferr *FailedError
+		if !errors.As(err, &ferr) || !errors.Is(ferr.RollbackErr, ErrPending) {
+			t.Fatalf("applying = %v, want a rollback waiting for the server", err)
+		}
+		state := func() StepState {
+			t.Helper()
+			progress, err := decodeProgress(stored(t, r.db, ferr.Rollback).Progress)
+			if err != nil || len(progress.Steps) != 1 {
+				t.Fatalf("the rollback's progress is %+v, %v", progress, err)
+			}
+			return progress.Steps[0].State
+		}
+		if got := state(); got != StepWaiting {
+			t.Fatalf("before it resumes, the rollback's step is %v", got)
+		}
+		// Held where its step begins, once it has been planned.
+		h := &holding{Agent: plain, reached: make(chan struct{}), release: make(chan struct{})}
+		r.agents.agent = h
+		r.agents.set(true)
+		resumed := make(chan error, 1)
+		go func() { resumed <- r.engine.Resume(t.Context()) }()
+		select {
+		case <-h.reached:
+		case <-time.After(10 * time.Second):
+			close(h.release)
+			t.Fatal("the resumed rollback never reached its step")
+		}
+		got := state()
+		close(h.release)
+		if err := <-resumed; err != nil {
+			t.Fatalf("Resume = %v", err)
+		}
+		r.engine.Wait()
+		if got == StepWaiting {
+			t.Error("a resumed step still reads as waiting, so a crash from here would say it never began")
+		}
+	})
+}
+
+// A rollback's step that started and lost its agent did put things back, and what
+// ran had stopped, so finding the server as it should be says nothing of that: it
+// stays put back, and it was down.
+func TestARollbackStepThatStartedStaysPutBack(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		r := setupRolling(t, b)
+		apply(t, r.engine, propose(t, r.engine, "Run web", r.edit("db:1")))
+		p := propose(t, r.engine, "Deploy a broken db", r.edit("dbsick:1"))
+		plain := r.agents.agent
+		l := &lost{Agent: plain}
+		r.agents.agent = l
+		// The deploy starts what fails, then the rollback starts what ran, and the agent
+		// goes as that waits for its check.
+		var starts atomic.Int32
+		var once sync.Once
+		r.docker.Intercept(func(req *http.Request) error {
+			switch {
+			case req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/start"):
+				starts.Add(1)
+			case starts.Load() == 2 && req.Method == http.MethodGet && strings.Contains(req.URL.Path, "/containers/") && strings.HasSuffix(req.URL.Path, "/json"):
+				once.Do(func() {
+					l.cancel()
+					r.agents.set(false)
+				})
+			}
+			return nil
+		})
+		err := r.engine.Apply(t.Context(), p.Change)
+		r.docker.Intercept(nil)
+		r.agents.agent = plain
+		var ferr *FailedError
+		if !errors.As(err, &ferr) || ferr.Rollback == "" || !errors.Is(ferr.RollbackErr, ErrPending) {
+			t.Fatalf("applying = %v, want a rollback waiting for the server", err)
+		}
+		if starts.Load() != 2 {
+			t.Fatalf("Docker started %d containers, want the deploy's and the rollback's", starts.Load())
+		}
+		r.agents.set(true)
+		if err := r.engine.Resume(t.Context()); err != nil {
+			t.Fatalf("Resume = %v", err)
+		}
+		r.engine.Wait()
+		back, err := r.engine.Change(t.Context(), p.Change)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st := back.Rollback; st == nil || st.State != RollbackApplied || st.Steps != 1 || !slices.Contains(st.Restored, "web") {
+			t.Errorf("the rollback's status is %+v, and should say it put web back", st)
+		}
+	})
+}
+
 // A restart the control plane's stop cuts off finishes on the next start, once.
 func TestAStoppedRestartFinishesOnce(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {

@@ -21,6 +21,8 @@ type Image struct {
 	// RepoDigests are what its registries call it, such as nginx@sha256:ab12….
 	// An image built here has none.
 	RepoDigests []string `json:"RepoDigests"`
+	// Architecture is what it's built for, such as amd64.
+	Architecture string `json:"Architecture"`
 }
 
 // Digest says what a registry calls an image a reference names, or nothing for
