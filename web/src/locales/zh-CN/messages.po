@@ -600,6 +600,14 @@ msgid "{name}: {0}"
 msgstr "{name}：{0}"
 
 #: src/features/changes/notices.tsx
+msgid "{name}'s {where} hold the value of {variable}"
+msgstr "{name} 的 {where} 中含有 {variable} 的值"
+
+#: src/features/changes/notices.tsx
+msgid "{name}'s {where} hold the value of {variable} from your .env"
+msgstr "{name} 的 {where} 中含有你的 .env 里 {variable} 的值"
+
+#: src/features/changes/notices.tsx
 msgid "{name}'s {where} holds the value of {variable}"
 msgstr "{name} 的 {where} 中含有 {variable} 的值"
 

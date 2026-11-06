@@ -773,7 +773,7 @@ describe("the plan sheet", () => {
     expect(callout).toHaveTextContent("write the command as a list, with each word its own variable.");
     expect(callout).not.toHaveTextContent("TOKEN from your .env");
     // Where it came from an .env, it says so, and what can't be hidden where it lands.
-    expect(callout).toHaveTextContent("cache's labels holds the value of REDIS_PASSWORD from your .env");
+    expect(callout).toHaveTextContent("cache's labels hold the value of REDIS_PASSWORD from your .env");
     expect(callout).toHaveTextContent("It can't be hidden there, so if it's a secret, set it in environment");
     expect(callout).toHaveTextContent("This reason is new. The panel doesn't know it yet.");
     expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(callout);

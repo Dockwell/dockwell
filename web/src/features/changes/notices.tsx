@@ -406,11 +406,18 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
                 : field;
         // The API says where the value came from, and an .env is where someone may not have looked.
         const fromEnv = note.from === "env_file";
+        // A file's own field, in its own words, so its name says how many it is.
+        const several = field === "environment" || (field.endsWith("s") && field !== "dns" && field !== "tmpfs");
+        const title = several
+          ? fromEnv
+            ? t`${name}'s ${where} hold the value of ${variable} from your .env`
+            : t`${name}'s ${where} hold the value of ${variable}`
+          : fromEnv
+            ? t`${name}'s ${where} holds the value of ${variable} from your .env`
+            : t`${name}'s ${where} holds the value of ${variable}`;
         return {
           key,
-          title: fromEnv
-            ? t`${name}'s ${where} holds the value of ${variable} from your .env`
-            : t`${name}'s ${where} holds the value of ${variable}`,
+          title,
           detail:
             field === "command" || field === "entrypoint"
               ? t`Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the ${where} as a list, with each word its own variable.`

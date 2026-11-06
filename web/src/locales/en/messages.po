@@ -600,6 +600,14 @@ msgid "{name}: {0}"
 msgstr "{name}: {0}"
 
 #: src/features/changes/notices.tsx
+msgid "{name}'s {where} hold the value of {variable}"
+msgstr "{name}'s {where} hold the value of {variable}"
+
+#: src/features/changes/notices.tsx
+msgid "{name}'s {where} hold the value of {variable} from your .env"
+msgstr "{name}'s {where} hold the value of {variable} from your .env"
+
+#: src/features/changes/notices.tsx
 msgid "{name}'s {where} holds the value of {variable}"
 msgstr "{name}'s {where} holds the value of {variable}"
 
