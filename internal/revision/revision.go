@@ -3462,8 +3462,8 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 // when it ran. The plan that took no backup is the only one to know it took none.
 func undoNotes(undone *Plan) []Note {
 	var notes []Note
-	for _, n := range undone.Notes {
-		if n.Reason == "no_backup" {
+	for i := range undone.Notes {
+		if n := &undone.Notes[i]; n.Reason == "no_backup" {
 			notes = append(notes, Note{
 				Reason:  "undo_no_backup",
 				Message: "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version",
