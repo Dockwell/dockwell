@@ -39,6 +39,9 @@ type Desired struct {
 	// Restore brings the resource's data back from a backup, with its spec as it
 	// is. Its kind is a Restorer.
 	Restore *RestoreSource
+	// Backup backs up the resource's data as a step of this change, under this ID.
+	// Its kind is a BackerUp.
+	Backup string
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -255,7 +258,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup}, d
 	}
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
@@ -311,6 +314,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 						return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 					}
 				}
+			}
+			steps = append(steps, step)
+			continue
+		}
+		if want.Backup != "" && step.Action == ActionNone {
+			b, ok := d.(BackerUp)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't back up a %s", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := b.JudgeBackup(ctx, want.Ref, want.Backup)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.Decision = dec
 			}
 			steps = append(steps, step)
 			continue
@@ -448,6 +466,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return fmt.Errorf("can't get the values %s uses: %w", step.Ref, err)
 		}
 		ctx = WithValues(ctx, values)
+	}
+	if step.BackupFirst != nil {
+		b, ok := d.(BackerUp)
+		if !ok {
+			return cantApply(step, fmt.Errorf("this agent can't back up a %s", step.Ref.Kind))
+		}
+		if err := b.ApplyBackup(ctx, step); err != nil {
+			return Plainly(fmt.Sprintf("Dockwell can't back up %s, so nothing else in this change ran: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't back up %s: %w", step.Ref, err))
+		}
+		return nil
 	}
 	if step.Restore != nil {
 		r, ok := d.(Restorer)

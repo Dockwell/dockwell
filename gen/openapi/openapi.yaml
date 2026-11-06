@@ -3002,6 +3002,40 @@ components:
                     description: When the last one got there. Unset until one has.
                     format: date-time
             description: BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
+        BackupFirst:
+            type: object
+            properties:
+                backupId:
+                    type: string
+                    description: The backup's ID, once it's taken.
+                method:
+                    enum:
+                        - BACKUP_METHOD_UNSPECIFIED
+                        - BACKUP_METHOD_DUMP
+                        - BACKUP_METHOD_COPY
+                        - BACKUP_METHOD_COPY_RUNNING
+                    type: string
+                    description: How it's taken.
+                    format: enum
+                database:
+                    type: string
+                    description: The database of a dump, such as "PostgreSQL".
+                stops:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What stops while it's copied: services by name, and anything else by its
+                         container's. A database's dump stops nothing.
+                estimateBytes:
+                    type: string
+                    description: |-
+                        About how much it will take on the server's disk, in bytes. Zero when that took
+                         too long to find out.
+            description: |-
+                BackupFirst is a backup a change takes before anything else it does, as a catalog
+                 upgrade takes one of what the new version may change. If it fails, the change stops
+                 there, with nothing else done.
         BackupPolicy:
             type: object
             properties:
@@ -6148,7 +6182,7 @@ components:
                          password it was made with, whatever an edit gave, "kept_passphrase" for a backup
                          destination that keeps its passphrase the same way, and "kept_options" for one
                          that keeps its options, as an edit gave none, "first_steps" for what a catalog
-                         app needs a person to know and do, "no_backup" for a catalog upgrade that runs
+                         app needs a person to know and do, "backup_first" for one that backs up its volumes first, "no_backup" for a catalog upgrade that runs
                          without a backup first, "upgrade_kept" for what a person changed that the upgrade
                          changes too, which stays, "upgrade_dropped" for what they changed that it
                          drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
@@ -6403,6 +6437,10 @@ components:
                     description: |-
                         What a step that restores a volume from a backup does. Numbered apart, as open
                          work adds to this message.
+                backupFirst:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupFirst'
+                    description: What a step that backs up a volume before the rest of a change does.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -8529,6 +8567,9 @@ components:
                     description: |-
                         A value for each input the newer release adds, by name, as InstallCatalogEntry
                          takes them. What it was installed with carries over, and its secrets stay.
+                skipBackup:
+                    type: boolean
+                    description: Leaves out the backup of its volumes that comes first, and the plan says so.
             description: UpgradeCatalogInstallRequest names an install to upgrade.
         UpgradeCatalogInstallResponse:
             type: object

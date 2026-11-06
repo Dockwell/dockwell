@@ -31,13 +31,12 @@ async function pickTheDatabase(sheet: Locator) {
 }
 
 export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFlowOptions) {
-  step("backups: the rail leads to them, and nothing is taken yet");
+  step("backups: the rail leads to them, with what the catalog's upgrade took");
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Backups" }).click();
   await page.getByRole("heading", { level: 1, name: "Backups" }).waitFor();
-  await page.getByRole("heading", { level: 2, name: "No backups yet" }).waitFor();
-  await shoot(page, "backups-empty");
+  await page.getByRole("table", { name: "Backups, newest first" }).getByRole("row").nth(1).waitFor();
 
   step("backups: a database's dump says it stops nothing, and its server says how it went");
   await page.getByRole("button", { name: "Back up now" }).click();

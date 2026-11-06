@@ -1809,6 +1809,10 @@ msgstr "按计划备份 {0}"
 msgid "Back up {name}"
 msgstr "备份 {name}"
 
+#: src/features/changes/PlanSteps.tsx
+msgid "Back up <0>{name}</0>"
+msgstr "备份 <0>{name}</0>"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "Back up a volume before you change what's in it. A database's backup stops nothing."
 msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何服务。"
@@ -2934,10 +2938,6 @@ msgstr "Dockwell {short}：控制平面状态"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
-#: src/features/changes/notices.tsx
-msgid "Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
-msgstr "Dockwell 目前还无法创建备份。撤销会恢复旧版本，但不会还原新版本对数据的改动，例如已迁移的数据库。请先备份不能丢失的内容。"
-
 #: src/features/backups/BackUpSheet.tsx
 msgid "Dockwell can't reach what this would back up"
 msgstr "Dockwell 无法访问要备份的内容"
@@ -3694,6 +3694,10 @@ msgstr "我已保存密码短语的副本"
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
 
+#: src/features/changes/notices.tsx
+msgid "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
+msgstr "如果备份失败，升级会就此停止，不做其他操作。撤销会恢复旧版本，但不会恢复新版本对数据的改动：如需恢复数据，请恢复备份。"
+
 #: src/features/changes/words.ts
 msgid "If the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to"
 msgstr "如果新容器无法启动，此服务将没有任何容器运行，而重启没有可回退的版本"
@@ -4128,6 +4132,10 @@ msgstr "官网"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
 msgstr "它的值含有空格、引号或 Compose 会当作这一行一部分来读的其他字符，所以一个名称无法代表它。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
+
+#: src/features/changes/notices.tsx
+msgid "Its volumes are backed up first"
+msgstr "它的卷会先备份"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
@@ -7183,6 +7191,10 @@ msgid "the control plane runs {controlPlane}"
 msgstr "控制平面为 {controlPlane}"
 
 #: src/features/changes/notices.tsx
+msgid "The data stays as it is now"
+msgstr "数据保持现状"
+
+#: src/features/changes/notices.tsx
 msgid "The database may not start on files from another release. Deploy {writtenBy} first and restore then, or restore a dump instead."
 msgstr "数据库可能无法用其他版本的文件启动。请先部署 {writtenBy} 再恢复，或者改为恢复转储。"
 
@@ -7688,8 +7700,16 @@ msgid "This put the old version back, not its data. If the new version changed t
 msgstr "这只恢复了旧版本,没有恢复它的数据。如果新版本改动过这些数据(例如做过迁移),旧版本可能拒绝读取或读错,而且没有做过备份。请检查应用能否读取数据,如果不能,请恢复你自己的备份。"
 
 #: src/features/changes/notices.tsx
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and restore the backup taken before the upgrade if it doesn't."
+msgstr "此操作恢复了旧版本，但没有恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。请检查应用能否读取数据，如不能，请恢复升级前创建的备份。"
+
+#: src/features/changes/notices.tsx
 msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
 msgstr "这只会恢复旧版本,不会恢复它的数据。如果新版本改动过这些数据(例如做过迁移),旧版本可能拒绝读取或读错,而且没有做过备份。请先备份不能丢失的内容,或者继续使用新版本。"
+
+#: src/features/changes/notices.tsx
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup taken before the upgrade holds it as it was: restore that from Backups after this."
+msgstr "此操作恢复旧版本，但不恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。升级前创建的备份保存了原来的数据：完成后可在“备份”中恢复。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
@@ -8377,6 +8397,10 @@ msgstr "之前运行的内容已重新运行"
 msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't."
 msgstr "失败之前运行过的版本可能已经改动了数据(例如做过迁移),现在运行的版本可能拒绝读取或读错。请检查应用能否读取数据,如果不能,请恢复你自己的备份。"
 
+#: src/features/changes/notices.tsx
+msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore the backup taken first if it doesn't."
+msgstr "失败之前运行的内容可能已改动数据（例如迁移），当前运行的版本可能拒绝或误读这些数据。请检查应用能否读取数据，如不能，请恢复事先创建的备份。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "What runs"
 msgstr "运行内容"
@@ -8567,6 +8591,10 @@ msgstr "昨天"
 #: src/features/catalog/InstallSheet.tsx
 msgid "You approve what it reaches in the plan"
 msgstr "你将在计划中批准它可访问的内容"
+
+#: src/features/changes/notices.tsx
+msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
+msgstr "你选择了不备份。撤销会恢复旧版本，但不会恢复新版本对数据的改动，例如已迁移的数据库。请先备份不能丢失的内容。"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "You become the owner. Nobody else can sign in."

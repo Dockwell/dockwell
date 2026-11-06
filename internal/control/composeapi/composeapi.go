@@ -175,6 +175,8 @@ type planning struct {
 	notes   []revision.Note
 	// deletes are what goes with this, after everything else, in this order.
 	deletes []resource.Ref
+	// backUp are the volumes to back up before anything else.
+	backUp []resource.Ref
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -284,7 +286,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, BackUp: also.backUp, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // AdoptCompose plans taking on a Compose project made elsewhere: each container as a

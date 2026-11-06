@@ -189,6 +189,8 @@ message StepOutcome {
   // What the step did in the end, where that isn't what its plan says, as a pull
   // that found nothing newer did nothing.
   dockwell.v1.PlanAction did = 6;
+  // The backup it took, for a step that takes one.
+  BackupResult backup = 7;
 }
 
 // Kinds lists the kinds of resource an agent can run now, and why it
@@ -799,6 +801,8 @@ message DesiredResource {
   // project stays the environment's ID, which never changes. Empty names a new
   // container as Compose would, "<project>-<service>-<number>", as before.
   string scope_name = 9;
+  // Backs up the resource's data as a step of this change, under this ID.
+  string backup_id = 10;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.
@@ -905,6 +909,8 @@ message BackupResult {
   string sha256 = 4;
   // How many files changed while they were read.
   int64 files_changed = 5;
+  // The backup's ID, where a step took it.
+  string id = 6;
 }
 
 // SendBackupResult says a backup reached its destination.

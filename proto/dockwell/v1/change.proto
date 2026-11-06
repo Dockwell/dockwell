@@ -684,7 +684,7 @@ message PlanNote {
   // password it was made with, whatever an edit gave, "kept_passphrase" for a backup
   // destination that keeps its passphrase the same way, and "kept_options" for one
   // that keeps its options, as an edit gave none, "first_steps" for what a catalog
-  // app needs a person to know and do, "no_backup" for a catalog upgrade that runs
+  // app needs a person to know and do, "backup_first" for one that backs up its volumes first, "no_backup" for a catalog upgrade that runs
   // without a backup first, "upgrade_kept" for what a person changed that the upgrade
   // changes too, which stays, "upgrade_dropped" for what they changed that it
   // drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
@@ -1013,6 +1013,26 @@ message PlanStep {
   // What a step that restores a volume from a backup does. Numbered apart, as open
   // work adds to this message.
   RestorePlan restore = 40;
+  // What a step that backs up a volume before the rest of a change does.
+  BackupFirst backup_first = 41;
+}
+
+// BackupFirst is a backup a change takes before anything else it does, as a catalog
+// upgrade takes one of what the new version may change. If it fails, the change stops
+// there, with nothing else done.
+message BackupFirst {
+  // The backup's ID, once it's taken.
+  string backup_id = 1;
+  // How it's taken.
+  BackupMethod method = 2;
+  // The database of a dump, such as "PostgreSQL".
+  string database = 3;
+  // What stops while it's copied: services by name, and anything else by its
+  // container's. A database's dump stops nothing.
+  repeated string stops = 4;
+  // About how much it will take on the server's disk, in bytes. Zero when that took
+  // too long to find out.
+  int64 estimate_bytes = 5;
 }
 
 // SharedName is a name more than one container answers to on a network.

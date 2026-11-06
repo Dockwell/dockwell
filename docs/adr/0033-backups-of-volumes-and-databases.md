@@ -112,10 +112,18 @@ What was settled already:
 - **Deleting a backup takes it from both, or from its server alone.** The panel says which, and removing it from the server alone keeps it on its destination, to fetch from. A bucket that refuses doesn't keep the server's copy: that goes, the timeline says what the bucket said as `backup.copy_kept`, and it's tried again by a person, or by the next run. A destination that was deleted is the bucket's to look after: Dockwell has nothing to sign in with.
 - **Retention looks at each place on its own.** A server keeps the newest it should, and so does a destination, which can be older ones: a copy goes only once that many newer ones are stored there. So with an expired key, a server moves on, the bucket keeps what it last had, and the backups that left the server stay on record, to fetch.
 
+### A backup before an upgrade
+
+- **It's a step of the upgrade's plan.** An upgrade edits each volume it keeps with `Edit.Backup`, and each server that has one gets a step that takes a backup. Volumes come before what mounts them in a plan, so the backup runs before anything is replaced, and shows and fails like any step.
+- **A backup that fails stops the upgrade there,** with nothing else done, as ADR 0009 has any step that fails. Its fingerprint leaves out what the backup will cost, as a file that grew is no reason to review a plan again.
+- **It's an exact copy.** A database gets its own dump, and anything else has what mounts it stopped for the copy, then started, as the upgrade replaces it next anyway.
+- **It goes on the record as any backup does,** and stays until someone deletes it: no policy took it. A step cut short finds the backup on the disk, and doesn't take another.
+- **`skip_backup` leaves it out,** for a volume too large to copy, and the plan says so.
+- **Undoing an upgrade doesn't restore the backup.** Undo puts back what a plan changed, and the data may be what you want to keep. The undo's plan says the backup is there.
+
 ### Left for later
 
 These come with the next slices of #88 or their own issues, and each is built on the above:
-- a backup before a catalog upgrade;
 - bind mounts, which aren't volumes, and websites;
 - restoring to another server or a new volume, and restore drills.
 

@@ -71,6 +71,8 @@ type Driver struct {
 	// Restores brings a volume's data back from a backup, on the agent. Without
 	// it, as on the control plane, a volume can only say it can be restored.
 	Restores resource.Restorer
+	// BacksUp backs one up as a step of a change, on the agent.
+	BacksUp resource.BackerUp
 }
 
 var _ resource.Driver = (*Driver)(nil)
@@ -518,7 +520,23 @@ func (d *Driver) ApplyRestore(ctx context.Context, step resource.Step, source re
 	return d.Restores.ApplyRestore(ctx, step, source)
 }
 
-var errNoRestores = errors.New("this agent can't restore volumes, as it has no Docker driver")
+// JudgeBackup judges a step that backs up a volume.
+func (d *Driver) JudgeBackup(ctx context.Context, ref resource.Ref, id string) (resource.Decision, bool, error) {
+	if d.BacksUp == nil {
+		return resource.Decision{}, false, errNoRestores
+	}
+	return d.BacksUp.JudgeBackup(ctx, ref, id)
+}
+
+// ApplyBackup carries out a step that backs up a volume.
+func (d *Driver) ApplyBackup(ctx context.Context, step resource.Step) error {
+	if d.BacksUp == nil {
+		return errNoRestores
+	}
+	return d.BacksUp.ApplyBackup(ctx, step)
+}
+
+var errNoRestores = errors.New("this agent can't back up or restore volumes, as it has no Docker driver")
 
 // Observe asks Docker.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {

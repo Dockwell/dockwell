@@ -173,6 +173,8 @@ message UpgradeCatalogInstallRequest {
   // A value for each input the newer release adds, by name, as InstallCatalogEntry
   // takes them. What it was installed with carries over, and its secrets stay.
   map<string, string> values = 2 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // Leaves out the backup of its volumes that comes first, and the plan says so.
+  bool skip_backup = 3;
 }
 
 // UpgradeCatalogInstallResponse carries the planned change.

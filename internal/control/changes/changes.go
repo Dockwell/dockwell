@@ -112,6 +112,8 @@ type Also struct {
 	Adopts map[string]Adoption
 	// Intent is what the plan is for, when the method proposing it knows.
 	Intent *revision.Intent
+	// BackUp names resources to back up first (revision.Edit).
+	BackUp []resource.Ref
 }
 
 // Adoption is a container a change takes on: its full ID, and what it is called.
@@ -157,6 +159,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		edits[i].Base, edits[i].Pull, edits[i].Run = also.Base, also.Pull, also.Run
 		a := also.Adopts[edits[i].Ref.Name]
 		edits[i].Adopt, edits[i].AdoptName = a.ID, a.Name
+		edits[i].Backup = slices.Contains(also.BackUp, edits[i].Ref)
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,

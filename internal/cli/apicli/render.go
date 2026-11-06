@@ -712,6 +712,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			for _, line := range restoreWords(st.GetRestore()) {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			if line := backupFirstWords(st.GetBackupFirst()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			if st.GetHidesLogs() {
 				fmt.Fprintln(tw, "      Its kept logs can't be read from then on, by any name, and go in 7 days. Undoing this brings them back.")
 			}
@@ -820,6 +823,19 @@ func restoreWords(r *dockwellv1.RestorePlan) []string {
 		out = append(out, "Stops "+human.List(stops)+" while it happens, and starts what it stopped again after.")
 	}
 	return append(out, "The server keeps what's there now for 7 days. Undoing this puts it back.")
+}
+
+// backupFirstWords says what a step that backs up a volume does.
+func backupFirstWords(b *dockwellv1.BackupFirst) string {
+	switch {
+	case b == nil:
+		return ""
+	case b.GetMethod() == dockwellv1.BackupMethod_BACKUP_METHOD_DUMP:
+		return "Backs it up first, with " + b.GetDatabase() + "'s own dump, with nothing stopped."
+	case len(b.GetStops()) > 0:
+		return "Backs it up first, with " + human.List(b.GetStops()) + " stopped for an exact copy, and started again after."
+	}
+	return "Backs it up first."
 }
 
 // ingressWords says what a step does to its server's ingress.

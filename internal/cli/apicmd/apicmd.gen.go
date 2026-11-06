@@ -267,6 +267,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "id", Help: "Its project, by name or ID.", Arg: true},
 				{Path: "values", Help: "A value for each input the newer release adds, by name, as dockwell catalog install takes them. What it was installed with carries over, and its secrets stay.", Sensitive: true},
+				{Path: "skip_backup", Help: "Leaves out the backup of its volumes that comes first, and the plan says so."},
 			},
 			Call: apicli.Unary[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse](dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure),
 		},

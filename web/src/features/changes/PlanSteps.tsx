@@ -177,6 +177,10 @@ function StepRow({
             <span className="plan-step-activity">{activity}</span>
           ) : intent ? (
             <MachineWords>{words.intent(intent, tenseOf(live?.state))}</MachineWords>
+          ) : step.backupFirst ? (
+            <Trans>
+              Back up <code>{name}</code>
+            </Trans>
           ) : (
             <>
               {step.adopts
