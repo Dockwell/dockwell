@@ -443,11 +443,11 @@ describe("the shell in Simplified Chinese", () => {
 
   it("translates the not-yet page", async () => {
     await activateLocale("zh-CN");
-    renderAt("/catalog", {
+    renderAt("/backups", {
       system: { getVersion: () => create(GetVersionResponseSchema, {}) },
       servers: { watchServers: feed<WatchServersResponse>().stream },
     });
-    expect(await screen.findByRole("heading", { level: 1, name: "应用目录" })).toBeVisible();
+    expect(await screen.findByRole("heading", { level: 1, name: "备份" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 2, name: "此版本尚未提供" })).toBeVisible();
   });
 });

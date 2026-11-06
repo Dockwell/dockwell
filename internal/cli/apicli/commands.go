@@ -199,7 +199,7 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 		if err := b.apply(req.ProtoReflect(), args); err != nil {
 			return err
 		}
-		r := &runner{env: env, opts: o, command: cmd.CommandPath()}
+		r := &runner{env: env, opts: o, command: cmd.CommandPath(), inline: b.inline()}
 		return r.method(cmd.Context(), m, req)
 	}
 	return cmd, nil
@@ -211,16 +211,17 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 // change it ended, which is only printed. A plan method that returns a
 // change and isn't here fails the commands' building, and so their tests.
 var proposers = map[string]bool{
-	"dockwell.v1.ChangeService.ProposeChange":    true,
-	"dockwell.v1.ChangeService.UndoChange":       true,
-	"dockwell.v1.ChangeService.RevertDrift":      true,
-	"dockwell.v1.ChangeService.AdoptDrift":       true,
-	"dockwell.v1.ChangeService.RestartService":   true,
-	"dockwell.v1.ChangeService.DiscardChange":    false,
-	"dockwell.v1.ComposeService.ImportCompose":   true,
-	"dockwell.v1.ServiceService.DeployService":   true,
-	"dockwell.v1.ServiceService.RollBackService": true,
-	"dockwell.v1.ServiceService.AddServicePort":  true,
+	"dockwell.v1.ChangeService.ProposeChange":        true,
+	"dockwell.v1.ChangeService.UndoChange":           true,
+	"dockwell.v1.ChangeService.RevertDrift":          true,
+	"dockwell.v1.ChangeService.AdoptDrift":           true,
+	"dockwell.v1.ChangeService.RestartService":       true,
+	"dockwell.v1.ChangeService.DiscardChange":        false,
+	"dockwell.v1.ComposeService.ImportCompose":       true,
+	"dockwell.v1.CatalogService.InstallCatalogEntry": true,
+	"dockwell.v1.ServiceService.DeployService":       true,
+	"dockwell.v1.ServiceService.RollBackService":     true,
+	"dockwell.v1.ServiceService.AddServicePort":      true,
 }
 
 // proposes reports a method that proposes a new change, by what it does,

@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+// A catalog entry: one app at one version, in the format Dockwell reads,
+// whichever catalog it came from. Anyone can publish a catalog in it. See
+// docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md. The package is
+// alpha while the format settles, as ADR 0029 says it can't be final until
+// backups exist, so it may change without notice.
+package dockwell.catalog.v1alpha1;
+
+// Entry is one app a catalog offers, at one version. It installs through the
+// same plan as any Compose file, into a project of its own. It runs no script
+// on a server, and every image in it is pinned by digest.
+message Entry {
+  // Its ID, which stays the same from one version to the next, such as
+  // "postgres". An install is pinned to it.
+  string id = 1;
+  // What people call the app, such as "PostgreSQL".
+  string name = 2;
+  // What the app is for, in one line, in the catalog's own words, such as
+  // "Relational database, with Adminer to manage it".
+  string summary = 3;
+  // Where it files under, in lowercase, such as "databases".
+  string category = 4;
+  // The app's version, for people, such as "17.11". Nothing orders these:
+  // release says which entry is newer.
+  string version = 5;
+  // Goes up each time the entry changes, so a higher one is an upgrade,
+  // whether or not the app's version reads as one.
+  uint32 release = 6;
+  // The app's own site.
+  string homepage = 7;
+  // The licence of this entry, as an SPDX identifier, which its source sets.
+  string license = 8;
+  // The licence of the app it installs, which may differ, as an SPDX
+  // identifier or its name, such as "PostgreSQL" or "Sustainable Use License".
+  string app_license = 9;
+  // Where this entry came from.
+  Source source = 10;
+  // The Compose file it runs, as YAML, whose ${NAME}s are its inputs' names.
+  // Each image is pinned by digest. It takes what ImportCompose takes.
+  string compose = 11;
+  // What it needs to know to install, in the order to ask.
+  repeated Input inputs = 12;
+  // The service a person opens once it's installed. Unset for an app with
+  // nothing to open, such as a tunnel.
+  Web web = 13;
+  // What to do first once it runs, in a sentence or two, such as how to sign
+  // in. Empty when there's nothing to say.
+  string first_steps = 14;
+  // What it reaches on its server beyond its own containers, in words, such as
+  // "The server's own network, to reach routes on loopback". A person approves
+  // it in the plan, which says exactly what. Empty when it reaches nothing.
+  string host_access = 15;
+}
+
+// Source is where an entry came from.
+message Source {
+  // The repository, such as "https://github.com/Dockwell/dockwell".
+  string repository = 1;
+  // The file in it, such as "internal/catalog/entries/postgres.yaml".
+  string path = 2;
+  // The commit. An entry built into Dockwell takes the commit of its build.
+  string commit = 3;
+}
+
+// Input is one thing an entry needs to know to install, named by the ${NAME}
+// its Compose file uses.
+message Input {
+  // The name its Compose file uses, such as "ADMIN_PORT".
+  string name = 1;
+  // What a person reads above the field, such as "Admin port".
+  string label = 2;
+  // What a person reads below it, such as what it's for or where to find it.
+  string hint = 3;
+  // What it takes.
+  InputType type = 4;
+  // Its value unless someone gives another. Never a secret's: leave a secret
+  // for a person to give, or set generate.
+  string default_value = 5;
+  // Takes no value: it's asked for, but the app runs without one.
+  bool optional = 6;
+  // How many characters to generate for a secret that no one types, such as 32.
+  // The value is sealed as it's made, and nothing shows it but a reveal. 0 asks
+  // a person for it.
+  uint32 generate = 7;
+  // The app writes this secret in its own log, as Nginx Proxy Manager does with
+  // its first password. Reading a log takes no passkey, so nothing may call it
+  // sealed, and a person hears that before they apply.
+  bool logged = 8;
+}
+
+// InputType is what an input takes.
+enum InputType {
+  // Reads as text.
+  INPUT_TYPE_UNSPECIFIED = 0;
+  // A line of text.
+  INPUT_TYPE_TEXT = 1;
+  // An email address.
+  INPUT_TYPE_EMAIL = 2;
+  // A port on the server, from 1 to 65535. A default that something Dockwell
+  // runs has taken moves on to the next one that's free.
+  INPUT_TYPE_PORT = 3;
+  // A value kept as one of the project's secrets, encrypted and used by
+  // reference. Its ${NAME} must be a whole environment value, or a word of a
+  // command or a health check, so that a rotation reaches the service. An app
+  // that reads it on first start alone keeps what it read, which the entry's
+  // first steps must say.
+  INPUT_TYPE_SECRET = 4;
+}
+
+// Web says what a person opens once an entry is installed.
+message Web {
+  // The service, by its name in the entry's Compose file, such as "adminer".
+  string service = 1;
+}

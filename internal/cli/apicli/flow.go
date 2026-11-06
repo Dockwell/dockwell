@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/human"
@@ -34,6 +35,9 @@ type runner struct {
 	opts    *options
 	client  *Client
 	command string // such as "dockwell projects create"
+	// inline are the keys the command line gave a value, for a method to refuse
+	// what's a secret.
+	inline []string
 	// choiceFlag names the flag that takes a choice, for a command whose
 	// request isn't built from its flags field by field.
 	choiceFlag func(*dockwellv1.Choice) string
@@ -220,6 +224,9 @@ func (r *runner) method(ctx context.Context, m *Method, req proto.Message) error
 	if err := r.connect(ctx); err != nil {
 		return err
 	}
+	if err := r.refuseInlineSecret(ctx, m); err != nil {
+		return err
+	}
 	if apply, ok := req.(*dockwellv1.ApplyChangeRequest); ok {
 		return r.applyPlanned(ctx, apply)
 	}
@@ -244,6 +251,29 @@ func (r *runner) method(ctx context.Context, m *Method, req proto.Message) error
 		}
 	}
 	return r.print(res, false)
+}
+
+// refuseInlineSecret refuses a catalog input that's a secret, given a value on the
+// command line, where it would stay in a shell's history and the process list. Which
+// inputs are secrets is each entry's to say, so it asks. A name that's a secret in any
+// entry counts, as an upgrade names a project and not an entry, and the name alone
+// always works. Nothing of the value leaves here.
+func (r *runner) refuseInlineSecret(ctx context.Context, m *Method) error {
+	if len(r.inline) == 0 || !strings.HasPrefix(m.Name, "dockwell.v1.CatalogService.") {
+		return nil
+	}
+	res, err := r.client.Catalog().ListCatalogEntries(ctx, connect.NewRequest(&dockwellv1.ListCatalogEntriesRequest{}))
+	if err != nil {
+		return r.explain(err)
+	}
+	for _, e := range res.Msg.GetEntries() {
+		for _, in := range e.GetInputs() {
+			if in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET && slices.Contains(r.inline, in.GetName()) {
+				return fmt.Errorf("--values %[1]s gives a secret, so it would stay in your shell's history and the process list. Give --values %[1]s alone to take its value from %[1]s in your environment", in.GetName())
+			}
+		}
+	}
+	return nil
 }
 
 // needsPanel refuses a destructive method, and says where the panel is when

@@ -68,6 +68,15 @@ func (ProjectType) Validate(spec proto.Message) error {
 	return nil
 }
 
+// Keep holds on to what a project is pinned to, as an edit replaces a whole spec and
+// no one renaming a project means to forget where it came from.
+func (ProjectType) Keep(current, desired proto.Message) (resource.Kept, error) {
+	if d := desired.(*resourcev1.Project); d.GetCatalog() == nil {
+		d.Catalog = current.(*resourcev1.Project).GetCatalog()
+	}
+	return resource.Kept{}, nil
+}
+
 // CheckName requires a DNS label, fit for URLs and the CLI.
 func (ProjectType) CheckName(name string) error { return resource.CheckLabel("project", name, "shop") }
 

@@ -370,6 +370,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
             : t`A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't.`,
         };
       }
+      case "first_steps":
+        return { key, title: t`What to do first`, detail: note.message };
       case "values_latest": {
         const names = note.names.join(", ");
         return {

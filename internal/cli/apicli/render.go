@@ -768,8 +768,11 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 	for _, n := range p.GetNotes() {
 		// A value anyone can read stops nobody, and is the most a note can say.
 		label := "Note"
-		if strings.HasPrefix(n.GetReason(), "exposed_") {
+		switch {
+		case strings.HasPrefix(n.GetReason(), "exposed_"):
 			label = "Warning"
+		case n.GetReason() == "first_steps":
+			label = "First steps"
 		}
 		message := strings.TrimSuffix(n.GetMessage(), ".")
 		if names := n.GetNames(); n.GetReason() == "named_as_text" && len(names) > 0 {

@@ -190,6 +190,10 @@ msgstr "{0} 项待更新"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
+#: src/features/catalog/InstallSheet.tsx
+msgid "{app} is under the {license} licence."
+msgstr "{app} 采用 {license} 许可证。"
+
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
@@ -227,6 +231,10 @@ msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保�
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, other {# 台服务器}}"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "{count, plural, one {Installed} other {# installed}}"
+msgstr "{count, plural, other {已安装 # 个}}"
+
 #: src/features/activity/describe.ts
 msgid "{count, plural, one {It changed once in {span}.} other {It changed # times in {span}.}}"
 msgstr "{count, plural, other {在 {span}内变化了 # 次。}}"
@@ -258,6 +266,10 @@ msgstr "{count} 小时前"
 #: src/app/Providers.tsx
 msgid "{count} healthy"
 msgstr "{count} 台健康"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "{count} installed"
+msgstr "已安装 {count} 个"
 
 #: src/lib/time.ts
 msgid "{count} min"
@@ -363,6 +375,10 @@ msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
 #: src/features/apps/AppsPage.tsx
 msgid "{moving} deploying"
 msgstr "{moving} 个正在部署"
+
+#: src/features/catalog/InstalledPanel.tsx
+msgid "{name} {version}"
+msgstr "{name} {version}"
 
 #: src/features/changes/notices.tsx
 msgid "{name} answers plain HTTP on {path} on {server}"
@@ -1262,12 +1278,17 @@ msgstr "代理未连接"
 msgid "Agent starting"
 msgstr "代理正在启动"
 
+#: src/features/catalog/useCatalog.ts
+msgid "AI"
+msgstr "AI"
+
 #: src/features/shell/sections.ts
 msgid "Alerts"
 msgstr "告警"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/catalog/CatalogPage.tsx
 msgid "All"
 msgstr "全部"
 
@@ -1346,6 +1367,10 @@ msgstr "名为 {name} 的应用已在此运行。请换一个名称，或在它�
 #: src/features/apps/NewAppSheet.tsx
 msgid "An image has no spaces. Write it as nginx:1.27."
 msgstr "镜像名称不能有空格，请写成 nginx:1.27。"
+
+#: src/features/catalog/useCatalog.ts
+msgid "Analytics"
+msgstr "分析"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -1482,6 +1507,10 @@ msgstr "身份验证器应用"
 msgid "Automatic"
 msgstr "自动"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Automation"
+msgstr "自动化"
+
 #: src/features/apps/AppLayout.tsx
 #: src/features/shell/Page.tsx
 msgid "Back"
@@ -1546,6 +1575,7 @@ msgid "Can't load this app"
 msgstr "无法加载此应用"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Can't make a plan"
 msgstr "无法生成计划"
 
@@ -1584,14 +1614,21 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
+#: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Cancel"
 msgstr "取消"
 
-#: src/features/shell/sections.ts
+#: src/features/catalog/CatalogPage.tsx
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
 msgid "Catalog"
 msgstr "应用目录"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Categories"
+msgstr "分类"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Change {name}"
@@ -1704,6 +1741,7 @@ msgid "Choose a longer range, or follow what it writes next."
 msgstr "请选择更长的时间范围，或跟随它接下来写入的内容。"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Choose where it runs."
 msgstr "请选择运行位置。"
 
@@ -1763,6 +1801,10 @@ msgstr "Cloudflare 连接此服务器的 80 端口。"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare 代理"
+
+#: src/features/catalog/useCatalog.ts
+msgid "CMS"
+msgstr "内容管理"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Code"
@@ -2000,6 +2042,14 @@ msgstr "无法拉取 {pulled}"
 msgid "Couldn't read the addresses this is reached at"
 msgstr "无法读取此应用的访问地址"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Couldn't read the catalog"
+msgstr "无法读取应用目录"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Couldn't read this app"
+msgstr "无法读取此应用"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Couldn't read this app's domains"
 msgstr "无法读取此应用的域名"
@@ -2122,6 +2172,7 @@ msgstr "不再使用的数据"
 msgid "database"
 msgstr "数据库"
 
+#: src/features/catalog/useCatalog.ts
 #: src/features/shell/sections.ts
 msgid "Databases"
 msgstr "数据库"
@@ -2268,6 +2319,10 @@ msgstr "会销毁数据"
 msgid "Details"
 msgstr "详细信息"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Developer tools"
+msgstr "开发者工具"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Directory"
 msgstr "目录"
@@ -2365,6 +2420,14 @@ msgstr "该网络不是 Dockwell 创建的，并且可以绕过服务器的防�
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "该网络不是 Dockwell 创建的。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
+msgstr "Dockwell 会生成{inLog}，但 {app} 会把它写入日志，而查看日志不需要通行密钥。请在首次登录后修改。"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
+msgstr "Dockwell 会生成{made}并加密保存。你可以用通行密钥查看。"
 
 #: src/features/apps/AppEnvironment.tsx
 msgid "Dockwell hands what's set on this app to it, and never shows those values again, as they may hold secrets."
@@ -2513,6 +2576,7 @@ msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无�
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Edit and try again"
 msgstr "修改后重试"
 
@@ -2785,6 +2849,10 @@ msgstr "来自 Git、Docker 镜像、Compose 文件或应用目录。"
 msgid "From the API"
 msgstr "来自 API"
 
+#: src/features/catalog/InstalledPanel.tsx
+msgid "From the catalog"
+msgstr "来自应用目录"
+
 #: src/features/changes/words.ts
 msgid "From the CLI"
 msgstr "来自 CLI"
@@ -2804,6 +2872,10 @@ msgstr "完全访问 {name}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give {first} a value to review the plan"
 msgstr "为 {first} 填写值后即可查看计划"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Give {missingLabel} a value to review the plan"
+msgstr "请填写{missingLabel}，然后审阅计划"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give each variable a value to review the plan"
@@ -2994,6 +3066,11 @@ msgstr "不到一分钟后"
 msgid "Info"
 msgstr "信息"
 
+#: src/features/catalog/CatalogPage.tsx
+#: src/features/catalog/InstallSheet.tsx
+msgid "Install {app}"
+msgstr "安装 {app}"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "安装时间"
@@ -3118,6 +3195,10 @@ msgstr "它从未停止。这次变更失败后,Dockwell 移除了它创建的�
 msgid "It ran as <0>{ranAs}</0>."
 msgstr "它曾以 <0>{ranAs}</0> 运行。"
 
+#: src/features/catalog/InstallSheet.tsx
+msgid "It reaches past its containers"
+msgstr "它的访问范围超出自身容器"
+
 #: src/features/changes/notices.tsx
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火墙。"
@@ -3238,6 +3319,10 @@ msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除
 msgid "Its logs show here once they can be read."
 msgstr "能读取时，它的日志就会显示在这里。"
 
+#: src/features/catalog/InstallSheet.tsx
+msgid "Its project, which keeps it apart from your other apps."
+msgstr "它所在的项目，让它与你的其他应用彼此隔离。"
+
 #: src/features/changes/words.ts
 msgid "Its rollout order says to stop first, so there are never two"
 msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器"
@@ -3246,6 +3331,10 @@ msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器
 #: src/features/changes/notices.tsx
 msgid "its server"
 msgstr "它的服务器"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Its site"
+msgstr "官网"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
@@ -3509,6 +3598,10 @@ msgstr "可能已被复制，不能再用于登录"
 msgid "Memory"
 msgstr "内存"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Monitoring"
+msgstr "监控"
+
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/TabBar.tsx
 msgid "More"
@@ -3534,6 +3627,7 @@ msgstr "换到另一个应用"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Name"
 msgstr "名称"
 
@@ -3596,6 +3690,10 @@ msgstr "网络"
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
+msgstr "网络"
+
+#: src/features/catalog/useCatalog.ts
+msgid "Networking"
 msgstr "网络"
 
 #: src/features/apps/words.ts
@@ -3667,6 +3765,10 @@ msgstr "否"
 #: src/features/apps/AppsPage.tsx
 msgid "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
 msgstr "此处没有名称或镜像包含 <0>{query}</0> 的应用。请试试名称的一部分，或清除筛选条件。"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "No app matches that. Try another word, or all categories."
+msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。"
 
 #: src/features/apps/AppLayout.tsx
 msgid "No app with this ID"
@@ -3801,6 +3903,10 @@ msgstr "此版本尚未提供"
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
+msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。<0>新建应用</0>"
+
 #: src/features/apps/AppEnvironment.tsx
 msgid "Not loaded"
 msgstr "未加载"
@@ -3929,6 +4035,7 @@ msgstr "服务器之外还无法访问这些应用。"
 
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Nothing runs until you apply the plan"
 msgstr "应用计划之前不会运行任何内容"
 
@@ -4036,6 +4143,11 @@ msgstr "只能通过你的 SSH 隧道访问，你的通行密钥也只在这里�
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
 msgstr "只能通过你的 SSH 隧道访问，你的通行密钥也只在这里可用。要在你自己的域名上使用 HTTPS，请先把它的 A 或 AAAA 记录指向这台服务器的公网地址，然后用 <0>--domain</0> 重启 dockwell。"
 
+#: src/features/catalog/CatalogPage.tsx
+#: src/features/catalog/InstallSheet.tsx
+msgid "Open {app}"
+msgstr "打开 {app}"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Open {at}"
 msgstr "打开 {at}"
@@ -4104,6 +4216,10 @@ msgstr "打开 {name} 的变量和密钥"
 #: src/features/shell/CommandMenu.tsx
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Open-source apps you can install in one step"
+msgstr "一步即可安装的开源应用"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Opens a plan"
@@ -4578,6 +4694,10 @@ msgstr "正在读取运行情况。"
 msgid "Reading logs"
 msgstr "正在读取日志"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Reading the catalog"
+msgstr "正在读取应用目录"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Reading the file"
 msgstr "正在读取文件"
@@ -4585,6 +4705,10 @@ msgstr "正在读取文件"
 #: src/features/logs/LogContext.tsx
 msgid "Reading the lines around it"
 msgstr "正在读取它前后的日志"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Reading this app"
+msgstr "正在读取此应用"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads logs"
@@ -4798,6 +4922,7 @@ msgstr "显示了密钥 {name}"
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Review plan"
@@ -5013,6 +5138,7 @@ msgid "Runs on"
 msgstr "运行于"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Runs on {onlyName}"
 msgstr "运行于 {onlyName}"
 
@@ -5068,6 +5194,10 @@ msgstr "范围"
 #: src/features/logs/LogsPage.tsx
 msgid "Search all the servers keep"
 msgstr "搜索服务器保留的全部内容"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Search apps"
+msgstr "搜索应用"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Search lines"
@@ -5219,6 +5349,10 @@ msgstr "显示更早的日志"
 msgid "Show in context"
 msgstr "查看上下文"
 
+#: src/features/catalog/InstalledPanel.tsx
+msgid "Show its secrets"
+msgstr "查看它的密钥"
+
 #: src/features/logs/LogNote.tsx
 msgid "Show less"
 msgstr "收起"
@@ -5240,6 +5374,7 @@ msgid "Show the activity of {name}"
 msgstr "显示 {name} 的动态"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Show the apps"
 msgstr "查看应用"
 
@@ -5445,6 +5580,10 @@ msgstr "请停止此服务器上占用它的程序，然后重新部署。"
 #: src/app/Providers.tsx
 msgid "Stopped"
 msgstr "已停止"
+
+#: src/features/catalog/useCatalog.ts
+msgid "Storage"
+msgstr "存储"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Such as 1Password, Google Authenticator or Aegis"
@@ -6399,6 +6538,7 @@ msgid "Use letters, digits and underscores, starting with a letter or underscore
 msgstr "请使用字母、数字和下划线，并以字母或下划线开头。"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
 msgstr "请使用小写字母、数字和连字符，并以字母开头，例如 shop。"
 
@@ -6490,6 +6630,10 @@ msgstr "{envName} 中的变量和密钥"
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "版本"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Version {version}"
+msgstr "版本 {version}"
 
 #. placeholder {0}: version.data.build.version
 #: src/features/auth/SignInPage.tsx
@@ -6620,6 +6764,11 @@ msgstr "此文件会创建的内容"
 msgid "What this step wants already runs, so nothing stops for it"
 msgstr "此步骤需要的容器已在运行，因此无需停止任何服务"
 
+#: src/features/catalog/InstallSheet.tsx
+#: src/features/changes/notices.tsx
+msgid "What to do first"
+msgstr "首先要做的事"
+
 #: src/features/apps/ExportSheet.tsx
 msgid "What to export"
 msgstr "要导出的内容"
@@ -6713,6 +6862,7 @@ msgid "Yesterday"
 msgstr "昨天"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "You approve what it reaches in the plan"
 msgstr "你将在计划中批准它可访问的内容"
 

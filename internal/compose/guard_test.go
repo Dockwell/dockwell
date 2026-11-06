@@ -452,3 +452,63 @@ func TestTheNewKeysCostWhatTheFileDoes(t *testing.T) {
 		})
 	}
 }
+
+// A test binary ignores GuardCommand and runs every test again, so it must read in its
+// own process. UseGuard is safe to call here: this asks it what it would run, and runs
+// nothing.
+func TestATestBinaryReadsInItsOwnProcess(t *testing.T) {
+	for exe, want := range map[string]string{
+		"/usr/local/bin/dockwell":        "/proc/self/exe",
+		"/tmp/go-build123/b001/cli.test": "",
+		"":                               "/proc/self/exe", // a path that can't be read keeps the child
+	} {
+		if got := guardFor(exe); got != want {
+			t.Errorf("guardFor(%q) = %q, want %q", exe, got, want)
+		}
+	}
+	t.Cleanup(func() { guardPath = "" })
+	guardPath = "set by something else"
+	UseGuard()
+	if guardPath != "" {
+		t.Errorf("in a test binary, UseGuard sets the child to %q", guardPath)
+	}
+}
+
+// A reader never starts another, in any binary. The child here is a script that writes
+// down its environment and exits, never this test binary, so a mistake costs one
+// short process, and neither half can start a second.
+func TestAReaderNeverStartsAnother(t *testing.T) {
+	dir := t.TempDir()
+	seen := filepath.Join(dir, "seen")
+	fake := filepath.Join(dir, "fake")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\nenv > "+seen+"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	guardPath = fake
+	t.Cleanup(func() { guardPath = "" })
+
+	// A first reader starts its child, and marks it.
+	if _, err := guard(t.Context(), Input{}, false); err != nil {
+		t.Fatalf("a first reader = %v", err)
+	}
+	env, err := os.ReadFile(seen)
+	if err != nil {
+		t.Fatalf("the child ran, and wrote nothing: %v", err)
+	}
+	if !strings.Contains(string(env), guardChildEnv+"=1\n") {
+		t.Errorf("the child isn't marked: %s", env)
+	}
+
+	// A process so marked starts nothing, and says why.
+	if err := os.Remove(seen); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(guardChildEnv, "1")
+	_, err = guard(t.Context(), Input{}, false)
+	if err == nil || !strings.Contains(err.Error(), "never starts another") {
+		t.Errorf("a marked process = %v, want it refused", err)
+	}
+	if _, err := os.Stat(seen); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a marked process started a child: %v", err)
+	}
+}

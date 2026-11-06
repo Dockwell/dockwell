@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
@@ -65,20 +67,123 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if strings.TrimSpace(m.GetCompose()) == "" {
 		return nil, invalid(errors.New("the request has no Compose file. Pass one in compose, such as --compose @compose.yaml"))
 	}
-	stack, err := compose.Read(ctx, compose.Input{File: []byte(m.GetCompose()), Variables: m.GetVariables(), Env: m.GetEnv(), Directory: m.GetDirectory()})
+	stack, err := h.read(ctx, compose.Input{File: []byte(m.GetCompose()), Variables: m.GetVariables(), Env: m.GetEnv(), Directory: m.GetDirectory()})
 	if err != nil {
-		switch {
-		case errors.Is(err, compose.ErrInvalid):
-			return nil, invalid(err)
-		case errors.Is(err, compose.ErrBusy):
-			return nil, connect.NewError(connect.CodeResourceExhausted, err)
-		}
 		return nil, err
 	}
 	place, err := h.destination(ctx, m.GetProject(), m.GetEnvironment(), stack.Name)
 	if err != nil {
 		return nil, err
 	}
+	c, err := h.plan(ctx, m, stack, place, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ImportComposeResponse{Change: c, ExposedVariables: exposedProtos(stack.Exposed), MoreExposed: stack.ExposedMore}), nil
+}
+
+// read reads a file, with the API's errors for what's wrong with it.
+func (h *Handler) read(ctx context.Context, in compose.Input) (*compose.Stack, error) {
+	stack, err := compose.Read(ctx, in)
+	switch {
+	case errors.Is(err, compose.ErrInvalid):
+		return nil, invalid(err)
+	case errors.Is(err, compose.ErrBusy):
+		return nil, connect.NewError(connect.CodeResourceExhausted, err)
+	}
+	return stack, err
+}
+
+// Install is a catalog entry to plan: a Compose file, with what an import has no
+// way to say.
+type Install struct {
+	Project string
+	Summary string
+	Name    string // how the project shows, such as "PostgreSQL"
+	File    []byte
+	// Variables are values for what the file uses, secrets among them.
+	Variables map[string]string
+	// Secrets are those to keep as the environment's secrets, by name. A service
+	// whose environment takes one whole uses it by reference.
+	Secrets map[string]string
+	Pin     *resourcev1.CatalogPin
+	Servers []string
+	// FirstSteps is what a person needs to know, which the plan says before they
+	// apply it.
+	FirstSteps string
+}
+
+// PlanInstall plans an entry into a project of its own, as an import does, with
+// its secrets and its pin in the same change. So undoing it takes the whole
+// install away, and it refuses a project that exists, as an install never changes
+// what's there.
+func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Change, error) {
+	stack, err := h.read(ctx, compose.Input{File: in.File, Variables: in.Variables})
+	if err != nil {
+		return nil, err
+	}
+	place, err := h.destination(ctx, in.Project, "", "")
+	if err != nil {
+		return nil, err
+	}
+	if len(place.made) == 0 {
+		return nil, authapi.ReasonError(connect.CodeAlreadyExists,
+			fmt.Errorf("a project named %s is here already. Choose another name, so the install doesn't change it", place.project), "project_exists")
+	}
+	// A project deleted before keeps its IDs, so its volumes would come back, for 7
+	// days, with data a password made now can't open.
+	var before bool
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		_, err := tx.GetResource(ctx, string(scope.ProjectKind), place.organization, place.project)
+		before = err == nil
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	if before {
+		return nil, authapi.ReasonError(connect.CodeAlreadyExists,
+			fmt.Errorf("a project named %s was here before, and its data may come back, which a new password can't open. Choose another name", place.project), "project_exists")
+	}
+	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
+	useSecrets(stack, in.Secrets)
+	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
+	var notes []revision.Note
+	if in.FirstSteps != "" {
+		notes = []revision.Note{{
+			Reason:  "first_steps",
+			Message: in.FirstSteps,
+			Ref:     resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project},
+		}}
+	}
+	return h.plan(ctx, req, stack, place, in.Secrets, notes)
+}
+
+// useSecrets has each service use by reference what a file's variables gave its
+// environment from a secret, rather than hold the value itself.
+func useSecrets(stack *compose.Stack, values map[string]string) {
+	for _, s := range stack.Services {
+		app := s.Spec.GetApp()
+		for as, value := range app.GetEnv() {
+			for name, secret := range values {
+				if value == secret {
+					delete(app.Env, as)
+					binding.Use(s.Spec, resource.Use{As: as, Kind: variable.SecretKind, Name: name})
+				}
+			}
+		}
+		if len(app.GetEnv()) == 0 {
+			app.Env = nil
+		}
+	}
+}
+
+// plan proposes a file read for a place, with these secrets beside it, and these
+// notes ahead of what it says of the file.
+func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, stack *compose.Stack, place destination, sealed map[string]string, notes []revision.Note) (*dockwellv1.Change, error) {
 	env := place.environment
 	if err := h.useVariables(ctx, env, stack); err != nil {
 		return nil, h.internal(ctx, err)
@@ -96,6 +201,9 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			Resource: &dockwellv1.ResourceRef{Kind: string(kind), Scope: env, Name: name},
 			Spec:     spec, Servers: m.GetServers(),
 		})
+	}
+	for _, name := range slices.Sorted(maps.Keys(sealed)) {
+		add(variable.SecretKind, name, &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: sealed[name]}}})
 	}
 	for _, n := range stack.Networks {
 		add(network.Kind, n.Name, &resourcev1.Spec{Kind: &resourcev1.Spec_Network{Network: n.Spec}})
@@ -145,16 +253,12 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 			summary = "Run a Compose file"
 		}
 	}
-	c, err := h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
+	return h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
 		if choice.Level == scope.ServerLevel {
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, Notes: slices.Concat(place.updates(running, deleted), planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
-	if err != nil {
-		return nil, err
-	}
-	return connect.NewResponse(&dockwellv1.ImportComposeResponse{Change: c, ExposedVariables: exposedProtos(stack.Exposed), MoreExposed: stack.ExposedMore}), nil
+	}, changes.Also{Edits: place.made, Notes: slices.Concat(notes, place.updates(running, deleted), planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // servicesIn names what an environment runs now.

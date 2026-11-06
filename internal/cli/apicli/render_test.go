@@ -450,6 +450,15 @@ func TestPlanViewSaysItsNotes(t *testing.T) {
 	}
 }
 
+// What an app needs first reads as that, not as one more note.
+func TestPlanViewSaysAnAppsFirstSteps(t *testing.T) {
+	var b strings.Builder
+	PlanView(&b, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: "first_steps", Message: "Open it, then sign in."}}})
+	if !strings.Contains(b.String(), "First steps: Open it, then sign in.\n") {
+		t.Errorf("the plan reads:\n%s", b.String())
+	}
+}
+
 // A plan says where it lands above its steps, once there's a choice of it.
 func TestPlanViewSaysWhereItLands(t *testing.T) {
 	for _, c := range []struct {

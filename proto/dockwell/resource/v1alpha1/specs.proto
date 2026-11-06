@@ -291,6 +291,27 @@ message Project {
   // How the panel shows it, such as "Acme web". Empty shows its name, which
   // URLs and the CLI use.
   string display_name = 1;
+  // The catalog entry this project was installed from. Unset for any other
+  // project. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md.
+  CatalogPin catalog = 2;
+}
+
+// CatalogPin is what an install is pinned to: updates come from there, and each
+// is a plan. It holds no secret: those are the environment's, by reference.
+message CatalogPin {
+  // The entry's ID, such as "postgres".
+  string entry = 1;
+  // The app's version as installed, such as "17.11".
+  string version = 2;
+  // The entry's release as installed, which a newer one's goes past.
+  uint32 release = 3;
+  // The repository the entry came from.
+  string repository = 4;
+  // The commit it came from.
+  string commit = 5;
+  // What each input that isn't a secret was given, by name, so an upgrade gives
+  // the same.
+  map<string, string> values = 6;
 }
 
 // Environment is a stage of a project, such as production or staging, with

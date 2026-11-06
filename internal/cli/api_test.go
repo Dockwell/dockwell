@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -157,6 +158,30 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		}
 		if len(got.Servers) != 1 || !got.Servers[0].ControlServer || !strings.HasPrefix(got.Servers[0].ID, "srv_") || got.Servers[0].Connection == "" {
 			t.Errorf("servers list --json = %+v, want the control server in the API's shape", got)
+		}
+	})
+
+	t.Run("a catalog secret never comes from a flag's text", func(t *testing.T) {
+		const token = "eyJ-a-tunnel-token"
+		r := run(t, env, "catalog", "install", "cloudflared", "--values", "TUNNEL_TOKEN="+token, "--plan-only")
+		if r.code == exitOK || !strings.Contains(r.err, "--values TUNNEL_TOKEN gives a secret") {
+			t.Errorf("a secret on the command line = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		if strings.Contains(r.out+r.err, token) {
+			t.Errorf("the refusal repeats the secret:\n%s%s", r.out, r.err)
+		}
+		// Its name alone takes it from the environment, and what isn't a secret takes a
+		// value as ever. So each reaches the control plane, which refuses the project
+		// for a reason of its own, as with no Docker here a plan would only wait.
+		fromEnv := maps.Clone(env)
+		fromEnv["TUNNEL_TOKEN"] = token
+		r = run(t, fromEnv, "catalog", "install", "cloudflared", "--values", "TUNNEL_TOKEN", "--project", "Not A Name", "--plan-only")
+		if !strings.Contains(r.err, "Not A Name") {
+			t.Errorf("the name alone didn't reach the control plane:\n%s", r.err)
+		}
+		r = run(t, env, "catalog", "install", "nginx-proxy-manager", "--values", "ADMIN_EMAIL=you@example.com", "--project", "Not A Name", "--plan-only")
+		if !strings.Contains(r.err, "Not A Name") {
+			t.Errorf("an email didn't reach the control plane:\n%s", r.err)
 		}
 	})
 

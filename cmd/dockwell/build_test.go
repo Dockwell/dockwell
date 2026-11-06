@@ -30,6 +30,7 @@ var agentPackages = []string{
 	"cmd/dockwell",
 	"gen/dockwell/agent/v1",
 	"gen/dockwell/agent/v1/agentv1connect",
+	"gen/dockwell/catalog/v1alpha1", // the catalog's format, which gen/dockwell/v1 imports
 	"gen/dockwell/resource/v1alpha1",
 	"gen/dockwell/v1",
 	"internal/agent",

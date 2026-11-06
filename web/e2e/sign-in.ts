@@ -13,9 +13,9 @@
 // applies it, and undoes it from Activity. The CLI plans a project with local
 // access, and the panel applies it at the address the CLI sends a person to,
 // /changes/<id>. It adds a secret in the panel, reveals it with the passkey, and
-// checks an API token can't. Then it runs the app screens from apps-flow.ts, and
-// the plan sheet's every state from plan-flow.ts, on the fake Docker Engine of
-// scripts/fakedocker. Everything
+// checks an API token can't. Then it runs the app screens from apps-flow.ts, the
+// plan sheet's every state from plan-flow.ts, and an install from
+// catalog-flow.ts, on the fake Docker Engine of scripts/fakedocker. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
 // screenshots of every screen at 1440, 800, 390 and 360 px, light and dark.
@@ -36,6 +36,7 @@ import { parseArgs } from "node:util";
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 
 import { appsFlow } from "./apps-flow.ts";
+import { catalogFlow } from "./catalog-flow.ts";
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
 import { healthFlow } from "./health-flow.ts";
 import { planFlow } from "./plan-flow.ts";
@@ -797,6 +798,7 @@ async function main() {
         return () => server?.kill("SIGCONT");
       },
     });
+    await catalogFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket) });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
     const made = await dockerMade(fakeSocket);

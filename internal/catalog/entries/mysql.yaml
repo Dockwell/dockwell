@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: mysql
+name: MySQL
+summary: Relational database, with phpMyAdmin to manage it
+category: databases
+version: "8.4.11"
+release: 1
+homepage: https://www.mysql.com
+license: AGPL-3.0-only
+appLicense: GPL-2.0-only
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/mysql.yaml
+web:
+  service: phpmyadmin
+firstSteps: >-
+  phpMyAdmin answers over plain HTTP, so signing in from outside this server sends
+  MySQL's root password in clear. Add a domain first, or reach it another way, such
+  as a VPN or an SSH tunnel. Then open phpMyAdmin and sign in as user root, with the
+  password in the MYSQL_ROOT_PASSWORD secret. That secret sets the password on first
+  start only, so changing it doesn't change what signs in. To change the password, run
+  ALTER USER for both 'root'@'%' and 'root'@'localhost' in phpMyAdmin, then set the
+  secret to match.
+inputs:
+  - name: ADMIN_PORT
+    label: phpMyAdmin port
+    hint: You open phpMyAdmin on this port of the server. It asks for the database's password.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8082"
+  - name: MYSQL_ROOT_PASSWORD
+    label: Root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    db:
+      image: mysql:8.4.11@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364
+      restart: unless-stopped
+      environment:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      volumes:
+        - data:/var/lib/mysql
+      healthcheck:
+        test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+    phpmyadmin:
+      image: phpmyadmin:5.2.3@sha256:f54a37b908b26caa7032c4eb0c7f3495fdd90208a06eed9c4b2c8e691dd1662c
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        PMA_HOST: db
+      ports:
+        - "${ADMIN_PORT}:80"
+      healthcheck:
+        test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 80) ? 0 : 1);"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    data: {}
