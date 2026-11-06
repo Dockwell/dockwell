@@ -677,3 +677,48 @@ func testANameWithNoValueOverAnImagesIsDrift(t *testing.T, backend store.Backend
 		t.Errorf("drift with a name that takes nothing out = %v", d)
 	}
 }
+
+// A known limit, by design, which ADR 0022 and docs/security/secrets.md state, and
+// this holds to what they say. Drift sees whether a service has a value it uses, and
+// never what that value is: nothing that reads a container has it to compare, and
+// comparing one is what ADR 0022 is careful not to offer. If this starts failing, what
+// they say has changed too.
+func TestDriftSeesThatAValueIsThereAndNeverWhatItIs(t *testing.T) {
+	storetest.Each(t, testDriftSeesThatAValueIsThereAndNeverWhatItIs)
+}
+
+func testDriftSeesThatAValueIsThereAndNeverWhatItIs(t *testing.T, backend store.Backend) {
+	const name, value = "DATABASE_PASSWORD", "s3cret-value-4Pz8"
+	for what, tc := range map[string]struct {
+		edit  func(env []string, i int) []string
+		drift bool
+	}{
+		"set to nothing":     {edit: func(env []string, i int) []string { env[i] = name + "="; return env }},
+		"set to a wrong one": {edit: func(env []string, i int) []string { env[i] = name + "=wrong"; return env }},
+		"a bare name":        {edit: func(env []string, i int) []string { env[i] = name; return env }, drift: true},
+		"gone":               {edit: func(env []string, i int) []string { return slices.Delete(env, i, i+1) }, drift: true},
+	} {
+		t.Run(what, func(t *testing.T) {
+			f := startFull(t, backend, nil)
+			b := signedIn(t, f)
+			e := f.addDockerServer(t)
+			e.AddLocalImage("acme/api:1", dockertest.Image{})
+			c := changeClient(b, b.origin)
+			apply(t, c, propose(t, c, "Run api", secretSpec("DB_PASSWORD", value), serviceSpec("api", map[string]string{name: "DB_PASSWORD"})))
+			e.Edit(docker.Project(listedEnv(t, b))+"-api-1", func(c *docker.Container) {
+				i := slices.IndexFunc(c.Config.Env, func(kv string) bool { return strings.HasPrefix(kv, name+"=") })
+				if i < 0 {
+					t.Fatalf("the container hasn't got the value: %v", c.Config.Env)
+				}
+				c.Config.Env = tc.edit(c.Config.Env, i)
+			})
+			res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(res.Msg.GetDrift()) == 1; got != tc.drift {
+				t.Errorf("drift = %v, want drift to be %v", res.Msg.GetDrift(), tc.drift)
+			}
+		})
+	}
+}
