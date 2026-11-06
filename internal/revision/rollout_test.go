@@ -37,14 +37,15 @@ import (
 // rolling is an engine on a server whose agent runs real drivers, on a fake
 // Docker Engine: what a real check failing does, from the change to what runs.
 type rolling struct {
-	engine  *Engine
-	db      *store.DB
-	docker  *dockertest.Engine
-	runtime *container.Docker
-	agents  *switchable
-	env     string
-	project string
-	ref     resource.Ref
+	engine   *Engine
+	db       *store.DB
+	location string // the database, for what a test does to it by hand
+	docker   *dockertest.Engine
+	runtime  *container.Docker
+	agents   *switchable
+	env      string
+	project  string
+	ref      resource.Ref
 }
 
 // switchable is the server's agent, which can go away.
@@ -71,7 +72,7 @@ func (s *switchable) set(online bool) {
 
 func setupRolling(t *testing.T, b store.Backend) *rolling {
 	t.Helper()
-	db, _ := storetest.Open(t, b)
+	db, location := storetest.Open(t, b)
 	if _, err := Setup(t.Context(), db, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +103,7 @@ func setupRolling(t *testing.T, b store.Backend) *rolling {
 	engine := New(db, kinds, agents, keeper, slog.New(slog.DiscardHandler))
 	prod := production(t, db)
 	return &rolling{
-		engine: engine, db: db, docker: e, runtime: rt, agents: agents, env: prod, project: docker.Project(prod),
+		engine: engine, db: db, location: location, docker: e, runtime: rt, agents: agents, env: prod, project: docker.Project(prod),
 		ref: resource.Ref{Kind: service.Kind, Scope: prod, Name: "web"},
 	}
 }
@@ -1266,6 +1267,25 @@ func mustCurrent(t *testing.T, e *Engine, changeID string) []item {
 		t.Fatal(err)
 	}
 	return items
+}
+
+// A plan's fingerprint covers whether a step pulls, so a plan reviewed as running
+// what the server has can't apply as one that asks a registry for something newer.
+func TestAPlansFingerprintCoversThePull(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		r := setupRolling(t, b)
+		apply(t, r.engine, propose(t, r.engine, "Run web", r.edit("good:1")))
+		p := propose(t, r.engine, "Change it", r.edit("good:2"))
+		drop := `DROP TRIGGER change_items_never_change`
+		if b == store.Postgres {
+			drop += ` ON change_items`
+		}
+		storetest.Exec(t, r.location, drop)
+		storetest.Exec(t, r.location, `UPDATE change_items SET pull = 1 WHERE change_id = '`+p.Change+`'`)
+		if err := r.engine.Apply(t.Context(), p.Change); !errors.Is(err, ErrPlanChanged) {
+			t.Errorf("applying a plan that pulls where its review didn't = %v, want it refused", err)
+		}
+	})
 }
 
 // A plan's fingerprint covers how a step rolls, so a plan reviewed as having no
