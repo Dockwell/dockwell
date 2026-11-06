@@ -550,6 +550,25 @@ func TestTrustedProxiesReadBackAsTheyWereNamed(t *testing.T) {
 	if slices.Contains(got.GetTrustedProxies(), PresetCloudflare) || proto.Equal(got, route) {
 		t.Errorf("a list with a range gone reads back as %v", got.GetTrustedProxies())
 	}
+	// So does one with a range too many: one Cloudflare has given up, as this one
+	// was, and one added by hand. Either is believed, and answered.
+	for _, extra := range []string{"199.27.128.0/21", "203.0.113.0/24"} {
+		s.proxy.routes[0].EdgeProxies = append(slices.Clone(routes[0].EdgeProxies), extra)
+		got, err = s.Observe(t.Context(), routeRef("www"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.Contains(got.GetTrustedProxies(), PresetCloudflare) || !slices.Contains(got.GetTrustedProxies(), extra) || proto.Equal(got, route) {
+			t.Errorf("a list with %s added reads back as %v", extra, got.GetTrustedProxies())
+		}
+	}
+	// And the preset's own, in another order, is the preset.
+	reversed := slices.Clone(routes[0].EdgeProxies)
+	slices.Reverse(reversed)
+	s.proxy.routes[0].EdgeProxies = reversed
+	if got, err = s.Observe(t.Context(), routeRef("www")); err != nil || !proto.Equal(got, route) {
+		t.Errorf("the preset's ranges in another order read back as %v, %v", got.GetTrustedProxies(), err)
+	}
 }
 
 func TestNormalizeTrustedProxies(t *testing.T) {

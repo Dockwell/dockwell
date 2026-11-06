@@ -338,18 +338,46 @@ type headerOps struct {
 // X-Forwarded-For, with no trusted_proxies. An app moved from another proxy
 // often trusts one of these for per-address limits and allowlists, so a forged
 // one is a way around them.
+// PHP apps often read Client-Ip.
 var forgeableHeaders = []string{
 	"Forwarded", "Forwarded-For", "X-Client-Ip", "X-Cluster-Client-Ip", "X-Originating-Ip", "X-Remote-Ip", "X-Remote-Addr",
 	"True-Client-Ip", "Cf-Connecting-Ip", "Cf-Connecting-Ipv6", "Fastly-Client-Ip", "Ali-Cdn-Real-Ip", "Proxy-Client-Ip", "Wl-Proxy-Client-Ip",
-	"X-Envoy-External-Address", "X-Original-Forwarded-For",
+	"X-Envoy-External-Address", "X-Original-Forwarded-For", "Client-Ip", "X-Proxyuser-Ip",
 }
 
-// claimsOfTheRequest say how a request reached the server, or by what name, and
-// frameworks read them to build links and decide what's secure. Nothing says only
-// a proxy wrote them, so a route writes X-Forwarded-Host and X-Forwarded-Proto
-// itself, and these don't reach a service at all.
+// claimsOfTheRequest say how a request reached the server, by what name or at
+// what path, and frameworks read them to build links, decide what's secure, and
+// route: Symfony and IIS take X-Original-Url and X-Rewrite-Url for the path, past
+// what a proxy in front allows. Nothing says only a proxy wrote them, so a route
+// writes X-Forwarded-Host and X-Forwarded-Proto itself, and these don't reach a
+// service at all.
 var claimsOfTheRequest = []string{
 	"X-Forwarded-Port", "X-Forwarded-Server", "X-Forwarded-Ssl", "X-Forwarded-Scheme", "X-Url-Scheme", "Front-End-Https", "X-Original-Host", "X-Host",
+	"X-Forwarded-Protocol", "X-Forwarded-Prefix", "X-Forwarded-Uri", "X-Original-Url", "X-Rewrite-Url",
+}
+
+// stripped is every header a route takes out of a request.
+func stripped() []string { return slices.Concat(forgeableHeaders, claimsOfTheRequest) }
+
+// What configs from before these lists grew strip, which read as Dockwell's own, so
+// an upgrade isn't drift, and the next change on a server writes the whole lists
+// over them: strippedFirst from before claimsOfTheRequest, and strippedSecond from
+// before Client-Ip and the rest after it.
+var (
+	strippedFirst = []string{
+		"Forwarded", "Forwarded-For", "X-Client-Ip", "X-Cluster-Client-Ip", "X-Originating-Ip", "X-Remote-Ip", "X-Remote-Addr",
+		"True-Client-Ip", "Cf-Connecting-Ip", "Cf-Connecting-Ipv6", "Fastly-Client-Ip", "Ali-Cdn-Real-Ip", "Proxy-Client-Ip", "Wl-Proxy-Client-Ip",
+		"X-Envoy-External-Address", "X-Original-Forwarded-For",
+	}
+	strippedSecond = slices.Concat(strippedFirst, []string{
+		"X-Forwarded-Port", "X-Forwarded-Server", "X-Forwarded-Ssl", "X-Forwarded-Scheme", "X-Url-Scheme", "Front-End-Https", "X-Original-Host", "X-Host",
+	})
+)
+
+// strippingOnly is h as a config that strips only names has it.
+func strippingOnly(h *headers, names []string) *headers {
+	h.Request.Delete = names
+	return h
 }
 
 // Caddy's placeholders for where a request came from and how: the peer on the
@@ -373,18 +401,13 @@ const (
 func clientAddress() *headers {
 	return &headers{Request: &headerOps{
 		Set:    map[string][]string{"X-Real-Ip": {peerAddress}},
-		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
+		Delete: stripped(),
 	}}
 }
 
 // olderClientAddress is clientAddress as a config from before claimsOfTheRequest
 // has it, which reads as Dockwell's own, so an upgrade isn't drift.
-func olderClientAddress() *headers {
-	return &headers{Request: &headerOps{
-		Set:    map[string][]string{"X-Real-Ip": {peerAddress}},
-		Delete: forgeableHeaders,
-	}}
-}
+func olderClientAddress() *headers { return strippingOnly(clientAddress(), strippedFirst) }
 
 // distrustingAddress is clientAddress on a server where another route trusts a
 // proxy. Caddy decides what it trusts per server, so it would keep that proxy's
@@ -395,7 +418,7 @@ func distrustingAddress() *headers {
 			"X-Real-Ip": {peerAddress}, "X-Forwarded-For": {peerAddress},
 			"X-Forwarded-Proto": {realScheme}, "X-Forwarded-Host": {requestHost},
 		},
-		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
+		Delete: stripped(),
 	}}
 }
 
@@ -410,7 +433,7 @@ func believingAddress() *headers {
 			"X-Real-Ip": {client}, "X-Forwarded-For": {client},
 			"X-Forwarded-Proto": {scheme}, "X-Forwarded-Host": {requestHost},
 		},
-		Delete: slices.Concat(forgeableHeaders, claimsOfTheRequest),
+		Delete: stripped(),
 	}}
 }
 
@@ -1159,6 +1182,11 @@ func headersAreOurs(raw json.RawMessage, trusts bool, domain string) bool {
 	shapes := []*headers{ownName(clientAddress(), domain), ownName(distrustingAddress(), domain), clientAddress(), olderClientAddress(), distrustingAddress()}
 	if trusts {
 		shapes = []*headers{ownName(believingAddress(), domain), believingAddress()}
+	}
+	for _, h := range slices.Clone(shapes) {
+		if slices.Equal(h.Request.Delete, stripped()) {
+			shapes = append(shapes, strippingOnly(&headers{Request: &headerOps{Set: h.Request.Set}}, strippedSecond))
+		}
 	}
 	return slices.ContainsFunc(shapes, func(h *headers) bool {
 		ours, err := json.Marshal(h)
