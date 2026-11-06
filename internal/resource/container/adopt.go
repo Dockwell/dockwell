@@ -168,6 +168,10 @@ func (d *Docker) Adoption(ctx context.Context, t Target, id string, spec *resour
 	}
 	name := strings.TrimPrefix(c.Name, "/")
 	if c.Config.Labels[docker.LabelAdopted] != "" {
+		// A step that resumes plans again once the agent has done it.
+		if c.Config.Labels[docker.LabelProject] == t.Project && c.Config.Labels[docker.LabelService] == t.Service {
+			return resource.Decision{Action: resource.ActionCreate, Adopts: c.ID}, nil
+		}
 		return resource.Decision{}, fmt.Errorf("%s is already what the service %s runs", name, c.Config.Labels[docker.LabelService])
 	}
 	all, err := d.instances(ctx, t)
