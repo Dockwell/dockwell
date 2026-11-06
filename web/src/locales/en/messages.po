@@ -190,6 +190,10 @@ msgstr "{0} to update"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
+#: src/features/catalog/InstallSheet.tsx
+msgid "{app} is under the {license} licence."
+msgstr "{app} is under the {license} licence."
+
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
@@ -227,6 +231,10 @@ msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} 
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, one {# server} other {# servers}}"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "{count, plural, one {Installed} other {# installed}}"
+msgstr "{count, plural, one {Installed} other {# installed}}"
+
 #: src/features/activity/describe.ts
 msgid "{count, plural, one {It changed once in {span}.} other {It changed # times in {span}.}}"
 msgstr "{count, plural, one {It changed once in {span}.} other {It changed # times in {span}.}}"
@@ -258,6 +266,10 @@ msgstr "{count} h ago"
 #: src/app/Providers.tsx
 msgid "{count} healthy"
 msgstr "{count} healthy"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "{count} installed"
+msgstr "{count} installed"
 
 #: src/lib/time.ts
 msgid "{count} min"
@@ -359,6 +371,10 @@ msgstr "{mount}: {used} used, {free} free, of {size}"
 #: src/features/apps/AppsPage.tsx
 msgid "{moving} deploying"
 msgstr "{moving} deploying"
+
+#: src/features/catalog/InstalledPanel.tsx
+msgid "{name} {version}"
+msgstr "{name} {version}"
 
 #: src/features/changes/notices.tsx
 msgid "{name} answers plain HTTP on {path} on {server}"
@@ -1258,12 +1274,17 @@ msgstr "Agent not connected"
 msgid "Agent starting"
 msgstr "Agent starting"
 
+#: src/features/catalog/useCatalog.ts
+msgid "AI"
+msgstr "AI"
+
 #: src/features/shell/sections.ts
 msgid "Alerts"
 msgstr "Alerts"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/catalog/CatalogPage.tsx
 msgid "All"
 msgstr "All"
 
@@ -1342,6 +1363,10 @@ msgstr "An app named {name} already runs here. Choose another name, or deploy to
 #: src/features/apps/NewAppSheet.tsx
 msgid "An image has no spaces. Write it as nginx:1.27."
 msgstr "An image has no spaces. Write it as nginx:1.27."
+
+#: src/features/catalog/useCatalog.ts
+msgid "Analytics"
+msgstr "Analytics"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -1465,6 +1490,10 @@ msgstr "Applying"
 msgid "Apps"
 msgstr "Apps"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Apps you can install in one step"
+msgstr "Apps you can install in one step"
+
 #. placeholder {0}: use.name
 #: src/features/variables/VariablesPage.tsx
 msgid "as {0}"
@@ -1477,6 +1506,10 @@ msgstr "Authenticator app"
 #: src/features/changes/words.ts
 msgid "Automatic"
 msgstr "Automatic"
+
+#: src/features/catalog/useCatalog.ts
+msgid "Automation"
+msgstr "Automation"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/shell/Page.tsx
@@ -1542,6 +1575,7 @@ msgid "Can't load this app"
 msgstr "Can't load this app"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Can't make a plan"
 msgstr "Can't make a plan"
 
@@ -1580,14 +1614,21 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
+#: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/features/shell/sections.ts
+#: src/features/catalog/CatalogPage.tsx
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
 msgid "Catalog"
 msgstr "Catalog"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Categories"
+msgstr "Categories"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Change {name}"
@@ -1700,6 +1741,7 @@ msgid "Choose a longer range, or follow what it writes next."
 msgstr "Choose a longer range, or follow what it writes next."
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Choose where it runs."
 msgstr "Choose where it runs."
 
@@ -1759,6 +1801,10 @@ msgstr "Cloudflare connects to this server's port 80."
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare's proxy"
+
+#: src/features/catalog/useCatalog.ts
+msgid "CMS"
+msgstr "CMS"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Code"
@@ -1996,6 +2042,14 @@ msgstr "Couldn't pull {pulled}"
 msgid "Couldn't read the addresses this is reached at"
 msgstr "Couldn't read the addresses this is reached at"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Couldn't read the catalog"
+msgstr "Couldn't read the catalog"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Couldn't read this app"
+msgstr "Couldn't read this app"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Couldn't read this app's domains"
 msgstr "Couldn't read this app's domains"
@@ -2118,6 +2172,7 @@ msgstr "data taken out of use"
 msgid "database"
 msgstr "database"
 
+#: src/features/catalog/useCatalog.ts
 #: src/features/shell/sections.ts
 msgid "Databases"
 msgstr "Databases"
@@ -2264,6 +2319,10 @@ msgstr "Destroys data"
 msgid "Details"
 msgstr "Details"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Developer tools"
+msgstr "Developer tools"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Directory"
 msgstr "Directory"
@@ -2361,6 +2420,10 @@ msgstr "Dockwell didn't make that network, and it reaches past the server's fire
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
+msgstr "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
 
 #: src/features/apps/AppEnvironment.tsx
 msgid "Dockwell hands what's set on this app to it, and never shows those values again, as they may hold secrets."
@@ -2509,6 +2572,7 @@ msgstr "Each server it ran on has left the fleet, so Dockwell can't see it or ch
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Edit and try again"
 msgstr "Edit and try again"
 
@@ -2781,6 +2845,10 @@ msgstr "From Git, a Docker image, a Compose file or the catalog."
 msgid "From the API"
 msgstr "From the API"
 
+#: src/features/catalog/InstalledPanel.tsx
+msgid "From the catalog"
+msgstr "From the catalog"
+
 #: src/features/changes/words.ts
 msgid "From the CLI"
 msgstr "From the CLI"
@@ -2800,6 +2868,10 @@ msgstr "Full access to {name}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give {first} a value to review the plan"
 msgstr "Give {first} a value to review the plan"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Give {missingLabel} a value to review the plan"
+msgstr "Give {missingLabel} a value to review the plan"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give each variable a value to review the plan"
@@ -2990,6 +3062,11 @@ msgstr "in under a minute"
 msgid "Info"
 msgstr "Info"
 
+#: src/features/catalog/CatalogPage.tsx
+#: src/features/catalog/InstallSheet.tsx
+msgid "Install {app}"
+msgstr "Install {app}"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "Installed"
@@ -3114,6 +3191,10 @@ msgstr "It never stopped. Dockwell removed what this made after it failed."
 msgid "It ran as <0>{ranAs}</0>."
 msgstr "It ran as <0>{ranAs}</0>."
 
+#: src/features/catalog/InstallSheet.tsx
+msgid "It reaches past its containers"
+msgstr "It reaches past its containers"
+
 #: src/features/changes/notices.tsx
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "It reaches what the server reaches, past Docker's network and the firewall."
@@ -3234,6 +3315,10 @@ msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this
 msgid "Its logs show here once they can be read."
 msgstr "Its logs show here once they can be read."
 
+#: src/features/catalog/InstallSheet.tsx
+msgid "Its project, which keeps it apart from your other apps."
+msgstr "Its project, which keeps it apart from your other apps."
+
 #: src/features/changes/words.ts
 msgid "Its rollout order says to stop first, so there are never two"
 msgstr "Its rollout order says to stop first, so there are never two"
@@ -3242,6 +3327,10 @@ msgstr "Its rollout order says to stop first, so there are never two"
 #: src/features/changes/notices.tsx
 msgid "its server"
 msgstr "its server"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Its site"
+msgstr "Its site"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
@@ -3505,6 +3594,10 @@ msgstr "May have been copied; it no longer signs in"
 msgid "Memory"
 msgstr "Memory"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Monitoring"
+msgstr "Monitoring"
+
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/TabBar.tsx
 msgid "More"
@@ -3530,6 +3623,7 @@ msgstr "Move to another app"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Name"
 msgstr "Name"
 
@@ -3593,6 +3687,10 @@ msgstr "network"
 #: src/features/servers/ServerPanels.tsx
 msgid "Network"
 msgstr "Network"
+
+#: src/features/catalog/useCatalog.ts
+msgid "Networking"
+msgstr "Networking"
 
 #: src/features/apps/words.ts
 #: src/features/changes/fields.tsx
@@ -3663,6 +3761,10 @@ msgstr "no"
 #: src/features/apps/AppsPage.tsx
 msgid "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
 msgstr "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "No app matches that. Try another word, or all categories."
+msgstr "No app matches that. Try another word, or all categories."
 
 #: src/features/apps/AppLayout.tsx
 msgid "No app with this ID"
@@ -3797,6 +3899,10 @@ msgstr "Not in this release yet"
 msgid "Not installed or not running"
 msgstr "Not installed or not running"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
+msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
+
 #: src/features/apps/AppEnvironment.tsx
 msgid "Not loaded"
 msgstr "Not loaded"
@@ -3925,6 +4031,7 @@ msgstr "Nothing outside the server reaches these yet."
 
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Nothing runs until you apply the plan"
 msgstr "Nothing runs until you apply the plan"
 
@@ -4031,6 +4138,11 @@ msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTP
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
 msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
+
+#: src/features/catalog/CatalogPage.tsx
+#: src/features/catalog/InstallSheet.tsx
+msgid "Open {app}"
+msgstr "Open {app}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Open {at}"
@@ -4574,6 +4686,10 @@ msgstr "Reading how it runs."
 msgid "Reading logs"
 msgstr "Reading logs"
 
+#: src/features/catalog/CatalogPage.tsx
+msgid "Reading the catalog"
+msgstr "Reading the catalog"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Reading the file"
 msgstr "Reading the file"
@@ -4581,6 +4697,10 @@ msgstr "Reading the file"
 #: src/features/logs/LogContext.tsx
 msgid "Reading the lines around it"
 msgstr "Reading the lines around it"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Reading this app"
+msgstr "Reading this app"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads logs"
@@ -4794,6 +4914,7 @@ msgstr "Revealed the secret {name}"
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Review plan"
@@ -5009,6 +5130,7 @@ msgid "Runs on"
 msgstr "Runs on"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Runs on {onlyName}"
 msgstr "Runs on {onlyName}"
 
@@ -5064,6 +5186,10 @@ msgstr "Scope"
 #: src/features/logs/LogsPage.tsx
 msgid "Search all the servers keep"
 msgstr "Search all the servers keep"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Search apps"
+msgstr "Search apps"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Search lines"
@@ -5215,6 +5341,10 @@ msgstr "Show earlier lines"
 msgid "Show in context"
 msgstr "Show in context"
 
+#: src/features/catalog/InstalledPanel.tsx
+msgid "Show its secrets"
+msgstr "Show its secrets"
+
 #: src/features/logs/LogNote.tsx
 msgid "Show less"
 msgstr "Show less"
@@ -5236,6 +5366,7 @@ msgid "Show the activity of {name}"
 msgstr "Show the activity of {name}"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Show the apps"
 msgstr "Show the apps"
 
@@ -5441,6 +5572,10 @@ msgstr "Stop what uses it on this server, then deploy again."
 #: src/app/Providers.tsx
 msgid "Stopped"
 msgstr "Stopped"
+
+#: src/features/catalog/useCatalog.ts
+msgid "Storage"
+msgstr "Storage"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Such as 1Password, Google Authenticator or Aegis"
@@ -6395,6 +6530,7 @@ msgid "Use letters, digits and underscores, starting with a letter or underscore
 msgstr "Use letters, digits and underscores, starting with a letter or underscore."
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
 msgstr "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
 
@@ -6486,6 +6622,10 @@ msgstr "Variables and secrets in {envName}"
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "Version"
+
+#: src/features/catalog/InstallSheet.tsx
+msgid "Version {version}"
+msgstr "Version {version}"
 
 #. placeholder {0}: version.data.build.version
 #: src/features/auth/SignInPage.tsx
@@ -6709,6 +6849,7 @@ msgid "Yesterday"
 msgstr "Yesterday"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/catalog/InstallSheet.tsx
 msgid "You approve what it reaches in the plan"
 msgstr "You approve what it reaches in the plan"
 

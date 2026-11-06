@@ -4,6 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
 import {
   AuthService,
+  CatalogService,
   ChangeService,
   ComposeService,
   DomainService,
@@ -43,6 +44,7 @@ export type Api = {
   domains?: Partial<ServiceImpl<typeof DomainService>>;
   services?: Partial<ServiceImpl<typeof ServiceService>>;
   compose?: Partial<ServiceImpl<typeof ComposeService>>;
+  catalog?: Partial<ServiceImpl<typeof CatalogService>>;
   logs?: Partial<ServiceImpl<typeof LogService>>;
   health?: Partial<ServiceImpl<typeof HealthService>>;
 };
@@ -86,6 +88,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(DomainService, { listDomains: () => ({}), ...api.domains });
       service(ServiceService, { listServices: () => ({}), ...api.services });
       service(ComposeService, api.compose ?? {});
+      service(CatalogService, { listCatalogEntries: () => ({}), listCatalogInstalls: () => ({}), ...api.catalog });
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
     },

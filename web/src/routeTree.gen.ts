@@ -23,6 +23,8 @@ import { Route as ShellVariablesRouteImport } from './routes/_shell/variables'
 import { Route as ShellAppsIndexRouteImport } from './routes/_shell/apps.index'
 import { Route as ShellAppsServiceIdRouteImport } from './routes/_shell/apps.$serviceId'
 import { Route as ShellAppsNewRouteImport } from './routes/_shell/apps.new'
+import { Route as ShellCatalogIndexRouteImport } from './routes/_shell/catalog.index'
+import { Route as ShellCatalogEntryIdRouteImport } from './routes/_shell/catalog.$entryId'
 import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellServersServerIdRouteImport } from './routes/_shell/servers.$serverId'
@@ -100,6 +102,16 @@ const ShellAppsNewRoute = ShellAppsNewRouteImport.update({
   path: '/apps/new',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellCatalogIndexRoute = ShellCatalogIndexRouteImport.update({
+  id: '/catalog/',
+  path: '/catalog/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellCatalogEntryIdRoute = ShellCatalogEntryIdRouteImport.update({
+  id: '/catalog/$entryId',
+  path: '/catalog/$entryId',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellChangesChangeIdRoute = ShellChangesChangeIdRouteImport.update({
   id: '/changes/$changeId',
   path: '/changes/$changeId',
@@ -151,9 +163,11 @@ export interface FileRoutesByFullPath {
   '/variables': typeof ShellVariablesRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/apps/new': typeof ShellAppsNewRoute
+  '/catalog/$entryId': typeof ShellCatalogEntryIdRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
   '/apps/': typeof ShellAppsIndexRoute
+  '/catalog/': typeof ShellCatalogIndexRoute
   '/servers/': typeof ShellServersIndexRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -172,9 +186,11 @@ export interface FileRoutesByTo {
   '/variables': typeof ShellVariablesRoute
   '/': typeof ShellIndexRoute
   '/apps/new': typeof ShellAppsNewRoute
+  '/catalog/$entryId': typeof ShellCatalogEntryIdRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/servers/$serverId': typeof ShellServersServerIdRoute
   '/apps': typeof ShellAppsIndexRoute
+  '/catalog': typeof ShellCatalogIndexRoute
   '/servers': typeof ShellServersIndexRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -196,9 +212,11 @@ export interface FileRoutesById {
   '/_shell/': typeof ShellIndexRoute
   '/_shell/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/_shell/apps/new': typeof ShellAppsNewRoute
+  '/_shell/catalog/$entryId': typeof ShellCatalogEntryIdRoute
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/_shell/servers/$serverId': typeof ShellServersServerIdRoute
   '/_shell/apps/': typeof ShellAppsIndexRoute
+  '/_shell/catalog/': typeof ShellCatalogIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -220,9 +238,11 @@ export interface FileRouteTypes {
     | '/variables'
     | '/apps/$serviceId'
     | '/apps/new'
+    | '/catalog/$entryId'
     | '/changes/$changeId'
     | '/servers/$serverId'
     | '/apps/'
+    | '/catalog/'
     | '/servers/'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
@@ -241,9 +261,11 @@ export interface FileRouteTypes {
     | '/variables'
     | '/'
     | '/apps/new'
+    | '/catalog/$entryId'
     | '/changes/$changeId'
     | '/servers/$serverId'
     | '/apps'
+    | '/catalog'
     | '/servers'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
@@ -264,9 +286,11 @@ export interface FileRouteTypes {
     | '/_shell/'
     | '/_shell/apps/$serviceId'
     | '/_shell/apps/new'
+    | '/_shell/catalog/$entryId'
     | '/_shell/changes/$changeId'
     | '/_shell/servers/$serverId'
     | '/_shell/apps/'
+    | '/_shell/catalog/'
     | '/_shell/servers/'
     | '/_shell/apps/$serviceId/deployments'
     | '/_shell/apps/$serviceId/environment'
@@ -382,6 +406,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellAppsNewRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/catalog/': {
+      id: '/_shell/catalog/'
+      path: '/catalog'
+      fullPath: '/catalog/'
+      preLoaderRoute: typeof ShellCatalogIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/catalog/$entryId': {
+      id: '/_shell/catalog/$entryId'
+      path: '/catalog/$entryId'
+      fullPath: '/catalog/$entryId'
+      preLoaderRoute: typeof ShellCatalogEntryIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/changes/$changeId': {
       id: '/_shell/changes/$changeId'
       path: '/changes/$changeId'
@@ -460,9 +498,11 @@ interface ShellRouteChildren {
   ShellIndexRoute: typeof ShellIndexRoute
   ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
   ShellAppsNewRoute: typeof ShellAppsNewRoute
+  ShellCatalogEntryIdRoute: typeof ShellCatalogEntryIdRoute
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
   ShellServersServerIdRoute: typeof ShellServersServerIdRoute
   ShellAppsIndexRoute: typeof ShellAppsIndexRoute
+  ShellCatalogIndexRoute: typeof ShellCatalogIndexRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
 }
 
@@ -475,9 +515,11 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellIndexRoute: ShellIndexRoute,
   ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,
   ShellAppsNewRoute: ShellAppsNewRoute,
+  ShellCatalogEntryIdRoute: ShellCatalogEntryIdRoute,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
   ShellServersServerIdRoute: ShellServersServerIdRoute,
   ShellAppsIndexRoute: ShellAppsIndexRoute,
+  ShellCatalogIndexRoute: ShellCatalogIndexRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
 }
 

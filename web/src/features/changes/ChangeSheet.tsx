@@ -5,6 +5,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type Client, createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
+  CatalogService,
   type Change,
   ChangeService,
   ChangeState,
@@ -314,7 +315,15 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
 
 /** Reads what a change applied or undone may have changed again: the resources, the services and their domains, the timeline's pages and the changes. */
 function refreshAfter(queryClient: QueryClient): void {
-  for (const schema of [ResourceService, ServiceService, DomainService, EventService, ChangeService, VariableService]) {
+  for (const schema of [
+    ResourceService,
+    ServiceService,
+    DomainService,
+    EventService,
+    ChangeService,
+    VariableService,
+    CatalogService,
+  ]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
   readHealthSoon(queryClient);

@@ -23,7 +23,6 @@ export const UPCOMING = {
   connections: { label: msg`Connections`, icon: "key", inMore: true },
   domains: { label: msg`Domains`, icon: "link", inMore: true },
   backups: { label: msg`Backups`, icon: "archive", inMore: true },
-  catalog: { label: msg`Catalog`, icon: "grid", inMore: true },
   "fleet-actions": { label: msg`Fleet actions`, icon: "play", inMore: true },
   alerts: { label: msg`Alerts`, icon: "bell", inMore: true },
   "scheduled-tasks": { label: msg`Scheduled tasks`, icon: "calendar", inMore: true },
@@ -32,14 +31,13 @@ export const UPCOMING = {
 
 export type UpcomingSection = keyof typeof UPCOMING;
 
-/** The rail's resource sections after Apps, which has its screens, in its order. */
+/** The rail's resource sections between Apps and the catalog, which have screens of their own, in its order. */
 export const RESOURCES = [
   "websites",
   "databases",
   "connections",
   "domains",
   "backups",
-  "catalog",
 ] as const satisfies readonly UpcomingSection[];
 
 /** The rail's operate sections after Activity, which has its screen, in its order. */

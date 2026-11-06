@@ -50,6 +50,9 @@ export function MorePage() {
           <RowBody icon="key" label={t`Variables and secrets`} />
         </Link>
         {RESOURCES.filter((id) => UPCOMING[id].inMore).map(section)}
+        <Link to="/catalog" className="more-row">
+          <RowBody icon="grid" label={t`Catalog`} />
+        </Link>
       </nav>
       <nav className="dw-panel more-group" aria-label={t`Operate`}>
         {operate.map(section)}

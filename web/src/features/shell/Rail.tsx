@@ -57,6 +57,9 @@ export function Rail({ view }: { view: FleetView }) {
         <ItemBody icon="service" label={t`Apps`} />
       </Link>
       {RESOURCES.map(section)}
+      <Link to="/catalog" {...current(segment === "catalog")}>
+        <ItemBody icon="grid" label={t`Catalog`} />
+      </Link>
       {view.fleet ? (
         <>
           <div className="rail-section">{t`Fleet`}</div>

@@ -102,7 +102,7 @@ const ENV_LINES = 6;
  * where it runs shows only once there is a choice. A Compose file gets a
  * project of its own, named from the file (ADR 0026); it is read as you type,
  * says what it would make, and says at the line what Dockwell can't run. Git
- * and catalog sources come in phase 2, so they aren't here.
+ * sources come in phase 2, and the catalog has a page of its own.
  */
 export function NewAppSheet({
   source,
@@ -1488,7 +1488,7 @@ function ComposePreview({ check }: { check: CheckComposeResponse | undefined }) 
 }
 
 /** Where it runs, once there is a choice (PRD principle 4). There is no scheduler yet, so a person says. */
-function RunsOnField({
+export function RunsOnField({
   value,
   onChange,
   error,
