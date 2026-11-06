@@ -98,7 +98,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The entry's ID, such as \"postgres\".", Arg: true},
 				{Path: "project", Help: "What to call its project, which must not be taken. Left out, the one dockwell catalog get suggests."},
-				{Path: "values", Help: "A value for each input, by name. An input left out takes its default; one with neither is refused, unless it's optional. It may hold a secret a person typed, such as a tunnel's token.", Sensitive: true},
+				{Path: "values", Help: "A value for each input, by name. An input left out takes its default; one with neither is refused, unless it's optional. It may hold a secret a person typed, such as a tunnel's token, which the CLI takes only from your environment.", Sensitive: true},
 				{Path: "servers", Help: "Where it runs, by server ID, as an edit's servers. Empty runs it on the only server; once there are several, name them."},
 			},
 			Call: apicli.Unary[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse](dockwellv1connect.CatalogServiceInstallCatalogEntryProcedure),

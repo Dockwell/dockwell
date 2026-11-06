@@ -295,6 +295,23 @@ func (b *boundField) check(fd protoreflect.FieldDescriptor, s string) (protorefl
 	return scalar(fd, s)
 }
 
+// inline lists the keys given a value on the command line, in a map that may hold
+// secrets, rather than taken from the environment.
+func (b *binding) inline() []string {
+	var keys []string
+	for _, f := range b.fields {
+		if !f.sensitive {
+			continue
+		}
+		for _, s := range f.values {
+			if key, _, ok := strings.Cut(s, "="); ok {
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
+}
+
 // apply sets the field in msg from the values given, if any.
 func (b *boundField) apply(msg protoreflect.Message) error {
 	if len(b.values) == 0 {

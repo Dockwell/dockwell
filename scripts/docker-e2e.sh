@@ -2677,7 +2677,8 @@ jq -e '.token | length > 0' <<<"$signed_in" >/dev/null 2>&1 || fail "Nginx Proxy
 step "Catalog: a tunnel takes a token, and a person approves what it reaches"
 # Nothing here can reach Cloudflare's edge, as ADR 0030 says, so it stops at the plan,
 # and the one thing a server's own run would read first is its health check's flags.
-planned=$(dw catalog install cloudflared --values TUNNEL_TOKEN=not-a-real-token --plan-only --json) || fail "planning a tunnel failed"
+planned=$(priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text TUNNEL_TOKEN=not-a-real-token "$bin" catalog install cloudflared --values TUNNEL_TOKEN --plan-only --json) ||
+  fail "planning a tunnel failed"
 [[ "$planned" != *not-a-real-token* ]] || fail "the plan holds the tunnel's token"
 jq -e '.change.plan.hostAccess == true' <<<"$planned" >/dev/null || fail "a tunnel on the server's own network plans no host access: $planned"
 change=$(jq -r .change.id <<<"$planned")

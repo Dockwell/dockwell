@@ -54,6 +54,11 @@ func (c *Client) options() []connect.ClientOption {
 	return []connect.ClientOption{connect.WithInterceptors(credentials{token: c.Token, agent: UserAgentPrefix + c.Version})}
 }
 
+// Catalog returns a client of CatalogService, to ask which inputs are secrets.
+func (c *Client) Catalog() dockwellv1connect.CatalogServiceClient {
+	return dockwellv1connect.NewCatalogServiceClient(c.HTTP, c.URL, c.options()...)
+}
+
 // Changes returns a client of ChangeService, for the plan flow.
 func (c *Client) Changes() dockwellv1connect.ChangeServiceClient {
 	return dockwellv1connect.NewChangeServiceClient(c.HTTP, c.URL, c.options()...)

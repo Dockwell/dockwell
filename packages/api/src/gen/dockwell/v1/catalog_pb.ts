@@ -241,7 +241,7 @@ export type InstallCatalogEntryRequest = Message<"dockwell.v1.InstallCatalogEntr
   /**
    * A value for each input, by name. An input left out takes its default; one
    * with neither is refused, unless it's optional. It may hold a secret a person
-   * typed, such as a tunnel's token.
+   * typed, such as a tunnel's token, which the CLI takes only from your environment.
    *
    * @generated from field: map<string, string> values = 3;
    */

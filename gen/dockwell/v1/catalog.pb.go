@@ -416,7 +416,7 @@ type InstallCatalogEntryRequest struct {
 	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	// A value for each input, by name. An input left out takes its default; one
 	// with neither is refused, unless it's optional. It may hold a secret a person
-	// typed, such as a tunnel's token.
+	// typed, such as a tunnel's token, which the CLI takes only from your environment.
 	Values map[string]string `protobuf:"bytes,3,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Where it runs, by server ID, as an edit's servers. Empty runs it on the only
 	// server; once there are several, name them.
