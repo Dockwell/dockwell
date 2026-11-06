@@ -704,16 +704,19 @@ func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite, plainOnly b
 	}
 	wait, cancel := context.WithTimeout(ctx, startWait)
 	defer cancel()
+	// Caddy's admin API answers before Caddy has its config, refusing what isn't
+	// there yet, and Caddy may then fail to load it, as when a port it needs is
+	// taken, and exit. So a refusal is the answer only if Caddy is still running it
+	// once the time is up: until then, its exiting is.
+	var refused error
 	for {
 		_, _, err := c.call(wait, http.MethodGet, routesPath, nil, nil)
 		if err == nil {
 			c.keepRunning(wait)
 			return nil
 		}
-		if !errors.Is(err, errDown) {
-			if wait.Err() == nil {
-				return fmt.Errorf("caddy started, but its admin API refused the agent: %w", err)
-			}
+		if !errors.Is(err, errDown) && wait.Err() == nil {
+			refused = err
 		}
 		st, serr := c.Runtime.Status(wait)
 		if serr == nil && !st.Running {
@@ -723,6 +726,9 @@ func (c *Caddy) Start(ctx context.Context, panel *ingress.PanelSite, plainOnly b
 		case <-wait.Done():
 			if ctx.Err() != nil {
 				return ctx.Err()
+			}
+			if refused != nil {
+				return fmt.Errorf("caddy started, but its admin API refused the agent for %s: %w", startWait, refused)
 			}
 			return c.failedToStart(ctx, "its admin API didn't answer within "+startWait.String())
 		case <-time.After(100 * time.Millisecond):
