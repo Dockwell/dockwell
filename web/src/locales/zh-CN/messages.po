@@ -887,6 +887,10 @@ msgstr "{subject} 已接管"
 msgid "{target}, up to {size}"
 msgstr "{target},最多 {size}"
 
+#: src/features/changes/notices.tsx
+msgid "{tool} still manages {container}"
+msgstr "{tool} 仍在管理 {container}"
+
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
@@ -3382,6 +3386,10 @@ msgid "It answers only what runs on {server} itself, such as a tunnel on its own
 msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
 
 #: src/features/changes/notices.tsx
+msgid "It came from the Compose project {project}. After a change of image here, whatever runs that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again."
+msgstr "它来自 Compose 项目 {project}。在这里更换镜像后，运行该项目的工具可能会在相同目录上再启动一个副本，并使用相同的名称。如果是面板或脚本在运行它，请先在那里停止，或在那里移除并保留数据。如果是你自己运行的 docker compose，请不要再运行那个文件。"
+
+#: src/features/changes/notices.tsx
 msgid "It can read and write that path on the server."
 msgstr "它可以读写服务器上的该路径。"
 
@@ -3508,6 +3516,10 @@ msgstr "它以特权模式运行，可使用服务器上的所有设备和能力
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs the new image with the rest as it is"
 msgstr "运行新镜像，其余保持不变"
+
+#: src/features/changes/notices.tsx
+msgid "It runs through the Compose project {project}. After a change of image here, a restart or an upgrade in {tool} can start a second copy on the same folders, answering to the same name. Stop it in {tool} first, or remove it there and keep its data."
+msgstr "它通过 Compose 项目 {project} 运行。在这里更换镜像后，在 {tool} 中重启或升级可能会在相同目录上再启动一个副本，并使用相同的名称。请先在 {tool} 中停止它，或在那里移除并保留数据。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
@@ -6009,6 +6021,10 @@ msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。
 #: src/features/changes/words.ts
 msgid "something else on the server"
 msgstr "服务器上的其他内容"
+
+#: src/features/changes/notices.tsx
+msgid "Something may still manage {container}"
+msgstr "可能还有其他工具在管理 {container}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."

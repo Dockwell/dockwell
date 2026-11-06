@@ -80,7 +80,9 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 	if err != nil {
 		return resource.Adoption{}, fmt.Errorf("can't ask Docker how it runs containers, so what this one needs can't be read: %w", err)
 	}
-	return resource.Adoption{Spec: spec, Refused: noSpecHolds(c, options, imageSignal, info), Shows: valuesShown(spec)}, nil
+	return resource.Adoption{
+		Spec: spec, Refused: noSpecHolds(c, options, imageSignal, info), Shows: valuesShown(spec), Manager: docker.ManagedBy(c.Config.Labels),
+	}, nil
 }
 
 // shownWords are the fields valuesShown has words of its own for.

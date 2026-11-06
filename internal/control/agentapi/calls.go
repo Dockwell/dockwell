@@ -1174,7 +1174,7 @@ func (s *Session) Adoption(ctx context.Context, container string, ref resource.R
 	if err != nil {
 		return resource.Adoption{}, fmt.Errorf("can't read %s from %s's agent: %w", container, s.name, err)
 	}
-	return resource.Adoption{Spec: spec, Refused: a.GetRefused(), Shows: a.GetShows()}, nil
+	return resource.Adoption{Spec: spec, Refused: a.GetRefused(), Shows: a.GetShows(), Manager: a.GetManager()}, nil
 }
 
 // Containers asks the agent what Docker lists: every container, or the one named.

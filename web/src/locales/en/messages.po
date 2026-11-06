@@ -887,6 +887,10 @@ msgstr "{subject} is taken on"
 msgid "{target}, up to {size}"
 msgstr "{target}, up to {size}"
 
+#: src/features/changes/notices.tsx
+msgid "{tool} still manages {container}"
+msgstr "{tool} still manages {container}"
+
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
@@ -3382,6 +3386,10 @@ msgid "It answers only what runs on {server} itself, such as a tunnel on its own
 msgstr "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
 
 #: src/features/changes/notices.tsx
+msgid "It came from the Compose project {project}. After a change of image here, whatever runs that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again."
+msgstr "It came from the Compose project {project}. After a change of image here, whatever runs that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again."
+
+#: src/features/changes/notices.tsx
 msgid "It can read and write that path on the server."
 msgstr "It can read and write that path on the server."
 
@@ -3508,6 +3516,10 @@ msgstr "It runs in privileged mode, which gives it every device and capability o
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs the new image with the rest as it is"
 msgstr "It runs the new image with the rest as it is"
+
+#: src/features/changes/notices.tsx
+msgid "It runs through the Compose project {project}. After a change of image here, a restart or an upgrade in {tool} can start a second copy on the same folders, answering to the same name. Stop it in {tool} first, or remove it there and keep its data."
+msgstr "It runs through the Compose project {project}. After a change of image here, a restart or an upgrade in {tool} can start a second copy on the same folders, answering to the same name. Stop it in {tool} first, or remove it there and keep its data."
 
 #: src/features/apps/AppOverview.tsx
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
@@ -6009,6 +6021,10 @@ msgstr "Someone paused it, so it serves nothing and no check runs. Unpause it wi
 #: src/features/changes/words.ts
 msgid "something else on the server"
 msgstr "something else on the server"
+
+#: src/features/changes/notices.tsx
+msgid "Something may still manage {container}"
+msgstr "Something may still manage {container}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."

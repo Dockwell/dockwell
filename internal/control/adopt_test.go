@@ -397,6 +397,56 @@ func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
 	}
 }
 
+// A Compose project usually has something else running it. Once Dockwell replaces the
+// container, that can start a second copy on the same folders, so the plan says so,
+// and what to do first. It warns and doesn't refuse: a project made by hand is fine.
+func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	compose := func(project, dir string) func(*docker.CreateRequest) {
+		return func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+			if project != "" {
+				r.Labels = map[string]string{docker.LabelProject: project, docker.LabelService: "app", docker.LabelWorkingDir: dir}
+			}
+		}
+	}
+	managed := func(c *dockwellv1.Change) *dockwellv1.PlanNote {
+		for _, n := range c.GetPlan().GetNotes() {
+			if n.GetReason() == "managed_elsewhere" {
+				return n
+			}
+		}
+		return nil
+	}
+
+	runByHand(t, e, "1Panel-blog-Ab3x", compose("blog", "/opt/1panel/apps/blog/blog"))
+	n := managed(adopt(t, cc, "1Panel-blog-Ab3x", "blog"))
+	if n == nil || !slices.Equal(n.GetNames(), []string{"1Panel", "1Panel-blog-Ab3x", "blog"}) {
+		t.Fatalf("taking on what 1Panel made says %v", n)
+	}
+	for _, says := range []string{"1Panel still manages 1Panel-blog-Ab3x", "second copy", "Stop it in 1Panel first", "keep its data"} {
+		if !strings.Contains(n.GetMessage(), says) {
+			t.Errorf("the note %q doesn't say %q", n.GetMessage(), says)
+		}
+	}
+
+	// With no way to tell, it says what to look for, and asks nothing of a project
+	// made by hand.
+	runByHand(t, e, "shop-app-1", compose("shop", "/srv/shop"))
+	n = managed(adopt(t, cc, "shop-app-1", "shop"))
+	if n == nil || n.GetNames()[0] != "" || !strings.Contains(n.GetMessage(), "If you ran docker compose yourself") {
+		t.Errorf("taking on a Compose project nothing names says %v", n)
+	}
+
+	runByHand(t, e, "by-hand", compose("", ""))
+	if n := managed(adopt(t, cc, "by-hand", "by-hand")); n != nil {
+		t.Errorf("a container of no Compose project says %v", n)
+	}
+}
+
 // A token that can change things can't bring in a stranger's environment: it could
 // read it through a command of its own, and a stranger's was never in its reach.
 func TestATokenCantTakeOnAContainer(t *testing.T) {

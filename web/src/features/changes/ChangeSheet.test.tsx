@@ -747,6 +747,24 @@ describe("the plan sheet", () => {
     expect(await within(sheet).findByText(/which the file doesn't name, would be deleted/)).toBeVisible();
   });
 
+  it("warns of a tool that still manages what's taken on, by name where it can", async () => {
+    const taking = webPlanned();
+    if (taking.plan) {
+      taking.plan.notes = [
+        create(PlanNoteSchema, { reason: "managed_elsewhere", names: ["1Panel", "1Panel-blog-Ab3x", "blog"] }),
+        create(PlanNoteSchema, { reason: "managed_elsewhere", names: ["", "shop-app-1", "shop"] }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: taking }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByText("1Panel still manages 1Panel-blog-Ab3x")).toBeVisible();
+    expect(within(sheet).getByText(/Stop it in 1Panel first, or remove it there and keep its data/)).toBeVisible();
+    expect(within(sheet).getByText(/Something may still manage shop-app-1/)).toBeVisible();
+    expect(within(sheet).getByText(/If you ran docker compose yourself, don't run that file again/)).toBeVisible();
+  });
+
   it("says what a server's note means in its own words, so they translate", async () => {
     await activateLocale("zh-CN");
     try {

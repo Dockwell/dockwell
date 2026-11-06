@@ -125,10 +125,14 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
 		Servers:  []string{s.ID},
 	}
+	notes := []revision.Note{{Reason: "takes_on", Message: fmt.Sprintf(
+		"Takes on %s as it is: it keeps running, with no restart. Changing its image later replaces it, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container", c.GetName())}}
+	if p := c.GetComposeProject(); p != "" {
+		notes = append(notes, StillManaged(found.Manager, c.GetName(), p))
+	}
 	change, err := h.changes.Propose(ctx, fmt.Sprintf("Take on %s as %s", c.GetName(), name), []*dockwellv1.Edit{edit}, nil, changes.Also{
 		Adopts: map[string]changes.Adoption{name: {ID: c.GetId(), Name: c.GetName()}},
-		Notes: []revision.Note{{Reason: "takes_on", Message: fmt.Sprintf(
-			"Takes on %s as it is: it keeps running, with no restart. Changing its image later replaces it, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container", c.GetName())}},
+		Notes:  notes,
 	})
 	if err != nil {
 		return nil, err
@@ -147,6 +151,21 @@ func Refusal(name string, a resource.Adoption) string {
 		why = append(why, fmt.Sprintf("%s holds %s, so a plan would show it to anyone who can read plans", name, human.List(a.Shows)))
 	}
 	return strings.Join(why, ". ")
+}
+
+// StillManaged is what a plan says of what came from a Compose project, as something
+// else may run that yet. Docker's labels can't be changed and a rebuild there gives a
+// new container, so once Dockwell replaces this one, a restart or an upgrade there
+// can start a second copy on the same folders, under the same name on the network.
+// It warns and doesn't refuse, as a project someone ran by hand is fine to take on.
+func StillManaged(manager, name, project string) revision.Note {
+	message := fmt.Sprintf("%s came from the Compose project %s, and something may still run that. After a change of image here, that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again",
+		name, project)
+	if manager != "" {
+		message = fmt.Sprintf("%[1]s still manages %[2]s, through the Compose project %[3]s. After a change of image here, a restart or an upgrade there can start a second copy on the same folders, answering to the same name. Stop it in %[1]s first, or remove it there and keep its data",
+			manager, name, project)
+	}
+	return revision.Note{Reason: "managed_elsewhere", Message: message, Names: []string{manager, name, project}}
 }
 
 // ServiceName is what a service that takes a container on is called unless someone

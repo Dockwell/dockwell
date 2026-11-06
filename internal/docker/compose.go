@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -15,8 +16,10 @@ const (
 	LabelService  = ComposePrefix + "service"
 	LabelNumber   = ComposePrefix + "container-number"
 	LabelOneoff   = ComposePrefix + "oneoff"
-	LabelVolume   = ComposePrefix + "volume"
-	LabelNetwork  = ComposePrefix + "network"
+	// LabelWorkingDir is where Compose ran, which often says what ran it.
+	LabelWorkingDir = ComposePrefix + "project.working_dir"
+	LabelVolume     = ComposePrefix + "volume"
+	LabelNetwork    = ComposePrefix + "network"
 	// LabelConfigHash is the hash of a container's configuration. Compose
 	// lists only the containers that carry one as its project's, and
 	// recreates one whose hash isn't what it computes. A volume or a
@@ -31,6 +34,26 @@ const OwnPrefix = "dev.dockwell."
 // LabelIngress marks what runs a server's ingress: the proxy, and what keeps its
 // network. They are Dockwell's own, and belong to no project.
 const LabelIngress = OwnPrefix + "ingress"
+
+// portainerStack is where Portainer runs a stack, in its own data directory.
+var portainerStack = regexp.MustCompile(`^/data/compose/[0-9]+(/|$)`)
+
+// ManagedBy names the tool that runs a container's Compose project, as its labels
+// show it, or nothing when they don't.
+func ManagedBy(labels map[string]string) string {
+	dir := labels[LabelWorkingDir]
+	switch {
+	case strings.Contains(dir, "/1panel/"), labels["createdBy"] == "Apps":
+		return "1Panel"
+	case labels["coolify.managed"] == "true":
+		return "Coolify"
+	case portainerStack.MatchString(dir):
+		return "Portainer"
+	case strings.HasPrefix(dir, "/var/lib/casaos/"):
+		return "CasaOS"
+	}
+	return ""
+}
 
 // IsOwnLabel reports a label Dockwell or Compose sets, which a spec can't.
 func IsOwnLabel(key string) bool {

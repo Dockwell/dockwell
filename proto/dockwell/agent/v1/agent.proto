@@ -707,6 +707,9 @@ message AdoptionResult {
   // variable's name and never the value, such as "the value of DB_PASSWORD in its
   // command". With any, it can't be taken on, as a plan would show them.
   repeated string shows = 3;
+  // The tool that runs its Compose project, where its labels show one, such as
+  // "1Panel".
+  string manager = 4;
 }
 
 // ContainersResult lists the containers Docker has.

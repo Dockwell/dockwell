@@ -418,6 +418,20 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       }
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
+      case "managed_elsewhere": {
+        const [tool = "", container = "", project = ""] = note.names;
+        return tool !== ""
+          ? {
+              key,
+              title: t`${tool} still manages ${container}`,
+              detail: t`It runs through the Compose project ${project}. After a change of image here, a restart or an upgrade in ${tool} can start a second copy on the same folders, answering to the same name. Stop it in ${tool} first, or remove it there and keep its data.`,
+            }
+          : {
+              key,
+              title: t`Something may still manage ${container}`,
+              detail: t`It came from the Compose project ${project}. After a change of image here, whatever runs that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again.`,
+            };
+      }
       case "no_backup":
         return {
           key,

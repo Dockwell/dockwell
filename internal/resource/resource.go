@@ -816,6 +816,8 @@ type Adoption struct {
 	// Shows says where Spec would show a value of its environment, by the variable's
 	// name and never the value.
 	Shows []string
+	// Manager is the tool that runs its Compose project, where its labels show one.
+	Manager string
 }
 
 // Adopter is a driver that can take on what runs on a server already, as what a

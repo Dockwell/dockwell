@@ -3767,7 +3767,10 @@ type AdoptionResult struct {
 	// Where the spec would show a value of the container's environment, by the
 	// variable's name and never the value, such as "the value of DB_PASSWORD in its
 	// command". With any, it can't be taken on, as a plan would show them.
-	Shows         []string `protobuf:"bytes,3,rep,name=shows,proto3" json:"shows,omitempty"`
+	Shows []string `protobuf:"bytes,3,rep,name=shows,proto3" json:"shows,omitempty"`
+	// The tool that runs its Compose project, where its labels show one, such as
+	// "1Panel".
+	Manager       string `protobuf:"bytes,4,opt,name=manager,proto3" json:"manager,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3821,6 +3824,13 @@ func (x *AdoptionResult) GetShows() []string {
 		return x.Shows
 	}
 	return nil
+}
+
+func (x *AdoptionResult) GetManager() string {
+	if x != nil {
+		return x.Manager
+	}
+	return ""
 }
 
 // ContainersResult lists the containers Docker has.
@@ -4509,11 +4519,12 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tread_file\x18\v \x01(\v2!.dockwell.agent.v1.ReadFileResultH\x00R\breadFile\x12@\n" +
 	"\tsave_file\x18\f \x01(\v2!.dockwell.agent.v1.SaveFileResultH\x00R\bsaveFile\x12?\n" +
 	"\badoption\x18\r \x01(\v2!.dockwell.agent.v1.AdoptionResultH\x00R\badoptionB\b\n" +
-	"\x06result\"T\n" +
+	"\x06result\"n\n" +
 	"\x0eAdoptionResult\x12\x12\n" +
 	"\x04spec\x18\x01 \x01(\fR\x04spec\x12\x18\n" +
 	"\arefused\x18\x02 \x03(\tR\arefused\x12\x14\n" +
-	"\x05shows\x18\x03 \x03(\tR\x05shows\"\x86\x01\n" +
+	"\x05shows\x18\x03 \x03(\tR\x05shows\x12\x18\n" +
+	"\amanager\x18\x04 \x01(\tR\amanager\"\x86\x01\n" +
 	"\x10ContainersResult\x12<\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x1c.dockwell.v1.ServerContainerR\n" +
