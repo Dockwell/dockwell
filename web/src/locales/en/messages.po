@@ -6070,6 +6070,10 @@ msgstr "The old container stops first"
 msgid "The old value stays in this variable's history"
 msgstr "The old value stays in this variable's history"
 
+#: src/features/changes/notices.tsx
+msgid "The old version may not read its data"
+msgstr "The old version may not read its data"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"
 msgstr "The owner account wasn't created"
@@ -6384,6 +6388,14 @@ msgstr "This path crosses the open internet unencrypted, between Cloudflare and 
 #: src/features/changes/notices.tsx
 msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
 msgstr "This plan destroys data, may cut off access, or lets two containers write to one place"
+
+#: src/features/changes/notices.tsx
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't."
+msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't."
+
+#: src/features/changes/notices.tsx
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
+msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."

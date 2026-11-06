@@ -6070,6 +6070,10 @@ msgstr "旧容器先停止"
 msgid "The old value stays in this variable's history"
 msgstr "旧值仍保留在该变量的历史中"
 
+#: src/features/changes/notices.tsx
+msgid "The old version may not read its data"
+msgstr "旧版本可能无法读取它的数据"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"
 msgstr "所有者账户未创建"
@@ -6384,6 +6388,14 @@ msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过
 #: src/features/changes/notices.tsx
 msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
 msgstr "此计划会销毁数据、可能切断访问，或让两个容器写入同一处"
+
+#: src/features/changes/notices.tsx
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't."
+msgstr "这只恢复了旧版本,没有恢复它的数据。如果新版本改动过这些数据(例如做过迁移),旧版本可能拒绝读取或读错,而且没有做过备份。请检查应用能否读取数据,如果不能,请恢复你自己的备份。"
+
+#: src/features/changes/notices.tsx
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
+msgstr "这只会恢复旧版本,不会恢复它的数据。如果新版本改动过这些数据(例如做过迁移),旧版本可能拒绝读取或读错,而且没有做过备份。请先备份不能丢失的内容,或者继续使用新版本。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."

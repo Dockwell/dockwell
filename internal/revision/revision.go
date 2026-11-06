@@ -3451,7 +3451,27 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	if len(edits) == 0 {
 		return nil, fault.New(ErrCantUndo, "%s made no revisions, so there's nothing to undo", changeID)
 	}
-	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, changeID, true)
+	plan, err := DecodePlan(c.Plan)
+	if err != nil {
+		return nil, err
+	}
+	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits, Notes: undoNotes(plan)}, changeID, true)
+}
+
+// undoNotes says what an undo can't put back, from what the undone plan said
+// when it ran. The plan that took no backup is the only one to know it took none.
+func undoNotes(undone *Plan) []Note {
+	var notes []Note
+	for _, n := range undone.Notes {
+		if n.Reason == "no_backup" {
+			notes = append(notes, Note{
+				Reason:  "undo_no_backup",
+				Message: "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version",
+				Ref:     n.Ref,
+			})
+		}
+	}
+	return notes
 }
 
 // Drift is a resource that doesn't match its latest revision.

@@ -397,6 +397,14 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`No backup is taken first`,
           detail: t`Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first.`,
         };
+      case "undo_no_backup":
+        return {
+          key,
+          title: t`The old version may not read its data`,
+          detail: applied
+            ? t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't.`
+            : t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version.`,
+        };
       case "values_latest": {
         const names = note.names.join(", ");
         return {

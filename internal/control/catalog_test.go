@@ -664,6 +664,51 @@ func testAReleaseCanTakeAwayWhatItGave(t *testing.T, backend store.Backend) {
 	}
 }
 
+// Undoing an upgrade puts the old version back on what the new one left, so the plan says
+// that before anyone applies it, and an undo of anything else doesn't.
+func TestUndoingAnUpgradeWarnsOfItsData(t *testing.T) { storetest.Each(t, testUndoingAnUpgradeWarnsOfItsData) }
+
+func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
+	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	said := func(id string) string {
+		t.Helper()
+		undo, err := u.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out string
+		for _, n := range undo.Msg.GetChange().GetPlan().GetNotes() {
+			if n.GetReason() == "undo_no_backup" {
+				out = n.GetMessage()
+			}
+		}
+		if _, err := u.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: undo.Msg.GetChange().GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	p, err := u.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Add one", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: u.env, Name: "mine"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "mine:1"}}}}},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.applied(p.Msg.GetChange())
+	if got := said(p.Msg.GetChange().GetId()); got != "" {
+		t.Errorf("an undo of another change warns of data: %s", got)
+	}
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+	up := u.upgrade()
+	u.applied(up)
+	got := said(up.GetId())
+	for _, want := range []string{"may refuse it or misread it", "no backup was taken"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("an undo of an upgrade says %q, with no %q", got, want)
+		}
+	}
+}
+
 // A release that changes nothing that runs, such as a typo in its words, offers nothing,
 // and one that changes what runs at the same version still does.
 func TestAReleaseOffersAnUpgradeOnlyIfWhatRunsChanges(t *testing.T) {

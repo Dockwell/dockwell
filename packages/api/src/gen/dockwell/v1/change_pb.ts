@@ -1294,9 +1294,10 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * that keeps its options, as an edit gave none, "first_steps" for what a catalog
    * app needs a person to know and do, "no_backup" for a catalog upgrade that runs
    * without a backup first, "upgrade_kept" for what a person changed that the upgrade
-   * changes too, which stays, and "upgrade_dropped" for what they changed that it
-   * drops, which goes. Another reason may come: its
-   * message says what it means.
+   * changes too, which stays, "upgrade_dropped" for what they changed that it
+   * drops, which goes, and "undo_no_backup" for an undo of a plan that took no
+   * backup, whose data stays as the new version left it. Another reason may come:
+   * its message says what it means.
    *
    * @generated from field: string reason = 1;
    */

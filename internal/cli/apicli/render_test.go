@@ -459,6 +459,17 @@ func TestPlanViewSaysAnAppsFirstSteps(t *testing.T) {
 	}
 }
 
+// What can cost a person their data reads as a warning, not one more note.
+func TestPlanViewWarnsOfAnUpgradesData(t *testing.T) {
+	for _, reason := range []string{"no_backup", "undo_no_backup"} {
+		var b strings.Builder
+		PlanView(&b, &dockwellv1.Plan{Notes: []*dockwellv1.PlanNote{{Reason: reason, Message: "No backup was taken."}}})
+		if !strings.Contains(b.String(), "Warning: No backup was taken.\n") {
+			t.Errorf("%s reads:\n%s", reason, b.String())
+		}
+	}
+}
+
 // A plan says where it lands above its steps, once there's a choice of it.
 func TestPlanViewSaysWhereItLands(t *testing.T) {
 	for _, c := range []struct {
