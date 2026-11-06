@@ -105,7 +105,7 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 	}
 	read, cancel := context.WithTimeout(ctx, callWait)
 	defer cancel()
-	spec, refused, err := session.Adoption(read, c.GetId(), resource.Ref{Kind: service.Kind, Scope: env.ID, Name: name})
+	found, err := session.Adoption(read, c.GetId(), resource.Ref{Kind: service.Kind, Scope: env.ID, Name: name})
 	if err != nil {
 		var se *resource.ServerError
 		if errors.As(err, &se) {
@@ -113,12 +113,12 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		}
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read %s now: %w", s.Name, c.GetName(), err), authapi.ReasonUnavailable)
 	}
-	if len(refused) > 0 {
-		return nil, authapi.Invalid(fmt.Errorf("%s runs with %s, which a service can't hold yet, so changing its image would drop them without a word. It stays as it is, and nothing was taken on. Make it again without them, then take it on, or leave it outside Dockwell", c.GetName(), human.List(refused)))
+	if why := Refusal(c.GetName(), found); why != "" {
+		return nil, authapi.Invalid(fmt.Errorf("%s. It stays as it is, and nothing was taken on. Make it again without them, then take it on, or leave it outside Dockwell", why))
 	}
-	svc, ok := spec.(*resourcev1.Service)
+	svc, ok := found.Spec.(*resourcev1.Service)
 	if !ok {
-		return nil, h.internal(ctx, fmt.Errorf("an agent read %s as %T", c.GetName(), spec))
+		return nil, h.internal(ctx, fmt.Errorf("an agent read %s as %T", c.GetName(), found.Spec))
 	}
 	edit := &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: env.ID, Name: name},
@@ -134,6 +134,19 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.AdoptContainerResponse{Change: change}), nil
+}
+
+// Refusal says why a container can't be taken on as it was read, or nothing if it
+// can. It names a value of its environment by the variable alone.
+func Refusal(name string, a resource.Adoption) string {
+	var why []string
+	if len(a.Refused) > 0 {
+		why = append(why, fmt.Sprintf("%s runs with %s, which a service can't hold yet, so changing its image would drop them without a word", name, human.List(a.Refused)))
+	}
+	if len(a.Shows) > 0 {
+		why = append(why, fmt.Sprintf("%s holds %s, so a plan would show it to anyone who can read plans", name, human.List(a.Shows)))
+	}
+	return strings.Join(why, ". ")
 }
 
 // ServiceName is what a service that takes a container on is called unless someone

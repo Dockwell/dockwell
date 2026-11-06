@@ -1164,16 +1164,17 @@ func (s *Session) LogSources(ctx context.Context, call *agentv1.LogSourcesCall) 
 }
 
 // Adoption asks the agent what a container would be as the service ref.
-func (s *Session) Adoption(ctx context.Context, container string, ref resource.Ref) (proto.Message, []string, error) {
+func (s *Session) Adoption(ctx context.Context, container string, ref resource.Ref) (resource.Adoption, error) {
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Adoption{Adoption: &agentv1.AdoptionCall{Container: container, Resource: resourcepb.Ref(ref)}}}, ObserveTimeout, nil)
 	if err != nil {
-		return nil, nil, err
+		return resource.Adoption{}, err
 	}
-	spec, err := s.agents.kinds.Decode(ref.Kind, r.GetAdoption().GetSpec())
+	a := r.GetAdoption()
+	spec, err := s.agents.kinds.Decode(ref.Kind, a.GetSpec())
 	if err != nil {
-		return nil, nil, fmt.Errorf("can't read %s from %s's agent: %w", container, s.name, err)
+		return resource.Adoption{}, fmt.Errorf("can't read %s from %s's agent: %w", container, s.name, err)
 	}
-	return spec, r.GetAdoption().GetRefused(), nil
+	return resource.Adoption{Spec: spec, Refused: a.GetRefused(), Shows: a.GetShows()}, nil
 }
 
 // Containers asks the agent what Docker lists: every container, or the one named.

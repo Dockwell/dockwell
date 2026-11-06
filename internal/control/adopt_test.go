@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
@@ -341,6 +342,59 @@ func TestWhatNoSpecHoldsIsRefusedByName(t *testing.T) {
 		"MaskedPaths": []any{"/proc/kcore"}, "ReadonlyPaths": []any{"/proc/bus"}, "OomKillDisable": false, "Memory": 1 << 30, "MemorySwap": 2 << 30,
 	})
 	adopt(t, cc, "plain", "plain")
+}
+
+// A value of the environment is sealed, and a spec's other fields aren't, so a value
+// anywhere else in one would show in the plan, and reach a read-only token and an
+// export. Wherever it is, it's refused, and the refusal doesn't say it. A path isn't a
+// secret, and TZ=Asia/Shanghai beside a mount of its zoneinfo is ordinary.
+func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	plainly := func(edit func(*docker.CreateRequest)) func(*docker.CreateRequest) {
+		return func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+			edit(r)
+		}
+	}
+	for name, c := range map[string]struct {
+		edit func(*docker.CreateRequest)
+		says string
+	}{
+		"in-label": {func(r *docker.CreateRequest) {
+			r.Labels = map[string]string{"backup.password": secretValue}
+		}, "the value of DB_PASSWORD in its label backup.password"},
+		"in-label-name": {func(r *docker.CreateRequest) {
+			r.Labels = map[string]string{"backup." + secretValue: "on"}
+		}, "the value of DB_PASSWORD in its labels"},
+		"in-user":       {func(r *docker.CreateRequest) { r.User = secretValue }, "the value of DB_PASSWORD in its user"},
+		"in-entrypoint": {func(r *docker.CreateRequest) { r.Entrypoint = []string{"run", secretValue} }, "the value of DB_PASSWORD in its entrypoint"},
+		"in-check": {func(r *docker.CreateRequest) {
+			r.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "curl", "-u", secretValue}}
+		}, "the value of DB_PASSWORD in its health check"},
+	} {
+		runByHand(t, e, name, plainly(c.edit))
+		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name}))
+		if err == nil || !strings.Contains(err.Error(), c.says) || !strings.Contains(err.Error(), "a plan would show") {
+			t.Errorf("taking on %s: %v, want it to say %q", name, err, c.says)
+		}
+		if err != nil && strings.Contains(err.Error(), secretValue) {
+			t.Errorf("the refusal for %s shows the value: %v", name, err)
+		}
+	}
+
+	// Its whole spec holds no value, on a container that passes.
+	runByHand(t, e, "with-zone", plainly(func(r *docker.CreateRequest) {
+		r.Env = append(r.Env, "TZ=Asia/Shanghai", "DATA_DIR=/data/app")
+		r.WorkingDir = "/data/app"
+		r.HostConfig.Binds = []string{"/usr/share/zoneinfo/Asia/Shanghai:/etc/localtime:ro"}
+	}))
+	change := adopt(t, cc, "with-zone", "zone")
+	if text := protojson.Format(change); strings.Contains(text, secretValue) {
+		t.Errorf("the plan shows a value: %s", text)
+	}
 }
 
 // A token that can change things can't bring in a stranger's environment: it could

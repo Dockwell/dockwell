@@ -77,15 +77,15 @@ func (c *calls) adoption(ctx context.Context, call *agentv1.AdoptionCall) (*agen
 	if !ok {
 		return nil, fmt.Errorf("this agent can't take on what a %s runs", ref.Kind)
 	}
-	spec, refused, err := a.ReadAdoption(ctx, ref, call.GetContainer())
+	read, err := a.ReadAdoption(ctx, ref, call.GetContainer())
 	if err != nil {
 		return nil, err
 	}
-	b, err := resource.Encode(spec)
+	b, err := resource.Encode(read.Spec)
 	if err != nil {
 		return nil, err
 	}
-	return &agentv1.AdoptionResult{Spec: b, Refused: refused}, nil
+	return &agentv1.AdoptionResult{Spec: b, Refused: read.Refused, Shows: read.Shows}, nil
 }
 
 // containerFilter asks Docker for one container, exactly: a name goes through its

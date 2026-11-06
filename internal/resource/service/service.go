@@ -391,12 +391,13 @@ func (d *Driver) Settle(ctx context.Context, ref resource.Ref, desired proto.Mes
 }
 
 // ReadAdoption reads a container as the app of the service ref would be.
-func (d *Driver) ReadAdoption(ctx context.Context, ref resource.Ref, containerID string) (proto.Message, []string, error) {
-	app, refused, err := d.Containers.ReadAdoptionAt(ctx, Target(ref), containerID)
+func (d *Driver) ReadAdoption(ctx context.Context, ref resource.Ref, containerID string) (resource.Adoption, error) {
+	read, err := d.Containers.ReadAdoptionAt(ctx, Target(ref), containerID)
 	if err != nil {
-		return nil, nil, err
+		return resource.Adoption{}, err
 	}
-	return &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}, refused, nil
+	read.Spec = &resourcev1.Service{Runs: &resourcev1.Service_App{App: read.Spec.(*resourcev1.Container)}}
+	return read, nil
 }
 
 // Adopts says what taking the container on as the service takes.

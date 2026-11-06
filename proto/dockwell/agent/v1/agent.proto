@@ -703,6 +703,10 @@ message AdoptionResult {
   // for people, such as "hostname". With any, it can't be taken on yet, as a change
   // of its image would quietly drop them.
   repeated string refused = 2;
+  // Where the spec would show a value of the container's environment, by the
+  // variable's name and never the value, such as "the value of DB_PASSWORD in its
+  // command". With any, it can't be taken on, as a plan would show them.
+  repeated string shows = 3;
 }
 
 // ContainersResult lists the containers Docker has.

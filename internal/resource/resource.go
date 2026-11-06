@@ -807,13 +807,24 @@ type IDPrefixer interface {
 	IDPrefix() string
 }
 
+// Adoption is a container read as what a resource would run.
+type Adoption struct {
+	Spec proto.Message
+	// Refused is what it runs with that no spec holds, in words for people, which a
+	// replace would drop.
+	Refused []string
+	// Shows says where Spec would show a value of its environment, by the variable's
+	// name and never the value.
+	Shows []string
+}
+
 // Adopter is a driver that can take on what runs on a server already, as what a
 // resource runs, with nothing about it changing. See
 // docs/adr/0031-containers-dockwell-didnt-make.md.
 type Adopter interface {
 	// ReadAdoption reads the container, by its full ID, as what the resource would
-	// run: its spec, and what it runs with that no spec holds, in words for people.
-	ReadAdoption(ctx context.Context, ref Ref, container string) (proto.Message, []string, error)
+	// run.
+	ReadAdoption(ctx context.Context, ref Ref, container string) (Adoption, error)
 	// Adopts says what taking the container on as desired takes, and refuses
 	// what has changed since it was read.
 	Adopts(ctx context.Context, ref Ref, container string, desired proto.Message) (Decision, error)
