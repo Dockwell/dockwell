@@ -69,9 +69,21 @@ It can't reach past its container on its own. What it can do is leave things for
 | Swap a directory for a symlink between a check and a read | There's no gap to swap in: the agent opens each part with `openat` and `O_NOFOLLOW` from the descriptor it checked, and reads what it opened |
 | Plant a FIFO, a socket or a device | Refused by its type, before it is opened for reading, and opened without blocking if it changes in between |
 | Fill a directory with entries, or with long link targets, to take the agent's stream down | A listing stops at 5,000 entries and 4 MiB, and says so |
+| Run many large listings at once, on a stream it has slowed, to fill the agent's memory | A call keeps one of 4 places until its result has gone, so 4 listings are all that wait to send. Tested |
 | Name a file so it can't be sent, with bytes that aren't UTF-8 | The listing carries on, and shows that one name as well as it can, marked. It can't be opened from the panel |
 | Write markup in a file, to run in the panel | Contents are text in a `<pre>`, with nothing rendered, whatever the file's name says |
 | Hide a private key from the check | It can. The check finds PEM on a line of its own, indented or not. See [known gaps](#known-gaps) |
+
+### A mount that stops answering
+
+A network mount or FUSE file system whose far end is down holds a system call for as long as it stays down, and nothing can stop one. Anyone who can reach Files can walk into one, by opening it, or a folder with a link into it.
+
+| What it could do | What happens |
+| --- | --- |
+| Take the server offline, as the agent waits on the call when its stream ends | The agent never waits on a file call. Stopping leaves it behind, and the next stream opens. Tested with a call that never returns, end to end |
+| Take every place a call runs in, so Files only says it's busy | A call left behind gives its place back within 15 s, and healthy paths carry on. Tested |
+| Leave a person waiting | They hear that the path isn't answering within 15 s, or at once if it's already known. A folder around it lists by name alone |
+| Pile up calls that can't be stopped | A place known not to answer takes no more calls: the whole mount, for a network file system or FUSE. At most 8 are left behind, and past that no call starts until one comes back. Tested |
 
 ### Something unprivileged on the server
 
@@ -90,5 +102,6 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **An `EnvironmentFile` with `DOCKWELL_DATABASE` in it** is named by the operator, so Dockwell can't refuse it by its path. Keep the password in `/root/.pgpass`, which is refused. The database holds sealed specs, and reaching it isn't reaching the key.
 - **Credentials in other forms.** A key that isn't PEM, such as a PuTTY key or one in the body of a config file, isn't refused, and neither is a token in a dotfile, such as the CLI's own.
 - **A file over 1 MiB** is checked for a key only in what is read of it, and only that part goes out.
+- **Eight stuck calls stop Files on that server** until one comes back, for paths and mounts alike. The agent, its stream and everything else on the server carry on. A call stuck in the kernel can also outlast the agent's own stop, as nothing can end it until the mount answers.
 - **A hard link to a refused file,** made by root, reads as what it is: a file somewhere else.
 - **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding both `containers` and `volumes`. A backup of `overlay2` alone, or a root that has never answered and holds only one of them, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.

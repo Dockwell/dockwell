@@ -190,7 +190,7 @@ func (c *Collector) mounts() []mount {
 		if len(f) < 3 || !dataFilesystems[f[2]] {
 			continue
 		}
-		m := mount{device: f[0], point: unescapeMount(f[1]), fstype: f[2]}
+		m := mount{device: f[0], point: UnescapeMount(f[1]), fstype: f[2]}
 		if have, ok := byDevice[m.device]; !ok || len(m.point) < len(have.point) {
 			byDevice[m.device] = m
 		}
@@ -203,9 +203,9 @@ func (c *Collector) mounts() []mount {
 	return out
 }
 
-// unescapeMount undoes the octal escapes /proc/self/mounts uses for spaces
+// UnescapeMount undoes the octal escapes /proc/self/mounts uses for spaces
 // and other odd characters in paths.
-func unescapeMount(s string) string {
+func UnescapeMount(s string) string {
 	if !strings.Contains(s, `\`) {
 		return s
 	}

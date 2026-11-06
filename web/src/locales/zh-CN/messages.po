@@ -6517,6 +6517,11 @@ msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
 
+#: src/features/files/FilesPage.tsx
+#: src/features/files/FileViewer.tsx
+msgid "This path isn't answering"
+msgstr "这个路径没有响应"
+
 #: src/features/changes/notices.tsx
 msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
 msgstr "此计划会销毁数据、可能切断访问，或让两个容器写入同一处"

@@ -42,6 +42,9 @@ const (
 	FileRefusal_KIND_NOT_A_FILE FileRefusal_Kind = 4
 	// The server denied the agent, as a mount that squashes root does.
 	FileRefusal_KIND_DENIED FileRefusal_Kind = 5
+	// The path stopped answering, as a network mount does when its far end is
+	// down, so the agent stopped waiting for it.
+	FileRefusal_KIND_NOT_ANSWERING FileRefusal_Kind = 6
 )
 
 // Enum value maps for FileRefusal_Kind.
@@ -53,6 +56,7 @@ var (
 		3: "KIND_NOT_A_DIRECTORY",
 		4: "KIND_NOT_A_FILE",
 		5: "KIND_DENIED",
+		6: "KIND_NOT_ANSWERING",
 	}
 	FileRefusal_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED":     0,
@@ -61,6 +65,7 @@ var (
 		"KIND_NOT_A_DIRECTORY": 3,
 		"KIND_NOT_A_FILE":      4,
 		"KIND_DENIED":          5,
+		"KIND_NOT_ANSWERING":   6,
 	}
 )
 
@@ -3852,18 +3857,19 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\rListFilesCall\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"\"\n" +
 	"\fReadFileCall\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\xf9\x01\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"\x91\x02\n" +
 	"\vFileRefusal\x127\n" +
 	"\x04kind\x18\x01 \x01(\x0e2#.dockwell.agent.v1.FileRefusal.KindR\x04kind\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\"\x82\x01\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\"\x9a\x01\n" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eKIND_NOT_FOUND\x10\x01\x12\x10\n" +
 	"\fKIND_REFUSED\x10\x02\x12\x18\n" +
 	"\x14KIND_NOT_A_DIRECTORY\x10\x03\x12\x13\n" +
 	"\x0fKIND_NOT_A_FILE\x10\x04\x12\x0f\n" +
-	"\vKIND_DENIED\x10\x05\"\x85\x01\n" +
+	"\vKIND_DENIED\x10\x05\x12\x16\n" +
+	"\x12KIND_NOT_ANSWERING\x10\x06\"\x85\x01\n" +
 	"\x0fListFilesResult\x128\n" +
 	"\alisting\x18\x01 \x01(\v2\x1e.dockwell.v1.ListFilesResponseR\alisting\x128\n" +
 	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"}\n" +

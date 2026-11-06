@@ -157,6 +157,8 @@ func refusal(r *agentv1.FileRefusal) error {
 		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "not_a_directory")
 	case agentv1.FileRefusal_KIND_NOT_A_FILE:
 		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "not_a_file")
+	case agentv1.FileRefusal_KIND_NOT_ANSWERING:
+		return authapi.ReasonError(connect.CodeDeadlineExceeded, err, "path_not_answering")
 	case agentv1.FileRefusal_KIND_DENIED, agentv1.FileRefusal_KIND_UNSPECIFIED:
 	}
 	return authapi.ReasonError(connect.CodePermissionDenied, err, "file_denied")

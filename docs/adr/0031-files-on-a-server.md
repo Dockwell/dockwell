@@ -70,7 +70,18 @@ If plans with host access or the terminal come to take a step-up, this takes the
 
 - A file reads as text up to 1 MiB. A larger one reads as its first 1 MiB, and can't be saved. One that isn't UTF-8 reads as binary, and its contents aren't sent.
 - A directory lists at most 5,000 entries and 4 MiB.
-- These calls go on the agent's main stream ([ADR 0017](0017-the-change-api-and-the-agent-stream.md)), at most 4 at once, as they are this small. Uploads and downloads, which aren't, would go on a connection of their own, as logs do.
+- These calls go on the agent's main stream ([ADR 0017](0017-the-change-api-and-the-agent-stream.md)), at most 4 at once, as they are this small. A call keeps its place until its result has gone, so a stream slower than the agent can't pile results up. Uploads and downloads, which aren't this small, would go on a connection of their own, as logs do.
+
+### A path that stops answering
+
+A network mount whose far end is down can hold a system call for as long as it stays down, and nothing can stop one. So the agent's connection never depends on a file call returning:
+
+- Each call does its disk work on a goroutine of its own, and what waits for it stops after 15 s, with the reason `path_not_answering`. The stream can end without it.
+- What's left behind gives back its place and stays until the mount answers, however long that is.
+- The next call to the same place is told at once: the whole mount, for a network file system or FUSE, or that path alone on anything else. So a dead mount costs one wait, and a folder with a link into one lists around it.
+- At most 8 calls can be left behind. Past that no call starts until one comes back, which bounds what a stuck call holds.
+
+A network mount isn't refused before it's walked into, as a share is a fair thing to browse, and most of the time it answers.
 
 ## Consequences
 

@@ -152,8 +152,8 @@ func TestMissingFilesAreHarmless(t *testing.T) {
 }
 
 func TestParsers(t *testing.T) {
-	if got := unescapeMount(`/mnt/a\040b\011c`); got != "/mnt/a b\tc" {
-		t.Errorf("unescapeMount = %q", got)
+	if got := UnescapeMount(`/mnt/a\040b\011c`); got != "/mnt/a b\tc" {
+		t.Errorf("UnescapeMount = %q", got)
 	}
 	kv := parseKeyValues([]byte("# comment\nNAME='Debian GNU/Linux'\nID=debian\nBAD LINE\n"))
 	if kv["NAME"] != "Debian GNU/Linux" || kv["ID"] != "debian" || len(kv) != 2 {

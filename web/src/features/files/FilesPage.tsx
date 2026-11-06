@@ -20,6 +20,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
+import { isTransient } from "../../app/api";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
@@ -37,6 +38,11 @@ export interface FilesSearch {
   path?: string;
   /** The file open beside it. */
   file?: string;
+}
+
+/** A path that isn't answering won't by the next try, and each try costs someone the wait. */
+function retryListing(failures: number, error: unknown): boolean {
+  return failures < 2 && isTransient(error) && reasonOf(error) !== "path_not_answering";
 }
 
 /** Places on most servers worth a click, as the mock has them. */
@@ -128,7 +134,7 @@ function Files({ server, folder, file }: { server: Server; folder: string; file:
   const places = usePlaces();
   const [filter, setFilter] = useState("");
   const serverId = server.id;
-  const query = useQuery(FileService.method.listFiles, { serverId, path: folder });
+  const query = useQuery(FileService.method.listFiles, { serverId, path: folder }, { retry: retryListing });
   const listing = query.data;
   const shown = listing?.path ?? folder;
 
@@ -328,9 +334,11 @@ function FolderProblem({ error, folder, serverId }: { error: ConnectError; folde
       ? t`Dockwell doesn't open this folder`
       : reason === "not_found"
         ? t`Nothing at this path`
-        : reason === "server_offline" || ConnectError.from(error).code === Code.Unavailable
-          ? t`Can't reach this server`
-          : t`Can't read this folder`;
+        : reason === "path_not_answering"
+          ? t`This path isn't answering`
+          : reason === "server_offline" || ConnectError.from(error).code === Code.Unavailable
+            ? t`Can't reach this server`
+            : t`Can't read this folder`;
   return (
     <Callout tone={reason === "file_refused" || reason === "not_found" ? "warning" : "critical"} title={title}>
       <p>{sentence(error)}</p>

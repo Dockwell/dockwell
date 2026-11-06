@@ -50,6 +50,13 @@ const (
 
 // Server reads a server's files.
 type Server struct {
+	// AnswerWithin is how long a path has to answer. Zero means answerWithin.
+	AnswerWithin time.Duration
+	// Touching hears of each path a call is about to touch, on the goroutine that
+	// touches it. A test blocks in it to stand in for a mount that stopped
+	// answering, which is otherwise hard to come by. Nil hears nothing.
+	Touching func(path string)
+
 	dataDir    string
 	logger     *slog.Logger
 	dockerRoot func(context.Context) (string, error)
@@ -57,6 +64,10 @@ type Server struct {
 
 	mu    sync.Mutex
 	roots []string // where Docker has said it keeps its data, oldest first
+	// stuck holds where each call left behind stopped: see stuck.go.
+	stuck map[*trail]string
+	// mounts reads what's mounted, as /proc/self/mountinfo has it.
+	mounts func() string
 }
 
 // New returns a Server. dataDir is Dockwell's data directory, and dockerRoot says
@@ -65,13 +76,18 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	s := &Server{dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots)}
+	s := &Server{
+		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
+		stuck: map[*trail]string{}, mounts: readMounts,
+	}
 	s.roots = s.loadRoots()
 	return s
 }
 
-// acquire waits for room to run a call, and returns how to give it back.
-func (s *Server) acquire(ctx context.Context) (func(), error) {
+// Take waits for one of the places these calls run in, and returns how to give it
+// back. The caller keeps it until its result has gone, as what waits to send holds
+// a listing in memory, and as many as a slow stream lets pile up otherwise.
+func (s *Server) Take(ctx context.Context) (func(), error) {
 	select {
 	case s.slots <- struct{}{}:
 		return func() { <-s.slots }, nil
@@ -106,13 +122,14 @@ func (s *Server) List(ctx context.Context, p string) (*agentv1.ListFilesResult, 
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
-	release, err := s.acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
+	return attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.ListFilesResult, error) {
+		return s.list(ctx, t, p)
+	}, func(r *agentv1.FileRefusal) *agentv1.ListFilesResult { return &agentv1.ListFilesResult{Refusal: r} })
+}
+
+func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFilesResult, error) {
 	g := s.guard(ctx)
-	w, refusal := g.walk(p)
+	w, refusal := g.walk(t, p)
 	if refusal != nil {
 		return &agentv1.ListFilesResult{Refusal: refusal}, nil
 	}
@@ -123,6 +140,9 @@ func (s *Server) List(ctx context.Context, p string) (*agentv1.ListFilesResult, 
 			Kind: agentv1.FileRefusal_KIND_NOT_A_DIRECTORY, Path: where,
 			Message: where + " isn't a directory, so it has nothing to list. Read it as a file instead",
 		}}, nil
+	}
+	if refusal := t.touch(where); refusal != nil {
+		return &agentv1.ListFilesResult{Refusal: refusal}, nil
 	}
 	fd, err := unix.Openat(w.last().fd, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
@@ -146,16 +166,21 @@ func (s *Server) List(ctx context.Context, p string) (*agentv1.ListFilesResult, 
 		if i%256 == 0 && ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		var st unix.Stat_t
-		if unix.Fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW) != nil {
-			continue // it went as we read
+		e := &dockwellv1.FileEntry{Name: strings.ToValidUTF8(name, "\uFFFD"), UnreadableName: !utf8.ValidString(name)}
+		// What's known not to answer is listed by name alone, so the folder around
+		// a dead mount, or a link into one, still lists.
+		if t.touch(joined(where, name)) == nil {
+			var st unix.Stat_t
+			if unix.Fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW) != nil {
+				continue // it went as we read
+			}
+			e = entry(name, &st, owners)
+			if st.Mode&unix.S_IFMT == unix.S_IFLNK {
+				followLink(e, fd, name)
+			}
+			_, why := g.enter(w.last().place, name, &st)
+			e.Refused = why != "" || credentials(joined(where, name)) != ""
 		}
-		e := entry(name, &st, owners)
-		if st.Mode&unix.S_IFMT == unix.S_IFLNK {
-			followLink(e, fd, name)
-		}
-		_, why := g.enter(w.last().place, name, &st)
-		e.Refused = why != "" || credentials(joined(where, name)) != ""
 		if room -= entryBytes + len(e.GetName()) + len(e.GetLinkTarget()); room < 0 {
 			here.Truncated = true
 			break
@@ -170,14 +195,15 @@ func (s *Server) Read(ctx context.Context, p string) (*agentv1.ReadFileResult, e
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
-	release, err := s.acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-	w, refusal := s.guard(ctx).walk(p)
+	return attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.ReadFileResult, error) {
+		return s.read(ctx, t, p), nil
+	}, func(r *agentv1.FileRefusal) *agentv1.ReadFileResult { return &agentv1.ReadFileResult{Refusal: r} })
+}
+
+func (s *Server) read(ctx context.Context, t *trail, p string) *agentv1.ReadFileResult {
+	w, refusal := s.guard(ctx).walk(t, p)
 	if refusal != nil {
-		return &agentv1.ReadFileResult{Refusal: refusal}, nil
+		return &agentv1.ReadFileResult{Refusal: refusal}
 	}
 	defer w.close()
 	where := w.path()
@@ -185,33 +211,36 @@ func (s *Server) Read(ctx context.Context, p string) (*agentv1.ReadFileResult, e
 		return &agentv1.ReadFileResult{Refusal: &agentv1.FileRefusal{
 			Kind: agentv1.FileRefusal_KIND_NOT_A_FILE, Path: where,
 			Message: fmt.Sprintf("%s is %s, not a file, so there's nothing to read", where, kindOf(&w.st)),
-		}}, nil
+		}}
 	}
 	if why := credentials(where); why != "" {
-		return &agentv1.ReadFileResult{Refusal: refused(where, why)}, nil
+		return &agentv1.ReadFileResult{Refusal: refused(where, why)}
 	}
-	text, truncated, refusal := read(w)
+	text, truncated, refusal := readText(t, w)
 	if refusal != nil {
-		return &agentv1.ReadFileResult{Refusal: refusal}, nil
+		return &agentv1.ReadFileResult{Refusal: refusal}
 	}
 	out := &dockwellv1.ReadFileResponse{Path: where, File: entry(w.last().name, &w.st, owners{}), Truncated: truncated}
 	if isBinary(text) {
 		out.Binary, out.Truncated = true, false
-		return &agentv1.ReadFileResult{File: out}, nil
+		return &agentv1.ReadFileResult{File: out}
 	}
 	if why := whatItHolds(text); why != "" {
-		return &agentv1.ReadFileResult{Refusal: refused(where, why)}, nil
+		return &agentv1.ReadFileResult{Refusal: refused(where, why)}
 	}
 	out.Content = string(text)
-	return &agentv1.ReadFileResult{File: out}, nil
+	return &agentv1.ReadFileResult{File: out}
 }
 
-// read opens the walk's last part for reading, through the descriptor of the
+// readText opens the walk's last part for reading, through the descriptor of the
 // directory that holds it, and reads its first MaxFileBytes. A file only
 // opens as what the walk checked: a FIFO swapped in would hang a read, and
 // O_NONBLOCK and the check below keep it from being read at all.
-func read(w *walked) ([]byte, bool, *agentv1.FileRefusal) {
+func readText(t *trail, w *walked) ([]byte, bool, *agentv1.FileRefusal) {
 	where, parent, name := w.path(), w.steps[len(w.steps)-2].fd, w.last().name
+	if refusal := t.touch(where); refusal != nil {
+		return nil, false, refusal
+	}
 	fd, err := unix.Openat(parent, name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, false, failed(where, err)

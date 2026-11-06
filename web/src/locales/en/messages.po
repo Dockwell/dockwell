@@ -6517,6 +6517,11 @@ msgstr "This part of Dockwell isn't built yet; it arrives in a later release. Un
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 
+#: src/features/files/FilesPage.tsx
+#: src/features/files/FileViewer.tsx
+msgid "This path isn't answering"
+msgstr "This path isn't answering"
+
 #: src/features/changes/notices.tsx
 msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
 msgstr "This plan destroys data, may cut off access, or lets two containers write to one place"

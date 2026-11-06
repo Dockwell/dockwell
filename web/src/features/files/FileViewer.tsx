@@ -45,13 +45,16 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
   const size = file ? formatBytes(file.sizeBytes, i18n.locale) : "";
   const body = () => {
     if (query.error) {
-      const refused = reasonOf(query.error) === "file_refused";
+      const reason = reasonOf(query.error);
+      const refused = reason === "file_refused";
+      const title = refused
+        ? t`Dockwell doesn't open this file`
+        : reason === "path_not_answering"
+          ? t`This path isn't answering`
+          : t`Can't read this file`;
       return (
         <div className="files-note">
-          <Callout
-            tone={refused ? "warning" : "critical"}
-            title={refused ? t`Dockwell doesn't open this file` : t`Can't read this file`}
-          >
+          <Callout tone={refused ? "warning" : "critical"} title={title}>
             {sentence(query.error)}
           </Callout>
         </div>

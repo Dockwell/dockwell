@@ -347,6 +347,9 @@ message FileRefusal {
     KIND_NOT_A_FILE = 4;
     // The server denied the agent, as a mount that squashes root does.
     KIND_DENIED = 5;
+    // The path stopped answering, as a network mount does when its far end is
+    // down, so the agent stopped waiting for it.
+    KIND_NOT_ANSWERING = 6;
   }
 
   // What went wrong.

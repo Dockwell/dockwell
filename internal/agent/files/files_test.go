@@ -519,7 +519,8 @@ func TestAFileSwappedAfterItsCheckIsntRead(t *testing.T) {
 	d := newDisk(t)
 	p := filepath.Join(d.root, "file")
 	write(t, p, "checked")
-	w, refusal := d.server.guard(t.Context()).walk(p)
+	trail := &trail{s: d.server}
+	w, refusal := d.server.guard(t.Context()).walk(trail, p)
 	if refusal != nil {
 		t.Fatal(refusal)
 	}
@@ -530,7 +531,7 @@ func TestAFileSwappedAfterItsCheckIsntRead(t *testing.T) {
 	if err := os.Symlink(filepath.Join(d.data, "control", "key"), p); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, got := read(w); got == nil {
+	if _, _, got := readText(trail, w); got == nil {
 		t.Fatal("a link swapped in was read")
 	}
 	if err := os.Remove(p); err != nil {
@@ -542,7 +543,7 @@ func TestAFileSwappedAfterItsCheckIsntRead(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		if _, _, got := read(w); got == nil {
+		if _, _, got := readText(trail, w); got == nil {
 			t.Error("a FIFO swapped in was read")
 		}
 	}()
@@ -553,10 +554,10 @@ func TestAFileSwappedAfterItsCheckIsntRead(t *testing.T) {
 	}
 }
 
-func TestReadsTakeTurns(t *testing.T) {
+func TestCallsTakeTurns(t *testing.T) {
 	d := newDisk(t)
 	for range slots {
-		release, err := d.server.acquire(t.Context())
+		release, err := d.server.Take(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -564,8 +565,8 @@ func TestReadsTakeTurns(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
-	if _, err := d.server.Read(ctx, filepath.Join(d.data, "x")); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("a fifth read went ahead: %v", err)
+	if _, err := d.server.Take(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("a fifth call went ahead: %v", err)
 	}
 }
 

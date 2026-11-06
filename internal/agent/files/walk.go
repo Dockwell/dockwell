@@ -205,7 +205,7 @@ func parts(p string) []string {
 // each is checked as it is reached. So what's checked is what's open, a link
 // swapped behind it changes nothing, and no spelling, link or bind mount reaches
 // a refused directory. p has no . or .. of its own; a link's target can.
-func (g *guard) walk(p string) (*walked, *agentv1.FileRefusal) {
+func (g *guard) walk(t *trail, p string) (*walked, *agentv1.FileRefusal) {
 	root, err := unix.Open("/", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, denied("/", err)
@@ -215,14 +215,14 @@ func (g *guard) walk(p string) (*walked, *agentv1.FileRefusal) {
 		w.close()
 		return nil, denied("/", err)
 	}
-	if refusal := g.follow(w, parts(p)); refusal != nil {
+	if refusal := g.follow(t, w, parts(p)); refusal != nil {
 		w.close()
 		return nil, refusal
 	}
 	return w, nil
 }
 
-func (g *guard) follow(w *walked, todo []string) *agentv1.FileRefusal {
+func (g *guard) follow(t *trail, w *walked, todo []string) *agentv1.FileRefusal {
 	links := 0
 	for len(todo) > 0 {
 		name := todo[0]
@@ -236,6 +236,9 @@ func (g *guard) follow(w *walked, todo []string) *agentv1.FileRefusal {
 				return denied(w.path(), err)
 			}
 			continue
+		}
+		if refusal := t.touch(joined(w.path(), name)); refusal != nil {
+			return refusal
 		}
 		at := w.last()
 		fd, err := unix.Openat(at.fd, name, unix.O_PATH|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)

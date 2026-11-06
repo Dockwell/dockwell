@@ -10,11 +10,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -149,6 +151,57 @@ func testNoTokenReachesAServersFiles(t *testing.T, backend store.Backend) {
 	}
 	if got := fileEvents(t, f); len(got) != 0 {
 		t.Errorf("a refused token got as far as the audit log: %v", got)
+	}
+}
+
+// A dead mount is the server's trouble, not its connection's: a person hears so
+// within a bound, and the agent can always end its stream and start another, with
+// the call still stuck, as nothing can stop one.
+func TestAPathThatStopsAnsweringLeavesTheServerOnline(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	server := f.addServer(t, false)
+	id := server.id.ServerID
+	dir := t.TempDir()
+	dead := filepath.Join(dir, "mnt")
+	writeFile(t, filepath.Join(dead, "f"), "x")
+	well := filepath.Join(dir, "well")
+	writeFile(t, well, "fine")
+
+	server.stop()
+	waitConnected(t, f, id, false)
+	gone := make(chan struct{})
+	t.Cleanup(func() { close(gone) })
+	disk := agentfiles.New(server.dataDir, nil, nil)
+	disk.AnswerWithin = 50 * time.Millisecond
+	disk.Touching = func(p string) {
+		if strings.HasPrefix(p, dead) {
+			<-gone
+		}
+	}
+	server.disk = disk
+	server.connect(t, f)
+
+	c := fileClient(b, b.origin)
+	_, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: dead}))
+	if connect.CodeOf(err) != connect.CodeDeadlineExceeded || reasonOf(err) != "path_not_answering" || !strings.Contains(err.Error(), "isn't answering") {
+		t.Fatalf("listing a dead mount = %v", err)
+	}
+	if read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: well})); err != nil || read.Msg.GetContent() != "fine" {
+		t.Fatalf("a healthy path = %v, %v", read, err)
+	}
+
+	stopped := make(chan struct{})
+	go func() { server.stop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the agent is waiting on a call that will never return, so this server would stay offline")
+	}
+	waitConnected(t, f, id, false)
+	server.connect(t, f)
+	if read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: well})); err != nil || read.Msg.GetContent() != "fine" {
+		t.Fatalf("after reconnecting = %v, %v", read, err)
 	}
 }
 

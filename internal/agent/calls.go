@@ -113,6 +113,16 @@ func (c *calls) start(call *agentv1.Call) {
 	go func() {
 		defer c.wg.Done()
 		defer c.done(call.GetId())
+		// A file call keeps its place until its result has gone, so what waits
+		// for a slow stream is bounded, and a call whose caller left drops out.
+		if c.cfg.Files != nil && (call.GetListFiles() != nil || call.GetReadFile() != nil) {
+			release, err := c.cfg.Files.Take(ctx)
+			if err != nil {
+				c.reply(call.GetId(), &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}})
+				return
+			}
+			defer release()
+		}
 		result := c.run(ctx, call)
 		// A step cut short because this stream is ending can only say it was
 		// cancelled. Sending nothing lets the control plane say what's true:

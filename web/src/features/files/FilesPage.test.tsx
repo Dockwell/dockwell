@@ -212,6 +212,30 @@ describe("FilesPage", () => {
     expect(screen.getByText("hz-1's agent isn't connected", { exact: false })).toBeVisible();
   });
 
+  it("says when a path isn't answering, and doesn't try it again by itself", async () => {
+    const listFiles = vi.fn(() => {
+      throw refused(
+        "path_not_answering",
+        "/mnt/nas isn't answering, so Dockwell stopped waiting for it",
+        Code.DeadlineExceeded,
+      );
+    });
+    await renderFiles("/servers/srv_1/files?path=/mnt/nas", { listFiles });
+    expect(await screen.findByText("This path isn't answering")).toBeVisible();
+    expect(screen.getByText("/mnt/nas isn't answering", { exact: false })).toBeVisible();
+    expect(listFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("says when a file isn't answering", async () => {
+    await renderFiles("/servers/srv_1/files?path=/var/www&file=/var/www/key", {
+      listFiles: () => site,
+      readFile: () => {
+        throw refused("path_not_answering", "/var/www/key isn't answering", Code.DeadlineExceeded);
+      },
+    });
+    expect(await screen.findByText("This path isn't answering")).toBeVisible();
+  });
+
   it("searches what the folder holds, and says when nothing matches", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     const search = await screen.findByRole("textbox", { name: "Search in www" });
