@@ -29,6 +29,16 @@ const (
 	// that don't resolve never leave this state, which is what makes a burst of
 	// them dangerous.
 	MaxPendingDomains = 50
+	// MaxAskedDomains is how many domains a server may have asked the certificate
+	// authority about within PendingWindow, with no certificate come yet, whether
+	// their routes are still there or not. Removing a route doesn't take back what
+	// was asked, so without this, adding names and removing them in turns gets past
+	// MaxPendingDomains, and past Let's Encrypt's 300 new orders per account in 3
+	// hours. Half of that leaves the rest for the panel's domain and for renewals.
+	// It counts names with no certificate yet, not orders, which is its limit: a
+	// name added and removed again counts once, and one stops counting as its
+	// certificate comes, whatever orders each took (docs/security/ingress.md).
+	MaxAskedDomains = 150
 	// PendingWindow is how long a domain counts as pending, from when it was
 	// added. It is that limit's window: by then its first order is out of the
 	// count, and Caddy retries a failure on the staging directory and backs off,
@@ -105,13 +115,23 @@ func (m *Manager) noteDomain(ctx context.Context, domain string) error {
 }
 
 // pendingDomains are the domains on this server that count as waiting for a
-// certificate: added within PendingWindow, with no certificate yet. It drops what
-// no longer counts, so what is recorded stays no more than this. A domain that
+// certificate: added within PendingWindow, with no certificate yet. A domain that
 // takes no certificate asks nothing of the authority, so it never counts.
 func (m *Manager) pendingDomains(ctx context.Context, have []Route) ([]string, error) {
+	waiting, _, err := m.domainsAsked(ctx, have)
+	return waiting, err
+}
+
+// domainsAsked are the domains this server asked the certificate authority about
+// within PendingWindow that have no certificate yet: waiting are those its routes
+// still serve with one, and asked all of them, the ones since removed or served
+// without a certificate too, as Caddy asked for them all the same. It drops what
+// no longer counts, so what is recorded stays no more than this, and the first
+// time a domain stops counting.
+func (m *Manager) domainsAsked(ctx context.Context, have []Route) (waiting, asked []string, err error) {
 	added, err := m.addedAt()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	on := map[string]bool{}
 	for k := range have {
@@ -120,29 +140,50 @@ func (m *Manager) pendingDomains(ctx context.Context, have []Route) ([]string, e
 			on[r.Domain] = true
 		}
 	}
-	var names []string
 	cutoff := m.now().Add(-PendingWindow)
 	for d, at := range added {
-		if on[d] && at.After(cutoff) {
-			names = append(names, d)
+		if at.After(cutoff) {
+			asked = append(asked, d)
 		}
 	}
-	certs, err := m.Proxy.Certificates(ctx, names)
+	certs, err := m.Proxy.Certificates(ctx, asked)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	names = slices.DeleteFunc(names, func(d string) bool { return certs[d].Phase == CertIssued })
-	slices.Sort(names)
-	kept := make(map[string]time.Time, len(names))
-	for _, d := range names {
+	asked = slices.DeleteFunc(asked, func(d string) bool { return certs[d].Phase == CertIssued })
+	slices.Sort(asked)
+	kept := make(map[string]time.Time, len(asked))
+	for _, d := range asked {
 		kept[d] = added[d]
+		if on[d] {
+			waiting = append(waiting, d)
+		}
 	}
 	if !maps.Equal(kept, added) {
 		if err := m.saveAdded(kept); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return names, nil
+	return waiting, asked, nil
+}
+
+// firstToGo is how long until the first of these domains stops counting, to the
+// minute, rounded up.
+func (m *Manager) firstToGo(names []string) time.Duration {
+	added, err := m.addedAt()
+	if err != nil || len(names) == 0 {
+		return PendingWindow
+	}
+	first := PendingWindow
+	for _, d := range names {
+		if at, ok := added[d]; ok {
+			first = min(first, at.Add(PendingWindow).Sub(m.now()))
+		}
+	}
+	if first%time.Minute != 0 {
+		first = first.Truncate(time.Minute) + time.Minute
+	}
+	return max(first, time.Minute)
 }
 
 // checkLimits refuses what would take this server past its limits. A plan that
@@ -198,9 +239,26 @@ func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired, m
 	if len(fresh) == 0 {
 		return nil
 	}
-	pending, err := m.pendingDomains(ctx, have)
+	// One whose certificate is there already asks nothing of the authority, so an
+	// undo that puts a route back isn't held up by what others were adding.
+	certs, err := m.Proxy.Certificates(ctx, fresh)
 	if err != nil {
 		return err
+	}
+	fresh = slices.DeleteFunc(fresh, func(d string) bool { return certs[d].Phase == CertIssued })
+	if len(fresh) == 0 {
+		return nil
+	}
+	pending, asked, err := m.domainsAsked(ctx, have)
+	if err != nil {
+		return err
+	}
+	// What was asked stays asked, whether the route went or not, so this counts
+	// what this plan removes, and a name counted already isn't counted twice. A
+	// plan's steps each add their own as they apply, so this holds without a margin.
+	if again := len(slices.DeleteFunc(slices.Clone(fresh), func(d string) bool { return slices.Contains(asked, d) })); len(asked)+again > MaxAskedDomains {
+		return fmt.Errorf("%d domains were added to this server in the last %d hours with no certificate come yet, some of them since removed or served without one, and this change adds %d more, past the limit of %d. Each asked the certificate authority for a certificate, which removing its route doesn't take back, and Let's Encrypt allows 300 new orders for each account in %d hours, the panel's domain's too. Point a domain's DNS here before you add it, or wait: the first of them stops counting in %s",
+			len(asked), int(PendingWindow.Hours()), again, MaxAskedDomains, int(PendingWindow.Hours()), human.Duration(m.firstToGo(asked)))
 	}
 	// What this plan takes off the server asks nothing more of the authority, so
 	// fixing a typo in a domain leaves the count as it was.
