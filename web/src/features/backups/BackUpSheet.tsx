@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { formatBytes } from "../../lib/format";
 import { useVolumeOptions, type VolumeChoice } from "./useBackups";
 import "./Backups.css";
 
@@ -28,7 +29,7 @@ export function BackUpSheet({
   chosen?: string;
   onClose: () => void;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const transport = useTransport();
   const queries = useQueryClient();
   const phone = useMediaQuery(PHONE_QUERY);
@@ -150,7 +151,10 @@ export function BackUpSheet({
         <p className="backup-sheet-note">
           <Trans>
             It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does.
-          </Trans>
+          </Trans>{" "}
+          {said && said.estimateBytes > 0n
+            ? t`It takes about ${formatBytes(said.estimateBytes, i18n.locale)}, and the disk has ${formatBytes(said.freeBytes, i18n.locale)} free.`
+            : null}
         </p>
         {failure ? (
           <Callout tone="critical" title={t`This didn't start`}>

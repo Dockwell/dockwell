@@ -283,6 +283,15 @@ msgstr "{count, plural, one {It changed once in {span}.} other {It changed # tim
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 msgstr "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 
+#. placeholder {0}: formatBytes(each, i18n.locale)
+#. placeholder {1}: formatBytes(room, i18n.locale)
+#. placeholder {2}: formatBytes(each, i18n.locale)
+#. placeholder {3}: formatBytes(total, i18n.locale)
+#. placeholder {4}: formatBytes(room, i18n.locale)
+#: src/features/backups/PolicySheet.tsx
+msgid "{count, plural, one {One backup takes about {0}, and the disk has {1} to give.} other {Each backup takes about {2}, so keeping # takes about {3}, and the disk has {4} to give.}}"
+msgstr "{count, plural, one {One backup takes about {0}, and the disk has {1} to give.} other {Each backup takes about {2}, so keeping # takes about {3}, and the disk has {4} to give.}}"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, one {Show it} other {Show them}}"
@@ -1314,6 +1323,7 @@ msgstr "Activity"
 msgid "Actor"
 msgstr "Actor"
 
+#: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
 msgstr "Add"
@@ -1682,6 +1692,10 @@ msgstr "as {0}"
 msgid "Asking the server what this takes"
 msgstr "Asking the server what this takes"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "At"
+msgstr "At"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
 msgstr "Authenticator app"
@@ -1711,6 +1725,11 @@ msgstr "Back to the server"
 msgid "Back up"
 msgstr "Back up"
 
+#. placeholder {0}: volume.name
+#: src/features/backups/PolicySheet.tsx
+msgid "Back up {0} on a schedule"
+msgstr "Back up {0} on a schedule"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "Back up {name}"
 msgstr "Back up {name}"
@@ -1723,6 +1742,10 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 #: src/features/backups/BackupsPage.tsx
 msgid "Back up now"
 msgstr "Back up now"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Back up on a schedule"
+msgstr "Back up on a schedule"
 
 #: src/features/activity/describe.ts
 msgid "Backed up {volume}"
@@ -1738,6 +1761,10 @@ msgstr "backup"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Backups to keep"
+msgstr "Backups to keep"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "Backups, newest first"
@@ -1876,6 +1903,7 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -2478,6 +2506,14 @@ msgstr "Creating passkey"
 msgid "Current"
 msgstr "Current"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Daily"
+msgstr "Daily"
+
+#: src/features/backups/words.ts
+msgid "Daily at {at}"
+msgstr "Daily at {at}"
+
 #: src/features/shell/MorePage.tsx
 msgid "Dark"
 msgstr "Dark"
@@ -2780,6 +2816,14 @@ msgstr "Dockwell can't read what this runs"
 #: src/features/changes/words.ts
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Dockwell can't say what this costs"
+msgstr "Dockwell can't say what this costs"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Dockwell can't say yet what each backup takes, as this volume is empty or too large to measure quickly. The disk has {toGive} to give."
+msgstr "Dockwell can't say yet what each backup takes, as this volume is empty or too large to measure quickly. The disk has {toGive} to give."
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that <0>dockwell run</0> is still running on the server."
@@ -3371,6 +3415,10 @@ msgstr "Go to the overview"
 msgid "Go up to {0}"
 msgstr "Go up to {0}"
 
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Hasn't run yet"
+msgstr "Hasn't run yet"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Health"
 msgstr "Health"
@@ -3432,6 +3480,14 @@ msgstr "Hide the value"
 msgid "Hostname"
 msgstr "Hostname"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Hourly"
+msgstr "Hourly"
+
+#: src/features/backups/words.ts
+msgid "Hourly at {minutes} past"
+msgstr "Hourly at {minutes} past"
+
 #: src/app/Providers.tsx
 msgid "Hover or focus a server to inspect it."
 msgstr "Hover or focus a server to inspect it."
@@ -3439,6 +3495,10 @@ msgstr "Hover or focus a server to inspect it."
 #: src/features/backups/BackupsPage.tsx
 msgid "How"
 msgstr "How"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "How often"
+msgstr "How often"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
@@ -3736,6 +3796,12 @@ msgstr "It stays on the server's own disk, with owners and permissions as they a
 msgid "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
 msgstr "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
 
+#. placeholder {0}: formatBytes(said.estimateBytes, i18n.locale)
+#. placeholder {1}: formatBytes(said.freeBytes, i18n.locale)
+#: src/features/backups/BackUpSheet.tsx
+msgid "It takes about {0}, and the disk has {1} free."
+msgstr "It takes about {0}, and the disk has {1} free."
+
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from."
 msgstr "It takes that proxy's word for where a request came from."
@@ -3899,6 +3965,19 @@ msgstr "Keep it on"
 msgid "Keep this only if you trust what it runs."
 msgstr "Keep this only if you trust what it runs."
 
+#. placeholder {0}: formatBytes(total, i18n.locale)
+#. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
+#: src/features/backups/PolicySheet.tsx
+msgid "Keeping {count} takes about {0}, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
+msgstr "Keeping {count} takes about {0}, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
+
+#. placeholder {0}: policy.spec?.keep ?? 0
+#. placeholder {1}: policy.kept
+#. placeholder {2}: formatBytes(policy.keptBytes, i18n.locale)
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Keeps {0}, holding {1} now ({2})"
+msgstr "Keeps {0}, holding {1} now ({2})"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Kernel"
 msgstr "Kernel"
@@ -3935,6 +4014,10 @@ msgstr "Last 24 h"
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "Last heartbeat"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Last run failed"
+msgstr "Last run failed"
 
 #. placeholder {0}: base.where
 #: src/features/files/FileViewer.tsx
@@ -4158,6 +4241,10 @@ msgstr "May have saved {path} on {server}"
 msgid "Memory"
 msgstr "Memory"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Minutes past the hour, as 00:MM"
+msgstr "Minutes past the hour, as 00:MM"
+
 #: src/features/files/FilesPage.tsx
 msgid "Modified"
 msgstr "Modified"
@@ -4309,6 +4396,10 @@ msgstr "New value"
 msgid "Next error"
 msgstr "Next error"
 
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Next run {next}"
+msgstr "Next run {next}"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
 msgstr "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
@@ -4413,6 +4504,10 @@ msgstr "No report"
 #: src/features/changes/words.ts
 msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 msgstr "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "No schedules yet. A backup you take by hand stays until you delete it."
+msgstr "No schedules yet. A backup you take by hand stays until you delete it."
 
 #: src/features/apps/DomainNote.tsx
 msgid "No server"
@@ -4699,6 +4794,7 @@ msgid "Offline"
 msgstr "Offline"
 
 #: src/features/auth/TotpPanel.tsx
+#: src/features/backups/PolicySheet.tsx
 msgid "On"
 msgstr "On"
 
@@ -4722,6 +4818,10 @@ msgstr "On each server's own disk, unencrypted, so they go if the server does"
 #: src/features/apps/AppOverview.tsx
 msgid "on port {0}"
 msgstr "on port {0}"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "On schedule"
+msgstr "On schedule"
 
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -5641,6 +5741,7 @@ msgstr "Revealed the secret {name}"
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -5851,6 +5952,7 @@ msgstr "Run this on the server over SSH. It prints a sign-in link that works onc
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/backups/PoliciesPanel.tsx
 #: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/servers/containers.ts
@@ -5939,6 +6041,10 @@ msgstr "Scan this code with the app."
 #: src/features/shell/sections.ts
 msgid "Scheduled tasks"
 msgstr "Scheduled tasks"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Schedules"
+msgstr "Schedules"
 
 #: src/app/Providers.tsx
 #: src/features/auth/TokensPanel.tsx
@@ -6386,6 +6492,18 @@ msgstr "Steps run one at a time on each server, servers side by side."
 msgid "Stop {list} while it copies"
 msgstr "Stop {list} while it copies"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Stop {running} for each backup"
+msgstr "Stop {running} for each backup"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Stop backing up {volume} on a schedule"
+msgstr "Stop backing up {volume} on a schedule"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Stop this schedule"
+msgstr "Stop this schedule"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "Stop what uses it on this server, then deploy again."
 msgstr "Stop what uses it on this server, then deploy again."
@@ -6741,6 +6859,10 @@ msgstr "The old value stays in this variable's history"
 msgid "The old version may not read its data"
 msgstr "The old version may not read its data"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "The oldest goes once a new one is whole. A failed run takes nothing away, and nothing you took by hand goes."
+msgstr "The oldest goes once a new one is whole. A failed run takes nothing away, and nothing you took by hand goes."
+
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"
 msgstr "The owner account wasn't created"
@@ -7091,6 +7213,10 @@ msgstr "This isn't the file you opened"
 #: src/features/changes/notices.tsx
 msgid "This may cut off access to {0}"
 msgstr "This may cut off access to {0}"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "This may not fit"
+msgstr "This may not fit"
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."
@@ -7527,9 +7653,17 @@ msgstr "Upgrade to {latest}"
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Use 24-hour HH:MM, such as 03:00."
+msgstr "Use 24-hour HH:MM, such as 03:00."
+
 #: src/features/auth/SignInPage.tsx
 msgid "Use a code from your authenticator app"
 msgstr "Use a code from your authenticator app"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Use a number from 1 to 1000."
+msgstr "Use a number from 1 to 1000."
 
 #: src/features/auth/SignInPage.tsx
 msgid "Use a passkey instead"
@@ -7682,6 +7816,7 @@ msgstr "volume"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/PolicySheet.tsx
 msgid "Volume"
 msgstr "Volume"
 
@@ -7727,6 +7862,14 @@ msgstr "Warnings"
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "Websites"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Weekly"
+msgstr "Weekly"
+
+#: src/features/backups/words.ts
+msgid "Weekly on {day} at {at}"
+msgstr "Weekly on {day} at {at}"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "What applying means"
@@ -7781,6 +7924,10 @@ msgstr "What runs"
 msgid "What runs keeps running, and the backup says it was copied running."
 msgstr "What runs keeps running, and the backup says it was copied running."
 
+#: src/features/backups/PolicySheet.tsx
+msgid "What runs keeps running, so each copy can hold half a write, and the app may not start from it."
+msgstr "What runs keeps running, so each copy can hold half a write, and the app may not start from it."
+
 #: src/features/changes/words.ts
 msgid "what runs on {server} itself"
 msgstr "what runs on {server} itself"
@@ -7788,6 +7935,10 @@ msgstr "what runs on {server} itself"
 #: src/features/apps/AppsPage.tsx
 msgid "What runs on your servers isn't affected."
 msgstr "What runs on your servers isn't affected."
+
+#: src/features/backups/PolicySheet.tsx
+msgid "What stops starts again once the copy ends, however that goes. Each copy is exact."
+msgstr "What stops starts again once the copy ends, however that goes. Each copy is exact."
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "What stops starts again once the copy ends, however that goes. The copy is exact."

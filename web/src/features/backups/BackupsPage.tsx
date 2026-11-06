@@ -29,6 +29,8 @@ import { useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { BackUpSheet } from "./BackUpSheet";
+import { PoliciesPanel, usePolicies } from "./PoliciesPanel";
+import { PolicySheet } from "./PolicySheet";
 import { useBackups, useVolumes } from "./useBackups";
 import { backupStatus, useMethodWord, useStateWord } from "./words";
 import "./Backups.css";
@@ -46,8 +48,10 @@ export function BackupsPage() {
   const transport = useTransport();
   const client = useMemo(() => createClient(BackupService, transport), [transport]);
   const [taking, setTaking] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
   const [deleting, setDeleting] = useState<Backup>();
   const backups = query.data?.backups ?? [];
+  const policies = usePolicies().data?.policies ?? [];
 
   const restore = (backup: Backup) => {
     sheet.open({ kind: "plan", make: () => client.restoreBackup({ id: backup.id }) });
@@ -85,7 +89,9 @@ export function BackupsPage() {
           <BackupsList backups={backups} onRestore={restore} onDelete={setDeleting} />
         </>
       )}
+      {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
       {taking ? <BackUpSheet volumes={volumes} onClose={() => setTaking(false)} /> : null}
+      {scheduling ? <PolicySheet volumes={volumes} onClose={() => setScheduling(false)} /> : null}
       {deleting ? <DeleteSheet backup={deleting} client={client} onClose={() => setDeleting(undefined)} /> : null}
     </Page>
   );

@@ -5,6 +5,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type Client, createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
+  BackupService,
   CatalogService,
   type Change,
   ChangeService,
@@ -324,6 +325,7 @@ function refreshAfter(queryClient: QueryClient): void {
     ChangeService,
     VariableService,
     CatalogService,
+    BackupService,
   ]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }

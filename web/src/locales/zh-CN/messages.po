@@ -283,6 +283,15 @@ msgstr "{count, plural, other {在 {span}内变化了 # 次。}}"
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 msgstr "{count, plural, other {自上一条记录以来又变化了 # 次。}}"
 
+#. placeholder {0}: formatBytes(each, i18n.locale)
+#. placeholder {1}: formatBytes(room, i18n.locale)
+#. placeholder {2}: formatBytes(each, i18n.locale)
+#. placeholder {3}: formatBytes(total, i18n.locale)
+#. placeholder {4}: formatBytes(room, i18n.locale)
+#: src/features/backups/PolicySheet.tsx
+msgid "{count, plural, one {One backup takes about {0}, and the disk has {1} to give.} other {Each backup takes about {2}, so keeping # takes about {3}, and the disk has {4} to give.}}"
+msgstr "{count, plural, other {每份备份约占 {2}，保留 # 份约占 {3}，磁盘可用空间为 {4}。}}"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, other {显示}}"
@@ -1314,6 +1323,7 @@ msgstr "动态"
 msgid "Actor"
 msgstr "执行者"
 
+#: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
 msgstr "添加"
@@ -1682,6 +1692,10 @@ msgstr "作为 {0}"
 msgid "Asking the server what this takes"
 msgstr "正在询问服务器此操作的要求"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "At"
+msgstr "时间"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
 msgstr "身份验证器应用"
@@ -1711,6 +1725,11 @@ msgstr "返回服务器"
 msgid "Back up"
 msgstr "备份"
 
+#. placeholder {0}: volume.name
+#: src/features/backups/PolicySheet.tsx
+msgid "Back up {0} on a schedule"
+msgstr "按计划备份 {0}"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "Back up {name}"
 msgstr "备份 {name}"
@@ -1723,6 +1742,10 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 #: src/features/backups/BackupsPage.tsx
 msgid "Back up now"
 msgstr "立即备份"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Back up on a schedule"
+msgstr "按计划备份"
 
 #: src/features/activity/describe.ts
 msgid "Backed up {volume}"
@@ -1738,6 +1761,10 @@ msgstr "备份"
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Backups to keep"
+msgstr "保留的备份数"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "Backups, newest first"
@@ -1876,6 +1903,7 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -2478,6 +2506,14 @@ msgstr "正在创建通行密钥"
 msgid "Current"
 msgstr "当前"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Daily"
+msgstr "每天"
+
+#: src/features/backups/words.ts
+msgid "Daily at {at}"
+msgstr "每天 {at}"
+
 #: src/features/shell/MorePage.tsx
 msgid "Dark"
 msgstr "深色"
@@ -2780,6 +2816,14 @@ msgstr "Dockwell 无法读取它运行的内容"
 #: src/features/changes/words.ts
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Dockwell 无法读取 {cantTell} 的实际位置，因此无法确定两个容器不会写入同一处，所以旧容器先停止。如果应用支持，请将其发布顺序设置为先启动"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Dockwell can't say what this costs"
+msgstr "Dockwell 无法估算占用空间"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Dockwell can't say yet what each backup takes, as this volume is empty or too large to measure quickly. The disk has {toGive} to give."
+msgstr "Dockwell 暂时无法说明每次备份占用多少空间，因为这个卷是空的，或者太大无法快速测量。磁盘还有 {toGive} 可用。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that <0>dockwell run</0> is still running on the server."
@@ -3371,6 +3415,10 @@ msgstr "前往概览"
 msgid "Go up to {0}"
 msgstr "返回上级 {0}"
 
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Hasn't run yet"
+msgstr "尚未运行"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Health"
 msgstr "健康"
@@ -3432,6 +3480,14 @@ msgstr "隐藏值"
 msgid "Hostname"
 msgstr "主机名"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Hourly"
+msgstr "每小时"
+
+#: src/features/backups/words.ts
+msgid "Hourly at {minutes} past"
+msgstr "每小时第 {minutes} 分钟"
+
 #: src/app/Providers.tsx
 msgid "Hover or focus a server to inspect it."
 msgstr "悬停或聚焦一台服务器以查看详情。"
@@ -3439,6 +3495,10 @@ msgstr "悬停或聚焦一台服务器以查看详情。"
 #: src/features/backups/BackupsPage.tsx
 msgid "How"
 msgstr "方式"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "How often"
+msgstr "频率"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
@@ -3736,6 +3796,12 @@ msgstr "它保存在服务器自己的磁盘上，所有者和权限保持不变
 msgid "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
 msgstr "在有人做出更改之前，它会一直保持运行。请修复检查报告的问题或检查本身，然后部署。"
 
+#. placeholder {0}: formatBytes(said.estimateBytes, i18n.locale)
+#. placeholder {1}: formatBytes(said.freeBytes, i18n.locale)
+#: src/features/backups/BackUpSheet.tsx
+msgid "It takes about {0}, and the disk has {1} free."
+msgstr "约占 {0}，磁盘剩余 {1}。"
+
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from."
 msgstr "它会相信该代理所说的请求来源。"
@@ -3899,6 +3965,19 @@ msgstr "保持开启"
 msgid "Keep this only if you trust what it runs."
 msgstr "请仅在信任其运行内容时保留。"
 
+#. placeholder {0}: formatBytes(total, i18n.locale)
+#. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
+#: src/features/backups/PolicySheet.tsx
+msgid "Keeping {count} takes about {0}, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
+msgstr "保留 {count} 份约占 {0}，磁盘可用空间为 {1}。放不下的备份会失败，并显示在活动中。"
+
+#. placeholder {0}: policy.spec?.keep ?? 0
+#. placeholder {1}: policy.kept
+#. placeholder {2}: formatBytes(policy.keptBytes, i18n.locale)
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Keeps {0}, holding {1} now ({2})"
+msgstr "保留 {0} 份，当前有 {1} 份（{2}）"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Kernel"
 msgstr "内核"
@@ -3935,6 +4014,10 @@ msgstr "最近 24 小时"
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "最后心跳"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Last run failed"
+msgstr "上次运行失败"
 
 #. placeholder {0}: base.where
 #: src/features/files/FileViewer.tsx
@@ -4158,6 +4241,10 @@ msgstr "可能已保存 {server} 上的 {path}"
 msgid "Memory"
 msgstr "内存"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Minutes past the hour, as 00:MM"
+msgstr "每小时的分钟数，格式为 00:MM"
+
 #: src/features/files/FilesPage.tsx
 msgid "Modified"
 msgstr "修改时间"
@@ -4309,6 +4396,10 @@ msgstr "新值"
 msgid "Next error"
 msgstr "下一个错误"
 
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Next run {next}"
+msgstr "下次运行 {next}"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
 msgstr "接下来，将 {on} 上的隧道指向 http://127.0.0.1:80。使用 https:// 会失败，因为此路由不使用证书。"
@@ -4413,6 +4504,10 @@ msgstr "无上报"
 #: src/features/changes/words.ts
 msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 msgstr "此后 {server} 上没有路由需要证书，因此 {proxy} 会释放端口 {ports}。不需要证书的路由会继续响应"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "No schedules yet. A backup you take by hand stays until you delete it."
+msgstr "还没有备份计划。手动备份会一直保留，直到你删除它。"
 
 #: src/features/apps/DomainNote.tsx
 msgid "No server"
@@ -4699,6 +4794,7 @@ msgid "Offline"
 msgstr "离线"
 
 #: src/features/auth/TotpPanel.tsx
+#: src/features/backups/PolicySheet.tsx
 msgid "On"
 msgstr "开启"
 
@@ -4722,6 +4818,10 @@ msgstr "保存在各服务器自己的磁盘上，未加密，服务器没了它
 #: src/features/apps/AppOverview.tsx
 msgid "on port {0}"
 msgstr "端口 {0}"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "On schedule"
+msgstr "按计划运行"
 
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -5641,6 +5741,7 @@ msgstr "显示了密钥 {name}"
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -5851,6 +5952,7 @@ msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只�
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/backups/PoliciesPanel.tsx
 #: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/servers/containers.ts
@@ -5939,6 +6041,10 @@ msgstr "用应用扫描这个二维码。"
 #: src/features/shell/sections.ts
 msgid "Scheduled tasks"
 msgstr "计划任务"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Schedules"
+msgstr "备份计划"
 
 #: src/app/Providers.tsx
 #: src/features/auth/TokensPanel.tsx
@@ -6386,6 +6492,18 @@ msgstr "每台服务器上的步骤依次运行，各服务器同时进行。"
 msgid "Stop {list} while it copies"
 msgstr "复制时停止 {list}"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Stop {running} for each backup"
+msgstr "每次备份时停止 {running}"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Stop backing up {volume} on a schedule"
+msgstr "停止按计划备份 {volume}"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Stop this schedule"
+msgstr "停止此计划"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "Stop what uses it on this server, then deploy again."
 msgstr "请停止此服务器上占用它的程序，然后重新部署。"
@@ -6741,6 +6859,10 @@ msgstr "旧值仍保留在该变量的历史中"
 msgid "The old version may not read its data"
 msgstr "旧版本可能无法读取它的数据"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "The oldest goes once a new one is whole. A failed run takes nothing away, and nothing you took by hand goes."
+msgstr "新备份完整后才会删除最旧的备份。失败的运行不会删除任何内容，手动备份也不会被删除。"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "The owner account wasn't created"
 msgstr "所有者账户未创建"
@@ -7091,6 +7213,10 @@ msgstr "这不是你打开的文件"
 #: src/features/changes/notices.tsx
 msgid "This may cut off access to {0}"
 msgstr "这可能切断对 {0} 的访问"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "This may not fit"
+msgstr "可能放不下"
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."
@@ -7527,9 +7653,17 @@ msgstr "升级到 {latest}"
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "Use 24-hour HH:MM, such as 03:00."
+msgstr "请使用 24 小时制 HH:MM，例如 03:00。"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Use a code from your authenticator app"
 msgstr "使用身份验证器应用中的验证码"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Use a number from 1 to 1000."
+msgstr "请填写 1 到 1000 之间的数字。"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Use a passkey instead"
@@ -7682,6 +7816,7 @@ msgstr "卷"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/PolicySheet.tsx
 msgid "Volume"
 msgstr "卷"
 
@@ -7727,6 +7862,14 @@ msgstr "警告"
 #: src/features/shell/sections.ts
 msgid "Websites"
 msgstr "网站"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "Weekly"
+msgstr "每周"
+
+#: src/features/backups/words.ts
+msgid "Weekly on {day} at {at}"
+msgstr "每周{day} {at}"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "What applying means"
@@ -7781,6 +7924,10 @@ msgstr "运行内容"
 msgid "What runs keeps running, and the backup says it was copied running."
 msgstr "正在运行的内容会继续运行，备份会注明是在运行时复制的。"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "What runs keeps running, so each copy can hold half a write, and the app may not start from it."
+msgstr "正在运行的内容会继续运行，因此每份副本都可能包含写到一半的内容，应用可能无法从中启动。"
+
 #: src/features/changes/words.ts
 msgid "what runs on {server} itself"
 msgstr "在 {server} 本机上运行的程序"
@@ -7788,6 +7935,10 @@ msgstr "在 {server} 本机上运行的程序"
 #: src/features/apps/AppsPage.tsx
 msgid "What runs on your servers isn't affected."
 msgstr "服务器上运行的内容不受影响。"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "What stops starts again once the copy ends, however that goes. Each copy is exact."
+msgstr "无论结果如何，复制结束后被停止的内容都会重新启动。每份副本都是精确的。"
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "What stops starts again once the copy ends, however that goes. The copy is exact."

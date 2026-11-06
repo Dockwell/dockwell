@@ -6,6 +6,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type Backup,
   BackupMethod,
+  BackupPolicy_Every,
   BackupSchema,
   BackupState,
   ChangeSchema,
@@ -13,6 +14,7 @@ import {
   type CreateBackupRequest,
   PlanAction,
   PreviewBackupResponseSchema,
+  type ProposeChangeRequest,
   type RestorePlanSchema,
   type WatchChangeResponse,
 } from "@dockwell/api";
@@ -284,5 +286,104 @@ describe("the backups page", () => {
     expect(screen.getByText(/Everything in orders on hz-1 is replaced/).closest(".plan-risk")).not.toHaveClass(
       "dw-tone-warning",
     );
+  });
+
+  it("says what a schedule costs, and plans it", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((req: ProposeChangeRequest) => {
+      void req;
+      return {
+        change: create(ChangeSchema, {
+          id: "chg_policy",
+          summary: "Back up orders on a schedule",
+          state: ChangeState.PLANNED,
+          plan: { fingerprint: "abc", resources: [] },
+        }),
+      };
+    });
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          previewBackup: () =>
+            create(PreviewBackupResponseSchema, {
+              method: BackupMethod.COPY_RUNNING,
+              running: ["web"],
+              estimateBytes: 100n << 20n,
+              freeBytes: 10n << 30n,
+              reserveBytes: 1n << 30n,
+            }),
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    expect(await screen.findByText(/keeping 7 takes about 700 MB, and the disk has 9 GB to give/)).toBeVisible();
+    expect(screen.getByRole("switch", { name: "Stop web for each backup" })).toBeChecked();
+    const keep = screen.getByLabelText("Backups to keep");
+    await user.clear(keep);
+    await user.type(keep, "100");
+    expect(await screen.findByText("This may not fit")).toBeVisible();
+    await user.clear(keep);
+    await user.type(keep, "3");
+    await user.click(screen.getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const edit = proposed.mock.calls[0]?.[0].edits[0];
+    expect(edit?.resource).toMatchObject({ kind: "backup.policy", scope: "env_1", name: "orders-daily" });
+    expect(edit?.spec?.kind.value).toMatchObject({ volume: "orders", at: "03:00", keep: 3, stop: true });
+  });
+
+  it("says when it can't tell what a schedule costs, rather than nothing", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          previewBackup: () =>
+            create(PreviewBackupResponseSchema, {
+              method: BackupMethod.COPY,
+              estimateBytes: 0n,
+              freeBytes: 10n << 30n,
+              reserveBytes: 1n << 30n,
+            }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    expect(await screen.findByText(/can't say yet what each backup takes.*the disk has 9 GB to give/i)).toBeVisible();
+  });
+
+  it("shows each schedule, and a failed run where you'll see it", async () => {
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({
+            policies: [
+              {
+                id: "bpl_1",
+                name: "orders-daily",
+                environmentId: "env_1",
+                spec: { volume: "orders", every: BackupPolicy_Every.DAY, at: "03:00", keep: 7 },
+                last: aBackup({ state: BackupState.FAILED, error: "The disk is full." }),
+                kept: 3,
+                keptBytes: 936n << 20n,
+                nextRun: timestampFromDate(new Date("2026-11-07T03:00:00Z")),
+              },
+            ],
+          }),
+        },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Schedules" });
+    expect(await within(panel).findByText("Daily at 03:00")).toBeVisible();
+    expect(within(panel).getByText("Keeps 7, holding 3 now (936 MB)")).toBeVisible();
+    expect(within(panel).getByText("Last run failed")).toBeVisible();
+    expect(within(panel).getByText("The disk is full.")).toBeVisible();
   });
 });

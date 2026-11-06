@@ -5,7 +5,7 @@
 // that says what it replaces, and onto Activity. The same comes from an app's page.
 // scripts/docker-e2e.sh proves a restore on real Docker.
 
-import type { Page } from "playwright-core";
+import type { Locator, Page } from "playwright-core";
 
 export interface BackupsFlowOptions {
   origin: string;
@@ -17,6 +17,17 @@ export interface BackupsFlowOptions {
 
 function fail(message: string): never {
   throw new Error(message);
+}
+
+/**
+ * Chooses PostgreSQL's volume in a sheet that opens on the first by name, which a
+ * run with other apps makes one with nothing in it. The catalog's flow leaves two
+ * called data, so each says whose it is.
+ */
+async function pickTheDatabase(sheet: Locator) {
+  const volume = sheet.getByLabel("Volume");
+  const database = volume.locator("option", { hasText: /^data \(.*postgres/i });
+  await volume.selectOption((await database.getAttribute("value")) ?? fail("PostgreSQL's data isn't on offer"));
 }
 
 export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFlowOptions) {
@@ -31,10 +42,7 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   step("backups: a database's dump says it stops nothing, and its server says how it went");
   await page.getByRole("button", { name: "Back up now" }).click();
   const sheet = page.getByRole("dialog", { name: /^Back up / });
-  // The catalog's flow leaves two called data, so each says whose it is.
-  const volume = sheet.getByLabel("Volume");
-  const database = volume.locator("option", { hasText: /^data \(.*postgres/i });
-  await volume.selectOption((await database.getAttribute("value")) ?? fail("PostgreSQL's data isn't on offer"));
+  await pickTheDatabase(sheet);
   await sheet.getByText(/uses PostgreSQL's own dump/).waitFor({ timeout: 20_000 });
   await shoot(page, "backups-sheet");
   await sheet.getByRole("button", { name: "Back up", exact: true }).click();
@@ -72,6 +80,22 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   const restored = page.getByRole("row", { name: /Restore data/ }).first();
   await restored.click();
   await page.getByRole("button", { name: "Undo this change" }).waitFor({ timeout: 15_000 });
+
+  step("backups: a schedule says what it costs, and is a plan");
+  await page.goto(`${origin}/backups`);
+  const schedules = page.getByRole("region", { name: "Schedules" });
+  await schedules.getByRole("button", { name: "Add" }).click();
+  const schedule = page.getByRole("dialog", { name: "Back up on a schedule" });
+  await pickTheDatabase(schedule);
+  await schedule.getByText(/takes about/).waitFor({ timeout: 20_000 });
+  await shoot(page, "backups-schedule");
+  await schedule.getByRole("button", { name: "Review plan" }).click();
+  const planned = page.locator(".plan-sheet");
+  await planned.getByRole("button", { name: /Apply plan/ }).click();
+  await planned.getByRole("button", { name: "Done" }).waitFor({ timeout: 30_000 });
+  await planned.getByRole("button", { name: "Done" }).click();
+  await schedules.getByText("Daily at 03:00").waitFor({ timeout: 15_000 });
+  await schedules.getByText("Hasn't run yet").waitFor();
 
   step("backups: an app's page shows its newest, and takes another");
   // journal has a db too, so go by the app. A link that has no width can't be clicked,
