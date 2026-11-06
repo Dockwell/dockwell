@@ -160,15 +160,18 @@ func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope stri
 // LocalTokenTTL is how long a token for local access lasts.
 const LocalTokenTTL = 12 * time.Hour
 
-// CreateLocalToken makes a token that lasts LocalTokenTTL for the
-// install's owner, for the CLI on the control server. Only someone who can
-// read the control plane's data directory can call it, as with
-// CreateSignInLink, and they control the install already; actor names
+// CreateLocalToken makes a token that lasts until a time, within LocalTokenTTL,
+// or that long with none, for the install's owner, for the CLI on the control
+// server. Only someone who can read the control plane's data directory can call
+// it, as with CreateSignInLink, and they control the install already; actor names
 // them in the audit log, as "cli:root@hz-1". Those who can read that directory
 // can read logs anyway, with Docker, so the token can too. See
 // docs/adr/0019-a-cli-generated-from-the-schema.md.
-func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope string) (NewToken, error) {
+func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope string, until time.Time) (NewToken, error) {
 	expires := s.now().Add(LocalTokenTTL)
+	if !until.IsZero() && until.Before(expires) {
+		expires = until
+	}
 	return s.createToken(ctx, func(tx *store.Tx) (store.User, error) {
 		u, err := tx.Owner(ctx)
 		if errors.Is(err, store.ErrNotFound) {

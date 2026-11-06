@@ -514,7 +514,7 @@ func testTheAuditLogSaysWhichTokensCanReadLogs(t *testing.T, b store.Backend) {
 	f := newFixture(t, b, "")
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
 	plain := f.token(t, owner, store.ScopeReadOnly, nil)
-	reader, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly)
+	reader, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -538,7 +538,7 @@ func TestLocalTokens(t *testing.T) { storetest.Each(t, testLocalTokens) }
 // last LocalTokenTTL, and only once there is an owner.
 func testLocalTokens(t *testing.T, b store.Backend) {
 	f := newFixture(t, b, "")
-	if _, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly); err == nil ||
+	if _, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly, time.Time{}); err == nil ||
 		!strings.Contains(err.Error(), "no owner yet") {
 		t.Errorf("a local token before the claim = %v, want it refused", err)
 	}
@@ -548,7 +548,7 @@ func testLocalTokens(t *testing.T, b store.Backend) {
 		t.Errorf("revoking a token with no owner = %v, %v, want nothing to do", revoked, err)
 	}
 	owner := ownerPrincipal(f.claim(t, localhost, &authtest.Authenticator{}))
-	made, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly)
+	made, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,7 +558,29 @@ func testLocalTokens(t *testing.T, b store.Backend) {
 	if _, err := f.svc.AuthenticateToken(t.Context(), localhost, made.Secret, AccessWrite, "/test/Call"); !errors.Is(err, ErrTokenScope) {
 		t.Errorf("a read-only local token making a change = %v, want ErrTokenScope", err)
 	}
-	if got := f.auditEvents(t, "token.create"); len(got) != 1 || got[0].Actor != "cli:root@hz-1" {
+	// One that replaces another goes no further than that one did, and never past
+	// the longest a local token lasts.
+	soon := f.clock.now().Add(time.Hour)
+	short, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly, soon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !short.Token.ExpiresAt.Equal(soon) {
+		t.Errorf("a local token asked to last until %s lasts until %s", soon, short.Token.ExpiresAt)
+	}
+	long, err := f.svc.CreateLocalToken(t.Context(), "cli:root@hz-1", "Local access on hz-1, read-only", store.ScopeReadOnly, f.clock.now().Add(2*LocalTokenTTL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !long.Token.ExpiresAt.Equal(f.clock.now().Add(LocalTokenTTL)) {
+		t.Errorf("a local token asked to last past %s lasts until %s", LocalTokenTTL, long.Token.ExpiresAt)
+	}
+	for _, extra := range []string{short.Token.ID, long.Token.ID} {
+		if revoked, err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", extra); !revoked || err != nil {
+			t.Fatalf("revoking a local token = %v, %v", revoked, err)
+		}
+	}
+	if got := f.auditEvents(t, "token.create"); len(got) != 3 || got[0].Actor != "cli:root@hz-1" {
 		t.Errorf("token.create events = %+v, want one by the local user", got)
 	}
 	if revoked, err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", made.Token.ID); !revoked || err != nil {
@@ -570,7 +592,7 @@ func testLocalTokens(t *testing.T, b store.Backend) {
 	if revoked, err := f.svc.RevokeLocalToken(t.Context(), "cli:root@hz-1", made.Token.ID); revoked || err != nil {
 		t.Errorf("revoking it again = %v, %v, want nothing to do", revoked, err)
 	}
-	if got := f.auditEvents(t, "token.revoke"); len(got) != 1 || got[0].Actor != "cli:root@hz-1" {
+	if got := f.auditEvents(t, "token.revoke"); len(got) != 3 || got[0].Actor != "cli:root@hz-1" {
 		t.Errorf("token.revoke events = %+v, want one by the local user", got)
 	}
 }

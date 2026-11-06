@@ -61,10 +61,12 @@ func (r *runner) do(ctx context.Context, call func() error) error {
 	}
 	again := r.opts.settings
 	switch {
-	case Reason(err) == authapi.ReasonTokenRejected, Reason(err) == authapi.ReasonTokenLogs:
-		// One made before local access's tokens could read logs needs replacing
-		// too, though it hasn't been rejected as such.
+	case Reason(err) == authapi.ReasonTokenRejected:
 		again.Renew = true
+	case Reason(err) == authapi.ReasonTokenLogs:
+		// One made before local access's tokens could read logs needs replacing
+		// too, though nothing else is wrong with it.
+		again.Renew, again.Regrant = true, true
 	case unreachable(err):
 		again.Moved = true
 	default:
