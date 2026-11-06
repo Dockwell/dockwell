@@ -1279,23 +1279,27 @@ wait_for_dockwell
 serves "the agent didn't put back Caddy's last config, gone"
 priv test -f "$autosave" || fail "Caddy's last config wasn't written again"
 
-step "Docker says a container it started again went past its memory limit, which the agent reads of Caddy"
+step "Docker's events say a container it started again went past its memory limit, which the agent reads of Caddy"
 # Not Caddy itself, which the agent makes again in the moment it isn't running. The
-# agent says why every site dropped from what this reads (docs/security/ingress.md).
+# agent says why every site dropped from what this reads (docs/security/ingress.md),
+# as Docker clears OOMKilled as it starts a container again.
+oom_from=$(date +%s)
 docker run -d --name e2e-oom --memory 16m --memory-swap 16m --restart unless-stopped nginx:1.27-alpine sh -c 'sleep 2; tail /dev/zero' >/dev/null ||
   fail "can't run e2e-oom"
-oom="" state=""
+restarted=""
 for _ in $(seq 300); do
-  state=$(docker inspect --format '{{.RestartCount}} {{.State.Running}} {{.State.Restarting}} {{.State.OOMKilled}}' e2e-oom) || fail "docker inspect e2e-oom failed"
-  read -r restarts running restarting oom_killed <<<"$state"
+  state=$(docker inspect --format '{{.RestartCount}} {{.State.Running}} {{.State.Restarting}}' e2e-oom) || fail "docker inspect e2e-oom failed"
+  read -r restarts running restarting <<<"$state"
   if ((restarts >= 1)) && [[ "$running" == true && "$restarting" == false ]]; then
-    oom=$oom_killed
+    restarted=yes
     break
   fi
   sleep 0.1
 done
+[[ -n "$restarted" ]] || fail "e2e-oom wasn't started again: $state (restarts, running, restarting)"
+oom=$(docker events --since "$oom_from" --until "$(date +%s)" --filter container=e2e-oom --filter event=oom --format '{{.Action}}') || fail "docker events failed"
 docker rm --force e2e-oom >/dev/null || fail "can't remove e2e-oom"
-[[ "$oom" == true ]] || fail "a container Docker started again after it went past its memory limit says OOMKilled '$oom' ($state: restarts, running, restarting, OOMKilled), so the agent wouldn't say why every site dropped"
+[[ "$oom" == *oom* ]] || fail "Docker's events say nothing of a container going past its memory limit, so the agent wouldn't say why every site dropped: '$oom'"
 
 step "Ingress: docker network prune can't take the network, and a network lost comes back on its subnet"
 subnet=$(docker network inspect --format '{{(index .IPAM.Config 0).Subnet}}' dockwell_ingress) || fail "there's no network dockwell_ingress"

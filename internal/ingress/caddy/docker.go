@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
@@ -63,6 +64,11 @@ type Container struct {
 	// registry.example.com/library/caddy. Only the repository changes: the
 	// digest is pinned, and Docker checks it.
 	Mirror string
+
+	mu sync.Mutex
+	// pastMemory is what Docker's events said of the restart memoryAsked counts to.
+	memoryAsked int
+	pastMemory  bool
 }
 
 var _ Runtime = (*Container)(nil)
@@ -107,8 +113,36 @@ func (c *Container) Status(ctx context.Context) (ingress.Status, error) {
 		Exists: true, Running: got.State.Running && !got.State.Restarting,
 		Outdated: !strings.HasSuffix(got.Config.Image, "@"+Digest),
 		Version:  got.Config.Labels[versionLabel], Pinned: Tag, Image: got.Config.Image,
-		Restarts: got.RestartCount, OutOfMemory: got.State.OOMKilled,
+		Restarts: got.RestartCount, OutOfMemory: c.restartedForMemory(ctx, got),
 	}, nil
+}
+
+// restartWait is more than Docker waits between restarts of a container, which it
+// doubles up to a minute, so a kill that led to a start comes within this of it.
+const restartWait = 2 * time.Minute
+
+// restartedForMemory says whether what stopped Caddy last was its memory limit. Docker
+// says so itself until it starts it again, and from then on only in its events, which
+// are read once for each restart. Not being able to say isn't a failure of anything:
+// it's asked again next time.
+func (c *Container) restartedForMemory(ctx context.Context, got *docker.Container) bool {
+	if got.State.OOMKilled {
+		return true
+	}
+	if got.RestartCount == 0 {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.memoryAsked == got.RestartCount {
+		return c.pastMemory
+	}
+	went, err := c.Client.WentPastMemory(ctx, got.ID, got.State.StartedAt.Add(-restartWait), time.Now())
+	if err != nil {
+		return false
+	}
+	c.memoryAsked, c.pastMemory = got.RestartCount, went
+	return went
 }
 
 // Pull gets Caddy's image, by its digest, if the server hasn't it. Docker

@@ -181,8 +181,8 @@ type State struct {
 	StartedAt  time.Time `json:"StartedAt,omitzero"`
 	FinishedAt time.Time `json:"FinishedAt,omitzero"`
 	// OOMKilled is true when the kernel killed it for going past its memory
-	// limit, the last time it stopped. It stays so as a restart policy starts it
-	// again, which CI's Docker job holds.
+	// limit, the last time it stopped. Docker clears it as a restart policy starts
+	// it again, so a container that's running needs WentPastMemory.
 	OOMKilled bool `json:"OOMKilled"`
 }
 

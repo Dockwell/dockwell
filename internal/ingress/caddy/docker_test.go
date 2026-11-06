@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -140,8 +141,9 @@ func TestStatusSaysWhichVersionItRuns(t *testing.T) {
 	}
 }
 
-// Docker keeps how many times it started Caddy again, and whether the last was
-// for its memory, which is all that says why every site dropped for a moment.
+// Docker keeps how many times it started Caddy again, and whether the last was for
+// its memory until it starts it, and after that only in its events. That's all that
+// says why every site dropped for a moment, and it's read once for each restart.
 func TestStatusSaysCaddyRestartedForMemory(t *testing.T) {
 	c, e := onEngine(t)
 	if err := c.Run(t.Context(), "/etc/dockwell/bootstrap.json"); err != nil {
@@ -150,12 +152,38 @@ func TestStatusSaysCaddyRestartedForMemory(t *testing.T) {
 	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 0 || st.OutOfMemory {
 		t.Errorf("Status of a fresh one = %+v, %v", st, err)
 	}
+	// Killed, and not started again yet: its state says.
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.RestartCount = 1
+		got.State.OOMKilled = true
+	})
+	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 1 || !st.OutOfMemory {
+		t.Errorf("Status killed for memory = %+v, %v", st, err)
+	}
+	// Started again: its state doesn't, and its events do.
+	started := time.Now()
+	e.KillForMemory(ingress.ContainerName, started.Add(-time.Second))
 	e.Edit(ingress.ContainerName, func(got *docker.Container) {
 		got.RestartCount = 2
-		got.State.OOMKilled = true
+		got.State.OOMKilled = false
+		got.State.StartedAt = started
 	})
 	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 2 || !st.OutOfMemory || !st.Running {
 		t.Errorf("Status after a restart for memory = %+v, %v", st, err)
+	}
+	asked := func() int {
+		return len(slices.DeleteFunc(slices.Clone(e.Requests), func(r string) bool { return !strings.HasSuffix(r, "/events") }))
+	}
+	if st, err := c.Status(t.Context()); err != nil || !st.OutOfMemory || asked() != 1 {
+		t.Errorf("Status read again = %+v, %v, with %d reads of its events, want one", st, err, asked())
+	}
+	// Started again for something else, long after: its events say nothing of that.
+	e.Edit(ingress.ContainerName, func(got *docker.Container) {
+		got.RestartCount = 3
+		got.State.StartedAt = started.Add(time.Hour)
+	})
+	if st, err := c.Status(t.Context()); err != nil || st.Restarts != 3 || st.OutOfMemory {
+		t.Errorf("Status after a restart for something else = %+v, %v", st, err)
 	}
 }
 
