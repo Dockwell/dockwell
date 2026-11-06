@@ -82,6 +82,7 @@ func TestAccessWords(t *testing.T) {
 		{resource.Access{Kind: resource.AccessGroup, Path: "docker", SameAsRoot: true}, "the group docker, which is the same as root"},
 		{resource.Access{Kind: resource.AccessPrivileged, SameAsRoot: true}, "privileged mode, which gives it every device and capability on the server, the same as root"},
 		// Whatever let it through, it can't read as more of the line.
+		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "lan", LeadsTo: "macvlan"}, "the macvlan network lan, which reaches past the server's firewall and is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"},
 		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "edge, read-only"}, `the network "edge, read-only", which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them`},
 		{resource.Access{Kind: resource.AccessCapability, Path: "NET_ADMIN, harmless"}, `the Linux capability "NET_ADMIN, harmless"`},
 		{resource.Access{Kind: resource.AccessGroup, Path: "a b"}, `the group "a b", which is the same as root if it is the group that owns Docker's socket on the server`},

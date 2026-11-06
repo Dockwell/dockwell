@@ -156,8 +156,9 @@ type Decision struct {
 	// too short.
 	HealthUnknown bool `json:",omitempty"`
 	// Leads says where the server paths the resource mounts lead through symlinks,
-	// by path, for those that lead elsewhere. An agent reads it; the control plane
-	// puts it on HostAccess (Access.Leading), and it goes no further.
+	// by path, for those that lead elsewhere, and which driver a network Dockwell
+	// didn't make uses, by name, where that isn't Docker's bridge. An agent reads it;
+	// the control plane puts it on HostAccess (Access.Leading), and it goes no further.
 	Leads map[string]string `json:",omitempty"`
 	// Pull is true when the step asks the server for its image again first. With
 	// no Changes, it replaces what runs only if that finds a newer image. With
@@ -459,7 +460,8 @@ type Access struct {
 	// kind.
 	SameAsRoot bool `json:",omitempty"`
 	// LeadsTo is where Path leads through symlinks, as the server's agent reads
-	// it, when that is somewhere else.
+	// it, when that is somewhere else. For a network Dockwell didn't make, it is
+	// the driver the agent reads, when that isn't Docker's bridge.
 	LeadsTo string `json:",omitempty"`
 }
 
@@ -468,6 +470,10 @@ type Access struct {
 // still counts, and the gate for a person is the control plane's own. So an agent
 // that lies, or is too old to say, leaves the plan reading what the spec says.
 func (a Access) Leading(to string) Access {
+	if to != "" && a.Kind == AccessExternalNetwork {
+		a.LeadsTo = to
+		return a
+	}
 	if to == "" || to == a.Path || a.Kind != AccessPath && a.Kind != AccessDocker {
 		return a
 	}
@@ -653,6 +659,9 @@ func AccessWords(a Access) string {
 		return "the panel's domain, " + plain(a.Path) + ", which moves behind " + plain(a.Detail)
 	case AccessExternalNetwork:
 		out := "the network " + plain(a.Path) + ", which is on the server already, where it answers to its name"
+		if a.LeadsTo != "" {
+			out = "the " + plain(a.LeadsTo) + " network " + plain(a.Path) + ", which reaches past the server's firewall and is on the server already, where it answers to its name"
+		}
 		if a.Detail != "" {
 			out += " and to " + plain(a.Detail)
 		}

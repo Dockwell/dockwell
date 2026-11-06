@@ -122,7 +122,7 @@ cleanup() {
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker rm --force e2e-agent-web e2e-holds-80 e2e-returns e2e-on-server e2e-not-started dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   moving_tidy
-  docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-tunnel e2e-other >/dev/null 2>&1 || true
+  docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   [[ -z "$load_pid" ]] || kill "$load_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
@@ -2185,6 +2185,17 @@ docker compose -f "$data/real-export.yaml" config --quiet || fail "docker compos
 $(cat "$data/real-export.yaml")"
 listed=$(docker compose -f "$data/real-export.yaml" ps --format '{{.Service}}') || fail "docker compose -f <export> ps failed"
 [[ "$listed" == shop ]] || fail "docker compose -f <export> ps lists '$listed', want shop"
+
+step "A plan says which driver a network it didn't make uses"
+# With no parent, Docker gives a macvlan network a dummy interface of its own.
+docker network create --driver macvlan e2e-lan >/dev/null || fail "docker network create e2e-lan failed"
+lan_file=$(printf 'services:\n  lan:\n    image: nginx:1.27-alpine\n    networks: [e2e-lan]\nnetworks:\n  e2e-lan:\n    external: true\n')
+planned=$(dw compose import --compose "$lan_file" --project default --environment other --plan-only --json) || fail "importing a service on a macvlan network failed"
+jq -e '[.change.plan.servers[].steps[].hostAccess[]? | select(.path == "e2e-lan")] | any(.leadsTo == "macvlan")' <<<"$planned" >/dev/null ||
+  fail "the plan doesn't say e2e-lan is a macvlan network: $planned"
+read_plan=$(dw changes get "$(jq -r .change.id <<<"$planned")") || fail "changes get failed"
+grep -qF "the macvlan network e2e-lan, which reaches past the server's firewall" <<<"$read_plan" || fail "the plan doesn't say so in words: $read_plan"
+docker network rm e2e-lan >/dev/null || fail "docker network rm e2e-lan failed"
 
 step "Another project on the network reaches it by name, and can't take that name"
 docker tag nginx:1.27-alpine e2e-local-only:1 || fail "docker tag failed"

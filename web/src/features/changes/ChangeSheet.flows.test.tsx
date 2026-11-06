@@ -760,6 +760,11 @@ describe("what a plan asks of whoever applies it", () => {
         "web joins the network edge on hz-1",
         "other projects' services too",
       ],
+      [
+        { kind: HostAccessKind.EXTERNAL_NETWORK, path: "lan", leadsTo: "macvlan" },
+        "web joins the macvlan network lan on hz-1",
+        "reaches past the server's firewall",
+      ],
     ] as const) {
       const { unmount } = show(reaching(access));
       const sheet = await screen.findByRole("dialog", { name: "Review plan" });

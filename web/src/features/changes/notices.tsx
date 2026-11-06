@@ -178,8 +178,12 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
       case HostAccessKind.EXTERNAL_NETWORK:
         return {
           key,
-          title: t`${name} joins the network ${path} on ${server}`,
-          detail: t`Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`,
+          title: leadsTo
+            ? t`${name} joins the ${leadsTo} network ${path} on ${server}`
+            : t`${name} joins the network ${path} on ${server}`,
+          detail: leadsTo
+            ? t`Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`
+            : t`Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`,
         };
       case HostAccessKind.SERVER_PORT: {
         const at = plain(access.detail);
