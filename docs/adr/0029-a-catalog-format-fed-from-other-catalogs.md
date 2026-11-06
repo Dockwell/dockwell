@@ -114,8 +114,9 @@ The first set is what the two real servers ran, and every app in it is open sour
 - **It has an access control of its own,** unlike an app with a first-visitor wizard. A domain reaches it, and only a device with a single-use pairing token gets in, which the setup page makes for whoever holds its key.
 - **Its setup key is generated and sealed,** so it needs no reading of logs. With the key set, the image prints nothing of it.
 - **It pins the image the real server runs,** which is days old rather than the 14 we hold other dependencies back, as that's what has been tried. The image moves quickly, so its entry will need releases often.
+- **It has the 1 GB of shared memory the recipe asks for,** as `shm_size`. On Docker's default of 64 MB the image's Chromium crashes, which the recipe's troubleshooting names.
 
-What it does without: `shm_size`, which Dockwell doesn't take yet, so the image's Chromium gets Docker's default 64 MB of shared memory where the recipe asks for 1 GB, and the recipe's troubleshooting names crashes as what that causes. A tmpfs volume on `/dev/shm` would do it, but it counts as host access, which would have a person approve what reaches nothing. The agents the image installs on first start have their own licences and accounts, which the entry says.
+The agents the image installs on first start have their own licences and accounts, which the entry says.
 
 ### Upgrades, before backups exist
 

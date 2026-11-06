@@ -168,6 +168,9 @@ func TestT3CodeStaysOnThisServer(t *testing.T) {
 	if ports := app.GetPorts(); len(ports) != 1 || ports[0].GetHostIp() != "127.0.0.1" {
 		t.Errorf("it publishes %v, want loopback alone", ports)
 	}
+	if got := app.GetShmSize(); got != "1G" {
+		t.Errorf("its Chromium has %q of shared memory, where the recipe asks for 1G", got)
+	}
 	var targets []string
 	for _, m := range app.GetMounts() {
 		if m.GetVolume() != "" {

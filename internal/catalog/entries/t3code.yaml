@@ -4,7 +4,7 @@ name: T3 Code
 summary: Run coding agents on your server, and reach them from any device
 category: ai
 version: "0.26.5"
-release: 1
+release: 2
 homepage: https://github.com/dizys/t3code-docker
 license: AGPL-3.0-only
 appLicense: MIT
@@ -35,6 +35,7 @@ compose: |
       image: ghcr.io/dizys/t3code-docker:0.26.5-browser@sha256:ae38393bc6867e67fcb36975e3fcf5dbf50b3f2f480bd7fbe08c83297696f40a
       restart: unless-stopped
       stop_grace_period: 30s
+      shm_size: 1g
       environment:
         T3_SETUP_KEY: ${T3_SETUP_KEY}
         T3_SINGLE_PORT: "8080"

@@ -2941,6 +2941,8 @@ catalog_install t3code
 t3code=$(catalog_container t3code)
 catalog_pinned "$t3code"
 catalog_healthy "$t3code"
+held=$(docker exec "$t3code" df -kP /dev/shm) || fail "df in $t3code failed"
+[[ "$(awk '$NF == "/dev/shm" { print $2 }' <<<"$held")" == 1048576 ]] || fail "T3 Code's Chromium needs 1 GiB of /dev/shm, and has: $held"
 key=$(catalog_generated "$t3code" T3_SETUP_KEY)
 t3_port=$(catalog_value t3code PORT)
 bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$t3code") || fail "docker inspect $t3code failed"
