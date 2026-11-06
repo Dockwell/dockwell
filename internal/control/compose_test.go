@@ -1306,6 +1306,78 @@ func testAdoptingAVolumeAsksItsOtherServersFirst(t *testing.T, backend store.Bac
 	}
 }
 
+// A server that's away can't say what it has, so an adopt waits for it. One removed
+// from the fleet will never say, and nothing runs on it any more, so it has no part in
+// this. Its placement outlives it, so it read as away for good, and the volume's
+// drift could never be adopted. The review of #150 found this.
+func TestAdoptingAVolumeLeavesARemovedServerOut(t *testing.T) {
+	storetest.Each(t, testAdoptingAVolumeLeavesARemovedServerOut)
+}
+
+func testAdoptingAVolumeLeavesARemovedServerOut(t *testing.T, backend store.Backend) {
+	const first, second = "addr=10.0.0.2,username=svc,password=first-pw-5Tn2", "addr=10.0.0.2,username=svc,password=rotated-pw-2Vb8"
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	one := f.addServerNamed(t, "hz-1", nil, nil)
+	oneID := f.lastDocker.id.ServerID
+	f.addServerNamed(t, "hz-2", nil, nil)
+	hz2 := f.lastDocker
+	twoID := hz2.id.ServerID
+	c := changeClient(b, b.origin)
+	res, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Share", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "share"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: map[string]string{"type": "cifs", "device": "//nas/share", "o": first}}}},
+		Servers:  []string{oneID, twoID},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, res.Msg.GetChange())
+
+	name := docker.Project(listedEnv(t, b)) + "_share"
+	v := *one.Volume(name)
+	v.Options = maps.Clone(v.Options)
+	v.Options["o"] = second
+	one.AddVolume(v)
+	drift := func() []*dockwellv1.Drift {
+		t.Helper()
+		res, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetDrift()
+	}
+	adopt := func() (*dockwellv1.Change, error) {
+		t.Helper()
+		found := drift()
+		if len(found) != 1 || found[0].GetServerId() != oneID {
+			t.Fatalf("drift = %v, want the volume on hz-1", found)
+		}
+		res, err := c.AdoptDrift(t.Context(), connect.NewRequest(&dockwellv1.AdoptDriftRequest{ServerId: oneID, ResourceId: found[0].GetResourceId()}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetChange(), nil
+	}
+
+	hz2.stop()
+	waitConnected(t, f, twoID, false)
+	if _, err := adopt(); err == nil || !strings.Contains(err.Error(), "hz-2 isn't connected") {
+		t.Errorf("adopting while hz-2 is away = %v, want it refused, as hz-2 can't say what it has", err)
+	}
+	if err := f.ident.Revoke(t.Context(), twoID, "cli:test"); err != nil {
+		t.Fatal(err)
+	}
+	adopted, err := adopt()
+	if err != nil {
+		t.Fatalf("adopting with hz-2 removed = %v, want it planned", err)
+	}
+	applyConfirmed(t, c, adopted)
+	if left := drift(); len(left) != 0 {
+		t.Errorf("after adopting it, drift = %v", left)
+	}
+}
+
 // A network Dockwell didn't make can be a macvlan on the server's LAN, past its
 // firewall, and only the server knows. So its agent says which driver one uses, and
 // the plan says that where it says what joins it. The last check of #92 found it read

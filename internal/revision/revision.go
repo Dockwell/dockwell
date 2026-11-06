@@ -3540,7 +3540,8 @@ func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 // sends a spec to every server it would run on, before anyone applies it, so that
 // server's agent would hear what the first has, such as a password made by hand, and
 // could only refuse it, as Docker can't change a volume (ADR 0022). Asking each what
-// it has sends it nothing.
+// it has sends it nothing. A server removed from the fleet isn't asked, as nothing runs
+// there any more, and it would read as away for good.
 func (e *Engine) checkSameElsewhere(ctx context.Context, d Drift) error {
 	if _, ok := e.keeper(d.Ref.Kind); !ok || d.Missing {
 		return nil
@@ -3553,7 +3554,7 @@ func (e *Engine) checkSameElsewhere(ctx context.Context, d Drift) error {
 	}); err != nil {
 		return err
 	}
-	others := slices.DeleteFunc(slices.Clone(it.placed), func(s string) bool { return s == d.Server })
+	others := slices.DeleteFunc(it.targets(), func(s string) bool { return s == d.Server })
 	names, err := e.serverNames(ctx, append([]string{d.Server}, others...))
 	if err != nil {
 		return err
