@@ -100,7 +100,9 @@ message InstanceHealth {
   string service = 2;
   // Its number, as Compose's container-number label has it.
   int32 number = 3;
-  // Its name in Docker, such as "env_01kat…-web-3".
+  // Its name in Docker now, such as "env_01kat…-web-3", which is what a docker
+  // command takes. A rollout has it under another for a moment, such as
+  // "stopping_a1b2c3d4e5f6_env_01kat…-web-3" as it goes.
   string container = 4;
   // How it is.
   HealthState state = 5;
