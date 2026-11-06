@@ -1183,12 +1183,13 @@ func notRunning(c *docker.Container) string {
 	return cmp.Or(c.State.Status, "stopped")
 }
 
-// reportRan puts the image a container now runs on record, by digest. Not
-// knowing it costs a moving tag its rollback, not the deploy, so a failure to
-// read it doesn't fail anything.
-func (d *Docker) reportRan(ctx context.Context, ref string) {
-	if img, err := d.Client.InspectImage(ctx, docker.WithTag(ref)); err == nil {
-		resource.Report(ctx, resource.Outcome{Digest: img.Digest(ref)})
+// reportRan puts the image a container now runs on record, by digest. It reads
+// the container's own image, as its tag may have moved since it was made, by a
+// pull or a build on the server. Not knowing it costs a moving tag its rollback,
+// not the deploy, so a failure to read it doesn't fail anything.
+func (d *Docker) reportRan(ctx context.Context, c *docker.Container) {
+	if img, err := d.Client.InspectImage(ctx, c.Image); err == nil {
+		resource.Report(ctx, resource.Outcome{Digest: img.Digest(c.Config.Image)})
 	}
 }
 
@@ -1612,7 +1613,7 @@ func (d *Docker) Healthy(ctx context.Context, t Target) error {
 	}
 	// What it ran goes on record once it passes, as a step does, however far it got
 	// before it was cut short.
-	d.reportRan(ctx, all[0].Config.Image)
+	d.reportRan(ctx, all[0].Container)
 	return nil
 }
 

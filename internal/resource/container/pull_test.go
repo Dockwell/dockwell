@@ -5,8 +5,11 @@ package container_test
 import (
 	"cmp"
 	"errors"
+	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -138,5 +141,44 @@ func TestAnImageBuiltHereStillFailsWhileItsRegistryIsDown(t *testing.T) {
 	e.Registry[image] = dockertest.Image{PullError: "Get https://registry.acme.dev/v2/: dial tcp: i/o timeout"}
 	if told, err := pullStep(t, d, ref, spec); err == nil || !told.Untouched {
 		t.Errorf("the pull = %v, and it told %+v; want it failed", err, told)
+	}
+}
+
+// A tag can move at any moment, by a pull or a build someone runs on the server. So
+// what goes on record is read from the container, not from wherever the tag has got
+// to by the time the step reads it back, as a rollback goes by that digest.
+func TestWhatRanIsWhatTheContainerRunsWhereverItsTagWent(t *testing.T) {
+	const (
+		image = "ghcr.io/acme/shop:latest"
+		ran   = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		moved = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	)
+	e := dockertest.New(t)
+	e.Registry[image] = dockertest.Image{Digest: ran, Config: docker.Config{Cmd: []string{"shop"}}}
+	d := &container.Driver{Runtime: &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, HealthWait: time.Second}}
+	var once atomic.Bool
+	e.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") && once.CompareAndSwap(false, true) {
+			e.Registry[image] = dockertest.Image{Digest: moved, Config: docker.Config{Cmd: []string{"shop"}}}
+			return e.Client().PullImage(r.Context(), image, nil)
+		}
+		return nil
+	})
+	var told resource.Outcome
+	ctx := resource.WithOutcome(t.Context(), func(o resource.Outcome) { told.Digest = cmp.Or(o.Digest, told.Digest) })
+	spec := &resourcev1.Container{Image: image}
+	ref := resource.Ref{Kind: container.Kind, Name: "web"}
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}, spec); err != nil {
+		t.Fatal(err)
+	}
+	if !once.Load() {
+		t.Fatal("the tag never moved, so this proves nothing")
+	}
+	// A step reports what ran as it checks it, once it has started.
+	if err := d.Verify(ctx, ref, spec); err != nil {
+		t.Fatal(err)
+	}
+	if told.Digest != ran {
+		t.Errorf("the step reported %s, want %s, which is what the container runs", told.Digest, ran)
 	}
 }
