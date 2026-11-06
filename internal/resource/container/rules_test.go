@@ -237,11 +237,19 @@ func TestNetworkSpellings(t *testing.T) {
 		}
 	}
 	// A container on its own has only Docker's networks, none of which Dockwell
-	// made, so each is access, and the server's own is its own kind of it.
-	c := &resourcev1.Container{Image: "nginx:1.27", Networks: []string{"a", "host"}}
-	want := []resource.Access{{Kind: resource.AccessExternalNetwork, Path: "a"}, {Kind: resource.AccessNetwork}}
-	if err := d.Validate(c); err != nil || !slices.Equal(d.HostAccess(c), want) {
-		t.Errorf("host beside another network = %v, %v, want %v", err, d.HostAccess(c), want)
+	// made, so each is access, and the server's own is its own kind of it. Docker
+	// puts a container on host alone.
+	for _, c := range []struct {
+		networks []string
+		want     []resource.Access
+	}{
+		{[]string{"a", "b"}, []resource.Access{{Kind: resource.AccessExternalNetwork, Path: "a"}, {Kind: resource.AccessExternalNetwork, Path: "b"}}},
+		{[]string{"host"}, []resource.Access{{Kind: resource.AccessNetwork}}},
+	} {
+		spec := &resourcev1.Container{Image: "nginx:1.27", Networks: c.networks}
+		if err := d.Validate(spec); err != nil || !slices.Equal(d.HostAccess(spec), c.want) {
+			t.Errorf("networks %v = %v, %v, want %v", c.networks, err, d.HostAccess(spec), c.want)
+		}
 	}
 	e := dockertest.New(t)
 	images(e)

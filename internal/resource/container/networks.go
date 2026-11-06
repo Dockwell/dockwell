@@ -12,6 +12,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -244,29 +245,49 @@ func (d *Docker) checkRouted(ctx context.Context, t Target, spec *resourcev1.Con
 		"Send the route to the port %[1]s will listen on with host_port in this change too, or leave out host_network", t.Service)
 }
 
-// checkExternalNetworks refuses a service whose networks the server hasn't got,
-// by name, as it plans and again as it applies. It looks at what is on each too:
-// two containers answering to one name on a network take each other's traffic,
-// and only the server sees what other projects run there, or what is on it from
-// outside Dockwell. A name is looked up without regard to case, as DNS names are.
-func (d *Docker) checkExternalNetworks(ctx context.Context, t Target, spec *resourcev1.Container) error {
-	if len(spec.GetExternalNetworks()) == 0 {
-		return nil
+// joinedByName are the networks a container at t joins where others reach it by
+// name, by their names in Docker, and the names it answers to there: for a
+// service, the networks the server has, with its service's name and its other
+// names; for a container on its own, its networks, with its own name. On Docker's
+// bridge a container is reached by its address alone, and host and none aren't
+// networks others join.
+func joinedByName(t Target, spec *resourcev1.Container) (networks, names []string) {
+	if t.Scoped {
+		return spec.GetExternalNetworks(), endpointAliases(t, spec)
 	}
+	for _, n := range spec.GetNetworks() {
+		if n != bridge && n != "host" && n != "none" {
+			networks = append(networks, n)
+		}
+	}
+	return networks, []string{t.Name}
+}
+
+// checkNetworks refuses a container whose networks the server hasn't got, by name,
+// as it plans and again as it applies. Docker would take a missing network's name as
+// the start of another's ID. It looks at what is on each too: two containers
+// answering to one name on a network take each other's traffic, and only the server
+// sees what other projects run there, or what is on it from outside Dockwell. A
+// name is looked up without regard to case, as DNS names are. A service's own
+// environment's networks are the control plane's to check (revision.checkAnswers).
+func (d *Docker) checkNetworks(ctx context.Context, t Target, spec *resourcev1.Container) error {
+	networks, names := joinedByName(t, spec)
 	ours := map[string]bool{}
-	for _, a := range endpointAliases(t, spec) {
+	for _, a := range names {
 		ours[strings.ToLower(a)] = true
 	}
-	for _, name := range spec.GetExternalNetworks() {
+	for _, name := range networks {
 		n, err := d.Client.NetworkNamed(ctx, name)
 		switch {
 		case docker.IsNotFound(err):
-			return fmt.Errorf("the network %s isn't on this server, so %s can't join it, and Dockwell never makes a network it doesn't own. "+
-				"Make it with docker network create %s, or take it out of the service", name, t.Service, name)
+			return d.noSuchNetwork(ctx, t, name)
 		case err != nil:
 			return err
 		}
-		list, err := d.Client.ListContainers(ctx, map[string][]string{"network": {n.ID}})
+		// By its name: Docker has a container's ID for a network only once it first
+		// starts, so asking by ID wouldn't list one another change has made and not
+		// started yet.
+		list, err := d.Client.ListContainers(ctx, map[string][]string{"network": {n.Name}})
 		if err != nil {
 			return err
 		}
@@ -287,11 +308,53 @@ func (d *Docker) checkExternalNetworks(ctx context.Context, t Target, spec *reso
 			}
 			for _, a := range theirs {
 				if ours[strings.ToLower(a)] {
-					return fmt.Errorf("%s would answer to %s on the network %s, and the container %s there already does, so each could get the other's traffic. "+
-						"Rename the service, or change its container_name, or stop that container, then plan again", t.Service, a, name, strings.TrimPrefix(c.Name, "/"))
+					return takenName(t, name, a, c)
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// noSuchNetwork says that the network a container at t names isn't on the server,
+// and what to do. A name Docker would take as the start of another network's ID is
+// said to be that, without naming the network, which may be another environment's.
+func (d *Docker) noSuchNetwork(ctx context.Context, t Target, name string) error {
+	what, fix := t.Name, "Make it with docker network create "+name+", or leave it out"
+	if t.Scoped {
+		what, fix = t.Service, "Dockwell never makes a network it doesn't own. Make it with docker network create "+name+", or take it out of the service"
+	}
+	if _, err := d.Client.InspectNetwork(ctx, name); err == nil {
+		return fmt.Errorf("the network %s isn't on this server, so %s can't join it. Docker takes %s for the start of another network's ID, and Dockwell joins a network by its name alone: give the network's name", name, what, name)
+	}
+	return fmt.Errorf("the network %s isn't on this server, so %s can't join it. %s", name, what, fix)
+}
+
+// takenName says that the container c on the network already answers to a name the
+// container at t would, and what to do: which depends on what c is, and which name.
+// Docker keeps a stopped container on its networks, to answer there again once it
+// starts, so stopping it isn't enough.
+func takenName(t Target, network, name string, c *docker.Container) error {
+	other := strings.TrimPrefix(c.Name, "/")
+	what := t.Name
+	if t.Scoped {
+		what = t.Service
+	}
+	project, service := c.Config.Labels[docker.LabelProject], c.Config.Labels[docker.LabelService]
+	said := fmt.Sprintf("%s would answer to %s on the network %s, and the container %s there already does, so each could get the other's traffic", what, name, network, other)
+	switch {
+	case t.Scoped && service != "" && project == t.Project:
+		// The server runs the old container until the change that takes the name from
+		// it applies, so a move between two services, or to a service that renames one,
+		// is two changes.
+		return fmt.Errorf("%s. It is %s, of this environment, which keeps the name on the server until a change takes it away and applies, so a name can't move to %s in the same change. "+
+			"Take the name from %s, or delete it, in a change of its own, apply that, then plan this again", said, service, what, service)
+	case service != "" && (strings.HasPrefix(project, id.Environment+"_") || strings.HasPrefix(project, id.Server+"_")):
+		return fmt.Errorf("%s. It is %s, which Dockwell runs elsewhere on this server. Rename one of the two, or take one of them off the network %s, then plan again", said, service, network)
+	case strings.EqualFold(name, what):
+		return fmt.Errorf("%s. Rename %s, or remove that container with docker rm %s if nothing needs it, then plan again. "+
+			"Stopping it isn't enough: Docker keeps a stopped container on its networks, and it answers there again when it starts", said, what, other)
+	}
+	return fmt.Errorf("%s. Give %s another name in place of %s, in its aliases or its Compose file's container_name, or remove that container with docker rm %s if nothing needs it, then plan again. "+
+		"Stopping it isn't enough: Docker keeps a stopped container on its networks, and it answers there again when it starts", said, what, name, other)
 }

@@ -575,6 +575,12 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 				}
 			}
 		}
+		// The engine fills in a container's ID for a network as it first joins it.
+		for name, ep := range c.NetworkSettings.Networks {
+			if ep != nil && ep.NetworkID == "" && e.networks[name] != nil {
+				ep.NetworkID = e.networks[name].ID
+			}
+		}
 		e.clock++
 		now := time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC()
 		c.State = docker.State{Status: "running", Running: true, StartedAt: now}
@@ -716,7 +722,9 @@ func filters(r *http.Request) (map[string][]string, error) {
 // matches reports whether a container passes a list's filters, as the
 // engine has them: name is a regular expression on its name, with or
 // without the leading slash; label is a key, or key=value, and every label
-// must match; volume is a volume's name, or where something is mounted.
+// must match; volume is a volume's name, or where something is mounted;
+// network is a network's name, or a prefix of the ID a container has for it, which
+// it has only once it first starts, as Moby v28.5.2's daemon/list.go reads it.
 func (c *container) matches(f map[string][]string) bool {
 	passes := func(key string, ok func(string) bool) bool {
 		vs, set := f[key]
@@ -734,8 +742,15 @@ func (c *container) matches(f map[string][]string) bool {
 	}) && passes("volume", func(v string) bool {
 		return slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == v || m.Source == v || m.Destination == v })
 	}) && passes("network", func(v string) bool {
-		_, on := c.NetworkSettings.Networks[v]
-		return on
+		if _, on := c.NetworkSettings.Networks[v]; on {
+			return true
+		}
+		for _, ep := range c.NetworkSettings.Networks {
+			if ep != nil && strings.HasPrefix(ep.NetworkID, v) {
+				return true
+			}
+		}
+		return false
 	})
 }
 
@@ -746,14 +761,6 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fail(w, http.StatusBadRequest, "%v", err)
 		return
-	}
-	// The engine takes a network by its name or a prefix of its ID.
-	for i, v := range f["network"] {
-		for _, n := range e.networks {
-			if strings.HasPrefix(n.ID, v) {
-				f["network"][i] = n.Name
-			}
-		}
 	}
 	all := r.URL.Query().Get("all")
 	out := []docker.ContainerSummary{}
@@ -989,7 +996,7 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	if n == nil {
 		return
 	}
-	c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{n.Name: {NetworkID: n.ID}}
+	c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{n.Name: {}}
 	for ref, s := range req.NetworkingConfig.EndpointsConfig {
 		n := e.network(w, ref)
 		if n == nil {
@@ -999,7 +1006,6 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusBadRequest, "network-scoped alias is supported only for containers in user defined networks")
 			return
 		}
-		s.NetworkID = n.ID
 		c.NetworkSettings.Networks[n.Name] = s
 	}
 	e.finishCreate(w, c, &req)
@@ -1369,7 +1375,9 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 		if c.NetworkSettings.Networks == nil {
 			c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{}
 		}
-		s.NetworkID = n.ID
+		if c.State.Running {
+			s.NetworkID = n.ID
+		}
 		c.NetworkSettings.Networks[n.Name] = &s
 		if c.State.Running {
 			if err := e.addressesFree(c); err != nil {

@@ -149,8 +149,9 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 		switch n {
 		case "host":
 			out = append(out, resource.Access{Kind: resource.AccessNetwork})
-		case bridge:
-			// Docker's default, where a container with no network goes.
+		case bridge, "none":
+			// Docker's default, where a container with no network goes, and no
+			// network at all.
 		default:
 			out = append(out, resource.Access{Kind: resource.AccessExternalNetwork, Path: n})
 		}
@@ -246,7 +247,7 @@ func (d *Docker) CheckHost(ctx context.Context, t Target, spec *resourcev1.Conta
 	if err := d.checkPublicPorts(ctx, spec); err != nil {
 		return err
 	}
-	if err := d.checkExternalNetworks(ctx, t, spec); err != nil {
+	if err := d.checkNetworks(ctx, t, spec); err != nil {
 		return err
 	}
 	if err := d.checkRouted(ctx, t, spec); err != nil {
@@ -404,8 +405,8 @@ func (d *Docker) checkReach(ctx context.Context, t Target, spec *resourcev1.Cont
 	if info.Rootless() {
 		return fmt.Errorf("this server's Docker runs rootless, so the agent can't reach a container's address. %s can't run here. Use a command check, which Docker runs inside the container", kind)
 	}
-	// A network the server has is its own name in Docker, and checkExternalNetworks
-	// refuses one that isn't there.
+	// A network the server has is its own name in Docker, and checkNetworks refuses
+	// one that isn't there.
 	names := map[string]string{}
 	for _, name := range spec.GetNetworks() {
 		names[name] = t.DockerName(name)
