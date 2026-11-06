@@ -333,6 +333,18 @@ export class LogStore implements LogLines {
     return undefined;
   }
 
+  /** Where what shows nearest after a line is, or the last that shows, if the line is here. */
+  positionNear(id: string | number): number | undefined {
+    for (let i = this.entries.length - 1; i >= this.head; i--) {
+      if (this.entries[i]?.id !== id) continue;
+      if (!this.kept) return this.positionAt(i);
+      const low = this.keptFrom(i - this.head + this.base);
+      const shown = Math.min(low, this.kept.length - 1);
+      return shown < this.keptHead ? undefined : shown - this.keptHead + this.keptBase;
+    }
+    return undefined;
+  }
+
   /** Where an entry is, in what shows, if it does, in O(log n) as its time says. */
   positionOfEntry(entry: Entry): number | undefined {
     let low = this.head;
@@ -348,14 +360,21 @@ export class LogStore implements LogLines {
   private positionAt(index: number): number | undefined {
     const absolute = index - this.head + this.base;
     if (!this.kept) return absolute;
+    const low = this.keptFrom(absolute);
+    return this.kept[low] === absolute ? low - this.keptHead + this.keptBase : undefined;
+  }
+
+  /** Where the first of what the filter keeps at or after an absolute position is. */
+  private keptFrom(absolute: number): number {
+    const kept = this.kept ?? [];
     let low = this.keptHead;
-    let high = this.kept.length;
+    let high = kept.length;
     while (low < high) {
       const mid = (low + high) >> 1;
-      if ((this.kept[mid] as number) < absolute) low = mid + 1;
+      if ((kept[mid] as number) < absolute) low = mid + 1;
       else high = mid;
     }
-    return this.kept[low] === absolute ? low - this.keptHead + this.keptBase : undefined;
+    return low;
   }
 
   /** The next line that shows after a position, going by, or undefined if there is none. */

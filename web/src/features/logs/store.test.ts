@@ -207,6 +207,23 @@ describe("LogStore", () => {
     expect(s.positionOf(999)).toBeUndefined();
   });
 
+  it("finds what shows nearest a line a filter hides, or says it can't", () => {
+    const s = new LogStore();
+    s.add([chunk("a", line(1, "a one"), line(2, "b two"), line(3, "a three"), line(4, "b four"), line(5, "b five"))]);
+    const idOf = (position: number) => s.entryAt(position)?.id as number;
+    const [one, two, four, five] = [0, 1, 3, 4].map((i) => idOf(s.start + i)) as [number, number, number, number];
+    s.setFilter({ ...NO_FILTER, query: "a " });
+    expect(s.positionNear(one)).toBe(s.start); // it shows
+    expect(s.positionNear(two)).toBe(s.start + 1); // a three, the next that shows
+    expect(s.positionNear(five)).toBe(s.start + 1); // nothing after it: the last that shows
+    expect(s.positionOf(four)).toBeUndefined();
+    expect(s.positionNear(999)).toBeUndefined();
+    s.setFilter({ ...NO_FILTER, query: "nothing" });
+    expect(s.positionNear(two)).toBeUndefined();
+    s.setFilter(NO_FILTER);
+    expect(s.positionNear(two)).toBe(s.start + 1);
+  });
+
   it("starts over when cleared, and positions don't carry over", () => {
     const s = new LogStore();
     s.add([chunk("a", line(1, "one"))]);

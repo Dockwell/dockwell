@@ -73,8 +73,10 @@ export interface LogLines {
   readonly epoch: number;
   /** The line at a position from start up to start + length. */
   at(position: number): LogLine | undefined;
-  /** The position of a line by its ID, if it is here, to keep a reader's place. */
+  /** The position of a line by its ID, if it shows, to keep a reader's place. */
   positionOf?(id: string | number): number | undefined;
+  /** The position of what shows nearest after a line that is here, shown or not. */
+  positionNear?(id: string | number): number | undefined;
   /** How many have come that don't show yet, while what shows holds still for a reader. */
   readonly arrived?: number;
 }
@@ -245,6 +247,9 @@ export function LogStream({
   const pendingTop = useRef<number | undefined>(undefined);
   const settledAt = useRef(0);
   const anchor = useRef<{ id: string | number; into: number } | undefined>(undefined);
+  // A filter hid the line a reader is on. It stays their place, for when it shows
+  // again, until they go somewhere else: looking something up shouldn't lose it.
+  const placeHeld = useRef(false);
   const expected = useRef<number | undefined>(undefined);
   const lastTop = useRef(0);
   const [view, setView] = useState({ top: 0, height: 0 });
@@ -280,14 +285,19 @@ export function LogStream({
   if (synced.current.epoch !== lines.epoch) {
     // Positions mean something else now. A reader who isn't following keeps
     // their place, by the line at the top of what shows.
-    const firstShown = lines.length > 0 && synced.current.epoch >= 0 ? anchor.current : undefined;
+    const place = synced.current.epoch >= 0 ? anchor.current : undefined;
     if (synced.current.epoch >= 0) settledAt.current = performance.now() + SETTLE_MS;
     index.current.reset(lines.start);
     for (let p = lines.start; p < end; p++) index.current.push(estimate(lines.at(p)));
     synced.current = { epoch: lines.epoch, end };
-    if (firstShown) {
-      const position = lines.positionOf?.(firstShown.id);
-      if (position !== undefined) pendingTop.current = index.current.offset(position) + firstShown.into;
+    if (place) {
+      const position = lines.positionOf?.(place.id);
+      const near = position === undefined ? lines.positionNear?.(place.id) : undefined;
+      if (position !== undefined) pendingTop.current = index.current.offset(position) + place.into;
+      else if (near !== undefined) pendingTop.current = index.current.offset(near);
+      // With nothing showing, whether it is still here can't be told, and when it
+      // has gone, the next that shows is a place like any other.
+      placeHeld.current = position === undefined && (near !== undefined || lines.length === 0);
     }
   } else {
     if (lines.start > index.current.first) {
@@ -297,6 +307,13 @@ export function LogStream({
     for (let p = synced.current.end; p < end; p++) index.current.push(estimate(lines.at(p)));
     synced.current.end = end;
   }
+
+  const noteAnchor = (top: number) => {
+    if (placeHeld.current) return;
+    const atTop = index.current.at(top);
+    const line = lines.at(atTop);
+    if (line?.id !== undefined) anchor.current = { id: line.id, into: top - index.current.offset(atTop) };
+  };
 
   const fits = view.height > 0;
   const first = fits ? Math.max(lines.start, index.current.at(view.top) - OVERSCAN) : lines.start;
@@ -351,6 +368,13 @@ export function LogStream({
       el.scrollTop = Math.max(0, room + index.current.offset(position) - el.clientHeight / 3);
       expected.current = el.scrollTop;
       pendingTop.current = undefined;
+      // That line is the reader's place now, wherever it sits in what shows, and not
+      // whichever line happens to be above it.
+      const line = lines.at(position);
+      if (line?.id !== undefined) {
+        anchor.current = { id: line.id, into: el.scrollTop - index.current.offset(position) };
+        placeHeld.current = true;
+      }
       // Once it is drawn and measured, this was its place. Until then it was a guess.
       if (rows.current.has(position)) wanted.current = undefined;
       else redraw();
@@ -358,6 +382,7 @@ export function LogStream({
       el.scrollTop = el.scrollHeight;
       expected.current = el.scrollTop;
       pendingTop.current = undefined;
+      placeHeld.current = false;
     } else {
       const pending = pendingTop.current;
       const by = adjust.current + moved;
@@ -374,9 +399,7 @@ export function LogStream({
     lastTop.current = el.scrollTop;
     onHeights();
     // Note which line is at the top, in case the positions change under it.
-    const atTop = index.current.at(el.scrollTop);
-    const line = lines.at(atTop);
-    if (line?.id !== undefined) anchor.current = { id: line.id, into: el.scrollTop - index.current.offset(atTop) };
+    noteAnchor(el.scrollTop);
   });
 
   // A new width wraps lines differently. Every height goes back to an estimate
@@ -442,9 +465,8 @@ export function LogStream({
         onHeights();
       });
     }
-    const atTop = index.current.at(now);
-    const line = lines.at(atTop);
-    if (line?.id !== undefined) anchor.current = { id: line.id, into: now - index.current.offset(atTop) };
+    if (!ours && !settling) placeHeld.current = false;
+    noteAnchor(now);
   };
   useEffect(() => () => cancelAnimationFrame(scrolling.current), []);
   // A line the keyboard is on can leave the view or the store, and its buttons with
