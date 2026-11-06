@@ -179,6 +179,8 @@ dockwell routes update www --domain app.example.com --service myapp --port 8080 
 
 Your app then reads the visitor's address in `X-Real-IP` and `X-Forwarded-For`, and `https` in `X-Forwarded-Proto`. It's read from the right, so what a visitor sends in that header themselves doesn't count, unless their own address is in a range a route on this server names, as [the threat model](security/ingress.md) says. `CF-Connecting-IP` is stripped, whoever sends it: read `X-Real-IP` instead. With `127.0.0.1` named, anything else on the server can say the same over loopback. Treat this as what Cloudflare says connected to it, which is good for logs and for limits on visitors who aren't trying to get past them, and not for deciding who someone is: a Worker on someone else's Cloudflare zone reads as `2a06:98c0:3600::103`, [as Cloudflare's docs say](https://developers.cloudflare.com/fundamentals/reference/http-headers/), which all of them share.
 
+What a proxy says of the path doesn't reach your app, as a visitor can send the same: `X-Forwarded-Prefix`, `X-Forwarded-Uri` and `X-Original-URL` are stripped on every route. So an app on a sub-path needs that path in its own settings. A route from an older build lets them through until the next change on its server, a change to another route too, and that plan doesn't say so. If an app on a sub-path breaks after a change that didn't touch it, this is why.
+
 **If it runs on a bridge instead,** give it a network of its own, not Docker's default `bridge`. A service with no networks runs on `bridge`, and a token can deploy one with no person approving. If a route names that range, that service reaches the route, even one to a port on the server, and says who its client is.
 
 ```sh
