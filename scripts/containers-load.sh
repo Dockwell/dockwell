@@ -40,6 +40,8 @@ fail() {
 }
 
 rss() { awk '/^VmRSS:/ { printf "%.1f", $2 / 1024 }' "/proc/$1/status"; }
+# The most it has ever held, which the kernel keeps: sampling between reads misses it.
+peak() { awk '/^VmHWM:/ { printf "%.1f", $2 / 1024 }' "/proc/$1/status"; }
 
 # The limit the installed service sets, as budgets.sh reads it.
 GOMEMLIMIT=$(sed -n 's/^MEMORY_LIMIT=//p' "$root/scripts/install.sh")
@@ -126,17 +128,15 @@ count=$(jq '.containers | length' <<<"$listed") || fail "containers list printed
 bytes=${#listed}
 echo "a list of $count containers comes to $((bytes / 1024)) KiB as JSON"
 
-most=0
 reads=0
 went=$(date +%s%N)
 end=$((SECONDS + seconds))
 while ((SECONDS < end)); do
   "$full" containers list --server load-agent --json >/dev/null || fail "containers list failed"
   reads=$((reads + 1))
-  now=$(rss "$agent_pid")
-  most=$(awk -v a="$most" -v b="$now" 'BEGIN { print (b > a ? b : a) }')
 done
 each=$((($(date +%s%N) - went) / reads / 1000000))
+most=$(peak "$agent_pid")
 echo "read $reads times, $each ms each with the CLI's own start: agent at most $most MB, budget $max_mb MB"
 awk -v v="$most" -v l="$max_mb" 'BEGIN { exit !(v < l) }' || fail "the agent's memory came to $most MB, past its budget of $max_mb"
 echo "containers-load: ok"

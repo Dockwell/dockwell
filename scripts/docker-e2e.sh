@@ -342,14 +342,15 @@ docker inspect --format '{{index .Config.Labels "dev.dockwell.revision"}}' "$con
   fail "web's container doesn't say which revision made it"
 
 step "A container run by hand is listed and read, Dockwell's own isn't, and looking touches neither"
-docker run --detach --name e2e-by-hand --env E2E_BY_HAND=not-for-a-list --publish 127.0.0.1:18095:80 \
-  --volume e2e-by-hand-data:/data nginx:1.27-alpine sh -c 'echo e2e-by-hand-says-hello; exec nginx -g "daemon off;"' >/dev/null ||
+# The value is in its environment, a label and its command, none of which a list holds.
+docker run --detach --name e2e-by-hand --env E2E_BY_HAND=not-for-a-list --label e2e.note=not-for-a-list --publish 127.0.0.1:18095:80 \
+  --volume e2e-by-hand-data:/data nginx:1.27-alpine sh -c ': not-for-a-list; echo e2e-by-hand-says-hello; exec nginx -g "daemon off;"' >/dev/null ||
   fail "docker run e2e-by-hand failed"
 touched() { docker inspect --format '{{.Id}} {{.RestartCount}} {{.State.StartedAt}}' "$1"; }
 by_hand_before=$(touched e2e-by-hand) || fail "docker inspect e2e-by-hand failed"
 web_before=$(touched "$container") || fail "docker inspect $container failed"
 listed=$(dw containers list --json) || fail "containers list failed"
-[[ "$listed" != *not-for-a-list* ]] || fail "the list shows a value of a container's environment: $listed"
+[[ "$listed" != *not-for-a-list* ]] || fail "the list shows a value of a container's environment, labels or command: $listed"
 by_hand=$(jq -c '.containers[] | select(.name == "e2e-by-hand")' <<<"$listed") || fail "containers list printed what isn't JSON: $listed"
 [[ -n "$by_hand" ]] || fail "the list has no e2e-by-hand: $listed"
 jq -e '.image == "nginx:1.27-alpine" and .state == "CONTAINER_STATE_RUNNING"

@@ -17,8 +17,9 @@ import (
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 )
 
-// What a container holds in its environment, its labels and its command goes
-// nowhere: a plan shows nobody those values, and neither does this list. A list is
+// What a container holds in its labels goes nowhere: the fake's list has them, and
+// a value in one doesn't get past this. Its environment and command aren't in the
+// fake's list at all, so scripts/docker-e2e.sh holds those on real Docker. A list is
 // also all it takes: reading it changes nothing, and asks Docker for nothing else.
 func TestAListHoldsNoneOfWhatAContainerKeepsToItself(t *testing.T) {
 	e := dockertest.New(t)
