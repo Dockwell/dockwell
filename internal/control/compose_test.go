@@ -1045,7 +1045,8 @@ func testUndoPutsAVolumeBackWhereItRan(t *testing.T, backend store.Backend) {
 
 	t.Run("a move that fails", func(t *testing.T) {
 		applyConfirmed(t, c, propose(t, edit("failed", cifs("//nas/share", there+password), "hz-1")))
-		// hz-1 lets go of it first, so the rollback has something to put back.
+		// Builds run before deletes, so hz-2 fails while hz-1 still has it, and the rollback
+		// has only its record to put back.
 		engines["hz-2"].Intercept(func(r *http.Request) error {
 			if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/volumes/create") {
 				return errors.New("no space left on device")
