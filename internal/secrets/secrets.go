@@ -66,6 +66,16 @@ func unsealed(at store.SpecAt) error {
 		"Restore the database from a backup. On a development install, start again with an empty data directory", at.Kind, at.ResourceID, ErrUnsealed)
 }
 
+// unopened says which stored spec can't be opened, and what to do. Any other error,
+// such as the store's own, stays as it is.
+func unopened(at store.SpecAt, err error) error {
+	if !errors.Is(err, ErrOpen) {
+		return err
+	}
+	return fmt.Errorf("%s %s: %w, so it was changed, moved to another row or sealed with keys this install hasn't got, and Dockwell won't read it. "+
+		"Restore the database and the key file from the same backup", at.Kind, at.ResourceID, err)
+}
+
 // Keeper seals and opens specs, with the keys in the store.
 //
 // It keeps no key-encryption key in memory beyond the transaction that
@@ -232,6 +242,12 @@ func (k *Keeper) Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored
 		}
 		return stored, nil
 	}
+	plain, err := k.open(ctx, tx, at, stored)
+	return plain, unopened(at, err)
+}
+
+// open opens a sealed spec.
+func (k *Keeper) open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error) {
 	dekID, sealed, err := sealedParts(stored)
 	if err != nil {
 		return nil, err
@@ -299,7 +315,7 @@ func (k *Keeper) OpenAll(ctx context.Context, tx *store.Tx, specs []store.Stored
 		}
 		var err error
 		if dekIDs[i], sealed[i], err = sealedParts(s.Spec); err != nil {
-			return nil, err
+			return nil, unopened(s.At, err)
 		}
 		ids = append(ids, dekIDs[i])
 	}
@@ -314,17 +330,17 @@ func (k *Keeper) OpenAll(ctx context.Context, tx *store.Tx, specs []store.Stored
 		}
 		d, ok := keys[dekIDs[i]]
 		if !ok {
-			return nil, fmt.Errorf("data key %s is gone: %w", dekIDs[i], ErrOpen)
+			return nil, unopened(s.At, fmt.Errorf("data key %s is gone: %w", dekIDs[i], ErrOpen))
 		}
 		kek, ok := keks[d.KEKID]
 		if !ok {
 			if kek, err = k.kek(ctx, tx, d.KEKID); err != nil {
-				return nil, err
+				return nil, unopened(s.At, err)
 			}
 			keks[d.KEKID] = kek
 		}
 		if out[i], err = openUnder(s.At, sealed[i], d, kek); err != nil {
-			return nil, err
+			return nil, unopened(s.At, err)
 		}
 	}
 	return out, nil
