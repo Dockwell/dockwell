@@ -190,14 +190,17 @@ func (d *Docker) Adoption(ctx context.Context, t Target, id string, spec *resour
 // Adopt records a container as what t runs, and does nothing else to it. Done
 // already, as a step that resumes finds it, it has nothing to do.
 func (d *Docker) Adopt(ctx context.Context, t Target, id string, spec *resourcev1.Container) error {
-	c, err := d.Client.InspectContainer(ctx, id)
-	if err == nil && c.Config.Labels[docker.LabelProject] == t.Project && c.Config.Labels[docker.LabelService] == t.Service && c.Config.Labels[docker.LabelAdopted] != "" {
-		return nil
-	}
 	if _, err := d.Adoption(ctx, t, id, spec); err != nil {
 		return err
 	}
-	return d.Client.Adopted.Take(id, docker.Taken{Project: t.Project, Service: t.Service})
+	c, err := d.Client.InspectContainer(ctx, id)
+	if err != nil {
+		return err
+	}
+	if c.Config.Labels[docker.LabelAdopted] != "" {
+		return nil
+	}
+	return d.Client.Adopted.Take(id, docker.Taken{Project: t.Project, Service: t.Service, Name: strings.TrimPrefix(c.Name, "/")})
 }
 
 // takenOn is the full ID of what t runs, while that is a container that was taken on

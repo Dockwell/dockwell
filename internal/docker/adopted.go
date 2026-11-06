@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,13 +18,16 @@ import (
 )
 
 // LabelAdopted marks a container that was taken on, in what the client reads, and
-// never on the container, with the name it has in Docker. See Adopted.
+// never on the container, with the name it came with. See Adopted.
 const LabelAdopted = OwnPrefix + "adopted"
 
 // Taken is what a container that was taken on is now.
 type Taken struct {
 	Project string `json:"project"`
 	Service string `json:"service"`
+	// Name is what it was called when it was taken on. A rollout renames it while
+	// it stops it, so what it's called in Docker may not be that any more.
+	Name string `json:"name,omitempty"`
 }
 
 // Adopted is the record of the containers a server took on as services. Docker
@@ -130,12 +134,13 @@ func (a *Adopted) snapshot() map[string]Taken {
 }
 
 // asTaken gives labels those of what a container taken on is now, on a copy, as a
-// list's labels may be shared, and name is what it's called in Docker.
+// list's labels may be shared, and name is what it's called in Docker, for one read
+// before it was recorded.
 func asTaken(labels map[string]string, t Taken, name string) map[string]string {
 	out := make(map[string]string, len(labels)+5)
 	maps.Copy(out, labels)
 	out[LabelProject], out[LabelService], out[LabelNumber], out[LabelOneoff] = t.Project, t.Service, strconv.Itoa(1), "False"
-	out[LabelAdopted] = strings.TrimPrefix(name, "/")
+	out[LabelAdopted] = cmp.Or(t.Name, strings.TrimPrefix(name, "/"))
 	return out
 }
 

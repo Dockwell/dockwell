@@ -898,7 +898,9 @@ func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance) error 
 	if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
 		return fmt.Errorf("docker can't start the old %s: %w", t.Service, hideIn(err, valuesInContainer(keep.Container)))
 	}
-	final := instanceName(t, keep.number)
+	// What was taken on goes back to the name it came with: what's on its network
+	// reaches it by that.
+	final := cmp.Or(keep.Config.Labels[docker.LabelAdopted], instanceName(t, keep.number))
 	if err := d.Client.RenameContainer(ctx, keep.ID, final); err != nil {
 		return fmt.Errorf("can't give the old %s its name back: %w", t.Service, err)
 	}
