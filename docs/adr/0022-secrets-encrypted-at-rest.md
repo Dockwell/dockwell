@@ -173,6 +173,7 @@ The install's key is a separate file, and a backup of the database without it op
   | Turning codes off | `DisableTotp` | you |
   | Making new recovery codes | `RegenerateRecoveryCodes` | you |
   | Creating an API token | `TokenService.CreateToken` | you |
+  | Applying a plan that's as good as root on a server ([ADR 0021](0021-the-docker-driver.md#host-access)) | `ChangeService.ApplyChange` | the change |
 
   - **Everything else is checked first, and the passkey asked for last.** Called without a proof, each action, revealing included, checks what else would refuse it: the last way in, codes that are off, a token's name or the most tokens, a secret that isn't there. Only then does it refuse with `needs_step_up`. The panel calls each so, and asks for the passkey only when that is the answer, then calls again with the proof. A proof given is spent only once nothing else refuses, in the transaction that acts, so a refusal for another reason neither prompts for a passkey nor costs one.
   - The ceremony that adds a passkey works only in the session that began it.

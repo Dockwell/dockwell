@@ -27,9 +27,10 @@ import (
 // secret needs one, and so does every change to how a person signs in or
 // to their API tokens that could let a stolen session keep its hold: adding
 // or removing a passkey, setting up or turning off code sign-in, making
-// recovery codes and creating a token. See
-// docs/adr/0022-secrets-encrypted-at-rest.md and
-// docs/adr/0011-claim-and-sign-in.md.
+// recovery codes and creating a token. So does what could do the same on a
+// server: applying a plan that's as good as root there. See
+// docs/adr/0022-secrets-encrypted-at-rest.md,
+// docs/adr/0011-claim-and-sign-in.md and docs/adr/0032-files-on-a-server.md.
 
 // StepUpTTL is how long a step-up's proof works.
 const StepUpTTL = time.Minute
@@ -57,6 +58,9 @@ const (
 	StepUpRecoveryCodes StepUpAction = "recovery_codes.regenerate"
 	// StepUpCreateToken creates an API token.
 	StepUpCreateToken StepUpAction = "token.create"
+	// StepUpApplyRootChange applies a change that gives something as much as
+	// root on a server. Its target is the change's ID.
+	StepUpApplyRootChange StepUpAction = "change.apply_root"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -65,13 +69,14 @@ var stepUpActions = map[StepUpAction]struct {
 	doing    string
 	targeted bool
 }{
-	StepUpRevealSecret:  {"revealing", true},
-	StepUpAddPasskey:    {"adding a passkey", false},
-	StepUpRemovePasskey: {"removing passkey", true},
-	StepUpSetUpCodes:    {"setting up code sign-in", false},
-	StepUpDisableCodes:  {"turning code sign-in off", false},
-	StepUpRecoveryCodes: {"making new recovery codes", false},
-	StepUpCreateToken:   {"creating an API token", false},
+	StepUpRevealSecret:    {"revealing", true},
+	StepUpAddPasskey:      {"adding a passkey", false},
+	StepUpRemovePasskey:   {"removing passkey", true},
+	StepUpSetUpCodes:      {"setting up code sign-in", false},
+	StepUpDisableCodes:    {"turning code sign-in off", false},
+	StepUpRecoveryCodes:   {"making new recovery codes", false},
+	StepUpCreateToken:     {"creating an API token", false},
+	StepUpApplyRootChange: {"applying", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

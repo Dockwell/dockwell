@@ -225,7 +225,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
 	}
 	if cfg.Changes != nil {
-		ch := changes.New(cfg.Changes, cfg.Store, cfg.Logger)
+		ch := changes.New(cfg.Changes, cfg.Auth, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
 		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)

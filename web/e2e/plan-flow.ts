@@ -753,6 +753,24 @@ export async function planFlow(
   await shoot(page, "plan-symlink");
   await linked.getByRole("button", { name: "Cancel" }).click();
 
+  step("plan: applying what's as good as root takes a passkey, which this browser's authenticator gives");
+  const rooted = await reviewNew(page, origin, "nginx:1.27-alpine", "rooted", async (f) => {
+    await f.getByRole("button", { name: "Add volume" }).click();
+    await f.getByLabel("Volume or server path").fill("/var/run/docker.sock");
+    await f.getByLabel("Path in the app").fill("/var/run/docker.sock");
+  });
+  await rooted.locator(".plan-gate").getByText("Applying this asks for your passkey").waitFor();
+  await rooted.locator(".plan-gate input").fill(await rooted.locator(".plan-gate code").first().innerText());
+  await rooted.getByRole("button", { name: /Apply plan/ }).click();
+  await page
+    .getByRole("button", { name: /^Open rooted|^Done/ })
+    .first()
+    .waitFor({ timeout: 30_000 });
+  await page
+    .getByRole("button", { name: /^Open rooted|^Done/ })
+    .first()
+    .click();
+
   step("plan: a Compose file leads with its apps, folds the rest, and arrives under the name you gave it");
   await page.goto(`${origin}/apps/new`);
   const composing = page.getByRole("dialog", { name: "New app" });

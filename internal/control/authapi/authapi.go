@@ -355,6 +355,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_DISABLE_CODES:             auth.StepUpDisableCodes,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REGENERATE_RECOVERY_CODES: auth.StepUpRecoveryCodes,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN:              auth.StepUpCreateToken,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE:         auth.StepUpApplyRootChange,
 }
 
 // FinishStepUp checks the passkey's answer and returns a proof.

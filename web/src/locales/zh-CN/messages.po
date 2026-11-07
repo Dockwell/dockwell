@@ -1675,6 +1675,10 @@ msgstr "只有信任它运行的内容时才应用。"
 msgid "Applying"
 msgstr "正在应用"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Applying this asks for your passkey"
+msgstr "应用此计划时会要求验证你的通行密钥"
+
 #: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/shell/CommandMenu.tsx

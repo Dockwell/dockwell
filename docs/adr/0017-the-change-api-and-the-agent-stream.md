@@ -46,6 +46,8 @@ A plan that gives a container more of its server, `host_access`, needs the same 
 
 The fingerprint is what the API needs. A person types it only for a destructive plan, or one that reaches what is as good as root (`same_as_root`); for an ordinary path the panel sends it with Apply, under a warning ([ADR 0028](0028-the-plan-sheet.md)).
 
+A plan that reaches what is as good as root needs a third thing: a proof from a step-up, for that change, in `ApplyChange`'s `proof` ([ADR 0021](0021-the-docker-driver.md#host-access)). The handler asks for it, and spends it, once nothing else refuses.
+
 Any client may send the fingerprint, and a change applies only if its plan has it.
 
 **Discarding is a state.** A planned change can be discarded, and stays on record as discarded. The check on `changes.state` gains the value; SQLite rebuilds the table to change it (migration 0008).
