@@ -305,8 +305,9 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 // whether that's as good as root, which takes a passkey to apply. One new to the
 // catalog needs a row here, so someone decides which it is.
 var asRoot = map[string]bool{
-	"cloudflared": true, // the server's own network
-	"coder":       true, // Docker's socket
+	"cloudflared": true,  // the server's own network
+	"coder":       true,  // Docker's socket
+	"jellyfin":    false, // a media folder, read-only
 }
 
 // An entry that reaches its server beyond its containers waits for a person, on every

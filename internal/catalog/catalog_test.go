@@ -72,6 +72,7 @@ func TestTheBuiltInEntries(t *testing.T) {
 		"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code",
 		"pgadmin", "redis", "mariadb", "coder",
 		"uptime-kuma", "n8n", "gitea", "vaultwarden", "nextcloud", "rustfs", "grafana", "umami",
+		"plausible", "ghost", "wordpress", "memos", "adminer", "jellyfin", "home-assistant",
 	} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the catalog has no %s: %v", want, ids)
@@ -280,6 +281,72 @@ func TestAnEncryptionKeyIsGeneratedAndLeftAlone(t *testing.T) {
 		if !strings.Contains(e.GetFirstSteps(), "Leave the "+key.input+" secret as it is") {
 			t.Errorf("%s's first steps don't say to leave %s as it is", id, key.input)
 		}
+	}
+}
+
+// An address an app builds its links from follows the port it's given, so one that
+// moves past a taken port still links to itself, until a person sets their domain.
+func TestAnAppsOwnAddressFollowsItsPort(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, env := range map[string]string{"coder": "CODER_ACCESS_URL", "ghost": "url", "plausible": "BASE_URL"} {
+		e, ok := c.Entry(id)
+		if !ok {
+			t.Fatalf("the catalog has no %s", id)
+		}
+		filled, err := catalog.Fill(e, map[string]string{"PORT": "7444"}, catalog.Suggest(e, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		stack, err := compose.Read(t.Context(), compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == e.GetWeb().GetService() })
+		if got := stack.Services[i].Spec.GetApp().GetEnv()[env]; got != "http://localhost:7444" {
+			t.Errorf("%s's %s is %q on port 7444", id, env, got)
+		}
+	}
+}
+
+// Ghost sends an http request to its https address, out of its container, once its url
+// is HTTPS, so its health check asks as the proxy in front does, and follows nothing.
+func TestGhostStaysHealthyBehindHTTPS(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _ := c.Entry("ghost")
+	stack, _ := read(t, e)
+	i := slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == "ghost" })
+	test := strings.Join(stack.Services[i].Spec.GetApp().GetHealthcheck().GetTest(), " ")
+	if !strings.Contains(test, "'X-Forwarded-Proto': 'https'") || !strings.Contains(test, "redirect: 'manual'") || !strings.Contains(test, "r.status === 200") {
+		t.Errorf("Ghost's health check would follow it out: %s", test)
+	}
+}
+
+// Home Assistant refuses a request through a proxy it doesn't trust, so on its first
+// start it writes a configuration.yaml that trusts the ranges Docker gives its networks,
+// as Dockwell's proxy reaches it on one, and its own default beside that. It never
+// writes over one that's there.
+func TestHomeAssistantTrustsDockwellsProxy(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _ := c.Entry("home-assistant")
+	stack, _ := read(t, e)
+	app := stack.Services[0].Spec.GetApp()
+	config := app.GetEnv()["HA_STARTING_CONFIGURATION"]
+	for _, want := range []string{"default_config:", "use_x_forwarded_for: true", "- 172.16.0.0/12", "- 192.168.0.0/16", "automation: !include automations.yaml"} {
+		if !strings.Contains(config, want) {
+			t.Errorf("its starting configuration.yaml has no %q: %s", want, config)
+		}
+	}
+	if script := strings.Join(app.GetEntrypoint(), " "); !strings.Contains(script, "if [ ! -e configuration.yaml ]") || !strings.HasSuffix(script, "exec /init") {
+		t.Errorf("it writes its configuration as %q", script)
 	}
 }
 

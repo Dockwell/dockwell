@@ -17,14 +17,18 @@ hostAccess: >-
   The folder you give for your media, read-only, so Jellyfin can play what's in it
   and change nothing.
 firstSteps: >-
-  Jellyfin answers over plain HTTP, so signing in from outside this server sends your
-  password in clear, and the first person to open it sets up its admin account. Add a
-  domain first, or reach it another way, such as a VPN or an SSH tunnel. Then open it,
-  set up your account, and add a library from /media, which is the folder you gave.
+  Jellyfin answers only on this server until you add a domain, as the first person to
+  open it sets up its admin account. Add a domain on its page, over HTTPS or behind
+  your tunnel, and open it there. To open it before that, use an SSH tunnel from your
+  computer: ssh -N -L 8096:127.0.0.1:8096 you@your-server, using the port you gave
+  it, then open http://localhost:8096. Set up your account, and add a library from
+  /media, which is the folder you gave. It transcodes on the server's CPU, as it
+  reaches no graphics card, so a film it has to convert plays slower than one it
+  streams as it is.
 inputs:
   - name: PORT
-    label: Jellyfin port
-    hint: You open Jellyfin on this port of the server.
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8096"
   - name: MEDIA_DIR
@@ -38,7 +42,7 @@ compose: |
       image: jellyfin/jellyfin:12.3@sha256:2038fe038ab3876a80f6e7b7e0aef6607b032c7dc0c9b3ad3296d0b2eba3bbb5
       restart: unless-stopped
       ports:
-        - "${PORT}:8096"
+        - "127.0.0.1:${PORT}:8096"
       volumes:
         - config:/config
         - cache:/cache

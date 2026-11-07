@@ -68,6 +68,7 @@ cleanup() {
     docker network ls --quiet --filter "label=com.docker.compose.project=$p" | xargs --no-run-if-empty docker network rm >/dev/null 2>&1 || true
   done
   docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
+  docker rm --force e2e-adminer-db >/dev/null 2>&1 || true
   [[ -z "$pid" ]] || priv kill "$pid" 2>/dev/null || true
   wait 2>/dev/null || true
   priv rm -rf "$data" "$log" "$cookie" "$passkey" "$stepup" "$catalog_dir" "$media_dir"
@@ -518,47 +519,86 @@ check_umami() {
 }
 
 check_plausible() {
-  local port said db events migrations tables
+  local plausible port said db events migrations tables jar token landed
+  plausible=$(container plausible)
   port=$(value PORT)
   said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/api/system/health/ready") || fail "Plausible isn't ready on port $port"
   jq -e . <<<"$said" >/dev/null || fail "Plausible's readiness says what isn't JSON: ${said:0:300}"
-  # On first launch it leads to registration, which needs both its databases.
-  said=$(curl -sS --max-time 10 -o /dev/null -w '%{redirect_url}' "http://127.0.0.1:$port/") || fail "Plausible doesn't answer on port $port"
-  [[ "$said" == */register ]] || fail "Plausible's first page leads to '$said', want its registration"
   db=$(container db)
   events=$(container events)
   migrations=$(docker exec "$db" psql -X -U plausible -d plausible -tAc 'SELECT count(*) FROM schema_migrations') || fail "Plausible's PostgreSQL has no migrations"
   tables=$(docker exec "$events" clickhouse-client -q "SELECT count() FROM system.tables WHERE database = 'plausible_events_db'") || fail "Plausible's ClickHouse doesn't answer"
   ((migrations > 0 && tables > 0)) || fail "Plausible has $migrations migrations in PostgreSQL and $tables tables in ClickHouse"
+  said=$(docker exec "$events" clickhouse-client -q "SELECT count() FROM system.tables WHERE database = 'system' AND name = 'trace_log'") || fail "Plausible's ClickHouse doesn't answer"
+  [[ "$said" == 0 ]] || fail "ClickHouse keeps a trace log, which Plausible's settings turn off"
+  if [[ "$1" == first ]]; then
+    # On first launch it leads to registration.
+    said=$(curl -sS --max-time 10 -o /dev/null -w '%{redirect_url}' "http://127.0.0.1:$port/") || fail "Plausible doesn't answer on port $port"
+    [[ "$said" == */register ]] || fail "Plausible's first page leads to '$said', want its registration"
+    # Its registration is a live page, which curl can't drive, so its own release makes the account.
+    docker exec "$plausible" /app/bin/plausible rpc \
+      'Plausible.Repo.insert!(Plausible.Auth.User.new(%{"name" => "Owner", "email" => "owner@example.com", "password" => "Zq7-Tm2!vLx9-Pw4rK", "password_confirmation" => "Zq7-Tm2!vLx9-Pw4rK"}))' >/dev/null ||
+      fail "Plausible's release can't make an account"
+  fi
+  # The account is in PostgreSQL, so it signs in after an upgrade too.
+  plausible_sign_in() {
+    jar=$(mktemp)
+    said=$(curl -fsS --max-time 15 -c "$jar" -b "$jar" "http://127.0.0.1:$port/login") || fail "Plausible's login page doesn't answer"
+    token=$(sed -n 's/.*name="_csrf_token"[^>]*value="\([^"]*\)".*/\1/p' <<<"$said" | head -1)
+    [[ -n "$token" ]] || fail "Plausible's login page has no token: ${said:0:300}"
+    landed=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code} %{redirect_url}' -c "$jar" -b "$jar" --data-urlencode "_csrf_token=$token" \
+      --data-urlencode email=owner@example.com --data-urlencode "password=$1" "http://127.0.0.1:$port/login") || fail "signing in to Plausible got no answer"
+    rm -f "$jar"
+    echo "$landed"
+  }
+  landed=$(plausible_sign_in 'Zq7-Tm2!vLx9-Pw4rK') || fail "signing in to Plausible failed"
+  [[ "$landed" == 302\ */sites* ]] || fail "Plausible's account can't sign in: it answered $landed"
+  landed=$(plausible_sign_in not-the-password) || fail "signing in to Plausible failed"
+  [[ "$landed" == "200 " ]] || fail "Plausible didn't refuse a wrong password: it answered $landed"
   if [[ "$1" == first ]]; then kept[plausible]=$tables; fi
   ((tables >= kept[plausible])) || fail "Plausible's ClickHouse had ${kept[plausible]} tables before the upgrade, and has $tables"
-  said=$(docker exec "$events" clickhouse-client -q "SELECT count() FROM system.tables WHERE database = 'system' AND name = 'trace_log'")
-  [[ "$said" == 0 ]] || fail "ClickHouse keeps a trace log, which Plausible's settings turn off"
 }
 
 check_ghost() {
-  local port said
+  local ghost port said reported listed edit planned
+  ghost=$(container ghost)
   port=$(value PORT)
   said=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/ghost/api/admin/site/") || fail "Ghost doesn't answer on port $port"
-  [[ "$version" == "$(jq -r .site.version <<<"$said")"* ]] || fail "Ghost says $said, want $version"
+  # It says its version without the patch, and its image says the whole of it.
+  reported=$(jq -r '.site.version // empty' <<<"$said")
+  [[ -n "$reported" && "$reported" == "${version%.*}" && "$(env_of "$ghost" GHOST_VERSION)" == "$version" ]] ||
+    fail "Ghost says it's '$reported' and its image '$(env_of "$ghost" GHOST_VERSION)', want $version"
   if [[ "$1" == first ]]; then
-    said=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -H "Origin: http://127.0.0.1:$port" \
-      -d '{"setup":[{"name":"Owner","email":"owner@example.com","password":"E2e-owner-passw0rd-long","blogTitle":"E2E kept"}]}' \
+    # Ghost refuses a password with a common word in it, such as passw0rd, so this has none.
+    said=$(curl -sS --max-time 30 -w '\n%{http_code}' -H 'Content-Type: application/json' -H "Origin: http://localhost:$port" \
+      -d '{"setup":[{"name":"Owner","email":"owner@example.com","password":"Kx7-Vq2!mRt9-Lw4zB","blogTitle":"E2E kept"}]}' \
       "http://127.0.0.1:$port/ghost/api/admin/authentication/setup/") || fail "Ghost's setup got no answer"
-    [[ "$said" == 201 ]] || fail "Ghost didn't make its owner: it answered $said"
+    [[ "${said##*$'\n'}" == 201 ]] || fail "Ghost didn't make its owner: it answered ${said##*$'\n'}, saying ${said%$'\n'*}"
   fi
   # What it keeps is in MySQL, so the site keeps its title through an upgrade.
   said=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/ghost/api/admin/site/") || fail "Ghost doesn't answer on port $port"
   [[ "$(jq -r .site.title <<<"$said")" == "E2E kept" ]] || fail "Ghost's site reads $said"
+  if [[ "$1" == upgraded ]]; then
+    # Behind a domain its url is HTTPS, and it stays healthy, as its check asks as the proxy does.
+    listed=$(dw services list --project "$id" --environment production --json) || fail "services list failed"
+    edit=$(jq -c '.services[] | select(.resource.name == "ghost") | {resource: .resource, spec: {service: (.spec | .app.env.url = "https://blog.example.com")}}' <<<"$listed") ||
+      fail "can't write the edit that gives Ghost an https url: $listed"
+    planned=$(dw changes propose --summary "Give Ghost its domain" --edits "$edit" --plan-only --json) || fail "planning Ghost's https url failed"
+    plans+=("$(jq -r .change.id <<<"$planned")")
+    apply "${plans[-1]}"
+    settled
+    said=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port/ghost/api/admin/site/") || fail "Ghost doesn't answer on port $port"
+    [[ "$said" == 200 ]] || fail "Ghost answers $said behind an https proxy, want 200"
+  fi
 }
 
-# wordpress_sign_in signs in to WordPress, and says where it sends you: its dashboard,
-# or nowhere, as its login page says why on the page itself.
+# wordpress_sign_in signs in to WordPress, and says how it answered and where it sends
+# you: its dashboard, or nowhere, as its login page says why on the page itself.
 wordpress_sign_in() {
   local jar landed
   jar=$(mktemp)
   curl -fsS --max-time 15 -o /dev/null -c "$jar" "http://127.0.0.1:$1/wp-login.php" || fail "WordPress's login page doesn't answer"
-  landed=$(curl -sS --max-time 30 -o /dev/null -w '%{redirect_url}' -b "$jar" -c "$jar" --data-urlencode log=owner --data-urlencode "pwd=$2" \
+  landed=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code} %{redirect_url}' -b "$jar" -c "$jar" --data-urlencode log=owner --data-urlencode "pwd=$2" \
     --data-urlencode 'wp-submit=Log In' --data-urlencode testcookie=1 --data-urlencode "redirect_to=http://127.0.0.1:$1/wp-admin/" \
     "http://127.0.0.1:$1/wp-login.php") || fail "signing in to WordPress got no answer"
   rm -f "$jar"
@@ -574,8 +614,10 @@ check_wordpress() {
       --data-urlencode language= --data-urlencode 'Submit=Install WordPress' "http://127.0.0.1:$port/wp-admin/install.php?step=2") || fail "WordPress's install doesn't answer"
     [[ "$said" == *wp-login.php* ]] || fail "WordPress didn't install: ${said:0:600}"
   fi
-  [[ "$(wordpress_sign_in "$port" E2e-owner-passw0rd-long)" == */wp-admin/ ]] || fail "WordPress's admin can't sign in"
-  [[ "$(wordpress_sign_in "$port" not-the-password)" != */wp-admin/ ]] || fail "WordPress signed in with a wrong password"
+  said=$(wordpress_sign_in "$port" E2e-owner-passw0rd-long) || fail "signing in to WordPress failed"
+  [[ "$said" == 302\ */wp-admin/ ]] || fail "WordPress's admin can't sign in: it answered $said"
+  said=$(wordpress_sign_in "$port" not-the-password) || fail "signing in to WordPress failed"
+  [[ "$said" == "200 " ]] || fail "WordPress didn't refuse a wrong password: it answered $said"
   said=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/?rest_route=/") || fail "WordPress's API doesn't answer"
   [[ "$(jq -r .name <<<"$said")" == "E2E kept" ]] || fail "WordPress's site reads ${said:0:300}"
 }
@@ -597,16 +639,57 @@ check_memos() {
   said=$(memos_sign_in E2e-owner-passw0rd) || fail "Memos's sign-in got no answer"
   token=$(jq -r '.accessToken // .access_token // empty' <<<"$said" 2>/dev/null)
   [[ -n "$token" ]] || fail "Memos's admin can't sign in: ${said:0:300}"
-  said=$(memos_sign_in not-the-password)
-  [[ "$said" != *ccess* ]] || fail "Memos signed in with a wrong password"
+  said=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+    -d '{"passwordCredentials":{"username":"owner","password":"not-the-password"}}' "http://127.0.0.1:$port/api/v1/auth/signin") || fail "Memos's sign-in got no answer"
+  [[ "$said" == 401 ]] || fail "Memos answered $said to a wrong password, want 401"
+}
+
+# adminer_sign_in signs in to Adminer, as scripts/docker-e2e.sh does, to PostgreSQL at a
+# server Adminer reaches, and says how it went: in, or refused, by what the page says.
+adminer_sign_in() {
+  local jar form token page
+  jar=$(mktemp)
+  form=$(curl -fsS --max-time 15 -c "$jar" -b "$jar" "http://127.0.0.1:$1/") || fail "Adminer doesn't answer on port $1"
+  token=$(form_token "$form")
+  [[ -n "$token" ]] || fail "Adminer's login form has no token: ${form:0:400}"
+  page=$(curl -sS -L --max-time 30 -c "$jar" -b "$jar" --data-urlencode "token=$token" --data-urlencode 'auth[driver]=pgsql' --data-urlencode "auth[server]=$2" \
+    --data-urlencode 'auth[username]=postgres' --data-urlencode "auth[password]=$3" --data-urlencode 'auth[db]=' "http://127.0.0.1:$1/") || fail "signing in to Adminer got no answer"
+  rm -f "$jar"
+  case "$page" in
+  *"id='logout'"*) echo in ;;
+  *"password authentication failed"*) echo refused ;;
+  *) fail "Adminer neither signed in nor said why not: ${page:0:1500}" ;;
+  esac
 }
 
 check_adminer() {
-  local port page
+  local port page said
   port=$(value PORT)
   page=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/") || fail "Adminer doesn't answer on port $port"
   [[ "$page" == *"auth[driver]"* && "$page" == *"$version"* ]] || fail "port $port answers something else, or not Adminer $version: ${page:0:400}"
-  [[ -n "$(form_token "$page")" ]] || fail "Adminer's login form has no token"
+  # A throwaway database on its project's network, which it reaches by name.
+  if [[ "$1" == first ]]; then
+    docker run --detach --name e2e-adminer-db --network "${project}_default" -e POSTGRES_PASSWORD=e2e-throwaway-password \
+      postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3 >/dev/null || fail "the throwaway database didn't start"
+    for _ in $(seq 60); do
+      docker exec e2e-adminer-db pg_isready -q -h 127.0.0.1 -U postgres && break
+      sleep 1
+    done
+  fi
+  said=$(adminer_sign_in "$port" e2e-adminer-db e2e-throwaway-password) || fail "signing in to Adminer failed"
+  [[ "$said" == in ]] || fail "Adminer can't sign in to a database it reaches"
+  said=$(adminer_sign_in "$port" e2e-adminer-db not-the-password) || fail "signing in to Adminer failed"
+  [[ "$said" == refused ]] || fail "Adminer signed in with a wrong password"
+  docker exec "$(container adminer)" getent hosts host.docker.internal >/dev/null || fail "Adminer doesn't reach host.docker.internal"
+  # Gone before the plan takes its network away.
+  if [[ "$1" == upgraded ]]; then docker rm --force e2e-adminer-db >/dev/null || fail "the throwaway database didn't go"; fi
+}
+
+# jellyfin_sign_in signs in to Jellyfin as its apps do, and says the status.
+jellyfin_sign_in() {
+  curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+    -H 'Authorization: MediaBrowser Client="e2e", Device="e2e", DeviceId="e2e-catalog", Version="1.0"' \
+    -d "{\"Username\":\"owner\",\"Pw\":\"$2\"}" "http://127.0.0.1:$1/Users/AuthenticateByName"
 }
 
 check_jellyfin() {
@@ -617,9 +700,19 @@ check_jellyfin() {
   [[ "$(jq -r .Version <<<"$said")" == "$version"* ]] || fail "Jellyfin says $said, want $version"
   docker exec "$jellyfin" test -r /media/e2e.txt || fail "Jellyfin can't read the media folder it was given"
   if docker exec "$jellyfin" touch /media/written 2>/dev/null; then fail "Jellyfin can write to the media folder, which it reads alone"; fi
-  # It names itself on first start, and keeps that on its volume.
-  if [[ "$1" == first ]]; then kept[jellyfin]=$(jq -r .Id <<<"$said"); fi
-  [[ "$(jq -r .Id <<<"$said")" == "${kept[jellyfin]}" ]] || fail "Jellyfin's server ID changed through the upgrade"
+  if [[ "$1" == first ]]; then
+    # Its setup page, as the first person to open it goes through it.
+    jf() { curl -fsS --max-time 15 -o /dev/null -H 'Content-Type: application/json' "$@"; }
+    jf -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' "http://127.0.0.1:$port/Startup/Configuration" || fail "Jellyfin's setup doesn't take its settings"
+    curl -fsS --max-time 15 -o /dev/null "http://127.0.0.1:$port/Startup/User" || fail "Jellyfin's setup has no first user"
+    jf -d '{"Name":"owner","Password":"E2e-owner-passw0rd"}' "http://127.0.0.1:$port/Startup/User" || fail "Jellyfin's setup doesn't take its first user"
+    jf -X POST "http://127.0.0.1:$port/Startup/Complete" || fail "Jellyfin's setup doesn't finish"
+  fi
+  # Its account is on its volume, so it signs in after an upgrade too.
+  said=$(jellyfin_sign_in "$port" E2e-owner-passw0rd) || fail "Jellyfin's sign-in got no answer"
+  [[ "$said" == 200 ]] || fail "Jellyfin's account can't sign in: it answered $said"
+  said=$(jellyfin_sign_in "$port" not-the-password) || fail "Jellyfin's sign-in got no answer"
+  [[ "$said" == 401 ]] || fail "Jellyfin answered $said to a wrong password, want 401"
 }
 
 check_home-assistant() {
@@ -636,6 +729,11 @@ check_home-assistant() {
   fi
   # What it keeps is on its volume, so its owner stays through an upgrade.
   jq -e 'any(.step == "user" and .done == true)' <<<"$said" >/dev/null || fail "Home Assistant has no owner: $said"
+  # It trusts the proxy in front, so a request through one is answered, not refused with 400.
+  said=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 203.0.113.7' "http://127.0.0.1:$port/manifest.json") ||
+    fail "Home Assistant doesn't answer on port $port"
+  [[ "$said" == 200 ]] || fail "Home Assistant answers $said through a proxy, want 200"
+  docker exec "$(container home-assistant)" grep -q 'use_x_forwarded_for: true' /config/configuration.yaml || fail "Home Assistant's configuration.yaml doesn't trust Dockwell's proxy"
 }
 
 # The version before the one each entry pins, which it upgrades from, and the images
@@ -665,8 +763,6 @@ declare -A previous=(
 declare -A given=(
   [pgadmin]="ADMIN_EMAIL=owner@example.com"
   [nextcloud]="DOMAIN=cloud.example.com"
-  [plausible]="BASE_URL=http://127.0.0.1:8000"
-  [ghost]="URL=http://127.0.0.1:2368"
   [jellyfin]="MEDIA_DIR=$media_dir"
 )
 
