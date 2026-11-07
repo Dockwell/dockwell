@@ -423,7 +423,8 @@ check_vaultwarden() {
   said=$(vaultwarden_sign_in "$port" "$hash") || fail "Vaultwarden's sign-in got no answer"
   [[ "${said##*$'\n'}" == 200 && -n "$(jq -r '.access_token // empty' <<<"${said%$'\n'*}")" ]] || fail "Vaultwarden's account can't sign in: ${said:0:300}"
   said=$(vaultwarden_sign_in "$port" bm90LXRoZS1wYXNzd29yZA==) || fail "Vaultwarden's sign-in got no answer"
-  [[ "${said##*$'\n'}" == 400 && "$said" == *invalid_grant* ]] || fail "Vaultwarden didn't refuse a wrong password: ${said:0:300}"
+  [[ "${said##*$'\n'}" == 400 && "$said" == *"Username or password is incorrect"* && "$said" != *access_token* ]] ||
+    fail "Vaultwarden didn't refuse a wrong password: ${said:0:300}"
 }
 
 check_nextcloud() {
