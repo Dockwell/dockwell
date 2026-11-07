@@ -48,7 +48,7 @@ make budgets # idle memory of an agent, and of a control plane with its agent, a
 make install-test  # the install script in Debian, Ubuntu, AlmaLinux and Alpine containers (needs Docker and cosign v3)
 ```
 
-The Install workflow runs the last two, as well as the install script under systemd on the runner and, nightly, the time from install to a running panel on one CPU. [docs/install.md](docs/install.md#how-it-is-tested) describes how.
+The Install workflow runs the last two, as well as the install script under systemd on the runner and, nightly, the time from install to a running panel on one CPU. On a pull request, CI and Install run only the jobs its files need, as [`scripts/ci-jobs.sh`](scripts/ci-jobs.sh) picks them ([ADR 0037](docs/adr/0037-ci-runs-what-a-change-needs.md)): the budgets for a change to Go code, and the install tests for one to the install script, the release, or what the script runs in the binary. [docs/install.md](docs/install.md#how-it-is-tested) describes how.
 
 The first start prints a one-time link that claims the install: open it to create your owner account with a passkey. With `make dev`, open it on port 5173 instead of 7600. Run `dockwell claim --data-dir <dir>` for a new link, and `dockwell recover` to sign in without your passkey.
 
