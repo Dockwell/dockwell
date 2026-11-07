@@ -299,13 +299,10 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, err
 	}
-	byName := make(map[string]*dockwellv1.ServerContainer, len(list))
+	byName := make(map[string][]*dockwellv1.ServerContainer, len(list))
 	for _, c := range list {
 		name := containers.ServiceName(c)
-		if other := byName[name]; other != nil {
-			return nil, invalid(fmt.Errorf("%s and %s are both the service %s, and a service runs one container. It stays as it is. Scale it to one with docker compose up --scale %s=1, then take the project on", other.GetName(), c.GetName(), name, c.GetComposeService()))
-		}
-		byName[name] = c
+		byName[name] = append(byName[name], c)
 	}
 	place, err := h.destination(ctx, m.GetProject(), m.GetEnvironment(), containers.Label(m.GetName()))
 	if err != nil {
@@ -315,14 +312,19 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	// Each thing in the way is collected, whatever kind it is, so a person fixes them
+	// once rather than meeting them one at a time.
 	var edits []*dockwellv1.Edit
 	var refusals []string
 	var manager, folder string
 	adopts := make(map[string]changes.Adoption, len(byName))
 	for _, name := range slices.Sorted(maps.Keys(byName)) {
-		c := byName[name]
+		c := byName[name][0]
+		if len(byName[name]) > 1 {
+			refusals = append(refusals, oneService(name, byName[name]))
+		}
 		if slices.Contains(running, name) {
-			return nil, invalid(fmt.Errorf("%s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, name, c.GetName()))
+			refusals = append(refusals, fmt.Sprintf("%s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, name, c.GetName()))
 		}
 		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: name}
 		svc, found, err := h.containers.ReadAs(ctx, s, c, ref)
@@ -341,7 +343,7 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 		})
 	}
 	if len(refusals) > 0 {
-		return nil, invalid(fmt.Errorf("%s. It all stays as it is, and nothing was taken on. Make them again without those, then take the project on, or leave it outside Dockwell", strings.Join(refusals, ". ")))
+		return nil, invalid(fmt.Errorf("%s. It all stays as it is, and nothing was taken on. Deal with those, then take the project on, or leave it outside Dockwell", strings.Join(refusals, ". ")))
 	}
 	names := make([]string, 0, len(list))
 	for _, c := range list {
@@ -359,6 +361,27 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.AdoptComposeResponse{Change: c}), nil
+}
+
+// oneService says why containers that come to one service's name can't be taken on:
+// a service runs one container, and a name can't tell two services apart that differ
+// in what it can't hold.
+func oneService(name string, list []*dockwellv1.ServerContainer) string {
+	names := make([]string, 0, len(list))
+	scaled := true
+	for _, c := range list {
+		names = append(names, c.GetName())
+		scaled = scaled && c.GetComposeService() == list[0].GetComposeService()
+	}
+	if scaled {
+		return fmt.Sprintf("%s are the service %s, and a service runs one container. Scale it to one with docker compose up --scale %s=1",
+			human.List(names), name, list[0].GetComposeService())
+	}
+	both := "all"
+	if len(list) == 2 {
+		both = "both"
+	}
+	return fmt.Sprintf("%s would %s be the service %s, as a service's name can't tell them apart. Rename one in the project's file", human.List(names), both, name)
 }
 
 // servicesIn names what an environment runs now.

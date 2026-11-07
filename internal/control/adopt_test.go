@@ -727,6 +727,60 @@ func TestWhatOthersLeanOnStaysAsItIs(t *testing.T) {
 	}
 }
 
+// One refusal says everything in the way, so a person fixes it once, whatever kind of
+// thing is in the way: a scaled service, a name the project runs already, and what no
+// spec holds all come together.
+func TestARefusalSaysEverythingAtOnce(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	for _, n := range []string{"mix", "split", "shop", "shop2"} {
+		e.AddNetwork(docker.Network{ID: n + "net", Name: n + "_default", Driver: "bridge"})
+	}
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	take := func(req *dockwellv1.AdoptComposeRequest) error {
+		_, err := imports.AdoptCompose(t.Context(), connect.NewRequest(req))
+		return err
+	}
+	says := func(what string, err error, want ...string) {
+		t.Helper()
+		if err == nil {
+			t.Fatalf("%s wasn't refused", what)
+		}
+		for _, w := range want {
+			if !strings.Contains(err.Error(), w) {
+				t.Errorf("%s: %v, want it to say %q", what, err, w)
+			}
+		}
+	}
+	readOnly := func(r *docker.CreateRequest) { r.HostConfig.ReadonlyRootfs = true }
+
+	composeContainer(t, e, "mix", "web", "mix-web-1", nil)
+	composeContainer(t, e, "mix", "web", "mix-web-2", nil)
+	composeContainer(t, e, "mix", "db", "mix-db-1", readOnly)
+	says("a scaled service beside what can't come", take(&dockwellv1.AdoptComposeRequest{Name: "mix"}),
+		"mix-web-1 and mix-web-2 are the service web", "--scale web=1", "mix-db-1 runs with read_only", "It all stays as it is")
+
+	// Two services that come to one name are no scaled service, so no --scale helps.
+	composeContainer(t, e, "split", "api_v1", "split-api_v1-1", nil)
+	composeContainer(t, e, "split", "api-v1", "split-api-v1-1", nil)
+	err := take(&dockwellv1.AdoptComposeRequest{Name: "split"})
+	says("two services of one name", err, "split-api-v1-1 and split-api_v1-1 would both be the service api-v1", "Rename one")
+	if err != nil && strings.Contains(err.Error(), "--scale") {
+		t.Errorf("two services read as a scaled one: %v", err)
+	}
+
+	composeContainer(t, e, "shop", "web", "shop-web-1", nil)
+	planned, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "shop"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, changeClient(b, b.origin), planned.Msg.GetChange())
+	composeContainer(t, e, "shop2", "web", "shop2-web-1", readOnly)
+	says("a name it runs beside what can't come", take(&dockwellv1.AdoptComposeRequest{Name: "shop2", Project: "shop"}),
+		"shop runs a service web already", "shop2-web-1 runs with read_only")
+}
+
 // A token may run a new image on what was taken on, as on any service: that's what a
 // deploy from CI is. Not on what's as good as root, where a new image is any code
 // with root's reach, so a person approves that, whichever way it got there.
