@@ -138,7 +138,7 @@ cleanup() {
     docker compose -p "$p" down --volumes --remove-orphans --timeout 1 >/dev/null 2>&1 || true
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
-  docker rm --force e2e-by-hand e2e-take-on e2e-on-bridge e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   docker volume rm e2e-by-hand-data e2e-take-on-data >/dev/null 2>&1 || true
   docker network rm e2e-by-hand-net >/dev/null 2>&1 || true
   moving_tidy
@@ -259,6 +259,11 @@ person_call() {
   curl -fsS --max-time 30 --resolve "localhost:$port:127.0.0.1" -H "Origin: http://localhost:$port" -H 'Content-Type: application/json' \
     -H "Cookie: $(cat "$cookie")" -d "$2" "http://localhost:$port/dockwell.v1.$1"
 }
+# person_answer is person_call that passes on what a refusal says.
+person_answer() {
+  curl -sS --max-time 30 --resolve "localhost:$port:127.0.0.1" -H "Origin: http://localhost:$port" -H 'Content-Type: application/json' \
+    -H "Cookie: $(cat "$cookie")" -d "$2" "http://localhost:$port/dockwell.v1.$1"
+}
 # change_field reads a field of a change.
 change_field() { dw changes get "$1" --json | jq -r ".change.$2"; }
 # person_apply applies a planned change as a person does in the panel, and waits
@@ -282,9 +287,8 @@ taken_plan=""
 take_on() {
   local started
   started=$(touched "$1") || fail "docker inspect $1 failed"
-  taken_plan=$(curl -sS --max-time 30 --resolve "localhost:$port:127.0.0.1" -H "Origin: http://localhost:$port" -H 'Content-Type: application/json' \
-    -H "Cookie: $(cat "$cookie")" -d "$(jq -nc --arg id "$1" --arg service "$2" '{id: $id, service: $service}')" \
-    "http://localhost:$port/dockwell.v1.ContainerService/AdoptContainer") || fail "a person can't reach the API to take on $1"
+  taken_plan=$(person_answer ContainerService/AdoptContainer "$(jq -nc --arg id "$1" --arg service "$2" '{id: $id, service: $service}')") ||
+    fail "a person can't reach the API to take on $1"
   jq -e '.change.id' <<<"$taken_plan" >/dev/null || fail "taking on $1 was refused: $taken_plan"
   [[ "$taken_plan" != *not-in-any-plan* ]] || fail "the plan to take on $1 shows a value of its environment: $taken_plan"
   person_apply "$(jq -r '.change.id' <<<"$taken_plan")"
@@ -522,11 +526,13 @@ docker volume rm e2e-take-on-data >/dev/null || fail "docker volume rm e2e-take-
 
 step "What docker compose made, and what runs on Docker's default bridge, are taken on, and each takes a new image"
 real_projects+=(e2e-composed)
-docker compose -p e2e-composed -f - up --detach --wait >/dev/null <<'EOF_COMPOSE' || fail "docker compose up failed"
+composed_file=$(mktemp)
+cat >"$composed_file" <<'EOF_COMPOSE'
 services:
   app:
     image: nginx:1.26-alpine
     ports: ["127.0.0.1:18098:80"]
+    expose: ["3000"]
     volumes: ["composed-data:/data"]
     environment:
       E2E_COMPOSED: not-in-any-plan
@@ -534,10 +540,32 @@ services:
 volumes:
   composed-data: {}
 EOF_COMPOSE
+compose_e2e() { docker compose -p e2e-composed -f "$composed_file" "$@"; }
+compose_e2e up --detach --wait >/dev/null || fail "docker compose up failed"
 take_on e2e-composed-app-1 composed
 jq -e '.change.plan.notes | any(.reason == "managed_elsewhere" and (.message | test("Compose project e2e-composed")))' <<<"$taken_plan" >/dev/null ||
   fail "the plan doesn't say something may still run what it takes on: $taken_plan"
+# What that note tells a person has to be what happens: until the image changes,
+# what runs the project acts on this same container.
+composed_id() { docker inspect --format '{{.Id}}' e2e-composed-app-1; }
+composed_started() { docker inspect --format '{{.State.StartedAt}}' e2e-composed-app-1; }
+was_id=$(composed_id) || fail "docker inspect e2e-composed-app-1 failed"
+was_started=$(composed_started) || fail "docker inspect e2e-composed-app-1 failed"
+compose_e2e restart >/dev/null 2>&1 || fail "docker compose restart failed"
+[[ "$(composed_id)" == "$was_id" && "$(composed_started)" != "$was_started" ]] ||
+  fail "docker compose restart didn't act on what was taken on: $was_id at $was_started, then $(composed_id) at $(composed_started)"
+# And the first plan that replaces it says so again.
+replacing=$(dw services deploy composed --image nginx:1.27-alpine --plan-only --json) || fail "planning a new image of composed failed: $replacing"
+jq -e '.change.plan.notes | any(.reason == "managed_elsewhere")' <<<"$replacing" >/dev/null ||
+  fail "the first plan that replaces it doesn't say what else may run it: $replacing"
+dw changes discard "$(jq -r '.change.id' <<<"$replacing")" >/dev/null || fail "changes discard failed"
 docker run --detach --name e2e-on-bridge --publish 127.0.0.1:18099:80 nginx:1.26-alpine >/dev/null || fail "docker run e2e-on-bridge failed"
+# What shares its network would have only loopback once it's replaced, so it's refused
+# by name, on real Docker's way of saying that.
+docker run --detach --name e2e-sidecar --network container:e2e-on-bridge nginx:1.26-alpine sleep 600 >/dev/null || fail "docker run e2e-sidecar failed"
+leaned=$(person_answer ContainerService/AdoptContainer '{"id": "e2e-on-bridge", "service": "on-bridge"}') || fail "a person can't reach the API"
+[[ "$leaned" == *"e2e-sidecar shares its network"* ]] || fail "taking on what another shares the network of wasn't refused by its name: $leaned"
+docker rm --force e2e-sidecar >/dev/null || fail "docker rm e2e-sidecar failed"
 take_on e2e-on-bridge on-bridge
 # new_image_serves deploys a new image to a service and checks its port answers.
 new_image_serves() {
@@ -555,6 +583,16 @@ new_image_serves on-bridge 18099 on-bridge
 composed=$(docker ps --filter label=com.docker.compose.service=composed --format '{{.Names}}' | head -1)
 [[ "$(docker exec "$composed" cat /data/note)" == kept-from-compose ]] || fail "composed lost what it wrote"
 docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$composed" | grep -qx 'E2E_COMPOSED=not-in-any-plan' || fail "composed lost its environment"
+docker inspect --format '{{json .Config.ExposedPorts}}' "$composed" | grep -q '"3000/tcp"' ||
+  fail "composed lost the port it exposes: $(docker inspect --format '{{json .Config.ExposedPorts}}' "$composed")"
+# After the change of image, the same project makes a second copy on the same
+# volume, as the note says. Its port is the service's, so it may not start.
+compose_e2e up --detach >/dev/null 2>&1 || true
+second=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' e2e-composed-app-1) ||
+  fail "docker compose up made no second copy of what was replaced, which the plan says it does"
+[[ "$second" == e2e-composed_composed-data ]] || fail "the second copy mounts $second, not what the service does"
+docker rm --force e2e-composed-app-1 >/dev/null || fail "docker rm e2e-composed-app-1 failed"
+rm -f "$composed_file"
 if docker inspect e2e-on-bridge >/dev/null 2>&1; then fail "what was on the default bridge is still there after a change of image"; fi
 dw services delete composed --yes || fail "deleting composed failed"
 dw services delete on-bridge --yes || fail "deleting on-bridge failed"
