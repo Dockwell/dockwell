@@ -16,7 +16,16 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
@@ -25,6 +34,7 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { ServerFrame } from "../servers/ServerFrame";
 import { EmptyState } from "../shell/EmptyState";
+import { KeyBar } from "./KeyBar";
 import type { TerminalStatus } from "./session";
 import { type ScreenHandle, TerminalScreen } from "./TerminalScreen";
 import { useEndWords } from "./words";
@@ -33,6 +43,36 @@ import "./TerminalPage.css";
 /** The type's size, as the mocks set it. */
 const DESKTOP_FONT = 12.5;
 const PHONE_FONT = 13;
+
+/** The sizes the phone's Aa goes through, from the mock's. */
+const PHONE_SIZES = [13, 15, 17, 11];
+const TEXT_SIZE_KEY = "dockwell.terminal.textSize";
+
+/** The phone's text size this browser was left at: a convenience of this device alone. */
+function readTextSize(): number {
+  try {
+    const kept = Number(localStorage.getItem(TEXT_SIZE_KEY));
+    return PHONE_SIZES.includes(kept) ? kept : PHONE_FONT;
+  } catch {
+    return PHONE_FONT;
+  }
+}
+
+/**
+ * How tall the screen a page has is, less a phone's keyboard where it shows: what the
+ * terminal and its keys fit in, so the keys sit right above the keyboard.
+ */
+function useVisibleHeight(): number | undefined {
+  const [height, setHeight] = useState(() => window.visualViewport?.height);
+  useEffect(() => {
+    const view = window.visualViewport;
+    if (!view) return;
+    const measure = () => setHeight(view.height);
+    view.addEventListener("resize", measure);
+    return () => view.removeEventListener("resize", measure);
+  }, []);
+  return height;
+}
 
 /** Which shell the page is for, from its URL. */
 export interface TerminalSearch {
@@ -118,6 +158,9 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const [finding, setFinding] = useState(false);
   const [menu, setMenu] = useState(false);
   const handles = useRef(new Map<string, ScreenHandle>());
+  const [ctrl, setCtrl] = useState(false);
+  const [phoneFont, setPhoneFont] = useState(readTextSize);
+  const visible = useVisibleHeight();
   const merged = useRef(false);
 
   useEffect(() => {
@@ -219,7 +262,17 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
     if (next.kind === "attached") setLost(undefined);
   }, []);
 
-  const fontSize = phone ? PHONE_FONT : DESKTOP_FONT;
+  const fontSize = phone ? phoneFont : DESKTOP_FONT;
+  const nextTextSize = () => {
+    const next = PHONE_SIZES[(PHONE_SIZES.indexOf(phoneFont) + 1) % PHONE_SIZES.length] ?? PHONE_FONT;
+    setPhoneFont(next);
+    try {
+      localStorage.setItem(TEXT_SIZE_KEY, String(next));
+    } catch {
+      // Kept for this page alone, then.
+    }
+    handle()?.focus();
+  };
   const screens = tabs.map((tab) => (
     <TerminalScreen
       key={tab.id}
@@ -236,6 +289,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
       onSize={(columns, rows) => tab.id === active && setSize({ columns, rows })}
       onSelection={(has) => tab.id === active && setSelection(has)}
       onLost={(bytes) => tab.id === active && setLost(bytes)}
+      onCtrlUsed={() => setCtrl(false)}
     />
   ));
 
@@ -302,7 +356,10 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   // One tree for both layouts, so turning a phone or narrowing a window keeps each
   // terminal where it is, with its scrollback and what's typed that hasn't gone.
   return (
-    <div className={phone ? "terminal-layout terminal-phone" : "terminal-layout"}>
+    <div
+      className={phone ? "terminal-layout terminal-phone" : "terminal-layout"}
+      style={phone && visible ? ({ "--visible-height": `${visible}px` } as CSSProperties) : undefined}
+    >
       {problemCallout}
       <section className={phone ? "terminal-panel" : "dw-panel terminal-panel"} aria-label={t`Terminal sessions`}>
         {phone ? null : (
@@ -391,6 +448,19 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
             : null}
           {notice}
         </div>
+        {phone && current && (status?.kind === "attached" || status?.kind === "reconnecting") ? (
+          <KeyBar
+            ctrl={ctrl}
+            onCtrl={(on) => {
+              setCtrl(on);
+              handle()?.holdCtrl(on);
+            }}
+            onPress={(key) => handle()?.press(key)}
+            onType={(text) => handle()?.type(text)}
+            onTextSize={nextTextSize}
+            onPaste={() => void handle()?.paste()}
+          />
+        ) : null}
         {phone ? null : (
           <div className="terminal-foot">
             <Connection status={status} none={!current} />

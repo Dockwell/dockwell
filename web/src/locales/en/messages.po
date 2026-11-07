@@ -2441,6 +2441,10 @@ msgstr "Containers Dockwell didn't make"
 msgid "Contents of {name}"
 msgstr "Contents of {name}"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Control"
+msgstr "Control"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
@@ -2747,6 +2751,10 @@ msgstr "Creating from"
 #: src/features/auth/ClaimPage.tsx
 msgid "Creating passkey"
 msgstr "Creating passkey"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Ctrl"
+msgstr "Ctrl"
 
 #: src/features/auth/SessionsPanel.tsx
 #: src/features/logs/LogsPage.tsx
@@ -3298,6 +3306,10 @@ msgstr "Done"
 msgid "Down"
 msgstr "Down"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Down arrow"
+msgstr "Down arrow"
+
 #: src/features/auth/TotpPanel.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Download"
@@ -3447,6 +3459,14 @@ msgstr "Errors"
 #: src/features/logs/LogsPage.tsx
 msgid "Errors in this log"
 msgstr "Errors in this log"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Esc"
+msgstr "Esc"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Escape"
+msgstr "Escape"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Event"
@@ -4452,6 +4472,10 @@ msgstr "Leave {name} without saving? What you typed goes."
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Leave it out for storage that has none, such as R2."
 msgstr "Leave it out for storage that has none, such as R2."
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Left arrow"
+msgstr "Left arrow"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
@@ -5666,6 +5690,7 @@ msgstr "Passphrase"
 msgid "Passphrase copied"
 msgstr "Passphrase copied"
 
+#: src/features/terminal/KeyBar.tsx
 #: src/features/terminal/TerminalPage.tsx
 msgid "Paste"
 msgstr "Paste"
@@ -5728,6 +5753,10 @@ msgstr "People reach the app at this name, through what's in front of this serve
 #: src/features/files/FilesPage.tsx
 msgid "Permissions"
 msgstr "Permissions"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Pipe"
+msgstr "Pipe"
 
 #: src/features/apps/revision.ts
 msgid "Placed it on {added}"
@@ -6455,6 +6484,10 @@ msgstr "Revoked an API token"
 #: src/features/activity/describe.ts
 msgid "Revoked the API token {name}"
 msgstr "Revoked the API token {name}"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Right arrow"
+msgstr "Right arrow"
 
 #: src/features/changes/words.ts
 msgid "Roll back"
@@ -7302,6 +7335,10 @@ msgctxt "theme"
 msgid "System"
 msgstr "System"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Tab"
+msgstr "Tab"
+
 #: src/features/servers/ContainerPage.tsx
 msgid "Take it on"
 msgstr "Take it on"
@@ -7336,9 +7373,17 @@ msgstr "Ten new codes replace the {left} you have now, and the old ones stop wor
 msgid "Terminal"
 msgstr "Terminal"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Terminal keys, scroll for more"
+msgstr "Terminal keys, scroll for more"
+
 #: src/features/terminal/TerminalPage.tsx
 msgid "Terminal sessions"
 msgstr "Terminal sessions"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Text size"
+msgstr "Text size"
 
 #: src/features/auth/messages.ts
 msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
@@ -8230,6 +8275,10 @@ msgstr "This view holds the newest {most} lines. Read older ones with <0>dockwel
 msgid "Through the agent"
 msgstr "Through the agent"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Tilde"
+msgstr "Tilde"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Time"
 msgstr "Time"
@@ -8527,6 +8576,10 @@ msgstr "Up"
 #: src/features/servers/server.ts
 msgid "up {uptime}"
 msgstr "up {uptime}"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Up arrow"
+msgstr "Up arrow"
 
 #: src/features/changes/PlanSteps.tsx
 msgid "Up to {stepBound} until healthy"

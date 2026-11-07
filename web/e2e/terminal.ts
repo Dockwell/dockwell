@@ -379,6 +379,56 @@ async function main() {
   await until("one tab", async () => (await page.getByRole("tab").count()) === 1);
   await shows(page, "typed-offline-9");
 
+  step("on a phone it takes the screen, with the keys a phone's keyboard hasn't");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const keys = page.getByRole("toolbar", { name: "Terminal keys, scroll for more" });
+  await keys.waitFor();
+  if (await page.locator(".tabbar").isVisible()) fail("the tab bar shows under the terminal's keys");
+  const bottom = await page.evaluate(
+    () => document.querySelector(".terminal-keybar")?.getBoundingClientRect().bottom ?? 0,
+  );
+  if (Math.abs(bottom - 844) > 1) fail(`the keys end at ${bottom} px, not at the bottom of the screen`);
+  await typeLine(page, "echo phone-$((2+2))");
+  await shows(page, "phone-4");
+  // Up brings the line back, as a shell's history does, and Enter runs it again.
+  await keys.getByRole("button", { name: "Up arrow" }).click();
+  await page.keyboard.press("Enter");
+  await until("the line run again", async () => (await screenText(page)).split("phone-4").length - 1 >= 2);
+  // Ctrl held from the bar, then c from the keyboard, interrupts what runs.
+  await typeLine(page, "sleep 30");
+  await sleep(300);
+  await keys.getByRole("button", { name: "Control" }).click();
+  if ((await keys.getByRole("button", { name: "Control" }).getAttribute("aria-pressed")) !== "true")
+    fail("Ctrl isn't held");
+  await page.keyboard.type("c");
+  if ((await keys.getByRole("button", { name: "Control" }).getAttribute("aria-pressed")) !== "false")
+    fail("Ctrl stays held after a key");
+  await typeLine(page, "echo after-ctrl-$((5+5))");
+  await shows(page, "after-ctrl-10", 5_000);
+  await keys.getByRole("button", { name: "Pipe" }).click();
+  await shows(page, "|");
+  await page.keyboard.press("Backspace");
+  const sizeBefore = await page.evaluate(
+    () =>
+      getComputedStyle(document.querySelector(".terminal-screen:not([hidden]) .xterm-rows") ?? document.body).fontSize,
+  );
+  await page.getByRole("button", { name: "Text size" }).click();
+  await until(
+    "a larger text size",
+    async () =>
+      (await page.evaluate(
+        () =>
+          getComputedStyle(document.querySelector(".terminal-screen:not([hidden]) .xterm-rows") ?? document.body)
+            .fontSize,
+      )) !== sizeBefore,
+  );
+  await page.getByRole("button", { name: "Text size" }).click();
+  await page.getByRole("button", { name: "Text size" }).click();
+  await page.getByRole("button", { name: "Text size" }).click();
+  await shoot(page, "phone");
+  await noSidewaysScroll(page, "the terminal on a phone");
+  await page.setViewportSize({ width: 1440, height: 930 });
+
   step("the shell exits, and the terminal says so");
   await typeLine(page, "exit 3");
   await page.getByText("It exited with code 3.").waitFor({ timeout: 15_000 });

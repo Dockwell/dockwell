@@ -2441,6 +2441,10 @@ msgstr "非 Dockwell 创建的容器"
 msgid "Contents of {name}"
 msgstr "{name} 的内容"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Control"
+msgstr "Control 键"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
@@ -2747,6 +2751,10 @@ msgstr "正在创建自"
 #: src/features/auth/ClaimPage.tsx
 msgid "Creating passkey"
 msgstr "正在创建通行密钥"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Ctrl"
+msgstr "Ctrl"
 
 #: src/features/auth/SessionsPanel.tsx
 #: src/features/logs/LogsPage.tsx
@@ -3298,6 +3306,10 @@ msgstr "完成"
 msgid "Down"
 msgstr "宕机"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Down arrow"
+msgstr "下箭头"
+
 #: src/features/auth/TotpPanel.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Download"
@@ -3447,6 +3459,14 @@ msgstr "错误"
 #: src/features/logs/LogsPage.tsx
 msgid "Errors in this log"
 msgstr "此日志中的错误"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Esc"
+msgstr "Esc"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Escape"
+msgstr "Esc 键"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Event"
@@ -4452,6 +4472,10 @@ msgstr "不保存就离开 {name} 吗？你输入的内容会丢失。"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Leave it out for storage that has none, such as R2."
 msgstr "没有区域的存储（例如 R2）可留空。"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Left arrow"
+msgstr "左箭头"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
@@ -5666,6 +5690,7 @@ msgstr "密码短语"
 msgid "Passphrase copied"
 msgstr "密码短语已复制"
 
+#: src/features/terminal/KeyBar.tsx
 #: src/features/terminal/TerminalPage.tsx
 msgid "Paste"
 msgstr "粘贴"
@@ -5728,6 +5753,10 @@ msgstr "人们通过此名称访问应用，流量经过此服务器前面的隧
 #: src/features/files/FilesPage.tsx
 msgid "Permissions"
 msgstr "权限"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Pipe"
+msgstr "竖线"
 
 #: src/features/apps/revision.ts
 msgid "Placed it on {added}"
@@ -6455,6 +6484,10 @@ msgstr "撤销了 API 令牌"
 #: src/features/activity/describe.ts
 msgid "Revoked the API token {name}"
 msgstr "撤销了 API 令牌 {name}"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Right arrow"
+msgstr "右箭头"
 
 #: src/features/changes/words.ts
 msgid "Roll back"
@@ -7302,6 +7335,10 @@ msgctxt "theme"
 msgid "System"
 msgstr "跟随系统"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Tab"
+msgstr "Tab"
+
 #: src/features/servers/ContainerPage.tsx
 msgid "Take it on"
 msgstr "接管它"
@@ -7336,9 +7373,17 @@ msgstr "10 个新恢复码将替换你现有的 {left} 个，旧的会立即失�
 msgid "Terminal"
 msgstr "终端"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Terminal keys, scroll for more"
+msgstr "终端按键，滑动查看更多"
+
 #: src/features/terminal/TerminalPage.tsx
 msgid "Terminal sessions"
 msgstr "终端会话"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Text size"
+msgstr "文字大小"
 
 #: src/features/auth/messages.ts
 msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
@@ -8230,6 +8275,10 @@ msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell 
 msgid "Through the agent"
 msgstr "通过代理"
 
+#: src/features/terminal/KeyBar.tsx
+msgid "Tilde"
+msgstr "波浪号"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Time"
 msgstr "时间"
@@ -8527,6 +8576,10 @@ msgstr "运行时间"
 #: src/features/servers/server.ts
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
+
+#: src/features/terminal/KeyBar.tsx
+msgid "Up arrow"
+msgstr "上箭头"
 
 #: src/features/changes/PlanSteps.tsx
 msgid "Up to {stepBound} until healthy"
