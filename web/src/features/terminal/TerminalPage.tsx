@@ -34,8 +34,14 @@ import "./TerminalPage.css";
 const DESKTOP_FONT = 12.5;
 const PHONE_FONT = 13;
 
-/** A server's terminal, as its own tab of the server's page. */
-export function TerminalPage({ serverId }: { serverId: string }) {
+/** Which shell the page is for, from its URL. */
+export interface TerminalSearch {
+  /** A container on the server, by name, for a shell in it. */
+  container?: string;
+}
+
+/** A server's terminal, as its own tab of the server's page, and the shells in its containers. */
+export function TerminalPage({ serverId, search = {} }: { serverId: string; search?: TerminalSearch }) {
   const phone = useMediaQuery(PHONE_QUERY);
   const { t } = useLingui();
   const [title, setTitle] = useState<string>();
@@ -62,7 +68,7 @@ export function TerminalPage({ serverId }: { serverId: string }) {
           : undefined
       }
     >
-      {(server) => <Terminals server={server} phone={phone} onTitle={setTitle} />}
+      {(server) => <Terminals server={server} phone={phone} container={search.container} onTitle={setTitle} />}
     </ServerFrame>
   );
 }
@@ -82,10 +88,12 @@ function tabNames(tabs: readonly Terminal[]): Map<string, string> {
 interface TerminalsProps {
   server: Server;
   phone: boolean;
+  /** A container a shell is wanted in, from the page's URL. */
+  container: string | undefined;
   onTitle: (title: string | undefined) => void;
 }
 
-function Terminals({ server, phone, onTitle }: TerminalsProps) {
+function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const { t, i18n } = useLingui();
   const transport = useTransport();
   const queryClient = useQueryClient();
@@ -117,48 +125,67 @@ function Terminals({ server, phone, onTitle }: TerminalsProps) {
     merged.current = true;
     const open = listed.data.terminals;
     setTabs((now) => [...open.filter((o) => !now.some((n) => n.id === o.id)), ...now]);
-    setActive((now) => now ?? open.at(-1)?.id);
-  }, [listed.data]);
+    // A shell asked for in a container shows that container's, or the offer to open one.
+    setActive((now) => now ?? (container ? open.findLast((o) => o.container === container)?.id : open.at(-1)?.id));
+  }, [listed.data, container]);
 
   const names = tabNames(tabs);
+  // A container in the page's address with no shell open in it yet.
+  const wanted = container && !tabs.some((tab) => tab.container === container) ? container : undefined;
   const current = tabs.find((tab) => tab.id === active);
   const status = current ? statuses[current.id] : undefined;
   useEffect(() => onTitle(current?.title), [current?.title, onTitle]);
 
   const handle = () => (active ? handles.current.get(active) : undefined);
 
-  const open = useCallback(async () => {
-    setOpening(true);
-    setProblem(undefined);
-    const want = size ?? { columns: 80, rows: 24 };
-    try {
-      const res = await withStepUpIfAsked(transport, StepUpAction.OPEN_TERMINAL, serverId, (proof) =>
-        client.openTerminal({ serverId, columns: want.columns, rows: want.rows, proof }),
-      );
-      const opened = res.terminal;
-      if (opened) {
-        setTabs((now) => [...now, opened]);
-        setActive(opened.id);
-      }
-      void queryClient.invalidateQueries({
-        queryKey: createConnectQueryKey({ schema: TerminalService.method.listTerminals, cardinality: "finite" }),
-      });
-    } catch (err) {
-      const reason = reasonOf(err);
-      const name = server.name;
-      if (reason === "no_passkey_here") {
-        setProblem(
-          t`Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to ${name} over SSH.`,
+  /** Opens the server's own terminal, or a shell in a container on it. */
+  const open = useCallback(
+    async (inContainer?: string) => {
+      setOpening(true);
+      setProblem(undefined);
+      const want = size ?? { columns: 80, rows: 24 };
+      // A container's shell asks for a passkey only where the agent finds it as good as root.
+      const target = inContainer ? `${serverId}:${inContainer}` : serverId;
+      try {
+        const res = await withStepUpIfAsked(transport, StepUpAction.OPEN_TERMINAL, target, (proof) =>
+          client.openTerminal({
+            serverId,
+            columns: want.columns,
+            rows: want.rows,
+            proof,
+            container: inContainer ?? "",
+          }),
         );
-      } else if (err instanceof PasskeyError && err.problem === "cancelled") {
-        setProblem(t`The passkey prompt closed, so no terminal opened. Open one when you're ready.`);
-      } else {
-        setProblem(err instanceof PasskeyError ? explain(err) : sentence(err));
+        const opened = res.terminal;
+        if (opened) {
+          setTabs((now) => [...now, opened]);
+          setActive(opened.id);
+        }
+        void queryClient.invalidateQueries({
+          queryKey: createConnectQueryKey({ schema: TerminalService.method.listTerminals, cardinality: "finite" }),
+        });
+      } catch (err) {
+        const reason = reasonOf(err);
+        const name = server.name;
+        if (reason === "no_passkey_here" && inContainer) {
+          setProblem(
+            t`${inContainer} reaches as far as root on ${name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to ${name} over SSH.`,
+          );
+        } else if (reason === "no_passkey_here") {
+          setProblem(
+            t`Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to ${name} over SSH.`,
+          );
+        } else if (err instanceof PasskeyError && err.problem === "cancelled") {
+          setProblem(t`The passkey prompt closed, so no terminal opened. Open one when you're ready.`);
+        } else {
+          setProblem(err instanceof PasskeyError ? explain(err) : sentence(err));
+        }
+      } finally {
+        setOpening(false);
       }
-    } finally {
-      setOpening(false);
-    }
-  }, [client, explain, queryClient, server.name, serverId, size, t, transport]);
+    },
+    [client, explain, queryClient, server.name, serverId, size, t, transport],
+  );
 
   const forget = (id: string) => {
     handles.current.delete(id);
@@ -216,10 +243,34 @@ function Terminals({ server, phone, onTitle }: TerminalsProps) {
     <Notice
       status={status}
       onBringBack={() => handle()?.bringBack()}
-      onOpen={open}
+      onOpen={() => void open(current.container || undefined)}
       onClose={() => void close(current.id)}
       opening={opening}
     />
+  ) : null;
+
+  const containerEmpty = wanted ? (
+    <EmptyState
+      icon="terminal"
+      title={
+        <Trans>
+          No shell open in <code>{wanted}</code>
+        </Trans>
+      }
+      action={
+        <Button variant="primary" size="lg" icon="terminal" loading={opening} onClick={() => void open(wanted)}>
+          <Trans>Open a shell</Trans>
+        </Button>
+      }
+    >
+      <p>
+        <Trans>
+          A shell in <code>{wanted}</code> runs in the container, as its own user, with the first of bash, ash and sh
+          its image has. One in a container that reaches as far as root on <code>{server.name}</code> asks for your
+          passkey.
+        </Trans>
+      </p>
+    </EmptyState>
   ) : null;
 
   const empty = (
@@ -227,7 +278,7 @@ function Terminals({ server, phone, onTitle }: TerminalsProps) {
       icon="terminal"
       title={<Trans>No terminal open</Trans>}
       action={
-        <Button variant="primary" size="lg" icon="terminal" loading={opening} onClick={open}>
+        <Button variant="primary" size="lg" icon="terminal" loading={opening} onClick={() => void open()}>
           <Trans>Open a terminal</Trans>
         </Button>
       }
@@ -277,7 +328,7 @@ function Terminals({ server, phone, onTitle }: TerminalsProps) {
                 icon="plus"
                 aria-label={t`New session`}
                 loading={opening}
-                onClick={open}
+                onClick={() => void open()}
               />
             </span>
             <span className="terminal-head-space" />
@@ -335,7 +386,9 @@ function Terminals({ server, phone, onTitle }: TerminalsProps) {
             />
           ) : null}
           {screens}
-          {tabs.length === 0 && (listed.isFetched || listed.isError) ? empty : null}
+          {!current && (listed.isFetched || listed.isError)
+            ? (containerEmpty ?? (tabs.length === 0 ? empty : null))
+            : null}
           {notice}
         </div>
         {phone ? null : (

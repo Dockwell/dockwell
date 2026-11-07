@@ -435,6 +435,10 @@ msgstr "无法搜索 {first}"
 msgid "{free} free"
 msgstr "可用 {free}"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "{inContainer} 在 {name} 上的权限相当于 root，所以在其中打开 shell 需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
@@ -1314,6 +1318,11 @@ msgstr "一台服务器"
 msgid "A service"
 msgstr "某个服务"
 
+#. placeholder {0}: server.name
+#: src/features/terminal/TerminalPage.tsx
+msgid "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
+msgstr "<0>{wanted}</0> 中的 shell 在容器内以容器自己的用户运行，使用镜像中 bash、ash、sh 里找到的第一个。如果容器在 <1>{0}</1> 上的权限相当于 root，打开时会要求验证你的通行密钥。"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "A step failed, so the change stopped there."
 msgstr "有一个步骤失败，更改就此停止。"
@@ -1785,6 +1794,10 @@ msgstr "作为 {0}"
 #: src/features/activity/describe.ts
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
+
+#: src/features/activity/describe.ts
+msgid "Asked for a passkey to open a shell in {container} on {server}, and none came"
+msgstr "在 {server} 上的 {container} 中打开 shell 时要求验证通行密钥，但未收到"
 
 #: src/features/activity/describe.ts
 msgid "Asked for a passkey to open a terminal on {server}, and none came"
@@ -2284,6 +2297,14 @@ msgid "Close, and lose what you typed here?"
 msgstr "关闭并丢弃在此输入的内容？"
 
 #: src/features/activity/describe.ts
+msgid "Closed a shell in {container} on {server}"
+msgstr "关闭了 {server} 上 {container} 中的 shell"
+
+#: src/features/activity/describe.ts
+msgid "Closed a shell in {container} on {server}, open {open}"
+msgstr "关闭了 {server} 上 {container} 中的 shell，共打开 {open}"
+
+#: src/features/activity/describe.ts
 msgid "Closed a terminal on {server}"
 msgstr "关闭了 {server} 上的终端"
 
@@ -2574,6 +2595,10 @@ msgstr "无法放开"
 #: src/features/activity/describe.ts
 msgid "Couldn't open {path} on {server}"
 msgstr "无法打开 {server} 上的 {path}"
+
+#: src/features/activity/describe.ts
+msgid "Couldn't open a shell in {container} on {server}"
+msgstr "无法在 {server} 上的 {container} 中打开 shell"
 
 #: src/features/activity/describe.ts
 msgid "Couldn't open a terminal on {server}"
@@ -4970,6 +4995,10 @@ msgstr "还没有服务器"
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "No shell open in <0>{wanted}</0>"
+msgstr "<0>{wanted}</0> 中没有打开的 shell"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
@@ -5394,6 +5423,17 @@ msgstr "打开 {where}"
 msgid "Open a new terminal"
 msgstr "打开新终端"
 
+#: src/features/servers/ContainerPage.tsx
+#: src/features/terminal/TerminalPage.tsx
+msgid "Open a shell"
+msgstr "打开 shell"
+
+#. placeholder {0}: server.container
+#. placeholder {1}: server.serverName
+#: src/features/apps/Health.tsx
+msgid "Open a shell in {0} on {1}"
+msgstr "在 {1} 上的 {0} 中打开 shell"
+
 #: src/features/terminal/TerminalPage.tsx
 msgid "Open a terminal"
 msgstr "打开终端"
@@ -5494,6 +5534,10 @@ msgstr "一步即可安装的开源应用"
 #: src/features/activity/ActivityPage.tsx
 msgid "Opened"
 msgstr "打开时间"
+
+#: src/features/activity/describe.ts
+msgid "Opened a shell in {container} on {server}"
+msgstr "在 {server} 上的 {container} 中打开了 shell"
 
 #: src/features/activity/describe.ts
 msgid "Opened a terminal on {server}"
@@ -6919,6 +6963,10 @@ msgstr "设置、状态和账户"
 #: src/features/changes/fields.tsx
 msgid "shared memory"
 msgstr "共享内存"
+
+#: src/features/apps/Health.tsx
+msgid "Shell"
+msgstr "Shell"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show"

@@ -107,6 +107,10 @@ func main() {
 		if strings.HasPrefix(ref, "postgres:") {
 			img.Exec = postgres
 		}
+		// A shell, run as this machine's /bin/sh, unless it's made to run one program.
+		if !strings.HasSuffix(ref, ":distroless") {
+			img.Shell = "/bin/sh"
+		}
 		switch {
 		case strings.HasSuffix(ref, ":nosuchtag"):
 			img.PullError = "manifest for " + ref + " not found: manifest unknown: manifest unknown"

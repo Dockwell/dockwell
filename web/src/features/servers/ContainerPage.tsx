@@ -2,13 +2,13 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeState, ComposeService, ContainerService, type ServerContainer } from "@dockwell/api";
+import { ChangeState, ComposeService, ContainerService, ContainerState, type ServerContainer } from "@dockwell/api";
 import { Button, Icon, Panel, SelectField, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-
 import { sentence } from "../../lib/errors";
+import { RouterButtonLink } from "../../lib/links";
 import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { LogsPage, type LogsSearch } from "../logs/LogsPage";
@@ -85,6 +85,18 @@ export function ContainerPage({
           ) : null
         }
         lead={container ? <code>{container.image}</code> : undefined}
+        actions={
+          container?.state === ContainerState.RUNNING ? (
+            <RouterButtonLink
+              to="/servers/$serverId/terminal"
+              params={{ serverId }}
+              search={{ container: name }}
+              icon="terminal"
+            >
+              <Trans>Open a shell</Trans>
+            </RouterButtonLink>
+          ) : undefined
+        }
         phoneSub={container ? stateWord(container.state) : undefined}
         backLink={back}
         phoneAction={

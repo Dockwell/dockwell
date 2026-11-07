@@ -21,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 const (
@@ -90,6 +91,39 @@ func (c *calls) adoption(ctx context.Context, call *agentv1.AdoptionCall) (*agen
 		return nil, err
 	}
 	return &agentv1.AdoptionResult{Spec: b, Refused: read.Refused, Shows: read.Shows, Manager: read.Manager, Folder: read.Folder, LeanedOn: read.LeanedOn, Invalid: read.Invalid}, nil
+}
+
+// ContainerAsGoodAsRoot says whether a container, by its full ID, reaches as far as
+// root on its server, by the rule a plan goes by: what it runs as a service reaches
+// (resource.Access.AsGoodAsRoot). What no service's spec can hold counts too, as
+// what it is can't be told. A shell in such a container takes a passkey (ADR 0037).
+func ContainerAsGoodAsRoot(drivers *resource.Registry) func(ctx context.Context, container string) (bool, error) {
+	return func(ctx context.Context, container string) (bool, error) {
+		d, err := drivers.Driver(service.Kind)
+		if err != nil {
+			return true, err
+		}
+		a, ok := d.(resource.Adopter)
+		if !ok {
+			return true, nil
+		}
+		read, err := a.ReadAdoption(ctx, resource.Ref{Kind: service.Kind, Name: "shell"}, container)
+		if err != nil {
+			return true, err
+		}
+		if len(read.Refused) > 0 || read.Invalid != "" {
+			return true, nil
+		}
+		if h, ok := d.(resource.HostAccesser); ok {
+			reaches := h.HostAccess(read.Spec)
+			for i := range reaches {
+				if reaches[i].AsGoodAsRoot() {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	}
 }
 
 // containerFilter asks Docker for one container, exactly: a name goes through its
