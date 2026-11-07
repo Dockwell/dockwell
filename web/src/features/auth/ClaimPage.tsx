@@ -346,7 +346,7 @@ function ThisServer({ server, claim }: { server: Server; claim: CheckClaimRespon
         {size.length > 0 ? (
           <>
             <dt>
-              <Trans>Size</Trans>
+              <Trans context="server">Size</Trans>
             </dt>
             <dd>{size.join(" · ")}</dd>
           </>

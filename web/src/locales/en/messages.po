@@ -2352,6 +2352,10 @@ msgstr "Commit"
 msgid "Committed"
 msgstr "Committed"
 
+#: src/features/files/FilesPage.tsx
+msgid "Common places"
+msgstr "Common places"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Compose"
 msgstr "Compose"
@@ -5651,10 +5655,6 @@ msgstr "People reach the app at this name, through what's in front of this serve
 msgid "Permissions"
 msgstr "Permissions"
 
-#: src/features/files/FilesPage.tsx
-msgid "Pinned"
-msgstr "Pinned"
-
 #: src/features/apps/revision.ts
 msgid "Placed it on {added}"
 msgstr "Placed it on {added}"
@@ -7078,9 +7078,13 @@ msgid "Signing you in with a one-time link"
 msgstr "Signing you in with a one-time link"
 
 #: src/features/activity/ActivityPage.tsx
-#: src/features/auth/ClaimPage.tsx
 #: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
+msgid "Size"
+msgstr "Size"
+
+#: src/features/auth/ClaimPage.tsx
+msgctxt "server"
 msgid "Size"
 msgstr "Size"
 

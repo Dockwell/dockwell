@@ -113,11 +113,34 @@ describe("FilesPage", () => {
     expect(await screen.findByRole("link", { name: "Files" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("groups its places as Server-Files does: the pinned ones, then the server's root", async () => {
-    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
+  it("groups its places as Server-Files does: the common ones, then the server's root, with yours marked", async () => {
+    await renderFiles("/servers/srv_1/files?path=/var/www/site", { listFiles: () => site });
     const places = await screen.findByRole("navigation", { name: "Places" });
-    const said = [...places.children].map((child) => child.textContent);
-    expect(said).toEqual(["Pinned", "Websites", "Logs", "Docker volumes", "", "Server", "Server root"]);
+    const common = within(places).getByRole("group", { name: "Common places" });
+    expect(
+      within(common)
+        .getAllByRole("link")
+        .map((l) => l.textContent),
+    ).toEqual(["Websites", "Logs", "Docker volumes"]);
+    const server = within(places).getByRole("group", { name: "Server" });
+    expect(
+      within(server)
+        .getAllByRole("link")
+        .map((l) => l.textContent),
+    ).toEqual(["Server root"]);
+    // A folder inside a place is in that place, not in the root that holds them all.
+    expect(within(common).getByRole("link", { name: "Websites" })).toHaveAttribute("aria-current", "location");
+    expect(within(server).getByRole("link", { name: "Server root" })).not.toHaveAttribute("aria-current");
+    expect(places.querySelector(".files-places-rule")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("marks the place you're on as yours, and only it", async () => {
+    await renderFiles("/servers/srv_1/files?path=/var/log", { listFiles: () => site });
+    const places = await screen.findByRole("navigation", { name: "Places" });
+    // On the place itself the link is the page you're on, as the router says.
+    expect(within(places).getByRole("link", { name: "Logs" })).toHaveAttribute("aria-current", "page");
+    expect(within(places).getByRole("link", { name: "Logs" })).toHaveClass("is-current");
+    expect(places.querySelectorAll("[aria-current]")).toHaveLength(1);
   });
 
   it("lists a folder, folders first, and says where you are", async () => {
