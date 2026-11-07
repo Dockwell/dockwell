@@ -244,6 +244,18 @@ func TestTheAgentBuildLinksOnlyTheAgent(t *testing.T) {
 // The lists above would pass a build that linked nothing. The full build,
 // built as it is, has what the agent build leaves out, so the build
 // constraints can't have been turned around.
+// Neither build reads another catalog's format: the converter runs where the catalog
+// is built, as its own program, never in the control plane (ADR 0029).
+func TestNeitherBuildLinksTheCatalogConverter(t *testing.T) {
+	for _, tags := range []string{"", "agent"} {
+		for _, p := range goList(t, "amd64", tags) {
+			if strings.HasPrefix(p.ImportPath, module+"/internal/catalog/convert") {
+				t.Errorf("the build with tags %q links %s, which reads other catalogs' formats. Only cmd/dockwell-catalog may", tags, p.ImportPath)
+			}
+		}
+	}
+}
+
 func TestTheFullBuildLinksTheControlPlane(t *testing.T) {
 	var paths []string
 	for _, p := range goList(t, "amd64", "") {

@@ -1,0 +1,6 @@
+services:
+  my_app:
+    image: example/my_app:0.5.0
+    container_name: ${CONTAINER_NAME}
+    ports:
+      - ${PANEL_APP_PORT_HTTP}:80

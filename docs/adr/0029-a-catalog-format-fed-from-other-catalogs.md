@@ -137,6 +137,22 @@ An upgrade is a plan: `CatalogService.UpgradeCatalogInstall` reads the install's
 
 Choosing to stay on a version, skipping one, and upgrading a whole fleet in one go are later work. A release that adds an input needs its value from `dockwell catalog upgrade --values`, as the panel has no form for it yet.
 
+### The converter
+
+*Added 7 Nov 2026, with #298.*
+
+Every entry was written by hand until now. The converter turns another catalog's apps into entries, and says why it left out the rest.
+
+- **It's a program of its own, `dockwell-catalog`, beside the format in this repository,** so it checks an entry with the same code the catalog loads one with. Neither build of `dockwell` links it, and a test holds both to that. `Dockwell/catalog` runs it, at a commit of this repository, once that repository exists.
+- **It reads 1Panel's app store first,** as people moving off 1Panel need its apps, the owner first among them. Dokploy's and Coolify's templates come next. What it converts keeps its source's licence, so what it writes from 1Panel is GPL-3.0, and stays out of this repository and the binary, as above.
+- **It rewrites what an entry may not say.** It drops `container_name`, and a name used elsewhere in the file becomes the service's, which Docker answers to on the project's network. It drops any network of the source's platform, and a read-only mount of the server's time zone. It publishes every port on loopback, and makes a folder the app creates as it runs, bound beside the file, a named volume. It gives a service's name dashes for underscores, and the platform's variables plainer names, such as `PORT`. A generated password becomes a generated, sealed secret with no default.
+- **It leaves out what an entry can't carry yet, with the reason.** That covers scripts, files shipped beside the Compose file, a database from another app, a build, an `env_file`, a value the platform fills in that no field asks for, and an image named by a branch or a variable. An app that reaches its server, such as through Docker's socket, waits until a person has looked and written what it reaches in its overlay.
+- **What only a person writes comes from an overlay,** a file per app in the entry's own format: its summary and category in our own words, as a source's may be copied from elsewhere, and what they've looked at. An app with no summary is left out. That's checked last, so the report's count of those is what converts once someone writes them. Every entry it writes passes `catalog.Check` and reads as an install would, and its first steps say how to reach it through a tunnel.
+- **Each image is pinned by its index's digest, with a HEAD, which no registry counts as a pull.** A version under 14 days old waits, and where the source keeps the version before, that converts while it does. The age comes from Docker Hub's own API, which counts nothing either, or from the build time in the image's config elsewhere. `pins.json` keeps the first age seen of each tag, so a rebuild doesn't start it again. Docker Hub gives the time of the last push, so an official image rebuilt for its base reads younger than its version is, and waits longer than it needs to. A project's own release date would fix that.
+- **An entry's release goes up only when it changes,** beyond the commit it was read at, so a newer commit of the source offers nobody an upgrade of an app it didn't touch. Each file's header names its source and licence, and says it was modified, and when, as GPL-3.0 asks.
+
+On 7 Nov 2026, at 1Panel's commit `fb78ceed`, it read 256 apps. 40 convert once a person writes their summary and category, and 8 more once a person has looked at what they reach. It left out 66 for their scripts, 59 for a version under 14 days old, which a later run takes, 40 for the files they ship, 28 for another app's database, and 15 for other reasons its report gives. What it converts is a community entry until each is tested on real Docker in CI, as above.
+
 ### What we turned down
 
 - **Running 1Panel's format directly.** It would tie the product to a format that can't express plans, secrets or backups, and it would run scripts on the host.

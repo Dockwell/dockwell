@@ -1,0 +1,44 @@
+additionalProperties:
+  formFields:
+    - default: 8080
+      edit: true
+      envKey: PANEL_APP_PORT_HTTP
+      labelEn: Web Port
+      labelZh: 端口
+      required: true
+      rule: paramPort
+      type: number
+      label:
+        en: Web Port
+        zh: 端口
+    - default: 9443
+      envKey: PANEL_APP_PORT_SYNC
+      labelEn: Sync Port
+      required: true
+      rule: paramPort
+      type: number
+    - default: owner
+      envKey: ADMIN_USER
+      labelEn: Admin User
+      required: true
+      type: text
+    - default: changeme
+      envKey: ADMIN_PASSWORD
+      labelEn: Admin Password
+      random: true
+      required: true
+      type: password
+    - default: info
+      envKey: LOG_LEVEL
+      labelEn: Log Level
+      required: false
+      type: select
+      values:
+        - label: Info
+          value: info
+        - label: Debug
+          value: debug
+    - default: 9
+      envKey: NOT_USED
+      labelEn: Not Used
+      type: number

@@ -1,0 +1,8 @@
+services:
+  withdb:
+    image: example/withdb:3.0.0
+    container_name: ${CONTAINER_NAME}
+    ports:
+      - ${PANEL_APP_PORT_HTTP}:80
+    environment:
+      - DB=${PANEL_DB_HOST}

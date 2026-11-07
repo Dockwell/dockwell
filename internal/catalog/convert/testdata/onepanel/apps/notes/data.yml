@@ -1,0 +1,12 @@
+name: Notes
+tags:
+  - 实用工具
+additionalProperties:
+  key: notes
+  name: Notes
+  tags:
+    - Tool
+    - Website
+  shortDescEn: A stand-in app for the converter's tests
+  website: https://notes.example.com
+  github: https://github.com/example/notes
