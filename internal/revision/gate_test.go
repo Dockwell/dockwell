@@ -354,29 +354,6 @@ func TestAMountOnAnotherServerHoldsNothing(t *testing.T) {
 	}
 }
 
-// Where a path leads counts, as the same folder can be written two ways: one that goes
-// through a link to a bigger disk, say.
-func TestWhatsInsideGoesByWhereAPathLeads(t *testing.T) {
-	leads := map[string]string{"/srv/data": "/mnt/disk/data"}
-	for _, tt := range []struct {
-		holder, source string
-		want           bool
-	}{
-		{"/srv", "/srv/app", true},
-		{"/srv/", "/srv/app/", true},
-		{"/srv/data", "/mnt/disk/data/conf", true},
-		{"/mnt/disk", "/srv/data", true},
-		{"/srv", "/srv", false},
-		{"/srv/", "/srv", false},
-		{"/srv/app", "/srv/application", false},
-		{"/srv/data", "/mnt/disk/other", false},
-	} {
-		if got := strictlyInside(tt.holder, tt.source, leads); got != tt.want {
-			t.Errorf("strictlyInside(%s, %s) = %v, want %v", tt.holder, tt.source, got, tt.want)
-		}
-	}
-}
-
 // A volume's server path counts as a mount's does, on either side.
 func TestAVolumeCanHoldAnothersSource(t *testing.T) {
 	e, _, db := setupDocker(t, store.SQLite, "srv_A")

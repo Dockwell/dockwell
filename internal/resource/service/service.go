@@ -326,6 +326,11 @@ func (d *Driver) Leads(ctx context.Context, ref resource.Ref, desired proto.Mess
 	return d.Containers.LeadsAt(ctx, TargetIn(ctx, ref), desired.(*resourcev1.Service).GetApp())
 }
 
+// Survey says where every server path on the server leads (container.Docker.Survey).
+func (d *Driver) Survey(ctx context.Context, paths []string) (map[string]string, error) {
+	return d.Containers.Survey(ctx, paths)
+}
+
 // LeadsMoved says which of the server paths a service's app mounts don't lead where
 // they did when what runs now was made.
 func (d *Driver) LeadsMoved(ctx context.Context, ref resource.Ref, desired proto.Message) ([]string, error) {
