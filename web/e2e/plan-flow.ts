@@ -38,6 +38,24 @@ const axeSource = readFileSync(createRequire(import.meta.url).resolve("axe-core/
 /** Long enough for a view's fade to end: measuring mid-way measures it fading. */
 const FADES_MS = 250;
 
+/**
+ * Waits for what fades to settle: the fixed wait for a fade to begin, then every
+ * colour still easing to its theme's. Under load a fixed wait alone can end with a
+ * button's text still the other theme's, which reads as too little contrast.
+ * Only transitions: a spinner's animation never ends.
+ */
+async function settled(page: Page): Promise<void> {
+  await page.waitForTimeout(FADES_MS);
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a instanceof CSSTransition)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 function fail(message: string): never {
   throw new Error(message);
 }
@@ -54,7 +72,7 @@ async function sheetText(page: Page): Promise<string> {
  * for large text. A disabled control is exempt, as WCAG exempts it.
  */
 async function expectContrast(page: Page, what: string, root = '[role="dialog"]') {
-  await page.waitForTimeout(FADES_MS);
+  await settled(page);
   const low = await page.evaluate((selector) => {
     const paint = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
     if (!paint) return ["no canvas to measure with"];
@@ -114,7 +132,7 @@ async function expectContrast(page: Page, what: string, root = '[role="dialog"]'
 
 /** Runs axe over the page in the browser, where it can measure colours too. */
 async function expectAxe(page: Page, what: string) {
-  await page.waitForTimeout(FADES_MS);
+  await settled(page);
   // Not a script tag, which the panel's content security policy rightly refuses.
   await page.evaluate(axeSource);
   const violations = await page.evaluate(async () => {
