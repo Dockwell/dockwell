@@ -80,7 +80,9 @@ type testServer struct {
 	logs    agent.LogReader
 	// client is the Docker its agent lists containers from, when it has one.
 	client *docker.Client
-	stop   func()
+	// userDir is where its agent keeps what each database user was given.
+	userDir string
+	stop    func()
 	// hello changes what its agent says of itself, to stand in for another version.
 	hello func(*agentv1.Hello)
 	// probe answers what a website's server is asked of what it sends to, as a

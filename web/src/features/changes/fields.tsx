@@ -36,7 +36,10 @@ const PIN = /^revisions\[(.+)\]$/;
  * all the same, from its name. Whatever puts a server at risk comes first in
  * its resource, marked critical, however green the rest is.
  */
-export function useFieldRows(): (source: FieldSource) => PlanChange[] {
+/** Turns a resource's field changes into rows, and names a kind PlanDiff has no word of its own for. */
+export type FieldRows = ((source: FieldSource) => PlanChange[]) & { kindWord?: (kind: string) => string | undefined };
+
+export function useFieldRows(): FieldRows {
   const { t } = useLingui();
   return useMemo(() => {
     const labels: Readonly<Record<string, string>> = {
@@ -66,6 +69,11 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
       protocol: t`protocol`,
       sources: t`sources`,
       comment: t`comment`,
+      database_name: t`database`,
+      password: t`password in`,
+    };
+    const kinds: Readonly<Record<string, string>> = {
+      "database.user": t`database user`,
     };
     const yesNo = (value: string) => (value === "true" ? t`yes` : value === "false" ? t`no` : value);
     const protocol = (value: string) => value.toUpperCase();
@@ -239,7 +247,7 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
       return reach.some(asGoodAsRoot) ? "critical" : "warning";
     };
 
-    return ({
+    const rows = ({
       kind,
       changes,
       hostAccess = [],
@@ -314,6 +322,7 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
         .sort((a, b) => rank(a.row) - rank(b.row) || a.at - b.at)
         .map(({ row }) => row);
     };
+    return Object.assign(rows, { kindWord: (kind: string) => kinds[kind] });
   }, [t]);
 }
 

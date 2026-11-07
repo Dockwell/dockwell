@@ -1126,6 +1126,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}/users:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                CreateDatabaseUser plans a database inside a database server, with a user who
+                 owns it, and a password for them that the control plane generates and keeps as a
+                 secret of the environment, which nobody sees unless they reveal it. The user is a
+                 resource, of kind "database.user", so it's a change with a plan, a revision and an
+                 undo, and setting the secret anew changes the password. Only PostgreSQL, MySQL
+                 and MariaDB have users of their own.
+            operationId: DatabaseService_CreateDatabaseUser
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs it, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateDatabaseUserRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateDatabaseUserResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -4834,6 +4872,47 @@ components:
                         - $ref: '#/components/schemas/Backup'
                     description: The backup.
             description: CreateBackupResponse is the backup, running.
+        CreateDatabaseUserRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs it, by ID or by name.
+                user:
+                    type: string
+                    description: |-
+                        The user's name, such as "shop": lowercase letters, digits and underscores,
+                         starting with a letter, at most 32.
+                database:
+                    type: string
+                    description: The database they own, named as a user is. Empty takes the user's name.
+                secret:
+                    type: string
+                    description: |-
+                        The secret their password goes in, such as "SHOP_DATABASE_PASSWORD". Empty
+                         takes the user's name in capitals, then "_DATABASE_PASSWORD". It must not be
+                         there already.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one has a
+                         service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project has
+                         more than one.
+            description: |-
+                CreateDatabaseUserRequest names a database server, and the user and database to
+                 make in it.
+        CreateDatabaseUserResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: CreateDatabaseUserResponse carries the planned change.
         CreateTokenRequest:
             type: object
             properties:
@@ -5050,6 +5129,19 @@ components:
                 system:
                     type: boolean
                     description: True for one the server made for itself, such as mysql.sys.
+                secret:
+                    type: string
+                    description: |-
+                        For a user Dockwell made, a resource of kind "database.user": the secret their
+                         password is in, by name.
+                usedBy:
+                    type: array
+                    items:
+                        type: string
+                    description: The services that use that secret, by name, which are what signs in as them.
+                resourceId:
+                    type: string
+                    description: The resource's ID, for a user Dockwell made.
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
@@ -5120,6 +5212,39 @@ components:
                     description: How many more databases or users it has than this lists.
                     format: int32
             description: DatabaseReading is what a database said of itself on one server.
+        DatabaseUser:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service that runs the database server, by name, such as "db".
+                databaseName:
+                    type: string
+                    description: |-
+                        The database the user owns, which is made with them, such as "shop". Empty
+                         takes the user's name. It can't change once made.
+                password:
+                    type: string
+                    description: |-
+                        The environment's secret the user's password is in, by name, such as
+                         "SHOP_DATABASE_PASSWORD".
+                revisions:
+                    readOnly: true
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The revision of the secret the user was given. Dockwell sets it when a change
+                         is planned, so setting the secret anew gives the user its new password. An
+                         edit's is ignored.
+            description: |-
+                DatabaseUser is a database inside a database server that a service of its
+                 environment runs, with the user who owns it, who signs in with a secret of the
+                 environment. The service runs PostgreSQL, MySQL or MariaDB from its official image,
+                 and the user and the database are made in its own container, with its own tools,
+                 on the servers it runs on (ADR 0038). Its name is the user's, such as "shop".
+                 Setting the secret anew changes the user's password, and deleting one drops the
+                 user and the database, with everything in it.
         DeleteBackupResponse:
             type: object
             properties: {}
@@ -10644,6 +10769,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/BackupDestination'
                     description: S3-compatible storage backups go to, kind "backup.destination".
+                databaseUser:
+                    allOf:
+                        - $ref: '#/components/schemas/DatabaseUser'
+                    description: |-
+                        A database and the user who owns it, in a database server a service runs,
+                         kind "database.user". Numbered apart, as open work adds to this message.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes

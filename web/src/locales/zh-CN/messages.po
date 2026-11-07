@@ -3930,6 +3930,9 @@ msgstr "数据"
 msgid "data taken out of use"
 msgstr "不再使用的数据"
 
+msgid "database user"
+msgstr "数据库用户"
+
 msgid "display name"
 msgstr "显示名称"
 
@@ -3968,6 +3971,9 @@ msgstr "否"
 
 msgid "option"
 msgstr "选项"
+
+msgid "password in"
+msgstr "密码所在"
 
 msgid "path"
 msgstr "路径"
@@ -4968,6 +4974,33 @@ msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} 离开 {from}，转到 {to}。"
 
+msgid "Add a user to {name}"
+msgstr "为 {name} 添加用户"
+
+msgid "Dockwell makes a password of 32 characters and keeps it in this secret, which an app uses by name. Nobody sees it unless they reveal it with a passkey."
+msgstr "Dockwell 会生成 32 位密码并保存在这个密钥中，应用按名称使用它。除非用通行密钥查看，否则没有人能看到它。"
+
+msgid "It's theirs, to do anything in."
+msgstr "归该用户所有，可在其中做任何操作。"
+
+msgid "Secret for the password"
+msgstr "存放密码的密钥"
+
+msgid "This user can't be planned"
+msgstr "无法为此用户生成计划"
+
+msgid "Use letters, digits and underscores, starting with a letter, such as SHOP_DATABASE_PASSWORD."
+msgstr "请使用字母、数字和下划线，以字母开头，例如 SHOP_DATABASE_PASSWORD。"
+
+msgid "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop."
+msgstr "请使用最多 32 个小写字母、数字和下划线，以字母开头，例如 shop。"
+
+msgid "Who signs in to {engine}. Their database takes this name too, unless you give it another."
+msgstr "登录 {engine} 的用户。除非另行指定，其数据库也使用这个名称。"
+
+msgid "With a database of their own, and a password Dockwell makes"
+msgstr "附带其专属数据库和由 Dockwell 生成的密码"
+
 msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
 msgstr "恢复会通过一个说明此事的计划替换现有内容，并把被替换的内容保留 7 天。"
 
@@ -5200,6 +5233,9 @@ msgstr "{servers}，并加密存放在 {destination}"
 msgid "{servers}, unencrypted"
 msgstr "{servers}，未加密"
 
+msgid "Add a user"
+msgstr "添加用户"
+
 msgid "Can do anything"
 msgstr "拥有全部权限"
 
@@ -5218,20 +5254,35 @@ msgstr "系统自带"
 msgid "Its users show again once it does."
 msgstr "它报告后，这里会重新显示用户。"
 
+msgid "No app yet"
+msgstr "尚无应用"
+
 msgid "No server has said yet"
 msgstr "还没有服务器报告"
 
 msgid "None of their own"
 msgstr "没有自己的数据库"
 
+msgid "Not one of Dockwell's"
+msgstr "非 Dockwell 创建"
+
+msgid "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
+msgstr "通过网络时，每个用户都要用自己的密码登录。在它自己的容器内，PostgreSQL 官方镜像允许任何进程不用密码以任何用户登录。"
+
 msgid "Owns"
 msgstr "拥有"
+
+msgid "Password in"
+msgstr "密码所在"
 
 msgid "Role"
 msgstr "角色"
 
 msgid "Signs in"
 msgstr "可登录"
+
+msgid "Used by"
+msgstr "使用者"
 
 msgid "Users of {name}"
 msgstr "{name} 的用户"
@@ -8636,9 +8687,6 @@ msgstr "旧值仍保留在该变量的历史中"
 
 msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 msgstr "请使用字母、数字和下划线，并以字母或下划线开头，例如 DATABASE_URL。"
-
-msgid "Used by"
-msgstr "使用者"
 
 msgid "Variables and secrets in {envName}"
 msgstr "{envName} 中的变量和密钥"

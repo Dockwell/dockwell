@@ -78,6 +78,32 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await page.getByRole("table", { name: "Databases in db" }).getByText("app", { exact: true }).first().waitFor();
   await shoot(page, "database-users");
 
+  step("databases: a user with a database of their own is a plan, with a password no one typed");
+  await page.getByRole("button", { name: "Add a user" }).click();
+  const adding = page.getByRole("dialog", { name: "Add a user to db" });
+  await adding.getByLabel("User", { exact: true }).fill("orders");
+  await shoot(page, "database-add-user");
+  await adding.getByRole("button", { name: /Review plan/ }).click();
+  const planned = page.getByRole("dialog", { name: "Review plan" });
+  await planned.getByRole("button", { name: /Apply plan/ }).waitFor({ timeout: 30_000 });
+  await shoot(page, "database-add-user-plan");
+  const shownPlan = await planned.innerText();
+  if (!shownPlan.includes("orders")) fail(`the plan for a user doesn't name them: ${shownPlan.slice(0, 400)}`);
+  if (/[A-Za-z0-9]{32}/.test(shownPlan.replace(/ORDERS_DATABASE_PASSWORD|chg_[A-Z0-9]+|sha256:[0-9a-f]+/g, ""))) {
+    fail("the plan for a user shows what may be its password");
+  }
+  await planned.getByRole("button", { name: /Apply plan/ }).click();
+  const done = page.getByRole("button", { name: "Done", exact: true });
+  await done.waitFor({ timeout: 60_000 });
+  await done.click();
+  const orders = page
+    .getByRole("table", { name: "Users of db" })
+    .getByRole("row")
+    .filter({ hasText: "ORDERS_DATABASE_PASSWORD" });
+  await orders.waitFor({ timeout: 30_000 });
+  await page.getByRole("table", { name: "Databases in db" }).getByText("orders", { exact: true }).first().waitFor();
+  await shoot(page, "database-user-added");
+
   step("databases: its backups are a tab, where one is taken and one restores through a plan");
   await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: "Backups" }).click();
   const backups = page.getByRole("table", { name: "Backups of db, newest first" });
