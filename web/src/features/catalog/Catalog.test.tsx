@@ -6,6 +6,7 @@ import {
   ChangeSchema,
   ChangeState,
   EntrySchema,
+  HostAccessKind,
   InputType,
   type InstallCatalogEntryRequest,
   PlanAction,
@@ -105,6 +106,23 @@ describe("The catalog", () => {
     await expectAccessible(container);
   });
 
+  it("scrolls the chosen category into view, as its row scrolls sideways on a phone", async () => {
+    const seen: { name: string; options: unknown }[] = [];
+    const was = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+      seen.push({ name: this.textContent ?? "", options });
+    };
+    try {
+      renderAt("/catalog?category=networking", api());
+      await screen.findByRole("link", { name: "Install Cloudflare Tunnel" });
+      await waitFor(() =>
+        expect(seen).toContainEqual({ name: "Networking", options: { block: "nearest", inline: "nearest" } }),
+      );
+    } finally {
+      Element.prototype.scrollIntoView = was;
+    }
+  });
+
   it("leads to the app once it's installed, and says how many are", async () => {
     renderAt(
       "/catalog",
@@ -198,6 +216,74 @@ describe("A newer release", () => {
 });
 
 describe("Installing from the catalog", () => {
+  const media = create(EntrySchema, {
+    id: "jellyfin",
+    name: "Jellyfin",
+    summary: "Stream your films, shows and music to any device",
+    category: "media",
+    version: "12.3",
+    appLicense: "GPL-2.0-only",
+    hostAccess: "The folder you give for your media, read-only.",
+    web: { service: "jellyfin" },
+    inputs: [
+      { name: "MEDIA_DIR", label: "Media folder", type: InputType.TEXT, defaultValue: "/srv/media" },
+      { name: "API_KEY", label: "API key", type: InputType.SECRET, generate: 32 },
+      { name: "DB_PASSWORD", label: "Database password", type: InputType.SECRET, generate: 32 },
+    ],
+  });
+  const reaching = api({
+    listCatalogEntries: () => ({ entries: [media] }),
+    getCatalogEntry: () => ({
+      entry: media,
+      project: "jellyfin",
+      values: { MEDIA_DIR: "/srv/media" },
+      parts: [
+        {
+          service: "jellyfin",
+          image: "jellyfin/jellyfin:12.3",
+          opens: true,
+          volumes: ["config"],
+          hostAccess: [{ kind: HostAccessKind.SERVER_PATH, path: "/srv/media", readOnly: true }],
+          pathInputs: { "/srv/media": "MEDIA_DIR" },
+        },
+        {
+          service: "agent",
+          image: "ghcr.io/example/agent:1.0",
+          hostAccess: [{ kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock", sameAsRoot: true }],
+        },
+      ],
+    }),
+  });
+
+  it("says what each part reaches on the server, in red when it's as good as root, with a path as typed", async () => {
+    const user = userEvent.setup();
+    const { container } = renderAt("/catalog/jellyfin", reaching);
+    const parts = await screen.findByRole("region", { name: "What it installs" });
+    const socket = within(parts).getByText("/var/run/docker.sock");
+    expect(within(parts).getByText("Docker's socket")).toBeVisible();
+    expect(socket.closest(".dw-diff-critical")).not.toBeNull();
+    const folder = within(parts).getByText("/srv/media");
+    expect(folder.closest(".dw-diff-warning")).not.toBeNull();
+    expect(within(parts).getByText(/read-only/)).toBeVisible();
+    // What a person types in its place is what it reaches.
+    const sheet = screen.getByRole("dialog", { name: "Install Jellyfin" });
+    await user.clear(within(sheet).getByLabelText("Media folder"));
+    await user.type(within(sheet).getByLabelText("Media folder"), "/data/films");
+    expect(await within(parts).findByText("/data/films")).toBeVisible();
+    expect(within(parts).queryByText("/srv/media")).not.toBeInTheDocument();
+    await expectAccessible(container);
+  });
+
+  it("names every secret it makes in one sentence, as a list", async () => {
+    renderAt("/catalog/jellyfin", reaching);
+    const sheet = await screen.findByRole("dialog", { name: "Install Jellyfin" });
+    expect(
+      await within(sheet).findByText(
+        "Dockwell generates these and keeps them sealed, for you to reveal with your passkey: API key and Database password",
+      ),
+    ).toBeVisible();
+  });
+
   it("says what it installs before the plan: the app you open, then its database, each by image", async () => {
     const { container } = renderAt("/catalog/postgres", api());
     const parts = await screen.findByRole("region", { name: "What it installs" });
@@ -245,7 +331,11 @@ describe("Installing from the catalog", () => {
     expect(within(sheet).getByLabelText("Name")).toHaveValue("postgres");
     // A password no one types has no field: it's made and sealed where it runs.
     expect(within(sheet).queryByLabelText("Database password")).not.toBeInTheDocument();
-    expect(within(sheet).getByText(/Dockwell generates Database password and keeps it sealed/)).toBeVisible();
+    expect(
+      within(sheet).getByText(
+        "Dockwell generates this and keeps it sealed, for you to reveal with your passkey: Database password",
+      ),
+    ).toBeVisible();
     // What to do first is here, before anyone reviews a plan, let alone applies it.
     expect(within(sheet).getByText(/Add a domain first, then sign in/)).toBeVisible();
     await expectAccessible(container);
@@ -277,8 +367,11 @@ describe("Installing from the catalog", () => {
   it("doesn't call a password sealed when the app writes it in its log, and says to change it", async () => {
     renderAt("/catalog/nginx-proxy-manager", api());
     const sheet = await screen.findByRole("dialog", { name: "Install Nginx Proxy Manager" });
-    expect(await within(sheet).findByText(/writes it in its log/)).toBeVisible();
-    expect(within(sheet).getByText(/Change it after you first sign in/)).toBeVisible();
+    expect(
+      await within(sheet).findByText(
+        "Dockwell generates this, but Nginx Proxy Manager writes it in its log, which takes no passkey to read, so change it after you first sign in: Console password",
+      ),
+    ).toBeVisible();
     expect(within(sheet).queryByText(/sealed/)).not.toBeInTheDocument();
   });
 

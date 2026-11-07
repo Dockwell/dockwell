@@ -240,12 +240,21 @@ type CatalogPart struct {
 	// The image it runs, by repository and tag, such as "postgres:17.11". The entry
 	// pins it by digest too, which this leaves out.
 	Image string `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"`
-	// It's a database, which the app beside it keeps its data in.
+	// It's a database the app beside it keeps its data in: one its entry marks as
+	// one, or, for an entry that marks none, one of the images Dockwell knows as a
+	// database, such as postgres or mariadb.
 	Database bool `protobuf:"varint,3,opt,name=database,proto3" json:"database,omitempty"`
 	// The volumes it keeps its data on, by name, such as "data".
 	Volumes []string `protobuf:"bytes,4,rep,name=volumes,proto3" json:"volumes,omitempty"`
 	// It's what a person opens once it's installed.
-	Opens         bool `protobuf:"varint,5,opt,name=opens,proto3" json:"opens,omitempty"`
+	Opens bool `protobuf:"varint,5,opt,name=opens,proto3" json:"opens,omitempty"`
+	// What it reaches on its server beyond its own containers, as the plan will say
+	// it: a server path, Docker's socket, the server's own network and the like.
+	HostAccess []*HostAccess `protobuf:"bytes,6,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	// The input each server path in host_access comes from, by the path as it reads
+	// here, which is the input's default, so a form shows what a person typed in its
+	// place, such as "MEDIA_DIR" for "/srv/media".
+	PathInputs    map[string]string `protobuf:"bytes,7,rep,name=path_inputs,json=pathInputs,proto3" json:"path_inputs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -313,6 +322,20 @@ func (x *CatalogPart) GetOpens() bool {
 		return x.Opens
 	}
 	return false
+}
+
+func (x *CatalogPart) GetHostAccess() []*HostAccess {
+	if x != nil {
+		return x.HostAccess
+	}
+	return nil
+}
+
+func (x *CatalogPart) GetPathInputs() map[string]string {
+	if x != nil {
+		return x.PathInputs
+	}
+	return nil
 }
 
 // ListCatalogInstallsRequest asks for everything installed.
@@ -818,13 +841,20 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x05parts\x18\x04 \x03(\v2\x18.dockwell.v1.CatalogPartR\x05parts\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x89\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcd\x02\n" +
 	"\vCatalogPart\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x1a\n" +
 	"\bdatabase\x18\x03 \x01(\bR\bdatabase\x12\x18\n" +
 	"\avolumes\x18\x04 \x03(\tR\avolumes\x12\x14\n" +
-	"\x05opens\x18\x05 \x01(\bR\x05opens\"\x1c\n" +
+	"\x05opens\x18\x05 \x01(\bR\x05opens\x128\n" +
+	"\vhost_access\x18\x06 \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
+	"hostAccess\x12I\n" +
+	"\vpath_inputs\x18\a \x03(\v2(.dockwell.v1.CatalogPart.PathInputsEntryR\n" +
+	"pathInputs\x1a=\n" +
+	"\x0fPathInputsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x1c\n" +
 	"\x1aListCatalogInstallsRequest\"V\n" +
 	"\x1bListCatalogInstallsResponse\x127\n" +
 	"\binstalls\x18\x01 \x03(\v2\x1b.dockwell.v1.CatalogInstallR\binstalls\"\xbc\x02\n" +
@@ -883,7 +913,7 @@ func file_dockwell_v1_catalog_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_catalog_proto_rawDescData
 }
 
-var file_dockwell_v1_catalog_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_dockwell_v1_catalog_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_dockwell_v1_catalog_proto_goTypes = []any{
 	(*ListCatalogEntriesRequest)(nil),     // 0: dockwell.v1.ListCatalogEntriesRequest
 	(*ListCatalogEntriesResponse)(nil),    // 1: dockwell.v1.ListCatalogEntriesResponse
@@ -899,39 +929,43 @@ var file_dockwell_v1_catalog_proto_goTypes = []any{
 	(*UpgradeCatalogInstallRequest)(nil),  // 11: dockwell.v1.UpgradeCatalogInstallRequest
 	(*UpgradeCatalogInstallResponse)(nil), // 12: dockwell.v1.UpgradeCatalogInstallResponse
 	nil,                                   // 13: dockwell.v1.GetCatalogEntryResponse.ValuesEntry
-	nil,                                   // 14: dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
-	nil,                                   // 15: dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
-	(*v1alpha1.Entry)(nil),                // 16: dockwell.catalog.v1alpha1.Entry
-	(*v1alpha11.CatalogPin)(nil),          // 17: dockwell.resource.v1alpha1.CatalogPin
-	(*Change)(nil),                        // 18: dockwell.v1.Change
+	nil,                                   // 14: dockwell.v1.CatalogPart.PathInputsEntry
+	nil,                                   // 15: dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
+	nil,                                   // 16: dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
+	(*v1alpha1.Entry)(nil),                // 17: dockwell.catalog.v1alpha1.Entry
+	(*HostAccess)(nil),                    // 18: dockwell.v1.HostAccess
+	(*v1alpha11.CatalogPin)(nil),          // 19: dockwell.resource.v1alpha1.CatalogPin
+	(*Change)(nil),                        // 20: dockwell.v1.Change
 }
 var file_dockwell_v1_catalog_proto_depIdxs = []int32{
-	16, // 0: dockwell.v1.ListCatalogEntriesResponse.entries:type_name -> dockwell.catalog.v1alpha1.Entry
-	16, // 1: dockwell.v1.GetCatalogEntryResponse.entry:type_name -> dockwell.catalog.v1alpha1.Entry
+	17, // 0: dockwell.v1.ListCatalogEntriesResponse.entries:type_name -> dockwell.catalog.v1alpha1.Entry
+	17, // 1: dockwell.v1.GetCatalogEntryResponse.entry:type_name -> dockwell.catalog.v1alpha1.Entry
 	13, // 2: dockwell.v1.GetCatalogEntryResponse.values:type_name -> dockwell.v1.GetCatalogEntryResponse.ValuesEntry
 	4,  // 3: dockwell.v1.GetCatalogEntryResponse.parts:type_name -> dockwell.v1.CatalogPart
-	7,  // 4: dockwell.v1.ListCatalogInstallsResponse.installs:type_name -> dockwell.v1.CatalogInstall
-	17, // 5: dockwell.v1.CatalogInstall.pin:type_name -> dockwell.resource.v1alpha1.CatalogPin
-	8,  // 6: dockwell.v1.CatalogInstall.upgrade:type_name -> dockwell.v1.CatalogUpgrade
-	14, // 7: dockwell.v1.InstallCatalogEntryRequest.values:type_name -> dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
-	18, // 8: dockwell.v1.InstallCatalogEntryResponse.change:type_name -> dockwell.v1.Change
-	15, // 9: dockwell.v1.UpgradeCatalogInstallRequest.values:type_name -> dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
-	18, // 10: dockwell.v1.UpgradeCatalogInstallResponse.change:type_name -> dockwell.v1.Change
-	0,  // 11: dockwell.v1.CatalogService.ListCatalogEntries:input_type -> dockwell.v1.ListCatalogEntriesRequest
-	2,  // 12: dockwell.v1.CatalogService.GetCatalogEntry:input_type -> dockwell.v1.GetCatalogEntryRequest
-	5,  // 13: dockwell.v1.CatalogService.ListCatalogInstalls:input_type -> dockwell.v1.ListCatalogInstallsRequest
-	11, // 14: dockwell.v1.CatalogService.UpgradeCatalogInstall:input_type -> dockwell.v1.UpgradeCatalogInstallRequest
-	9,  // 15: dockwell.v1.CatalogService.InstallCatalogEntry:input_type -> dockwell.v1.InstallCatalogEntryRequest
-	1,  // 16: dockwell.v1.CatalogService.ListCatalogEntries:output_type -> dockwell.v1.ListCatalogEntriesResponse
-	3,  // 17: dockwell.v1.CatalogService.GetCatalogEntry:output_type -> dockwell.v1.GetCatalogEntryResponse
-	6,  // 18: dockwell.v1.CatalogService.ListCatalogInstalls:output_type -> dockwell.v1.ListCatalogInstallsResponse
-	12, // 19: dockwell.v1.CatalogService.UpgradeCatalogInstall:output_type -> dockwell.v1.UpgradeCatalogInstallResponse
-	10, // 20: dockwell.v1.CatalogService.InstallCatalogEntry:output_type -> dockwell.v1.InstallCatalogEntryResponse
-	16, // [16:21] is the sub-list for method output_type
-	11, // [11:16] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	18, // 4: dockwell.v1.CatalogPart.host_access:type_name -> dockwell.v1.HostAccess
+	14, // 5: dockwell.v1.CatalogPart.path_inputs:type_name -> dockwell.v1.CatalogPart.PathInputsEntry
+	7,  // 6: dockwell.v1.ListCatalogInstallsResponse.installs:type_name -> dockwell.v1.CatalogInstall
+	19, // 7: dockwell.v1.CatalogInstall.pin:type_name -> dockwell.resource.v1alpha1.CatalogPin
+	8,  // 8: dockwell.v1.CatalogInstall.upgrade:type_name -> dockwell.v1.CatalogUpgrade
+	15, // 9: dockwell.v1.InstallCatalogEntryRequest.values:type_name -> dockwell.v1.InstallCatalogEntryRequest.ValuesEntry
+	20, // 10: dockwell.v1.InstallCatalogEntryResponse.change:type_name -> dockwell.v1.Change
+	16, // 11: dockwell.v1.UpgradeCatalogInstallRequest.values:type_name -> dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntry
+	20, // 12: dockwell.v1.UpgradeCatalogInstallResponse.change:type_name -> dockwell.v1.Change
+	0,  // 13: dockwell.v1.CatalogService.ListCatalogEntries:input_type -> dockwell.v1.ListCatalogEntriesRequest
+	2,  // 14: dockwell.v1.CatalogService.GetCatalogEntry:input_type -> dockwell.v1.GetCatalogEntryRequest
+	5,  // 15: dockwell.v1.CatalogService.ListCatalogInstalls:input_type -> dockwell.v1.ListCatalogInstallsRequest
+	11, // 16: dockwell.v1.CatalogService.UpgradeCatalogInstall:input_type -> dockwell.v1.UpgradeCatalogInstallRequest
+	9,  // 17: dockwell.v1.CatalogService.InstallCatalogEntry:input_type -> dockwell.v1.InstallCatalogEntryRequest
+	1,  // 18: dockwell.v1.CatalogService.ListCatalogEntries:output_type -> dockwell.v1.ListCatalogEntriesResponse
+	3,  // 19: dockwell.v1.CatalogService.GetCatalogEntry:output_type -> dockwell.v1.GetCatalogEntryResponse
+	6,  // 20: dockwell.v1.CatalogService.ListCatalogInstalls:output_type -> dockwell.v1.ListCatalogInstallsResponse
+	12, // 21: dockwell.v1.CatalogService.UpgradeCatalogInstall:output_type -> dockwell.v1.UpgradeCatalogInstallResponse
+	10, // 22: dockwell.v1.CatalogService.InstallCatalogEntry:output_type -> dockwell.v1.InstallCatalogEntryResponse
+	18, // [18:23] is the sub-list for method output_type
+	13, // [13:18] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_catalog_proto_init() }
@@ -947,7 +981,7 @@ func file_dockwell_v1_catalog_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_catalog_proto_rawDesc), len(file_dockwell_v1_catalog_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

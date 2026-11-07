@@ -212,11 +212,14 @@
   line-height: 20px;
 }
 
+/* Under a rule, as the mock's plan is. */
 .catalog-parts {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
 }
 
 .catalog-parts-head {
@@ -229,9 +232,8 @@
 
 .catalog-parts-head h3 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 550;
-  line-height: 20px;
+  font: var(--text-label);
+  letter-spacing: var(--text-label-tracking);
 }
 
 .catalog-parts-head span {
@@ -252,6 +254,11 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  /* While there's more of the row to scroll to, its end fades. */
+  .catalog-chips.has-more {
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
   }
 
   .catalog-chip {

@@ -44,6 +44,7 @@ inputs:
     label: Database password
     type: INPUT_TYPE_SECRET
     generate: 32
+databases: [db]
 compose: |
   services:
     coder:

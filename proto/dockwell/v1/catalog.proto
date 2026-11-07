@@ -113,12 +113,21 @@ message CatalogPart {
   // The image it runs, by repository and tag, such as "postgres:17.11". The entry
   // pins it by digest too, which this leaves out.
   string image = 2;
-  // It's a database, which the app beside it keeps its data in.
+  // It's a database the app beside it keeps its data in: one its entry marks as
+  // one, or, for an entry that marks none, one of the images Dockwell knows as a
+  // database, such as postgres or mariadb.
   bool database = 3;
   // The volumes it keeps its data on, by name, such as "data".
   repeated string volumes = 4;
   // It's what a person opens once it's installed.
   bool opens = 5;
+  // What it reaches on its server beyond its own containers, as the plan will say
+  // it: a server path, Docker's socket, the server's own network and the like.
+  repeated HostAccess host_access = 6;
+  // The input each server path in host_access comes from, by the path as it reads
+  // here, which is the input's default, so a form shows what a person typed in its
+  // place, such as "MEDIA_DIR" for "/srv/media".
+  map<string, string> path_inputs = 7;
 }
 
 // ListCatalogInstallsRequest asks for everything installed.

@@ -33,6 +33,7 @@ inputs:
     label: Root password
     type: INPUT_TYPE_SECRET
     generate: 32
+databases: [db]
 compose: |
   services:
     db:

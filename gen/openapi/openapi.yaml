@@ -3586,7 +3586,10 @@ components:
                          pins it by digest too, which this leaves out.
                 database:
                     type: boolean
-                    description: It's a database, which the app beside it keeps its data in.
+                    description: |-
+                        It's a database the app beside it keeps its data in: one its entry marks as
+                         one, or, for an entry that marks none, one of the images Dockwell knows as a
+                         database, such as postgres or mariadb.
                 volumes:
                     type: array
                     items:
@@ -3595,6 +3598,21 @@ components:
                 opens:
                     type: boolean
                     description: It's what a person opens once it's installed.
+                hostAccess:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostAccess'
+                    description: |-
+                        What it reaches on its server beyond its own containers, as the plan will say
+                         it: a server path, Docker's socket, the server's own network and the like.
+                pathInputs:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The input each server path in host_access comes from, by the path as it reads
+                         here, which is the input's default, so a form shows what a person typed in its
+                         place, such as "MEDIA_DIR" for "/srv/media".
             description: CatalogPart is one service an entry installs.
         CatalogPin:
             type: object
@@ -4910,6 +4928,14 @@ components:
                         What it reaches on its server beyond its own containers, in words, such as
                          "The server's own network, to reach routes on loopback". A person approves
                          it in the plan, which says exactly what. Empty when it reaches nothing.
+                databases:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The services its Compose file runs that are databases the app keeps its data
+                         in, by name, such as "db". A page names each as a database rather than an app.
+                         Empty leaves that to the images Dockwell knows as databases.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script

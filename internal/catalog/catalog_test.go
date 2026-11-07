@@ -99,6 +99,35 @@ func TestEntriesSortAsPeopleReadThem(t *testing.T) {
 	}
 }
 
+// Accents don't move a name past Z, and two of one name keep an order by their IDs.
+func TestNamesSortWithAccentsAndIDs(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	raw, err := os.ReadFile("entries/postgres.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, name := range map[string]string{"zeta": "Zeta", "egal": "Égal", "same-b": "Same", "same-a": "Same"} {
+		entry := strings.Replace(strings.Replace(string(raw), "id: postgres\n", "id: "+id+"\n", 1), "name: PostgreSQL\n", "name: "+name+"\n", 1)
+		if err := os.WriteFile(filepath.Join(dir, id+".yaml"), []byte(entry), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, e := range c.All() {
+		if slices.Contains([]string{"zeta", "egal", "same-b", "same-a"}, e.GetId()) {
+			ids = append(ids, e.GetId())
+		}
+	}
+	if want := []string{"egal", "same-a", "same-b", "zeta"}; !slices.Equal(ids, want) {
+		t.Errorf("the catalog lists %v, want %v", ids, want)
+	}
+}
+
 // Each app's licence is one that's had a look: open source, or allowed by name, with
 // why. Coder's image is built with its Enterprise code, under Coder's own licence, so
 // the catalog's page calls its apps self-hosted rather than open source, and the
@@ -693,7 +722,8 @@ func TestCheckRefuses(t *testing.T) {
 		"a secret inside one word of a command": {func(e *catalogv1.Entry) {
 			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"--key=${POSTGRES_PASSWORD}\"]", 1)
 		}, "inside a longer value"},
-		"short secret": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
+		"short secret":              {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
+		"a database it doesn't run": {func(e *catalogv1.Entry) { e.Databases = []string{"cache"} }, "marks cache as a database"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := proto.CloneOf(base)

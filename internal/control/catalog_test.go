@@ -69,24 +69,24 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	if first.Msg.GetProject() != "postgres" || first.Msg.GetValues()["ADMIN_PORT"] != "8081" {
 		t.Errorf("GetCatalogEntry suggests %q and %v", first.Msg.GetProject(), first.Msg.GetValues())
 	}
-	// What it installs: Adminer, which a person opens, then the database it reaches,
-	// by tag, as a person reads an image.
-	var parts []string
-	for _, p := range first.Msg.GetParts() {
-		parts = append(parts, fmt.Sprintf("%s %s database=%t opens=%t %v", p.GetService(), p.GetImage(), p.GetDatabase(), p.GetOpens(), p.GetVolumes()))
-	}
-	if want := []string{"adminer adminer:6.2.0 database=false opens=true []", "db postgres:17.11 database=true opens=false [data]"}; !slices.Equal(parts, want) {
-		t.Errorf("GetCatalogEntry says it installs %q, want %q", parts, want)
-	}
-	// One that takes a person's own folder lists only its volumes, and one with an
-	// input no one has given yet still says what it runs.
-	for id, want := range map[string]string{"jellyfin": "jellyfin jellyfin/jellyfin:12.3 database=false opens=true [config cache]", "nextcloud": "nextcloud nextcloud:35.0.2-apache database=false opens=true [html]"} {
+	// What it installs, part by part: what a person opens first, then the other apps,
+	// then the databases, each with its image by tag, its volumes and what it reaches
+	// on the server, which the plan marks red when it's as good as root.
+	for id, want := range map[string][]string{
+		"postgres":    {"adminer adminer:6.2.0 database=false opens=true [] []", "db postgres:17.11 database=true opens=false [data] []"},
+		"jellyfin":    {"jellyfin jellyfin/jellyfin:12.3 database=false opens=true [config cache] [HOST_ACCESS_KIND_SERVER_PATH /srv/media read-only from MEDIA_DIR]"},
+		"plausible":   {"plausible ghcr.io/plausible/community-edition:v3.2.1 database=false opens=true [data] []", "db postgres:17.11 database=true opens=false [db] []", "events clickhouse/clickhouse-server:24.12.6.70-alpine database=true opens=false [events] []"},
+		"coder":       {"coder ghcr.io/coder/coder:v2.38.6 database=false opens=true [home] [HOST_ACCESS_KIND_DOCKER_SOCKET /var/run/docker.sock root]", "db postgres:17.11 database=true opens=false [data] []"},
+		"cloudflared": {"tunnel cloudflare/cloudflared:2026.10.3 database=false opens=false [] [HOST_ACCESS_KIND_HOST_NETWORK  root]"},
+		// An input no one has given yet still says what it runs.
+		"nextcloud": {"nextcloud nextcloud:35.0.2-apache database=false opens=true [html] []", "db postgres:17.11 database=true opens=false [data] []"},
+	} {
 		got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: id}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if p := got.Msg.GetParts(); len(p) == 0 || fmt.Sprintf("%s %s database=%t opens=%t %v", p[0].GetService(), p[0].GetImage(), p[0].GetDatabase(), p[0].GetOpens(), p[0].GetVolumes()) != want {
-			t.Errorf("%s says it installs %v, want %s first", id, p, want)
+		if parts := describeParts(got.Msg.GetParts()); !slices.Equal(parts, want) {
+			t.Errorf("%s says it installs %q, want %q", id, parts, want)
 		}
 	}
 
@@ -318,6 +318,69 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 	}
 	if vars := list.Msg.GetVariables(); len(vars) != 1 || !vars[0].GetSecret() || vars[0].GetName() != "TUNNEL_TOKEN" {
 		t.Errorf("the project's secrets: %v", vars)
+	}
+}
+
+// describeParts says each part of an install in one line: its service, image, whether
+// it's a database or what a person opens, its volumes, and what it reaches on the
+// server, read-only or as good as root, with the input a path comes from.
+func describeParts(parts []*dockwellv1.CatalogPart) []string {
+	var out []string
+	for _, p := range parts {
+		var reaches []string
+		for _, a := range p.GetHostAccess() {
+			r := a.GetKind().String() + " " + a.GetPath()
+			if a.GetReadOnly() {
+				r += " read-only"
+			}
+			if a.GetSameAsRoot() {
+				r += " root"
+			}
+			if in := p.GetPathInputs()[a.GetPath()]; in != "" {
+				r += " from " + in
+			}
+			reaches = append(reaches, r)
+		}
+		out = append(out, fmt.Sprintf("%s %s database=%t opens=%t %v %v", p.GetService(), p.GetImage(), p.GetDatabase(), p.GetOpens(), p.GetVolumes(), reaches))
+	}
+	return out
+}
+
+// An entry whose parts can't be read still opens, with nothing said of its parts: what
+// it installs is something to read before the plan, which says it again.
+func TestAnEntryWhosePartsCantBeReadStillOpens(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "odd.yaml"), []byte(`id: odd
+name: Odd
+summary: Something whose parts don't read
+category: storage
+version: "1.0"
+release: 1
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+inputs:
+  - name: CPUS
+    label: CPUs
+    type: INPUT_TYPE_TEXT
+compose: |
+  services:
+    web:
+      image: nginx:1.27@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      cpus: ${CPUS}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	got, err := catalogClient(b).GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "odd"}))
+	if err != nil {
+		t.Fatalf("an entry whose parts don't read = %v, want it opened", err)
+	}
+	if got.Msg.GetEntry().GetName() != "Odd" || len(got.Msg.GetParts()) != 0 {
+		t.Errorf("it opens as %v, with parts %v", got.Msg.GetEntry().GetName(), got.Msg.GetParts())
 	}
 }
 

@@ -27,6 +27,7 @@ inputs:
     label: Password
     type: INPUT_TYPE_SECRET
     generate: 32
+databases: [redis]
 compose: |
   services:
     redis:

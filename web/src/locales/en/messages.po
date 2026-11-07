@@ -3365,6 +3365,9 @@ msgstr "{count, plural, one {Installed} other {# installed}}"
 msgid "{count} installed"
 msgstr "{count} installed"
 
+msgid "<0>{path}</0>, read-only"
+msgstr "<0>{path}</0>, read-only"
+
 msgid "App you open"
 msgstr "App you open"
 
@@ -3373,12 +3376,6 @@ msgstr "Couldn't read this app"
 
 msgid "Database"
 msgstr "Database"
-
-msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
-msgstr "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
-
-msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
-msgstr "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
 
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
@@ -3406,6 +3403,32 @@ msgstr "What it installs"
 
 msgid "What to do first"
 msgstr "What to do first"
+
+msgid "capability"
+msgstr "capability"
+
+msgid "group"
+msgstr "group"
+
+msgid "reaches"
+msgstr "reaches"
+
+msgid "server path"
+msgstr "server path"
+
+msgid "server's network"
+msgstr "server's network"
+
+msgid "the server's own"
+msgstr "the server's own"
+
+#. placeholder {0}: sealed.length
+msgid "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
+msgstr "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
+
+#. placeholder {0}: logged.length
+msgid "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
+msgstr "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
@@ -4057,9 +4080,6 @@ msgstr "rule"
 
 msgid "runs no entrypoint"
 msgstr "runs no entrypoint"
-
-msgid "server path"
-msgstr "server path"
 
 msgid "shared memory"
 msgstr "shared memory"

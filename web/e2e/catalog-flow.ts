@@ -123,6 +123,15 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await direct.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
 
+  step("catalog: what an app reaches on the server is among what it installs, in red when it's as good as root");
+  await page.goto(`${origin}/catalog/coder`);
+  const coder = page.getByRole("dialog", { name: "Install Coder" }).getByRole("region", { name: "What it installs" });
+  await coder.getByText("Docker's socket").waitFor();
+  const socket = coder.locator(".dw-diff-critical", { hasText: "/var/run/docker.sock" });
+  if ((await socket.count()) !== 1) fail("Coder's page doesn't mark Docker's socket in red among what it installs");
+  await page.getByRole("dialog", { name: "Install Coder" }).getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
+
   step("catalog: installing asks only what the app needs, starting from what's free");
   await page.getByRole("link", { name: "Install PostgreSQL" }).click();
   const sheet = page.getByRole("dialog", { name: "Install PostgreSQL" });
@@ -132,7 +141,9 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   if (!/^\d+$/.test(port)) fail(`Adminer's port starts as "${port}"`);
   if ((await sheet.getByLabel("Name").inputValue()) !== "postgres") fail("its name doesn't start as postgres");
   if ((await sheet.getByLabel("Database password").count()) !== 0) fail("it asks for a password it generates");
-  await sheet.getByText(/Dockwell generates Database password and keeps it sealed/).waitFor();
+  await sheet
+    .getByText("Dockwell generates this and keeps it sealed, for you to reveal with your passkey: Database password")
+    .waitFor();
   await shoot(page, "catalog-install");
 
   step("catalog: its plan shows everything it makes, with the password as a secret and no value");

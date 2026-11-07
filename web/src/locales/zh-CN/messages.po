@@ -3365,6 +3365,9 @@ msgstr "{count, plural, other {已安装 # 个}}"
 msgid "{count} installed"
 msgstr "已安装 {count} 个"
 
+msgid "<0>{path}</0>, read-only"
+msgstr "<0>{path}</0>，只读"
+
 msgid "App you open"
 msgstr "你打开的应用"
 
@@ -3373,12 +3376,6 @@ msgstr "无法读取此应用"
 
 msgid "Database"
 msgstr "数据库"
-
-msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
-msgstr "Dockwell 会生成{inLog}，但 {app} 会把它写入日志，而查看日志不需要通行密钥。请在首次登录后修改。"
-
-msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
-msgstr "Dockwell 会生成{made}并加密保存。你可以用通行密钥查看。"
 
 msgid "Each image pinned by digest"
 msgstr "每个镜像都按摘要固定"
@@ -3402,10 +3399,36 @@ msgid "Version {version}"
 msgstr "版本 {version}"
 
 msgid "What it installs"
-msgstr "它会安装什么"
+msgstr "安装内容"
 
 msgid "What to do first"
 msgstr "首先要做的事"
+
+msgid "capability"
+msgstr "能力"
+
+msgid "group"
+msgstr "用户组"
+
+msgid "reaches"
+msgstr "可访问"
+
+msgid "server path"
+msgstr "服务器路径"
+
+msgid "server's network"
+msgstr "服务器网络"
+
+msgid "the server's own"
+msgstr "服务器自身的"
+
+#. placeholder {0}: sealed.length
+msgid "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
+msgstr "{0, plural, one {Dockwell 会生成它并加密保存，你可以用通行密钥查看：{made}} other {Dockwell 会生成以下各项并加密保存，你可以用通行密钥查看：{made}}}"
+
+#. placeholder {0}: logged.length
+msgid "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
+msgstr "{0, plural, one {Dockwell 会生成它，但 {app} 会把它写进日志，而查看日志不需要通行密钥，所以请在首次登录后更改：{inLog}} other {Dockwell 会生成以下各项，但 {app} 会把它们写进日志，而查看日志不需要通行密钥，所以请在首次登录后更改：{inLog}}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
@@ -4057,9 +4080,6 @@ msgstr "规则"
 
 msgid "runs no entrypoint"
 msgstr "不运行入口点"
-
-msgid "server path"
-msgstr "服务器路径"
 
 msgid "shared memory"
 msgstr "共享内存"

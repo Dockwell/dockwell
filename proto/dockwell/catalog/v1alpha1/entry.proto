@@ -53,6 +53,10 @@ message Entry {
   // "The server's own network, to reach routes on loopback". A person approves
   // it in the plan, which says exactly what. Empty when it reaches nothing.
   string host_access = 15;
+  // The services its Compose file runs that are databases the app keeps its data
+  // in, by name, such as "db". A page names each as a database rather than an app.
+  // Empty leaves that to the images Dockwell knows as databases.
+  repeated string databases = 16;
 }
 
 // Source is where an entry came from.

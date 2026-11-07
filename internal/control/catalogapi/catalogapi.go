@@ -26,6 +26,8 @@ import (
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -69,17 +71,21 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	// What it installs is something to read before the plan, which says it again, so
+	// an entry this can't read still opens, and says nothing of its parts.
 	parts, err := partsOf(ctx, entry, free.values)
 	if err != nil {
-		return nil, h.internal(ctx, err)
+		h.logger.WarnContext(ctx, "couldn't say what a catalog entry installs", slog.String("entry", entry.GetId()), slog.String("error", err.Error()))
+		parts = nil
 	}
 	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{Entry: entry, Project: free.project, Values: free.values, Parts: parts}), nil
 }
 
 // partsOf reads what an entry's Compose file runs, from the values an install starts
 // with and a stand-in for what a person types or Dockwell generates, as nothing it
-// says depends on those. The service a person opens comes first, then the other apps,
-// then the databases they keep their data in.
+// says depends on those but a server path, which names the input it comes from. The
+// service a person opens comes first, then the other apps, then the databases they
+// keep their data in.
 func partsOf(ctx context.Context, e *catalogv1.Entry, values map[string]string) ([]*dockwellv1.CatalogPart, error) {
 	variables := maps.Clone(values)
 	if variables == nil {
@@ -98,14 +104,25 @@ func partsOf(ctx context.Context, e *catalogv1.Entry, values map[string]string) 
 	for _, s := range stack.Services {
 		app := s.Spec.GetApp()
 		part := &dockwellv1.CatalogPart{
-			Service:  s.Name,
-			Image:    tagged(app.GetImage()),
-			Database: isDatabase(app.GetImage()),
-			Opens:    s.Name == e.GetWeb().GetService(),
+			Service:    s.Name,
+			Image:      tagged(app.GetImage()),
+			Database:   slices.Contains(e.GetDatabases(), s.Name) || len(e.GetDatabases()) == 0 && isDatabase(app.GetImage()),
+			Opens:      s.Name == e.GetWeb().GetService(),
+			HostAccess: resourcepb.HostAccess(container.ServiceAccess(app)),
 		}
 		for _, m := range app.GetMounts() {
 			if v := m.GetVolume(); v != "" && !m.GetExternal() {
 				part.Volumes = append(part.Volumes, v)
+			}
+		}
+		for _, a := range part.GetHostAccess() {
+			for _, in := range e.GetInputs() {
+				if a.GetPath() != "" && !catalog.Secret(in) && variables[in.GetName()] == a.GetPath() {
+					if part.PathInputs == nil {
+						part.PathInputs = map[string]string{}
+					}
+					part.PathInputs[a.GetPath()] = in.GetName()
+				}
 			}
 		}
 		out = append(out, part)
@@ -123,16 +140,19 @@ func partsOf(ctx context.Context, e *catalogv1.Entry, values map[string]string) 
 	return out, nil
 }
 
-// standIn is a value for an input that has none yet, of the kind it takes.
+// standIn is a value for an input that has none yet, of the kind it takes. Text reads
+// as a path, as a mount's source may be one, which Compose would read as a volume.
 func standIn(in *catalogv1.Input) string {
 	switch in.GetType() {
 	case catalogv1.InputType_INPUT_TYPE_EMAIL:
 		return "you@example.com"
 	case catalogv1.InputType_INPUT_TYPE_PORT:
 		return "1024"
-	case catalogv1.InputType_INPUT_TYPE_UNSPECIFIED, catalogv1.InputType_INPUT_TYPE_TEXT, catalogv1.InputType_INPUT_TYPE_SECRET:
+	case catalogv1.InputType_INPUT_TYPE_SECRET:
+		return "stand-in"
+	case catalogv1.InputType_INPUT_TYPE_UNSPECIFIED, catalogv1.InputType_INPUT_TYPE_TEXT:
 	}
-	return "stand-in"
+	return "/srv/stand-in"
 }
 
 // tagged is an image by repository and tag, without the digest that pins it.
@@ -141,7 +161,8 @@ func tagged(image string) string {
 	return repo
 }
 
-// databases are the images of databases an app keeps its data in, by repository.
+// databases are the images of databases an app keeps its data in, by repository, for
+// an entry that marks none of its services as one.
 var databases = []string{"postgres", "mysql", "mariadb", "redis", "clickhouse/clickhouse-server"}
 
 // isDatabase reports an image of a database, by its repository.
