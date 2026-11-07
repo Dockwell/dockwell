@@ -688,8 +688,10 @@ function ReachedAt({
           return (
             <li key={row.key} className="app-reach-row">
               <Icon name="globe" size={16} />
-              <code className="app-reach-at">{row.at}</code>
-              {row.local ? null : <PrivateTag address={row.host} />}
+              <span className="app-reach-where">
+                <code className="app-reach-at">{row.at}</code>
+                {row.local ? null : <PrivateTag address={row.host} />}
+              </span>
               <span className="app-reach-to">
                 {row.udp ? <Trans>port {target}, UDP</Trans> : <Trans>port {target}</Trans>}
                 {row.local ? <span> · {t`only on the server`}</span> : null}
