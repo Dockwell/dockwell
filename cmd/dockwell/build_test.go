@@ -36,11 +36,12 @@ var agentPackages = []string{
 	"internal/agent",
 	"internal/agent/collect",
 	"internal/agent/enroll",
-	"internal/agent/files", // a server's files, for a person (ADR 0032)
-	"internal/agent/logs",  // reading logs, and keeping those of removed containers (ADR 0025)
-	"internal/backup",      // taking and restoring backups on this server (ADR 0033)
-	"internal/backup/s3",   // sending them to S3-compatible storage, with no SDK
-	"internal/backup/seal", // sealing them before they leave
+	"internal/agent/files",    // a server's files, for a person (ADR 0032)
+	"internal/agent/logs",     // reading logs, and keeping those of removed containers (ADR 0025)
+	"internal/agent/terminal", // a server's terminals, for a person (ADR 0037)
+	"internal/backup",         // taking and restoring backups on this server (ADR 0033)
+	"internal/backup/s3",      // sending them to S3-compatible storage, with no SDK
+	"internal/backup/seal",    // sealing them before they leave
 	"internal/buildinfo",
 	"internal/cli",
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build

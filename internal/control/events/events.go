@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/control/terminals"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -75,7 +76,9 @@ const (
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
-	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear}
+	serverActions = slices.Concat([]string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear},
+		// Who had a root shell on a server, and when (ADR 0037).
+		terminals.Actions)
 	healthActions = []string{health.Action}
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
@@ -494,8 +497,16 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Id: a.ID, Kind: dockwellv1.EventKind_EVENT_KIND_ACCESS, Action: a.Action, Time: timestamppb.New(a.At),
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
-	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed {
+	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed ||
+		slices.Contains(terminals.Actions, a.Action) {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
+	}
+	if slices.Contains(terminals.Actions, a.Action) {
+		// As for backups: only internal/control/terminals writes these, and what it
+		// writes holds nothing typed or printed.
+		if told, ok := terminals.ReadTold(a.Detail); ok {
+			e.Terminal = told.Proto()
+		}
 	}
 	if a.Action == health.Action {
 		// The one kind of event whose detail leaves the store: it holds what

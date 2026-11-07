@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -87,6 +88,8 @@ type testServer struct {
 	dataDir string
 	// backups takes its backups, when it has Docker.
 	backups *backup.Runner
+	// terms opens its terminals, as /bin/sh in a directory of its own.
+	terms *terminal.Manager
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -114,6 +117,7 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 		dataDir: t.TempDir(),
 	}
 	s.disk = agentfiles.New(s.dataDir, nil, nil)
+	s.terms = terminal.New(terminal.Options{Shell: []string{"/bin/sh"}, Home: t.TempDir()})
 	if withDrivers {
 		containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
 		s.drivers = resource.NewRegistry(&containers, &firewall.Driver{Backend: s.fw}, &service.Driver{Containers: containers})
@@ -125,6 +129,13 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 // connect runs the server's agent until stop, and waits for it.
 func (s *testServer) connect(t *testing.T, f *fullServer) {
 	t.Helper()
+	s.run(t)
+	waitConnected(t, f, s.id.ServerID, true)
+}
+
+// run runs the server's agent until stop, whether or not the control plane takes it.
+func (s *testServer) run(t *testing.T) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	// It says nothing of the world, whatever machine the test runs on.
@@ -133,7 +144,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Terminals: s.terms,
 	}
 	if s.backups != nil {
 		cfg.Backups = backup.Calls{Runner: s.backups}
@@ -145,7 +156,6 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	var once sync.Once
 	s.stop = func() { once.Do(func() { cancel(); <-done }) }
 	t.Cleanup(s.stop)
-	waitConnected(t, f, s.id.ServerID, true)
 }
 
 func waitConnected(t *testing.T, f *fullServer, server string, connected bool) {

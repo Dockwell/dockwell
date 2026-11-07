@@ -1639,6 +1639,69 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/terminals:
+        get:
+            tags:
+                - TerminalService
+            description: |-
+                ListTerminals returns your terminals on a server that are still open, from
+                 this session, oldest first. No API token can call it.
+            operationId: TerminalService_ListTerminals
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTerminalsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                OpenTerminal starts root's login shell on a server. It needs a proof from
+                 FinishStepUp, for opening a terminal on that server: call without it first,
+                 and it checks everything else, then refuses with the reason needs_step_up. A
+                 server has room for 8 terminals. No API token can call it.
+            operationId: TerminalService_OpenTerminal
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OpenTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OpenTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services:
         get:
             tags:
@@ -2328,6 +2391,77 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SignOutResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{terminalId}:close:
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                CloseTerminal hangs up a terminal's shell, as closing an SSH session does,
+                 and ends it. No API token can call it.
+            operationId: TerminalService_CloseTerminal
+            parameters:
+                - name: terminalId
+                  in: path
+                  description: The terminal's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CloseTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CloseTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{terminalId}:write:
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                WriteTerminal types into a terminal you're attached to, and changes its
+                 size. Each write says where it starts in all that's been typed, so one sent
+                 twice types nothing twice. A write the terminal hasn't room for is taken in
+                 part, and offset in the response says how much: send the rest after. No API
+                 token can call it.
+            operationId: TerminalService_WriteTerminal
+            parameters:
+                - name: terminalId
+                  in: path
+                  description: The terminal's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/WriteTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/WriteTerminalResponse'
                 default:
                     description: Default error response
                     content:
@@ -3221,6 +3355,7 @@ components:
                         - STEP_UP_ACTION_CREATE_TOKEN
                         - STEP_UP_ACTION_APPLY_ROOT_CHANGE
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_OPEN_TERMINAL
                     type: string
                     description: The action.
                     format: enum
@@ -3671,6 +3806,19 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
             description: CheckDomainResponse says what DNS says of it.
+        CloseTerminalRequest:
+            type: object
+            properties:
+                terminalId:
+                    type: string
+                    description: The terminal's ID.
+            description: CloseTerminalRequest names a terminal.
+        CloseTerminalResponse:
+            type: object
+            properties:
+                end:
+                    $ref: '#/components/schemas/TerminalEnd'
+            description: CloseTerminalResponse says how it ended.
         ComposeRefusal:
             type: object
             properties:
@@ -4547,6 +4695,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/EventPublicAddress'
                     description: What a person set of a server's public address, on such an event.
+                terminal:
+                    allOf:
+                        - $ref: '#/components/schemas/EventTerminal'
+                    description: |-
+                        The terminal, for a terminal's event. Its subject is the server. Numbered
+                         apart, as open work adds to this message.
             description: Event is one thing that happened.
         EventBackup:
             type: object
@@ -4673,6 +4827,29 @@ components:
                         Which file on it, for a file read, saved or refused on a server. Empty
                          otherwise.
             description: EventSubject names what an event is about.
+        EventTerminal:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The terminal's ID.
+                title:
+                    type: string
+                    description: Who it ran as and where, such as "root@hz-1".
+                openTime:
+                    type: string
+                    description: When it opened, on its closing.
+                    format: date-time
+                end:
+                    allOf:
+                        - $ref: '#/components/schemas/TerminalEnd'
+                    description: How it ended, on its closing.
+                error:
+                    type: string
+                    description: Why it didn't open, for people, on a terminal that didn't.
+            description: |-
+                EventTerminal is a terminal on a server, as its opening or closing tells of it.
+                 What was typed and printed in it is never kept.
         ExportComposeResponse:
             type: object
             properties:
@@ -5807,6 +5984,14 @@ components:
                         $ref: '#/components/schemas/Session'
                     description: Sessions, newest first.
             description: ListSessionsResponse lists sessions.
+        ListTerminalsResponse:
+            type: object
+            properties:
+                terminals:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Terminal'
+            description: ListTerminalsResponse is your open terminals there.
         ListTokensResponse:
             type: object
             properties:
@@ -6111,6 +6296,33 @@ components:
                  by name, as a Compose file's networks. A service reaches another on a
                  network they share by the other's name. Docker can't change a network,
                  so its spec can't change once it is made.
+        OpenTerminalRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                columns:
+                    type: integer
+                    description: The terminal's width, from 2 to 500 characters.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, from 1 to 200 lines.
+                    format: uint32
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for opening a terminal on this server. Call
+                         without it first: it checks everything else, then refuses with the reason
+                         needs_step_up.
+            description: OpenTerminalRequest names a server.
+        OpenTerminalResponse:
+            type: object
+            properties:
+                terminal:
+                    $ref: '#/components/schemas/Terminal'
+            description: OpenTerminalResponse is the terminal, running.
         Passkey:
             type: object
             properties:
@@ -8480,6 +8692,61 @@ components:
                     description: The port the app listens on inside its container, such as 5432.
                     format: uint32
             description: TcpCheck is a connection the agent makes to a container.
+        Terminal:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "trm_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                serverId:
+                    type: string
+                    description: The server it runs on.
+                title:
+                    type: string
+                    description: Who it runs as and where, as a prompt says it, such as "root@hz-1".
+                openTime:
+                    type: string
+                    description: When it opened.
+                    format: date-time
+                columns:
+                    type: integer
+                    description: Its width, in characters.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, in lines.
+                    format: uint32
+            description: Terminal is a shell on a server.
+        TerminalEnd:
+            type: object
+            properties:
+                reason:
+                    enum:
+                        - TERMINAL_END_REASON_UNSPECIFIED
+                        - TERMINAL_END_REASON_EXITED
+                        - TERMINAL_END_REASON_CLOSED
+                        - TERMINAL_END_REASON_DETACHED
+                        - TERMINAL_END_REASON_IDLE
+                        - TERMINAL_END_REASON_SIGNED_OUT
+                        - TERMINAL_END_REASON_AGENT_RESTARTED
+                        - TERMINAL_END_REASON_CONTROL_PLANE_RESTARTED
+                        - TERMINAL_END_REASON_SERVER_REMOVED
+                        - TERMINAL_END_REASON_FAILED
+                    type: string
+                    description: Why.
+                    format: enum
+                exitCode:
+                    type: integer
+                    description: The shell's exit status, when it exited.
+                    format: int32
+                time:
+                    type: string
+                    description: When.
+                    format: date-time
+                message:
+                    type: string
+                    description: What happened, for people, such as "The shell exited with code 0".
+            description: TerminalEnd says how a terminal ended.
         Tmpfs:
             type: object
             properties:
@@ -8715,6 +8982,37 @@ components:
                     type: string
                     description: The service, by its name in the entry's Compose file, such as "adminer".
             description: Web says what a person opens once an entry is installed.
+        WriteTerminalRequest:
+            type: object
+            properties:
+                terminalId:
+                    type: string
+                    description: The terminal's ID.
+                offset:
+                    type: string
+                    description: Where data starts in all that's been typed into the terminal.
+                data:
+                    type: string
+                    description: What's typed, 64 KiB at most.
+                    format: bytes
+                columns:
+                    type: integer
+                    description: The terminal's width, to change it. 0 leaves it.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, to change it. 0 leaves it.
+                    format: uint32
+            description: WriteTerminalRequest is what's typed, and the terminal's size.
+        WriteTerminalResponse:
+            type: object
+            properties:
+                offset:
+                    type: string
+                    description: |-
+                        How much of what's been typed the terminal has taken, in all. Short of the
+                         write's end when it hadn't room for all of it.
+            description: WriteTerminalResponse says how much the terminal has taken.
 tags:
     - name: AuthService
       description: |-
@@ -8896,6 +9194,23 @@ tags:
       description: |-
         SystemService describes the Dockwell install itself. It needs no sign-in, so
          the CLI, agents and other tools can check what they are talking to first.
+    - name: TerminalService
+      description: |-
+        TerminalService opens a shell on a server, through its agent, and carries
+         what's typed and what it prints. A server's shell is root's, so it's as good
+         as root: see docs/adr/0037-a-terminal-on-a-server.md and
+         docs/security/terminal.md.
+
+         Every method needs a signed-in session: no API token can call them, whatever
+         its scope. A terminal belongs to the person and the session that opened it,
+         and nobody else can reach it. Opening one takes a passkey, just now. Opening
+         and closing one are on record in Activity, and what's typed and printed is
+         never recorded.
+
+         A terminal runs on its server apart from any connection, so a client that
+         loses its stream attaches again from the last byte it had, and misses
+         nothing that fits in what the server keeps. AttachTerminal streams, so it
+         has no REST path.
     - name: TokenService
       description: |-
         TokenService manages API tokens: secrets for scripts, the CLI and

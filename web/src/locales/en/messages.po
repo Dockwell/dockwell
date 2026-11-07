@@ -15,6 +15,15 @@ msgstr ", secret"
 msgid ".env file"
 msgstr ".env file"
 
+#. placeholder {0}: formatBytes(lost, i18n.locale)
+#: src/features/terminal/TerminalPage.tsx
+msgid "· {0} it printed while you were away is gone"
+msgstr "· {0} it printed while you were away is gone"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
+msgstr "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
+
 #: src/features/system/StatusPage.tsx
 msgid "(modified)"
 msgstr "(modified)"
@@ -190,6 +199,11 @@ msgstr "{0} is offline"
 #: src/features/logs/LogFoot.tsx
 msgid "{0} of {1}"
 msgstr "{0} of {1}"
+
+#. placeholder {0}: names.get(tab.id) ?? tab.title
+#: src/features/terminal/TerminalPage.tsx
+msgid "{0} output"
+msgstr "{0} output"
 
 #. placeholder {0}: s.create
 #: src/features/activity/describe.ts
@@ -961,6 +975,10 @@ msgstr "{subject} is taken on"
 msgid "{target}, up to {size}"
 msgstr "{target}, up to {size}"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "{title} · through the agent"
+msgstr "{title} · through the agent"
+
 #: src/features/changes/notices.tsx
 msgid "{tool} still manages {container}"
 msgstr "{tool} still manages {container}"
@@ -1300,6 +1318,11 @@ msgstr "A service"
 msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
 
+#. placeholder {0}: server.name
+#: src/features/terminal/TerminalPage.tsx
+msgid "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
+msgstr "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "A tunnel on this server"
 msgstr "A tunnel on this server"
@@ -1628,6 +1651,10 @@ msgstr "and {morePorts} more"
 msgid "Another proxy"
 msgstr "Another proxy"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
+msgstr "Another tab or window attached to it, so what you type there goes to it. It goes on running."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Any image your server can pull, such as nginx:1.27."
 msgstr "Any image your server can pull, such as nginx:1.27."
@@ -1689,8 +1716,8 @@ msgid "API tokens"
 msgstr "API tokens"
 
 #: src/features/auth/messages.ts
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or terminal, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or terminal, or change how you sign in and your tokens. Sign in and do it in the panel."
 
 #: src/app/Providers.tsx
 #: src/features/changes/fields.tsx
@@ -1760,6 +1787,10 @@ msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "Asked for a passkey to apply {change}, and none came"
 
 #: src/features/activity/describe.ts
+msgid "Asked for a passkey to open a terminal on {server}, and none came"
+msgstr "Asked for a passkey to open a terminal on {server}, and none came"
+
+#: src/features/activity/describe.ts
 msgid "Asked for a passkey to save {path} on {server}, and none came"
 msgstr "Asked for a passkey to save {path} on {server}, and none came"
 
@@ -1797,6 +1828,7 @@ msgid "Back to {folder}"
 msgstr "Back to {folder}"
 
 #: src/features/servers/ContainerPage.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Back to the server"
 msgstr "Back to the server"
 
@@ -1963,9 +1995,17 @@ msgstr "Can't make a plan"
 msgid "Can't reach the control plane"
 msgstr "Can't reach the control plane"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Can't reach the terminal"
+msgstr "Can't reach the terminal"
+
 #: src/features/files/FilesPage.tsx
 msgid "Can't reach this server"
 msgstr "Can't reach this server"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Can't reach this terminal"
+msgstr "Can't reach this terminal"
 
 #: src/features/apps/DomainRecord.tsx
 msgid "Can't read DNS"
@@ -2193,6 +2233,10 @@ msgstr "Clear"
 msgid "Clear filters"
 msgstr "Clear filters"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Clear scrollback"
+msgstr "Clear scrollback"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Clear the filters"
 msgstr "Clear the filters"
@@ -2215,6 +2259,7 @@ msgid "Close"
 msgstr "Close"
 
 #: src/features/files/FileViewer.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Close {name}"
 msgstr "Close {name}"
 
@@ -2222,13 +2267,29 @@ msgstr "Close {name}"
 msgid "Close details"
 msgstr "Close details"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Close terminal"
+msgstr "Close terminal"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Close the search"
 msgstr "Close the search"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Close this tab"
+msgstr "Close this tab"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Close, and lose what you typed here?"
 msgstr "Close, and lose what you typed here?"
+
+#: src/features/activity/describe.ts
+msgid "Closed a terminal on {server}"
+msgstr "Closed a terminal on {server}"
+
+#: src/features/activity/describe.ts
+msgid "Closed a terminal on {server}, open {open}"
+msgstr "Closed a terminal on {server}, open {open}"
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Cloudflare connects to this server's port 80."
@@ -2318,9 +2379,17 @@ msgstr "Confirming this needs a passkey for this address, and you have none here
 msgid "Connected"
 msgstr "Connected"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Connected through the agent"
+msgstr "Connected through the agent"
+
 #: src/features/system/StatusPage.tsx
 msgid "Connecting"
 msgstr "Connecting"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Connecting through the agent"
+msgstr "Connecting through the agent"
 
 #: src/features/system/StatusPage.tsx
 msgid "Connecting to the control plane"
@@ -2434,6 +2503,10 @@ msgstr "Copy of a running app"
 msgid "Copy path {shown}"
 msgstr "Copy path {shown}"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Copy selection"
+msgstr "Copy selection"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "Copy the image"
@@ -2501,6 +2574,10 @@ msgstr "Couldn't let go of"
 #: src/features/activity/describe.ts
 msgid "Couldn't open {path} on {server}"
 msgstr "Couldn't open {path} on {server}"
+
+#: src/features/activity/describe.ts
+msgid "Couldn't open a terminal on {server}"
+msgstr "Couldn't open a terminal on {server}"
 
 #: src/features/apps/revision.ts
 msgid "Couldn't place it on {added}"
@@ -3251,6 +3328,10 @@ msgstr "Email"
 msgid "Encrypted on each server before upload"
 msgstr "Encrypted on each server before upload"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Ended"
+msgstr "Ended"
+
 #: src/features/activity/describe.ts
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "Ended an authenticator app's setup after 5 wrong codes"
@@ -3480,6 +3561,18 @@ msgstr "Filter domains"
 #: src/features/logs/LogsPage.tsx
 msgid "Filter log lines"
 msgstr "Filter log lines"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Find in scrollback"
+msgstr "Find in scrollback"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Find the one after"
+msgstr "Find the one after"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Find the one before"
+msgstr "Find the one before"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Finding your projects"
@@ -3715,6 +3808,10 @@ msgstr "Hover or focus a server to inspect it."
 msgid "How"
 msgstr "How"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "How it ended"
+msgstr "How it ended"
+
 #: src/features/backups/PolicySheet.tsx
 msgid "How often"
 msgstr "How often"
@@ -3917,6 +4014,18 @@ msgstr "It couldn't be fetched: {0}"
 #: src/features/backups/BackupsPage.tsx
 msgid "It didn't reach {0}: {1}"
 msgstr "It didn't reach {0}: {1}"
+
+#: src/features/terminal/words.ts
+msgid "It ended while this page wasn't attached to it."
+msgstr "It ended while this page wasn't attached to it."
+
+#: src/features/terminal/words.ts
+msgid "It exited with code {code}."
+msgstr "It exited with code {code}."
+
+#: src/features/terminal/words.ts
+msgid "It exited with code 0."
+msgstr "It exited with code 0."
 
 #: src/features/apps/Health.tsx
 msgid "It has no container on this server."
@@ -4185,6 +4294,14 @@ msgstr "its server"
 #: src/features/backups/BackupsPage.tsx
 msgid "Its server can't restore this now: it's away, or no longer has the volume"
 msgstr "Its server can't restore this now: it's away, or no longer has the volume"
+
+#: src/features/terminal/words.ts
+msgid "Its server was removed from Dockwell."
+msgstr "Its server was removed from Dockwell."
+
+#: src/features/terminal/words.ts
+msgid "Its shell hung up, as an SSH session does."
+msgstr "Its shell hung up, as an SSH session does."
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its site"
@@ -4700,6 +4817,10 @@ msgstr "New app"
 msgid "New recovery codes"
 msgstr "New recovery codes"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "New session"
+msgstr "New session"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
 msgstr "New value"
@@ -4853,6 +4974,14 @@ msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server
 msgid "No steps: it left the fleet"
 msgstr "No steps: it left the fleet"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "No terminal open"
+msgstr "No terminal open"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "No terminal opened"
+msgstr "No terminal opened"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
 msgstr "No tokens yet. Make one for each script or integration, so you can revoke one alone."
@@ -4872,6 +5001,10 @@ msgstr "Nobody can say how {name} runs"
 #: src/features/apps/Health.tsx
 msgid "Nobody can say how {name} runs now."
 msgstr "Nobody can say how {name} runs now."
+
+#: src/features/terminal/words.ts
+msgid "Nobody was connected to it for 10 minutes, so its shell hung up."
+msgstr "Nobody was connected to it for 10 minutes, so its shell hung up."
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -4914,6 +5047,10 @@ msgstr "Not every server is connected"
 #: src/features/shell/NotYet.tsx
 msgid "Not in this release yet"
 msgstr "Not in this release yet"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Not in what it keeps"
+msgstr "Not in what it keeps"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Not installed or not running"
@@ -5092,6 +5229,10 @@ msgstr "Nothing to change"
 msgid "Nothing to show until {servers} is back"
 msgstr "Nothing to show until {servers} is back"
 
+#: src/features/terminal/words.ts
+msgid "Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open."
+msgstr "Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open."
+
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing was written in this time"
 msgstr "Nothing was written in this time"
@@ -5249,6 +5390,14 @@ msgstr "Open {name}"
 msgid "Open {where}"
 msgstr "Open {where}"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Open a new terminal"
+msgstr "Open a new terminal"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Open a terminal"
+msgstr "Open a terminal"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
 msgstr "Open plan"
@@ -5276,6 +5425,10 @@ msgstr "Open ports 80 and 443 in the VPC's firewall rules, or tick Allow HTTP tr
 #: src/features/servers/network.ts
 msgid "Open ports 80 and 443 in your provider's firewall and in the machine's own."
 msgstr "Open ports 80 and 443 in your provider's firewall and in the machine's own."
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Open somewhere else"
+msgstr "Open somewhere else"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the activity"
@@ -5337,6 +5490,22 @@ msgstr "Open your profile and security settings"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Open-source apps you can install in one step"
 msgstr "Open-source apps you can install in one step"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Opened"
+msgstr "Opened"
+
+#: src/features/activity/describe.ts
+msgid "Opened a terminal on {server}"
+msgstr "Opened a terminal on {server}"
+
+#: src/features/activity/describe.ts
+msgid "Opened a terminal on {server}, as {as}"
+msgstr "Opened a terminal on {server}, as {as}"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Opens a plan"
@@ -5452,6 +5621,10 @@ msgstr "Passphrase"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Passphrase copied"
 msgstr "Passphrase copied"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Paste"
+msgstr "Paste"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Paste a Compose file to review its plan"
@@ -5845,6 +6018,10 @@ msgstr "QR code for your authenticator app"
 msgid "Queued"
 msgstr "Queued"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Ran as"
+msgstr "Ran as"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Reachable"
 msgstr "Reachable"
@@ -5973,6 +6150,7 @@ msgid "Recommended. It needs no public address and no forwarded port."
 msgstr "Recommended. It needs no public address and no forwarded port."
 
 #: src/features/servers/FleetNotes.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Reconnecting"
 msgstr "Reconnecting"
 
@@ -6587,6 +6765,10 @@ msgstr "See why"
 msgid "Seen as its agent connected, {when}. That's its way out, and may not be a way in"
 msgstr "Seen as its agent connected, {when}. That's its way out, and may not be a way in"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Select text in the terminal to copy it"
+msgstr "Select text in the terminal to copy it"
+
 #: src/features/changes/fields.tsx
 msgid "SELinux label"
 msgstr "SELinux label"
@@ -6669,7 +6851,12 @@ msgstr "service"
 msgid "Serving"
 msgstr "Serving"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Session options"
+msgstr "Session options"
+
 #: src/features/auth/SessionsPanel.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Sessions"
 msgstr "Sessions"
 
@@ -6752,6 +6939,10 @@ msgstr "Show earlier lines"
 #: src/features/logs/LogsPage.tsx
 msgid "Show in context"
 msgstr "Show in context"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Show it here"
+msgstr "Show it here"
 
 #: src/features/catalog/InstalledPanel.tsx
 msgid "Show its secrets"
@@ -7011,6 +7202,10 @@ msgstr "Stop {running} for each backup"
 msgid "Stop backing up {volume} on a schedule"
 msgstr "Stop backing up {volume} on a schedule"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Stop finding"
+msgstr "Stop finding"
+
 #. placeholder {0}: d.name
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Stop sending backups to {0}"
@@ -7086,6 +7281,16 @@ msgstr "Taking on"
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
 msgstr "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
+
+#: src/features/activity/ActivityPage.tsx
+#: src/features/servers/ServerFrame.tsx
+#: src/features/terminal/TerminalPage.tsx
+msgid "Terminal"
+msgstr "Terminal"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Terminal sessions"
+msgstr "Terminal sessions"
 
 #: src/features/auth/messages.ts
 msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
@@ -7311,6 +7516,10 @@ msgstr "The control plane is running"
 msgid "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
 msgstr "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
 
+#: src/features/terminal/words.ts
+msgid "The control plane restarted."
+msgstr "The control plane restarted."
+
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
 msgstr "the control plane runs {controlPlane}"
@@ -7480,6 +7689,10 @@ msgstr "the panel's domain, {path}, which moves behind {detail}"
 msgid "The passkey prompt closed before it finished. Try again when you're ready."
 msgstr "The passkey prompt closed before it finished. Try again when you're ready."
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "The passkey prompt closed, so no terminal opened. Open one when you're ready."
+msgstr "The passkey prompt closed, so no terminal opened. Open one when you're ready."
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready."
 msgstr "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready."
@@ -7552,6 +7765,10 @@ msgstr "the server path {path}, which leads to {leadsTo} ({how})"
 msgid "the server path {path}, which leads to Docker's socket at {leadsTo}, which gives control of Docker on the server, the same as root"
 msgstr "the server path {path}, which leads to Docker's socket at {leadsTo}, which gives control of Docker on the server, the same as root"
 
+#: src/features/terminal/words.ts
+msgid "The server's agent restarted, and its shell with it."
+msgstr "The server's agent restarted, and its shell with it."
+
 #: src/features/changes/words.ts
 msgid "the server's own network"
 msgstr "the server's own network"
@@ -7567,6 +7784,14 @@ msgstr "The server's security rests on what that reaches, so it is as good as ro
 #: src/features/logs/LogsPage.tsx
 msgid "The servers have no lines of this app."
 msgstr "The servers have no lines of this app."
+
+#: src/features/terminal/words.ts
+msgid "The session that opened it ended."
+msgstr "The session that opened it ended."
+
+#: src/features/terminal/words.ts
+msgid "The shell exited"
+msgstr "The shell exited"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
@@ -7924,6 +8149,26 @@ msgstr "This stopped before it changed anything on the server."
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "This stopped before it reached that, and Dockwell put back the rest."
 
+#: src/features/terminal/words.ts
+msgid "This terminal closed"
+msgstr "This terminal closed"
+
+#: src/features/terminal/words.ts
+msgid "This terminal has ended"
+msgstr "This terminal has ended"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "This terminal is open somewhere else"
+msgstr "This terminal is open somewhere else"
+
+#: src/features/terminal/words.ts
+msgid "This terminal stopped"
+msgstr "This terminal stopped"
+
+#: src/features/terminal/words.ts
+msgid "This terminal was closed"
+msgstr "This terminal was closed"
+
 #. placeholder {0}: said.database
 #: src/features/backups/BackUpSheet.tsx
 msgid "This uses {0}'s own dump, with the database running, so nothing stops. A dump restores on a newer version too."
@@ -7932,6 +8177,10 @@ msgstr "This uses {0}'s own dump, with the database running, so nothing stops. A
 #: src/features/logs/LogsPage.tsx
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Through the agent"
+msgstr "Through the agent"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Time"
@@ -8059,6 +8308,7 @@ msgstr "trend"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Try again"
 msgstr "Try again"
 
@@ -8641,6 +8891,10 @@ msgstr "What you see may be out of date. {0}"
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "what you type waits"
+msgstr "what you type waits"
+
 #: src/features/files/FileViewer.tsx
 msgid "What you typed is still here."
 msgstr "What you typed is still here."
@@ -8698,6 +8952,10 @@ msgstr "Who"
 #: src/features/changes/words.ts
 msgid "whoever comes through {list}"
 msgstr "whoever comes through {list}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Why"
+msgstr "Why"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Why it failed"

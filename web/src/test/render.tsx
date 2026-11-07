@@ -19,6 +19,7 @@ import {
   ServerService,
   ServiceService,
   SystemService,
+  TerminalService,
   TokenService,
   VariableService,
 } from "@dockwell/api";
@@ -54,6 +55,7 @@ export type Api = {
   containers?: Partial<ServiceImpl<typeof ContainerService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
+  terminals?: Partial<ServiceImpl<typeof TerminalService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -100,6 +102,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
       service(FileService, api.files ?? {});
+      service(TerminalService, { listTerminals: () => ({}), ...api.terminals });
       service(BackupService, {
         listBackups: () => ({}),
         listBackupPolicies: () => ({}),
