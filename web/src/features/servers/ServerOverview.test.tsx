@@ -7,6 +7,7 @@ import {
   BuildInfoSchema,
   CloudProvider,
   Connection,
+  DeploymentState,
   DiskSchema,
   HealthState,
   NetworkShape,
@@ -193,6 +194,60 @@ describe("ServerOverview", () => {
     expect(getServerDiskUse).not.toHaveBeenCalled();
   });
 
+  it("draws each disk's used and free space while Docker adds up what takes it", async () => {
+    let answer: (v: { diskUse: typeof diskUse }) => void = () => {};
+    const getServerDiskUse = () => new Promise<{ diskUse: typeof diskUse }>((resolve) => (answer = resolve));
+    await renderServerWith({ servers: { getServerDiskUse } }, "/servers/srv_1", hz1);
+    const disks = await screen.findByRole("region", { name: "Disk usage" });
+    expect(await within(disks).findByRole("img", { name: "/: 61 GB used, 99 GB free, of 160 GB" })).toBeVisible();
+    expect(disks).toHaveTextContent("Adding up what takes the disk Docker keeps its data on.");
+    act(() => answer({ diskUse }));
+    await within(disks).findByText("Images");
+    expect(disks).not.toHaveTextContent("Adding up");
+  });
+
+  it("asks nothing of a disk while its agent can't read Docker", async () => {
+    const getServerDiskUse = vi.fn(() => ({ diskUse }));
+    await renderServerWith(
+      { servers: { getServerDiskUse } },
+      "/servers/srv_1",
+      aServer({ ...hz1, dockerUnreadableSince: timestampFromDate(new Date(2026, 10, 4, 11, 50)) }),
+    );
+    const disks = await screen.findByRole("region", { name: "Disk usage" });
+    expect(disks).toHaveTextContent("38% of 160 GB used");
+    expect(getServerDiskUse).not.toHaveBeenCalled();
+  });
+
+  it("doesn't ask again for the disk when the tab comes back into focus", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const getServerDiskUse = vi.fn(() => ({ diskUse }));
+    await renderServerWith({ servers: { getServerDiskUse } }, "/servers/srv_1", hz1);
+    await within(await screen.findByRole("region", { name: "Disk usage" })).findByText("Images");
+    // Long enough that the answer is old, and short of the next ask.
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    act(() => {
+      window.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(getServerDiskUse).toHaveBeenCalledTimes(1);
+  });
+
+  it("says when Docker counts more than the disk has used, and draws used and free alone", async () => {
+    const elsewhere = create(ServerDiskUseSchema, { ...diskUse, volumesBytes: BigInt(80 * GiB) });
+    await renderServerWith({ servers: { getServerDiskUse: () => ({ diskUse: elsewhere }) } }, "/servers/srv_1", hz1);
+    const disks = await screen.findByRole("region", { name: "Disk usage" });
+    expect(
+      await within(disks).findByText(
+        "Docker counts 102 GB for its images, volumes, containers and logs, more than the 61 GB used on this disk, as some of it is on another disk. So this shows what's used and free.",
+      ),
+    ).toBeVisible();
+    expect(within(disks).getByRole("img", { name: "/: 61 GB used, 99 GB free, of 160 GB" })).toBeVisible();
+    expect(within(disks).queryByText("Images")).toBeNull();
+    // The disk says its mount point once.
+    expect(within(disks).getAllByText("/")).toHaveLength(1);
+  });
+
   it("counts the apps and domains on the server, and names what needs a look", async () => {
     const api: Api = {
       services: {
@@ -232,6 +287,68 @@ describe("ServerOverview", () => {
     expect(apps).toHaveAttribute("href", "/apps");
     const domains = await within(runs).findByRole("link", { name: /^3 domains/ });
     expect(domains).toHaveTextContent("3 domainsapi.example.com, shop.example.com and 1 more");
+  });
+
+  it("says how each app's deployment went on this server, not on another", async () => {
+    const at = timestampFromDate(new Date(2026, 10, 4, 11, 0));
+    const on = (state: DeploymentState, serverId = "srv_1") => ({
+      serverId,
+      serverName: serverId,
+      state,
+      updateTime: at,
+    });
+    const api: Api = {
+      services: {
+        listServices: () => ({
+          services: [
+            anApp("web", "nginx:1.27", {}, { deployments: [on(DeploymentState.FAILED)] }),
+            anApp(
+              "api",
+              "ghcr.io/acme/api:2",
+              {},
+              { deployments: [on(DeploymentState.LIVE), on(DeploymentState.FAILED, "srv_2")] },
+            ),
+            anApp("worker", "ghcr.io/acme/worker:1", {}, { deployments: [on(DeploymentState.PENDING)] }),
+          ],
+        }),
+      },
+      health: {
+        listHealth: () => ({
+          services: [
+            aHealth("svc_web", { state: HealthState.HEALTHY }),
+            aHealth("svc_api", { state: HealthState.HEALTHY }),
+            aHealth("svc_worker", { state: HealthState.HEALTHY }),
+          ],
+        }),
+      },
+    };
+    await renderServerWith(api, "/servers/srv_1", hz1);
+    const runs = await screen.findByRole("region", { name: "What runs here" });
+    const apps = await within(runs).findByRole("link", { name: /^3 apps/ });
+    await waitFor(() => expect(apps).toHaveTextContent("3 apps1 healthy · web failed · worker deploying"));
+  });
+
+  it("counts every app it can't read the health of as unknown, so the counts add up", async () => {
+    const api: Api = {
+      services: {
+        listServices: () => ({
+          services: [
+            anApp("web", "nginx:1.27"),
+            anApp("api", "ghcr.io/acme/api:2"),
+            anApp("worker", "ghcr.io/acme/worker:1"),
+          ],
+        }),
+      },
+      health: {
+        listHealth: () => {
+          throw new ConnectError("the control plane is busy", Code.Unavailable);
+        },
+      },
+    };
+    await renderServerWith(api, "/servers/srv_1", hz1);
+    const runs = await screen.findByRole("region", { name: "What runs here" });
+    const apps = await within(runs).findByRole("link", { name: /^3 apps/ });
+    await waitFor(() => expect(apps).toHaveTextContent("3 apps3 unknown"));
   });
 
   it("invites an app and a domain on a server with neither, and opens the one app it has", async () => {

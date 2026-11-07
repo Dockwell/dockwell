@@ -4,6 +4,7 @@ package fleet
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"testing"
@@ -268,31 +269,30 @@ func TestWatch(t *testing.T) {
 	if len(snapshot) != 2 || snapshot[0].GetName() != "hz-1" {
 		t.Fatalf("snapshot = %v", snapshot)
 	}
+	next := func(i int) Update {
+		t.Helper()
+		select {
+		case u := <-updates:
+			return u
+		case <-time.After(time.Second):
+			t.Fatalf("update %d never came", i)
+			return Update{}
+		}
+	}
 
 	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_B"}, inventory, nil); err != nil {
 		t.Fatal(err)
 	}
-	h.Record("srv_B", stats(42))
-	h.Removed("srv_A")
-
-	want := []func(Update) bool{
-		func(u Update) bool {
-			return u.Server.GetId() == "srv_B" && u.Server.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED
-		},
-		func(u Update) bool {
-			return u.Server.GetStats().GetCpuPercent() == 42 && len(u.Server.GetHistory()) == 0
-		},
-		func(u Update) bool { return u.Removed && u.Server.GetId() == "srv_A" },
+	if u := next(0); u.Server.GetId() != "srv_B" || u.Server.GetConnection() != dockwellv1.Connection_CONNECTION_CONNECTED {
+		t.Errorf("as it connects: %+v", u)
 	}
-	for i, ok := range want {
-		select {
-		case u := <-updates:
-			if !ok(u) {
-				t.Errorf("update %d = %+v", i, u)
-			}
-		case <-time.After(time.Second):
-			t.Fatalf("update %d never came", i)
-		}
+	h.Record("srv_B", stats(42))
+	if u := next(1); u.Server.GetStats().GetCpuPercent() != 42 || len(u.Server.GetHistory()) != 0 {
+		t.Errorf("a sample: %+v, want it without the history", u)
+	}
+	h.Removed("srv_A")
+	if u := next(2); !u.Removed || u.Server.GetId() != "srv_A" {
+		t.Errorf("as it goes: %+v", u)
 	}
 
 	cancel()
@@ -306,26 +306,73 @@ func TestWatch(t *testing.T) {
 	}
 }
 
-func TestASlowWatcherIsDroppedNotWaitedFor(t *testing.T) {
-	h, _ := newHub(t, "hz-1")
+// A watcher that doesn't read holds up no agent, and isn't dropped: once it reads,
+// it's sent each server as it stands, in the order they first changed, and the
+// last word of one that went.
+func TestASlowWatcherGetsTheLatestOfEachServer(t *testing.T) {
+	h, _ := newHub(t, "hz-1", "hz-2")
 	_, updates := h.Watch(t.Context())
-	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil); err != nil {
+	if _, err := h.Attach(t.Context(), store.Server{ID: "srv_B"}, inventory, nil); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan struct{})
 	go func() {
-		for i := range watcherBuffer * 2 {
-			h.Record("srv_A", stats(float64(i)))
+		for i := range 1000 {
+			h.Record("srv_B", stats(float64(i)))
 		}
+		h.Removed("srv_A")
 		close(done)
 	}()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("a watcher that never reads blocked the agents")
+		t.Fatal("a watcher that never reads held up the agents")
 	}
-	for range updates {
-		// Drain until the hub drops this watcher and closes the channel.
+	// srv_B's connecting may have gone before the samples came, as the watcher
+	// takes what changed as soon as anything does.
+	var got []Update
+	for len(got) == 0 || !got[len(got)-1].Removed {
+		select {
+		case u, open := <-updates:
+			if !open {
+				t.Fatalf("the watch closed after %v", got)
+			}
+			got = append(got, u)
+		case <-time.After(time.Second):
+			t.Fatalf("after %v, srv_A's going never came", got)
+		}
+	}
+	n := len(got)
+	if n < 2 || n > 3 || got[n-1].Server.GetId() != "srv_A" ||
+		got[n-2].Server.GetId() != "srv_B" || got[n-2].Server.GetStats().GetCpuPercent() != 999 {
+		t.Errorf("got %v, want srv_B as it stands, once or twice, then srv_A gone", got)
+	}
+}
+
+// A watch that opens as a big fleet answers the faster pace at once, each agent
+// with a sample, is sent each server, and stays open.
+func TestAWatchKeepsUpWithAFleetAnsweringAtOnce(t *testing.T) {
+	h, _ := newHub(t)
+	const servers = 1000
+	for i := range servers {
+		id := fmt.Sprintf("srv_%04d", i)
+		h.Joined(store.Server{ID: id, Name: id})
+	}
+	_, updates := h.Watch(t.Context())
+	for i := range servers {
+		h.Record(fmt.Sprintf("srv_%04d", i), stats(1))
+	}
+	seen := map[string]bool{}
+	for len(seen) < servers {
+		select {
+		case u, open := <-updates:
+			if !open {
+				t.Fatalf("the watch closed after %d servers", len(seen))
+			}
+			seen[u.Server.GetId()] = true
+		case <-time.After(2 * time.Second):
+			t.Fatalf("only %d of %d servers came", len(seen), servers)
+		}
 	}
 }
 

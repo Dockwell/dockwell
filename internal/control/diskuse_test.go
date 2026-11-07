@@ -3,6 +3,8 @@
 package control
 
 import (
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -79,5 +81,27 @@ func testDiskUseIsAskedForAndKeptAWhile(t *testing.T, backend store.Backend) {
 	_, err = sc.GetServerDiskUse(t.Context(), connect.NewRequest(&dockwellv1.GetServerDiskUseRequest{Id: id}))
 	if connect.CodeOf(err) != connect.CodeUnavailable || !strings.Contains(err.Error(), "isn't connected") {
 		t.Errorf("a server whose agent has gone: %v, want Unavailable, saying why", err)
+	}
+}
+
+// When Docker can't say, the page hears why once, in the server's words, with what
+// to do: not "can't say" twice over.
+func TestDiskUseSaysWhyDockerCouldnt(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/system/df") {
+			return errors.New("the disk is busy")
+		}
+		return nil
+	})
+	sc := dockwellv1connect.NewServerServiceClient(b, b.origin, connect.WithProtoJSON())
+	_, err := sc.GetServerDiskUse(t.Context(), connect.NewRequest(&dockwellv1.GetServerDiskUseRequest{Id: f.lastDocker.id.ServerID}))
+	if connect.CodeOf(err) != connect.CodeUnavailable || !strings.Contains(err.Error(), "the disk is busy") {
+		t.Fatalf("Docker failing: %v, want Unavailable, with what Docker said", err)
+	}
+	if n := strings.Count(err.Error(), "can't say"); n != 1 {
+		t.Errorf("%q says it can't say %d times", err.Error(), n)
 	}
 }

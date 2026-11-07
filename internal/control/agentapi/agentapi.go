@@ -67,8 +67,8 @@ var _ agentv1connect.AgentServiceHandler = (*Handler)(nil)
 const (
 	// UnreachableAfter is how long an agent may stay silent before its
 	// stream is closed. Agents send stats every fleet.StatsInterval while
-	// anyone watches, and every fleet.IdleInterval, half of this, while
-	// nobody does.
+	// anyone watches, and every fleet.IdleInterval, a third of this, while
+	// nobody does, so two samples can be late before it closes.
 	UnreachableAfter = 30 * time.Second
 	revocationCheck  = 30 * time.Second
 )
@@ -103,9 +103,10 @@ func NewHandler(auth *identity.Authority, hub *fleet.Hub, logger *slog.Logger, o
 }
 
 // paceFor is the pace agents are told: the hub's, but never so slow that a stream
-// says nothing for half the time it may stay silent.
+// says nothing for a third of the time it may stay silent, so a slow uplink or a
+// sample delayed by TCP's backoff doesn't close it.
 func (h *Handler) paceFor(pace time.Duration) time.Duration {
-	return min(pace, h.silence/2)
+	return min(pace, h.silence/3)
 }
 
 // identify puts the server a verified client certificate names into the
@@ -243,9 +244,16 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 		}
 		detach()
 	}()
+	// An agent from before paces follows none, and its samples say none: it's
+	// welcomed at the pace for watching and stays there, as before paces, and its
+	// samples are said to be at that pace, so its trends read true (ADR 0040).
+	told := h.paceFor(fleet.StatsInterval)
+	if hello.GetFollowsPace() {
+		told = h.paceFor(h.fleet.Pace())
+	}
 	if err := stream.Send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Welcome{Welcome: &agentv1.Welcome{
 		ServerName:    srv.Name,
-		StatsInterval: durationpb.New(h.paceFor(h.fleet.Pace())),
+		StatsInterval: durationpb.New(told),
 	}}}); err != nil {
 		return err
 	}
@@ -280,7 +288,11 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 			silence.Reset(h.silence)
 			switch {
 			case msg.GetStats() != nil:
-				h.fleet.Record(peer.ServerID, msg.GetStats())
+				stats := msg.GetStats()
+				if !hello.GetFollowsPace() {
+					stats.Interval = durationpb.New(told)
+				}
+				h.fleet.Record(peer.ServerID, stats)
 			case msg.GetNetwork() != nil:
 				h.fleet.RecordNetwork(peer.ServerID, msg.GetNetwork())
 			case msg.GetResult() != nil && session != nil:

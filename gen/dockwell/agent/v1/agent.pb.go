@@ -1052,7 +1052,12 @@ type Hello struct {
 	// True when the agent refuses a save to what can let someone back onto the
 	// server unless a passkey confirmed it. Only the agent can tell where a path
 	// leads, so the control plane saves through no agent that doesn't.
-	GuardsWaysIn  bool `protobuf:"varint,7,opt,name=guards_ways_in,json=guardsWaysIn,proto3" json:"guards_ways_in,omitempty"`
+	GuardsWaysIn bool `protobuf:"varint,7,opt,name=guards_ways_in,json=guardsWaysIn,proto3" json:"guards_ways_in,omitempty"`
+	// True when the agent sends stats at the pace each Pace says, and says the
+	// pace on each sample. One that doesn't is welcomed at the pace for
+	// watching, and stays there, and the control plane says that pace on its
+	// samples. Numbered apart, as open work adds to this message.
+	FollowsPace   bool `protobuf:"varint,40,opt,name=follows_pace,json=followsPace,proto3" json:"follows_pace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1132,6 +1137,13 @@ func (x *Hello) GetWritesReferences() bool {
 func (x *Hello) GetGuardsWaysIn() bool {
 	if x != nil {
 		return x.GuardsWaysIn
+	}
+	return false
+}
+
+func (x *Hello) GetFollowsPace() bool {
+	if x != nil {
+		return x.FollowsPace
 	}
 	return false
 }
@@ -1280,8 +1292,8 @@ type ConnectResponse_PublicAddress struct {
 
 type ConnectResponse_Pace struct {
 	// How often to send stats from now on, as whether anyone is watching
-	// changes. Numbered apart, as open work adds to this message. An agent
-	// from before this goes on at the pace its welcome said.
+	// changes, to an agent whose hello says it follows a pace. Numbered apart,
+	// as open work adds to this message.
 	Pace *Pace `protobuf:"bytes,40,opt,name=pace,proto3,oneof"`
 }
 
@@ -1512,7 +1524,8 @@ type Welcome struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name the control plane knows the server by.
 	ServerName string `protobuf:"bytes,1,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
-	// How often the agent should send stats, until a Pace says otherwise.
+	// How often the agent should send stats, until a Pace says otherwise. An
+	// agent that doesn't follow a pace hears the pace for watching.
 	StatsInterval *durationpb.Duration `protobuf:"bytes,2,opt,name=stats_interval,json=statsInterval,proto3" json:"stats_interval,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -5830,7 +5843,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\n" +
 	"\n" +
-	"\bDraining\"\xc3\x02\n" +
+	"\bDraining\"\xe6\x02\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -5838,7 +5851,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\vunavailable\x18\x04 \x03(\v2\".dockwell.agent.v1.UnavailableKindR\vunavailable\x12!\n" +
 	"\fdelivery_key\x18\x05 \x01(\fR\vdeliveryKey\x12+\n" +
 	"\x11writes_references\x18\x06 \x01(\bR\x10writesReferences\x12$\n" +
-	"\x0eguards_ways_in\x18\a \x01(\bR\fguardsWaysIn\"\xee\x02\n" +
+	"\x0eguards_ways_in\x18\a \x01(\bR\fguardsWaysIn\x12!\n" +
+	"\ffollows_pace\x18( \x01(\bR\vfollowsPace\"\xee\x02\n" +
 	"\x0fConnectResponse\x126\n" +
 	"\awelcome\x18\x01 \x01(\v2\x1a.dockwell.agent.v1.WelcomeH\x00R\awelcome\x12-\n" +
 	"\x04call\x18\x02 \x01(\v2\x17.dockwell.agent.v1.CallH\x00R\x04call\x127\n" +

@@ -3,7 +3,9 @@
 package agent
 
 import (
+	"errors"
 	"io/fs"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -104,5 +106,81 @@ func TestDiskUseAsksDockerOnce(t *testing.T) {
 	}
 	if use.GetImagesUnusedBytes() != 40<<20 || use.GetContainers() != 0 {
 		t.Errorf("with no container, unused images = %d, containers %d", use.GetImagesUnusedBytes(), use.GetContainers())
+	}
+}
+
+// A count that failed isn't tried again for 30 s, so each page that opens doesn't
+// ask a Docker that's struggling once more; then it is.
+func TestDiskUseRemembersAFailure(t *testing.T) {
+	e := dockertest.New(t)
+	var mu sync.Mutex
+	asked := 0
+	e.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/system/df") {
+			mu.Lock()
+			defer mu.Unlock()
+			asked++
+			return errors.New("the disk is busy")
+		}
+		return nil
+	})
+	now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+	d := &diskUse{docker: e.Client(), collector: &collect.Collector{}, now: func() time.Time { return now }}
+	for range 3 {
+		if _, err := d.read(t.Context()); err == nil || !strings.Contains(err.Error(), "the disk is busy") {
+			t.Fatalf("read = %v, want what Docker said", err)
+		}
+	}
+	if asked != 1 {
+		t.Errorf("three asks within 30 s of a failure asked Docker %d times, want once", asked)
+	}
+	now = now.Add(diskUseFor)
+	_, _ = d.read(t.Context())
+	if asked != 2 {
+		t.Errorf("an ask 30 s on asked Docker %d times in all, want twice", asked)
+	}
+}
+
+// A Docker that doesn't answer where it keeps its data is given a few seconds,
+// not the minute a count takes, and nobody waits on it for longer.
+func TestDiskUseDoesntWaitLongForAHungDocker(t *testing.T) {
+	was := infoWait
+	infoWait = 100 * time.Millisecond
+	t.Cleanup(func() { infoWait = was })
+	e := dockertest.New(t)
+	e.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/info") {
+			<-r.Context().Done()
+		}
+		return nil
+	})
+	d := &diskUse{docker: e.Client(), collector: &collect.Collector{}, now: time.Now}
+	start := time.Now()
+	_, err := d.read(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "didn't say where it keeps its data") {
+		t.Errorf("read = %v, want that Docker didn't answer", err)
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Errorf("a hung Docker held the answer up for %s", took)
+	}
+}
+
+// A count that takes too long says so in words the control plane can put after
+// "web-1 can't say what takes its disk now:", without saying that twice.
+func TestDiskUseSaysACountTookTooLong(t *testing.T) {
+	was := diskUseWait
+	diskUseWait = 100 * time.Millisecond
+	t.Cleanup(func() { diskUseWait = was })
+	e := dockertest.New(t)
+	e.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/system/df") {
+			<-r.Context().Done()
+		}
+		return nil
+	})
+	d := &diskUse{docker: e.Client(), collector: &collect.Collector{}, now: time.Now}
+	_, err := d.read(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "took more than") || strings.Contains(err.Error(), "can't say") {
+		t.Errorf("a count that took too long: %v", err)
 	}
 }

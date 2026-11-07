@@ -116,7 +116,13 @@ let fakeSocket = "";
 async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   const path = values["fake-docker"];
   if (!path) return {};
-  docker = spawn(resolve(path), [join(data, "docker")], { stdio: ["ignore", "pipe", "inherit"] });
+  // Docker's data, as /info says it, is on the disk this checkout is on, which is a
+  // data disk here and in CI where a container's / isn't, so a server's Overview
+  // adds up that disk part by part. Nothing is written there.
+  docker = spawn(resolve(path), [join(data, "docker")], {
+    stdio: ["ignore", "pipe", "inherit"],
+    env: { ...process.env, FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root") },
+  });
   // A fake that dies, or says nothing, would otherwise hang until the job's timeout.
   const socket = await new Promise<string>((done, refused) => {
     const silent = setTimeout(() => refused(new Error(`${path} said nothing for 15 s, so it isn't serving`)), 15_000);
@@ -866,7 +872,7 @@ async function main() {
       image: "acme/legacy:prints",
     });
     await networkFlow(page, { origin, step, shoot });
-    await serverOverviewFlow(page, { origin, step, shoot });
+    await serverOverviewFlow(page, { origin, step, shoot, breakdown: values["fake-docker"] !== undefined });
     await settingsFlow(page, { origin, step, shoot });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");

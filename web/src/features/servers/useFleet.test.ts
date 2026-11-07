@@ -6,7 +6,7 @@ import { act, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { feed, renderHookWithApi } from "../../test/render";
-import { aServer, changed, gap, removed, sample, snapshotComplete } from "../../test/servers";
+import { aServer, changed, gap, heartbeat, removed, sample, snapshotComplete } from "../../test/servers";
 import { HISTORY_LENGTH } from "./history";
 import { type FleetState, useFleet } from "./useFleet";
 
@@ -201,5 +201,59 @@ describe("useFleet", () => {
     await vi.advanceTimersByTimeAsync(30_000);
 
     expect(calls()).toBe(1);
+  });
+
+  it("stops watching once the page has been out of sight a minute, and watches again when it's seen", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let visibility: DocumentVisibilityState = "visible";
+    const restore = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => visibility });
+    const show = (v: DocumentVisibilityState) => {
+      visibility = v;
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    try {
+      const first = feed<WatchServersResponse>();
+      const second = feed<WatchServersResponse>();
+      first.push(changed(aServer({ id: "srv_1", name: "hz-1" })), snapshotComplete);
+      second.push(changed(aServer({ id: "srv_1", name: "hz-1" })), changed(aServer({ id: "srv_2", name: "hz-2" })));
+      second.push(snapshotComplete);
+      const signals: AbortSignal[] = [];
+      const watches = [first, second];
+      const { result } = renderHookWithApi(() => useFleet(), {
+        servers: {
+          watchServers: (req, ctx) => {
+            signals.push(ctx.signal);
+            const watch = watches[signals.length - 1];
+            if (!watch) throw new Error("the test ran out of watches");
+            return watch.stream(req, ctx);
+          },
+        },
+      });
+      await waitFor(() => expect(names(result.current)).toEqual(["hz-1"]));
+
+      // The control plane's heartbeat, which keeps the watch from reading as stalled.
+      const away = async (ms: number) => {
+        for (let left = ms; left > 0; left -= 10_000) {
+          act(() => first.push(heartbeat));
+          await act(() => vi.advanceTimersByTimeAsync(Math.min(left, 10_000)));
+        }
+      };
+      act(() => show("hidden"));
+      await away(50_000);
+      expect(signals[0]?.aborted).toBe(false); // a moment away changes nothing
+      await away(15_000);
+      expect(signals[0]?.aborted).toBe(true);
+      expect(signals).toHaveLength(1);
+      // What it knew stays, for whoever comes back.
+      expect(names(result.current)).toEqual(["hz-1"]);
+
+      act(() => show("visible"));
+      await waitFor(() => expect(names(result.current)).toEqual(["hz-1", "hz-2"]));
+      expect(signals).toHaveLength(2);
+    } finally {
+      if (restore) Object.defineProperty(document, "visibilityState", restore);
+      else delete (document as { visibilityState?: unknown }).visibilityState;
+    }
   });
 });

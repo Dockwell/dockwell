@@ -1647,6 +1647,10 @@ msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，
 msgid "Adding up what takes the disk"
 msgstr "正在统计磁盘占用"
 
+#: src/features/servers/DiskUse.tsx
+msgid "Adding up what takes the disk Docker keeps its data on."
+msgstr "正在统计 Docker 数据所在磁盘的占用。"
+
 #: src/features/settings/GeneralPage.tsx
 msgid "Address"
 msgstr "地址"
@@ -2322,10 +2326,6 @@ msgstr "正在检查"
 #: src/features/auth/AuthGate.tsx
 msgid "Checking again."
 msgstr "正在重新检查。"
-
-#: src/features/servers/RunsHere.tsx
-msgid "Checking how they run"
-msgstr "正在检查运行状况"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -3150,6 +3150,12 @@ msgstr "DNS 指向一个不属于此服务器的私有地址"
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
 msgstr "Docker"
+
+#. placeholder {0}: bytes(counted)
+#. placeholder {1}: bytes(used)
+#: src/features/servers/DiskUse.tsx
+msgid "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
+msgstr "Docker 统计其镜像、卷、容器和日志共占 {0}，超过此磁盘已用的 {1}，因为其中一部分在另一块磁盘上。因此这里只显示已用和可用。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."

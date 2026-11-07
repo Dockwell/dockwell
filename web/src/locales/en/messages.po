@@ -1647,6 +1647,10 @@ msgstr "Adding a passkey needs one you have for this address, and you have none 
 msgid "Adding up what takes the disk"
 msgstr "Adding up what takes the disk"
 
+#: src/features/servers/DiskUse.tsx
+msgid "Adding up what takes the disk Docker keeps its data on."
+msgstr "Adding up what takes the disk Docker keeps its data on."
+
 #: src/features/settings/GeneralPage.tsx
 msgid "Address"
 msgstr "Address"
@@ -2322,10 +2326,6 @@ msgstr "Checking"
 #: src/features/auth/AuthGate.tsx
 msgid "Checking again."
 msgstr "Checking again."
-
-#: src/features/servers/RunsHere.tsx
-msgid "Checking how they run"
-msgstr "Checking how they run"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -3150,6 +3150,12 @@ msgstr "DNS points at a private address that isn't this server's"
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
 msgstr "Docker"
+
+#. placeholder {0}: bytes(counted)
+#. placeholder {1}: bytes(used)
+#: src/features/servers/DiskUse.tsx
+msgid "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
+msgstr "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
 
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."

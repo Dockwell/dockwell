@@ -4,8 +4,9 @@
 // its own agent: live numbers with their trends, what runs on the server as links,
 // what takes its disk, what it is, how it meets the network, and its agent. What
 // takes the disk comes from the fake Docker Engine's /system/df, added up on the disk
-// that holds Docker's data, which a machine whose / isn't a data disk hasn't got: then
-// the panel draws each disk's used and free space, as it does while Docker can't say.
+// that holds Docker's data, which sign-in.ts puts on the checkout's disk. On a real
+// Docker whose data isn't on a data disk, the panel draws each disk's used and free
+// space instead, as it does while Docker can't say.
 
 import type { Page } from "playwright-core";
 
@@ -13,13 +14,15 @@ interface ServerOverviewFlowOptions {
   origin: string;
   step: (message: string) => void;
   shoot: (page: Page, name: string) => Promise<void>;
+  /** Docker's data is on a data disk, so the panel must draw it part by part. */
+  breakdown: boolean;
 }
 
 function fail(message: string): never {
   throw new Error(message);
 }
 
-export async function serverOverviewFlow(page: Page, { origin, step, shoot }: ServerOverviewFlowOptions) {
+export async function serverOverviewFlow(page: Page, { origin, step, shoot, breakdown }: ServerOverviewFlowOptions) {
   step("a server's Overview: live numbers, what runs here, what takes the disk, and what the server is");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${origin}/`);
@@ -51,7 +54,18 @@ export async function serverOverviewFlow(page: Page, { origin, step, shoot }: Se
     .first()
     .waitFor({ timeout: 70_000 });
   const broken = (await disk.getByText("Images", { exact: true }).count()) > 0;
-  step(broken ? "  Docker's disk, part by part" : "  each disk's used and free, as / here isn't a data disk");
+  if (breakdown && !broken) fail(`the disk Docker's data is on isn't drawn part by part: ${await disk.innerText()}`);
+  if (broken) {
+    // Every part, the bar that draws them, and the disk they're of.
+    for (const part of ["Images", "Volumes", "Free"]) await disk.getByText(part, { exact: true }).waitFor();
+    const bar = await disk
+      .getByRole("img", { name: /^Disk usage of \/.*: Images .+, Volumes .+, Free .+, of .+$/ })
+      .count();
+    if (bar !== 1) fail(`the disk's bar doesn't name its parts: ${await disk.innerHTML()}`);
+    const images = await disk.getByText(/^\d+ images?( · .+)?$/).count();
+    if (images === 0) fail(`the images part doesn't count the fake Docker's images: ${await disk.innerText()}`);
+  }
+  step(broken ? "  Docker's disk, part by part" : "  each disk's used and free, as Docker's data isn't on a data disk");
   await page.getByRole("region", { name: "System" }).getByText("Swap", { exact: true }).waitFor();
   await page.getByRole("region", { name: "Network" }).getByText("Traffic", { exact: true }).waitFor();
   await page.getByRole("region", { name: "Agent" }).getByText("Memory", { exact: true }).waitFor();

@@ -29,8 +29,9 @@ import (
 	"github.com/dockwell/dockwell/internal/mounts"
 )
 
-// Collector samples one server. It is not safe for concurrent use: Stats
-// keeps the previous sample to compute rates.
+// Collector samples one server. Stats is not safe for concurrent use, as it
+// keeps the previous sample to compute rates. DiskOf keeps nothing, so it's safe
+// beside it, as a disk use call runs beside the stream's samples.
 type Collector struct {
 	// Root reads files such as "proc/stat". Defaults to the real root.
 	Root fs.FS
