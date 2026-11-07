@@ -6359,6 +6359,73 @@ msgstr "此浏览器已离线，因此面板无法确定你的服务器的情况
 msgid "You're offline"
 msgstr "你已离线"
 
+msgid "All activity"
+msgstr "全部动态"
+
+msgid "CPU above {HIGH}%"
+msgstr "CPU 超过 {HIGH}%"
+
+msgid "Copied {address}"
+msgstr "已复制 {address}"
+
+msgid "Copy {label} {address}"
+msgstr "复制{label} {address}"
+
+msgid "Docker hasn't answered since {since}."
+msgstr "Docker 自{since}起没有响应。"
+
+msgid "Memory above {HIGH}%"
+msgstr "内存超过 {HIGH}%"
+
+msgid "No apps here yet. Deploy one from an image or the catalog."
+msgstr "这里还没有应用。从镜像或应用目录部署一个。"
+
+msgid "Not known"
+msgstr "未知"
+
+msgid "Nothing has happened here yet."
+msgstr "这里还没有发生任何事。"
+
+msgid "Private IP"
+msgstr "私有 IP"
+
+msgid "Reading what happened here"
+msgstr "正在读取这里发生的事"
+
+msgid "Recent"
+msgstr "最近"
+
+msgid "Reporting"
+msgstr "正在上报"
+
+msgid "Runs here"
+msgstr "在此运行"
+
+msgid "Up {uptime}"
+msgstr "已运行 {uptime}"
+
+msgid "of {total}"
+msgstr "/ {total}"
+
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, other {# 个应用}}"
+
+msgid "{name} is waiting for its agent."
+msgstr "{name} 正在等待它的代理。"
+
+msgid "{name} isn't reporting."
+msgstr "{name} 没有上报。"
+
+msgid "{name} isn't reporting. It last did {seen}."
+msgstr "{name} 没有上报。它上次上报是在{seen}。"
+
+msgid "{replicas, plural, one {# replica} other {# replicas}}"
+msgstr "{replicas, plural, other {# 个副本}}"
+
+msgid "{used} of {total}"
+msgstr "{used} / {total}"
+
 msgid "Add one to reach an app at a name of yours"
 msgstr "添加一个，用你自己的域名访问应用"
 
@@ -6376,10 +6443,6 @@ msgstr "没有域名"
 
 msgid "What runs here"
 msgstr "在此运行"
-
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, other {# 个应用}}"
 
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# domain} other {# domains}}"
@@ -6483,9 +6546,6 @@ msgstr "网络"
 msgid "The agent reports no disks"
 msgstr "代理没有上报磁盘"
 
-msgid "of {total}"
-msgstr "/ {total}"
-
 msgid "{cpuAverage} on average over the last {span}"
 msgstr "最近 {span} 平均 {cpuAverage}"
 
@@ -6542,9 +6602,6 @@ msgstr "自 {ago}起没有响应，因此无法确定这里运行着什么。请
 
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
-
-msgid "Not known"
-msgstr "未知"
 
 msgid "Operating system"
 msgstr "操作系统"
@@ -6630,9 +6687,6 @@ msgstr "运行时间"
 
 msgid "Waiting for its agent"
 msgstr "等待代理连接"
-
-msgid "{used} of {total}"
-msgstr "{used} / {total}"
 
 msgid "Clear"
 msgstr "清除"

@@ -5,6 +5,7 @@ import { PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { ContainersPanel } from "./ContainersPanel";
 import { DiskUsePanel } from "./DiskUse";
 import { FleetUnreadNote } from "./FleetNotes";
+import { PhoneServer } from "./PhoneServer";
 import { RunsHere } from "./RunsHere";
 import { ServerCallout } from "./ServerCallout";
 import { ServerFrame } from "./ServerFrame";
@@ -25,9 +26,20 @@ export function ServerOverview({ id }: { id: string }) {
       {(server) => (
         <>
           {/* What it last said of itself can't stand, so that is what it says, and nothing it last said instead. */}
-          {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
-          <ServerMetrics server={server} fourth="load" compact={phone} />
-          <RunsHere server={server} />
+          {unread ? (
+            <FleetUnreadNote why={unread.why} heard={unread.heard} />
+          ) : phone ? null : (
+            <ServerCallout server={server} />
+          )}
+          {/* A phone leads with M-Server.dc.html's: how it is, what runs, and what happened. */}
+          {phone ? (
+            <PhoneServer server={server} />
+          ) : (
+            <>
+              <ServerMetrics server={server} fourth="load" />
+              <RunsHere server={server} />
+            </>
+          )}
           {/* What fills the disks, beside the containers Dockwell didn't make once the page has room for both. */}
           <div className="server-pair">
             <DiskUsePanel server={server} />

@@ -87,13 +87,20 @@ export async function serverOverviewFlow(page: Page, { origin, step, shoot, brea
   await page.goBack();
   await runs.waitFor();
 
-  step("the Overview fits the narrowest phone");
+  step("on a phone it leads with how the server is, what runs there, and what happened, and fits the narrowest");
+  await page.setViewportSize({ width: 390, height: 844 });
+  // The phone's page comes once the page has seen it's on a phone.
+  const status = page.getByRole("region", { name: "Status" });
+  await status.waitFor();
+  await status.getByRole("meter", { name: "CPU" }).waitFor();
+  await page.getByRole("region", { name: "Runs here" }).waitFor();
+  const recent = page.getByRole("region", { name: "Recent" });
+  await recent.locator("li").first().waitFor({ timeout: 15_000 });
+  await shoot(page, "server-overview-phone");
   await page.setViewportSize({ width: 360, height: 780 });
-  // The numbers go two by two once the page has seen it's on a phone.
-  await page.locator(".metrics.is-compact").waitFor();
-  await runs.waitFor();
+  await status.waitFor();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
-  if (wide > 360) fail(`the Overview is ${wide} px wide on a 360 px phone`);
+  if (wide > 360) fail(`the server's page is ${wide} px wide on a 360 px phone`);
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 

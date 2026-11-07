@@ -6359,6 +6359,73 @@ msgstr "This browser is offline, so the panel can't say how your servers are. It
 msgid "You're offline"
 msgstr "You're offline"
 
+msgid "All activity"
+msgstr "All activity"
+
+msgid "CPU above {HIGH}%"
+msgstr "CPU above {HIGH}%"
+
+msgid "Copied {address}"
+msgstr "Copied {address}"
+
+msgid "Copy {label} {address}"
+msgstr "Copy {label} {address}"
+
+msgid "Docker hasn't answered since {since}."
+msgstr "Docker hasn't answered since {since}."
+
+msgid "Memory above {HIGH}%"
+msgstr "Memory above {HIGH}%"
+
+msgid "No apps here yet. Deploy one from an image or the catalog."
+msgstr "No apps here yet. Deploy one from an image or the catalog."
+
+msgid "Not known"
+msgstr "Not known"
+
+msgid "Nothing has happened here yet."
+msgstr "Nothing has happened here yet."
+
+msgid "Private IP"
+msgstr "Private IP"
+
+msgid "Reading what happened here"
+msgstr "Reading what happened here"
+
+msgid "Recent"
+msgstr "Recent"
+
+msgid "Reporting"
+msgstr "Reporting"
+
+msgid "Runs here"
+msgstr "Runs here"
+
+msgid "Up {uptime}"
+msgstr "Up {uptime}"
+
+msgid "of {total}"
+msgstr "of {total}"
+
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, one {# app} other {# apps}}"
+
+msgid "{name} is waiting for its agent."
+msgstr "{name} is waiting for its agent."
+
+msgid "{name} isn't reporting."
+msgstr "{name} isn't reporting."
+
+msgid "{name} isn't reporting. It last did {seen}."
+msgstr "{name} isn't reporting. It last did {seen}."
+
+msgid "{replicas, plural, one {# replica} other {# replicas}}"
+msgstr "{replicas, plural, one {# replica} other {# replicas}}"
+
+msgid "{used} of {total}"
+msgstr "{used} of {total}"
+
 msgid "Add one to reach an app at a name of yours"
 msgstr "Add one to reach an app at a name of yours"
 
@@ -6376,10 +6443,6 @@ msgstr "No domains"
 
 msgid "What runs here"
 msgstr "What runs here"
-
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, one {# app} other {# apps}}"
 
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# domain} other {# domains}}"
@@ -6483,9 +6546,6 @@ msgstr "Network"
 msgid "The agent reports no disks"
 msgstr "The agent reports no disks"
 
-msgid "of {total}"
-msgstr "of {total}"
-
 msgid "{cpuAverage} on average over the last {span}"
 msgstr "{cpuAverage} on average over the last {span}"
 
@@ -6542,9 +6602,6 @@ msgstr "Not answering, since {ago}, so nobody can say what runs here. Check that
 
 msgid "Not installed or not running"
 msgstr "Not installed or not running"
-
-msgid "Not known"
-msgstr "Not known"
 
 msgid "Operating system"
 msgstr "Operating system"
@@ -6630,9 +6687,6 @@ msgstr "Up"
 
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
-
-msgid "{used} of {total}"
-msgstr "{used} of {total}"
 
 msgid "Clear"
 msgstr "Clear"
