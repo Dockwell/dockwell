@@ -22,8 +22,10 @@ export function ServerOverview({ id }: { id: string }) {
           {/* What it last said of itself can't stand, so that is what it says, and nothing it last said instead. */}
           {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
           <ServerMetrics server={server} fourth="load" compact={phone} />
-          <DisksPanel server={server} />
-          <ContainersPanel server={server} />
+          <div className="server-pair">
+            <DisksPanel server={server} />
+            <ContainersPanel server={server} />
+          </div>
           <div className="server-panels">
             <SystemPanel server={server} />
             <NetworkPanel server={server} />

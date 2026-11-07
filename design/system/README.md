@@ -82,16 +82,17 @@ The mocks are drawn at 1440px, where every page fills the room right of the rail
 
 | Kind | Token | For | Past 1440px |
 | --- | --- | --- | --- |
-| Wide | `page-wide` (1680px) | Lists, tables and dashboards: Overview, Apps, Servers, Websites, Databases, Domains, Backups, Activity, the catalog, a server's pages | Grids gain columns rather than stretch what's there |
+| Wide | `page-wide` (1680px) | Lists, tables and dashboards: Overview, Apps, Servers, Websites, Databases, Domains, Backups, Activity, the catalog, a server's pages | Grids gain columns, and dashboards a third column, rather than stretch what's there |
 | Standard | `page-standard` (1360px) | Detail pages: an app's, a website's, a database's, a change's. The default | Columns share the width by weight, so a main column and its aside grow together |
-| Narrow | `page-narrow` (1040px) | Forms and settings: Profile, Settings, API tokens, a form that is a page | Stops at its width, so fields and their notes stay a comfortable line long |
-| Full | none | A log view and the terminal, where every column of a line helps | Edge to edge, with the usual gutter |
+| Narrow | `page-narrow` (1040px) | Forms and settings: Settings' sections, Profile and API tokens, a form that is a page | Stops at its width, so fields and their notes stay a comfortable line long. Settings' own menu sits beside it, and the two are centred together |
 
 - At 1440px and below each kind fills the room it has, exactly as the mocks draw it, and phones don't change.
-- A grid in a page that grows, such as the catalog's cards, uses `repeat(auto-fill, minmax(<floor>, 1fr))`, so it gains a column each time there's room for one, and a row of panels uses `auto-fit` with a floor, so a dashboard takes a third or fourth column where it has the width.
-- The top bar spans the column, and its contents line up with the page's edges below: the scope above the title, the last control above the page's right edge.
+- **A log view or a terminal takes the whole width**, edge to edge with the usual gutter, but only its body: the page's head and tabs keep the column of the page's kind, so opening an app's Logs tab moves nothing above the log. In the panel, that is `Page`'s `fullBody`.
+- **A table with few columns doesn't spread.** Its list, with the filters over it, stops at `table-max` (1160px), the width it has at 1440px, so a row reads across without long gaps; the room to its right is where a selected row's detail opens, as on Activity. A table with enough columns to use the room, such as a server's Processes, takes the page's width, and its spare width goes to its primary column, the one with the longest text.
+- A grid in a page that grows, such as the catalog's cards, uses `repeat(auto-fill, minmax(<floor>, 1fr))`, so it gains a column each time there's room for one. A row of panels uses `auto-fit` with a floor, and a list of like things, such as a server's disks, sits side by side once there's room for two, rather than one bar running the page's width.
+- The top bar spans the column with the page's gutter, the same on every page, so moving between pages of different kinds moves nothing in it; only the page below changes width.
 - A sheet keeps `sheet-width` whatever the page's kind.
-- In the panel, `Page` takes the kind as `width` (`"wide"`, `"standard"`, `"narrow"` or `"full"`). A screen never sets a max-width of its own.
+- In the panel, `Page` takes the kind as `width` (`"wide"`, `"standard"` or `"narrow"`). A screen never sets a max-width of its own; it uses these tokens.
 
 ## Iconography
 

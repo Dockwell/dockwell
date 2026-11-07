@@ -7,3 +7,25 @@
   gap: var(--space-3);
   align-items: start;
 }
+
+/*
+ * The disks, then what runs here that Dockwell didn't make: one over the other, until the page has room for both
+ * side by side (about 1,740 px wide), when the disks take a third and the containers' table the rest, rather than
+ * either run a wide page's width.
+ */
+.server-pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  /* The page's own gap, so stacked they sit as they would without this row, on a phone too. */
+  gap: inherit;
+}
+
+.server-pair > * {
+  flex: 1 1 480px;
+  min-width: 0;
+}
+
+.server-pair > :last-child {
+  flex: 2 1 960px;
+}

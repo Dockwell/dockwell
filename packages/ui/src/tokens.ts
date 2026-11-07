@@ -112,7 +112,8 @@ export const size = {
   "sheet-width": 560,
   "page-wide": 1680,
   "page-standard": 1360,
-  "page-narrow": 1040
+  "page-narrow": 1040,
+  "table-max": 1160
 } as const;
 
 /** Layer order, lowest to highest. */

@@ -21,7 +21,8 @@ describe("a page's width by its kind", () => {
     ["/catalog", "Catalog", "is-wide"],
     ["/activity", "Activity", "is-wide"],
     ["/websites", "Websites", "is-wide"],
-    ["/settings", "Settings", "is-narrow"],
+    ["/settings/general", "General", "is-narrow"],
+    ["/profile", "Profile and security", "is-narrow"],
   ])("%s is %s", async (path, heading, kind) => {
     const page = await pageAt(path, heading);
     expect(page).toHaveClass("page", kind);

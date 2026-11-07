@@ -51,9 +51,11 @@
   gap: var(--space-6);
 }
 
+/* Three columns, so the list stops at the width it has at 1440px; an event's detail opens in the room beside it. */
 .activity-list {
   flex: 3 1 560px;
   min-width: 0;
+  max-width: var(--table-max);
   display: flex;
   flex-direction: column;
   gap: var(--space-6);

@@ -3,7 +3,7 @@
 /*
  * A page: its head, then panels space-6 apart, on canvas with a space-6 gutter, centred right of the rail. How wide it
  * grows goes by its kind (Layout in design/system/README.md): a detail page by default, a list or a dashboard wider,
- * a form narrower, and a log view the whole width. At 1440px and below each fills the room it has, as the mocks draw it.
+ * and a form narrower. At 1440px and below each fills the room it has, as the mocks draw it.
  */
 .page {
   --page-max: var(--page-standard);
@@ -20,8 +20,22 @@
   --page-max: var(--page-wide);
 }
 
-.page.is-full {
-  --page-max: 100%;
+/*
+ * A body that takes the whole width, as a log view does, under a head and tabs that keep the column of the page's
+ * kind: the page spans the room, and they sit where they would in its column, so moving to that tab moves neither.
+ */
+.page.has-full-body {
+  --page-column-inset: max(0px, calc((100% - var(--page-max)) / 2 + var(--space-6)));
+  max-width: 100%;
+}
+
+.page.has-full-body > .page-head {
+  margin-inline: var(--page-column-inset);
+}
+
+/* The tabs reach 4px past their column for their focus rings, as they do in any page. */
+.page.has-full-body > .dw-tabs {
+  margin-inline: calc(var(--page-column-inset) - 4px);
 }
 
 /* A form fills the column up to 1440px, as the mocks draw it, and stops at its own width past that. */

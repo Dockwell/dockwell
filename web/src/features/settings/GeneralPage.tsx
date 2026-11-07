@@ -33,6 +33,7 @@ export function GeneralPage() {
   const since = s?.createTime ? formatDay(timestampDate(s.createTime), i18n.locale) : "";
   return (
     <Page
+      width="narrow"
       title={t`General`}
       lead={
         since

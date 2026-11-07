@@ -21,9 +21,7 @@ export type PageWidth =
   /** Detail pages, such as an app's: up to page-standard. */
   | "standard"
   /** Forms and settings: up to page-narrow. */
-  | "narrow"
-  /** A log view or a terminal: the whole width. */
-  | "full";
+  | "narrow";
 
 export interface PageProps {
   /** The page's name: its heading, and the start of the document title. */
@@ -54,6 +52,11 @@ export interface PageProps {
   status?: ReactNode;
   /** How wide the page grows on wide screens, by its kind. */
   width?: PageWidth;
+  /**
+   * The body under the head and tabs takes the whole width, as a log view or a terminal does. The head and tabs
+   * keep the column of the page's kind, so they stay put when a tab with such a body opens.
+   */
+  fullBody?: boolean;
   children?: ReactNode;
   className?: string;
 }
@@ -78,6 +81,7 @@ export function Page({
   phoneAction,
   status,
   width = "standard",
+  fullBody = false,
   children,
   className,
 }: PageProps) {
@@ -97,7 +101,7 @@ export function Page({
           action={phoneAction}
         />
       ) : null}
-      <div className={cx("page", width !== "standard" && `is-${width}`, className)}>
+      <div className={cx("page", width !== "standard" && `is-${width}`, fullBody && "has-full-body", className)}>
         {phone ? (
           status ? (
             <div className="page-status">{status}</div>
