@@ -42,6 +42,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0036](0036-deleting-a-project-takes-its-environments.md) | Deleting a project takes its environments | Accepted |
 | [0042](0042-the-installs-settings.md) | The install's settings, outside revisions | Accepted |
 | [0047](0047-the-audit-log-for-a-person.md) | The audit log, for a person | Accepted |
+| [0048](0048-members-as-far-as-one-owner-goes.md) | Members, as far as one owner goes | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 

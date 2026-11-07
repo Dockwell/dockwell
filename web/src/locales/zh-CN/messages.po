@@ -160,6 +160,11 @@ msgstr "{0, plural, other {卷}}"
 msgid "{0} backups, {1}"
 msgstr "{0} 份备份，{1}"
 
+#. placeholder {0}: member.sessions
+#: src/features/settings/MembersPage.tsx
+msgid "{0} browsers"
+msgstr "{0} 个浏览器"
+
 #. placeholder {0}: failing.serverName
 #: src/features/logs/LogNote.tsx
 msgid "{0} can't read a container's log"
@@ -211,6 +216,11 @@ msgstr "第 {0} 个，共 {1} 个"
 #: src/features/settings/ControlPlanePage.tsx
 msgid "{0} on {short}, {1} on another version"
 msgstr "{0} 个为 {short}，{1} 个为其他版本"
+
+#. placeholder {0}: m.passkeys
+#: src/features/settings/MembersPage.tsx
+msgid "{0} passkeys"
+msgstr "{0} 个通行密钥"
 
 #. placeholder {0}: shortVersion(build.version)
 #: src/features/settings/ControlPlanePage.tsx
@@ -423,6 +433,10 @@ msgstr "{count} 分钟"
 msgid "{count} min ago"
 msgstr "{count} 分钟前"
 
+#: src/features/settings/MembersPage.tsx
+msgid "{count} people sign in to this install"
+msgstr "{count} 人可以登录这个安装"
+
 #: src/app/Providers.tsx
 msgid "{count} running"
 msgstr "{count} 个正在运行"
@@ -503,6 +517,10 @@ msgstr "可用 {free}"
 #: src/features/changes/notices.tsx
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
+
+#: src/features/settings/MembersPage.tsx
+msgid "{keys} and an authenticator app"
+msgstr "{keys}和一个身份验证器应用"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
@@ -1129,6 +1147,10 @@ msgstr "{where} 离开 {from}，转到 {to}。"
 msgid "{where} leaves {from}, and goes to port {toPort} on the server."
 msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 
+#: src/features/settings/MembersPage.tsx
+msgid "{withPasskeys} of {count} sign in with a passkey"
+msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
+
 #: src/features/changes/notices.tsx
 msgid "{writtenBy} wrote these files, and {runsOn} runs on them now"
 msgstr "这些文件由 {writtenBy} 写入，而现在运行的是 {runsOn}"
@@ -1270,6 +1292,14 @@ msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权�
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>，只读"
 
+#: src/features/settings/MembersPage.tsx
+msgid "<0>dockwell recover</0> on the control server"
+msgstr "在控制服务器上运行 <0>dockwell recover</0>"
+
+#: src/features/settings/MembersPage.tsx
+msgid "1 browser"
+msgstr "1 个浏览器"
+
 #: src/features/settings/AuditLogPage.tsx
 msgid "1 event in the last 24 hours."
 msgstr "最近 24 小时内有 1 个事件。"
@@ -1289,6 +1319,14 @@ msgstr "共 1 个事件，这是全部。"
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
 msgstr "1 小时"
+
+#: src/features/settings/MembersPage.tsx
+msgid "1 passkey"
+msgstr "1 个通行密钥"
+
+#: src/features/settings/MembersPage.tsx
+msgid "1 person signs in to this install, its owner · inviting others comes later"
+msgstr "1 人可以登录这个安装，即其所有者 · 邀请他人将在之后推出"
 
 #: src/features/settings/TokensPage.tsx
 msgid "1 token"
@@ -1529,6 +1567,7 @@ msgid "Action"
 msgstr "操作"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/settings/MembersPage.tsx
 #: src/features/settings/TokensPage.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -1762,6 +1801,10 @@ msgstr "全部为 {short}"
 msgid "All servers"
 msgstr "所有服务器"
 
+#: src/features/settings/MembersPage.tsx
+msgid "all sign in with a passkey"
+msgstr "全部使用通行密钥登录"
+
 #: src/features/settings/AuditLogPage.tsx
 msgid "All sources"
 msgstr "所有来源"
@@ -1818,6 +1861,10 @@ msgstr "名为 {name} 的应用已在此运行。请换一个名称，或在它�
 #: src/features/apps/NewAppSheet.tsx
 msgid "An image has no spaces. Write it as nginx:1.27."
 msgstr "镜像名称不能有空格，请写成 nginx:1.27。"
+
+#: src/features/settings/MembersPage.tsx
+msgid "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
+msgstr "目前一个安装只有一个人，即认领它的所有者，因为还没有任何机制能把管理员、开发者或查看者与所有者区分开。脚本和集成使用 API 令牌登录。<0>成员和角色需要什么</0>"
 
 #: src/features/catalog/useCatalog.ts
 msgid "Analytics"
@@ -1909,6 +1956,7 @@ msgid "API token"
 msgstr "API 令牌"
 
 #: src/features/settings/AuditLogPage.tsx
+#: src/features/settings/MembersPage.tsx
 #: src/features/settings/SettingsLayout.tsx
 #: src/features/settings/TokensPage.tsx
 #: src/features/settings/TokensPointer.tsx
@@ -2025,6 +2073,7 @@ msgid "Audit log"
 msgstr "审计日志"
 
 #: src/features/auth/TotpPanel.tsx
+#: src/features/settings/MembersPage.tsx
 msgid "Authenticator app"
 msgstr "身份验证器应用"
 
@@ -2316,6 +2365,10 @@ msgstr "更改 {name}"
 #: src/features/variables/VariablesPage.tsx
 msgid "Change {trimmed}"
 msgstr "更改 {trimmed}"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Change the install's settings"
+msgstr "更改这个安装的设置"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Change the secret {trimmed}"
@@ -3090,6 +3143,10 @@ msgstr "请部署应当运行的版本，或在服务器上修复。"
 msgid "Deploy your first app"
 msgstr "部署你的第一个应用"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Deploy, and apply any plan"
+msgstr "部署，并应用任何计划"
+
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
@@ -3333,6 +3390,10 @@ msgstr "Dockwell 无法获知其控制平面的状态"
 #: src/features/backups/PolicySheet.tsx
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell 无法估算占用空间"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Dockwell can't say who signs in"
+msgstr "Dockwell 无法得知谁可以登录"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Dockwell can't say yet what each backup takes, as this volume is empty or too large to measure quickly. The disk has {toGive} to give."
@@ -3750,6 +3811,10 @@ msgstr "一切保持原样"
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
+msgstr "在每台服务器上拥有全部权限。管理员、开发者和查看者各自能看到和执行的更少，并按项目划分范围，将随成员功能推出。"
+
 #: src/features/backups/words.ts
 msgid "Exact copy"
 msgstr "精确副本"
@@ -4124,6 +4189,10 @@ msgstr "如何备份和恢复"
 msgid "How to change settings"
 msgstr "如何更改设置"
 
+#: src/features/settings/MembersPage.tsx
+msgid "How you sign in"
+msgstr "你的登录方式"
+
 #: src/features/settings/GeneralPage.tsx
 msgid "HTTPS"
 msgstr "HTTPS"
@@ -4272,6 +4341,10 @@ msgstr "安装时间"
 #: src/features/changes/fields.tsx
 msgid "internal"
 msgstr "内部"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Inviting someone comes in a later release"
+msgstr "邀请他人将在之后的版本中推出"
 
 #: src/features/apps/DomainNote.tsx
 msgid "Issuing"
@@ -4740,6 +4813,10 @@ msgstr "最近 30 天"
 msgid "Last 7 days"
 msgstr "最近 7 天"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Last active"
+msgstr "上次活动"
+
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Last copy failed"
 msgstr "上次副本发送失败"
@@ -4747,6 +4824,10 @@ msgstr "上次副本发送失败"
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "最后心跳"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Last resort"
+msgstr "最后手段"
 
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Last run failed"
@@ -4905,6 +4986,10 @@ msgstr "正在加载令牌"
 msgid "Loading variables and secrets"
 msgstr "正在加载变量和密钥"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Loading who signs in"
+msgstr "正在加载可以登录的人"
+
 #: src/features/activity/actor.ts
 msgid "Local access token, read-only, {id}, made by {account}"
 msgstr "本地访问令牌，只读，{id}，由 {account} 创建"
@@ -4996,6 +5081,10 @@ msgstr "将 {trimmed} 改为密钥"
 msgid "Make {trimmed} a variable"
 msgstr "将 {trimmed} 改为变量"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Make and revoke API tokens"
+msgstr "创建和撤销 API 令牌"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Make new recovery codes"
 msgstr "生成新的恢复码"
@@ -5012,6 +5101,10 @@ msgstr "请在 DNS 服务商处添加这条记录。"
 msgid "Manage"
 msgstr "管理"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Manage servers, their files and their terminals"
+msgstr "管理服务器及其文件和终端"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
 msgstr "跟随系统主题"
@@ -5027,6 +5120,15 @@ msgstr "可能已被复制，不能再用于登录"
 #: src/features/activity/describe.ts
 msgid "May have saved {path} on {server}"
 msgstr "可能已保存 {server} 上的 {path}"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Member"
+msgstr "成员"
+
+#: src/features/settings/MembersPage.tsx
+#: src/features/settings/SettingsLayout.tsx
+msgid "Members"
+msgstr "成员"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -5461,6 +5563,7 @@ msgid "Not set: UTC"
 msgstr "未设置：UTC"
 
 #: src/features/settings/AuditLogPage.tsx
+#: src/features/settings/MembersPage.tsx
 msgid "Not signed in"
 msgstr "未登录"
 
@@ -5640,6 +5743,10 @@ msgstr "暂无。部署完成后开始运行。"
 msgid "now"
 msgstr "现在"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Now"
+msgstr "现在"
+
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/PolicySheet.tsx
 msgid "Nowhere else"
@@ -5650,6 +5757,7 @@ msgid "of {total}"
 msgstr "/ {total}"
 
 #: src/features/auth/TotpPanel.tsx
+#: src/features/settings/MembersPage.tsx
 msgid "Off"
 msgstr "关闭"
 
@@ -5657,6 +5765,10 @@ msgstr "关闭"
 #: src/features/changes/PlanSteps.tsx
 msgid "Offline"
 msgstr "离线"
+
+#: src/features/settings/MembersPage.tsx
+msgid "OIDC comes in a later release"
+msgstr "OIDC 将在之后的版本中推出"
 
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/PolicySheet.tsx
@@ -5713,6 +5825,15 @@ msgstr "直接连接互联网"
 #: src/features/apps/NewAppSheet.tsx
 msgid "On the server"
 msgstr "在服务器上"
+
+#. placeholder {0}: member.recoveryCodesLeft
+#: src/features/settings/MembersPage.tsx
+msgid "On, {0} recovery codes left"
+msgstr "已开启，剩余 {0} 个恢复码"
+
+#: src/features/settings/MembersPage.tsx
+msgid "On, 1 recovery code left"
+msgstr "已开启，剩余 1 个恢复码"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Once <0>{servers}</0> reconnect, Dockwell puts things back as they were"
@@ -5957,6 +6078,7 @@ msgstr "所有者 <0>{owner}</0>"
 
 #: src/features/auth/user.ts
 #: src/features/files/FilesPage.tsx
+#: src/features/settings/MembersPage.tsx
 msgid "Owner"
 msgstr "所有者"
 
@@ -6012,6 +6134,7 @@ msgid "Passkey"
 msgstr "通行密钥"
 
 #: src/features/auth/PasskeysPanel.tsx
+#: src/features/settings/MembersPage.tsx
 msgid "Passkeys"
 msgstr "通行密钥"
 
@@ -6076,6 +6199,7 @@ msgid "Paused"
 msgstr "已暂停"
 
 #: src/features/settings/AuditLogPage.tsx
+#: src/features/settings/MembersPage.tsx
 msgid "People"
 msgstr "人员"
 
@@ -6094,6 +6218,10 @@ msgstr "人们通过此名称以明文 HTTP 访问应用"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "People reach the app at this name, through what's in front of this server"
 msgstr "人们通过此名称访问应用，流量经过此服务器前面的隧道或代理"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Permission"
+msgstr "权限"
 
 #: src/features/files/FilesPage.tsx
 msgid "Permissions"
@@ -6287,6 +6415,7 @@ msgid "Processor"
 msgstr "处理器"
 
 #: src/features/auth/ProfilePage.tsx
+#: src/features/settings/MembersPage.tsx
 #: src/features/settings/SettingsLayout.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Profile and security"
@@ -6490,6 +6619,10 @@ msgstr "在向其中传入密钥之前，请先阅读文件中的其余部分。
 #: src/features/settings/TokensPage.tsx
 msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
 msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且不做任何更改。"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Read the audit log"
+msgstr "读取审计日志"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Read the failed deploy's logs"
@@ -6872,6 +7005,10 @@ msgstr "撤销了 API 令牌"
 #: src/features/activity/describe.ts
 msgid "Revoked the API token {name}"
 msgstr "撤销了 API 令牌 {name}"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Role"
+msgstr "角色"
 
 #: src/features/changes/words.ts
 msgid "Roll back"
@@ -7576,6 +7713,10 @@ msgstr "让 {device} 退出登录"
 msgid "Sign out everywhere else"
 msgstr "在其他所有地方退出登录"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Sign-in"
+msgstr "登录"
+
 #: src/features/activity/describe.ts
 msgid "Signed in"
 msgstr "登录了"
@@ -7583,6 +7724,10 @@ msgstr "登录了"
 #: src/features/auth/ProfilePage.tsx
 msgid "signed in by claiming this install"
 msgstr "通过认领此安装登录"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Signed in on"
+msgstr "已登录于"
 
 #: src/features/auth/ProfilePage.tsx
 msgid "signed in with a one-time link"
@@ -7620,6 +7765,10 @@ msgstr "在其他所有地方退出登录后，这个浏览器仍保持登录。
 #: src/features/auth/RecoverPage.tsx
 msgid "Signing you in with a one-time link"
 msgstr "正在用一次性链接为你登录"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Single sign-on"
+msgstr "单点登录"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
@@ -8900,6 +9049,7 @@ msgstr "趋势"
 #: src/features/logs/LogsPage.tsx
 #: src/features/settings/AuditLogPage.tsx
 #: src/features/settings/ControlPlanePage.tsx
+#: src/features/settings/MembersPage.tsx
 #: src/features/settings/TokensPage.tsx
 msgid "Try again"
 msgstr "重试"
@@ -9451,6 +9601,10 @@ msgstr "控制平面为它存储的内容已被改动，或是用此安装没有
 msgid "What the internet knows this server by"
 msgstr "互联网识别此服务器所用的地址"
 
+#: src/features/settings/MembersPage.tsx
+msgid "What the owner can do"
+msgstr "所有者可以做什么"
+
 #: src/features/logs/LogsPage.tsx
 msgid "What the servers keep goes back further than what is loaded here."
 msgstr "服务器保留的日志比这里加载的更久远。"
@@ -9560,6 +9714,14 @@ msgstr "它属于哪个项目？"
 msgid "Who"
 msgstr "执行者"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Who signs in"
+msgstr "谁可以登录"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Who signs in to this install"
+msgstr "谁可以登录这个安装"
+
 #: src/features/changes/words.ts
 msgid "whoever comes through {list}"
 msgstr "经由 {list} 而来的任何人"
@@ -9602,6 +9764,7 @@ msgid "yes"
 msgstr "是"
 
 #: src/features/servers/network.ts
+#: src/features/settings/MembersPage.tsx
 msgid "Yes"
 msgstr "是"
 
@@ -9612,6 +9775,10 @@ msgstr "昨天"
 #: src/features/settings/AuditLogPage.tsx
 msgid "Yesterday · {day}"
 msgstr "昨天 · {day}"
+
+#: src/features/settings/MembersPage.tsx
+msgid "You"
+msgstr "你"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx

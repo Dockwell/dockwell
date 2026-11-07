@@ -639,6 +639,9 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	return connect.NewError(connect.CodeInternal, errors.New("internal error"))
 }
 
+// UserProto is a user for the API, as AuthService gives one.
+func UserProto(u store.User) *dockwellv1.User { return userProto(u) }
+
 func userProto(u store.User) *dockwellv1.User {
 	role := dockwellv1.Role_ROLE_UNSPECIFIED
 	if u.Role == store.RoleOwner {

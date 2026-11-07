@@ -10,7 +10,13 @@ import "./Settings.css";
 
 /** A section of Settings, where it is, and the group it's in. */
 interface Section {
-  to: "/settings/general" | "/settings/api-tokens" | "/settings/audit-log" | "/settings/control-plane" | "/profile";
+  to:
+    | "/settings/general"
+    | "/settings/members"
+    | "/settings/api-tokens"
+    | "/settings/audit-log"
+    | "/settings/control-plane"
+    | "/profile";
   label: string;
   icon: IconName;
 }
@@ -23,6 +29,7 @@ function useSections(): { label: string; sections: Section[] }[] {
       label: t`Install`,
       sections: [
         { to: "/settings/general", label: t`General`, icon: "settings" },
+        { to: "/settings/members", label: t`Members`, icon: "users" },
         { to: "/settings/api-tokens", label: t`API tokens`, icon: "key" },
         { to: "/settings/audit-log", label: t`Audit log`, icon: "file" },
       ],
