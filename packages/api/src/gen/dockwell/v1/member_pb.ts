@@ -4,8 +4,8 @@
 // @generated from file dockwell/v1/member.proto (package dockwell.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { User } from "./auth_pb";
 import { file_dockwell_v1_auth } from "./auth_pb";
 import { file_dockwell_v1_options } from "./options_pb";
@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/member.proto.
  */
 export const file_dockwell_v1_member: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9tZW1iZXIucHJvdG8SC2RvY2t3ZWxsLnYxIhQKEkxpc3RNZW1iZXJzUmVxdWVzdCI7ChNMaXN0TWVtYmVyc1Jlc3BvbnNlEiQKB21lbWJlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5NZW1iZXIi3wEKBk1lbWJlchIfCgR1c2VyGAEgASgLMhEuZG9ja3dlbGwudjEuVXNlchILCgN5b3UYAiABKAgSEAoIcGFzc2tleXMYAyABKAUSGQoRcGFzc2tleV9hZGRyZXNzZXMYBCADKAkSFQoNYXV0aGVudGljYXRvchgFIAEoCBIbChNyZWNvdmVyeV9jb2Rlc19sZWZ0GAYgASgFEhAKCHNlc3Npb25zGAcgASgFEjQKEGxhc3RfYWN0aXZlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wMoEBCg1NZW1iZXJTZXJ2aWNlEnAKC0xpc3RNZW1iZXJzEh8uZG9ja3dlbGwudjEuTGlzdE1lbWJlcnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdE1lbWJlcnNSZXNwb25zZSIekAIBoLsYAbC7GAGC0+STAg0SCy92MS9tZW1iZXJzQqQBCg9jb20uZG9ja3dlbGwudjFCC01lbWJlclByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_auth, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9tZW1iZXIucHJvdG8SC2RvY2t3ZWxsLnYxIhQKEkxpc3RNZW1iZXJzUmVxdWVzdCI7ChNMaXN0TWVtYmVyc1Jlc3BvbnNlEiQKB21lbWJlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5NZW1iZXIinwIKBk1lbWJlchIfCgR1c2VyGAEgASgLMhEuZG9ja3dlbGwudjEuVXNlchILCgN5b3UYAiABKAgSEAoIcGFzc2tleXMYAyABKAUSGQoRcGFzc2tleV9hZGRyZXNzZXMYBCADKAkSFQoNYXV0aGVudGljYXRvchgFIAEoCBIbChNyZWNvdmVyeV9jb2Rlc19sZWZ0GAYgASgFEhAKCHNlc3Npb25zGAcgASgFEjQKEGxhc3RfYWN0aXZlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEigKB3NpZ25faW4YCSADKA4yFy5kb2Nrd2VsbC52MS5TaWduSW5LaW5kEhQKDGNvZGVzX2xvY2tlZBgKIAEoCCpoCgpTaWduSW5LaW5kEhwKGFNJR05fSU5fS0lORF9VTlNQRUNJRklFRBAAEhgKFFNJR05fSU5fS0lORF9QQVNTS0VZEAESIgoeU0lHTl9JTl9LSU5EX0FVVEhFTlRJQ0FUT1JfQVBQEAIygQEKDU1lbWJlclNlcnZpY2UScAoLTGlzdE1lbWJlcnMSHy5kb2Nrd2VsbC52MS5MaXN0TWVtYmVyc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5MaXN0TWVtYmVyc1Jlc3BvbnNlIh6QAgGguxgBsLsYAYLT5JMCDRILL3YxL21lbWJlcnNCpAEKD2NvbS5kb2Nrd2VsbC52MUILTWVtYmVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_auth, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListMembersRequest takes no parameters.
@@ -57,7 +57,9 @@ export const ListMembersResponseSchema: GenMessage<ListMembersResponse> = /*@__P
   messageDesc(file_dockwell_v1_member, 1);
 
 /**
- * Member is a person who can sign in, and how.
+ * Member is a person who can sign in, and how. The details of how are the
+ * person asking's alone: for anyone else, only the kinds of sign-in they have
+ * and when they were last active are set.
  *
  * @generated from message dockwell.v1.Member
  */
@@ -77,8 +79,9 @@ export type Member = Message<"dockwell.v1.Member"> & {
   you: boolean;
 
   /**
-   * How many passkeys they have that still sign in: one flagged as copied
-   * doesn't.
+   * How many passkeys sign in at the panel's addresses now: one flagged as
+   * copied, or for an address the panel no longer has, doesn't. Only for the
+   * person asking.
    *
    * @generated from field: int32 passkeys = 3;
    */
@@ -86,14 +89,15 @@ export type Member = Message<"dockwell.v1.Member"> & {
 
   /**
    * The addresses those passkeys work at, such as "localhost" or
-   * "panel.example.com", each once.
+   * "panel.example.com", each once. Only for the person asking.
    *
    * @generated from field: repeated string passkey_addresses = 4;
    */
   passkeyAddresses: string[];
 
   /**
-   * True when they can sign in with codes from an authenticator app.
+   * True when they can sign in with codes from an authenticator app now: on,
+   * and not locked. Only for the person asking.
    *
    * @generated from field: bool authenticator = 5;
    */
@@ -101,25 +105,41 @@ export type Member = Message<"dockwell.v1.Member"> & {
 
   /**
    * How many of their recovery codes are left. Zero without an
-   * authenticator app.
+   * authenticator app. Only for the person asking.
    *
    * @generated from field: int32 recovery_codes_left = 6;
    */
   recoveryCodesLeft: number;
 
   /**
-   * How many browsers they're signed in on now.
+   * How many browsers they're signed in on now. Only for the person asking.
    *
    * @generated from field: int32 sessions = 7;
    */
   sessions: number;
 
   /**
-   * When one of those browsers was last used. Unset with none.
+   * When one of their browsers was last used. Unset with none.
    *
    * @generated from field: google.protobuf.Timestamp last_active_time = 8;
    */
   lastActiveTime?: Timestamp | undefined;
+
+  /**
+   * The kinds of sign-in that work for them now, as the members list shows
+   * them for everyone.
+   *
+   * @generated from field: repeated dockwell.v1.SignInKind sign_in = 9;
+   */
+  signIn: SignInKind[];
+
+  /**
+   * True when code sign-in is locked after too many wrong codes, until the
+   * owner lifts it. Only for the person asking.
+   *
+   * @generated from field: bool codes_locked = 10;
+   */
+  codesLocked: boolean;
 };
 
 /**
@@ -130,13 +150,47 @@ export const MemberSchema: GenMessage<Member> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_member, 2);
 
 /**
+ * SignInKind is a kind of sign-in a member has.
+ *
+ * @generated from enum dockwell.v1.SignInKind
+ */
+export enum SignInKind {
+  /**
+   * @generated from enum value: SIGN_IN_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A passkey that signs in at the panel's addresses now.
+   *
+   * @generated from enum value: SIGN_IN_KIND_PASSKEY = 1;
+   */
+  PASSKEY = 1,
+
+  /**
+   * Codes from an authenticator app, on and not locked.
+   *
+   * @generated from enum value: SIGN_IN_KIND_AUTHENTICATOR_APP = 2;
+   */
+  AUTHENTICATOR_APP = 2,
+}
+
+/**
+ * Describes the enum dockwell.v1.SignInKind.
+ */
+export const SignInKindSchema: GenEnum<SignInKind> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_member, 0);
+
+/**
  * MemberService says who can sign in to the install, with their role and how
  * they sign in. Today that is one person, the owner, who claimed the install:
  * inviting others, and roles beyond the owner, come later. See
  * docs/adr/0048-members-as-far-as-one-owner-goes.md.
  *
  * It names people and their emails, so only a person signed in reads it, never
- * an API token.
+ * an API token. How each person signs in is theirs: everyone sees the kinds of
+ * sign-in each member has, and only the person asking sees their own passkeys'
+ * addresses, codes and browsers.
  *
  * @generated from service dockwell.v1.MemberService
  */

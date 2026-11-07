@@ -414,11 +414,60 @@ func (s *Service) FinishAddPasskey(ctx context.Context, client Client, p Princip
 func (s *Service) usablePasskeys(all []store.Passkey, except string) int {
 	n := 0
 	for i := range all {
-		if all[i].ID != except && all[i].CloneWarningAt == nil && s.sites.Serves(all[i].RPID) {
+		if all[i].ID != except && s.signsIn(&all[i]) {
 			n++
 		}
 	}
 	return n
+}
+
+// signsIn reports a passkey that signs in at the panel's addresses now: one for
+// localhost or the current domain, not flagged as copied.
+func (s *Service) signsIn(p *store.Passkey) bool {
+	return p.CloneWarningAt == nil && s.sites.Serves(p.RPID)
+}
+
+// SignIn is how a person can sign in now, as signing in decides it.
+type SignIn struct {
+	// Passkeys counts those that sign in at the panel's addresses now, and
+	// Addresses says which addresses, each once. One for an address the panel
+	// no longer has, or flagged as copied, signs in nowhere.
+	Passkeys  int
+	Addresses []string
+	// Codes is code sign-in, on and not locked. CodesLocked is a lock after
+	// too many wrong codes, which only the owner lifts.
+	Codes, CodesLocked bool
+	// RecoveryCodesLeft counts the recovery codes that come with code sign-in.
+	RecoveryCodesLeft int
+}
+
+// SignInOf says how u can sign in now, read with tx.
+func (s *Service) SignInOf(ctx context.Context, tx *store.Tx, u *store.User) (SignIn, error) {
+	var in SignIn
+	passkeys, err := tx.ListPasskeys(ctx, u.ID)
+	if err != nil {
+		return in, err
+	}
+	for i := range passkeys {
+		if !s.signsIn(&passkeys[i]) {
+			continue
+		}
+		in.Passkeys++
+		if !slices.Contains(in.Addresses, passkeys[i].RPID) {
+			in.Addresses = append(in.Addresses, passkeys[i].RPID)
+		}
+	}
+	if u.TOTPSecret == nil {
+		return in, nil
+	}
+	g, err := tx.GetCodeGuard(ctx, guardBucket(u.Email))
+	if err != nil {
+		return in, err
+	}
+	in.CodesLocked = g.LockedAt != nil
+	in.Codes = !in.CodesLocked
+	in.RecoveryCodesLeft, err = tx.CountRecoveryCodes(ctx, u.ID)
+	return in, err
 }
 
 // RemovePasskey removes one of the principal's passkeys, with proof of a

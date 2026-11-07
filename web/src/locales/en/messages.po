@@ -522,6 +522,10 @@ msgstr "{heldBy} can move what {path} leads to on {server}"
 msgid "{keys} and an authenticator app"
 msgstr "{keys} and an authenticator app"
 
+#: src/features/settings/MembersPage.tsx
+msgid "{keys}, with codes locked"
+msgstr "{keys}, with codes locked"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
@@ -5002,6 +5006,10 @@ msgstr "Local access token, read-write, {id}, made by {account}"
 msgid "Location"
 msgstr "Location"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Locked after too many wrong codes, until you lift it in Profile and security"
+msgstr "Locked after too many wrong codes, until you lift it in Profile and security"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Log filters"
 msgstr "Log filters"
@@ -5102,8 +5110,8 @@ msgid "Manage"
 msgstr "Manage"
 
 #: src/features/settings/MembersPage.tsx
-msgid "Manage servers, their files and their terminals"
-msgstr "Manage servers, their files and their terminals"
+msgid "Manage servers and their files"
+msgstr "Manage servers and their files"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
@@ -5472,6 +5480,10 @@ msgstr "No undo"
 #: src/features/variables/VariablesPage.tsx
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
+
+#: src/features/settings/MembersPage.tsx
+msgid "No way in that works now"
+msgstr "No way in that works now"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Nobody can say how {name} runs"
@@ -6130,8 +6142,13 @@ msgid "Parts of it may still be on the server. Check what is there, then try aga
 msgstr "Parts of it may still be on the server. Check what is there, then try again, or remove them by hand."
 
 #: src/features/auth/PasskeysPanel.tsx
+#: src/features/settings/MembersPage.tsx
 msgid "Passkey"
 msgstr "Passkey"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Passkey and authenticator app"
+msgstr "Passkey and authenticator app"
 
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/settings/MembersPage.tsx

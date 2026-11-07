@@ -25,6 +25,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// SignInKind is a kind of sign-in a member has.
+type SignInKind int32
+
+const (
+	SignInKind_SIGN_IN_KIND_UNSPECIFIED SignInKind = 0
+	// A passkey that signs in at the panel's addresses now.
+	SignInKind_SIGN_IN_KIND_PASSKEY SignInKind = 1
+	// Codes from an authenticator app, on and not locked.
+	SignInKind_SIGN_IN_KIND_AUTHENTICATOR_APP SignInKind = 2
+)
+
+// Enum value maps for SignInKind.
+var (
+	SignInKind_name = map[int32]string{
+		0: "SIGN_IN_KIND_UNSPECIFIED",
+		1: "SIGN_IN_KIND_PASSKEY",
+		2: "SIGN_IN_KIND_AUTHENTICATOR_APP",
+	}
+	SignInKind_value = map[string]int32{
+		"SIGN_IN_KIND_UNSPECIFIED":       0,
+		"SIGN_IN_KIND_PASSKEY":           1,
+		"SIGN_IN_KIND_AUTHENTICATOR_APP": 2,
+	}
+)
+
+func (x SignInKind) Enum() *SignInKind {
+	p := new(SignInKind)
+	*p = x
+	return p
+}
+
+func (x SignInKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SignInKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_member_proto_enumTypes[0].Descriptor()
+}
+
+func (SignInKind) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_member_proto_enumTypes[0]
+}
+
+func (x SignInKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SignInKind.Descriptor instead.
+func (SignInKind) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{0}
+}
+
 // ListMembersRequest takes no parameters.
 type ListMembersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -108,30 +160,40 @@ func (x *ListMembersResponse) GetMembers() []*Member {
 	return nil
 }
 
-// Member is a person who can sign in, and how.
+// Member is a person who can sign in, and how. The details of how are the
+// person asking's alone: for anyone else, only the kinds of sign-in they have
+// and when they were last active are set.
 type Member struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Who they are, and their role.
 	User *User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// True for the person asking.
 	You bool `protobuf:"varint,2,opt,name=you,proto3" json:"you,omitempty"`
-	// How many passkeys they have that still sign in: one flagged as copied
-	// doesn't.
+	// How many passkeys sign in at the panel's addresses now: one flagged as
+	// copied, or for an address the panel no longer has, doesn't. Only for the
+	// person asking.
 	Passkeys int32 `protobuf:"varint,3,opt,name=passkeys,proto3" json:"passkeys,omitempty"`
 	// The addresses those passkeys work at, such as "localhost" or
-	// "panel.example.com", each once.
+	// "panel.example.com", each once. Only for the person asking.
 	PasskeyAddresses []string `protobuf:"bytes,4,rep,name=passkey_addresses,json=passkeyAddresses,proto3" json:"passkey_addresses,omitempty"`
-	// True when they can sign in with codes from an authenticator app.
+	// True when they can sign in with codes from an authenticator app now: on,
+	// and not locked. Only for the person asking.
 	Authenticator bool `protobuf:"varint,5,opt,name=authenticator,proto3" json:"authenticator,omitempty"`
 	// How many of their recovery codes are left. Zero without an
-	// authenticator app.
+	// authenticator app. Only for the person asking.
 	RecoveryCodesLeft int32 `protobuf:"varint,6,opt,name=recovery_codes_left,json=recoveryCodesLeft,proto3" json:"recovery_codes_left,omitempty"`
-	// How many browsers they're signed in on now.
+	// How many browsers they're signed in on now. Only for the person asking.
 	Sessions int32 `protobuf:"varint,7,opt,name=sessions,proto3" json:"sessions,omitempty"`
-	// When one of those browsers was last used. Unset with none.
+	// When one of their browsers was last used. Unset with none.
 	LastActiveTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_active_time,json=lastActiveTime,proto3" json:"last_active_time,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The kinds of sign-in that work for them now, as the members list shows
+	// them for everyone.
+	SignIn []SignInKind `protobuf:"varint,9,rep,packed,name=sign_in,json=signIn,proto3,enum=dockwell.v1.SignInKind" json:"sign_in,omitempty"`
+	// True when code sign-in is locked after too many wrong codes, until the
+	// owner lifts it. Only for the person asking.
+	CodesLocked   bool `protobuf:"varint,10,opt,name=codes_locked,json=codesLocked,proto3" json:"codes_locked,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Member) Reset() {
@@ -220,6 +282,20 @@ func (x *Member) GetLastActiveTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Member) GetSignIn() []SignInKind {
+	if x != nil {
+		return x.SignIn
+	}
+	return nil
+}
+
+func (x *Member) GetCodesLocked() bool {
+	if x != nil {
+		return x.CodesLocked
+	}
+	return false
+}
+
 var File_dockwell_v1_member_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_member_proto_rawDesc = "" +
@@ -227,7 +303,7 @@ const file_dockwell_v1_member_proto_rawDesc = "" +
 	"\x18dockwell/v1/member.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
 	"\x12ListMembersRequest\"D\n" +
 	"\x13ListMembersResponse\x12-\n" +
-	"\amembers\x18\x01 \x03(\v2\x13.dockwell.v1.MemberR\amembers\"\xc2\x02\n" +
+	"\amembers\x18\x01 \x03(\v2\x13.dockwell.v1.MemberR\amembers\"\x97\x03\n" +
 	"\x06Member\x12%\n" +
 	"\x04user\x18\x01 \x01(\v2\x11.dockwell.v1.UserR\x04user\x12\x10\n" +
 	"\x03you\x18\x02 \x01(\bR\x03you\x12\x1a\n" +
@@ -236,7 +312,15 @@ const file_dockwell_v1_member_proto_rawDesc = "" +
 	"\rauthenticator\x18\x05 \x01(\bR\rauthenticator\x12.\n" +
 	"\x13recovery_codes_left\x18\x06 \x01(\x05R\x11recoveryCodesLeft\x12\x1a\n" +
 	"\bsessions\x18\a \x01(\x05R\bsessions\x12D\n" +
-	"\x10last_active_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0elastActiveTime2\x81\x01\n" +
+	"\x10last_active_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0elastActiveTime\x120\n" +
+	"\asign_in\x18\t \x03(\x0e2\x17.dockwell.v1.SignInKindR\x06signIn\x12!\n" +
+	"\fcodes_locked\x18\n" +
+	" \x01(\bR\vcodesLocked*h\n" +
+	"\n" +
+	"SignInKind\x12\x1c\n" +
+	"\x18SIGN_IN_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14SIGN_IN_KIND_PASSKEY\x10\x01\x12\"\n" +
+	"\x1eSIGN_IN_KIND_AUTHENTICATOR_APP\x10\x022\x81\x01\n" +
 	"\rMemberService\x12p\n" +
 	"\vListMembers\x12\x1f.dockwell.v1.ListMembersRequest\x1a .dockwell.v1.ListMembersResponse\"\x1e\xa0\xbb\x18\x01\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/members\x90\x02\x01B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vMemberProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
@@ -253,25 +337,28 @@ func file_dockwell_v1_member_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_member_proto_rawDescData
 }
 
+var file_dockwell_v1_member_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_dockwell_v1_member_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_dockwell_v1_member_proto_goTypes = []any{
-	(*ListMembersRequest)(nil),    // 0: dockwell.v1.ListMembersRequest
-	(*ListMembersResponse)(nil),   // 1: dockwell.v1.ListMembersResponse
-	(*Member)(nil),                // 2: dockwell.v1.Member
-	(*User)(nil),                  // 3: dockwell.v1.User
-	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
+	(SignInKind)(0),               // 0: dockwell.v1.SignInKind
+	(*ListMembersRequest)(nil),    // 1: dockwell.v1.ListMembersRequest
+	(*ListMembersResponse)(nil),   // 2: dockwell.v1.ListMembersResponse
+	(*Member)(nil),                // 3: dockwell.v1.Member
+	(*User)(nil),                  // 4: dockwell.v1.User
+	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
 }
 var file_dockwell_v1_member_proto_depIdxs = []int32{
-	2, // 0: dockwell.v1.ListMembersResponse.members:type_name -> dockwell.v1.Member
-	3, // 1: dockwell.v1.Member.user:type_name -> dockwell.v1.User
-	4, // 2: dockwell.v1.Member.last_active_time:type_name -> google.protobuf.Timestamp
-	0, // 3: dockwell.v1.MemberService.ListMembers:input_type -> dockwell.v1.ListMembersRequest
-	1, // 4: dockwell.v1.MemberService.ListMembers:output_type -> dockwell.v1.ListMembersResponse
-	4, // [4:5] is the sub-list for method output_type
-	3, // [3:4] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3, // 0: dockwell.v1.ListMembersResponse.members:type_name -> dockwell.v1.Member
+	4, // 1: dockwell.v1.Member.user:type_name -> dockwell.v1.User
+	5, // 2: dockwell.v1.Member.last_active_time:type_name -> google.protobuf.Timestamp
+	0, // 3: dockwell.v1.Member.sign_in:type_name -> dockwell.v1.SignInKind
+	1, // 4: dockwell.v1.MemberService.ListMembers:input_type -> dockwell.v1.ListMembersRequest
+	2, // 5: dockwell.v1.MemberService.ListMembers:output_type -> dockwell.v1.ListMembersResponse
+	5, // [5:6] is the sub-list for method output_type
+	4, // [4:5] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_member_proto_init() }
@@ -286,13 +373,14 @@ func file_dockwell_v1_member_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_member_proto_rawDesc), len(file_dockwell_v1_member_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_dockwell_v1_member_proto_goTypes,
 		DependencyIndexes: file_dockwell_v1_member_proto_depIdxs,
+		EnumInfos:         file_dockwell_v1_member_proto_enumTypes,
 		MessageInfos:      file_dockwell_v1_member_proto_msgTypes,
 	}.Build()
 	File_dockwell_v1_member_proto = out.File

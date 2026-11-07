@@ -522,6 +522,10 @@ msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
 msgid "{keys} and an authenticator app"
 msgstr "{keys}和一个身份验证器应用"
 
+#: src/features/settings/MembersPage.tsx
+msgid "{keys}, with codes locked"
+msgstr "{keys}，验证码登录已锁定"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
@@ -5002,6 +5006,10 @@ msgstr "本地访问令牌，读写，{id}，由 {account} 创建"
 msgid "Location"
 msgstr "位置"
 
+#: src/features/settings/MembersPage.tsx
+msgid "Locked after too many wrong codes, until you lift it in Profile and security"
+msgstr "错误验证码过多，已锁定，可在“个人资料与安全”中解除"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Log filters"
 msgstr "日志筛选"
@@ -5102,8 +5110,8 @@ msgid "Manage"
 msgstr "管理"
 
 #: src/features/settings/MembersPage.tsx
-msgid "Manage servers, their files and their terminals"
-msgstr "管理服务器及其文件和终端"
+msgid "Manage servers and their files"
+msgstr "管理服务器及其文件"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
@@ -5472,6 +5480,10 @@ msgstr "无法撤销"
 #: src/features/variables/VariablesPage.tsx
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "{envName} 中还没有变量或密钥。请在上方添加第一个，服务随后按名称使用它。"
+
+#: src/features/settings/MembersPage.tsx
+msgid "No way in that works now"
+msgstr "当前没有可用的登录方式"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Nobody can say how {name} runs"
@@ -6130,8 +6142,13 @@ msgid "Parts of it may still be on the server. Check what is there, then try aga
 msgstr "其中部分内容可能仍在服务器上。请检查那里的内容，然后重试，或手动移除。"
 
 #: src/features/auth/PasskeysPanel.tsx
+#: src/features/settings/MembersPage.tsx
 msgid "Passkey"
 msgstr "通行密钥"
+
+#: src/features/settings/MembersPage.tsx
+msgid "Passkey and authenticator app"
+msgstr "通行密钥和身份验证器应用"
 
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/settings/MembersPage.tsx
