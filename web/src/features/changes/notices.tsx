@@ -75,6 +75,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.EXTERNAL_NETWORK]: 3,
   [HostAccessKind.EXTERNAL_VOLUME]: 3,
   [HostAccessKind.TAKES_ON]: 3,
+  [HostAccessKind.BACKUP_OF]: 0,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
@@ -226,6 +227,18 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           key,
           title: t`${name} mounts the volume ${path} on ${server}`,
           detail: t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
+        };
+      case HostAccessKind.BACKUP_OF:
+        return {
+          key,
+          title: t`${name} gets back what reached root on ${server}`,
+          detail: (
+            <Trans>
+              This backup was taken when the volume reached <code>{path}</code>, so whatever mounts it can read
+              what comes back.
+            </Trans>
+          ),
+          trust: true,
         };
       case HostAccessKind.TAKES_ON:
         return {

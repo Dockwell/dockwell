@@ -373,6 +373,107 @@ func TestWhatABackupStoppedStaysDownOnAPathThatMoved(t *testing.T) {
 	}
 }
 
+// bound replaces the bench's volume with one that binds device.
+func (b *bench) bound(device string) {
+	b.t.Helper()
+	if err := b.client.RemoveVolume(b.t.Context(), b.target.Name); err != nil {
+		b.t.Fatal(err)
+	}
+	if _, err := b.client.CreateVolume(b.t.Context(), &docker.VolumeCreate{
+		Name: b.target.Name, Driver: "local", DriverOpts: map[string]string{"type": "none", "o": "bind", "device": device},
+	}); err != nil {
+		b.t.Fatal(err)
+	}
+}
+
+// A backup is tied to a volume by name alone, so it says what that volume reached, by
+// where its path led, and a restore's plan says so. Undoing that puts back what was in
+// the volume, which isn't what the backup held.
+func TestABackupSaysWhatItsVolumeReached(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	link, folder := filepath.Join(dir, "link"), filepath.Join(dir, "folder")
+	if err := os.Symlink("/etc", link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(folder, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, tt := range map[string]struct {
+		device string
+		want   []string
+	}{
+		"an ordinary volume": {},
+		"a folder":           {device: folder},
+		"the system":         {device: "/etc", want: []string{"/etc"}},
+		"a link to it":       {device: link, want: []string{"/etc"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := newBench(t)
+			b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
+			if tt.device != "" {
+				b.bound(tt.device)
+			}
+			m := b.take(false)
+			if !slices.Equal(m.Reached, tt.want) {
+				t.Fatalf("it says it reached %v, want %v", m.Reached, tt.want)
+			}
+			dec, _, err := b.runner.JudgeRestore(t.Context(), ref, resource.RestoreSource{Backup: m.ID, Server: "srv_A", Change: "chg_1"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(dec.Restore.Reached, tt.want) {
+				t.Errorf("a restore's plan says %v, want %v", dec.Restore.Reached, tt.want)
+			}
+		})
+	}
+}
+
+// Docker follows a volume's path when a helper mounts it, and a restore writes over
+// everything there. So a link made since the plan stops it before anything stops,
+// where it costs nothing, and planned again it says where the path leads.
+func TestARestoreChecksWhereItsPathLeads(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, "conf")
+	if err := os.Mkdir(conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	b := newBench(t)
+	b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
+	b.bound(conf)
+	id := b.run("web", "nginx:1", "/data")
+	m := b.take(true)
+	if err := os.Remove(conf); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/etc", conf); err != nil {
+		t.Fatal(err)
+	}
+	step := resource.Step{Ref: ref, Decision: resource.Decision{Restore: &resource.RestorePlan{Backup: m.ID}}}
+	source := resource.RestoreSource{Backup: m.ID, Server: "srv_A", Change: "chg_1"}
+	started := b.engine.Started(docker.ContainerName(b.target.Project, "web"))
+	err = b.runner.ApplyRestore(t.Context(), step, source)
+	if err == nil || !strings.Contains(err.Error(), conf+" leads to /etc now") || !strings.Contains(err.Error(), "nothing was changed or stopped") {
+		t.Fatalf("a restore over a link made since its plan = %v", err)
+	}
+	if !b.running(id) || b.engine.Started(docker.ContainerName(b.target.Project, "web")) != started {
+		t.Error("something stopped")
+	}
+	// What mounts it hasn't been approved for that, so it goes first.
+	if err := b.client.RemoveContainer(t.Context(), id, true); err != nil {
+		t.Fatal(err)
+	}
+	step.PlannedLeads = map[string]string{conf: "/etc"}
+	if err := b.runner.ApplyRestore(t.Context(), step, source); err != nil {
+		t.Fatalf("a plan that says where it leads: %v", err)
+	}
+}
+
 // What was stopped starts again, whatever comes of the backup.
 func TestWhatStoppedStartsAgainIfTheCopyFails(t *testing.T) {
 	b := newBench(t)

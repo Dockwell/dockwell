@@ -2023,7 +2023,6 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
-#: src/features/servers/SetPublicAddressSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Cancel"
 msgstr "取消"
@@ -8812,3 +8811,19 @@ msgstr "你的姓名"
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "你的会话已结束，所以这个操作没有执行。请重新登录后重试。"
+
+#: src/features/changes/words.ts
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
+msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {either} 的 A 或 AAAA 记录，添加后即可获取证书"
+
+#: src/features/changes/notices.tsx
+msgid "{name} gets back what reached root on {server}"
+msgstr "{name} 将恢复曾可访问 {server} root 级内容的备份"
+
+#: src/features/changes/words.ts
+msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
+msgstr "一个曾可访问 {path} 的卷的备份，可能含有那里的内容，相当于拥有 root"
+
+#: src/features/changes/notices.tsx
+msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
+msgstr "这份备份创建时，该卷可访问 <0>{path}</0>，所以任何挂载它的内容都能读取恢复后的数据。"

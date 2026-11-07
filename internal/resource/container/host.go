@@ -629,14 +629,7 @@ func (p *Paths) LeadsAsMade(ctx context.Context, c *docker.Container) error {
 		paths = append(paths, source)
 		readOnly[path.Clean(source)] = !m.RW
 	}
-	if len(paths) == 0 {
-		return nil
-	}
-	h, err := p.Host(ctx)
-	if err != nil {
-		return err
-	}
-	now, err := h.Leads(paths...)
+	now, err := p.Follow(ctx, paths...)
 	if err != nil {
 		return err
 	}
@@ -653,6 +646,37 @@ func (p *Paths) LeadsAsMade(ctx context.Context, c *docker.Container) error {
 			continue
 		}
 		return &PathMovedError{Path: at, To: now[at], Name: cmp.Or(c.Config.Labels[docker.LabelService], strings.TrimPrefix(c.Name, "/"))}
+	}
+	return nil
+}
+
+// Follow says where server paths lead on this server, for those that lead elsewhere.
+func (p *Paths) Follow(ctx context.Context, paths ...string) (map[string]string, error) {
+	if p == nil || len(paths) == 0 {
+		return nil, nil
+	}
+	h, err := p.Host(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return h.Leads(paths...)
+}
+
+// VolumeAsPlanned checks the server path a volume binds leads where a plan said, as
+// a helper mounts the volume and Docker follows what it finds.
+func (p *Paths) VolumeAsPlanned(ctx context.Context, v *docker.Volume, planned map[string]string) error {
+	dev, ok := BindDevice(v.Driver, v.Options)
+	if !ok {
+		return nil
+	}
+	now, err := p.Follow(ctx, dev)
+	if err != nil {
+		return err
+	}
+	for _, at := range slices.Sorted(maps.Keys(now)) {
+		if planned[at] != now[at] {
+			return fmt.Errorf("the server path %s leads to %s now, which isn't what this plan was approved for, so nothing was changed or stopped. Plan it again to see what it reaches", at, now[at])
+		}
 	}
 	return nil
 }

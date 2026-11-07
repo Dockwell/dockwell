@@ -1980,8 +1980,15 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			steps[i].PlannedLeads, steps[i].Leads, steps[i].LeadsMoved = steps[i].Leads, nil, nil
 		}
 		// What each item reaches on this server that it couldn't, from its
-		// specs: the control plane decides it, whatever the agent says.
+		// specs: the control plane decides it, whatever the agent says. What a
+		// backup says it came from is the agent's, and can only make a plan louder.
 		gains := map[resource.Ref][]resource.Access{}
+		backupOf := map[resource.Ref][]string{}
+		for i := range steps {
+			if r := steps[i].Restore; r != nil {
+				backupOf[steps[i].Ref] = r.Reached
+			}
+		}
 		for _, it := range its {
 			ids[it.ref] = it.id
 			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
@@ -1998,6 +2005,13 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				}
 				// What a person approved was where a path led then.
 				gained = append(gained, resource.NewAccess(gained, movedOff(reaches, moved))...)
+				// What a backup holds came from what its volume reached then, and a
+				// volume of that name now may reach far less.
+				if len(asRoot(reaches, leads)) == 0 {
+					for _, p := range backupOf[it.ref] {
+						gained = append(gained, resource.Access{Kind: resource.AccessBackupOf, Path: p})
+					}
+				}
 			}
 			for j := range gained {
 				gained[j] = gained[j].Leading(leads[gained[j].Path])
@@ -2240,8 +2254,11 @@ func (e *Engine) keptRootNotes(plan *Plan, items []item, notes []Note) []Note {
 				if it.restore != nil {
 					then = "what a backup brings back has that reach too"
 				}
-				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: it.ref.Name +
-					" reaches what's as good as root on its server, so " + then + ". Applying this takes a person and their passkey"})
+				message := it.ref.Name + " reaches what's as good as root on its server, so " + then
+				if slices.ContainsFunc(r.HostAccess, func(a resource.Access) bool { return a.Kind == resource.AccessBackupOf }) {
+					message = "This backup was taken when " + it.ref.Name + " reached what's as good as root on its server, so whatever mounts it can read what comes back"
+				}
+				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: message + ". Applying this takes a person and their passkey"})
 			}
 		}
 	}

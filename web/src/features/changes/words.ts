@@ -344,6 +344,8 @@ export function useChangeWords(): ChangeWords {
               : t`the network ${path}, which is on the server already, where it answers to its name and to ${detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them`;
           case HostAccessKind.EXTERNAL_VOLUME:
             return t`the volume ${path}, which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds`;
+          case HostAccessKind.BACKUP_OF:
+            return t`a backup of a volume that reached ${path}, which can hold what's there, as good as root`;
           case HostAccessKind.TAKES_ON:
             return t`the container ${path}, which Dockwell didn't make, and its environment, which comes in with it`;
           case HostAccessKind.CAPABILITY:
