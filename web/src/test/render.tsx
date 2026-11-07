@@ -3,6 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
 import {
+  AuditService,
   AuthService,
   BackupService,
   CatalogService,
@@ -60,6 +61,7 @@ export type Api = {
   settings?: Partial<ServiceImpl<typeof SettingsService>>;
   updates?: Partial<ServiceImpl<typeof UpdateService>>;
   databases?: Partial<ServiceImpl<typeof DatabaseService>>;
+  audit?: Partial<ServiceImpl<typeof AuditService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -106,6 +108,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
       service(FileService, api.files ?? {});
+      service(AuditService, { listAuditEvents: () => ({}), ...api.audit });
       service(SettingsService, { getSettings: () => ({ settings: { timeZone: "UTC" } }), ...api.settings });
       service(UpdateService, api.updates ?? {});
       service(BackupService, {

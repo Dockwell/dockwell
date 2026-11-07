@@ -6438,6 +6438,159 @@ msgstr "{provider} 的元数据服务给出此地址，{when}"
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
 
+msgid "1 event in the last 24 hours."
+msgstr "最近 24 小时内有 1 个事件。"
+
+msgid "1 event in the last 30 days."
+msgstr "最近 30 天内有 1 个事件。"
+
+msgid "1 event in the last 7 days."
+msgstr "最近 7 天内有 1 个事件。"
+
+msgid "1 event, all there is."
+msgstr "共 1 个事件，这是全部。"
+
+msgid "API"
+msgstr "API"
+
+msgid "API tokens"
+msgstr "API 令牌"
+
+msgid "Action"
+msgstr "操作"
+
+msgid "All sources"
+msgstr "所有来源"
+
+msgid "Audit log"
+msgstr "审计日志"
+
+msgid "CLI"
+msgstr "CLI"
+
+msgid "Cleared, which was {previous}"
+msgstr "已清除（原为 {previous}）"
+
+msgid "Detail"
+msgstr "详情"
+
+msgid "Dockwell"
+msgstr "Dockwell"
+
+msgid "Dockwell can't read the audit log"
+msgstr "Dockwell 无法读取审计日志"
+
+msgid "Events"
+msgstr "事件"
+
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
+msgstr "人员、令牌、服务器和 Dockwell 的每一次变更和每一次访问 · 与这个安装一样长久保留"
+
+msgid "Everything"
+msgstr "全部"
+
+msgid "Export CSV"
+msgstr "导出 CSV"
+
+msgid "Filter by actor, action, target or address"
+msgstr "按执行者、操作、对象或地址筛选"
+
+msgid "Filter events"
+msgstr "筛选事件"
+
+#. placeholder {0}: event.action
+msgid "Hide details for {0} at {time}"
+msgstr "隐藏 {time} 的 {0} 详情"
+
+msgid "JSON lines"
+msgstr "JSON 行"
+
+msgid "Last 24 hours"
+msgstr "最近 24 小时"
+
+msgid "Last 30 days"
+msgstr "最近 30 天"
+
+msgid "Last 7 days"
+msgstr "最近 7 天"
+
+msgid "Loading the audit log"
+msgstr "正在加载审计日志"
+
+msgid "Not signed in"
+msgstr "未登录"
+
+msgid "Nothing happened in this range. Pick a longer one to see more."
+msgstr "这个时间范围内没有发生任何事。选择更长的范围以查看更多。"
+
+msgid "Nothing matches. Pick a longer range, or clear the filters."
+msgstr "没有匹配的事件。请选择更长的范围，或清除筛选条件。"
+
+msgid "Nothing more"
+msgstr "没有更多内容"
+
+msgid "Open in Activity"
+msgstr "在动态中打开"
+
+msgid "Panel"
+msgstr "面板"
+
+msgid "People"
+msgstr "人员"
+
+msgid "Pick a longer range to see more."
+msgstr "选择更长的范围以查看更多。"
+
+msgid "Said"
+msgstr "记录内容"
+
+msgid "Saved 1 event."
+msgstr "已保存 1 个事件。"
+
+msgid "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
+msgstr "已保存最新的 {MOST_EXPORTED} 个事件。缩小筛选范围以保存其余事件。"
+
+#. placeholder {0}: events.length
+msgid "Saved {0} events."
+msgstr "已保存 {0} 个事件。"
+
+msgid "Shells on the control server"
+msgstr "控制服务器上的 Shell"
+
+#. placeholder {0}: event.action
+msgid "Show details for {0} at {time}"
+msgstr "显示 {time} 的 {0} 详情"
+
+msgid "Target"
+msgstr "对象"
+
+msgid "The audit log, newest first"
+msgstr "审计日志，最新的在前"
+
+msgid "The newest {count} events. Show more for older ones."
+msgstr "最新的 {count} 个事件。显示更多以查看更早的事件。"
+
+msgid "Today · {day}"
+msgstr "今天 · {day}"
+
+msgid "Yesterday · {day}"
+msgstr "昨天 · {day}"
+
+msgid "{count} events in the last 24 hours."
+msgstr "最近 24 小时内有 {count} 个事件。"
+
+msgid "{count} events in the last 30 days."
+msgstr "最近 30 天内有 {count} 个事件。"
+
+msgid "{count} events in the last 7 days."
+msgstr "最近 7 天内有 {count} 个事件。"
+
+msgid "{count} events, all there are."
+msgstr "共 {count} 个事件，这是全部。"
+
+msgid "{value}, which was {previous}"
+msgstr "{value}（原为 {previous}）"
+
 msgid "A file beside the control plane, for one control plane"
 msgstr "控制平面旁的一个文件，适用于单个控制平面"
 
@@ -6717,9 +6870,6 @@ msgstr "使用 OpenRC 时，在 <1>/etc/conf.d/dockwell</1> 中写入 <0>export 
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "使用 systemd 时，用 <0>sudo systemctl edit dockwell</0> 添加 <1>Environment=DOCKWELL_DOMAIN=…</1> 这一行，然后运行 <2>sudo systemctl restart dockwell</2>。"
 
-msgid "API tokens"
-msgstr "API 令牌"
-
 msgid "Account"
 msgstr "账户"
 
@@ -6759,8 +6909,8 @@ msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer
 msgid "Dockwell can't list your tokens"
 msgstr "Dockwell 无法列出你的令牌"
 
-msgid "Each new address it's used from goes in the audit log"
-msgstr "每次从新地址使用都会记入审计日志"
+msgid "Each new address it's used from goes in the <0>audit log</0>"
+msgstr "每次从新地址使用都会记入<0>审计日志</0>"
 
 msgid "Expires"
 msgstr "过期时间"
