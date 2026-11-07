@@ -176,7 +176,10 @@ function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }
           header: t`Domain`,
           width: "32%",
           render: (row) => {
-            const [domain, ...more] = domainsOf(row.group);
+            const names = domainsOf(row.group);
+            // Not read yet, or can't be: nobody can say it has none.
+            if (names === undefined) return null;
+            const [domain, ...more] = names;
             if (!domain) return <span aria-hidden="true">—</span>;
             const others = more.length;
             return (

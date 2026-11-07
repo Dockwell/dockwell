@@ -1351,8 +1351,8 @@ msgstr "Export"
 msgid "Filter apps"
 msgstr "Filter apps"
 
-msgid "Filter by name or image"
-msgstr "Filter by name or image"
+msgid "Filter by name, image or domain"
+msgstr "Filter by name, image or domain"
 
 msgid "Fold {title}"
 msgstr "Fold {title}"

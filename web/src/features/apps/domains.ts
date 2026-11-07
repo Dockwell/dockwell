@@ -482,17 +482,19 @@ export function useDomainsReaching(reaches: readonly EnvironmentReach[]): {
  * a function of an environment and its services' names. Names only, so they're
  * read once, not every few seconds as Domains reads where each stands.
  */
-export function useDomainNames(): (environment: string, services: readonly ServiceInfo[]) => string[] {
+export function useDomainNames(): (environment: string, services: readonly ServiceInfo[]) => string[] | undefined {
   const domains = useQuery(DomainService.method.listDomains, {}, { staleTime: Number.POSITIVE_INFINITY }).data?.domains;
   return useMemo(() => {
+    // Until they're read, or while they can't be, nobody can say an app has none.
+    if (domains === undefined) return () => undefined;
     const by = new Map<string, string[]>();
-    for (const domain of domains ?? []) {
+    for (const domain of domains) {
       for (const route of domain.routes) {
         const key = `${domain.environmentId}/${route.service}`;
         by.set(key, [...(by.get(key) ?? []), domain.name]);
       }
     }
-    return (environment, services) => [
+    return (environment: string, services: readonly ServiceInfo[]): string[] => [
       ...new Set(services.flatMap((s) => by.get(`${environment}/${nameOf(s)}`) ?? [])),
     ];
   }, [domains]);

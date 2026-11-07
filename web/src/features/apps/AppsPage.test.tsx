@@ -168,11 +168,57 @@ describe("the apps list", () => {
   });
 
   it("leaves room for an app's name on a fleet, where Runs on takes more of the row", async () => {
+    const fleet = () => api([anApp("web", "ghcr.io/acme/web:1.4")], hz1, aServer({ id: "srv_2", name: "hz-2" }));
+    // Below 1280 px a fleet's row has no room for where each answers: the name would get about 60 px.
     onScreen("(min-width: 1100px)");
-    renderAt("/apps", api([anApp("web", "ghcr.io/acme/web:1.4")], hz1, aServer({ id: "srv_2", name: "hz-2" })));
+    const narrow = renderAt("/apps", fleet());
     expect(await screen.findByRole("columnheader", { name: "Runs on" })).toBeVisible();
-    // A share of the row added to the fixed columns left the name 27 px at 1280.
-    expect(screen.getByRole("columnheader", { name: "Domain" }).style.width).toBe("176px");
+    expect(screen.queryByRole("columnheader", { name: "Domain" })).toBeNull();
+    narrow.unmount();
+
+    onScreen("(min-width: 1280px)");
+    renderAt("/apps", fleet());
+    expect(await screen.findByRole("columnheader", { name: "Domain" })).toBeVisible();
+    // What the fixed columns leave the name of a 1280 px screen's table, about 1000 px past the rail.
+    const row = 1280 - 232 - 48;
+    const fixed = screen
+      .getAllByRole("columnheader")
+      .map((h) => h.style.width)
+      .reduce((sum, w) => sum + (w.endsWith("%") ? (Number.parseFloat(w) / 100) * row : Number.parseFloat(w) || 0), 0);
+    expect(row - fixed).toBeGreaterThanOrEqual(240);
+  });
+
+  it("leaves where each answers empty while the domains can't be read, rather than say there are none", async () => {
+    onScreen("(min-width: 1100px)");
+    renderAt("/apps", {
+      ...api([anApp("web", "ghcr.io/acme/web:1.4")]),
+      domains: {
+        listDomains: () => {
+          throw new ConnectError("no", Code.Unavailable);
+        },
+      },
+    });
+    const row = await screen.findByRole("row", { name: /web/ });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(within(row).getAllByRole("cell")[3]).toHaveTextContent(/^$/);
+  });
+
+  it("finds an app by where it answers, as the filter says", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps", {
+      // The filter shows from six apps.
+      ...api(["web", "api", "db", "cache", "queue", "worker"].map((n) => anApp(n, `ghcr.io/acme/${n}:1`))),
+      domains: {
+        listDomains: () => ({
+          domains: [{ name: "shop.example.com", environmentId: ENV, routes: [{ service: "web", port: 80 }] }],
+        }),
+      },
+    });
+    const filter = await screen.findByLabelText("Filter apps");
+    expect(filter).toHaveAttribute("placeholder", "Filter by name, image or domain");
+    await user.type(filter, "shop.example");
+    await waitFor(() => expect(screen.queryByRole("row", { name: /^api/ })).toBeNull());
+    expect(screen.getByRole("row", { name: /web/ })).toBeVisible();
   });
 
   it("keeps the end of a long image, which tells it from the others, and says the whole of it on hover", async () => {

@@ -81,8 +81,13 @@ const REVISION_WIDTH = 152;
 /** A SegmentedControl holds up to five; past that, a select. */
 const SEGMENTS = 5;
 
-/** From this wide, where each app answers has a column, as Apps-List has it. Its image is always under its name. */
+/**
+ * From this wide, where each app answers has a column, as Apps-List has it. Its
+ * image is always under its name. A fleet's rows hold more, so its column waits
+ * until there's room for the name beside it.
+ */
 const DOMAIN_COLUMN_QUERY = "(min-width: 1100px)";
+const FLEET_DOMAIN_COLUMN_QUERY = "(min-width: 1280px)";
 
 /** Where the list remembers what is folded, and how many apps there were. Conveniences of this browser alone. */
 const FOLDED_KEY = "dockwell.apps.folded";
@@ -231,12 +236,17 @@ export function AppsPage({
   }, [groups, servers, health]);
   const bringUp = () => setEpoch((n) => n + 1);
   const filtering = query.trim() !== "";
+  // Where an app answers finds it too, as the filter's words say.
+  const domainNames = useDomainNames();
   const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const answers = (s: ServiceInfo) =>
+      q !== "" && (domainNames(environmentOf(s), [s]) ?? []).some((d) => d.toLowerCase().includes(q));
     const out: Row[] = [];
     for (const group of groups) {
       // A project's name finds all of it; otherwise what matches is what shows.
       const whole = group.name !== "" && group.name.toLowerCase().includes(query.trim().toLowerCase());
-      const members = whole ? group.services : group.services.filter((s) => matches(s, query));
+      const members = whole ? group.services : group.services.filter((s) => matches(s, query) || answers(s));
       if (members.length === 0) continue;
       const [first] = group.services;
       if (!group.stack && first) {
@@ -251,7 +261,7 @@ export function AppsPage({
       });
     }
     return out;
-  }, [groups, query, collapsed, filtering]);
+  }, [groups, query, collapsed, filtering, domainNames]);
 
   const open = (id: string) => void navigate({ to: "/apps/$serviceId", params: { serviceId: id } });
 
@@ -386,7 +396,7 @@ export function AppsPage({
                 size={phone ? "lg" : "sm"}
                 icon="search"
                 type="search"
-                placeholder={t`Filter by name or image`}
+                placeholder={t`Filter by name, image or domain`}
                 aria-label={t`Filter apps`}
                 value={typed}
                 disabled={pending}
@@ -533,7 +543,7 @@ export function useLaterTrouble(needing: number, trouble: string, settled: boole
 function useColumnHeads(fleet: boolean, wide: boolean) {
   const { t } = useLingui();
   return useMemo(() => {
-    const heads: { key: string; header: string; width?: number | string; align?: "right" }[] = [
+    const heads: { key: string; header: string; width?: number | string; align?: "right"; muted?: boolean }[] = [
       { key: "app", header: t`App` },
     ];
     heads.push(
@@ -542,7 +552,7 @@ function useColumnHeads(fleet: boolean, wide: boolean) {
     );
     if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 168 });
     // A fixed width on a fleet, where Runs on takes room too: a share of the row left a name 27 px at 1280.
-    if (wide) heads.push({ key: "domain", header: t`Domain`, width: fleet ? 176 : "24%" });
+    if (wide) heads.push({ key: "domain", header: t`Domain`, width: fleet ? 176 : "24%", muted: true });
     heads.push({ key: "deployed", header: t`Deployed`, width: 104, align: "right" });
     return heads;
   }, [t, fleet, wide]);
@@ -579,7 +589,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
   const words = useAppWords();
   const titleOf = useRowTitle();
   const time = useTimeWords();
-  const wide = useMediaQuery(DOMAIN_COLUMN_QUERY);
+  const wide = useMediaQuery(fleet ? FLEET_DOMAIN_COLUMN_QUERY : DOMAIN_COLUMN_QUERY);
   const heads = useColumnHeads(fleet, wide);
   const domainNames = useDomainNames();
   const newest = useMemo(() => {
@@ -641,7 +651,10 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
       },
       domain: (row) => {
         const services = row.service ? [row.service] : row.group.services;
-        const [domain, ...more] = domainNames(row.group.environment, services);
+        const names = domainNames(row.group.environment, services);
+        // Not read yet, or can't be: nobody can say it has none.
+        if (names === undefined) return null;
+        const [domain, ...more] = names;
         if (!domain) return <span aria-hidden="true">—</span>;
         const others = more.length;
         return (
@@ -821,7 +834,7 @@ function PhoneList({
 /** While the list is on its way: the table with its heads, so nothing moves when it lands. */
 function AppsSkeleton({ label, fleet, rows = 3 }: { label: string; fleet: boolean; rows?: number }) {
   const phone = useMediaQuery(PHONE_QUERY);
-  const wide = useMediaQuery(DOMAIN_COLUMN_QUERY);
+  const wide = useMediaQuery(fleet ? FLEET_DOMAIN_COLUMN_QUERY : DOMAIN_COLUMN_QUERY);
   const heads = useColumnHeads(fleet, wide);
   const columns = useMemo<TableColumn<{ id: string }>[]>(
     () =>
