@@ -12,6 +12,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -47,6 +48,39 @@ type Credential struct {
 	UserHandle []byte
 	Key        *ecdsa.PrivateKey
 	Count      uint32
+}
+
+// exported is a Credential as a file holds it.
+type exported struct {
+	ID, UserHandle, Key []byte
+	RPID                string
+}
+
+// Export is a passkey as bytes, for a script whose later steps run as other
+// processes, such as scripts/stepup. It holds the private key.
+func (c *Credential) Export() ([]byte, error) {
+	key, err := x509.MarshalPKCS8PrivateKey(c.Key)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(exported{ID: c.ID, UserHandle: c.UserHandle, Key: key, RPID: c.RPID})
+}
+
+// ImportCredential reads what Export wrote.
+func ImportCredential(b []byte) (*Credential, error) {
+	var e exported
+	if err := json.Unmarshal(b, &e); err != nil {
+		return nil, err
+	}
+	parsed, err := x509.ParsePKCS8PrivateKey(e.Key)
+	if err != nil {
+		return nil, err
+	}
+	key, ok := parsed.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("the key is %T, not an ECDSA key", parsed)
+	}
+	return &Credential{ID: e.ID, RPID: e.RPID, UserHandle: e.UserHandle, Key: key}, nil
 }
 
 // Flags in authenticator data.

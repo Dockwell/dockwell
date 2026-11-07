@@ -635,3 +635,34 @@ func TestAStepUpAskedForThatNeverComesIsHeardOnce(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 }
+
+// A script's later steps run as other processes, so a passkey it made has to answer
+// from a file, as itself: the server checks the signature against what it registered.
+func TestAPasskeyStillAnswersOnceExported(t *testing.T) {
+	f := newFixture(t, store.SQLite, "")
+	a := &authtest.Authenticator{}
+	p := ownerPrincipal(f.claim(t, localhost, a))
+	exported, err := a.Credentials()[0].Export()
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := authtest.ImportCredential(exported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cer, err := f.svc.BeginStepUp(t.Context(), localhost, p, StepUpApplyRootChange, "chg_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer, err := (&authtest.Authenticator{}).Get(string(cer.Options), localhost.Site.Origin, again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	up, err := f.svc.FinishStepUp(t.Context(), localhost, p, cer.ID, []byte(answer))
+	if err != nil {
+		t.Fatalf("a passkey read back from a file: %v", err)
+	}
+	if err := f.svc.UseStepUp(p, up.Proof, StepUpApplyRootChange, "chg_1"); err != nil {
+		t.Fatalf("its proof: %v", err)
+	}
+}

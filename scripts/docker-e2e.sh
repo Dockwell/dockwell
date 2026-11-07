@@ -73,6 +73,8 @@ registry_image=registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58
 
 port=${addr##*:}
 cookie=$(mktemp)
+passkey=$(mktemp)
+stepup=$(mktemp)
 # What a file's relative paths start from. Not the data directory, which no
 # container may mount, and Docker makes what's in it as root.
 real_dir=$(mktemp -d)
@@ -153,7 +155,7 @@ cleanup() {
   done
   wait 2>/dev/null || true
   docker image rm --force dockwell-e2e-app:slow dockwell-e2e-app:never >/dev/null 2>&1 || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
+  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
 }
 trap cleanup EXIT
 
@@ -259,7 +261,7 @@ grep -q 'To claim it, run this on this server' "$log" || fail "dockwell run didn
 claim=$(dw claim) || fail "dockwell claim failed"
 link=$(grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' <<<"$claim" | head -1) || true
 [[ -n "$link" ]] || fail "dockwell claim printed no claim link: $claim"
-(cd "$(dirname "$0")/.." && go run ./scripts/claim "$link" "$cookie") || fail "can't claim the install"
+(cd "$(dirname "$0")/.." && go run ./scripts/claim "$link" "$cookie" "$passkey" && go build -o "$stepup" ./scripts/stepup) || fail "can't claim the install"
 dw login --local >/dev/null || fail "dockwell login --local failed"
 
 # person_call calls the API as a signed-in person does, from the panel's origin,
@@ -275,12 +277,9 @@ person_answer() {
 }
 # change_field reads a field of a change.
 change_field() { dw changes get "$1" --json | jq -r ".change.$2"; }
-# person_apply applies a planned change as a person does in the panel, and waits
-# for it.
-person_apply() {
-  local fingerprint state=""
-  fingerprint=$(change_field "$1" plan.fingerprint) || fail "can't read the plan of $1"
-  person_call ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}" >/dev/null || fail "a person can't apply $1"
+# wait_applied waits for a change a person applied.
+wait_applied() {
+  local state=""
   for _ in $(seq 240); do
     state=$(change_field "$1" state) || state=""
     [[ "$state" == CHANGE_STATE_APPLIED ]] && return 0
@@ -302,6 +301,32 @@ take_on() {
   [[ "$taken_plan" != *not-in-any-plan* ]] || fail "the plan to take on $1 shows a value of its environment: $taken_plan"
   person_apply "$(jq -r '.change.id' <<<"$taken_plan")"
   [[ "$(touched "$1")" == "$started" ]] || fail "taking it on touched $1: $started, then $(touched "$1")"
+}
+
+# person_apply applies a planned change as a person does in the panel, and waits
+# for it. It fails on one that takes a passkey: that's person_apply_root, so a plan
+# that's as good as root by mistake shows here.
+person_apply() {
+  local fingerprint
+  fingerprint=$(change_field "$1" plan.fingerprint) || fail "can't read the plan of $1"
+  person_call ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}" >/dev/null || fail "a person can't apply $1"
+  wait_applied "$1"
+}
+# person_apply_root applies a plan that's as good as root, as the panel does: the
+# server refuses it with no passkey, and takes it with a proof from a real step-up,
+# with the passkey the claim made, for this change alone.
+person_apply_root() {
+  local fingerprint answer proof
+  fingerprint=$(change_field "$1" plan.fingerprint) || fail "can't read the plan of $1"
+  answer=$(curl -sS --max-time 30 -i -w '\n%{http_code}' --resolve "localhost:$port:127.0.0.1" -H "Origin: http://localhost:$port" -H 'Content-Type: application/json' \
+    -H "Cookie: $(cat "$cookie")" -d "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}" "http://localhost:$port/dockwell.v1.ChangeService/ApplyChange") ||
+    fail "the API didn't answer a person applying $1"
+  [[ "${answer##*$'\n'}" == 403 ]] || fail "a person applied $1, which is as good as root, with no passkey: $answer"
+  grep -qi '^dockwell-error: needs_step_up' <<<"$answer" || fail "the server refused a person applying $1 for another reason: $answer"
+  [[ "$(change_field "$1" state)" == CHANGE_STATE_PLANNED ]] || fail "$1 isn't planned after it was refused"
+  proof=$("$stepup" "http://localhost:$port" "$cookie" "$passkey" STEP_UP_ACTION_APPLY_ROOT_CHANGE "$1") || fail "can't confirm $1 with the passkey"
+  person_call ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\",\"proof\":\"$proof\"}" >/dev/null || fail "a person can't apply $1 with its passkey"
+  wait_applied "$1"
 }
 # token_refused checks that the server itself refuses a token applying a change,
 # through its API, rather than the CLI's own check that stops short of asking. The
@@ -2808,7 +2833,7 @@ change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import prin
 [[ "$change" == chg_* ]] || fail "compose import planned no change: $planned"
 jq -e '.change.plan.hostAccess == true' <<<"$planned" >/dev/null || fail "a privileged service plans no host access: $planned"
 token_refused "$change"
-person_apply "$change"
+person_apply_root "$change"
 privileged=$(docker ps --filter label=com.docker.compose.service=privileged --format '{{.ID}}') || fail "docker ps failed"
 [[ -n "$privileged" ]] || fail "Docker runs nothing for privileged"
 real_projects+=("$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$privileged")")
@@ -2912,7 +2937,7 @@ EOF
 planned=$(dw compose import --compose "$on_host_file" --project default --environment real --plan-only --json) || fail "importing a service on the server's own network failed"
 on_host_change=$(jq -r '.change.id // empty' <<<"$planned") || fail "compose import printed what isn't JSON: $planned"
 [[ "$on_host_change" == chg_* ]] || fail "compose import planned no change: $planned"
-person_apply "$on_host_change"
+person_apply_root "$on_host_change"
 for _ in $(seq 100); do
   curl -fsS --max-time 1 -o /dev/null "http://127.0.0.1:$on_host_port/" 2>/dev/null && break
   sleep 0.1
