@@ -84,6 +84,11 @@ msgstr "{0, plural, one {# app stops, and you can undo this until {deadline}.} o
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, one {# app stops.} other {# apps stop.}}"
 
+#. placeholder {0}: backups.length
+#: src/features/backups/BackupsPage.tsx
+msgid "{0, plural, one {# backup} other {# backups}}"
+msgstr "{0, plural, one {# backup} other {# backups}}"
+
 #. placeholder {0}: waiting.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {# change to this app needs your approval} other {# changes to this app need your approval}}"
@@ -412,6 +417,10 @@ msgstr "{elsewhere, plural, one {# more app lives outside this view} other {# mo
 #: src/features/logs/LogsPage.tsx
 msgid "{errors, plural, one {{count} error} other {{count} errors}}"
 msgstr "{errors, plural, one {{count} error} other {{count} errors}}"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "{failed, plural, one {# failed} other {# failed}}"
+msgstr "{failed, plural, one {# failed} other {# failed}}"
 
 #: src/features/logs/LogsPage.tsx
 msgid "{first} couldn't be searched"
@@ -5967,6 +5976,10 @@ msgstr "Recent deployments"
 #: src/features/apps/AppOverview.tsx
 msgid "Recent health"
 msgstr "Recent health"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Recent runs"
+msgstr "Recent runs"
 
 #: src/features/apps/DomainRecord.tsx
 msgid "Recommended. It needs no public address and no forwarded port."

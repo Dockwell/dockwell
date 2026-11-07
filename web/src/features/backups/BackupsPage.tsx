@@ -81,6 +81,13 @@ export function BackupsPage() {
       </Button>
     ) : null;
 
+  const failed = backups.filter((b) => b.state === BackupState.FAILED).length;
+  const runs = [
+    plural(backups.length, { one: "# backup", other: "# backups" }),
+    failed > 0 ? plural(failed, { one: "# failed", other: "# failed" }) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const where =
     destinations.length > 0
       ? t`On each server's own disk, unencrypted, and sealed on a destination where you ask for it`
@@ -97,31 +104,43 @@ export function BackupsPage() {
           {bringBackFailure}
         </Callout>
       ) : null}
-      {query.isPending ? null : backups.length === 0 ? (
-        <Panel>
-          {volumes.length > 0 ? (
-            <EmptyState icon="archive" title={t`No backups yet`} action={action}>
-              <Trans>Back up a volume before you change what's in it. A database's backup stops nothing.</Trans>
-            </EmptyState>
+      <div className="backups-columns">
+        <div className="backups-main">
+          {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
+          {query.isPending ? null : backups.length === 0 ? (
+            <Panel>
+              {volumes.length > 0 ? (
+                <EmptyState icon="archive" title={t`No backups yet`} action={action}>
+                  <Trans>Back up a volume before you change what's in it. A database's backup stops nothing.</Trans>
+                </EmptyState>
+              ) : (
+                <EmptyState icon="archive" title={t`Nothing to back up yet`}>
+                  <Trans>A backup is of a volume. Add one to an app, or install a database from the catalog.</Trans>
+                </EmptyState>
+              )}
+            </Panel>
           ) : (
-            <EmptyState icon="archive" title={t`Nothing to back up yet`}>
-              <Trans>A backup is of a volume. Add one to an app, or install a database from the catalog.</Trans>
-            </EmptyState>
+            <section className="backups-runs" aria-labelledby="backups-runs">
+              <div className="backups-runs-head">
+                <h2 className="dw-text-heading" id="backups-runs">
+                  <Trans>Recent runs</Trans>
+                </h2>
+                <span className="backups-runs-lead">{runs}</span>
+                {phone ? action : null}
+              </div>
+              <BackupsList
+                backups={backups}
+                onRestore={restore}
+                onFetch={(b) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""))}
+                onDelete={setDeleting}
+              />
+            </section>
           )}
-        </Panel>
-      ) : (
-        <>
-          {phone ? <div className="backup-phone-action">{action}</div> : null}
-          <BackupsList
-            backups={backups}
-            onRestore={restore}
-            onFetch={(b) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""))}
-            onDelete={setDeleting}
-          />
-        </>
-      )}
-      {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
-      <DestinationsPanel destinations={destinations} />
+        </div>
+        <div className="backups-side">
+          <DestinationsPanel destinations={destinations} />
+        </div>
+      </div>
       {taking ? <BackUpSheet volumes={volumes} destinations={destinations} onClose={() => setTaking(false)} /> : null}
       {scheduling ? (
         <PolicySheet volumes={volumes} destinations={destinations} onClose={() => setScheduling(false)} />
