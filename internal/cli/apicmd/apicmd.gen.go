@@ -152,6 +152,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The change's ID.", Arg: true},
 				{Path: "fingerprint", Help: "The fingerprint of the plan you reviewed. When set, the change applies only if its plan has it. A plan that destroys data, may cut off access, or lets two containers write to one place needs it."},
+				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for applying this change. A plan that gives something as much as root on a server needs it, which is why no API token can apply one. Call without it first: it checks everything else, then refuses with the reason needs_step_up."},
 			},
 			Call: apicli.Unary[v1.ApplyChangeRequest, v1.ApplyChangeResponse](dockwellv1connect.ChangeServiceApplyChangeProcedure),
 		},

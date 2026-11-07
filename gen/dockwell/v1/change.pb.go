@@ -1580,7 +1580,12 @@ type ApplyChangeRequest struct {
 	// The fingerprint of the plan you reviewed. When set, the change applies
 	// only if its plan has it. A plan that destroys data, may cut off access,
 	// or lets two containers write to one place needs it.
-	Fingerprint   string `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	Fingerprint string `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	// The proof from FinishStepUp, for applying this change. A plan that gives
+	// something as much as root on a server needs it, which is why no API token
+	// can apply one. Call without it first: it checks everything else, then
+	// refuses with the reason needs_step_up.
+	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1625,6 +1630,13 @@ func (x *ApplyChangeRequest) GetId() string {
 func (x *ApplyChangeRequest) GetFingerprint() string {
 	if x != nil {
 		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *ApplyChangeRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
 	}
 	return ""
 }
@@ -5206,10 +5218,11 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"l\n" +
 	"\x13ListChangesResponse\x12-\n" +
 	"\achanges\x18\x01 \x03(\v2\x13.dockwell.v1.ChangeR\achanges\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"F\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\\\n" +
 	"\x12ApplyChangeRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
-	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\"B\n" +
+	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\x12\x14\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\"B\n" +
 	"\x13ApplyChangeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"$\n" +
 	"\x12WatchChangeRequest\x12\x0e\n" +

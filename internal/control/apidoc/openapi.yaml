@@ -2356,6 +2356,13 @@ components:
                         The fingerprint of the plan you reviewed. When set, the change applies
                          only if its plan has it. A plan that destroys data, may cut off access,
                          or lets two containers write to one place needs it.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for applying this change. A plan that gives
+                         something as much as root on a server needs it, which is why no API token
+                         can apply one. Call without it first: it checks everything else, then
+                         refuses with the reason needs_step_up.
             description: ApplyChangeRequest names a planned change to apply.
         ApplyChangeResponse:
             type: object
@@ -2439,6 +2446,7 @@ components:
                         - STEP_UP_ACTION_DISABLE_CODES
                         - STEP_UP_ACTION_REGENERATE_RECOVERY_CODES
                         - STEP_UP_ACTION_CREATE_TOKEN
+                        - STEP_UP_ACTION_APPLY_ROOT_CHANGE
                     type: string
                     description: The action.
                     format: enum

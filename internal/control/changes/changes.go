@@ -50,15 +50,17 @@ const (
 // Handler implements ChangeService.
 type Handler struct {
 	engine *revision.Engine
+	auth   *auth.Service
 	db     *store.DB
 	logger *slog.Logger
 }
 
 var _ dockwellv1connect.ChangeServiceHandler = (*Handler)(nil)
 
-// New returns a handler over engine, which reads db.
-func New(engine *revision.Engine, db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{engine: engine, db: db, logger: logger}
+// New returns a handler over engine, which reads db. people checks the passkey a
+// plan that's as good as root takes.
+func New(engine *revision.Engine, people *auth.Service, db *store.DB, logger *slog.Logger) *Handler {
+	return &Handler{engine: engine, auth: people, db: db, logger: logger}
 }
 
 // by is who is calling, and from where, as auth.Client.Surface says: a
@@ -274,6 +276,12 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s %s. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, accessWords(r.Plan), r.Fingerprint),
 			"needs_confirmation")
+	}
+	// The proof is asked for, and spent, once nothing else refuses.
+	if r.State == store.ChangePlanned && r.Plan.AsGoodAsRoot() {
+		if err := h.auth.UseStepUp(p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID); err != nil {
+			return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+		}
 	}
 	if err := h.engine.Start(ctx, r.ID, who); err != nil {
 		return nil, h.rpcError(ctx, err)

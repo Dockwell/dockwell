@@ -436,6 +436,15 @@ func (p *Plan) HostAccess() bool {
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return len(r.HostAccess) > 0 })
 }
 
+// AsGoodAsRoot reports a plan that lets something reach as much as root can on a
+// server. Whoever applies one could keep a way back in, so it takes a fresh
+// passkey as well as a person (ADR 0032).
+func (p *Plan) AsGoodAsRoot() bool {
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
+		return slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
+	})
+}
+
 // Destructive reports a plan with a step that destroys data, may cut off access,
 // or lets two containers write to one place, as a spec chose: two writers can
 // corrupt a database, and applying can't undo that.

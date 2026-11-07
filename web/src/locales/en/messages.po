@@ -1575,6 +1575,10 @@ msgstr "Apply this only if you trust what it runs."
 msgid "Applying"
 msgstr "Applying"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Applying this asks for your passkey"
+msgstr "Applying this asks for your passkey"
+
 #: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/shell/CommandMenu.tsx

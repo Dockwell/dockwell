@@ -596,6 +596,9 @@ enum StepUpAction {
   STEP_UP_ACTION_REGENERATE_RECOVERY_CODES = 6;
   // Creating an API token, with TokenService.CreateToken. It has no target.
   STEP_UP_ACTION_CREATE_TOKEN = 7;
+  // Applying a change that gives something as much as root on a server, with
+  // ChangeService.ApplyChange. The target is the change's ID.
+  STEP_UP_ACTION_APPLY_ROOT_CHANGE = 8;
 }
 
 // BeginStepUpRequest says what the passkey confirms.

@@ -28,6 +28,7 @@ import {
   ServerPlanSchema,
   StepProgressSchema,
   StepState,
+  StepUpAction,
   type WatchChangeResponse,
 } from "@dockwell/api";
 import { CommandBar } from "@dockwell/ui";
@@ -38,9 +39,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { authError, requestOptions, stubPasskeys } from "../../test/auth";
 import { applied, mira, moved, watched, webPlanned } from "../../test/changes";
 import { feed, renderWithApi } from "../../test/render";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
+import { shortFingerprint } from "./plan";
 
 function Opener({ opening }: { opening: Opening }) {
   const sheet = useChangeSheet();
@@ -777,6 +780,101 @@ describe("what a plan asks of whoever applies it", () => {
       expect(within(sheet).getByLabelText(/to apply it/)).toBeVisible();
       unmount();
     }
+  });
+
+  describe("with what's as good as root", () => {
+    const root = () => reaching({ kind: HostAccessKind.PRIVILEGED, sameAsRoot: true });
+    const needsStepUp = () => authError(Code.PermissionDenied, "needs_step_up");
+
+    function applyWith(change: Change, applyChange: (req: ApplyChangeRequest) => unknown, auth = {}) {
+      return renderWithApi(
+        <ChangeSheetProvider>
+          <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) } as Opening} />
+        </ChangeSheetProvider>,
+        { changes: { watchChange: feed<WatchChangeResponse>().stream, applyChange } as never, auth },
+      );
+    }
+
+    async function typeAndApply(change: Change) {
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      await userEvent.type(within(sheet).getByLabelText(/to apply it/), shortFingerprint(change.plan));
+      await userEvent.click(within(sheet).getByRole("button", { name: /Apply plan/ }));
+      return sheet;
+    }
+
+    it("says it asks for a passkey, then confirms this change with one, and applies it with the proof", async () => {
+      const passkeys = stubPasskeys();
+      const change = root();
+      const applies: ApplyChangeRequest[] = [];
+      const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
+      applyWith(
+        change,
+        (req) => {
+          applies.push(req);
+          if (!req.proof) throw needsStepUp();
+          return { change: moved(change, { state: ChangeState.APPLYING }) };
+        },
+        { beginStepUp, finishStepUp: () => ({ proof: "proof_1" }) },
+      );
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(await within(sheet).findByText("Applying this asks for your passkey")).toBeVisible();
+      await typeAndApply(change);
+      await waitFor(() => expect(applies).toHaveLength(2));
+      expect(applies[0]?.proof).toBe("");
+      expect(applies[1]).toMatchObject({ id: change.id, proof: "proof_1", fingerprint: change.plan?.fingerprint });
+      expect(beginStepUp).toHaveBeenCalledWith(
+        expect.objectContaining({ action: StepUpAction.APPLY_ROOT_CHANGE, target: change.id }),
+        expect.anything(),
+      );
+      expect(passkeys.get).toHaveBeenCalledTimes(1);
+    });
+
+    it("stays planned if you close the passkey prompt, and says so in words", async () => {
+      stubPasskeys({ get: "NotAllowedError" });
+      const change = root();
+      applyWith(
+        change,
+        () => {
+          throw needsStepUp();
+        },
+        { beginStepUp: () => ({ ceremonyId: "cer_1", optionsJson: requestOptions }) },
+      );
+      const sheet = await typeAndApply(change);
+      expect(await within(sheet).findByText("The passkey prompt closed", { exact: false })).toBeVisible();
+      expect(within(sheet).getByRole("button", { name: /Apply plan/ })).toBeVisible();
+    });
+
+    it("says what to do with no passkey for this address", async () => {
+      stubPasskeys();
+      const change = root();
+      applyWith(
+        change,
+        () => {
+          throw needsStepUp();
+        },
+        {
+          beginStepUp: () => {
+            throw authError(
+              Code.FailedPrecondition,
+              "no_passkey_here",
+              "confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again",
+            );
+          },
+        },
+      );
+      const sheet = await typeAndApply(change);
+      expect(await within(sheet).findByText("Add one under Profile and security", { exact: false })).toBeVisible();
+    });
+
+    it("asks nothing of a plan that isn't", async () => {
+      const { applies } = show(reaching({ kind: HostAccessKind.SERVER_PATH, path: "/srv/site/html" }));
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      await within(sheet).findByRole("button", { name: /Apply plan/ });
+      expect(within(sheet).queryByText("Applying this asks for your passkey")).toBeNull();
+      await userEvent.click(within(sheet).getByRole("button", { name: /Apply plan/ }));
+      await waitFor(() => expect(applies).toHaveLength(1));
+      expect(applies[0]?.proof).toBe("");
+    });
   });
 
   it("says a capability, a group or another network that stops short of root in amber, in its own words", async () => {
