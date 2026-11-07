@@ -84,20 +84,41 @@ msgstr "{0, plural, other {# 个应用将停止，你可以在 {deadline} 之前
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, other {# 个应用将停止。}}"
 
+#. placeholder {0}: here.length
+#: src/features/servers/PhoneServer.tsx
+#: src/features/servers/RunsHere.tsx
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, other {# 个应用}}"
+
 #. placeholder {0}: waiting.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {# change to this app needs your approval} other {# changes to this app need your approval}}"
 msgstr "{0, plural, other {这个应用有 # 个变更等你批准}}"
+
+#. placeholder {0}: here.length
+#: src/features/servers/RunsHere.tsx
+msgid "{0, plural, one {# domain} other {# domains}}"
+msgstr "{0, plural, other {# 个域名}}"
 
 #. placeholder {0}: Number(b.filesChanged)
 #: src/features/backups/BackupsPage.tsx
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, other {# 个文件在复制时发生了变化}}"
 
+#. placeholder {0}: use.images
+#: src/features/servers/DiskUse.tsx
+msgid "{0, plural, one {# image} other {# images}}"
+msgstr "{0, plural, other {# 个镜像}}"
+
 #. placeholder {0}: lineCount(draft)
 #: src/features/files/FileViewer.tsx
 msgid "{0, plural, one {# line} other {# lines}}"
 msgstr "{0, plural, other {# 行}}"
+
+#. placeholder {0}: looks.length
+#: src/features/servers/RunsHere.tsx
+msgid "{0, plural, one {# needs a look} other {# need a look}}"
+msgstr "{0, plural, other {# 个需要查看}}"
 
 #. placeholder {0}: all.length
 #: src/features/changes/ChangeSheet.tsx
@@ -118,6 +139,11 @@ msgstr "{0, plural, other {# 个修订版本 · 最新在前}}"
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, other {# 台服务器}}"
+
+#. placeholder {0}: use.volumes
+#: src/features/servers/DiskUse.tsx
+msgid "{0, plural, one {# volume} other {# volumes}}"
+msgstr "{0, plural, other {# 个卷}}"
 
 #. placeholder {0}: optional.length
 #: src/features/apps/NewAppSheet.tsx
@@ -154,6 +180,11 @@ msgstr "{0, plural, other {卷}}"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "{0} backups, {1}"
 msgstr "{0} 份备份，{1}"
+
+#. placeholder {0}: bytes(use.buildCacheBytes)
+#: src/features/servers/DiskUse.tsx
+msgid "{0} build cache"
+msgstr "构建缓存 {0}"
 
 #. placeholder {0}: failing.serverName
 #: src/features/logs/LogNote.tsx
@@ -216,6 +247,12 @@ msgstr "{0} 项待重启"
 msgid "{0} to update"
 msgstr "{0} 项待更新"
 
+#. placeholder {0}: bytes(use.imagesUnusedBytes)
+#. placeholder {0}: bytes(use.volumesUnusedBytes)
+#: src/features/servers/DiskUse.tsx
+msgid "{0} unused"
+msgstr "{0} 未使用"
+
 #. placeholder {0}: inv.cpuCount
 #: src/features/auth/ClaimPage.tsx
 msgid "{0} vCPU"
@@ -225,6 +262,11 @@ msgstr "{0} vCPU"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "{0}, {zone}"
 msgstr "{0}，{zone}"
+
+#. placeholder {0}: formatBytes(server.stats.agentMemoryBytes, i18n.locale)
+#: src/features/servers/ServerPanels.tsx
+msgid "{0}, with the control plane"
+msgstr "{0}，含控制平面"
 
 #. placeholder {0}: first.summary
 #: src/features/apps/AppOverview.tsx
@@ -368,6 +410,10 @@ msgstr "{count} 台已停止"
 msgid "{count} unknown"
 msgstr "{count} 个状态未知"
 
+#: src/features/servers/ServerMetrics.tsx
+msgid "{cpuAverage} on average over the last {span}"
+msgstr "最近 {span} 平均 {cpuAverage}"
+
 #: src/features/overview/Overview.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "{cpus} vCPU"
@@ -421,6 +467,14 @@ msgstr "无法搜索 {first}"
 msgid "{free} free"
 msgstr "可用 {free}"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{healthy, plural, one {# healthy} other {# healthy}}"
+msgstr "{healthy, plural, other {# 个健康}}"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "{inTotal} in · {outTotal} out"
+msgstr "接收 {inTotal} · 发送 {outTotal}"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
@@ -450,7 +504,11 @@ msgstr "{minutes} 分钟"
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} 分 {seconds} 秒"
 
-#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/RunsHere.tsx
+msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
+msgstr "{more, plural, other {{shown} 等另外 # 个}}"
+
+#: src/features/servers/DiskUse.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
 msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
 
@@ -477,6 +535,14 @@ msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符�
 #: src/features/files/FileViewer.tsx
 msgid "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
 msgstr "{name} 在你打开之后发生了变化，所以没有保存。你输入的内容还在这里。你可以覆盖服务器上的版本，也可以加载服务器上的版本替换你的内容。"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{name} deploying"
+msgstr "{name} 正在部署"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{name} failed"
+msgstr "{name} 失败"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -576,6 +642,10 @@ msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
 msgid "{name} is waiting for its agent"
 msgstr "{name} 正在等待代理连接"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} is waiting for its agent."
+msgstr "{name} 正在等待它的代理。"
+
 #: src/features/files/FileViewer.tsx
 msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
 msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里加载。"
@@ -587,6 +657,14 @@ msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里�
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} isn't reporting"
 msgstr "{name} 没有上报数据"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} isn't reporting."
+msgstr "{name} 没有上报。"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} isn't reporting. It last did {seen}."
+msgstr "{name} 没有上报。它上次上报是在{seen}。"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -651,9 +729,17 @@ msgstr "{name} 可能需要更久才能恢复健康，因为它的镜像还不�
 msgid "{name} mounts the volume {path} on {server}"
 msgstr "{name} 在 {server} 上挂载卷 {path}"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{name} not running"
+msgstr "{name} 没有运行"
+
 #: src/features/files/FileViewer.tsx
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{name} paused"
+msgstr "{name} 已暂停"
 
 #: src/features/apps/DomainRecord.tsx
 msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
@@ -687,6 +773,10 @@ msgstr "{name} 使用 {names} 的最新值运行"
 msgid "{name} shares {server}'s own network"
 msgstr "{name} 与 {server} 共用其自身的网络"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{name} starting"
+msgstr "{name} 正在启动"
+
 #: src/features/activity/describe.ts
 msgid "{name} stopped running on {server}"
 msgstr "{name} 在 {server} 上停止运行"
@@ -702,6 +792,10 @@ msgstr "{name} 在 {server} 上接管容器 {path}"
 #: src/features/activity/describe.ts
 msgid "{name} turned unhealthy on {server}"
 msgstr "{name} 在 {server} 上变为不健康"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{name} unhealthy"
+msgstr "{name} 不健康"
 
 #: src/features/activity/describe.ts
 msgid "{name} was paused on {server}"
@@ -766,6 +860,18 @@ msgstr "当前 {now}"
 msgid "{number} of {count}"
 msgstr "第 {number} 个，共 {count} 个"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{only}, healthy"
+msgstr "{only}，健康"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{only}, running"
+msgstr "{only}，正在运行"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{only}, unknown"
+msgstr "{only}，未知"
+
 #: src/features/changes/words.ts
 msgid "{out}, which reaches past the server's firewall"
 msgstr "{out}，可绕过服务器的防火墙"
@@ -819,6 +925,10 @@ msgstr "{reads}，按 SELinux 重新标记为私有"
 msgid "{reads}, relabelled for SELinux as shared"
 msgstr "{reads}，按 SELinux 重新标记为共享"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "{replicas, plural, one {# replica} other {# replicas}}"
+msgstr "{replicas, plural, other {# 个副本}}"
+
 #: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
 msgstr "{revision} 部署于 {when}"
@@ -839,11 +949,16 @@ msgstr "{revision} 由 Dockwell 回滚于 {when}"
 msgid "{revision} started deploying {when}"
 msgstr "{revision} 开始部署于 {when}"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{running, plural, one {# running} other {# running}}"
+msgstr "{running, plural, other {# 个正在运行}}"
+
 #: src/features/logs/LogsPage.tsx
 msgid "{runningNow, plural, one {# container} other {# containers}}"
 msgstr "{runningNow, plural, other {# 个容器}}"
 
 #: src/features/servers/ServerMetrics.tsx
+#: src/features/servers/ServerPanels.tsx
 msgid "{rx} in · {tx} out"
 msgstr "接收 {rx} · 发送 {tx}"
 
@@ -900,13 +1015,25 @@ msgstr "{server} 在此次回滚期间离线"
 msgid "{servers} offline"
 msgstr "{servers} 离线"
 
-#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "{share} of {size} used"
 msgstr "{size} 中已用 {share}"
+
+#: src/features/servers/DiskUse.tsx
+msgid "{share} of the disk"
+msgstr "占磁盘的 {share}"
 
 #: src/features/apps/AppDeployments.tsx
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} 与最新版本一致。如果实际运行的内容已与它不同，回滚可以恢复。"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "{size} · {inUse} in use"
+msgstr "{size} · 已用 {inUse}"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "{size} · none in use"
+msgstr "{size} · 未使用"
 
 #: src/app/Providers.tsx
 msgid "{size} more not kept"
@@ -973,6 +1100,10 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
 msgstr "{typed} 目前指向 {leavesApp}。继续操作会将它移到这里，并离开 {leavesApp}。"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{unknown, plural, one {# unknown} other {# unknown}}"
+msgstr "{unknown, plural, other {# 个未知}}"
+
 #: src/features/shell/Topbar.tsx
 msgid "{unknown} in an unknown state"
 msgstr "{unknown} 台状态未知"
@@ -981,6 +1112,7 @@ msgstr "{unknown} 台状态未知"
 msgid "{unlisted, plural, one {This server has # more container than fit here.} other {This server has # more containers than fit here.}}"
 msgstr "{unlisted, plural, other {此服务器还有 # 个容器无法在此列出。}}"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
@@ -1424,6 +1556,10 @@ msgstr "向 {envName} 添加变量或密钥"
 msgid "Add an .env file"
 msgstr "添加 .env 文件"
 
+#: src/features/servers/RunsHere.tsx
+msgid "Add one to reach an app at a name of yours"
+msgstr "添加一个，用你自己的域名访问应用"
+
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/auth/ProfilePage.tsx
 msgid "Add passkey"
@@ -1481,6 +1617,10 @@ msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，而你在这里还没有。请退出登录，再用验证码、恢复码或 dockwell recover 给出的链接重新登录，然后在 10 分钟内添加。"
 
+#: src/features/servers/DiskUse.tsx
+msgid "Adding up what takes the disk"
+msgstr "正在统计磁盘占用"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
 msgstr "地址"
@@ -1516,6 +1656,10 @@ msgstr "告警"
 #: src/features/catalog/CatalogPage.tsx
 msgid "All"
 msgstr "全部"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "All activity"
+msgstr "全部动态"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "All actors"
@@ -1740,6 +1884,7 @@ msgstr "应用此计划时会要求验证你的通行密钥"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/servers/RunsHere.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
@@ -1985,6 +2130,10 @@ msgstr "暂时无法读取此文件"
 msgid "Can't read the lines around it"
 msgstr "无法读取它前后的日志"
 
+#: src/features/servers/RunsHere.tsx
+msgid "Can't read them now"
+msgstr "现在无法读取"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Can't read these logs now"
 msgstr "现在无法读取这些日志"
@@ -2139,6 +2288,10 @@ msgstr "正在检查"
 #: src/features/auth/AuthGate.tsx
 msgid "Checking again."
 msgstr "正在重新检查。"
+
+#: src/features/servers/RunsHere.tsx
+msgid "Checking how they run"
+msgstr "正在检查运行状况"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -2343,6 +2496,10 @@ msgstr "容器"
 msgid "Container"
 msgstr "容器"
 
+#: src/features/servers/DiskUse.tsx
+msgid "Containers"
+msgstr "容器"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "Containers Dockwell didn't make"
 msgstr "非 Dockwell 创建的容器"
@@ -2368,6 +2525,10 @@ msgstr "控制服务器"
 #: src/features/logs/LogsPage.tsx
 msgid "Copied"
 msgstr "已复制"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Copied {address}"
+msgstr "已复制 {address}"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Copied {name}"
@@ -2409,6 +2570,10 @@ msgstr "复制 {at}"
 #: src/features/servers/ServerPanels.tsx
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Copy {label} {address}"
+msgstr "复制{label} {address}"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Copy {name}"
@@ -2563,10 +2728,15 @@ msgid "Couldn't update"
 msgstr "无法更新"
 
 #: src/app/Providers.tsx
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "CPU"
 msgstr "CPU"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "CPU above {HIGH}%"
+msgstr "CPU 超过 {HIGH}%"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
@@ -2779,6 +2949,10 @@ msgstr "将 {wanted} 部署到 {name}"
 msgid "Deploy it, and its logs show here as it starts."
 msgstr "部署后，它启动时日志就会显示在这里。"
 
+#: src/features/servers/RunsHere.tsx
+msgid "Deploy one from an image or the catalog"
+msgstr "从镜像或应用目录部署一个"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/RollbackLine.tsx
 msgid "Deploy what should run, or fix it on the server."
@@ -2890,9 +3064,15 @@ msgstr "已丢弃"
 msgid "Disk"
 msgstr "磁盘"
 
-#: src/features/servers/ServerPanels.tsx
-msgid "Disks"
-msgstr "磁盘"
+#: src/features/servers/DiskUse.tsx
+msgid "Disk usage"
+msgstr "磁盘占用"
+
+#. placeholder {0}: use.mountPoint
+#. placeholder {1}: bytes(size)
+#: src/features/servers/DiskUse.tsx
+msgid "Disk usage of {0}: {summary}, of {1}"
+msgstr "{0} 的磁盘占用：{summary}，共 {1}"
 
 #: src/app/Providers.tsx
 msgid "Dismiss"
@@ -2941,6 +3121,10 @@ msgstr "DNS 指向一个不属于此服务器的私有地址"
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
 msgstr "Docker"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Docker hasn't answered since {since}."
+msgstr "Docker 自{since}起没有响应。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
@@ -3180,6 +3364,7 @@ msgid "Domain"
 msgstr "域名"
 
 #: src/features/domains/DomainsPage.tsx
+#: src/features/servers/RunsHere.tsx
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
 msgid "Domains"
@@ -3557,7 +3742,7 @@ msgstr "用于脚本、CLI 或集成"
 msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
 msgstr "用于文件使用的变量。它只用于读取文件和生成计划，不会保存在此浏览器中，值只有在文件写入的地方才会留下记录。"
 
-#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "Free"
 msgstr "可用"
 
@@ -3771,6 +3956,10 @@ msgstr "镜像"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "Image"
+msgstr "镜像"
+
+#: src/features/servers/DiskUse.tsx
+msgid "Images"
 msgstr "镜像"
 
 #: src/features/auth/ClaimPage.tsx
@@ -4265,10 +4454,6 @@ msgstr "标签"
 msgid "labels"
 msgstr "标签"
 
-#: src/features/servers/ServerMetrics.tsx
-msgid "last {span}"
-msgstr "最近 {span}"
-
 #: src/features/logs/LogsPage.tsx
 msgid "Last 1 h"
 msgstr "最近 1 小时"
@@ -4441,6 +4626,7 @@ msgstr "日志筛选"
 #: src/features/apps/AppLayout.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "Logs"
 msgstr "日志"
 
@@ -4538,11 +4724,16 @@ msgid "May have saved {path} on {server}"
 msgstr "可能已保存 {server} 上的 {path}"
 
 #: src/app/Providers.tsx
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Memory"
 msgstr "内存"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Memory above {HIGH}%"
+msgstr "内存超过 {HIGH}%"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Minutes past the hour, as 00:MM"
@@ -4752,6 +4943,14 @@ msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。
 msgid "No app with this ID"
 msgstr "没有此 ID 的应用"
 
+#: src/features/servers/RunsHere.tsx
+msgid "No apps"
+msgstr "没有应用"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "No apps here yet. Deploy one from an image or the catalog."
+msgstr "这里还没有应用。从镜像或应用目录部署一个。"
+
 #: src/features/apps/AppsPage.tsx
 msgid "No apps yet"
 msgstr "还没有应用"
@@ -4775,6 +4974,10 @@ msgstr "没有符合此筛选条件的容器。"
 #: src/features/domains/DomainsPage.tsx
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "这里没有符合所选条件的域名。请试试名称的一部分，或换一种状态。"
+
+#: src/features/servers/RunsHere.tsx
+msgid "No domains"
+msgstr "没有域名"
 
 #: src/features/domains/DomainsPage.tsx
 msgid "No domains yet"
@@ -4874,6 +5077,10 @@ msgid "Nobody can say how {name} runs now."
 msgstr "现在无法确定 {name} 的运行情况。"
 
 #: src/features/servers/ServerPanels.tsx
+msgid "None"
+msgstr "无"
+
+#: src/features/servers/ServerPanels.tsx
 msgid "None reported"
 msgstr "未上报"
 
@@ -4919,6 +5126,7 @@ msgstr "此版本尚未提供"
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Not known"
 msgstr "未知"
@@ -5000,6 +5208,10 @@ msgstr "没有任何检查，因此这只表示它已启动。"
 #: src/features/logs/LogContext.tsx
 msgid "Nothing else was written around this line."
 msgstr "这一行前后没有其他日志。"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Nothing has happened here yet."
+msgstr "这里还没有发生任何事。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
@@ -5109,6 +5321,7 @@ msgstr "现在"
 msgid "Nowhere else"
 msgstr "不发送"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "/ {total}"
@@ -5386,6 +5599,10 @@ msgstr "这里已有其他应用，因此需要单独的名称，例如 <0>shop<
 #: src/features/apps/NewAppSheet.tsx
 msgid "Other apps on its network reach it by this name."
 msgstr "同一网络上的其他应用通过此名称访问它。"
+
+#: src/features/servers/DiskUse.tsx
+msgid "Other files"
+msgstr "其他文件"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
@@ -5666,6 +5883,10 @@ msgstr "私有"
 msgid "Private addresses"
 msgstr "私有地址"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Private IP"
+msgstr "私有 IP"
+
 #: src/features/changes/words.ts
 msgid "privileged mode, which gives it every device and capability on the server, the same as root"
 msgstr "特权模式，可使用服务器上的所有设备和能力，等同于 root"
@@ -5730,6 +5951,7 @@ msgid "Public address"
 msgstr "公网地址"
 
 #: src/features/auth/ClaimPage.tsx
+#: src/features/servers/PhoneServer.tsx
 msgid "Public IP"
 msgstr "公网 IP"
 
@@ -5944,6 +6166,10 @@ msgstr "正在读取这个文件夹"
 msgid "Reading what Docker runs here"
 msgstr "正在读取 Docker 在这里运行的内容"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Reading what happened here"
+msgstr "正在读取这里发生的事"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads logs"
 msgstr "可读取日志"
@@ -5952,9 +6178,9 @@ msgstr "可读取日志"
 msgid "Reads servers and their state. Changes nothing."
 msgstr "读取服务器及其状态，不做任何更改。"
 
-#: src/features/servers/ServerPanels.tsx
-msgid "Receiving"
-msgstr "接收"
+#: src/features/servers/PhoneServer.tsx
+msgid "Recent"
+msgstr "最近"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Recent changes"
@@ -6105,6 +6331,10 @@ msgstr "被替换，撤销后可恢复"
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "正在替换"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Reporting"
+msgstr "正在上报"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"
@@ -6412,6 +6642,10 @@ msgstr "正在运行"
 msgid "Running now"
 msgstr "正在运行"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Runs here"
+msgstr "在此运行"
+
 #: src/features/changes/fields.tsx
 msgid "runs no entrypoint"
 msgstr "不运行入口点"
@@ -6607,10 +6841,6 @@ msgstr "把域名指向你的某个应用。任何改动生效前，你都会先
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Send backups to {name}"
 msgstr "将备份发送到 {name}"
-
-#: src/features/servers/ServerPanels.tsx
-msgid "Sending"
-msgstr "发送"
 
 #. placeholder {0}: b.destination
 #: src/features/backups/BackupsPage.tsx
@@ -6893,6 +7123,10 @@ msgstr "在其他所有地方退出登录后，这个浏览器仍保持登录。
 msgid "Signing you in with a one-time link"
 msgstr "正在用一次性链接为你登录"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Since boot"
+msgstr "开机以来"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/backups/BackupsPage.tsx
@@ -6984,6 +7218,7 @@ msgstr "状态"
 #: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
+#: src/features/servers/PhoneServer.tsx
 msgid "Status"
 msgstr "状态"
 
@@ -7044,6 +7279,10 @@ msgstr "例如将服务器上的 8080 映射到应用内的 80。"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
 msgstr "例如在服务器自身网络上的 cloudflared。你的应用能读取访问者的地址和 https。桥接网络上的隧道在这里算作其他代理，用该网络的范围来指定。"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Swap"
+msgstr "交换空间"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Synced"
@@ -7568,6 +7807,10 @@ msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥
 msgid "The servers have no lines of this app."
 msgstr "服务器上没有这个应用的日志。"
 
+#: src/features/servers/DiskUse.tsx
+msgid "The system and anything outside Docker"
+msgstr "系统及 Docker 之外的一切"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
 msgstr "令牌未创建"
@@ -8044,9 +8287,17 @@ msgstr "已把它从 {left} 上移走"
 msgid "Took on"
 msgstr "已接管"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Traffic"
+msgstr "流量"
+
 #: src/features/changes/words.ts
 msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
 msgstr "此路由的流量以未加密的方式到达 {server}，因为 TLS 在到达它之前就已终止。在隧道或私有网络上这没有问题；在开放的互联网上则不行，沿途的任何人都能读取这些流量"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Traffic over the last few minutes, now {rx} in and {tx} out"
+msgstr "最近几分钟的流量，当前接收 {rx}、发送 {tx}"
 
 #. Read after a metric's name to name its chart, as in “CPU trend”.
 #: src/app/Providers.tsx
@@ -8230,6 +8481,10 @@ msgstr "运行时间"
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Up {uptime}"
+msgstr "已运行 {uptime}"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Up to {stepBound} until healthy"
 msgstr "最多 {stepBound} 后恢复健康"
@@ -8334,7 +8589,7 @@ msgstr "使用深色主题"
 msgid "Use the light theme"
 msgstr "使用浅色主题"
 
-#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "Used"
 msgstr "已用"
 
@@ -8454,6 +8709,7 @@ msgstr "卷或服务器路径"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ContainersPanel.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "Volumes"
 msgstr "卷"
 
@@ -8514,6 +8770,10 @@ msgstr "变更内容"
 msgid "What connects to this server"
 msgstr "连接此服务器的来源"
 
+#: src/features/servers/DiskUse.tsx
+msgid "What Docker keeps of what they print"
+msgstr "Docker 保存的容器输出"
+
 #: src/features/servers/ContainerPage.tsx
 msgid "What Docker says of it"
 msgstr "Docker 显示的信息"
@@ -8553,6 +8813,10 @@ msgstr "失败之前运行的内容可能已改动数据（例如迁移），当
 #: src/features/apps/AppOverview.tsx
 msgid "What runs"
 msgstr "运行内容"
+
+#: src/features/servers/RunsHere.tsx
+msgid "What runs here"
+msgstr "在此运行"
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "What runs keeps running, and the backup says it was copied running."
@@ -8602,6 +8866,10 @@ msgstr "服务器保留的日志比这里加载的更久远。"
 #: src/features/variables/VariablesPage.tsx
 msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
 msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，应用其计划时，所有使用它的服务都会重启。"
+
+#: src/features/servers/DiskUse.tsx
+msgid "What they wrote outside volumes"
+msgstr "容器在卷之外写入的内容"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "What this file makes"

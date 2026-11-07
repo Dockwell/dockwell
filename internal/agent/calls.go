@@ -540,6 +540,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Containers{Containers: found}}
+	case call.GetDiskUse() != nil:
+		found, err := c.cfg.disks.read(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DiskUse{DiskUse: found}}
 	case call.GetAdoption() != nil:
 		found, err := c.adoption(ctx, call.GetAdoption())
 		if err != nil {

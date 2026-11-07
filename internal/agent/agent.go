@@ -22,6 +22,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
@@ -88,6 +89,8 @@ type Config struct {
 	unfinished *unfinished
 	// outlook keeps what the server found out from one stream to the next.
 	outlook *outlook
+	// disks adds up what takes the disk Docker's data is on, when asked.
+	disks *diskUse
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
@@ -213,6 +216,8 @@ const (
 	stableSession = time.Minute
 	// defaultStatsInterval applies until the control plane says otherwise.
 	defaultStatsInterval = 5 * time.Second
+	// minStatsInterval is the soonest the agent samples, whatever it is told.
+	minStatsInterval = time.Second
 	// endWait bounds how long a stream that ends on purpose waits for the
 	// control plane to end it.
 	endWait = 10 * time.Second
@@ -307,6 +312,7 @@ func Run(ctx context.Context, cfg Config) error {
 		cfg.Collector = collect.New()
 	}
 	cfg.outlook = &outlook{}
+	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}
@@ -440,7 +446,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 		return errors.New("the control plane didn't answer the hello with a welcome")
 	}
 	interval := defaultStatsInterval
-	if d := welcome.GetStatsInterval().AsDuration(); d >= time.Second {
+	if d := welcome.GetStatsInterval().AsDuration(); d >= minStatsInterval {
 		interval = d
 	}
 	cfg.Logger.Info("connected to the control plane", slog.String("as", welcome.GetServerName()),
@@ -456,6 +462,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 	calls := newCalls(parent, cfg, send, key)
 	recvErr := make(chan error, 1)
 	received := make(chan struct{})
+	// The pace the control plane asks for, latest first: it changes as people start
+	// and stop watching (ADR 0040).
+	paced := make(chan time.Duration, 1)
 	go func() {
 		defer close(received)
 		for {
@@ -473,6 +482,17 @@ func session(ctx context.Context, cfg Config) (err error) {
 				calls.acknowledged()
 			case msg.GetPublicAddress() != nil && cfg.Public != nil:
 				cfg.Public.SetPublicAddress(msg.GetPublicAddress())
+			case msg.GetPace() != nil:
+				d := msg.GetPace().GetStatsInterval().AsDuration()
+				if d < minStatsInterval {
+					continue
+				}
+				// Only the latest counts.
+				select {
+				case <-paced:
+				default:
+				}
+				paced <- d
 			}
 		}
 	}()
@@ -502,7 +522,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 	// When the control plane ends the stream, Send only says EOF; the
 	// reason comes from Receive.
 	sendStats := func() error {
-		err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: cfg.Collector.Stats(time.Now())}})
+		stats := cfg.Collector.Stats(time.Now())
+		stats.Interval = durationpb.New(interval)
+		err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: stats}})
 		if !errors.Is(err, io.EOF) {
 			return err
 		}
@@ -632,6 +654,20 @@ func session(ctx context.Context, cfg Config) (err error) {
 		case <-ticker.C:
 			if err := sendStats(); err != nil {
 				return err
+			}
+		case d := <-paced:
+			if d == interval {
+				continue
+			}
+			sooner := d < interval
+			cfg.Logger.DebugContext(ctx, "the control plane changed how often to send stats", slog.String("stats_every", human.Duration(d)))
+			interval = d
+			ticker.Reset(d)
+			// Someone just started watching: a new sample now, not at the old pace.
+			if sooner {
+				if err := sendStats(); err != nil {
+					return err
+				}
 			}
 		}
 	}

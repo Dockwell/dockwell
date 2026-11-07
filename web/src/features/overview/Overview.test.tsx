@@ -43,7 +43,7 @@ describe("Overview with one server", () => {
     expect(await screen.findByText("4 vCPU · 8 GB · Ubuntu 24.04.1 LTS · up 3 days")).toBeVisible();
     expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
     // Three samples, 5 s apart, cover 15 s.
-    expectMetric("CPU", "23.4", "%", "Across 4 vCPU · last 15 s");
+    expectMetric("CPU", "23.4", "%", "22% on average over the last 15 s");
     expectMetric("Memory", "2.4", "of 8 GB", "30% in use");
     expectMetric("Disk", "61", "of 160 GB", "99 GB free");
     expectMetric("Network", "12", "Mbit/s", "8 Mbit/s in · 4.4 Mbit/s out");
@@ -71,7 +71,7 @@ describe("Overview with one server", () => {
     const full = history(...Array.from({ length: 60 }, (_, i) => 20 + (i % 5)));
     watch.push(changed(aServer({ ...hz1, stats: full.at(-1), history: full })), snapshotComplete);
 
-    await waitFor(() => expectMetric("CPU", "%", "Across 4 vCPU · last 5 min"));
+    await waitFor(() => expectMetric("CPU", "%", "on average over the last 5 min"));
     expect(screen.getByRole("img", { name: "CPU trend" })).toBeVisible();
   });
 
@@ -83,7 +83,7 @@ describe("Overview with one server", () => {
     const all = [...before, ...after];
     watch.push(changed(aServer({ ...hz1, stats: all.at(-1), history: all })), snapshotComplete);
 
-    await waitFor(() => expectMetric("CPU", "12.0", "%", "Across 4 vCPU · last 15 s"));
+    await waitFor(() => expectMetric("CPU", "12.0", "%", "11% on average over the last 15 s"));
     // One point per sample since the gap.
     expect(metric("CPU").querySelector(".dw-spark-line")?.getAttribute("d")?.match(/[ML]/g)).toHaveLength(after.length);
   });
@@ -167,7 +167,7 @@ describe("Overview with one server", () => {
     expect(screen.getByText("Healthy · up 3 days")).toBeVisible();
     expectMetric("CPU", "23.4", "%");
     expect(screen.queryByRole("img", { name: "CPU trend" })).toBeNull();
-    expect(screen.queryByText("Across 4 vCPU · last 15 s")).toBeNull();
+    expect(screen.queryByText("22% on average over the last 15 s")).toBeNull();
     await expectAccessible(container);
   });
 

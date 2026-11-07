@@ -66,7 +66,9 @@ var _ agentv1connect.AgentServiceHandler = (*Handler)(nil)
 // Stream timing.
 const (
 	// UnreachableAfter is how long an agent may stay silent before its
-	// stream is closed. Agents send stats every fleet.StatsInterval.
+	// stream is closed. Agents send stats every fleet.StatsInterval while
+	// anyone watches, and every fleet.IdleInterval, half of this, while
+	// nobody does.
 	UnreachableAfter = 30 * time.Second
 	revocationCheck  = 30 * time.Second
 )
@@ -92,9 +94,18 @@ func NewHandler(auth *identity.Authority, hub *fleet.Hub, logger *slog.Logger, o
 	for _, o := range opts {
 		o(h)
 	}
+	if h.agents != nil {
+		hub.OnPace(func(pace time.Duration) { h.agents.SetPace(h.paceFor(pace)) })
+	}
 	mux := http.NewServeMux()
 	mux.Handle(agentv1connect.NewAgentServiceHandler(h, serve.HandlerOptions(logger)...))
 	return serve.Recover(logger, identify(auth, mux))
+}
+
+// paceFor is the pace agents are told: the hub's, but never so slow that a stream
+// says nothing for half the time it may stay silent.
+func (h *Handler) paceFor(pace time.Duration) time.Duration {
+	return min(pace, h.silence/2)
 }
 
 // identify puts the server a verified client certificate names into the
@@ -234,7 +245,7 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	}()
 	if err := stream.Send(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Welcome{Welcome: &agentv1.Welcome{
 		ServerName:    srv.Name,
-		StatsInterval: durationpb.New(fleet.StatsInterval),
+		StatsInterval: durationpb.New(h.paceFor(h.fleet.Pace())),
 	}}}); err != nil {
 		return err
 	}

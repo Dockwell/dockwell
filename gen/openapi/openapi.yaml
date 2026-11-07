@@ -1497,6 +1497,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{id}/diskUse:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                GetServerDiskUse says what takes the room on the disk that holds Docker's
+                 data: images, containers, volumes, the build cache and logs, and the rest.
+                 The server's agent asks Docker when this is called, and only then, as
+                 Docker adds up every volume to answer, which takes a while on a big disk.
+                 An answer stands for 30 s, so a page opened twice asks once. See
+                 docs/adr/0040-a-servers-live-use.md.
+            operationId: ServerService_GetServerDiskUse
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerDiskUseResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{id}:setPublicAddress:
         post:
             tags:
@@ -5026,6 +5058,14 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change.
             description: GetChangeResponse carries one change.
+        GetServerDiskUseResponse:
+            type: object
+            properties:
+                diskUse:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerDiskUse'
+                    description: What takes the room on the disk that holds Docker's data.
+            description: GetServerDiskUseResponse says what takes the room on a server's disk.
         GetServerResponse:
             type: object
             properties:
@@ -7533,7 +7573,9 @@ components:
                     description: |-
                         Recent stats, oldest first, for sparklines: at most 60 samples, from
                          the 5 minutes before the newest by the samples' own times, so a server
-                         that reports again after a longer outage starts over. Empty in lists.
+                         that reports again after a longer outage starts over. Samples come every
+                         5 s while anyone watches the fleet, and every 15 s while nobody does, so
+                         each says its own interval. Empty in lists.
                 agentBuild:
                     allOf:
                         - $ref: '#/components/schemas/BuildInfo'
@@ -7637,6 +7679,66 @@ components:
                     type: boolean
                     description: True for a container that docker compose run made for one command.
             description: ServerContainer is a container on a server, as Docker lists it.
+        ServerDiskUse:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent added it up, on the server's clock.
+                    format: date-time
+                dockerRoot:
+                    type: string
+                    description: Where Docker keeps its data, such as "/var/lib/docker".
+                mountPoint:
+                    type: string
+                    description: Where the disk that holds it is mounted, such as "/".
+                sizeBytes:
+                    type: string
+                    description: How big that disk is, in bytes.
+                usedBytes:
+                    type: string
+                    description: How much of it is in use, in bytes, as df counts it.
+                imagesBytes:
+                    type: string
+                    description: |-
+                        What images take, each layer counted once, as `docker system df` counts
+                         them.
+                imagesUnusedBytes:
+                    type: string
+                    description: What of that no container uses, so removing those images would free it.
+                containersBytes:
+                    type: string
+                    description: What containers have written to their own layers.
+                volumesBytes:
+                    type: string
+                    description: What volumes hold. Docker counts only the volumes it keeps itself.
+                volumesUnusedBytes:
+                    type: string
+                    description: What of that is in volumes no container uses.
+                buildCacheBytes:
+                    type: string
+                    description: What the build cache takes.
+                logsBytes:
+                    type: string
+                    description: |-
+                        What containers' logs take, as Docker's json-file and local drivers keep
+                         them, rotated files included.
+                images:
+                    type: integer
+                    description: How many images there are.
+                    format: uint32
+                containers:
+                    type: integer
+                    description: How many containers there are, running or not.
+                    format: uint32
+                volumes:
+                    type: integer
+                    description: How many volumes there are.
+                    format: uint32
+            description: |-
+                ServerDiskUse is what takes the room on the disk that holds Docker's data,
+                 as Docker and the agent added it up. Docker's parts can come to more than
+                 the disk holds, when Docker's data spans disks of its own.
         ServerHealth:
             type: object
             properties:
@@ -7926,6 +8028,30 @@ components:
                     pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
                     type: string
                     description: Time since the server booted.
+                swapUsedBytes:
+                    type: string
+                    description: Swap in use, in bytes.
+                swapTotalBytes:
+                    type: string
+                    description: Total swap, in bytes. 0 for a server with none.
+                agentMemoryBytes:
+                    type: string
+                    description: |-
+                        What the agent itself holds in memory (its resident set), in bytes. 0
+                         from an agent from before this.
+                networkRxBytes:
+                    type: string
+                    description: Bytes received across physical interfaces since the server booted.
+                networkTxBytes:
+                    type: string
+                    description: Bytes sent across physical interfaces since the server booted.
+                interval:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long until the agent's next sample, at the pace it was sampling when
+                         it took this one: 5 s while anyone watches the fleet, 15 s while nobody
+                         does. Unset from an agent from before this, which samples every 5 s.
             description: ServerStats is one sample of a server's resource use.
         Service:
             type: object
