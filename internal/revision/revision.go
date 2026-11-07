@@ -461,6 +461,9 @@ func (p *Plan) Destructive() bool {
 
 // item is one edit with what it starts from.
 type item struct {
+	// reverses says this item undoes a change, so it takes what that change made
+	// and no more.
+	reverses bool
 	ref   resource.Ref
 	level resource.Level
 	// runs says the item's kind runs on servers: a host-level or
@@ -1038,7 +1041,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if err != nil {
 				return err
 			}
-			it.pull, it.run, it.adopt, it.adoptName = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName
+			it.pull, it.run, it.adopt, it.adoptName, it.reverses = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName, ed.Reverses
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
@@ -1349,15 +1352,14 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 		if parent, ok := byID[it.ref.Scope]; ok && parent.spec == nil {
 			continue
 		}
+		if err := waitForApplying(ctx, tx, it); err != nil {
+			return err
+		}
 		// A scope goes only once what lives in it has gone, in this change
 		// or an earlier one.
 		if it.ref.Kind == scope.ProjectKind {
-			held, err := projectHolds(ctx, tx, items, it.id)
-			if err != nil {
+			if err := refuseWhatsHeld(ctx, tx, items, it); err != nil {
 				return err
-			}
-			if len(held) > 0 {
-				return fault.New(ErrInvalid, "project %s still holds %s, so it stays. Delete them first, or in the same change", it.ref.Name, human.List(held))
 			}
 		} else {
 			left, err := liveIn(ctx, tx, items, it.id, "")
@@ -1365,8 +1367,8 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 				return err
 			}
 			if len(left) > 0 {
-				return fault.New(ErrInvalid, "%s %s still holds %s. Delete them first, or in the same change", it.ref.Kind, it.ref.Name,
-					strings.Join(left, ", "))
+				return fault.New(ErrInvalid, "%s %s still holds %s. Delete %s first, or in the same change", it.ref.Kind, it.ref.Name,
+					strings.Join(left, ", "), itOrThem(len(left)))
 			}
 		}
 		siblings, err := liveIn(ctx, tx, items, it.ref.Scope, it.ref.Kind)
@@ -1458,10 +1460,71 @@ func (e *Engine) checkScope(ctx context.Context, tx *store.Tx, it *item, byID ma
 			in.ref.Kind, in.ref.Name, it.ref.Kind, it.ref.Name, in.ref.Name, fix)
 	}
 	r, err := tx.GetResourceByID(ctx, it.ref.Scope)
-	if errors.Is(err, store.ErrNotFound) || err == nil && (r.Kind != string(want) || r.Spec == nil) {
+	if err == nil && r.Kind == string(want) && r.Spec == nil {
+		return scopeWent(ctx, tx, &r, it)
+	}
+	if errors.Is(err, store.ErrNotFound) || err == nil && r.Kind != string(want) {
 		return missing(string(want))
 	}
 	return err
+}
+
+// scopeWent says that what an item lives in was deleted, by its name, and what brings
+// it back. An undo is how what a deletion kept comes back, so that's what it points at.
+func scopeWent(ctx context.Context, tx *store.Tx, r *store.Resource, it *item) error {
+	what := r.Kind + " " + r.Name
+	if r.Kind == string(scope.EnvironmentKind) {
+		project, err := tx.GetResourceByID(ctx, r.Scope)
+		if err != nil {
+			return err
+		}
+		what += " of project " + project.Name
+	}
+	return fault.New(ErrInvalid, "%s went in %s, so %s %s has nowhere to live. Undo %s first, then this", what, r.ChangeID, it.ref.Kind, it.ref.Name, r.ChangeID)
+}
+
+// notWaitingFor holds the changes a scope's deletion doesn't wait for: the change
+// itself, and the one it rolls back, which are applying while it's checked.
+type notWaitingFor struct{}
+
+func waitsForNone(ctx context.Context, changes ...string) context.Context {
+	return context.WithValue(ctx, notWaitingFor{}, changes)
+}
+
+// waitForApplying refuses deleting a scope while a change to what's in it is still
+// applying. Its revisions are in, so nothing reads as left, but its steps may fail,
+// and its rollback would have nowhere to put things back: what it was deleting would
+// stay on the server with nothing managing it.
+func waitForApplying(ctx context.Context, tx *store.Tx, it *item) error {
+	scopes := map[string]bool{it.id: true}
+	if it.ref.Kind == scope.ProjectKind {
+		envs, err := tx.ListResources(ctx, it.id, string(scope.EnvironmentKind))
+		if err != nil {
+			return err
+		}
+		for i := range envs {
+			scopes[envs[i].ID] = true
+		}
+	}
+	applying, err := tx.ChangesIn(ctx, store.ChangeApplying)
+	if err != nil {
+		return err
+	}
+	skip, _ := ctx.Value(notWaitingFor{}).([]string)
+	for _, id := range applying {
+		if slices.Contains(skip, id) {
+			continue
+		}
+		c, err := tx.GetChange(ctx, id)
+		if err != nil {
+			return err
+		}
+		if slices.ContainsFunc(c.Items, func(ci store.ChangeItem) bool { return scopes[ci.Scope] || scopes[ci.ResourceID] }) {
+			return fault.New(ErrBusy, "%s %s can't go yet: %s, %q, is still applying what's in it, and if that fails it would have nowhere to put things back. Wait for it to end, then try again",
+				it.ref.Kind, it.ref.Name, c.ID, c.Summary)
+		}
+	}
+	return nil
 }
 
 // NewProject is the edits that bring a project to life with an environment,
@@ -1621,10 +1684,11 @@ func (e *Engine) withFirstEnvironments(ctx context.Context, tx *store.Tx, items 
 // withEnvironmentsGoing takes a project's environments with it when the change
 // deletes it, so deleting a project is one edit, and undoing that brings them back.
 // A project can't be left without one, and the last can't go alone (ADR 0036). check
-// refuses it if anything would be left in them.
+// refuses it if anything would be left in them. An undo takes what its change made and
+// no more, so what a later change made in the project stays, and keeps it.
 func (e *Engine) withEnvironmentsGoing(ctx context.Context, tx *store.Tx, items []item, named map[resource.Ref]bool) ([]item, error) {
 	for i := range items {
-		if items[i].ref.Kind != scope.ProjectKind || items[i].spec != nil || items[i].current == nil {
+		if items[i].ref.Kind != scope.ProjectKind || items[i].spec != nil || items[i].current == nil || items[i].reverses {
 			continue
 		}
 		project := items[i].id
@@ -1647,41 +1711,66 @@ func (e *Engine) withEnvironmentsGoing(ctx context.Context, tx *store.Tx, items 
 	return items, nil
 }
 
-// projectHolds names what would keep a project from going: what stays in it, and what
-// stays in each environment going with it, and where. Each has its kind, as that is
-// what says how to delete it.
-func projectHolds(ctx context.Context, tx *store.Tx, items []item, project string) ([]string, error) {
+// refuseWhatsHeld refuses deleting a project while something would stay in it: what
+// stays in it, and what stays in each environment going with it, and where. Each is
+// named by its kind, and with the command that deletes it, as that's what differs.
+func refuseWhatsHeld(ctx context.Context, tx *store.Tx, items []item, project *item) error {
 	going := make(map[string]bool, len(items))
 	for i := range items {
 		if items[i].spec == nil {
 			going[items[i].id] = true
 		}
 	}
-	stored, err := tx.ListResources(ctx, project, "")
+	stored, err := tx.ListResources(ctx, project.id, "")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var out []string
+	environments := 0
+	for i := range stored {
+		if stored[i].Kind == string(scope.EnvironmentKind) {
+			environments++
+		}
+	}
+	var words, commands []string
+	held := func(r *store.Resource, env string) string {
+		command := fmt.Sprintf("dockwell %ss delete %s --project %s", r.Kind, r.Name, project.ref.Name)
+		if env != "" && environments > 1 {
+			command += " --environment " + env
+		}
+		commands = append(commands, command)
+		return r.Kind + " " + r.Name
+	}
 	for i := range stored {
 		if !going[stored[i].ID] {
-			out = append(out, stored[i].Kind+" "+stored[i].Name)
+			words = append(words, held(&stored[i], ""))
 			continue
 		}
 		inside, err := tx.ListResources(ctx, stored[i].ID, "")
 		if err != nil {
-			return nil, err
+			return err
 		}
-		var held []string
+		var here []string
 		for j := range inside {
 			if !going[inside[j].ID] {
-				held = append(held, inside[j].Kind+" "+inside[j].Name)
+				here = append(here, held(&inside[j], stored[i].Name))
 			}
 		}
-		if len(held) > 0 {
-			out = append(out, human.List(held)+" in "+stored[i].Name)
+		if len(here) > 0 {
+			words = append(words, human.List(here)+" in "+stored[i].Name)
 		}
 	}
-	return out, nil
+	if len(commands) == 0 {
+		return nil
+	}
+	return fault.New(ErrInvalid, "project %s still holds %s, so it stays. Delete %s first, with %s, or in the same change",
+		project.ref.Name, human.List(words), itOrThem(len(commands)), human.List(commands))
+}
+
+func itOrThem(n int) string {
+	if n == 1 {
+		return "it"
+	}
+	return "them"
 }
 
 // plan asks each server's agent what the items would take there. A server
@@ -2424,7 +2513,7 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 // records as its plan is the plan that runs. So a rollback is never left
 // planned: it is on record applying, or not at all.
 func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit, because string) (*committed, error) {
-	items, err := e.items(ctx, edits, true)
+	items, err := e.items(waitsForNone(ctx, failed.ID), edits, true)
 	if err != nil {
 		return nil, err
 	}
@@ -3307,13 +3396,23 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		it.restore = restoreIn(c, ref)
 		items = append(items, it)
 	}
-	if err := e.check(ctx, tx, items); err != nil {
-		return nil, fmt.Errorf("%w. %s can't apply as it was planned, so propose the change again", err, c.ID)
+	if err := e.checkPlanned(ctx, tx, c, items); err != nil {
+		return nil, err
 	}
 	if err := e.stillPinned(ctx, tx, c, items); err != nil {
 		return nil, err
 	}
 	return items, nil
+}
+
+// checkPlanned checks a change's items as it applies. What's only waiting for another
+// change can apply as it was planned, once that ends.
+func (e *Engine) checkPlanned(ctx context.Context, tx *store.Tx, c store.Change, items []item) error {
+	err := e.check(waitsForNone(ctx, c.ID, c.Reverts), tx, items)
+	if err == nil || errors.Is(err, ErrBusy) {
+		return err
+	}
+	return fmt.Errorf("%w. %s can't apply as it was planned, so propose the change again", err, c.ID)
 }
 
 // unmoved checks, as a change commits, that nothing moved since its items
@@ -3332,8 +3431,8 @@ func (e *Engine) unmoved(ctx context.Context, tx *store.Tx, c store.Change, item
 			return fault.New(ErrStale, "%s changed in %s after %s was planned, so its plan is out of date. Propose the change again", it.ref, r.ChangeID, c.ID)
 		}
 	}
-	if err := e.check(ctx, tx, items); err != nil {
-		return fmt.Errorf("%w. %s can't apply as it was planned, so propose the change again", err, c.ID)
+	if err := e.checkPlanned(ctx, tx, c, items); err != nil {
+		return err
 	}
 	return e.stillPinned(ctx, tx, c, items)
 }

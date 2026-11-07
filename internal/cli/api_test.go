@@ -340,7 +340,7 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
 		}
 		r = run(t, env, "projects", "delete", "attic", "--yes")
-		if r.code == exitOK || !strings.Contains(r.err, "project attic still holds variable KEPT in production, so it stays. Delete them first, or in the same change") {
+		if r.code == exitOK || !strings.Contains(r.err, "project attic still holds variable KEPT in production, so it stays. Delete it first, with dockwell variables delete KEPT --project attic, or in the same change") {
 			t.Errorf("deleting a project that holds a variable = %d:\n%s%s", r.code, r.out, r.err)
 		}
 		r = run(t, env, "variables", "delete", "KEPT", "--project", "attic", "--yes")
