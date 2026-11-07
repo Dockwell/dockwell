@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -109,7 +110,7 @@ func testAWebsite(t *testing.T, backend store.Backend) {
 		t.Errorf("summary %q, want %q", made.GetSummary(), want)
 	}
 	order := planned(made)
-	for _, want := range []string{"project blog-example-com create", "environment production create", "service web create", "route site create"} {
+	for _, want := range []string{"project blog-example-com create", "environment production create", "network site create", "service web create", "route site create"} {
 		if !slices.Contains(order, want) {
 			t.Errorf("the plan has %v, and no %s", order, want)
 		}
@@ -164,7 +165,7 @@ func testAWebsite(t *testing.T, backend store.Backend) {
 	if !ch.GetPlan().GetHostAccess() {
 		t.Errorf("a website on the server's port plans no host access: %v", planned(ch))
 	}
-	if order := planned(ch); !slices.Contains(order, "service web delete") || !slices.Contains(order, "route site update") {
+	if order := planned(ch); !slices.Contains(order, "service web delete") || !slices.Contains(order, "network site delete") || !slices.Contains(order, "route site update") {
 		t.Errorf("moving to a port plans %v", order)
 	}
 	_, err = scriptChanges.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()}))
@@ -203,7 +204,7 @@ func testAWebsite(t *testing.T, backend store.Backend) {
 	}
 	del := gone.Msg.GetChange()
 	order = planned(del)
-	for _, want := range []string{"route site delete", "service web delete", "project blog-example-com delete", "environment production delete"} {
+	for _, want := range []string{"route site delete", "service web delete", "network site delete", "project blog-example-com delete", "environment production delete"} {
 		if !slices.Contains(order, want) {
 			t.Errorf("deleting plans %v, and no %s", order, want)
 		}
@@ -263,12 +264,11 @@ func testWhatAWebsiteRefuses(t *testing.T, backend store.Backend) {
 		t.Fatal(err)
 	}
 	applyReviewed(t, c, first.Msg.GetChange())
-	// Another website at the same domain is the route's claim to refuse.
-	again, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "shop.example.com", Website: toURL("https://other.example.com")}))
-	if err == nil {
-		t.Errorf("a second website at shop.example.com planned %v", planned(again.Msg.GetChange()))
-	} else if !strings.Contains(err.Error(), "shop.example.com") {
-		t.Errorf("a second website at shop.example.com = %v, want it named", err)
+	// Another website at the same domain is refused before anything is planned, in
+	// words that say who has it.
+	_, err = sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "shop.example.com", Website: toURL("https://other.example.com")}))
+	if want := "shop.example.com is a website already. Open it in Websites, or use another domain"; reasonOf(err) != "domain_taken" || !strings.Contains(err.Error(), want) {
+		t.Errorf("a second website at shop.example.com = %v, want domain_taken, saying %q", err, want)
 	}
 	// Behind a tunnel, which a person approves, and a change to what it serves keeps
 	// what's in front of its domain as it is.
@@ -312,11 +312,166 @@ func testWhatAWebsiteRefuses(t *testing.T, backend store.Backend) {
 	}
 
 	// One whose name comes out the same gets the next.
-	other, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "shop-example.com", Website: toURL("https://backend.example.com")}))
+	one, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "blog.shop.example.com", Website: toURL("https://backend.example.com")}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if order := planned(other.Msg.GetChange()); !slices.Contains(order, "project shop-example-com-2 create") {
-		t.Errorf("the second website's plan is %v, want project shop-example-com-2", order)
+	applyReviewed(t, c, one.Msg.GetChange())
+	other, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "blog-shop.example.com", Website: toURL("https://backend.example.com")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if order := planned(other.Msg.GetChange()); !slices.Contains(order, "project blog-shop-example-com-2 create") {
+		t.Errorf("the second website's plan is %v, want project blog-shop-example-com-2", order)
+	}
+
+	// An app's domain is the app's, and the words say so.
+	app := importCompose(t, dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()), "services:\n  shop:\n    image: ghcr.io/acme/shop:1.4\n", nil, false)
+	if got := apply(t, c, app); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the app: %v", got)
+	}
+	env := app.GetPlan().GetResources()[0].GetResource().GetScope()
+	rt := propose(t, c, "Give the shop its domain", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: env, Name: "www"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "store.example.com", Service: "shop", Port: 80}}},
+	})
+	applyReviewed(t, c, rt)
+	_, err = sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "store.example.com", Website: toURL("https://backend.example.com")}))
+	if want := "store.example.com is the domain of the app shop in default already. Open it, or use another domain"; reasonOf(err) != "domain_taken" || !strings.Contains(err.Error(), want) {
+		t.Errorf("a website at an app's domain = %v, want domain_taken, saying %q", err, want)
+	}
+}
+
+// On a fleet, what a website makes runs where its route does: one that moves from
+// a port on the second server to a URL gets its web server there, as nothing in the
+// form or the CLI names a server for it.
+func TestAWebsiteOnTwoServers(t *testing.T) { storetest.Each(t, testAWebsiteOnTwoServers) }
+
+func testAWebsiteOnTwoServers(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	f.probe = connects
+	one := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	two := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	pullsAnything(f.addServerNamed(t, "hz-1", func() []resource.Type { return []resource.Type{&route.Driver{Ingress: one}} }, nil))
+	e2 := f.addServerNamed(t, "hz-2", func() []resource.Type { return []resource.Type{&route.Driver{Ingress: two}} }, nil)
+	pullsAnything(e2)
+	c := changeClient(b, b.origin)
+	sites := websiteClient(b, b.origin)
+	servers, err := dockwellv1connect.NewServerServiceClient(b, b.origin, connect.WithProtoJSON()).ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var second string
+	for _, s := range servers.Msg.GetServers() {
+		if s.GetName() == "hz-2" {
+			second = s.GetId()
+		}
+	}
+
+	made, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "tools.example.com", Website: onPort3000(), Servers: []string{second}}))
+	if err != nil {
+		t.Fatalf("CreateWebsite on hz-2: %v", err)
+	}
+	applyReviewed(t, c, made.Msg.GetChange())
+	moved, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "tools.example.com", Website: toURL("https://backend.example.com")}))
+	if err != nil {
+		t.Fatalf("moving a port website to a URL on a fleet: %v", err)
+	}
+	order := planned(moved.Msg.GetChange())
+	for _, want := range []string{"network site create", "service web create", "route site update"} {
+		if !slices.Contains(order, want) {
+			t.Errorf("moving to a URL plans %v, and no %s", order, want)
+		}
+	}
+	applyReviewed(t, c, moved.Msg.GetChange())
+	var web bool
+	for _, name := range e2.Containers() {
+		if ctr := e2.Container(name); ctr != nil && ctr.Config.Image == website.Image {
+			web = true
+			if !slices.ContainsFunc(slices.Collect(maps.Keys(ctr.NetworkSettings.Networks)), func(n string) bool { return strings.HasSuffix(n, "_"+website.SiteNetwork) }) {
+				t.Errorf("the web server joins %v, want the website's own network", slices.Collect(maps.Keys(ctr.NetworkSettings.Networks)))
+			}
+			if _, on := ctr.NetworkSettings.Networks["bridge"]; on {
+				t.Errorf("the web server is on Docker's default bridge")
+			}
+		}
+	}
+	if !web {
+		t.Errorf("hz-2 runs no web server: %v", e2.Containers())
+	}
+	if got := listWebsites(t, sites); len(got) != 1 || got[0].GetServerName() != "hz-2" || got[0].GetServiceId() == "" {
+		t.Errorf("after the move, ListWebsites = %v", got)
+	}
+}
+
+// What a website serves stays in step with what serves it: a plain edit of its
+// project can't change it, and a plain edit of its web server shows as differing
+// from its settings, until an update puts them back.
+func TestAWebsiteStaysInStep(t *testing.T) { storetest.Each(t, testAWebsiteStaysInStep) }
+
+func testAWebsiteStaysInStep(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	pullsAnything(f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} }))
+	c := changeClient(b, b.origin)
+	sites := websiteClient(b, b.origin)
+	token := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
+	script := changeClient(bearer{token: token, rt: b.client.Transport}, b.origin)
+
+	made, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "blog.example.com", Website: toURL("https://backend.example.com")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyReviewed(t, c, made.Msg.GetChange())
+	site := listWebsites(t, sites)[0]
+	if site.GetConfigDiffers() || !strings.Contains(site.GetConfig(), "reverse_proxy https://backend.example.com") {
+		t.Errorf("a new website's config reads %q, differing %t", site.GetConfig(), site.GetConfigDiffers())
+	}
+	if r := site.GetReach(); !r.GetAnswered() || r.GetSaid() != "200 OK" || r.GetCheckTime() == nil {
+		t.Errorf("what it sends to reads %v, want what its server found", r)
+	}
+
+	// The project alone can't say it serves something else.
+	_, err = script.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Send it elsewhere", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Scope: "default", Name: site.GetName()},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: "blog.example.com", Website: toURL("https://elsewhere.example.com")}}},
+	}}}))
+	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "changes through Websites, or dockwell websites update") {
+		t.Errorf("a plain edit of what a website serves = %v, want it refused", err)
+	}
+	// Renaming it, which leaves what it serves out, keeps that.
+	renamed := propose(t, script, "Rename it", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Scope: "default", Name: site.GetName()},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: "The blog"}}},
+	})
+	applyReviewed(t, script, renamed)
+	if got := listWebsites(t, sites); len(got) != 1 || got[0].GetSpec().GetProxy().GetUrl() != "https://backend.example.com" {
+		t.Errorf("after a rename, ListWebsites = %v", got)
+	}
+
+	// Its web server edited by hand runs what its settings don't say, and says so.
+	odd := ":8080 {\n\trespond \"elsewhere\"\n}\n"
+	web := propose(t, script, "Edit the web server by hand", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: site.GetEnvironmentId(), Name: website.WebService},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: website.Image, Entrypoint: []string{"/bin/sh", "-c", "exec caddy run", "web"}, Command: []string{odd}, Networks: []string{website.SiteNetwork},
+		}}}}},
+	})
+	applyReviewed(t, script, web)
+	got := listWebsites(t, sites)[0]
+	if !got.GetConfigDiffers() || got.GetConfig() != odd {
+		t.Errorf("a web server edited by hand reads %q, differing %t", got.GetConfig(), got.GetConfigDiffers())
+	}
+	// Its settings, planned again, put it back.
+	back, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "blog.example.com", Website: toURL("https://backend.example.com")}))
+	if err != nil {
+		t.Fatalf("putting the settings back: %v", err)
+	}
+	applyReviewed(t, c, back.Msg.GetChange())
+	if got := listWebsites(t, sites)[0]; got.GetConfigDiffers() {
+		t.Errorf("after the update, the config still differs: %q", got.GetConfig())
 	}
 }

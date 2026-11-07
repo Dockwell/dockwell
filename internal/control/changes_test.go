@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -81,6 +82,9 @@ type testServer struct {
 	stop   func()
 	// hello changes what its agent says of itself, to stand in for another version.
 	hello func(*agentv1.Hello)
+	// probe answers what a website's server is asked of what it sends to, as a
+	// test asks nothing beyond this machine. Nil answers everything.
+	probe func(context.Context, *agentv1.ProbeCall) *agentv1.ProbeResult
 	// health says how its services are, when set.
 	health agent.HealthReporter
 	// disk reads its files. dataDir is what that takes for Dockwell's directory.
@@ -136,7 +140,10 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe,
+	}
+	if cfg.Probe == nil {
+		cfg.Probe = answersEverything
 	}
 	if s.backups != nil {
 		cfg.Backups = backup.Calls{Runner: s.backups}
@@ -149,6 +156,14 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	s.stop = func() { once.Do(func() { cancel(); <-done }) }
 	t.Cleanup(s.stop)
 	waitConnected(t, f, s.id.ServerID, true)
+}
+
+// answersEverything stands in for a probe that found everything answering.
+func answersEverything(_ context.Context, call *agentv1.ProbeCall) *agentv1.ProbeResult {
+	if call.GetPort() != 0 {
+		return &agentv1.ProbeResult{Answered: true, Said: fmt.Sprintf("something listens on port %d", call.GetPort())}
+	}
+	return &agentv1.ProbeResult{Answered: true, Said: "200 OK"}
 }
 
 func waitConnected(t *testing.T, f *fullServer, server string, connected bool) {

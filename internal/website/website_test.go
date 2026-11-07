@@ -54,6 +54,15 @@ func TestAURLToSendTo(t *testing.T) {
 		{"http://backend.example.com/a;b", "a character a website can't send on"},
 		{"http://backend.example.com/a/../b", "the path it leads to"},
 		{"https://", "names no host"},
+		{"http://169.254.169.254/latest/meta-data", "metadata service"},
+		{"http://[fe80::1]:8080", "link-local"},
+		{"http://metadata.google.internal/computeMetadata/v1", "metadata service"},
+		{"http://metadata/computeMetadata/v1", "metadata service"},
+		{"http://100.100.100.200/latest/meta-data", "metadata service"},
+		{"http://[fd00:ec2::254]/latest/meta-data", "metadata service"},
+		{"http://[::ffff:169.254.169.254]/", "link-local"},
+		{"http://172.17.0.1:2375", "Docker's API"},
+		{"https://docker.example.com:2376", "Docker's API"},
 	} {
 		err := Check(proxy(tc.in, 0))
 		if err == nil || !strings.Contains(err.Error(), tc.says) {
@@ -113,6 +122,15 @@ func TestWhatServesEachKind(t *testing.T) {
 	// Caddy's binary carries this one as a file capability, and won't start without it.
 	if slices.Contains(web.GetCapDrop(), "NET_BIND_SERVICE") || slices.Contains(web.GetCapDrop(), "ALL") || len(web.GetCapAdd()) != 0 {
 		t.Errorf("the web server drops %v and adds %v, and Caddy's file capability needs NET_BIND_SERVICE kept, which adding would make host access", web.GetCapDrop(), web.GetCapAdd())
+	}
+	if !slices.Equal(web.GetNetworks(), []string{SiteNetwork}) || url.Networks[SiteNetwork] == nil {
+		t.Errorf("the web server joins %v of %v, want a network of its own, off Docker's default bridge", web.GetNetworks(), url.Networks)
+	}
+	if web.GetResources().GetMemory() != Memory {
+		t.Errorf("the web server may use %q of memory, want %s", web.GetResources().GetMemory(), Memory)
+	}
+	if len(port.Networks) != 0 {
+		t.Errorf("a port on the server has networks: %v", port.Networks)
 	}
 	if web.GetHealthcheck().GetTcp().GetPort() != Port {
 		t.Errorf("the web server's check is %v, want a connection to %d", web.GetHealthcheck(), Port)

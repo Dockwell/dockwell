@@ -2945,8 +2945,8 @@ paths:
                 - WebsiteService
             description: |-
                 PreviewWebsite says what a website's own web server would run for what it
-                 serves, and how Dockwell would keep that, planning nothing. It refuses what
-                 can't be served as CreateWebsite would, so a form can say so as you type.
+                 serves, planning nothing. It refuses what can't be served as CreateWebsite
+                 would, so you can check settings before you plan them.
             operationId: WebsiteService_PreviewWebsite
             requestBody:
                 content:
@@ -4351,7 +4351,7 @@ components:
                 website:
                     allOf:
                         - $ref: '#/components/schemas/Website'
-                    description: What it serves.
+                    description: What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
                 tls:
                     type: string
                     description: |-
@@ -7231,7 +7231,7 @@ components:
                 website:
                     allOf:
                         - $ref: '#/components/schemas/Website'
-                    description: What it serves.
+                    description: What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
             description: PreviewWebsiteRequest is what a website would serve.
         PreviewWebsiteResponse:
             type: object
@@ -9390,7 +9390,7 @@ components:
                 website:
                     allOf:
                         - $ref: '#/components/schemas/Website'
-                    description: What it serves, whole.
+                    description: What it serves, whole, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
                 summary:
                     type: string
                     description: What the change is for, for the timeline. Empty says what it changes.
@@ -9553,6 +9553,24 @@ components:
                 serverName:
                     type: string
                     description: That server's name, such as "hz-1".
+                config:
+                    type: string
+                    description: |-
+                        The config its web server runs, as its service's spec has it: what's served,
+                         whatever Project.website says. Empty for a website with no web server.
+                         Numbered apart, as open work adds to this message.
+                configDiffers:
+                    type: boolean
+                    description: |-
+                        Whether config differs from what the website's settings write, as when a change
+                         edited its web server outside WebsiteService. UpdateWebsite with its settings
+                         puts them back in step.
+                reach:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteReach'
+                    description: |-
+                        Whether what it sends to answers, as its server last found by asking, apart
+                         from any deploy. Unset until a server has asked, as for one not connected.
             description: WebsiteInfo is one website.
         WebsiteProxy:
             type: object
@@ -9580,6 +9598,26 @@ components:
             description: |-
                 WebsiteProxy sends a website's requests on, to a URL or to a port on the
                  server itself. Give one of url and port.
+        WebsiteReach:
+            type: object
+            properties:
+                answered:
+                    type: boolean
+                    description: |-
+                        Whether it answered: a port that took a connection, or a URL that gave an HTTP
+                         answer below 500.
+                said:
+                    type: string
+                    description: |-
+                        What it said, in a line, such as "200 OK" or "503 Service Unavailable", or why
+                         nothing did, such as "connection refused".
+                checkTime:
+                    type: string
+                    description: When the server asked.
+                    format: date-time
+            description: |-
+                WebsiteReach is whether what a website sends to answers, from its server: the
+                 port, as the ingress dials it, or the URL, as its web server sends to it.
 tags:
     - name: AuthService
       description: |-

@@ -1348,7 +1348,7 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "domain", Help: "The domain it answers at, such as \"blog.example.com\", as a route takes one."},
-				{Path: "website", Help: "What it serves."},
+				{Path: "website", Help: "What it serves, as JSON, such as {\"proxy\":{\"url\":\"https://backend.example.com\"}}, or {\"proxy\":{\"port\":3000}} for a port on the server."},
 				{Path: "tls", Help: "\"off\" when TLS ends before this server, at a tunnel or a proxy in front, as a route's tls says. Empty gets a certificate."},
 				{Path: "trusted_proxies", Help: "The proxies in front whose word it takes on a visitor's address, as a route's trusted_proxies."},
 				{Path: "plain_for_anyone", Help: "With tls off, answers anyone who reaches the server's port 80, as a route's plain_for_anyone."},
@@ -1390,10 +1390,10 @@ func Methods() []*apicli.Method {
 			Noun:      "websites",
 			Verb:      "preview",
 			Short:     "Say what a website's own web server would run for what it serves",
-			Long:      "Say what a website's own web server would run for what it serves, and how\nDockwell would keep that, planning nothing. It refuses what can't be served as\ndockwell websites create would, so a form can say so as you type.",
+			Long:      "Say what a website's own web server would run for what it serves, planning\nnothing. It refuses what can't be served as dockwell websites create would, so\nyou can check settings before you plan them.",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
-				{Path: "website", Help: "What it serves."},
+				{Path: "website", Help: "What it serves, as JSON, such as {\"proxy\":{\"url\":\"https://backend.example.com\"}}, or {\"proxy\":{\"port\":3000}} for a port on the server."},
 			},
 			Call: apicli.Unary[v1.PreviewWebsiteRequest, v1.PreviewWebsiteResponse](dockwellv1connect.WebsiteServicePreviewWebsiteProcedure),
 		},
@@ -1408,7 +1408,7 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The website, by its project's name or ID.", Arg: true},
-				{Path: "website", Help: "What it serves, whole."},
+				{Path: "website", Help: "What it serves, whole, as JSON, such as {\"proxy\":{\"url\":\"https://backend.example.com\"}}, or {\"proxy\":{\"port\":3000}} for a port on the server."},
 				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it changes."},
 			},
 			Call: apicli.Unary[v1.UpdateWebsiteRequest, v1.UpdateWebsiteResponse](dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure),

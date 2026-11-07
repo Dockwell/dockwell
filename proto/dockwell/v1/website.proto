@@ -25,8 +25,8 @@ service WebsiteService {
   }
 
   // PreviewWebsite says what a website's own web server would run for what it
-  // serves, and how Dockwell would keep that, planning nothing. It refuses what
-  // can't be served as CreateWebsite would, so a form can say so as you type.
+  // serves, planning nothing. It refuses what can't be served as CreateWebsite
+  // would, so you can check settings before you plan them.
   rpc PreviewWebsite(PreviewWebsiteRequest) returns (PreviewWebsiteResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (google.api.http) = {
@@ -69,6 +69,19 @@ service WebsiteService {
   }
 }
 
+// WebsiteReach is whether what a website sends to answers, from its server: the
+// port, as the ingress dials it, or the URL, as its web server sends to it.
+message WebsiteReach {
+  // Whether it answered: a port that took a connection, or a URL that gave an HTTP
+  // answer below 500.
+  bool answered = 1;
+  // What it said, in a line, such as "200 OK" or "503 Service Unavailable", or why
+  // nothing did, such as "connection refused".
+  string said = 2;
+  // When the server asked.
+  google.protobuf.Timestamp check_time = 3;
+}
+
 // ListWebsitesRequest asks for every website.
 message ListWebsitesRequest {}
 
@@ -102,11 +115,22 @@ message WebsiteInfo {
   string server_id = 9;
   // That server's name, such as "hz-1".
   string server_name = 10;
+  // The config its web server runs, as its service's spec has it: what's served,
+  // whatever Project.website says. Empty for a website with no web server.
+  // Numbered apart, as open work adds to this message.
+  string config = 20;
+  // Whether config differs from what the website's settings write, as when a change
+  // edited its web server outside WebsiteService. UpdateWebsite with its settings
+  // puts them back in step.
+  bool config_differs = 21;
+  // Whether what it sends to answers, as its server last found by asking, apart
+  // from any deploy. Unset until a server has asked, as for one not connected.
+  WebsiteReach reach = 22;
 }
 
 // PreviewWebsiteRequest is what a website would serve.
 message PreviewWebsiteRequest {
-  // What it serves.
+  // What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
   dockwell.resource.v1alpha1.Website website = 1;
 }
 
@@ -124,7 +148,7 @@ message PreviewWebsiteResponse {
 message CreateWebsiteRequest {
   // The domain it answers at, such as "blog.example.com", as a route takes one.
   string domain = 1;
-  // What it serves.
+  // What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
   dockwell.resource.v1alpha1.Website website = 2;
   // "off" when TLS ends before this server, at a tunnel or a proxy in front, as
   // a route's tls says. Empty gets a certificate.
@@ -152,7 +176,7 @@ message CreateWebsiteResponse {
 message UpdateWebsiteRequest {
   // The website, by its project's name or ID.
   string id = 1;
-  // What it serves, whole.
+  // What it serves, whole, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
   dockwell.resource.v1alpha1.Website website = 2;
   // What the change is for, for the timeline. Empty says what it changes.
   string summary = 3;

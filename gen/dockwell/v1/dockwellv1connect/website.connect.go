@@ -57,8 +57,8 @@ type WebsiteServiceClient interface {
 	// ListWebsites returns every website, sorted by domain.
 	ListWebsites(context.Context, *connect.Request[v1.ListWebsitesRequest]) (*connect.Response[v1.ListWebsitesResponse], error)
 	// PreviewWebsite says what a website's own web server would run for what it
-	// serves, and how Dockwell would keep that, planning nothing. It refuses what
-	// can't be served as CreateWebsite would, so a form can say so as you type.
+	// serves, planning nothing. It refuses what can't be served as CreateWebsite
+	// would, so you can check settings before you plan them.
 	PreviewWebsite(context.Context, *connect.Request[v1.PreviewWebsiteRequest]) (*connect.Response[v1.PreviewWebsiteResponse], error)
 	// CreateWebsite plans a new website at a domain, as a project of its own,
 	// ready to apply or discard. A website that sends to a port on the server
@@ -158,8 +158,8 @@ type WebsiteServiceHandler interface {
 	// ListWebsites returns every website, sorted by domain.
 	ListWebsites(context.Context, *connect.Request[v1.ListWebsitesRequest]) (*connect.Response[v1.ListWebsitesResponse], error)
 	// PreviewWebsite says what a website's own web server would run for what it
-	// serves, and how Dockwell would keep that, planning nothing. It refuses what
-	// can't be served as CreateWebsite would, so a form can say so as you type.
+	// serves, planning nothing. It refuses what can't be served as CreateWebsite
+	// would, so you can check settings before you plan them.
 	PreviewWebsite(context.Context, *connect.Request[v1.PreviewWebsiteRequest]) (*connect.Response[v1.PreviewWebsiteResponse], error)
 	// CreateWebsite plans a new website at a domain, as a project of its own,
 	// ready to apply or discard. A website that sends to a port on the server

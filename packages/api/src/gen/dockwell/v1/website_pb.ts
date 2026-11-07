@@ -20,7 +20,45 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/website.proto.
  */
 export const file_dockwell_v1_website: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS93ZWJzaXRlLnByb3RvEgtkb2Nrd2VsbC52MSIVChNMaXN0V2Vic2l0ZXNSZXF1ZXN0IkIKFExpc3RXZWJzaXRlc1Jlc3BvbnNlEioKCHdlYnNpdGVzGAEgAygLMhguZG9ja3dlbGwudjEuV2Vic2l0ZUluZm8igQIKC1dlYnNpdGVJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZG9tYWluGAMgASgJEjEKBHNwZWMYBCABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEhYKDmVudmlyb25tZW50X2lkGAUgASgJEhIKCnNlcnZpY2VfaWQYBiABKAkSEAoIcm91dGVfaWQYByABKAkSLwoLdXBkYXRlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCXNlcnZlcl9pZBgJIAEoCRITCgtzZXJ2ZXJfbmFtZRgKIAEoCSJNChVQcmV2aWV3V2Vic2l0ZVJlcXVlc3QSNAoHd2Vic2l0ZRgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUiXgoWUHJldmlld1dlYnNpdGVSZXNwb25zZRI0Cgd3ZWJzaXRlGAEgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZRIOCgZjb25maWcYAiABKAkivgEKFENyZWF0ZVdlYnNpdGVSZXF1ZXN0Eg4KBmRvbWFpbhgBIAEoCRI0Cgd3ZWJzaXRlGAIgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZRILCgN0bHMYAyABKAkSFwoPdHJ1c3RlZF9wcm94aWVzGAQgAygJEhgKEHBsYWluX2Zvcl9hbnlvbmUYBSABKAgSDwoHc2VydmVycxgGIAMoCRIPCgdzdW1tYXJ5GAcgASgJIjwKFUNyZWF0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiaQoUVXBkYXRlV2Vic2l0ZVJlcXVlc3QSCgoCaWQYASABKAkSNAoHd2Vic2l0ZRgCIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSDwoHc3VtbWFyeRgDIAEoCSI8ChVVcGRhdGVXZWJzaXRlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIjMKFERlbGV0ZVdlYnNpdGVSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3N1bW1hcnkYAiABKAkiPAoVRGVsZXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZTL5BAoOV2Vic2l0ZVNlcnZpY2UScAoMTGlzdFdlYnNpdGVzEiAuZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVzUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkxpc3RXZWJzaXRlc1Jlc3BvbnNlIhuQAgGguxgBgtPkkwIOEgwvdjEvd2Vic2l0ZXMSfgoOUHJldmlld1dlYnNpdGUSIi5kb2Nrd2VsbC52MS5QcmV2aWV3V2Vic2l0ZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5QcmV2aWV3V2Vic2l0ZVJlc3BvbnNlIiOguxgBgtPkkwIZOgEqIhQvdjEvd2Vic2l0ZXM6cHJldmlldxJzCg1DcmVhdGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuQ3JlYXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5DcmVhdGVXZWJzaXRlUmVzcG9uc2UiG6C7GAKC0+STAhE6ASoiDC92MS93ZWJzaXRlcxJ/Cg1VcGRhdGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuVXBkYXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5VcGRhdGVXZWJzaXRlUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS93ZWJzaXRlcy97aWR9OnVwZGF0ZRJ/Cg1EZWxldGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuRGVsZXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5EZWxldGVXZWJzaXRlUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS93ZWJzaXRlcy97aWR9OmRlbGV0ZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxXZWJzaXRlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS93ZWJzaXRlLnByb3RvEgtkb2Nrd2VsbC52MSJeCgxXZWJzaXRlUmVhY2gSEAoIYW5zd2VyZWQYASABKAgSDAoEc2FpZBgCIAEoCRIuCgpjaGVja190aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIVChNMaXN0V2Vic2l0ZXNSZXF1ZXN0IkIKFExpc3RXZWJzaXRlc1Jlc3BvbnNlEioKCHdlYnNpdGVzGAEgAygLMhguZG9ja3dlbGwudjEuV2Vic2l0ZUluZm8i0wIKC1dlYnNpdGVJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZG9tYWluGAMgASgJEjEKBHNwZWMYBCABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEhYKDmVudmlyb25tZW50X2lkGAUgASgJEhIKCnNlcnZpY2VfaWQYBiABKAkSEAoIcm91dGVfaWQYByABKAkSLwoLdXBkYXRlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCXNlcnZlcl9pZBgJIAEoCRITCgtzZXJ2ZXJfbmFtZRgKIAEoCRIOCgZjb25maWcYFCABKAkSFgoOY29uZmlnX2RpZmZlcnMYFSABKAgSKAoFcmVhY2gYFiABKAsyGS5kb2Nrd2VsbC52MS5XZWJzaXRlUmVhY2giTQoVUHJldmlld1dlYnNpdGVSZXF1ZXN0EjQKB3dlYnNpdGUYASABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlIl4KFlByZXZpZXdXZWJzaXRlUmVzcG9uc2USNAoHd2Vic2l0ZRgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSDgoGY29uZmlnGAIgASgJIr4BChRDcmVhdGVXZWJzaXRlUmVxdWVzdBIOCgZkb21haW4YASABKAkSNAoHd2Vic2l0ZRgCIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSCwoDdGxzGAMgASgJEhcKD3RydXN0ZWRfcHJveGllcxgEIAMoCRIYChBwbGFpbl9mb3JfYW55b25lGAUgASgIEg8KB3NlcnZlcnMYBiADKAkSDwoHc3VtbWFyeRgHIAEoCSI8ChVDcmVhdGVXZWJzaXRlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlImkKFFVwZGF0ZVdlYnNpdGVSZXF1ZXN0EgoKAmlkGAEgASgJEjQKB3dlYnNpdGUYAiABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEg8KB3N1bW1hcnkYAyABKAkiPAoVVXBkYXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIzChREZWxldGVXZWJzaXRlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdzdW1tYXJ5GAIgASgJIjwKFURlbGV0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2Uy+QQKDldlYnNpdGVTZXJ2aWNlEnAKDExpc3RXZWJzaXRlcxIgLmRvY2t3ZWxsLnYxLkxpc3RXZWJzaXRlc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5MaXN0V2Vic2l0ZXNSZXNwb25zZSIbkAIBoLsYAYLT5JMCDhIML3YxL3dlYnNpdGVzEn4KDlByZXZpZXdXZWJzaXRlEiIuZG9ja3dlbGwudjEuUHJldmlld1dlYnNpdGVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuUHJldmlld1dlYnNpdGVSZXNwb25zZSIjoLsYAYLT5JMCGToBKiIUL3YxL3dlYnNpdGVzOnByZXZpZXcScwoNQ3JlYXRlV2Vic2l0ZRIhLmRvY2t3ZWxsLnYxLkNyZWF0ZVdlYnNpdGVSZXF1ZXN0GiIuZG9ja3dlbGwudjEuQ3JlYXRlV2Vic2l0ZVJlc3BvbnNlIhuguxgCgtPkkwIROgEqIgwvdjEvd2Vic2l0ZXMSfwoNVXBkYXRlV2Vic2l0ZRIhLmRvY2t3ZWxsLnYxLlVwZGF0ZVdlYnNpdGVSZXF1ZXN0GiIuZG9ja3dlbGwudjEuVXBkYXRlV2Vic2l0ZVJlc3BvbnNlIieguxgCgtPkkwIdOgEqIhgvdjEvd2Vic2l0ZXMve2lkfTp1cGRhdGUSfwoNRGVsZXRlV2Vic2l0ZRIhLmRvY2t3ZWxsLnYxLkRlbGV0ZVdlYnNpdGVSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRGVsZXRlV2Vic2l0ZVJlc3BvbnNlIieguxgCgtPkkwIdOgEqIhgvdjEvd2Vic2l0ZXMve2lkfTpkZWxldGVCpQEKD2NvbS5kb2Nrd2VsbC52MUIMV2Vic2l0ZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * WebsiteReach is whether what a website sends to answers, from its server: the
+ * port, as the ingress dials it, or the URL, as its web server sends to it.
+ *
+ * @generated from message dockwell.v1.WebsiteReach
+ */
+export type WebsiteReach = Message<"dockwell.v1.WebsiteReach"> & {
+  /**
+   * Whether it answered: a port that took a connection, or a URL that gave an HTTP
+   * answer below 500.
+   *
+   * @generated from field: bool answered = 1;
+   */
+  answered: boolean;
+
+  /**
+   * What it said, in a line, such as "200 OK" or "503 Service Unavailable", or why
+   * nothing did, such as "connection refused".
+   *
+   * @generated from field: string said = 2;
+   */
+  said: string;
+
+  /**
+   * When the server asked.
+   *
+   * @generated from field: google.protobuf.Timestamp check_time = 3;
+   */
+  checkTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.WebsiteReach.
+ * Use `create(WebsiteReachSchema)` to create a new message.
+ */
+export const WebsiteReachSchema: GenMessage<WebsiteReach> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_website, 0);
 
 /**
  * ListWebsitesRequest asks for every website.
@@ -35,7 +73,7 @@ export type ListWebsitesRequest = Message<"dockwell.v1.ListWebsitesRequest"> & {
  * Use `create(ListWebsitesRequestSchema)` to create a new message.
  */
 export const ListWebsitesRequestSchema: GenMessage<ListWebsitesRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 0);
+  messageDesc(file_dockwell_v1_website, 1);
 
 /**
  * ListWebsitesResponse lists the websites.
@@ -56,7 +94,7 @@ export type ListWebsitesResponse = Message<"dockwell.v1.ListWebsitesResponse"> &
  * Use `create(ListWebsitesResponseSchema)` to create a new message.
  */
 export const ListWebsitesResponseSchema: GenMessage<ListWebsitesResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 1);
+  messageDesc(file_dockwell_v1_website, 2);
 
 /**
  * WebsiteInfo is one website.
@@ -135,6 +173,32 @@ export type WebsiteInfo = Message<"dockwell.v1.WebsiteInfo"> & {
    * @generated from field: string server_name = 10;
    */
   serverName: string;
+
+  /**
+   * The config its web server runs, as its service's spec has it: what's served,
+   * whatever Project.website says. Empty for a website with no web server.
+   * Numbered apart, as open work adds to this message.
+   *
+   * @generated from field: string config = 20;
+   */
+  config: string;
+
+  /**
+   * Whether config differs from what the website's settings write, as when a change
+   * edited its web server outside WebsiteService. UpdateWebsite with its settings
+   * puts them back in step.
+   *
+   * @generated from field: bool config_differs = 21;
+   */
+  configDiffers: boolean;
+
+  /**
+   * Whether what it sends to answers, as its server last found by asking, apart
+   * from any deploy. Unset until a server has asked, as for one not connected.
+   *
+   * @generated from field: dockwell.v1.WebsiteReach reach = 22;
+   */
+  reach?: WebsiteReach | undefined;
 };
 
 /**
@@ -142,7 +206,7 @@ export type WebsiteInfo = Message<"dockwell.v1.WebsiteInfo"> & {
  * Use `create(WebsiteInfoSchema)` to create a new message.
  */
 export const WebsiteInfoSchema: GenMessage<WebsiteInfo> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 2);
+  messageDesc(file_dockwell_v1_website, 3);
 
 /**
  * PreviewWebsiteRequest is what a website would serve.
@@ -151,7 +215,7 @@ export const WebsiteInfoSchema: GenMessage<WebsiteInfo> = /*@__PURE__*/
  */
 export type PreviewWebsiteRequest = Message<"dockwell.v1.PreviewWebsiteRequest"> & {
   /**
-   * What it serves.
+   * What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
    *
    * @generated from field: dockwell.resource.v1alpha1.Website website = 1;
    */
@@ -163,7 +227,7 @@ export type PreviewWebsiteRequest = Message<"dockwell.v1.PreviewWebsiteRequest">
  * Use `create(PreviewWebsiteRequestSchema)` to create a new message.
  */
 export const PreviewWebsiteRequestSchema: GenMessage<PreviewWebsiteRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 3);
+  messageDesc(file_dockwell_v1_website, 4);
 
 /**
  * PreviewWebsiteResponse is what serving it takes.
@@ -193,7 +257,7 @@ export type PreviewWebsiteResponse = Message<"dockwell.v1.PreviewWebsiteResponse
  * Use `create(PreviewWebsiteResponseSchema)` to create a new message.
  */
 export const PreviewWebsiteResponseSchema: GenMessage<PreviewWebsiteResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 4);
+  messageDesc(file_dockwell_v1_website, 5);
 
 /**
  * CreateWebsiteRequest is a website to make.
@@ -209,7 +273,7 @@ export type CreateWebsiteRequest = Message<"dockwell.v1.CreateWebsiteRequest"> &
   domain: string;
 
   /**
-   * What it serves.
+   * What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
    *
    * @generated from field: dockwell.resource.v1alpha1.Website website = 2;
    */
@@ -260,7 +324,7 @@ export type CreateWebsiteRequest = Message<"dockwell.v1.CreateWebsiteRequest"> &
  * Use `create(CreateWebsiteRequestSchema)` to create a new message.
  */
 export const CreateWebsiteRequestSchema: GenMessage<CreateWebsiteRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 5);
+  messageDesc(file_dockwell_v1_website, 6);
 
 /**
  * CreateWebsiteResponse carries the planned change.
@@ -281,7 +345,7 @@ export type CreateWebsiteResponse = Message<"dockwell.v1.CreateWebsiteResponse">
  * Use `create(CreateWebsiteResponseSchema)` to create a new message.
  */
 export const CreateWebsiteResponseSchema: GenMessage<CreateWebsiteResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 6);
+  messageDesc(file_dockwell_v1_website, 7);
 
 /**
  * UpdateWebsiteRequest is what a website should serve now.
@@ -297,7 +361,7 @@ export type UpdateWebsiteRequest = Message<"dockwell.v1.UpdateWebsiteRequest"> &
   id: string;
 
   /**
-   * What it serves, whole.
+   * What it serves, whole, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
    *
    * @generated from field: dockwell.resource.v1alpha1.Website website = 2;
    */
@@ -316,7 +380,7 @@ export type UpdateWebsiteRequest = Message<"dockwell.v1.UpdateWebsiteRequest"> &
  * Use `create(UpdateWebsiteRequestSchema)` to create a new message.
  */
 export const UpdateWebsiteRequestSchema: GenMessage<UpdateWebsiteRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 7);
+  messageDesc(file_dockwell_v1_website, 8);
 
 /**
  * UpdateWebsiteResponse carries the planned change.
@@ -337,7 +401,7 @@ export type UpdateWebsiteResponse = Message<"dockwell.v1.UpdateWebsiteResponse">
  * Use `create(UpdateWebsiteResponseSchema)` to create a new message.
  */
 export const UpdateWebsiteResponseSchema: GenMessage<UpdateWebsiteResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 8);
+  messageDesc(file_dockwell_v1_website, 9);
 
 /**
  * DeleteWebsiteRequest names a website to delete.
@@ -365,7 +429,7 @@ export type DeleteWebsiteRequest = Message<"dockwell.v1.DeleteWebsiteRequest"> &
  * Use `create(DeleteWebsiteRequestSchema)` to create a new message.
  */
 export const DeleteWebsiteRequestSchema: GenMessage<DeleteWebsiteRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 9);
+  messageDesc(file_dockwell_v1_website, 10);
 
 /**
  * DeleteWebsiteResponse carries the planned change.
@@ -386,7 +450,7 @@ export type DeleteWebsiteResponse = Message<"dockwell.v1.DeleteWebsiteResponse">
  * Use `create(DeleteWebsiteResponseSchema)` to create a new message.
  */
 export const DeleteWebsiteResponseSchema: GenMessage<DeleteWebsiteResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 10);
+  messageDesc(file_dockwell_v1_website, 11);
 
 /**
  * WebsiteService lists your websites, and plans making one, changing what it
@@ -411,8 +475,8 @@ export const WebsiteService: GenService<{
   },
   /**
    * PreviewWebsite says what a website's own web server would run for what it
-   * serves, and how Dockwell would keep that, planning nothing. It refuses what
-   * can't be served as CreateWebsite would, so a form can say so as you type.
+   * serves, planning nothing. It refuses what can't be served as CreateWebsite
+   * would, so you can check settings before you plan them.
    *
    * @generated from rpc dockwell.v1.WebsiteService.PreviewWebsite
    */

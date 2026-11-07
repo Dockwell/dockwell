@@ -268,7 +268,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, cfg.Store, cfg.Secrets, cfg.Build.Commit, cfg.Logger), opts...))
-		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 		if cfg.Secrets != nil && cfg.Auth != nil {

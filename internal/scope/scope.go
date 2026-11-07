@@ -86,6 +86,30 @@ func (ProjectType) Keep(current, desired proto.Message) (resource.Kept, error) {
 	return resource.Kept{}, nil
 }
 
+// CheckInChange keeps what a website serves in step with what serves it: a change
+// to Project.website comes with the route WebsiteService writes for it, so a plain
+// edit of the project can't leave it saying one thing while its web server runs
+// another.
+func (ProjectType) CheckInChange(current, desired proto.Message, others []resource.Ref) error {
+	var was *resourcev1.Website
+	if c, ok := current.(*resourcev1.Project); ok {
+		was = c.GetWebsite()
+	}
+	d, _ := desired.(*resourcev1.Project)
+	if proto.Equal(was, d.GetWebsite()) {
+		return nil
+	}
+	for _, r := range others {
+		if r.Kind == routeKind && r.Name == website.RouteName {
+			return nil
+		}
+	}
+	return errors.New("what a website serves changes through Websites, or dockwell websites update, which writes its route and web server with it. Leave website out of the project's edit to keep what it serves")
+}
+
+// routeKind is the route kind, which this package can't import.
+const routeKind resource.Kind = "route"
+
 // CheckName requires a DNS label, fit for URLs and the CLI.
 func (ProjectType) CheckName(name string) error { return resource.CheckLabel("project", name, "shop") }
 

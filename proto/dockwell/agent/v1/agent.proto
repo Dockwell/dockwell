@@ -416,6 +416,22 @@ message Call {
     // 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
     // next of either takes 54.
     ListUpdatesCall list_updates = 53;
+    // Ask whether what a website sends to answers, from the server. Numbered in
+    // the websites' block, as open work adds to this message.
+    ProbeCall probe = 60;
+  }
+}
+
+// ProbeCall asks whether something answers, from the server, as a website's
+// traffic would find it: a port on the server, as the ingress dials it, or a URL,
+// as a website's web server sends to it. It reads nothing of what answers but its
+// status line, and sends to no link-local address.
+message ProbeCall {
+  oneof target {
+    // A TCP port on the server's loopback, as a route to a port dials it.
+    uint32 port = 1;
+    // An http or https URL, asked with a GET that follows no redirect.
+    string url = 2;
   }
 }
 
@@ -885,7 +901,19 @@ message CallResult {
     // What send_backup sent.
     SendBackupResult send_backup = 24;
     ListUpdatesResult list_updates = 53;
+    // What a probe found.
+    ProbeResult probe = 60;
   }
+}
+
+// ProbeResult says whether what a probe asked answered.
+message ProbeResult {
+  // Whether it answered: a port that took a connection, or a URL that gave an
+  // HTTP answer below 500.
+  bool answered = 1;
+  // What it said, in a line, such as "200 OK" or "503 Service Unavailable", or
+  // why nothing did, such as "connection refused".
+  string said = 2;
 }
 
 // AdoptionResult is a container as the spec of a service.

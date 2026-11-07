@@ -16,18 +16,22 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -43,15 +47,45 @@ type Handler struct {
 	engine  *revision.Engine
 	db      *store.DB
 	keeper  *secrets.Keeper
+	agents  *agentapi.Agents
 	logger  *slog.Logger
+
+	// What each server last found of what its websites send to, by server and
+	// target, so a list asks no server more than once in reachFresh.
+	mu      sync.Mutex
+	reached map[reachKey]*reachEntry
+	probing chan struct{}
 }
 
 var _ dockwellv1connect.WebsiteServiceHandler = (*Handler)(nil)
 
-// New returns a handler that plans through ch and engine, and reads specs from db,
-// opening the sealed ones with keeper.
-func New(ch *changes.Handler, engine *revision.Engine, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, engine: engine, db: db, keeper: keeper, logger: logger}
+// How a list finds whether what websites send to answers.
+const (
+	// reachFresh is how long what a server found stands, before a list asks again.
+	reachFresh = 30 * time.Second
+	// reachWait is how long a list waits for a first answer, before it lists
+	// without one.
+	reachWait = 2 * time.Second
+	// probesAtOnce bounds the probes in flight, however many websites there are.
+	probesAtOnce = 8
+)
+
+type reachKey struct{ server, target string }
+
+type reachEntry struct {
+	got  *dockwellv1.WebsiteReach
+	at   time.Time
+	done chan struct{} // closed when the probe in flight ends; nil when none is
+}
+
+// New returns a handler that plans through ch and engine, reads specs from db,
+// opening the sealed ones with keeper, and asks agents' servers whether what a
+// website sends to answers.
+func New(ch *changes.Handler, engine *revision.Engine, db *store.DB, keeper *secrets.Keeper, agents *agentapi.Agents, logger *slog.Logger) *Handler {
+	return &Handler{
+		changes: ch, engine: engine, db: db, keeper: keeper, agents: agents, logger: logger,
+		reached: map[reachKey]*reachEntry{}, probing: make(chan struct{}, probesAtOnce),
+	}
 }
 
 // site is a website as the store has it.
@@ -65,7 +99,12 @@ type site struct {
 	rt       *resourcev1.Route
 	routes   []store.Resource
 	services []store.Resource
-	updated  time.Time
+	networks []store.Resource
+	// placed is where its route runs, by server ID.
+	placed []string
+	// web is what its web server runs, when it has one.
+	web     *resourcev1.Container
+	updated time.Time
 }
 
 func (s *site) info() *dockwellv1.WebsiteInfo {
@@ -81,6 +120,10 @@ func (s *site) info() *dockwellv1.WebsiteInfo {
 	if !s.updated.IsZero() {
 		out.UpdateTime = timestamppb.New(s.updated)
 	}
+	if s.web != nil && len(s.web.GetCommand()) == 1 {
+		out.Config = s.web.GetCommand()[0]
+	}
+	out.ConfigDiffers = out.GetConfig() != website.Config(s.spec.GetWebsite())
 	return out
 }
 
@@ -94,18 +137,12 @@ func (h *Handler) ListWebsites(ctx context.Context, _ *connect.Request[dockwellv
 		}
 		for i := range all {
 			info := all[i].info()
-			if all[i].route != nil {
-				placed, err := tx.Placement(ctx, all[i].route.ID, all[i].route.Revision)
+			if len(all[i].placed) > 0 {
+				srv, err := tx.GetServer(ctx, all[i].placed[0])
 				if err != nil {
 					return err
 				}
-				if len(placed) > 0 {
-					srv, err := tx.GetServer(ctx, placed[0])
-					if err != nil {
-						return err
-					}
-					info.ServerId, info.ServerName = srv.ID, srv.Name
-				}
+				info.ServerId, info.ServerName = srv.ID, srv.Name
 			}
 			res.Websites = append(res.Websites, info)
 		}
@@ -114,6 +151,7 @@ func (h *Handler) ListWebsites(ctx context.Context, _ *connect.Request[dockwellv
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	h.reach(ctx, res.GetWebsites())
 	slices.SortFunc(res.Websites, func(a, b *dockwellv1.WebsiteInfo) int {
 		return cmp.Or(cmp.Compare(a.GetDomain(), b.GetDomain()), cmp.Compare(a.GetName(), b.GetName()))
 	})
@@ -147,6 +185,19 @@ func (h *Handler) sites(ctx context.Context, tx *store.Tx) ([]site, error) {
 		if s.services, err = tx.ListResources(ctx, s.env, string(service.Kind)); err != nil {
 			return nil, err
 		}
+		if s.networks, err = tx.ListResources(ctx, s.env, string(network.Kind)); err != nil {
+			return nil, err
+		}
+		for i := range s.services {
+			if s.services[i].Name != website.WebService {
+				continue
+			}
+			spec, err := h.decode(ctx, tx, s.services[i])
+			if err != nil {
+				return nil, err
+			}
+			s.web = spec.(*resourcev1.Service).GetApp()
+		}
 		for i := range s.routes {
 			if s.routes[i].Name != website.RouteName && s.route != nil {
 				continue
@@ -156,6 +207,11 @@ func (h *Handler) sites(ctx context.Context, tx *store.Tx) ([]site, error) {
 				return nil, err
 			}
 			s.route, s.rt = &s.routes[i], spec.(*resourcev1.Route)
+		}
+		if s.route != nil {
+			if s.placed, err = tx.Placement(ctx, s.route.ID, s.route.Revision); err != nil {
+				return nil, err
+			}
 		}
 		live, err := tx.PageResources(ctx, "", s.env, "", 1000)
 		if err != nil {
@@ -216,10 +272,13 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.Invalid(err)
 	}
 	var made []revision.Edit
-	var env, name string
+	var env, name, taken string
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
+			return err
+		}
+		if taken, err = h.holder(ctx, tx, tree, domain); err != nil || taken != "" {
 			return err
 		}
 		if name, err = h.freeName(ctx, tx, tree.Organization.ID, website.ProjectName(domain)); err != nil {
@@ -230,6 +289,9 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	})
 	if err != nil {
 		return nil, h.internal(ctx, err)
+	}
+	if taken != "" {
+		return nil, authapi.ReasonError(connect.CodeAlreadyExists, errors.New(taken), "domain_taken")
 	}
 	made[0].Spec = &resourcev1.Project{DisplayName: domain, Website: spec}
 	serving := website.Resources(spec, domain, website.Front{TLS: m.GetTls(), TrustedProxies: m.GetTrustedProxies(), PlainForAnyone: m.GetPlainForAnyone()})
@@ -279,8 +341,15 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 		Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Scope: s.org, Name: s.project.Name},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: s.spec.GetDisplayName(), Catalog: s.spec.GetCatalog(), Website: spec}}},
 	}}
-	// It stays where it runs, which an edit with no servers keeps.
-	edits = append(edits, puts(s.env, serving, nil)...)
+	// What it makes runs where its route does, and what it has stays there.
+	edits = append(edits, puts(s.env, serving, s.placed)...)
+	// Deletions run last, in reverse: its services go before the networks they
+	// were on.
+	for _, r := range s.networks {
+		if serving.Networks[r.Name] == nil {
+			edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(network.Kind), Scope: s.env, Name: r.Name}, Delete: true})
+		}
+	}
 	for _, r := range s.services {
 		if serving.Services[r.Name] == nil {
 			edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: s.env, Name: r.Name}, Delete: true})
@@ -303,8 +372,12 @@ func (h *Handler) DeleteWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, err
 	}
 	// Deletions run in reverse, so this order has the routes go first, then what
-	// they sent to, then the project, with its environment.
+	// they sent to, then the networks that was on, then the project, with its
+	// environment.
 	edits := []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Scope: s.org, Name: s.project.Name}, Delete: true}}
+	for _, r := range s.networks {
+		edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(network.Kind), Scope: s.env, Name: r.Name}, Delete: true})
+	}
 	for _, r := range s.services {
 		edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: s.env, Name: r.Name}, Delete: true})
 	}
@@ -321,9 +394,17 @@ func (h *Handler) DeleteWebsite(ctx context.Context, req *connect.Request[dockwe
 }
 
 // puts are the edits that make an environment hold what serves a website: its
-// services first, as the route sends to them.
+// networks, then its services, as they join them, then the route, as it sends to
+// them.
 func puts(env string, serving website.Serving, servers []string) []*dockwellv1.Edit {
 	var out []*dockwellv1.Edit
+	for _, name := range slices.Sorted(maps.Keys(serving.Networks)) {
+		out = append(out, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(network.Kind), Scope: env, Name: name},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Network{Network: serving.Networks[name]}},
+			Servers:  servers,
+		})
+	}
 	for _, name := range slices.Sorted(maps.Keys(serving.Services)) {
 		out = append(out, &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: env, Name: name},
@@ -360,4 +441,156 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 	}
 	h.logger.ErrorContext(ctx, "website call failed", slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
+}
+
+// holder says who serves a domain already, in words for whoever asked for it, or
+// nothing when it's free. A website takes the whole of its domain, so a route to
+// any path of it holds it.
+func (h *Handler) holder(ctx context.Context, tx *store.Tx, tree scope.Tree, domain string) (string, error) {
+	routes, err := tx.ListKind(ctx, string(route.Kind))
+	if err != nil {
+		return "", err
+	}
+	for i := range routes {
+		spec, err := h.decode(ctx, tx, routes[i])
+		if err != nil {
+			return "", err
+		}
+		rt := spec.(*resourcev1.Route)
+		if rt.GetDomain() != domain {
+			continue
+		}
+		for _, p := range tree.Projects {
+			for _, e := range p.Environments {
+				if e.ID != routes[i].Scope {
+					continue
+				}
+				r, err := tx.GetResource(ctx, string(scope.ProjectKind), tree.Organization.ID, p.Name)
+				if err != nil {
+					return "", err
+				}
+				ps, err := h.decode(ctx, tx, r)
+				if err != nil {
+					return "", err
+				}
+				project, _ := ps.(*resourcev1.Project)
+				name := cmp.Or(project.GetDisplayName(), p.Name)
+				switch {
+				case project.GetWebsite() != nil:
+					return domain + " is a website already. Open it in Websites, or use another domain", nil
+				case rt.GetService() != "":
+					return fmt.Sprintf("%s is the domain of the app %s in %s already. Open it, or use another domain", domain, rt.GetService(), name), nil
+				default:
+					return fmt.Sprintf("%s is the domain of a port on a server, from %s, already. Open it in Domains, or use another domain", domain, name), nil
+				}
+			}
+		}
+		return domain + " is served already. Open it in Domains, or use another domain", nil
+	}
+	return "", nil
+}
+
+// reach fills in what each website's server last found of what it sends to,
+// asking again what's older than reachFresh, and waiting a moment for what has no
+// answer yet.
+func (h *Handler) reach(ctx context.Context, sites []*dockwellv1.WebsiteInfo) {
+	var waits []chan struct{}
+	for _, w := range sites {
+		call, key, ok := probeOf(w)
+		if !ok {
+			continue
+		}
+		if done := h.ask(key, call); done != nil {
+			waits = append(waits, done)
+		}
+	}
+	if len(waits) > 0 {
+		timer := time.NewTimer(reachWait)
+		defer timer.Stop()
+	wait:
+		for _, done := range waits {
+			select {
+			case <-done:
+			case <-timer.C:
+				break wait
+			case <-ctx.Done():
+				break wait
+			}
+		}
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, w := range sites {
+		if _, key, ok := probeOf(w); ok {
+			if e := h.reached[key]; e != nil && e.got != nil {
+				w.Reach = proto.CloneOf(e.got)
+			}
+		}
+	}
+}
+
+// probeOf is what a website's server would ask, and the key its answer is kept
+// by.
+func probeOf(w *dockwellv1.WebsiteInfo) (*agentv1.ProbeCall, reachKey, bool) {
+	if w.GetServerId() == "" {
+		return nil, reachKey{}, false
+	}
+	p := w.GetSpec().GetProxy()
+	switch {
+	case p.GetPort() != 0:
+		return &agentv1.ProbeCall{Target: &agentv1.ProbeCall_Port{Port: p.GetPort()}}, reachKey{w.GetServerId(), "port:" + strconv.Itoa(int(p.GetPort()))}, true
+	case p.GetUrl() != "":
+		return &agentv1.ProbeCall{Target: &agentv1.ProbeCall_Url{Url: p.GetUrl() + "/"}}, reachKey{w.GetServerId(), "url:" + p.GetUrl()}, true
+	}
+	return nil, reachKey{}, false
+}
+
+// ask starts asking a server, unless what it found is fresh or it's being asked
+// now. It returns what to wait on when there's no answer yet to list.
+func (h *Handler) ask(key reachKey, call *agentv1.ProbeCall) chan struct{} {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	e := h.reached[key]
+	if e == nil {
+		e = &reachEntry{}
+		h.reached[key] = e
+	}
+	switch {
+	case e.done != nil:
+	case time.Since(e.at) < reachFresh:
+		return nil
+	default:
+		e.done = make(chan struct{})
+		go h.probe(key, call, e.done)
+	}
+	if e.got == nil {
+		return e.done
+	}
+	return nil
+}
+
+// probe asks a server, and keeps what it found. A server that isn't connected, or
+// an agent too old to know the call, leaves nothing to list.
+func (h *Handler) probe(key reachKey, call *agentv1.ProbeCall, done chan struct{}) {
+	defer close(done)
+	var got *dockwellv1.WebsiteReach
+	if h.agents != nil {
+		h.probing <- struct{}{}
+		if session, ok := h.agents.Session(key.server); ok {
+			ctx, cancel := context.WithTimeout(context.Background(), agentapi.ProbeTimeout)
+			r, err := session.Probe(ctx, call)
+			cancel()
+			if err == nil {
+				got = &dockwellv1.WebsiteReach{Answered: r.GetAnswered(), Said: r.GetSaid(), CheckTime: timestamppb.Now()}
+			}
+		}
+		<-h.probing
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	e := h.reached[key]
+	e.at, e.done = time.Now(), nil
+	if got != nil {
+		e.got = got
+	}
 }

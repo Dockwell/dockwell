@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,13 @@ const (
 	WebService = "web"
 	// RouteName is the route that gives a website its domain.
 	RouteName = "site"
+	// SiteNetwork is the network of a website's own that its web server joins, so
+	// it isn't on Docker's default bridge with whatever else is there, believing
+	// what they say of who a visitor is.
+	SiteNetwork = "site"
+	// Memory is the most the web server may use, as one website mustn't starve
+	// another's.
+	Memory = "128M"
 	// Port is what WebService listens on in its container.
 	Port = 8080
 	// Image is the web server's image: the one the ingress pins, which a server
@@ -143,6 +151,9 @@ func checkURL(raw string) (string, error) {
 		if err != nil || n < 1 || n > 65535 {
 			return "", fmt.Errorf("%q has the port %s, which isn't one. Use one from 1 to 65535", raw, port)
 		}
+		if slices.Contains(dockerPorts, n) {
+			return "", fmt.Errorf("port %d is Docker's API, which runs anything as root on the server it answers for, so a website can't send to it on any host. Send to the app's own port", n)
+		}
 	}
 	path := strings.TrimRight(u.EscapedPath(), "/")
 	if path != "" {
@@ -160,10 +171,27 @@ func checkURL(raw string) (string, error) {
 	return u.Scheme + "://" + u.Host + path, nil
 }
 
+// metadataNames are what clouds name their metadata services by, which hand the
+// server's own credentials to whatever asks.
+var metadataNames = []string{"metadata", "metadata.google.internal", "metadata.goog", "instance-data", "instance-data.ec2.internal"}
+
+// metadataAddrs are metadata services' addresses outside link-local ranges:
+// Alibaba Cloud's, and AWS's over IPv6.
+var metadataAddrs = []netip.Addr{netip.MustParseAddr("100.100.100.200"), netip.MustParseAddr("fd00:ec2::254")}
+
+// dockerPorts are Docker's API, which runs anything as root on the server it
+// answers for, plain and over TLS.
+var dockerPorts = []int{2375, 2376}
+
+const metadataWords = "where a cloud keeps its metadata service, which hands the server's own credentials to whatever asks. A website can't send there"
+
 // checkHost takes a DNS name or an address, but not this container's own loopback,
-// which is what a container reaches by those names.
+// which is what a container reaches by those names, nor a cloud's metadata
+// service. A name that resolves to one is the operator's to keep away: Dockwell
+// sees only the name.
 func checkHost(host string) error {
 	if addr, err := netip.ParseAddr(host); err == nil {
+		addr = addr.Unmap()
 		switch {
 		case addr.IsLoopback():
 			return fmt.Errorf("%s is the web server's own container, not the server. To send to a port on the server itself, give the port in place of a URL", host)
@@ -171,11 +199,18 @@ func checkHost(host string) error {
 			return fmt.Errorf("%s is no address to send to. Give the address of what you send to", host)
 		case addr.Zone() != "":
 			return fmt.Errorf("%s names a network interface, which a container doesn't have. Give the address alone", host)
+		case addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast():
+			return fmt.Errorf("%s is a link-local address, %s", host, metadataWords)
+		case slices.Contains(metadataAddrs, addr):
+			return fmt.Errorf("%s is %s", host, metadataWords)
 		}
 		return nil
 	}
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return fmt.Errorf("%s is the web server's own container, not the server. To send to a port on the server itself, give the port in place of a URL", host)
+	}
+	if slices.Contains(metadataNames, strings.TrimSuffix(host, ".")) {
+		return fmt.Errorf("%s is the name %s", host, metadataWords)
 	}
 	if len(host) > 253 || !hostRE.MatchString(host) {
 		return fmt.Errorf("%s isn't a host name. Use letters, digits, dashes and dots, such as backend.example.com", host)
@@ -184,10 +219,11 @@ func checkHost(host string) error {
 }
 
 // Serving is what a website's environment holds: its route, with what it serves
-// filled in, and the services that serve it, by name.
+// filled in, and the services and networks that serve it, by name.
 type Serving struct {
 	Route    *resourcev1.Route
 	Services map[string]*resourcev1.Service
+	Networks map[string]*resourcev1.Network
 }
 
 // Front is how a website's domain is reached: the route's own settings for TLS and
@@ -206,13 +242,14 @@ func FrontOf(r *resourcev1.Route) Front {
 // Resources writes what serves a website at a domain. Check it first.
 func Resources(w *resourcev1.Website, domain string, front Front) Serving {
 	r := &resourcev1.Route{Domain: domain, Tls: front.TLS, TrustedProxies: front.TrustedProxies, PlainForAnyone: front.PlainForAnyone}
-	out := Serving{Route: r, Services: map[string]*resourcev1.Service{}}
+	out := Serving{Route: r, Services: map[string]*resourcev1.Service{}, Networks: map[string]*resourcev1.Network{}}
 	switch KindOf(w) {
 	case ProxyToPort:
 		r.HostPort = w.GetProxy().GetPort()
 	case ProxyToURL:
 		r.Service, r.Port = WebService, Port
 		out.Services[WebService] = webService(proxyConfig(w.GetProxy()))
+		out.Networks[SiteNetwork] = &resourcev1.Network{}
 	}
 	return out
 }
@@ -229,6 +266,10 @@ func webService(config string) *resourcev1.Service {
 		Command:    []string{config},
 		User:       user,
 		CapDrop:    dropped,
+		// Its own network, and the ingress's that its route adds, and not Docker's
+		// default bridge.
+		Networks:  []string{SiteNetwork},
+		Resources: &resourcev1.Resources{Memory: Memory},
 		// What Caddy writes as it runs, in memory, as nothing of it needs to last.
 		Tmpfs: []*resourcev1.Tmpfs{
 			{Target: "/tmp", Size: "1M"},

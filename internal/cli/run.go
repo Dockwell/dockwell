@@ -97,6 +97,7 @@ func lookups(cfg *agent.Config, stdio IO, g *globalFlags) {
 	cfg.NoLookup = g.noStun
 	if isSet(stdio.Getenv(envTest)) {
 		cfg.NoLookup, cfg.Collector.Metadata = true, collect.ClosedMetadata
+		cfg.Probe = agent.LoopbackProbe
 	}
 	cfg.Collector.Outbound = func(ctx context.Context) string {
 		return ingress.OwnAddress(collect.OutboundAddress(ctx))

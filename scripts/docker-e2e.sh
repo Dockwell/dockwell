@@ -2605,12 +2605,15 @@ set -e
 [[ "$own" == *"Docker's API"* ]] || fail "the refusal of Docker's API says: $own"
 
 step "Websites: one sends to a URL through a web server of its own, moves to a port a person approves, and goes"
-# What a website sends to: something elsewhere, which a container on Docker's default
-# bridge stands for, reached by its address, and something on the server's own port.
-docker run -d --name e2e-site-url nginx:1.27-alpine sh -c 'echo from-the-url >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
+# What a website sends to: something elsewhere, which a container published on the
+# server's own address stands for, as the website's web server is on a network of its
+# own and reaches no other bridge, and something on the server's own port.
+url_port=$((web_port + 5))
+docker run -d --name e2e-site-url -p "$url_port:80" nginx:1.27-alpine sh -c 'echo from-the-url >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
   fail "can't run what the website sends to"
-upstream=$(docker inspect --format '{{.NetworkSettings.IPAddress}}' e2e-site-url) || fail "docker inspect e2e-site-url failed"
-[[ -n "$upstream" ]] || fail "e2e-site-url has no address on Docker's default bridge"
+upstream=$(ip -4 route get 192.0.2.1 | awk '{ for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1) }')
+[[ -n "$upstream" ]] || fail "this server has no address of its own to send to: $(ip -4 route get 192.0.2.1)"
+upstream="$upstream:$url_port"
 site_port=$((web_port + 4))
 docker run -d --name e2e-site-port -p "127.0.0.1:$site_port:80" nginx:1.27-alpine sh -c 'echo from-the-port >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
   fail "can't run something on port $site_port"
@@ -2637,6 +2640,12 @@ site_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.
 runs_as=$(docker inspect --format '{{.Config.User}} {{json .HostConfig.CapDrop}}' "$site_web") || fail "docker inspect $site_web failed"
 [[ "$runs_as" == "65532 "*NET_RAW* && "$runs_as" == *SETUID* && "$runs_as" != *NET_BIND_SERVICE* ]] ||
   fail "the website's web server runs as $runs_as"
+# It's on a network of its own and the ingress's, never Docker's default bridge, whose
+# containers could say who a visitor is, and it may use no more than 128 MB.
+on=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}{{.HostConfig.Memory}}' "$site_web") ||
+  fail "docker inspect $site_web failed"
+[[ "$on" == *_site\ * && "$on" == *dockwell_ingress* && "$on" != *"bridge "* && "$on" == *" 134217728" ]] ||
+  fail "the website's web server joins and may use $on, want its own network, the ingress's and 128 MB"
 # The visitor's address goes on to what it sends to, past the ingress and the web server.
 curl -sS --max-time 5 -o /dev/null --resolve "$site:80:127.0.0.1" "http://$site/" || fail "http://$site/ didn't answer"
 sleep 0.5
@@ -2654,6 +2663,23 @@ moving=$(jq -r '.changes[0].id' <<<"$changes")
 token_refused "$moving"
 person_apply "$moving"
 site_says from-the-port
+# Its server says whether anything listens there, apart from deploys.
+reach=""
+for _ in $(seq 60); do
+  reach=$(dw websites list --json | jq -c --arg d "$site" '.websites[] | select(.domain == $d) | .reach // {}')
+  [[ "$reach" == *'"answered":true'* ]] && break
+  sleep 1
+done
+[[ "$reach" == *'"answered":true'* && "$reach" == *"listens on port $site_port"* ]] || fail "the website's port reads $reach, want something listening"
+docker stop e2e-site-port >/dev/null || fail "can't stop what listens on port $site_port"
+for _ in $(seq 60); do
+  reach=$(dw websites list --json | jq -c --arg d "$site" '.websites[] | select(.domain == $d) | .reach // {}')
+  [[ "$reach" == *"nothing listens on port $site_port"* ]] && break
+  sleep 1
+done
+[[ "$reach" == *"nothing listens on port $site_port"* && "$reach" != *'"answered":true'* ]] ||
+  fail "with nothing on port $site_port, the website reads $reach"
+docker start e2e-site-port >/dev/null || fail "can't start what listens on port $site_port again"
 for _ in $(seq 100); do
   docker inspect "$site_web" >/dev/null 2>&1 || break
   sleep 0.1
