@@ -35,3 +35,11 @@ func List(names []string) string {
 	}
 	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
+
+// Either is List for a choice: "a, b or c".
+func Either(names []string) string {
+	if len(names) < 2 {
+		return List(names)
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
+}

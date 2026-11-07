@@ -652,8 +652,8 @@ func advertiseURL(ctx context.Context, given string, addr net.Addr) (string, err
 	return "https://" + net.JoinHostPort(host, strconv.Itoa(port)), nil
 }
 
-// outboundIP is the address this server uses to reach the internet. A UDP
-// "connection" sends nothing; it only picks the route.
+// outboundIP is the address this server uses to reach the internet, or its own if
+// that's a TUN's. A UDP "connection" sends nothing; it only picks the route.
 func outboundIP(ctx context.Context) string {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "udp", "192.0.2.1:9")
@@ -662,7 +662,7 @@ func outboundIP(ctx context.Context) string {
 	}
 	defer conn.Close()
 	if udp, ok := conn.LocalAddr().(*net.UDPAddr); ok {
-		return udp.IP.String()
+		return ingress.OwnAddress(udp.IP.String())
 	}
 	return "127.0.0.1"
 }

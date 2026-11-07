@@ -24,6 +24,18 @@ func TestDuration(t *testing.T) {
 	}
 }
 
+func TestEither(t *testing.T) {
+	for want, names := range map[string][]string{
+		"hz-1":            {"hz-1"},
+		"hz-1 or hz-2":    {"hz-1", "hz-2"},
+		"hz-1, hz-2 or x": {"hz-1", "hz-2", "x"},
+	} {
+		if got := Either(names); got != want {
+			t.Errorf("Either(%q) = %q, want %q", names, got, want)
+		}
+	}
+}
+
 func TestList(t *testing.T) {
 	for want, names := range map[string][]string{
 		"none":             nil,

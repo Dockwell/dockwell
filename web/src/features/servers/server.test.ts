@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import addresses from "../../../../internal/resource/testdata/addresses.json";
 import { aServer, sample } from "../../test/servers";
-import { fleetView, isPrivateAddress, serverStatus } from "./server";
+import { fleetView, isPrivateAddress, primaryAddress, serverStatus } from "./server";
 
 const hz1 = aServer({
   id: "srv_1",
@@ -26,6 +26,17 @@ describe("isPrivateAddress", () => {
 
   it("takes a server's name for no address", () => {
     expect(isPrivateAddress("10.hz-1")).toBe(false);
+    expect(isPrivateAddress("hz-1")).toBe(false);
+  });
+
+  it("reads an address however it's written", () => {
+    expect(isPrivateAddress("0:0:0:0:0:0:0:1")).toBe(true);
+    expect(isPrivateAddress("2001:0DB8::1")).toBe(false);
+    expect(isPrivateAddress("64:FF9B:1::1")).toBe(true);
+  });
+
+  it("doesn't take a TUN's address, as mihomo's, for where to reach a server", () => {
+    expect(primaryAddress(["172.16.0.5", "198.18.0.1"])).toBe("172.16.0.5");
   });
 });
 
