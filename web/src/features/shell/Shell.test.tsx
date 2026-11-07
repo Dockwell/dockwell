@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
+  BackupSchema,
+  BackupState,
   ChangeSchema,
   ChangeState,
   Connection,
@@ -477,6 +480,39 @@ describe("the shell on phones", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Domains" })).toBeVisible();
     expect(within(tabs).getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/more");
+  });
+
+  it("says on More how many domains there are, and when the last backup was, as M-More does", async () => {
+    onPhone();
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    renderAt("/more", {
+      servers: { watchServers: watch.stream },
+      domains: {
+        listDomains: () => ({
+          domains: [
+            { name: "www.example.com", environmentId: "env_prod", routes: [] },
+            { name: "api.example.com", environmentId: "env_prod", routes: [] },
+          ],
+        }),
+      },
+      backups: {
+        listBackups: () => ({
+          backups: [
+            create(BackupSchema, {
+              id: "bkp_1",
+              volume: "orders",
+              state: BackupState.DONE,
+              startedAt: timestampFromDate(new Date(Date.now() - 2 * 3_600_000)),
+            }),
+          ],
+        }),
+      },
+    });
+    expect(await screen.findByRole("link", { name: "Domains 2" })).toHaveAttribute("href", "/domains");
+    const backupsLink = await screen.findByRole("link", { name: /^Backups/ });
+    // By the control plane's clock, as every time the panel says is.
+    await waitFor(() => expect(backupsLink).toHaveTextContent(/^Backups \d+ h ago$/));
   });
 
   it("lists what the tab bar has no room for on More, and sets the theme there", async () => {

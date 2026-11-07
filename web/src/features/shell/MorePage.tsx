@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { SystemService } from "@dockwell/api";
+import { BackupState, DomainService, SystemService } from "@dockwell/api";
 import { Icon, type IconName, type ThemePreference, useThemePreference } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { useTimeWords } from "../../lib/time";
 import { useSignedInUser } from "../auth/useAuthState";
 import { useSignOut } from "../auth/useSignOut";
+import { useBackups } from "../backups/useBackups";
 import { useUpgrades } from "../catalog/useCatalog";
-import { useFleetView } from "../servers/useFleet";
+import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { Page } from "./Page";
 import { AFTER_DOMAINS, BEFORE_DOMAINS, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
@@ -23,6 +26,8 @@ import "./MorePage.css";
  */
 export function MorePage() {
   const { t, i18n } = useLingui();
+  const time = useTimeWords();
+  const now = useControlPlaneNow(15_000);
   const upgrades = useUpgrades();
   const { fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
@@ -35,11 +40,18 @@ export function MorePage() {
     dark: t`Dark`,
   };
 
+  // What M-More says beside a section: how many domains, and when the last backup was. Read once.
+  const domains =
+    useQuery(DomainService.method.listDomains, {}, { staleTime: Number.POSITIVE_INFINITY }).data?.domains.length ?? 0;
+  const lastBackup = useBackups().data?.backups.find((b) => b.state === BackupState.DONE)?.startedAt;
+  const values: Partial<Record<UpcomingSection, string>> = {
+    backups: lastBackup ? time.ago(timestampDate(lastBackup), now) : undefined,
+  };
   const section = (id: UpcomingSection) => {
     const { label, icon } = UPCOMING[id];
     return (
       <Link key={id} to="/$section" params={{ section: id }} className="more-row">
-        <RowBody icon={icon} label={i18n._(label)} />
+        <RowBody icon={icon} label={i18n._(label)} value={values[id]} />
       </Link>
     );
   };
@@ -53,7 +65,7 @@ export function MorePage() {
         </Link>
         {BEFORE_DOMAINS.map(section)}
         <Link to="/domains" className="more-row">
-          <RowBody icon="link" label={t`Domains`} />
+          <RowBody icon="link" label={t`Domains`} value={domains > 0 ? String(domains) : undefined} />
         </Link>
         {AFTER_DOMAINS.map(section)}
         <Link to="/catalog" className="more-row">
