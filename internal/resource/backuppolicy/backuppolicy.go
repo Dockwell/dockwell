@@ -115,7 +115,9 @@ func Next(p *resourcev1.BackupPolicy, after time.Time) time.Time {
 	t := after.In(zone)
 	switch p.GetEvery() {
 	case resourcev1.BackupPolicy_EVERY_HOUR:
-		next := time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), minute, 0, 0, zone)
+		// By the clock's minutes and real hours: a time of day means two moments as the
+		// clocks go back, and none as they go forward.
+		next := t.Truncate(time.Minute).Add(time.Duration(minute-t.Minute()) * time.Minute)
 		if !next.After(after) {
 			next = next.Add(time.Hour)
 		}

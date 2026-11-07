@@ -89,9 +89,9 @@ What was settled already:
 ### Schedules and retention
 
 - **A schedule is a resource, so setting one is a plan.** Kind `backup.policy`, in the volume's environment: a volume, how often, when, how many to keep, and whether to stop the app for each. Undo and history come with it. It names its volume, so the volume can't go until the policy does.
-- **The control plane keeps the schedule,** as it keeps the record of backups, so the kind runs on no server (`resource.Unplaced`). A run due while it's down happens once, when it's back. That's less than PRD principle 5 asks of what serves traffic, and a backup doesn't serve traffic. An agent keeping its own schedule can come later, with no change to what a policy says.
+- **The control plane keeps the schedule,** as it keeps the record of backups, so the kind runs on no server (`resource.Unplaced`). A run due while it's down happens once, when it's back: servers get 2 minutes after a start to connect, and only one still away past that fails its run. Runs due together on a server go one at a time, so each looks for room in what the last left. That's less than PRD principle 5 asks of what serves traffic, and a backup doesn't serve traffic. An agent keeping its own schedule can come later, with no change to what a policy says.
 - **A run that can't happen says so.** A server that's away, or a disk with no room, fails that run's backup, with the reason, on Activity, under Dockwell's name. The policy goes on from there.
-- **Retention is per policy and per server,** and runs only after a backup that read back whole, so a run of failures takes nothing away. A backup someone took by hand is theirs, and no policy deletes it. What goes is on the timeline.
+- **Retention is per policy and per server.** It runs before each run and after one that read back whole, and never goes below what the policy keeps, so a run of failures takes nothing away, and a schedule cut back comes down before a run is refused for room. A backup a planned or running restore names stays until that's over. A backup someone took by hand is theirs, and no policy deletes it. What goes is on the timeline.
 
 ### Room on the disk
 

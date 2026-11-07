@@ -29,6 +29,10 @@ import (
 // ScheduleEvery is how often the schedule is looked at.
 const ScheduleEvery = 30 * time.Second
 
+// ConnectGrace is how long servers have to connect after the control plane starts,
+// before a run that fell due while it was down fails for want of one.
+const ConnectGrace = 2 * time.Minute
+
 // KeepRunning runs each policy's backups as they fall due, until ctx ends.
 func (h *Handler) KeepRunning(ctx context.Context) {
 	t := time.NewTicker(ScheduleEvery)
@@ -149,6 +153,10 @@ func isDue(ctx context.Context, tx *store.Tx, p policy, serverID string, now tim
 
 // start runs one policy's backup on one server, as Dockwell's own.
 func (h *Handler) start(ctx context.Context, run due) {
+	s, ok := h.agents.Session(run.server.ID)
+	if !ok && h.now().Sub(h.began) < ConnectGrace {
+		return // a later look at the schedule finds it due still
+	}
 	b := store.Backup{
 		ID: id.New(id.Backup), EnvironmentID: run.volume.Scope, Volume: run.volume.Name, VolumeID: run.volume.ID, ServerID: run.server.ID,
 		State: store.BackupRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id,
@@ -157,7 +165,6 @@ func (h *Handler) start(ctx context.Context, run due) {
 		h.logger.ErrorContext(ctx, "can't record a backup", slog.String("error", err.Error()))
 		return
 	}
-	s, ok := h.agents.Session(run.server.ID)
 	if !ok {
 		h.finish(ctx, b, nil, fmt.Errorf("%s wasn't connected when %s fell due, so this backup didn't run. It runs again on schedule", run.server.Name, run.policy.name), store.SurfaceAutomatic)
 		return
@@ -165,15 +172,47 @@ func (h *Handler) start(ctx context.Context, run due) {
 	ref := resource.Ref{Kind: volume.Kind, Scope: run.volume.Scope, Name: run.volume.Name}
 	keep := int(run.policy.spec.GetKeep())
 	stop := run.policy.spec.GetStop()
-	h.wg.Go(func() { h.run(s, b, ref, stop, store.SurfaceAutomatic, keep) })
+	turn := h.turnOn(run.server.ID)
+	h.wg.Go(func() {
+		select {
+		case turn <- struct{}{}:
+			defer func() { <-turn }()
+			h.run(s, b, ref, stop, store.SurfaceAutomatic, keep)
+		case <-h.base.Done():
+			h.finish(context.WithoutCancel(h.base), b, nil, h.base.Err(), store.SurfaceAutomatic)
+		}
+	})
+}
+
+// turnOn is held by the scheduled run under way on a server. Runs that fall due
+// together go one at a time, or each would look for room in the same free space.
+func (h *Handler) turnOn(serverID string) chan struct{} {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.turns == nil {
+		h.turns = map[string]chan struct{}{}
+	}
+	turn, ok := h.turns[serverID]
+	if !ok {
+		turn = make(chan struct{}, 1)
+		h.turns[serverID] = turn
+	}
+	return turn
 }
 
 // prune removes a policy's oldest backups past what it keeps, on a server, and the
-// record of failures older than the oldest it keeps. It runs after one that's whole,
-// so a run of failures never takes away what's good.
+// record of failures older than the oldest it keeps. It runs before a run, and after
+// one that's whole: it never goes below what the policy keeps, so a run of failures
+// never takes away what's good. A backup a restore is planned from or running from
+// stays until that's over.
 func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup, keep int) {
+	restoring, err := h.engine.BackupsRestoring(ctx)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "can't read which backups are being restored, so nothing goes this time", slog.String("error", err.Error()))
+		return
+	}
 	var all []store.Backup
-	err := h.db.View(ctx, func(tx *store.Tx) error {
+	err = h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
 		all, err = tx.ListBackups(ctx, store.BackupFilter{PolicyID: b.PolicyID, ServerID: b.ServerID})
 		return err
@@ -192,6 +231,8 @@ func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup
 			kept++
 			continue
 		case old.State == store.BackupFailed && kept < keep:
+			continue
+		case restoring[old.ID]:
 			continue
 		}
 		if old.State == store.BackupDone {

@@ -210,6 +210,11 @@ msgstr "{0} to update"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
+#. placeholder {0}: words(policy.spec)
+#: src/features/backups/PoliciesPanel.tsx
+msgid "{0}, {zone}"
+msgstr "{0}, {zone}"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "{address}, private"
 msgstr "{address}, private"
@@ -271,6 +276,14 @@ msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} 
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, one {# server} other {# servers}}"
 
+#. placeholder {0}: formatBytes(each, i18n.locale)
+#. placeholder {1}: formatBytes(total, i18n.locale)
+#. placeholder {2}: formatBytes(each, i18n.locale)
+#. placeholder {3}: formatBytes(total, i18n.locale)
+#: src/features/backups/PolicySheet.tsx
+msgid "{count, plural, one {Each backup takes about {0}, so keeping one takes about {1} while the next is taken, and the disk has {toGive} to give.} other {Each backup takes about {2}, so keeping # takes about {3} while the next is taken, and the disk has {toGive} to give.}}"
+msgstr "{count, plural, one {Each backup takes about {0}, so keeping one takes about {1} while the next is taken, and the disk has {toGive} to give.} other {Each backup takes about {2}, so keeping # takes about {3} while the next is taken, and the disk has {toGive} to give.}}"
+
 #: src/features/catalog/CatalogPage.tsx
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, one {Installed} other {# installed}}"
@@ -282,15 +295,6 @@ msgstr "{count, plural, one {It changed once in {span}.} other {It changed # tim
 #: src/features/activity/describe.ts
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 msgstr "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
-
-#. placeholder {0}: formatBytes(each, i18n.locale)
-#. placeholder {1}: formatBytes(room, i18n.locale)
-#. placeholder {2}: formatBytes(each, i18n.locale)
-#. placeholder {3}: formatBytes(total, i18n.locale)
-#. placeholder {4}: formatBytes(room, i18n.locale)
-#: src/features/backups/PolicySheet.tsx
-msgid "{count, plural, one {One backup takes about {0}, and the disk has {1} to give.} other {Each backup takes about {2}, so keeping # takes about {3}, and the disk has {4} to give.}}"
-msgstr "{count, plural, one {One backup takes about {0}, and the disk has {1} to give.} other {Each backup takes about {2}, so keeping # takes about {3}, and the disk has {4} to give.}}"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {Show it} other {Show them}}"
@@ -3968,8 +3972,8 @@ msgstr "Keep this only if you trust what it runs."
 #. placeholder {0}: formatBytes(total, i18n.locale)
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
 #: src/features/backups/PolicySheet.tsx
-msgid "Keeping {count} takes about {0}, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
-msgstr "Keeping {count} takes about {0}, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
+msgid "Keeping {count} takes about {0} while the next is taken, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
+msgstr "Keeping {count} takes about {0} while the next is taken, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
 
 #. placeholder {0}: policy.spec?.keep ?? 0
 #. placeholder {1}: policy.kept

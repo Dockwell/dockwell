@@ -88,9 +88,12 @@ type Handler struct {
 	wg     sync.WaitGroup
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
+	// began is when this control plane started, as servers need a moment to connect.
+	began time.Time
 
 	mu       sync.Mutex
-	progress map[string]string // how each backup under way is going
+	progress map[string]string        // how each backup under way is going
+	turns    map[string]chan struct{} // whose turn it is on each server, for scheduled runs
 }
 
 var _ dockwellv1connect.BackupServiceHandler = (*Handler)(nil)
@@ -116,6 +119,7 @@ func (h *Handler) Stop() {
 // can't read stays as it is until the next start, as a person needs the panel to
 // find out why.
 func (h *Handler) Recover(ctx context.Context) {
+	h.began = h.now()
 	var running []store.Backup
 	if err := h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -271,6 +275,11 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 		delete(h.progress, b.ID)
 		h.mu.Unlock()
 	}()
+	// A schedule cut back holds more than it keeps now, which can be what keeps this
+	// run from fitting, and only a run that's whole would take those away otherwise.
+	if b.PolicyID != "" {
+		h.prune(ctx, s, b, keep)
+	}
 	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop})
 	h.finish(context.WithoutCancel(ctx), b, got, err, surface)
 	// Only once it's whole: a run that fails takes nothing away.

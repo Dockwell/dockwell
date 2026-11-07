@@ -53,7 +53,9 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
   const words = useScheduleWords();
   const volume = policy.spec?.volume ?? "";
   const failed = policy.last?.state === BackupState.FAILED;
-  const next = policy.nextRun ? formatDateTime(timestampDate(policy.nextRun), i18n.locale) : "";
+  // In the schedule's own zone, as its time is, and named, as that may not be yours.
+  const zone = policy.spec?.timeZone || "UTC";
+  const next = policy.nextRun ? formatDateTime(timestampDate(policy.nextRun), i18n.locale, zone) : "";
   const keeps = t`Keeps ${policy.spec?.keep ?? 0}, holding ${policy.kept} now (${formatBytes(policy.keptBytes, i18n.locale)})`;
   const remove = () =>
     sheet.open({
@@ -65,7 +67,7 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
     <li className="backup-policy">
       <div className="backup-state">
         <code>{volume}</code>
-        <span className="backup-why">{policy.spec ? words(policy.spec) : ""}</span>
+        <span className="backup-why">{policy.spec ? t`${words(policy.spec)}, ${zone}` : ""}</span>
         <span className="backup-why">{keeps}</span>
       </div>
       <div className="backup-state">

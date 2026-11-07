@@ -51,7 +51,8 @@ export function PolicySheet({ volumes, onClose }: { volumes: readonly VolumeChoi
   const risky = said?.method === BackupMethod.COPY_RUNNING;
   const running = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(said?.running ?? []);
   const each = said?.estimateBytes ?? 0n;
-  const total = each * BigInt(validKeep ? count : 0);
+  // A schedule holds one more while the next is taken, and a backup outgrows the last.
+  const total = (each * BigInt(validKeep ? count + 1 : 0) * 6n) / 5n;
   const room = (said?.freeBytes ?? 0n) - (said?.reserveBytes ?? 0n);
   const toGive = formatBytes(room > 0n ? room : 0n, i18n.locale);
 
@@ -152,13 +153,13 @@ export function PolicySheet({ volumes, onClose }: { volumes: readonly VolumeChoi
         ) : said && each > 0n ? (
           total > room ? (
             <Callout tone="warning" title={t`This may not fit`}>
-              {t`Keeping ${count} takes about ${formatBytes(total, i18n.locale)}, and the disk has ${formatBytes(room > 0n ? room : 0n, i18n.locale)} to give. A backup that won't fit fails, and says so on Activity.`}
+              {t`Keeping ${count} takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${formatBytes(room > 0n ? room : 0n, i18n.locale)} to give. A backup that won't fit fails, and says so on Activity.`}
             </Callout>
           ) : (
             <p className="backup-sheet-note">
               {plural(count, {
-                one: `One backup takes about ${formatBytes(each, i18n.locale)}, and the disk has ${formatBytes(room, i18n.locale)} to give.`,
-                other: `Each backup takes about ${formatBytes(each, i18n.locale)}, so keeping # takes about ${formatBytes(total, i18n.locale)}, and the disk has ${formatBytes(room, i18n.locale)} to give.`,
+                one: `Each backup takes about ${formatBytes(each, i18n.locale)}, so keeping one takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${toGive} to give.`,
+                other: `Each backup takes about ${formatBytes(each, i18n.locale)}, so keeping # takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${toGive} to give.`,
               })}
             </p>
           )

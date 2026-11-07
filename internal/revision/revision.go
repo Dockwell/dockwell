@@ -3322,6 +3322,40 @@ func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, eve
 	})
 }
 
+// BackupsRestoring names the backups a planned or applying restore brings back.
+func (e *Engine) BackupsRestoring(ctx context.Context) (map[string]bool, error) {
+	out := map[string]bool{}
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		for _, state := range []string{store.ChangePlanned, store.ChangeApplying} {
+			ids, err := tx.ChangesIn(ctx, state)
+			if err != nil {
+				return err
+			}
+			changes, err := tx.GetChanges(ctx, ids)
+			if err != nil {
+				return err
+			}
+			for id := range changes {
+				var p struct {
+					Resources []struct {
+						Restore *resource.RestoreSource
+					}
+				}
+				if err := json.Unmarshal(changes[id].Plan, &p); err != nil {
+					return fmt.Errorf("can't read the plan of %s: %w", id, err)
+				}
+				for i := range p.Resources {
+					if r := p.Resources[i].Restore; r != nil && r.Backup != "" {
+						out[r.Backup] = true
+					}
+				}
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
 // restoring finds what a change restored, if it restored anything.
 func restoring(c store.Change) (resource.Ref, *resource.RestoreSource, bool) {
 	for i := range c.Items {

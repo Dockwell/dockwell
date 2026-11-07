@@ -210,6 +210,11 @@ msgstr "{0} 项待更新"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
+#. placeholder {0}: words(policy.spec)
+#: src/features/backups/PoliciesPanel.tsx
+msgid "{0}, {zone}"
+msgstr "{0}，{zone}"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "{address}, private"
 msgstr "{address}，私有地址"
@@ -271,6 +276,14 @@ msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保�
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, other {# 台服务器}}"
 
+#. placeholder {0}: formatBytes(each, i18n.locale)
+#. placeholder {1}: formatBytes(total, i18n.locale)
+#. placeholder {2}: formatBytes(each, i18n.locale)
+#. placeholder {3}: formatBytes(total, i18n.locale)
+#: src/features/backups/PolicySheet.tsx
+msgid "{count, plural, one {Each backup takes about {0}, so keeping one takes about {1} while the next is taken, and the disk has {toGive} to give.} other {Each backup takes about {2}, so keeping # takes about {3} while the next is taken, and the disk has {toGive} to give.}}"
+msgstr "{count, plural, other {每次备份约占 {0}，保留 # 份在下次备份期间约占 {1}，磁盘还有 {toGive} 可用。}}"
+
 #: src/features/catalog/CatalogPage.tsx
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, other {已安装 # 个}}"
@@ -282,15 +295,6 @@ msgstr "{count, plural, other {在 {span}内变化了 # 次。}}"
 #: src/features/activity/describe.ts
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 msgstr "{count, plural, other {自上一条记录以来又变化了 # 次。}}"
-
-#. placeholder {0}: formatBytes(each, i18n.locale)
-#. placeholder {1}: formatBytes(room, i18n.locale)
-#. placeholder {2}: formatBytes(each, i18n.locale)
-#. placeholder {3}: formatBytes(total, i18n.locale)
-#. placeholder {4}: formatBytes(room, i18n.locale)
-#: src/features/backups/PolicySheet.tsx
-msgid "{count, plural, one {One backup takes about {0}, and the disk has {1} to give.} other {Each backup takes about {2}, so keeping # takes about {3}, and the disk has {4} to give.}}"
-msgstr "{count, plural, other {每份备份约占 {2}，保留 # 份约占 {3}，磁盘可用空间为 {4}。}}"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {Show it} other {Show them}}"
@@ -3968,8 +3972,8 @@ msgstr "请仅在信任其运行内容时保留。"
 #. placeholder {0}: formatBytes(total, i18n.locale)
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
 #: src/features/backups/PolicySheet.tsx
-msgid "Keeping {count} takes about {0}, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
-msgstr "保留 {count} 份约占 {0}，磁盘可用空间为 {1}。放不下的备份会失败，并显示在活动中。"
+msgid "Keeping {count} takes about {0} while the next is taken, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
+msgstr "保留 {count} 份在下次备份期间约占 {0}，磁盘还有 {1} 可用。放不下的备份会失败，并在“活动”中说明。"
 
 #. placeholder {0}: policy.spec?.keep ?? 0
 #. placeholder {1}: policy.kept

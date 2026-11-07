@@ -22,6 +22,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { SERVER } from "../../test/apps";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
@@ -320,7 +321,9 @@ describe("the backups page", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add" }));
-    expect(await screen.findByText(/keeping 7 takes about 700 MB, and the disk has 9 GB to give/)).toBeVisible();
+    expect(
+      await screen.findByText(/keeping 7 takes about 960 MB while the next is taken, and the disk has 9 GB to give/),
+    ).toBeVisible();
     expect(screen.getByRole("switch", { name: "Stop web for each backup" })).toBeChecked();
     const keep = screen.getByLabelText("Backups to keep");
     await user.clear(keep);
@@ -357,6 +360,76 @@ describe("the backups page", () => {
     expect(await screen.findByText(/can't say yet what each backup takes.*the disk has 9 GB to give/i)).toBeVisible();
   });
 
+  function schedulePreview() {
+    return create(PreviewBackupResponseSchema, {
+      method: BackupMethod.COPY_RUNNING,
+      running: ["web"],
+      estimateBytes: 100n << 20n,
+      freeBytes: 10n << 30n,
+      reserveBytes: 1n << 30n,
+    });
+  }
+
+  it("keeps the schedule sheet on a phone's screen", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    const { container } = renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          previewBackup: schedulePreview,
+        },
+      }),
+    );
+    await user.click(
+      await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", { name: "Add" }),
+    );
+    expect(await screen.findByRole("dialog", { name: "Back up on a schedule" })).toBeVisible();
+    expect(await screen.findByText(/keeping 7 takes about 960 MB/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeVisible();
+    await expectAccessible(container);
+  });
+
+  it("reads in Chinese, with the time's zone named", async () => {
+    await activateLocale("zh-CN");
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({
+            policies: [
+              {
+                id: "bpl_1",
+                name: "orders-daily",
+                environmentId: "env_1",
+                spec: {
+                  volume: "orders",
+                  every: BackupPolicy_Every.DAY,
+                  at: "03:00",
+                  keep: 7,
+                  timeZone: "Asia/Shanghai",
+                },
+                kept: 3,
+                keptBytes: 936n << 20n,
+                nextRun: timestampFromDate(new Date("2026-11-07T19:00:00Z")),
+              },
+            ],
+          }),
+          previewBackup: schedulePreview,
+        },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "备份计划" });
+    expect(await within(panel).findByText(/每天 03:00.*Asia\/Shanghai/)).toBeVisible();
+    await user.click(within(panel).getByRole("button", { name: "添加" }));
+    expect(await screen.findByRole("dialog", { name: /按计划备份/ })).toBeVisible();
+    await activateLocale("en");
+  });
+
   it("shows each schedule, and a failed run where you'll see it", async () => {
     renderAt(
       "/backups",
@@ -369,7 +442,13 @@ describe("the backups page", () => {
                 id: "bpl_1",
                 name: "orders-daily",
                 environmentId: "env_1",
-                spec: { volume: "orders", every: BackupPolicy_Every.DAY, at: "03:00", keep: 7 },
+                spec: {
+                  volume: "orders",
+                  every: BackupPolicy_Every.DAY,
+                  at: "03:00",
+                  keep: 7,
+                  timeZone: "Asia/Shanghai",
+                },
                 last: aBackup({ state: BackupState.FAILED, error: "The disk is full." }),
                 kept: 3,
                 keptBytes: 936n << 20n,
@@ -381,7 +460,9 @@ describe("the backups page", () => {
       }),
     );
     const panel = await screen.findByRole("region", { name: "Schedules" });
-    expect(await within(panel).findByText("Daily at 03:00")).toBeVisible();
+    expect(await within(panel).findByText("Daily at 03:00, Asia/Shanghai")).toBeVisible();
+    // In the schedule's zone, as its time is: 03:00 UTC is 11:00 there.
+    expect(within(panel).getByText(/Next run .*11:00/)).toBeVisible();
     expect(within(panel).getByText("Keeps 7, holding 3 now (936 MB)")).toBeVisible();
     expect(within(panel).getByText("Last run failed")).toBeVisible();
     expect(within(panel).getByText("The disk is full.")).toBeVisible();

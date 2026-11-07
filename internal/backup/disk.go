@@ -33,6 +33,9 @@ type disk struct {
 	filesystem    string // tells it from the disk a volume is on
 }
 
+// NoRoom is a disk with no room for a backup, for a test of what a full one does.
+func NoRoom() disk { return disk{free: 1 << 20, reserve: 1 << 30} }
+
 // disk reads what's free where backups go. Free is what the agent can write, past
 // what the filesystem keeps for root.
 func (r *Runner) disk() (disk, error) {

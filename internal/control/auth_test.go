@@ -60,6 +60,9 @@ import (
 
 // fullServer is a control plane with sign-in, as dockwell run starts it.
 type fullServer struct {
+	// config is what it was started with, and kinds what it runs, for a restart.
+	config Config
+	kinds  *resource.Registry
 	auth   *auth.Service
 	engine *revision.Engine
 	agents *agentapi.Agents
@@ -137,11 +140,12 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	engine := revision.New(db, kinds, agents, keeper, logger)
 	agents.OnConnect(func(string) { _ = engine.Resume(context.Background()) })
 	t.Cleanup(engine.Wait)
-	srv, err := New(Config{
+	config := Config{
 		Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
 		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
 		EventPoll: 200 * time.Millisecond, Logs: logs,
-	})
+	}
+	srv, err := New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +160,7 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	ls := Listeners{API: listen(), Agents: listen(), Ingress: ingress}
 	f := &fullServer{
 		auth: people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
-		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(), server: srv,
+		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(), server: srv, config: config, kinds: kinds,
 	}
 	if public != nil {
 		ls.HTTPS, ls.HTTP = listen(), listen()

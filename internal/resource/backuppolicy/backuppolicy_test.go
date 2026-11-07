@@ -56,3 +56,29 @@ func TestNext(t *testing.T) {
 		}
 	}
 }
+
+// An hourly schedule runs once an hour by the world's clock, as the local one goes back
+// and forward: a time of day names two moments on one of those days, and none on the other.
+func TestAnHourlyScheduleKeepsToTheHourAsTheClocksChange(t *testing.T) {
+	p := &resourcev1.BackupPolicy{Volume: "data", Every: resourcev1.BackupPolicy_EVERY_HOUR, At: "03:30", TimeZone: "Europe/Amsterdam"}
+	for name, start := range map[string]time.Time{
+		"back, on 25 Oct 2026":    time.Date(2026, 10, 24, 21, 30, 0, 0, time.UTC),
+		"forward, on 29 Mar 2026": time.Date(2026, 3, 28, 21, 30, 0, 0, time.UTC),
+	} {
+		at := start
+		for hour := 1; hour <= 8; hour++ {
+			want := start.Add(time.Duration(hour) * time.Hour)
+			next := Next(p, at)
+			if !next.Equal(want) {
+				t.Fatalf("%s: after %s comes %s, want %s", name, at.UTC(), next.UTC(), want)
+			}
+			at = next
+		}
+	}
+	// From early in the hour that happens twice: 02:15:12 summer time comes before
+	// 02:30 summer time, not 02:30 winter time an hour later.
+	between := time.Date(2026, 10, 25, 0, 15, 12, 5, time.UTC)
+	if got, want := Next(p, between), time.Date(2026, 10, 25, 0, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("after %s comes %s, want %s", between, got, want)
+	}
+}
