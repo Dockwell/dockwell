@@ -797,3 +797,150 @@ func TestAPathThatAnswersAgainSaysSo(t *testing.T) {
 		t.Fatal("nothing heard that the path answers again")
 	}
 }
+
+// moving is a folder a container mounts, and what turns it into a link.
+type moving struct {
+	dir, conf, other string
+	paths            *container.Paths
+}
+
+func aFolderThatCanMove(t *testing.T, e *dockertest.Engine) *moving {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &moving{dir: dir, conf: filepath.Join(dir, "conf"), other: filepath.Join(dir, "other")}
+	for _, d := range []string{m.conf, m.other} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m.paths = &container.Paths{Client: e.Client(), DataDir: filepath.Join(dir, "dockwell")}
+	return m
+}
+
+// becomes turns the folder into a link to to.
+func (m *moving) becomes(t *testing.T, to string) {
+	t.Helper()
+	if err := os.Remove(m.conf); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(to, m.conf); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// What's made has a record of where its server paths lead, even when none leads
+// elsewhere, so a container with no record is one older than records. What mounts no
+// server path has nothing to keep.
+func TestWhatsMadeKeepsWhereItsPathsLead(t *testing.T) {
+	e := dockertest.New(t)
+	e.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
+	m := aFolderThatCanMove(t, e)
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Paths: m.paths}
+	l := resource.Local{Drivers: resource.NewRegistry(&container.Driver{Runtime: rt})}
+	make := func(name string, mounts ...*resourcev1.Mount) string {
+		t.Helper()
+		ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: name}
+		spec := &resourcev1.Container{Image: "nginx:1.27", Mounts: mounts}
+		steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: spec}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := l.Apply(t.Context(), steps[0], spec); err != nil {
+			t.Fatal(err)
+		}
+		return e.Container(name).Config.Labels[container.LabelLeads]
+	}
+	if got := make("plain"); got != "" {
+		t.Errorf("what mounts no server path keeps %q", got)
+	}
+	if got := make("folder", &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: m.conf}, Target: "/conf"}); got != "{}" {
+		t.Errorf("what mounts a folder keeps %q, want a record that it leads nowhere else", got)
+	}
+}
+
+// Nothing a plan didn't ask for starts a container on a path that moved: what it says
+// is the record, or with none, whether the path gives more now than it reads as.
+func TestLeadsAsMade(t *testing.T) {
+	root := func(t *testing.T, m *moving) { m.becomes(t, "/etc") }
+	elsewhere := func(t *testing.T, m *moving) { m.becomes(t, m.other) }
+	for name, tt := range map[string]struct {
+		label   string
+		labeled bool
+		move    func(*testing.T, *moving)
+		refused bool
+	}{
+		"a folder as it was":                  {label: "{}", labeled: true},
+		"a folder that became a link":         {label: "{}", labeled: true, move: elsewhere, refused: true},
+		"a folder that became a link to /etc": {label: "{}", labeled: true, move: root, refused: true},
+		"no record, and a folder":             {},
+		"no record, and a link to somewhere":  {move: elsewhere},
+		"no record, and a link to /etc":       {move: root, refused: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			m := aFolderThatCanMove(t, e)
+			if tt.move != nil {
+				tt.move(t, m)
+			}
+			c := &docker.Container{Name: "/web", Config: docker.Config{Labels: map[string]string{}},
+				Mounts: []docker.MountPoint{{Type: "bind", Source: m.conf, RW: true}}}
+			if tt.labeled {
+				c.Config.Labels[container.LabelLeads] = tt.label
+			}
+			err := m.paths.LeadsAsMade(t.Context(), c)
+			if got := err != nil; got != tt.refused {
+				t.Fatalf("refused = %v, want %v: %v", got, tt.refused, err)
+			}
+			if tt.refused && !strings.Contains(err.Error(), "so it wasn't started") {
+				t.Errorf("it says %v", err)
+			}
+		})
+	}
+
+	// What reads as Docker's socket by name was never less than that, so with no
+	// record a link doesn't stop it, as /var/run/docker.sock is one on most servers.
+	e := dockertest.New(t)
+	m := aFolderThatCanMove(t, e)
+	socket := filepath.Join(m.dir, "docker.sock")
+	if err := os.Symlink("/run/docker.sock", socket); err != nil {
+		t.Fatal(err)
+	}
+	c := &docker.Container{Name: "/ops", Config: docker.Config{Labels: map[string]string{}},
+		Mounts: []docker.MountPoint{{Type: "bind", Source: socket, RW: true}}}
+	if err := m.paths.LeadsAsMade(t.Context(), c); err != nil {
+		t.Errorf("a socket by its usual link, with no record: %v", err)
+	}
+	// With a record, it goes by that.
+	c.Config.Labels[container.LabelLeads] = "{}"
+	if err := m.paths.LeadsAsMade(t.Context(), c); err == nil {
+		t.Error("a link the record doesn't have passed")
+	}
+
+	// A nil Paths is a runtime that doesn't follow paths.
+	if err := (*container.Paths)(nil).LeadsAsMade(t.Context(), c); err != nil {
+		t.Errorf("no Paths: %v", err)
+	}
+}
+
+// A volume that binds a folder counts as the folder does.
+func TestLeadsAsMadeGoesThroughAVolume(t *testing.T) {
+	e := dockertest.New(t)
+	m := aFolderThatCanMove(t, e)
+	if _, err := e.Client().CreateVolume(t.Context(), &docker.VolumeCreate{
+		Name: "conf", Driver: "local", DriverOpts: map[string]string{"type": "none", "o": "bind", "device": m.conf},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	c := &docker.Container{Name: "/web", Config: docker.Config{Labels: map[string]string{container.LabelLeads: "{}"}},
+		Mounts: []docker.MountPoint{{Type: "volume", Name: "conf", RW: true}, {Type: "volume", Name: "gone", RW: true}, {Type: "tmpfs"}}}
+	if err := m.paths.LeadsAsMade(t.Context(), c); err != nil {
+		t.Fatalf("a folder as it was: %v", err)
+	}
+	m.becomes(t, m.other)
+	if err := m.paths.LeadsAsMade(t.Context(), c); err == nil {
+		t.Error("a volume's folder that became a link passed")
+	}
+}

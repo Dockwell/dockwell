@@ -511,7 +511,7 @@ func (r *Runner) replaceWithDump(ctx context.Context, t volume.Target, file stri
 	if _, err := r.tool(ctx, t, "empty", docker.Streams{}); err != nil {
 		return err
 	}
-	if err := r.Client.StartContainer(ctx, db.id); err != nil {
+	if err := r.startContainer(ctx, db.id); err != nil {
 		return fmt.Errorf("can't start %s: %w", db.name, err)
 	}
 	if err := r.awaitReady(ctx, db); err != nil {

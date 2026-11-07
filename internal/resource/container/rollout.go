@@ -783,6 +783,12 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 		keep, made = &instance{Container: c, number: number}, true
 	}
 	if !keep.State.Running {
+		// What was made has just been checked.
+		if !made {
+			if _, err := d.leadsAsPlanned(ctx, t, spec, dec, "it wasn't started"); err != nil {
+				return err
+			}
+		}
 		resource.Progress(ctx, "Starting "+t.Service)
 		if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
 			err = fmt.Errorf("docker can't start %s: %w", keep.name(), hideIn(err, valuesInContainer(keep.Container)))
@@ -899,6 +905,9 @@ func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance) error 
 	if err := d.Client.StopContainer(ctx, keep.ID, stopGrace(keep.Container)); err != nil && !docker.IsNotFound(err) {
 		return fmt.Errorf("can't finish stopping the old %s, so it can't start again: %w", t.Service, err)
 	}
+	if err := d.Paths.LeadsAsMade(ctx, keep.Container); err != nil {
+		return err
+	}
 	if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
 		return fmt.Errorf("docker can't start the old %s: %w", t.Service, hideIn(err, valuesInContainer(keep.Container)))
 	}
@@ -977,6 +986,12 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 	discard := func(err error) error { return err }
 	if keep != nil {
 		id, name = keep.ID, keep.name()
+		// Here, while what runs goes on running: bringBack checks for itself.
+		if !keep.State.Running && !keep.stopping {
+			if _, err := d.leadsAsPlanned(ctx, t, spec, dec, "it wasn't started"); err != nil {
+				return err
+			}
+		}
 	} else {
 		if len(others) > 0 {
 			name = others[0].ID[:12] + "_" + final
@@ -1090,7 +1105,7 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 			return "", nil, err
 		}
 	}
-	leads, err := d.leadsAsPlanned(ctx, t, spec, dec)
+	leads, err := d.leadsAsPlanned(ctx, t, spec, dec, "nothing was made")
 	if err != nil {
 		return "", nil, err
 	}

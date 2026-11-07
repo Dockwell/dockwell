@@ -23,7 +23,7 @@ import (
 type adopter interface {
 	ReadAdoption(ctx context.Context, t Target, id string) (resource.Adoption, error)
 	Adoption(ctx context.Context, t Target, id string, spec *resourcev1.Container) (resource.Decision, error)
-	Adopt(ctx context.Context, t Target, id string, spec *resourcev1.Container) error
+	Adopt(ctx context.Context, t Target, id string, spec *resourcev1.Container, dec resource.Decision) error
 }
 
 // ReadAdoptionAt reads a container as what t would run, whose Spec is a Container.
@@ -213,9 +213,10 @@ func (d *Docker) Adoption(ctx context.Context, t Target, id string, spec *resour
 	return resource.Decision{Action: resource.ActionCreate, Adopts: c.ID, SharedNames: shared}, nil
 }
 
-// Adopt records a container as what t runs, and does nothing else to it. Done
-// already, as a step that resumes finds it, it has nothing to do.
-func (d *Docker) Adopt(ctx context.Context, t Target, id string, spec *resourcev1.Container) error {
+// Adopt records a container as what t runs, and where its paths lead, as a label
+// would if it could have one, and does nothing else to it. Done already, as a step
+// that resumes finds it, it has nothing to do.
+func (d *Docker) Adopt(ctx context.Context, t Target, id string, spec *resourcev1.Container, dec resource.Decision) error {
 	if _, err := d.Adoption(ctx, t, id, spec); err != nil {
 		return err
 	}
@@ -226,8 +227,13 @@ func (d *Docker) Adopt(ctx context.Context, t Target, id string, spec *resourcev
 	if c.Config.Labels[docker.LabelAdopted] != "" {
 		return nil
 	}
+	leads, err := d.leadsAsPlanned(ctx, t, spec, dec, "it wasn't taken on")
+	if err != nil {
+		return err
+	}
 	return d.Client.Adopted.Take(id, docker.Taken{
 		Project: t.Project, Service: t.Service, Name: strings.TrimPrefix(c.Name, "/"), Compose: c.Config.Labels[docker.LabelProject],
+		Leads: leads,
 	})
 }
 
