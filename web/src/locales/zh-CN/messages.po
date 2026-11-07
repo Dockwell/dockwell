@@ -4689,6 +4689,10 @@ msgstr "从不"
 msgid "never used"
 msgstr "从未使用"
 
+#: src/features/shell/Topbar.tsx
+msgid "New"
+msgstr "新建"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/domains/DomainsPage.tsx

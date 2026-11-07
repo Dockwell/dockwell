@@ -3419,7 +3419,7 @@ describe("an app's deployments", () => {
     expect(container.querySelector(".deploy-image")).toHaveTextContent("getmeili/meilisearch:broken");
   });
 
-  it("reads what a revision changed in the plan's words, each value whole with the old above the new", async () => {
+  it("reads what a revision changed in the plan's words, each value whole, the old then an arrow then the new", async () => {
     const list = [
       aRevision(2n, "nginx:1.5", {
         changes: [
@@ -3446,18 +3446,23 @@ describe("an app's deployments", () => {
       if (!found) throw new Error("no diff yet");
       return found as HTMLElement;
     });
-    const row = (label: string) => within(diff).getByText(label).closest("li") as HTMLElement;
+    const row = (label: string) => within(diff).getByText(label).closest(".deploy-diff-row") as HTMLElement;
     expect(diff).not.toHaveTextContent("ports[0]");
     expect(diff).not.toHaveTextContent("mounts[0]");
     expect(row("port").querySelector("ins")).toHaveTextContent("8080 → 80, TCP");
     expect(row("volume").querySelector("ins")).toHaveTextContent("web-data at /data");
     expect(row("volume").querySelector("ins")).toHaveClass("is-words");
-    // The old value above the new, as whole values.
+    // The old value, an arrow, then the new, as whole values, and a field added has no arrow.
     const image = row("image");
     expect(image.querySelector("del")).toHaveTextContent("1.4");
     expect(image.querySelector("ins")).toHaveTextContent("1.5");
-    const order = image.querySelector("del")?.compareDocumentPosition(image.querySelector("ins") as Element) ?? 0;
-    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const arrow = image.querySelector(".deploy-diff-arrow") as Element;
+    expect(arrow).toBeInTheDocument();
+    const follows = (a: Element | null, b: Element | null) =>
+      ((a?.compareDocumentPosition(b as Element) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(image.querySelector("del"), arrow)).toBe(true);
+    expect(follows(arrow, image.querySelector("ins"))).toBe(true);
+    expect(row("port").querySelector(".deploy-diff-arrow")).toBeNull();
     // A variable says it changed, and never what it holds.
     expect(row("variable")).toHaveTextContent("API_KEY");
     expect(row("variable")).toHaveTextContent("Changed, and hidden");

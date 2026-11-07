@@ -6,6 +6,7 @@ import { cx, Icon, type IconName, Logo } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
+import { useServices } from "../apps/useServices";
 import { useSignedInUser } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
 import { useUpgrades } from "../catalog/useCatalog";
@@ -34,6 +35,8 @@ export function Rail({ view }: { view: FleetView }) {
   const waiting = useWaitingForAPerson().length;
   const segment = firstSegment(useLocation({ select: (location) => location.pathname }));
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
+  // How many apps there are, beside Apps, as the rail has it in the mocks.
+  const apps = useServices().data?.length;
 
   const section = (id: UpcomingSection) => {
     const { label, icon } = UPCOMING[id];
@@ -67,7 +70,7 @@ export function Rail({ view }: { view: FleetView }) {
         <ItemBody icon="home" label={t`Overview`} />
       </Link>
       <Link to="/apps" {...current(segment === "apps")}>
-        <ItemBody icon="service" label={t`Apps`} />
+        <ItemBody icon="service" label={t`Apps`} count={apps ? String(apps) : undefined} countSeenOnly />
       </Link>
       {BEFORE_DOMAINS.map(section)}
       <Link to="/domains" {...current(segment === "domains")}>
@@ -168,9 +171,11 @@ interface ItemBodyProps {
   countWords?: string | undefined;
   /** The count is a machine value, such as a server's name. */
   machineCount?: boolean;
+  /** The count is a glance at what the page says in full, so screen readers hear the label alone. */
+  countSeenOnly?: boolean;
 }
 
-function ItemBody({ icon, label, count, countWords, machineCount = false }: ItemBodyProps) {
+function ItemBody({ icon, label, count, countWords, machineCount = false, countSeenOnly = false }: ItemBodyProps) {
   return (
     <>
       <Icon name={icon} size={16} />
@@ -179,7 +184,10 @@ function ItemBody({ icon, label, count, countWords, machineCount = false }: Item
       {count ? (
         <>
           {" "}
-          <span className={cx("rail-count", machineCount && "is-machine")} aria-hidden={countWords ? true : undefined}>
+          <span
+            className={cx("rail-count", machineCount && "is-machine")}
+            aria-hidden={countWords || countSeenOnly ? true : undefined}
+          >
             {count}
           </span>
           {countWords ? <span className="dw-sr">{countWords}</span> : null}

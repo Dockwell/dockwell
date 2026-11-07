@@ -1460,34 +1460,40 @@
 }
 
 /* A field's old value over its new one, each whole, so nothing breaks in the middle of a word. */
+/* One grid for every field, so the values line up from row to row, as App-Deployments has
+   them. A long field name wraps in its column rather than squeeze the values on a phone. */
 .deploy-diff {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
   margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.deploy-diff-row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
   font-size: 12px;
   line-height: 18px;
 }
 
+.deploy-diff-row {
+  display: contents;
+}
+
 .deploy-diff-path {
+  color: var(--ink-muted);
   font: 500 12px / 18px var(--font-sans);
+  overflow-wrap: anywhere;
 }
 
 .deploy-diff-values {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
   min-width: 0;
+  margin: 0;
+}
+
+.deploy-diff-arrow {
+  flex: none;
+  color: var(--ink-muted);
 }
 
 .deploy-diff-from,

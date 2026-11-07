@@ -551,15 +551,16 @@ function DiffValue({ value }: { value: PlanValue | undefined }) {
 }
 
 /**
- * What a revision changed, in the plan's words, with each value whole and the
- * old one above the new, so a long value never breaks in the middle of a word.
- * An image reads by what moved, and its full name is the Image fact below.
+ * What a revision changed, in the plan's words: each field's old value, then
+ * the new, read across as App-Deployments has them. Each value stays whole,
+ * and the new one wraps under the old rather than break in the middle of a
+ * word. An image reads by what moved, and its full name is the Image fact below.
  */
 function RevisionDiff({ rev }: { rev: ServiceRevision }) {
   const { t } = useLingui();
   const rows = useFieldRows();
   return (
-    <ul className="deploy-diff">
+    <dl className="deploy-diff">
       {rows({ kind: "service", changes: rev.changes }).map((row) => {
         const image =
           row.path === "image" && typeof row.from === "string" && typeof row.to === "string"
@@ -569,13 +570,16 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
         const to = image?.to ?? row.to;
         const secret = isHidden(from) || isHidden(to);
         return (
-          <li key={row.path} className="deploy-diff-row">
-            <span className="deploy-diff-path">{row.label ?? row.path}</span>
-            <span className="deploy-diff-values">
+          <div key={row.path} className="deploy-diff-row">
+            <dt className="deploy-diff-path">{row.label ?? row.path}</dt>
+            <dd className="deploy-diff-values">
               {from !== undefined && from !== "" && !secret ? (
                 <del className={cx("deploy-diff-from", isValidElement(from) && "is-words")}>
                   <DiffValue value={from} />
                 </del>
+              ) : null}
+              {from !== undefined && from !== "" && to !== undefined && to !== "" && !secret ? (
+                <Icon name="arrow-right" size={12} className="deploy-diff-arrow" />
               ) : null}
               {to !== undefined && to !== "" && !secret ? (
                 row.tone === "change" ? (
@@ -587,11 +591,11 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
                 )
               ) : null}
               {secret || row.hidden ? <span className="app-muted">{t`Changed, and hidden`}</span> : null}
-            </span>
-          </li>
+            </dd>
+          </div>
         );
       })}
-    </ul>
+    </dl>
   );
 }
 

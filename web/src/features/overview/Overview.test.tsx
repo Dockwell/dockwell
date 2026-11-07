@@ -257,6 +257,14 @@ describe("Overview with a fleet", () => {
 });
 
 describe("the server list page", () => {
+  it("says how many servers there are under its title", async () => {
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
+    renderAt("/servers", { servers: { watchServers: watch.stream } });
+    await screen.findByRole("link", { name: "hz-2" });
+    expect(screen.getByText("2 servers", { selector: ".page-lead" })).toBeVisible();
+  });
+
   it.each([
     ["wide", "banner"],
     ["phone", "main"],
