@@ -31,7 +31,7 @@ type deadMount struct {
 func stopAnswering(t *testing.T, s *Server, path string) *deadMount {
 	t.Helper()
 	m := &deadMount{path: path, gone: make(chan struct{})}
-	s.AnswerWithin = 50 * time.Millisecond
+	s.AnswerWithin = roomy
 	s.Touching = func(p string) {
 		if p == m.path || strings.HasPrefix(p, m.path+"/") {
 			m.seen.Add(1)
@@ -60,6 +60,12 @@ func within[T any](t *testing.T, limit time.Duration, call func() T) T {
 		panic("unreachable")
 	}
 }
+
+// roomy is how long a path has to answer in a test that holds one step and needs
+// every step before it to finish first. With the race detector and coverage on, a
+// loaded runner can take tens of milliseconds over steps that are quick anywhere
+// else, and then the call is left behind early, at the wrong step.
+const roomy = 500 * time.Millisecond
 
 func waitFor(t *testing.T, what string, ok func() bool) {
 	t.Helper()
@@ -330,7 +336,7 @@ func TestASaveThatDoesntAnswerSaysItMayStillLand(t *testing.T) {
 // comparison and everything else it does before it writes, as a struggling disk does.
 func stallCopy(t *testing.T, s *Server) (reached chan struct{}, answer func()) {
 	t.Helper()
-	s.AnswerWithin = 50 * time.Millisecond
+	s.AnswerWithin = roomy
 	reached = make(chan struct{}, 8)
 	gone := make(chan struct{})
 	answer = sync.OnceFunc(func() { close(gone) })
@@ -380,7 +386,7 @@ func TestASaveLeftBehindAsItReadsAgainWritesNothing(t *testing.T) {
 	p := filepath.Join(d.root, "app", "conf")
 	write(t, p, "before")
 	v := d.read(t, p).GetFile().GetVersion()
-	d.server.AnswerWithin = 50 * time.Millisecond
+	d.server.AnswerWithin = roomy
 	var flushed atomic.Bool
 	syncSpare = func(f *os.File) error {
 		flushed.Store(true)
@@ -460,7 +466,7 @@ func TestAFileChangedAsTheCopyFlushesIsntSavedOver(t *testing.T) {
 // stallWrite holds each save as it writes the file, until told how that goes.
 func stallWrite(t *testing.T, s *Server, failing error) (reached chan struct{}, answer func()) {
 	t.Helper()
-	s.AnswerWithin = 50 * time.Millisecond
+	s.AnswerWithin = roomy
 	reached = make(chan struct{}, 8)
 	gone := make(chan struct{})
 	answer = sync.OnceFunc(func() { close(gone) })
