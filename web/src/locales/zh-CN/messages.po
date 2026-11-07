@@ -417,6 +417,11 @@ msgstr "{errors, plural, other {{count} 个错误}}"
 msgid "{failed, plural, one {# failed} other {# failed}}"
 msgstr "{failed, plural, other {# 个失败}}"
 
+#. placeholder {0}: checked.length
+#: src/features/apps/AppOverview.tsx
+msgid "{failing} of {0} failing"
+msgstr "{0} 个中有 {failing} 个未通过"
+
 #: src/features/logs/LogsPage.tsx
 msgid "{first} couldn't be searched"
 msgstr "无法搜索 {first}"
@@ -797,6 +802,11 @@ msgstr "{out}，选项为 {detail}"
 #: src/features/servers/ContainersPanel.tsx
 msgid "{own, plural, one {Dockwell runs # more container here, which isn't listed.} other {Dockwell runs # more containers here, which aren't listed.}}"
 msgstr "{own, plural, other {Dockwell 在这里还运行着 # 个容器，它们未列出。}}"
+
+#. placeholder {0}: checked.length
+#: src/features/apps/AppOverview.tsx
+msgid "{passing} of {0} passing"
+msgstr "{0} 个中有 {passing} 个通过"
 
 #: src/features/changes/words.ts
 msgid "{path} as a proxy it believes on where a request came from"
@@ -2200,6 +2210,10 @@ msgstr "正在重新检查。"
 msgid "Checking your session"
 msgstr "正在检查你的会话"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Checks"
+msgstr "检查内容"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Choose a file"
 msgstr "选择文件"
@@ -3500,6 +3514,11 @@ msgstr "失败"
 msgid "Failing"
 msgstr "出现故障"
 
+#: src/features/apps/AppOverview.tsx
+msgctxt "health check"
+msgid "Failing"
+msgstr "未通过"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "Fetch"
 msgstr "取回"
@@ -4019,6 +4038,10 @@ msgstr "无法取回：{0}"
 msgid "It didn't reach {0}: {1}"
 msgstr "未能送达 {0}：{1}"
 
+#: src/features/apps/AppOverview.tsx
+msgid "It failed"
+msgstr "未通过"
+
 #: src/features/apps/Health.tsx
 msgid "It has no container on this server."
 msgstr "它在这台服务器上没有容器。"
@@ -4091,6 +4114,10 @@ msgstr "它没有挂载任何内容。"
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "它从未停止。这次变更失败后,Dockwell 移除了它创建的内容。"
 
+#: src/features/apps/AppOverview.tsx
+msgid "It passed"
+msgstr "已通过"
+
 #: src/features/servers/ContainerPage.tsx
 msgid "It publishes none now."
 msgstr "它现在没有发布任何端口。"
@@ -4130,6 +4157,10 @@ msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜
 #: src/features/changes/notices.tsx
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
 msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，你在 {tool} 中的操作会作用于这个容器。更换之后，在那里启动或重新部署可能会启动第二个副本，使用相同的目录和相同的名称。在那里移除它之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "It said"
+msgstr "检查结果"
 
 #: src/features/apps/AppOverview.tsx
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
@@ -5562,6 +5593,10 @@ msgstr "面板地址"
 #: src/features/changes/RollbackLine.tsx
 msgid "Parts of it may still be on the server. Check what is there, then try again, or remove them by hand."
 msgstr "其中部分内容可能仍在服务器上。请检查那里的内容，然后重试，或手动移除。"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Passing"
+msgstr "通过"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Passkey"

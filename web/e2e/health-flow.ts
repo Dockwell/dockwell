@@ -125,7 +125,7 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
     .click();
   const checked = await only("checked");
   await everywhere("checked", "Healthy", "healthy");
-  const config = page.getByRole("region", { name: "Configuration" });
+  const config = page.getByRole("region", { name: "Health check" });
   await config.getByText("test ! -f /tmp/sick").waitFor();
 
   step("health: its check starts failing, and it reads unhealthy, with what the check said");
@@ -242,7 +242,7 @@ services:
     .getByText("Nothing checks it, so this only means it started.")
     .waitFor();
   await page
-    .getByRole("region", { name: "Configuration" })
+    .getByRole("region", { name: "Health check" })
     .getByText(/^None\./)
     .waitFor();
 
