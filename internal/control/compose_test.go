@@ -100,6 +100,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		logs:    &agentlogs.Reader{Client: client, Archive: archive, Logger: slog.New(slog.DiscardHandler)},
 		client:  client,
 		backups: backups,
+		mounts:  e.Mountinfo,
 	}
 	s.connect(t, f)
 	f.lastDocker = s

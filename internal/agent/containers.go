@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path"
 	"slices"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
+	kernelmounts "github.com/dockwell/dockwell/internal/mounts"
 	"github.com/dockwell/dockwell/internal/resource"
 	containerdriver "github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -95,18 +97,23 @@ func (c *calls) adoption(ctx context.Context, call *agentv1.AdoptionCall) (*agen
 
 // ContainerAsGoodAsRoot says whether a container, by its full ID, reaches as far as
 // root on its server, by the rule a plan goes by (resource.Access.AsGoodAsRoot), and
-// on what it mounts as Docker has it now. A shell in such a container takes a
-// passkey (ADR 0037). It counts as root:
+// on what it mounts. A shell in such a container takes a passkey (ADR 0037). It
+// counts as root:
 //   - what it runs as a service reaches, by its spec, and what no service's spec
 //     can hold, as what that is can't be told;
-//   - each server path it binds, by where that leads through symlinks, as a plan's
-//     do (Access.Leading), so a link to /etc or Docker's socket is what it leads to;
-//   - each volume it mounts that binds a server path, by that path and where it
-//     leads, and each on a driver other than local, as what a plugin mounts can't be
-//     told.
+//   - each server path it binds, by where that leads through symlinks now, as a
+//     plan's do (Access.Leading);
+//   - each volume that binds a server path, by that path, followed the same way;
+//     each on a driver other than local; and each local one that mounts what a plan
+//     refuses, such as a disk, an overlay or proc (container.LocalMountType);
+//   - what each of its mounts is in its own mount namespace, which is what the
+//     kernel mounted when it started, whatever a link says since: the server path,
+//     or a filesystem of the kernel's own, such as proc or sysfs (mountedNow).
 //
-// leads says where server paths lead, for those that lead elsewhere (FollowPaths).
-func ContainerAsGoodAsRoot(drivers *resource.Registry, client *docker.Client, leads func(ctx context.Context, paths ...string) (map[string]string, error)) func(ctx context.Context, container string) (bool, error) {
+// leads says where server paths lead, for those that lead elsewhere (FollowPaths),
+// and table reads a process's mounts (ProcMounts). Anything it can't read counts as
+// root.
+func ContainerAsGoodAsRoot(drivers *resource.Registry, client *docker.Client, leads func(ctx context.Context, paths ...string) (map[string]string, error), table MountTable) func(ctx context.Context, container string) (bool, error) {
 	return func(ctx context.Context, container string) (bool, error) {
 		d, err := drivers.Driver(service.Kind)
 		if err != nil {
@@ -127,11 +134,23 @@ func ContainerAsGoodAsRoot(drivers *resource.Registry, client *docker.Client, le
 		if h, ok := d.(resource.HostAccesser); ok {
 			reaches = h.HostAccess(read.Spec)
 		}
-		mounted, root, err := mountedAccess(ctx, client, container)
+		if client == nil {
+			return true, errors.New("this agent can't reach Docker to read what the container mounts")
+		}
+		c, err := client.InspectContainer(ctx, container)
+		if err != nil {
+			return true, err
+		}
+		mounted, root, err := mountedAccess(ctx, client, c)
 		if err != nil || root {
 			return true, err
 		}
 		reaches = append(reaches, mounted...)
+		now, root, err := mountedNow(table, c)
+		if err != nil || root {
+			return true, err
+		}
+		reaches = append(reaches, now...)
 		var paths []string
 		for i := range reaches {
 			if reaches[i].Kind == resource.AccessPath || reaches[i].Kind == resource.AccessDocker {
@@ -152,16 +171,10 @@ func ContainerAsGoodAsRoot(drivers *resource.Registry, client *docker.Client, le
 }
 
 // mountedAccess is what a container's mounts reach on its server, as Docker has
-// them now: each server path it binds, and the one each volume binds. root is true
-// for a volume on a driver other than local, as where that mounts from can't be told.
-func mountedAccess(ctx context.Context, client *docker.Client, container string) (reaches []resource.Access, root bool, err error) {
-	if client == nil {
-		return nil, true, errors.New("this agent can't reach Docker to read what the container mounts")
-	}
-	c, err := client.InspectContainer(ctx, container)
-	if err != nil {
-		return nil, true, err
-	}
+// them: each server path it binds, and the one each volume binds. root is true for
+// a volume on a driver other than local, one that mounts what a plan refuses, or
+// one that binds a path that isn't absolute, as where those mount from can't be told.
+func mountedAccess(ctx context.Context, client *docker.Client, c *docker.Container) (reaches []resource.Access, root bool, err error) {
 	for _, m := range c.Mounts {
 		switch m.Type {
 		case "bind":
@@ -174,12 +187,93 @@ func mountedAccess(ctx context.Context, client *docker.Client, container string)
 			if v.Driver != "" && v.Driver != "local" {
 				return nil, true, nil
 			}
-			if dev, ok := containerdriver.BindDevice(v.Driver, v.Options); ok {
+			dev, bind := containerdriver.BindDevice(v.Driver, v.Options)
+			switch {
+			case bind && !path.IsAbs(dev):
+				return nil, true, nil
+			case bind:
 				reaches = append(reaches, containerdriver.PathAccess(dev, !m.RW))
+			case len(v.Options) > 0 && !containerdriver.LocalMountType(v.Options["type"]):
+				return nil, true, nil
 			}
 		}
 	}
 	return reaches, false, nil
+}
+
+// MountTable reads a process's mounts, as its /proc/<pid>/mountinfo has them, and
+// the agent's own for pid 0.
+type MountTable func(pid int) (string, error)
+
+// ProcMounts reads them from /proc.
+func ProcMounts(pid int) (string, error) {
+	name := "/proc/self/mountinfo"
+	if pid > 0 {
+		name = fmt.Sprintf("/proc/%d/mountinfo", pid)
+	}
+	b, err := os.ReadFile(name)
+	return string(b), err
+}
+
+// mountedNow is what each of a container's mounts is in its own mount namespace,
+// which is what the kernel mounted when it started: a link followed then stays
+// followed, whatever it says since, and a volume shows what it really is. Each
+// counts as the server path it is, found through the agent's own list, or as root
+// where it's a filesystem of the kernel's own, such as proc or sysfs, or one the
+// server has nowhere that a plan doesn't take, such as a disk of its own. A volume
+// that's the folder Docker keeps it in is that volume, and reaches nothing more.
+// What can't be read counts as root.
+func mountedNow(table MountTable, c *docker.Container) (reaches []resource.Access, root bool, err error) {
+	if len(c.Mounts) == 0 {
+		return nil, false, nil
+	}
+	if table == nil || c.State.Pid <= 0 {
+		return nil, true, errors.New("can't read what the container has mounted, as Docker gives it no process")
+	}
+	inside, err := table(c.State.Pid)
+	if err != nil {
+		return nil, true, fmt.Errorf("can't read what the container has mounted: %w", err)
+	}
+	host, err := table(0)
+	if err != nil {
+		return nil, true, fmt.Errorf("can't read what this server has mounted: %w", err)
+	}
+	theirs, ours := kernelmounts.Parse(inside), kernelmounts.Parse(host)
+	for _, m := range c.Mounts {
+		if m.Type != "bind" && m.Type != "volume" {
+			continue
+		}
+		at, ok := kernelmounts.At(theirs, m.Destination)
+		if !ok {
+			return nil, true, fmt.Errorf("the container has nothing mounted at %s, where Docker says it has", m.Destination)
+		}
+		if kernelmounts.Pseudo(at.FSType) {
+			return nil, true, nil
+		}
+		where := kernelmounts.ServerPaths(at, ours)
+		if len(where) == 0 {
+			if m.Type == "volume" && containerdriver.LocalMountType(at.FSType) {
+				continue // a tmpfs, or a remote share
+			}
+			return nil, true, nil
+		}
+		for _, p := range where {
+			if m.Type == "volume" && volumeFolder(p, m) {
+				continue
+			}
+			reaches = append(reaches, containerdriver.PathAccess(p, !m.RW))
+		}
+	}
+	return reaches, false, nil
+}
+
+// volumeFolder says p is where Docker keeps the volume m mounts: the source it
+// gives, or, where it gives none, a _data folder under volumes named for it.
+func volumeFolder(p string, m docker.MountPoint) bool {
+	if m.Source != "" {
+		return path.Clean(p) == path.Clean(m.Source)
+	}
+	return strings.HasSuffix(path.Clean(p), "/volumes/"+m.Name+"/_data")
 }
 
 // FollowPaths says where server paths lead on this server, for those that lead

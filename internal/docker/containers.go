@@ -190,13 +190,15 @@ type MountPoint struct {
 
 // State is whether a container runs.
 type State struct {
-	Status     string  `json:"Status"` // created, running, restarting, exited…
-	Running    bool    `json:"Running"`
-	Restarting bool    `json:"Restarting"`
-	Paused     bool    `json:"Paused"`
-	ExitCode   int     `json:"ExitCode"`
-	Error      string  `json:"Error"`
-	Health     *Health `json:"Health,omitempty"`
+	Status     string `json:"Status"` // created, running, restarting, exited…
+	Running    bool   `json:"Running"`
+	Restarting bool   `json:"Restarting"`
+	Paused     bool   `json:"Paused"`
+	ExitCode   int    `json:"ExitCode"`
+	Error      string `json:"Error"`
+	// Pid is its first process's ID on the server, while it runs.
+	Pid    int     `json:"Pid"`
+	Health *Health `json:"Health,omitempty"`
 	// StartedAt and FinishedAt are zero until it first starts and stops.
 	StartedAt  time.Time `json:"StartedAt,omitzero"`
 	FinishedAt time.Time `json:"FinishedAt,omitzero"`

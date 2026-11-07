@@ -91,6 +91,8 @@ type testServer struct {
 	backups *backup.Runner
 	// updates reads its package updates, when set.
 	updates *agentupdates.Reader
+	// mounts stands in for the kernel's lists of what's mounted, for its fake Docker.
+	mounts agent.MountTable
 	// terms opens its terminals, as /bin/sh in a directory of its own.
 	terms *terminal.Manager
 }
@@ -141,7 +143,7 @@ func (s *testServer) run(t *testing.T) {
 	t.Helper()
 	if s.terms == nil && s.client != nil {
 		s.terms = terminal.New(terminal.Options{
-			Shell: []string{"/bin/sh"}, Home: t.TempDir(), Docker: s.client, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(s.drivers, s.client, agent.FollowPaths),
+			Shell: []string{"/bin/sh"}, Home: t.TempDir(), Docker: s.client, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(s.drivers, s.client, agent.FollowPaths, s.mounts),
 		})
 	}
 	ctx, cancel := context.WithCancel(context.Background())
