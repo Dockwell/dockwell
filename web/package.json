@@ -9,10 +9,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json",
     "test": "vitest run",
     "i18n:extract": "lingui extract --clean",
-    "i18n:check": "lingui check sync && lingui check missing --mode catalog"
+    "i18n:check": "lingui check sync && lingui check missing --mode catalog",
+    "i18n:merge": "node scripts/merge-catalogs.ts"
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",

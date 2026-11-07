@@ -86,6 +86,18 @@ gotest="go docker-go caddy-go"
 install="snapshot install systemd every-leg"
 budgets="snapshot budgets"
 
+# biome_checks says whether Biome, which the Panel job runs over the whole
+# repository, checks the path: what biome.json includes, by extension, less what
+# it leaves out.
+biome_checks() {
+  case $1 in
+  gen/* | */gen/* | *.gen.ts | design/* | internal/panel/dist/* | packages/ui/src/tokens.ts | \
+    packages/ui/src/styles/tokens.css | scripts/sigstore_trusted_root.json) return 1 ;;
+  *.json | *.jsonc | *.js | *.jsx | *.mjs | *.cjs | *.ts | *.tsx | *.mts | *.cts | *.css) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # jobs_for prints the jobs that a change to the path needs. The first pattern
 # that matches wins, and * matches across slashes.
 jobs_for() {
@@ -109,7 +121,7 @@ jobs_for() {
   scripts/install-test/* | scripts/sigstore_trusted_root.json) echo "$install" ;;
   scripts/budgets.sh) echo "$budgets" ;;
   # Run by Licenses and links, by their own nightly workflows, or by a release.
-  scripts/check-spdx.sh | scripts/check-trust-root.sh | scripts/check-cloudflare-ranges.sh | scripts/latest-release.sh | scripts/require-green.sh) ;;
+  scripts/check-spdx.sh | scripts/check-trust-root.sh | scripts/check-cloudflare-ranges.sh | scripts/latest-release.sh | scripts/require-green.sh | scripts/adrs.sh) ;;
   .goreleaser.yaml) echo "$install $budgets" ;;
   # The toolchain, the modules and the tools, GoReleaser among them, build the release.
   go.mod | go.sum | tools/*) echo "$go $install" ;;
@@ -146,7 +158,7 @@ reasons() {
   else
     # The last path counts even without a NUL after it.
     while IFS= read -r -d '' path || [[ -n $path ]]; do
-      for job in $(jobs_for "$path"); do
+      for job in $(jobs_for "$path") $(biome_checks "$path" && echo panel); do
         [[ -n ${why[$job]:-} ]] || why[$job]="\`$path\` needs it"
       done
     done

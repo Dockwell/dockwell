@@ -14,6 +14,7 @@ import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 
 import { type DockerProbe, dockerAct, dockerExec, dockerHealth } from "./docker-probe.ts";
+import type { Flow } from "./flows.ts";
 
 export interface HealthFlowOptions {
   origin: string;
@@ -459,3 +460,6 @@ services:
     await top.getByText("1 down").waitFor({ timeout: 60_000 });
   }
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 30, run: (page, run) => healthFlow(page, { ...run, fake: true }) };

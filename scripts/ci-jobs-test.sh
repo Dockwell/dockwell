@@ -45,7 +45,15 @@ picks() {
 picks "" docs/install.md
 picks "" CONTRIBUTING.md .github/pull_request_template.md
 picks "" docs/adr/0001-record-architecture-decisions.md assets/icon.svg
-picks "" scripts/require-green.sh scripts/check-spdx.sh
+picks "" scripts/require-green.sh scripts/check-spdx.sh scripts/adrs.sh
+# Biome, in the Panel job, checks these wherever they are.
+picks "panel" docs/example/data.json
+picks "panel" assets/theme.css docs/example/app.tsx docs/example/tool.mjs
+picks "$install panel" scripts/install-test/fixture.json
+picks "$go" internal/resource/testdata/addresses.json
+# biome.json leaves these out.
+picks "$install" scripts/sigstore_trusted_root.json
+picks "schema panel" design/system/tokens.json
 # The release archives carry LICENSE and README.md.
 picks "snapshot" LICENSE
 picks "snapshot" README.md
@@ -226,6 +234,14 @@ git_asks "go=false panel=false" "a pull request with no changes"
 # Without main to compare with, every job runs.
 clone_at main 1
 CI_JOBS_MAIN=nosuchbranch git_asks "go=true panel=true" "a clone without main"
+# A full clone stays full: API schema's checkout reads the history.
+rm -rf "$scratch/clone"
+git clone -q --branch pr-merge "file://$origin" "$scratch/clone" 2>/dev/null
+git_asks "go=true panel=true" "a full clone"
+if [[ $(git -C "$scratch/clone" rev-parse --is-shallow-repository) != false ]]; then
+  echo "ci-jobs: needs made a full clone shallow, which cuts the history API schema reads" >&2
+  failed=1
+fi
 # Outside a repository, every job runs.
 mkdir -p "$scratch/nogit"
 got=$(cd "$scratch/nogit" && GIT_CEILING_DIRECTORIES=$scratch GITHUB_EVENT_NAME=pull_request output "go" | grep '^go=') ||

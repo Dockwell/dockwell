@@ -7,6 +7,8 @@
 
 import type { Locator, Page } from "playwright-core";
 
+import type { Flow } from "./flows.ts";
+
 export interface BackupsFlowOptions {
   origin: string;
   /** Reports each step. */
@@ -180,3 +182,6 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await shoot(page, "backups-phone");
   await page.setViewportSize({ width: 1280, height: 900 });
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 50, run: (page, run) => backupsFlow(page, run) };

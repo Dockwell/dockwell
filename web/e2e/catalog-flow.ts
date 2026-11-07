@@ -13,6 +13,7 @@ import { join } from "node:path";
 import type { Locator, Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
+import type { Flow } from "./flows.ts";
 
 export interface CatalogFlowOptions {
   origin: string;
@@ -224,3 +225,6 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   const back = (await docker()).filter((c) => c.image.startsWith("notes:")).map((c) => c.image);
   if (back.length !== 1 || !back[0]?.includes(FIRST_DIGEST)) fail(`after the undo, Docker runs ${back.join(", ")}`);
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 40, run: (page, run) => catalogFlow(page, run) };

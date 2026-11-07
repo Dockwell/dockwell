@@ -41,11 +41,12 @@ The picker maps each path to the jobs that read it, and its rules are written fr
 | `.goreleaser.yaml` | The budgets and every install leg |
 | A workflow, the Makefile, the picker, or a path no rule knows | Every job |
 
-Three choices there are judgements:
+These choices are judgements:
 
 - **The budgets don't run for the panel.** Only the full build embeds the panel, which reads each file once at start to hash it, so a panel change moves the control plane's idle RSS by about its size in file-backed pages. The Panel job holds that size instead: `scripts/check-panel-size.sh` fails above 2.5 MB, against main's 1.67 MB on 2026-11-07, which leaves the control plane far inside its 250 MB budget.
 - **Go code runs three install legs, not eight and two.** The install script runs the binary's `run`, `join`, `token`, `claim` and `role`, which reach some 40 packages: the control plane, enrolment, the store and its migrations, the keys, and what reads `/etc/os-release` and the architecture. The legs are the only place a pull request runs an arm64 build, Debian, AlmaLinux and Alpine, OpenRC and systemd, and an upgrade, and a hand-kept list of the packages they reach would go stale. So any Go change runs Alpine on arm64, for busybox, musl and OpenRC; AlmaLinux on amd64, for an RPM distribution; and systemd on arm64. That's 3 jobs and about 3.3 runner-minutes on each Go push, against 10 and about 10.6 for every leg. Every leg runs for the install script, its tests, the release, and on main.
 - **A Go test runs no install legs and no budgets.** A test isn't in either build.
+- **A catalog entry runs no budgets.** The full build embeds every entry, and parses them all on the first call to the catalog's API, not at start, so an idle control plane holds none of them, and one that has served the catalog holds a few kilobytes an entry, against a 250 MB budget. The agent build doesn't link the catalog.
 
 A push to main, a nightly run and a manual run pick every job, so main is tested in full after each merge, and a release is only ever tagged on a commit that was.
 
@@ -64,7 +65,7 @@ The checks a branch rule on main requires are every CI job by name and Install, 
 - Over the last 40 pull requests merged before this, a push uses about 81 runner-minutes instead of 103. Most of them changed Go code, which still runs nearly everything. A panel change uses about 30 minutes, a Go test about 35, a catalog entry about 57, and a docs change about 6.
 - A push still starts the 11 CI jobs, as each one asks for itself. A CI job that isn't needed reads as passed, and its log and summary say it wasn't needed and why.
 - A new kind of file runs every job until it has a rule. A rule that's too narrow would let a change through untested, so a new rule needs an example in `scripts/ci-jobs-test.sh`, and main still runs everything after it merges.
-- Each CI job and Release snapshot fetches main at depth 1 to compare with, which takes a few seconds.
+- Each CI job and Release snapshot fetches main to compare with, which takes a few seconds: at depth 1 from a shallow checkout, and in full in API schema, whose checkout is full, as the breaking-change check reads main's history.
 - A new CI job needs a rule in the picker, the question as its first step after the checkout, `if: steps.pick.outputs.run == 'true'` on each step after that, and a place in the branch rule. A step without the `if:` runs anyway, which is slow but never lets anything through.
 - The footprint comment stays as it was for the last push that measured memory, which it names, when a later push doesn't change Go code.
 - Go changes still cost about 96 runner-minutes, the three install legs included. The Go test cache, restored from main, would let the Go job skip packages a change can't reach, and Go on Caddy could skip changes outside what `internal/ingress` imports. The repository's Actions cache is at its 10 GB limit, so the first needs room made for it.

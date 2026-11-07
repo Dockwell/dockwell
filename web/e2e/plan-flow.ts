@@ -17,6 +17,7 @@ import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
+import type { Flow } from "./flows.ts";
 import { bytes, number } from "./wire.ts";
 
 export interface PlanFlowOptions {
@@ -1181,3 +1182,6 @@ volumes:
     fail(`under reduced motion it still slides away: ${leftStill.join(" ")}`);
   await page.emulateMedia({ reducedMotion: "no-preference" });
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 20, run: (page, run) => planFlow(page, run) };

@@ -6,6 +6,8 @@
 
 import type { Page } from "playwright-core";
 
+import type { Flow } from "./flows.ts";
+
 interface NetworkFlowOptions {
   origin: string;
   step: (message: string) => void;
@@ -97,3 +99,6 @@ export async function networkFlow(page: Page, { origin, step, shoot }: NetworkFl
   await page.setViewportSize({ width: 1440, height: 900 });
   for (const { id } of servers) await call("SetServerPublicAddress", { id, address: "", ipv6: true });
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 80, run: (page, run) => networkFlow(page, run) };

@@ -126,6 +126,14 @@ fmt: deps ## Format Go, proto, TypeScript and CSS
 i18n: deps ## Extract new messages into the translation catalogs
 	pnpm --filter @dockwell/web i18n:extract
 
+.PHONY: adrs
+adrs: ## List the architecture decision records, with their titles and statuses
+	@scripts/adrs.sh
+
+.PHONY: i18n-merge
+i18n-merge: deps ## Merge the translation catalogs after a merge or rebase, conflicted or not; after one that finished, FROM=ORIG_HEAD
+	pnpm --filter @dockwell/web i18n:merge $(if $(FROM),--from $(FROM))
+
 .PHONY: check-generated
 check-generated: generate web ## Fail if generated code is out of date
 	@if [ -n "$$(git status --porcelain -- $(GENERATED))" ]; then \

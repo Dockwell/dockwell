@@ -8,6 +8,7 @@
 import type { Page } from "playwright-core";
 
 import { type DockerProbe, dockerRemove, dockerRun, dockerStarted } from "./docker-probe.ts";
+import type { Flow } from "./flows.ts";
 
 export interface ContainersFlowOptions {
   origin: string;
@@ -116,3 +117,9 @@ export async function containersFlow(
     await dockerRemove(socket, id, "legacy-data");
   }
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = {
+  order: 70,
+  run: (page, run) => containersFlow(page, { ...run, image: "acme/legacy:prints" }),
+};

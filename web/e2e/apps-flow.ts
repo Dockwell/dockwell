@@ -15,6 +15,7 @@ import { request } from "node:http";
 import type { Page } from "playwright-core";
 
 import type { DockerProbe } from "./docker-probe.ts";
+import type { Flow } from "./flows.ts";
 
 export interface AppsFlowOptions {
   origin: string;
@@ -59,7 +60,7 @@ function throughIngress(name: string): Promise<string> {
       res.on("data", (chunk: Buffer) => {
         body += chunk.toString();
       });
-      res.on("end", () => done(`${res.headers.server ?? ""} ${body}`));
+      res.on("end", () => done(`${res.headers["server"] ?? ""} ${body}`));
     });
     req.on("timeout", () => req.destroy());
     req.on("error", (err) => done(String(err)));
@@ -698,3 +699,6 @@ export async function appsFlow(
   const left = await docker();
   if (left.some((c) => c.running)) fail(`Docker still runs what was deleted: ${JSON.stringify(left)}`);
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 10, run: (page, run) => appsFlow(page, { ...run, failing: "nginx:broken" }) };

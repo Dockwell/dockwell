@@ -6,6 +6,8 @@
 
 import type { Page } from "playwright-core";
 
+import type { Flow } from "./flows.ts";
+
 interface SettingsFlowOptions {
   origin: string;
   step: (message: string) => void;
@@ -70,3 +72,6 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await install.getByRole("button", { name: "Save" }).click();
   await install.getByText("Saved. It's on Activity.", { exact: true }).waitFor();
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 90, run: (page, run) => settingsFlow(page, run) };
