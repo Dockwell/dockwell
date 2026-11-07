@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -171,9 +172,14 @@ func Join(ctx context.Context, ticketString, hostname string, build buildinfo.In
 	return New(res.Msg.GetServerId(), res.Msg.GetServerName(), controlURL, key, cert, ca), nil
 }
 
-// joinTry bounds trying one of a ticket's addresses when there's another to go on to,
-// as a firewall that drops packets otherwise holds the join for minutes.
-const joinTry = 15 * time.Second
+// joinDial and joinHandshake bound reaching one of a ticket's addresses when there's
+// another to go on to, as a firewall that drops packets otherwise holds the join for
+// minutes. Only reaching it is bounded: once the control plane has the ticket, it may
+// take its time, as a server that went on to the next address would find it spent.
+var (
+	joinDial      = 10 * time.Second
+	joinHandshake = 10 * time.Second
+)
 
 // joinAt asks the control plane at controlURL to sign a joining server's key.
 func joinAt(ctx context.Context, pin, controlURL string, req *agentv1.JoinRequest, more bool) (*connect.Response[agentv1.JoinResponse], error) {
@@ -189,9 +195,10 @@ func joinAt(ctx context.Context, pin, controlURL string, req *agentv1.JoinReques
 	})
 	defer hc.CloseIdleConnections()
 	if more {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, joinTry)
-		defer cancel()
+		if t, ok := hc.Transport.(*http.Transport); ok {
+			t.DialContext = (&net.Dialer{Timeout: joinDial}).DialContext
+			t.TLSHandshakeTimeout = joinHandshake
+		}
 	}
 	return agentv1connect.NewAgentServiceClient(hc, controlURL, connect.WithGRPC()).Join(ctx, connect.NewRequest(req))
 }

@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -219,19 +220,58 @@ func TestLoopbackURL(t *testing.T) {
 	}
 }
 
-func TestJoinWordsSayWhoATicketsAddressReaches(t *testing.T) {
-	for url, want := range map[string]string{
-		"https://10.0.0.25:7443":         "10.0.0.25 is a private address, so only a server on the same network can use this ticket. For a server elsewhere, set --advertise-url on dockwell run to an address it can reach, or open port 7443 from that network.",
-		"https://100.72.1.2:7443":        "100.72.1.2 is a private address",
-		"https://127.0.0.1:7443":         "127.0.0.1 is a private address",
-		"https://[fd00::5]:7443":         "fd00::5 is a private address",
-		"https://203.0.113.50:7443":      "A server on another network reaches this one on port 7443, so open that at your provider and on this machine, or forward it if this server is behind a router.",
-		"https://agents.example.com:443": "",
+// What a ticket leads with decides what it takes to use it from elsewhere, and only
+// what works is said.
+func TestJoinWordsSayWhatEachCaseNeeds(t *testing.T) {
+	type u = identity.JoinURL
+	for _, tc := range []struct {
+		name  string
+		urls  []u
+		says  []string
+		never []string
+	}{
+		{
+			"a way in",
+			[]u{{URL: "https://203.0.113.50:7443", WayIn: true}},
+			[]string{"reaches this one at 203.0.113.50 on port 7443, so open that port at your provider and on this machine"},
+			[]string{"forwarded", "older Dockwell"},
+		},
+		{
+			"a way out",
+			[]u{{URL: "https://203.0.113.7:7443"}, {URL: "https://10.0.0.25:7443"}},
+			[]string{"leads with 203.0.113.7, which is how this server reaches the internet, and may not be a way in", "port 7443 there leads to this server", "set it under Network on its page"},
+			[]string{"open that port at your provider"},
+		},
+		{
+			"a private address alone",
+			[]u{{URL: "https://10.0.0.25:7443"}},
+			[]string{"10.0.0.25 is a private address, so only a server on the same network can use this ticket", "set this server's public address under Network on its page, or restart dockwell run with --advertise-url"},
+			[]string{"open port"},
+		},
+		{"a shared address", []u{{URL: "https://100.72.1.2:7443"}}, []string{"100.72.1.2 is a private address"}, nil},
+		{"loopback", []u{{URL: "https://127.0.0.1:7443"}}, []string{"127.0.0.1 is a private address"}, nil},
+		{"a private IPv6 address", []u{{URL: "https://[fd00::5]:7443"}}, []string{"fd00::5 is a private address"}, nil},
+		{
+			"more than one",
+			[]u{{URL: "https://203.0.113.50:7443", WayIn: true}, {URL: "https://10.0.0.25:7443"}},
+			[]string{"A server running an older Dockwell tries https://203.0.113.50:7443 alone"},
+			nil,
+		},
 	} {
-		got := joinWords(url)
-		if !strings.Contains(got, want) || (want == "") != (got == "") {
-			t.Errorf("%s says %q", url, got)
+		got := joinWords(tc.urls)
+		for _, want := range tc.says {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s says %q, not %q", tc.name, got, want)
+			}
 		}
+		for _, not := range tc.never {
+			if strings.Contains(got, not) {
+				t.Errorf("%s says %q, with %q", tc.name, got, not)
+			}
+		}
+	}
+	if got := joinWords([]identity.JoinURL{{URL: "https://agents.example.com:443", WayIn: true}}); got != "" {
+		t.Errorf("a name says %q", got)
 	}
 }
 
@@ -247,9 +287,10 @@ func TestACertificateCoversEachAddressATicketCanHold(t *testing.T) {
 	}
 }
 
-// What a ticket leads with follows the control server's public address as it's
-// found, with its own address behind it, for a server on the same network. The
-// certificate has it first, so no ticket names what it doesn't cover.
+// What a ticket leads with follows the control server's public addresses as they're
+// found, with its own address behind them, for a server on the same network, and
+// stops once there are none. The certificate has each first, so no ticket names what
+// it doesn't cover, and keeps them all through a restart.
 func TestJoinTicketsFollowThePublicAddress(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -268,7 +309,8 @@ func TestJoinTicketsFollowThePublicAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := authority.SetAgentURL(ctx, "https://10.0.0.25:7443"); err != nil {
+	const local = "https://10.0.0.25:7443"
+	if err := authority.SetAgentURL(ctx, local); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now()
@@ -282,43 +324,164 @@ func TestJoinTicketsFollowThePublicAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	hub.SetControlServer("srv_A")
-
-	first, others, err := authority.JoinURLs(ctx)
-	if err != nil || first != "https://10.0.0.25:7443" || others != nil {
-		t.Fatalf("before anything's found: %q, %v, %v", first, others, err)
+	urls := func() []string {
+		t.Helper()
+		got, err := authority.JoinURLs(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, u := range got {
+			out = append(out, u.URL)
+		}
+		return out
 	}
-	covered := make(chan string, 1)
+	waitFor := func(what string, want ...string) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for !slices.Equal(urls(), want) {
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: tickets name %v, want %v", what, urls(), want)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if got := urls(); !slices.Equal(got, []string{local}) {
+		t.Fatalf("before anything's found: %v", got)
+	}
+	var mu sync.Mutex
+	var covered []string
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		followPublicAddress(ctx, logger, hub, func(host string) { covered <- host }, authority, "7443")
+		followPublicAddress(ctx, logger, hub, func(host string) {
+			mu.Lock()
+			defer mu.Unlock()
+			covered = append(covered, host)
+		}, authority, "7443")
+	}()
+	if _, err := hub.Attach(ctx, store.Server{ID: "srv_A"}, &dockwellv1.ServerInventory{Addresses: []string{"10.0.0.25", "2001:db8::5"}}, &dockwellv1.BuildInfo{}); err != nil {
+		t.Fatal(err)
+	}
+	hub.RecordNetwork("srv_A", &agentv1.Network{Provider: dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE, MachineProvider: dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE, LookedUpAddress: "203.0.113.50"})
+	waitFor("once found", "https://[2001:db8::5]:7443", "https://203.0.113.50:7443", local)
+	mu.Lock()
+	if !slices.Contains(covered, "2001:db8::5") || !slices.Contains(covered, "203.0.113.50") {
+		t.Errorf("the certificate names %v", covered)
+	}
+	mu.Unlock()
+
+	// Behind carrier NAT now, with no IPv6: there's nothing public to lead with.
+	if _, err := hub.Attach(ctx, store.Server{ID: "srv_A"}, &dockwellv1.ServerInventory{Addresses: []string{"100.72.1.2"}, OutboundAddress: "100.72.1.2"}, &dockwellv1.BuildInfo{}); err != nil {
+		t.Fatal(err)
+	}
+	hub.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: "203.0.113.7"})
+	waitFor("behind carrier NAT", local)
+	cancel()
+	<-done
+
+	// A restart still names every address a ticket has led with.
+	hosts, err := agentHostsAtStart(t.Context(), authority, local, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"10.0.0.25", "2001:db8::5", "203.0.113.50", "127.0.0.1"} {
+		if !slices.Contains(hosts, want) {
+			t.Errorf("after a restart the certificate names %v, without %s", hosts, want)
+		}
+	}
+}
+
+// Until anything's heard of the control server's network, what the last run found
+// stands, so a ticket made in the seconds after a restart still leads with it.
+func TestAFollowerWaitsUntilSomethingsKnown(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	dir := t.TempDir()
+	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(ctx, filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	logger := slog.New(slog.DiscardHandler)
+	authority, err := identity.Bootstrap(ctx, db, key, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := []identity.JoinURL{{URL: "https://203.0.113.50:7443", WayIn: true}}
+	if err := authority.SetPublicAgentURLs(ctx, found); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if err := db.Update(ctx, func(tx *store.Tx) error {
+		return tx.CreateServer(ctx, store.Server{ID: "srv_A", Name: "oci-1", CreatedAt: now, CertSerial: "s", CertNotAfter: now})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	hub, err := fleet.New(ctx, db, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub.SetControlServer("srv_A")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		followPublicAddress(ctx, logger, hub, func(string) {}, authority, "7443")
 	}()
 	if _, err := hub.Attach(ctx, store.Server{ID: "srv_A"}, &dockwellv1.ServerInventory{Addresses: []string{"10.0.0.25"}}, &dockwellv1.BuildInfo{}); err != nil {
 		t.Fatal(err)
 	}
-	hub.RecordNetwork("srv_A", &agentv1.Network{Provider: dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE, LookedUpAddress: "203.0.113.50"})
-	select {
-	case host := <-covered:
-		if host != "203.0.113.50" {
-			t.Errorf("the certificate names %q", host)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("the address never reached the certificate")
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		first, others, err = authority.JoinURLs(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if first == "https://203.0.113.50:7443" && slices.Equal(others, []string{"https://10.0.0.25:7443"}) {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("tickets lead with %q, then %v", first, others)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	time.Sleep(100 * time.Millisecond)
 	cancel()
 	<-done
+	if got, err := authority.PublicAgentURLs(t.Context()); err != nil || !slices.Equal(got, found) {
+		t.Errorf("with nothing heard, tickets lead with %v (%v)", got, err)
+	}
+}
+
+// A listener bound to one address, or given its address by hand, isn't reached at a
+// public address found for it, so it starts with tickets leading with its own.
+func TestAListenerThatWontBeFollowedClearsWhatTicketsLeadWith(t *testing.T) {
+	dir := t.TempDir()
+	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.Context(), filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	authority, err := identity.Bootstrap(t.Context(), db, key, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := authority.SetAgentURL(t.Context(), "https://10.0.0.25:7443"); err != nil {
+		t.Fatal(err)
+	}
+	if err := authority.SetPublicAgentURLs(t.Context(), []identity.JoinURL{{URL: "https://203.0.113.50:7443", WayIn: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agentHostsAtStart(t.Context(), authority, "https://10.0.0.25:7443", true); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := authority.PublicAgentURLs(t.Context()); len(got) != 1 {
+		t.Fatalf("a listener that's followed lost what the last run found: %v", got)
+	}
+	hosts, err := agentHostsAtStart(t.Context(), authority, "https://10.0.0.25:7443", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := authority.PublicAgentURLs(t.Context()); len(got) != 0 {
+		t.Errorf("tickets still lead with %v", got)
+	}
+	if !slices.Contains(hosts, "203.0.113.50") {
+		t.Errorf("the certificate forgot a host a ticket named: %v", hosts)
+	}
+	if listensEverywhere(&net.TCPAddr{IP: net.ParseIP("10.0.0.25"), Port: 7443}) || !listensEverywhere(&net.TCPAddr{IP: net.IPv6unspecified, Port: 7443}) {
+		t.Error("it can't tell a listener bound to one address")
+	}
 }

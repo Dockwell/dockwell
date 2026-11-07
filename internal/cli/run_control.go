@@ -199,14 +199,8 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	}
 	logger.Info("other servers join through the agent listener",
 		slog.String("url", agentURL), slog.String("install", authority.InstallID()), slog.String("ca_pin", authority.CA().Pin()))
-	// What the last run found, so a ticket made before it's found again still
-	// reaches this listener, and what's given by hand isn't second-guessed.
-	publicURL := ""
-	if f.advertise == "" {
-		publicURL, err = authority.PublicAgentURL(ctx)
-	} else {
-		err = authority.SetPublicAgentURL(ctx, "")
-	}
+	following := f.advertise == "" && listensEverywhere(ls.Agents.Addr())
+	hosts, err := agentHostsAtStart(ctx, authority, agentURL, following)
 	if err != nil {
 		closeAll()
 		return err
@@ -294,7 +288,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		Build:         build,
 		Identity:      authority,
 		Fleet:         hub,
-		AgentHosts:    agentHosts(agentURL, publicURL),
+		AgentHosts:    hosts,
 		Auth:          people,
 		Public:        public,
 		PublicAddress: addr.dnsAddress(),
@@ -326,7 +320,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		stopAgent()
 	})
 	wg.Go(func() { recorder.Run(ctx) })
-	if listensEverywhere(ls.Agents.Addr()) && f.advertise == "" {
+	if following {
 		wg.Go(func() { followPublicAddress(ctx, logger, hub, srv.AddAgentHost, authority, portOf(ls.Agents.Addr())) })
 	}
 	var panel *ingress.Panel
@@ -702,21 +696,57 @@ func listensEverywhere(addr net.Addr) bool {
 	return ok && tcp.IP.IsUnspecified()
 }
 
+// agentHostsAtStart are the names the agent listener's certificate starts with: its
+// own, and every host a ticket has named, as a server that joined through one goes on
+// using it after a restart. A listener bound to one address, or given its address by
+// hand, isn't reached at a public address found for it, so tickets stop naming one.
+func agentHostsAtStart(ctx context.Context, authority *identity.Authority, agentURL string, following bool) ([]string, error) {
+	if !following {
+		if err := authority.SetPublicAgentURLs(ctx, nil); err != nil {
+			return nil, err
+		}
+	}
+	named, err := authority.AgentHosts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hosts := agentHosts(agentURL)
+	for _, h := range named {
+		if !slices.Contains(hosts, h) {
+			hosts = append(hosts, h)
+		}
+	}
+	return hosts, nil
+}
+
 // followPublicAddress keeps what join tickets hold up with the control server's
-// public address, for as long as it runs. The certificate goes first, so no ticket
-// names an address it doesn't cover. Nothing changes for a server that already
-// joined, which goes on using the address it joined through.
+// public addresses, for as long as it runs: every one there is, in the order to try
+// them, or none once there's none. The certificate goes first, so no ticket names an
+// address it doesn't cover. Nothing changes for a server that already joined, which
+// goes on using the address it joined through, and stays on the certificate.
 func followPublicAddress(ctx context.Context, logger *slog.Logger, hub *fleet.Hub, addHost func(string), authority *identity.Authority, port string) {
-	last := ""
+	var last []identity.JoinURL
+	wrote := false
 	for {
-		if address := hub.ControlAddress(); address != "" && address != last {
-			agentURL := "https://" + net.JoinHostPort(address, port)
-			addHost(address)
-			if err := authority.SetPublicAgentURL(ctx, agentURL); err != nil {
-				logger.Warn("can't record where other networks reach the control plane; join tickets stay as they were", slog.String("error", err.Error()))
-			} else {
-				last = address
-				logger.Info("join tickets now lead with this server's public address", slog.String("url", agentURL))
+		if addresses, known := hub.ControlAddresses(); known {
+			urls := make([]identity.JoinURL, 0, len(addresses))
+			for _, a := range addresses {
+				urls = append(urls, identity.JoinURL{URL: "https://" + net.JoinHostPort(a.Address, port), WayIn: a.WayIn})
+			}
+			if !wrote || !slices.Equal(urls, last) {
+				for _, a := range addresses {
+					addHost(a.Address)
+				}
+				switch err := authority.SetPublicAgentURLs(ctx, urls); {
+				case err != nil:
+					logger.Warn("can't record where other networks reach the control plane; join tickets stay as they were", slog.String("error", err.Error()))
+				case len(urls) == 0:
+					last, wrote = urls, true
+					logger.Info("join tickets lead with this server's own address, as no public address of it is known")
+				default:
+					last, wrote = urls, true
+					logger.Info("join tickets now lead with this server's public address", slog.String("url", urls[0].URL), slog.Int("addresses", len(urls)))
+				}
 			}
 		}
 		select {

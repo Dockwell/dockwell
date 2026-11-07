@@ -15,9 +15,13 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
+	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/pki"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/ticket"
@@ -42,10 +47,14 @@ const (
 	settingCACert    = "ca.cert"
 	settingCAKey     = "ca.key"
 	settingAgentURL  = "agent.url"
-	// settingPublicAgentURL is where agents reach the control plane from elsewhere,
-	// as the running control plane last worked out from its public address.
-	settingPublicAgentURL = "agent.public_url"
-	purposeCAKey          = "ca-key"
+	// settingPublicAgentURLs are where agents may reach the control plane from
+	// elsewhere, as the running control plane last worked out, in the order a ticket
+	// tries them.
+	settingPublicAgentURLs = "agent.public_urls"
+	// settingAgentHosts are every host a ticket has named, which the agent listener's
+	// certificate keeps naming, as a server that joined through one goes on using it.
+	settingAgentHosts = "agent.hosts"
+	purposeCAKey      = "ca-key"
 )
 
 // Errors for callers to map to API codes.
@@ -173,42 +182,118 @@ func (a *Authority) AgentURL(ctx context.Context) (string, error) {
 	return string(u), err
 }
 
-// SetPublicAgentURL records where agents on other networks reach the control
-// plane, or that nothing does with an empty one.
-func (a *Authority) SetPublicAgentURL(ctx context.Context, u string) error {
-	return a.db.Update(ctx, func(tx *store.Tx) error { return tx.PutSetting(ctx, settingPublicAgentURL, []byte(u)) })
+// JoinURL is an address a join ticket can name, and what's known of it.
+type JoinURL struct {
+	URL string `json:"url"`
+	// WayIn says the internet is known to come in there. Without it, it's how the
+	// control server goes out, or an address only its own network reaches.
+	WayIn bool `json:"way_in,omitempty"`
 }
 
-// PublicAgentURL returns where agents on other networks reach the control plane,
-// or empty when that isn't known.
-func (a *Authority) PublicAgentURL(ctx context.Context) (string, error) {
-	var u []byte
+// SetPublicAgentURLs records where agents on other networks may reach the control
+// plane, in the order a ticket tries them, or that nothing does with none. Every host
+// among them is kept for the agent listener's certificate, whatever comes later.
+func (a *Authority) SetPublicAgentURLs(ctx context.Context, urls []JoinURL) error {
+	return a.db.Update(ctx, func(tx *store.Tx) error {
+		raw, err := json.Marshal(append([]JoinURL{}, urls...))
+		if err != nil {
+			return err
+		}
+		if err := tx.PutSetting(ctx, settingPublicAgentURLs, raw); err != nil {
+			return err
+		}
+		hosts, err := agentHosts(ctx, tx)
+		if err != nil {
+			return err
+		}
+		grew := false
+		for _, u := range urls {
+			if p, err := url.Parse(u.URL); err == nil && p.Hostname() != "" && !slices.Contains(hosts, p.Hostname()) {
+				hosts, grew = append(hosts, p.Hostname()), true
+			}
+		}
+		if !grew {
+			return nil
+		}
+		raw, err = json.Marshal(hosts)
+		if err != nil {
+			return err
+		}
+		return tx.PutSetting(ctx, settingAgentHosts, raw)
+	})
+}
+
+// PublicAgentURLs returns where agents on other networks may reach the control plane,
+// or none when that isn't known.
+func (a *Authority) PublicAgentURLs(ctx context.Context) ([]JoinURL, error) {
+	var urls []JoinURL
 	err := a.db.View(ctx, func(tx *store.Tx) error {
-		var err error
-		u, err = tx.GetSetting(ctx, settingPublicAgentURL)
+		raw, err := tx.GetSetting(ctx, settingPublicAgentURLs)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(raw, &urls); err != nil {
+			return fmt.Errorf("can't read where other networks reach the control plane: %w. Restart dockwell run, which works it out again", err)
+		}
+		return nil
+	})
+	return urls, err
+}
+
+// AgentHosts returns every host a ticket has named.
+func (a *Authority) AgentHosts(ctx context.Context) ([]string, error) {
+	var hosts []string
+	err := a.db.View(ctx, func(tx *store.Tx) (err error) {
+		hosts, err = agentHosts(ctx, tx)
 		return err
 	})
-	if errors.Is(err, store.ErrNotFound) {
-		return "", nil
-	}
-	return string(u), err
+	return hosts, err
 }
 
-// JoinURLs returns the address a ticket leads with, and the others to try: the
-// public one when that's known, then the one a server on the same network reaches.
-func (a *Authority) JoinURLs(ctx context.Context) (string, []string, error) {
+func agentHosts(ctx context.Context, tx *store.Tx) ([]string, error) {
+	raw, err := tx.GetSetting(ctx, settingAgentHosts)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var hosts []string
+	if err := json.Unmarshal(raw, &hosts); err != nil {
+		return nil, fmt.Errorf("can't read the hosts join tickets have named: %w. Remove the setting %s, and restart dockwell run", err, settingAgentHosts)
+	}
+	return hosts, nil
+}
+
+// JoinURLs returns the addresses a ticket names, in the order it tries them: the public
+// ones when they're known, then the one a server on the same network reaches.
+func (a *Authority) JoinURLs(ctx context.Context) ([]JoinURL, error) {
 	local, err := a.AgentURL(ctx)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	public, err := a.PublicAgentURL(ctx)
+	urls, err := a.PublicAgentURLs(ctx)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	if public == "" || public == local {
-		return local, nil, nil
+	if !slices.ContainsFunc(urls, func(u JoinURL) bool { return u.URL == local }) {
+		urls = append(urls, JoinURL{URL: local, WayIn: reachedFromAnywhere(local)})
 	}
-	return public, []string{local}, nil
+	return urls, nil
+}
+
+// reachedFromAnywhere reports an agent URL whose host is a name, as a person gave it,
+// or a public address, as on a VPS: not one only its own network reaches.
+func reachedFromAnywhere(agentURL string) bool {
+	u, err := url.Parse(agentURL)
+	if err != nil {
+		return false
+	}
+	ip, err := netip.ParseAddr(u.Hostname())
+	return err != nil || resource.IsPublicAddress(ip)
 }
 
 // InstallID identifies this install.

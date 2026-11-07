@@ -48,6 +48,8 @@ type stack struct {
 	hub    *fleet.Hub
 	agents *agentapi.Agents
 	url    string
+	// addHost has the listener's certificate name one more host.
+	addHost func(string)
 }
 
 // startStack runs the agent listener with short timers on a loopback port.
@@ -98,7 +100,7 @@ func startStackWith(t *testing.T, silence time.Duration, logger *slog.Logger, wi
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	listenerTLS, _ := agentapi.TLSConfig(auth, []string{"127.0.0.1"})
+	listenerTLS, addHost := agentapi.TLSConfig(auth, []string{"127.0.0.1"})
 	go func() {
 		done <- serve.Serve(ctx, ln, h, serve.Options{
 			Name: "agent listener", Logger: logger, TLS: listenerTLS,
@@ -111,7 +113,7 @@ func startStackWith(t *testing.T, silence time.Duration, logger *slog.Logger, wi
 			t.Errorf("agent listener: %v", err)
 		}
 	})
-	return &stack{auth: auth, hub: hub, agents: agents, url: "https://" + ln.Addr().String()}
+	return &stack{auth: auth, hub: hub, agents: agents, url: "https://" + ln.Addr().String(), addHost: addHost}
 }
 
 // enrollLocal makes an identity the way the control server's own agent gets one.
@@ -694,5 +696,32 @@ func TestTheAgentListenerNamesAnAddressFoundLater(t *testing.T) {
 	}
 	if err := got.VerifyHostname("127.0.0.1"); err != nil {
 		t.Errorf("it lost what it had: %v", err)
+	}
+}
+
+// A server joins through an address found after the listener started, once its
+// certificate names it, and not before: a joining server checks the name it dials.
+func TestAJoinGoesThroughAnAddressTheListenerAddedLater(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	_, port, err := net.SplitHostPort(strings.TrimPrefix(s.url, "https://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := "https://localhost:" + port
+	join := func() error {
+		t.Helper()
+		tk, err := s.auth.CreateTicket(t.Context(), later, "cli:test", time.Hour)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = enroll.Join(t.Context(), tk.Value, "hz-2", buildinfo.Read())
+		return err
+	}
+	if err := join(); err == nil {
+		t.Fatal("it joined through a name the certificate doesn't have")
+	}
+	s.addHost("localhost")
+	if err := join(); err != nil {
+		t.Errorf("once the certificate names it: %v", err)
 	}
 }
