@@ -22,7 +22,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { PasskeyError } from "../../lib/webauthn";
 import { useAuthError } from "../auth/messages";
-import { withStepUpIfAsked } from "../auth/stepUp";
+import { StepUpDeclined, withStepUpIfAsked } from "../auth/stepUp";
 import { ServerFrame } from "../servers/ServerFrame";
 import { EmptyState } from "../shell/EmptyState";
 import type { TerminalStatus } from "./session";
@@ -114,6 +114,9 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const [selection, setSelection] = useState(false);
   const [opening, setOpening] = useState(false);
   const [problem, setProblem] = useState<string>();
+  // A container's shell that the agent found as good as root, waiting for the person
+  // to go on to the passkey, or not, once they've read why.
+  const [asking, setAsking] = useState<{ container: string; go: (yes: boolean) => void }>();
   const [lost, setLost] = useState<bigint>();
   const [finding, setFinding] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -147,14 +150,32 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
       // A container's shell asks for a passkey only where the agent finds it as good as root.
       const target = inContainer ? `${serverId}:${inContainer}` : serverId;
       try {
-        const res = await withStepUpIfAsked(transport, StepUpAction.OPEN_TERMINAL, target, (proof) =>
-          client.openTerminal({
-            serverId,
-            columns: want.columns,
-            rows: want.rows,
-            proof,
-            container: inContainer ?? "",
-          }),
+        const res = await withStepUpIfAsked(
+          transport,
+          StepUpAction.OPEN_TERMINAL,
+          target,
+          (proof) =>
+            client.openTerminal({
+              serverId,
+              columns: want.columns,
+              rows: want.rows,
+              proof,
+              container: inContainer ?? "",
+            }),
+          // Only the agent can tell a container reaches as far as root, so the page says
+          // that before the browser asks. A server's terminal said so in its offer.
+          inContainer
+            ? () =>
+                new Promise<boolean>((resolve) =>
+                  setAsking({
+                    container: inContainer,
+                    go: (yes) => {
+                      setAsking(undefined);
+                      resolve(yes);
+                    },
+                  }),
+                )
+            : undefined,
         );
         const opened = res.terminal;
         if (opened) {
@@ -167,7 +188,9 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
       } catch (err) {
         const reason = reasonOf(err);
         const name = server.name;
-        if (reason === "no_passkey_here" && inContainer) {
+        if (err instanceof StepUpDeclined) {
+          // They read why, and chose not to: nothing to say.
+        } else if (reason === "no_passkey_here" && inContainer) {
           setProblem(
             t`${inContainer} reaches as far as root on ${name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to ${name} over SSH.`,
           );
@@ -242,6 +265,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const notice = current ? (
     <Notice
       status={status}
+      root={!current.container || current.title.startsWith("root@")}
       onBringBack={() => handle()?.bringBack()}
       onOpen={() => void open(current.container || undefined)}
       onClose={() => void close(current.id)}
@@ -292,6 +316,29 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
     </EmptyState>
   );
 
+  const askingCallout = asking ? (
+    <Callout
+      tone="warning"
+      title={<Trans>This shell takes your passkey</Trans>}
+      actions={
+        <>
+          <Button size="sm" variant="primary" icon="key" onClick={() => asking.go(true)}>
+            <Trans>Confirm with your passkey</Trans>
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => asking.go(false)}>
+            <Trans>Cancel</Trans>
+          </Button>
+        </>
+      }
+    >
+      <Trans>
+        <code>{asking.container}</code> reaches as far as root on <code>{server.name}</code>: it's privileged, holds
+        Docker's socket, shares the server's network, or mounts a system path, through a volume or a link too. A shell
+        in it is as good as root there, so it takes your passkey.
+      </Trans>
+    </Callout>
+  ) : null;
+
   const problemCallout = problem ? (
     <Callout tone="critical" title={<Trans>No terminal opened</Trans>}>
       {problem}
@@ -303,6 +350,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   // terminal where it is, with its scrollback and what's typed that hasn't gone.
   return (
     <div className={phone ? "terminal-layout terminal-phone" : "terminal-layout"}>
+      {askingCallout}
       {problemCallout}
       <section className={phone ? "terminal-panel" : "dw-panel terminal-panel"} aria-label={t`Terminal sessions`}>
         {phone ? null : (
@@ -486,6 +534,8 @@ function Connection({ status, none }: { status: TerminalStatus | undefined; none
 
 interface NoticeProps {
   status: TerminalStatus | undefined;
+  /** Whether its shell ran as root. */
+  root: boolean;
   onBringBack: () => void;
   onOpen: () => void;
   onClose: () => void;
@@ -493,7 +543,7 @@ interface NoticeProps {
 }
 
 /** What the terminal on screen says over its output when it isn't there to type into. */
-function Notice({ status, onBringBack, onOpen, onClose, opening }: NoticeProps) {
+function Notice({ status, root, onBringBack, onOpen, onClose, opening }: NoticeProps) {
   const words = useEndWords();
   let body: ReactNode = null;
   switch (status?.kind) {
@@ -513,7 +563,7 @@ function Notice({ status, onBringBack, onOpen, onClose, opening }: NoticeProps) 
       );
       break;
     case "ended": {
-      const said = words(status.end);
+      const said = words(status.end, root);
       body = (
         <Callout
           tone={said.tone}

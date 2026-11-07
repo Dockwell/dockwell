@@ -439,6 +439,11 @@ async function main() {
     step("one that's as good as root asks for the passkey, and one with no shell says so");
     await page.goto(`${origin}/servers/${serverId}/terminal?container=admin-1`);
     await page.getByRole("button", { name: "Open a shell" }).click();
+    // It says why before the browser asks, and asks nothing until you go on.
+    await page.getByText("This shell takes your passkey").waitFor();
+    if ((await asserted()) !== before) fail("the passkey was asked for before the page said why");
+    await shoot(page, "container-why");
+    await page.getByRole("button", { name: "Confirm with your passkey" }).click();
     await page.getByRole("tab", { name: "root@admin-1", selected: true }).waitFor({ timeout: 15_000 });
     if ((await asserted()) <= before) fail("a shell in a privileged container opened without the passkey");
     await page.goto(`${origin}/servers/${serverId}/terminal?container=bare-1`);

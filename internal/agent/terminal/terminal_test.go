@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -518,5 +520,35 @@ func TestInputHeldStaysWithinItsLimit(t *testing.T) {
 	term.mu.Unlock()
 	if queued > MaxInput {
 		t.Errorf("holds %d KiB, more than MaxInput", queued>>10)
+	}
+}
+
+// Closing a container's shell signals the PID Docker gave only while Docker still
+// says it's the shell's: one that ended, and whose PID may be another process's
+// now, is left alone.
+func TestClosingSignalsOnlyTheShell(t *testing.T) {
+	other := exec.Command("sleep", "30")
+	other.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := other.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- other.Wait() }()
+	t.Cleanup(func() { _ = other.Process.Kill() })
+	pid := other.Process.Pid
+	signalExec(pid, syscall.SIGTERM, func() bool { return false })
+	select {
+	case err := <-done:
+		t.Fatalf("signalled a process the exec no longer says is its shell: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	signalExec(pid, syscall.SIGTERM, func() bool { return true })
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("the shell exited by itself, rather than on the signal")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the shell wasn't signalled")
 	}
 }

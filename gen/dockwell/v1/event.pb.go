@@ -688,7 +688,9 @@ type EventTerminal struct {
 	// Why it didn't open, for people, on a terminal that didn't.
 	Error string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
 	// The container it ran in, by name, for a shell in a container.
-	Container     string `protobuf:"bytes,6,opt,name=container,proto3" json:"container,omitempty"`
+	Container string `protobuf:"bytes,6,opt,name=container,proto3" json:"container,omitempty"`
+	// That container's full ID.
+	ContainerId   string `protobuf:"bytes,7,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -761,6 +763,13 @@ func (x *EventTerminal) GetError() string {
 func (x *EventTerminal) GetContainer() string {
 	if x != nil {
 		return x.Container
+	}
+	return ""
+}
+
+func (x *EventTerminal) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
 	}
 	return ""
 }
@@ -1158,14 +1167,15 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\fEventSetting\x12\x18\n" +
 	"\asetting\x18\x01 \x01(\tR\asetting\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x1a\n" +
-	"\bprevious\x18\x03 \x01(\tR\bprevious\"\xce\x01\n" +
+	"\bprevious\x18\x03 \x01(\tR\bprevious\"\xf1\x01\n" +
 	"\rEventTerminal\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x127\n" +
 	"\topen_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bopenTime\x12*\n" +
 	"\x03end\x18\x04 \x01(\v2\x18.dockwell.v1.TerminalEndR\x03end\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1c\n" +
-	"\tcontainer\x18\x06 \x01(\tR\tcontainer\"\xe0\x01\n" +
+	"\tcontainer\x18\x06 \x01(\tR\tcontainer\x12!\n" +
+	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\"\xe0\x01\n" +
 	"\vEventBackup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06volume\x18\x02 \x01(\tR\x06volume\x12\x1f\n" +

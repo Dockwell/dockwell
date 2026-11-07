@@ -5,10 +5,9 @@ package agent
 import (
 	"cmp"
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"regexp"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -20,6 +19,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
+	containerdriver "github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
@@ -94,10 +94,19 @@ func (c *calls) adoption(ctx context.Context, call *agentv1.AdoptionCall) (*agen
 }
 
 // ContainerAsGoodAsRoot says whether a container, by its full ID, reaches as far as
-// root on its server, by the rule a plan goes by: what it runs as a service reaches
-// (resource.Access.AsGoodAsRoot). What no service's spec can hold counts too, as
-// what it is can't be told. A shell in such a container takes a passkey (ADR 0037).
-func ContainerAsGoodAsRoot(drivers *resource.Registry) func(ctx context.Context, container string) (bool, error) {
+// root on its server, by the rule a plan goes by (resource.Access.AsGoodAsRoot), and
+// on what it mounts as Docker has it now. A shell in such a container takes a
+// passkey (ADR 0037). It counts as root:
+//   - what it runs as a service reaches, by its spec, and what no service's spec
+//     can hold, as what that is can't be told;
+//   - each server path it binds, by where that leads through symlinks, as a plan's
+//     do (Access.Leading), so a link to /etc or Docker's socket is what it leads to;
+//   - each volume it mounts that binds a server path, by that path and where it
+//     leads, and each on a driver other than local, as what a plugin mounts can't be
+//     told.
+//
+// leads says where server paths lead, for those that lead elsewhere (FollowPaths).
+func ContainerAsGoodAsRoot(drivers *resource.Registry, client *docker.Client, leads func(ctx context.Context, paths ...string) (map[string]string, error)) func(ctx context.Context, container string) (bool, error) {
 	return func(ctx context.Context, container string) (bool, error) {
 		d, err := drivers.Driver(service.Kind)
 		if err != nil {
@@ -114,38 +123,74 @@ func ContainerAsGoodAsRoot(drivers *resource.Registry) func(ctx context.Context,
 		if len(read.Refused) > 0 || read.Invalid != "" {
 			return true, nil
 		}
+		var reaches []resource.Access
 		if h, ok := d.(resource.HostAccesser); ok {
-			reaches := h.HostAccess(read.Spec)
-			for i := range reaches {
-				if reaches[i].AsGoodAsRoot() {
-					return true, nil
-				}
+			reaches = h.HostAccess(read.Spec)
+		}
+		mounted, root, err := mountedAccess(ctx, client, container)
+		if err != nil || root {
+			return true, err
+		}
+		reaches = append(reaches, mounted...)
+		var paths []string
+		for i := range reaches {
+			if reaches[i].Kind == resource.AccessPath || reaches[i].Kind == resource.AccessDocker {
+				paths = append(paths, reaches[i].Path)
+			}
+		}
+		led, err := leads(ctx, paths...)
+		if err != nil {
+			return true, err
+		}
+		for i := range reaches {
+			if reaches[i].Leading(led[path.Clean(reaches[i].Path)]).AsGoodAsRoot() {
+				return true, nil
 			}
 		}
 		return false, nil
 	}
 }
 
-// containerFilter asks Docker for one container, exactly: a name goes through its
-// filter as a whole, so one that a prefix of an ID would also match can't find
-// another container (ADR 0021).
-func containerFilter(ref string) map[string][]string {
-	switch {
-	case ref == "":
-		return nil
-	case isFullID(ref):
-		return map[string][]string{"id": {ref}}
+// mountedAccess is what a container's mounts reach on its server, as Docker has
+// them now: each server path it binds, and the one each volume binds. root is true
+// for a volume on a driver other than local, as where that mounts from can't be told.
+func mountedAccess(ctx context.Context, client *docker.Client, container string) (reaches []resource.Access, root bool, err error) {
+	if client == nil {
+		return nil, true, errors.New("this agent can't reach Docker to read what the container mounts")
 	}
-	return map[string][]string{"name": {"^/" + regexp.QuoteMeta(ref) + "$"}}
+	c, err := client.InspectContainer(ctx, container)
+	if err != nil {
+		return nil, true, err
+	}
+	for _, m := range c.Mounts {
+		switch m.Type {
+		case "bind":
+			reaches = append(reaches, containerdriver.PathAccess(m.Source, !m.RW))
+		case "volume":
+			v, err := client.InspectVolume(ctx, m.Name)
+			if err != nil {
+				return nil, true, fmt.Errorf("can't read the volume %s it mounts: %w", m.Name, err)
+			}
+			if v.Driver != "" && v.Driver != "local" {
+				return nil, true, nil
+			}
+			if dev, ok := containerdriver.BindDevice(v.Driver, v.Options); ok {
+				reaches = append(reaches, containerdriver.PathAccess(dev, !m.RW))
+			}
+		}
+	}
+	return reaches, false, nil
 }
 
-func isFullID(ref string) bool {
-	if len(ref) != 64 {
-		return false
-	}
-	_, err := hex.DecodeString(ref)
-	return err == nil
+// FollowPaths says where server paths lead on this server, for those that lead
+// elsewhere, with the resolver a plan's Leads uses. Paths.Follow, which records
+// each link a path passes, takes its place once it's on main (#200).
+func FollowPaths(_ context.Context, paths ...string) (map[string]string, error) {
+	return containerdriver.Host{Resolve: containerdriver.Resolve}.Leads(paths...)
 }
+
+// containerFilter asks Docker for one container, exactly (docker.Exactly).
+func containerFilter(ref string) map[string][]string { return docker.Exactly(ref) }
 
 // serverContainer is what the API says of a container: a list's fields, and of its
 // labels only those that say which Compose project it is in, as anything else in
@@ -253,7 +298,7 @@ func mountsOf(mounts []docker.MountPoint) []*dockwellv1.ContainerMount {
 		c := &dockwellv1.ContainerMount{Target: m.Destination, ReadOnly: !m.RW}
 		switch m.Type {
 		case "volume":
-			c.Volume, c.Anonymous = m.Name, isFullID(m.Name)
+			c.Volume, c.Anonymous = m.Name, docker.IsFullID(m.Name)
 		case "bind":
 			c.HostPath = m.Source
 		default:

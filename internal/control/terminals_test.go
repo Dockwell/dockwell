@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -585,9 +587,9 @@ func testAShellInAContainer(t *testing.T, backend store.Backend) {
 	id := f.lastDocker.id.ServerID
 	e.AddLocalImage("acme/app:1", dockertest.Image{Shell: "/bin/sh"})
 	e.AddLocalImage("acme/distroless:1", dockertest.Image{})
-	e.AddContainer(docker.Container{Name: "/app-1", Config: docker.Config{Image: "acme/app:1", User: "node:node"}})
+	app := e.AddContainer(docker.Container{Name: "/app-1", Config: docker.Config{Image: "acme/app:1", User: "node:node"}})
 	e.AddContainer(docker.Container{Name: "/bare-1", Config: docker.Config{Image: "acme/distroless:1"}})
-	e.AddContainer(docker.Container{Name: "/admin-1", Config: docker.Config{Image: "acme/app:1"}, HostConfig: docker.HostConfig{Privileged: true}})
+	admin := e.AddContainer(docker.Container{Name: "/admin-1", Config: docker.Config{Image: "acme/app:1"}, HostConfig: docker.HostConfig{Privileged: true}})
 	e.AddContainer(docker.Container{Name: "/stopped-1", Config: docker.Config{Image: "acme/app:1"}, State: docker.State{Status: "exited"}})
 	c := terminalClient(b, b.origin)
 	open := func(container, proof string) (*dockwellv1.Terminal, error) {
@@ -630,6 +632,11 @@ func testAShellInAContainer(t *testing.T, backend store.Backend) {
 	if _, err := open("app 1", ""); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Errorf("a container named with a space = %v", err)
 	}
+	// A container is named by its whole name or full ID, never the start of one, as
+	// ADR 0021 has it.
+	if _, err := open(app.ID[:12], ""); err == nil || !strings.Contains(err.Error(), "there's no container "+app.ID[:12]) {
+		t.Errorf("a shell in a container named by the start of its ID = %v", err)
+	}
 
 	_, err = open("admin-1", "")
 	if reasonOf(err) != authapi.ReasonNeedsStepUp || !strings.Contains(err.Error(), "admin-1 reaches as far as root") {
@@ -643,8 +650,72 @@ func testAShellInAContainer(t *testing.T, backend store.Backend) {
 		t.Fatalf("a shell in admin-1 with its proof = %v, %v", root, err)
 	}
 	opening := waitForTerminalEvent(t, b, id, "terminal.open")
-	if opening.GetTerminal().GetContainer() == "" {
+	if opening.GetTerminal().GetContainer() != "admin-1" || opening.GetTerminal().GetContainerId() != admin.ID {
 		t.Errorf("its opening doesn't say which container: %v", opening.GetTerminal())
+	}
+	// Opened by its full ID, what goes on record is the container: its name and ID.
+	byID, err := open(admin.ID, stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL, id+":"+admin.ID))
+	if err != nil || byID.GetContainer() != "admin-1" {
+		t.Fatalf("a shell in admin-1 by its ID = %v, %v", byID, err)
+	}
+
+	// What a container mounts counts as where it leads, as Docker has it now: a
+	// volume that binds a server path, by -v or by --mount, a volume on a driver
+	// other than local, and a bind through a symlink. Each of these reaches as far as
+	// root, so a shell in it takes a passkey. A plain volume doesn't.
+	links := t.TempDir()
+	for name, to := range map[string]string{"etc": "/etc", "sock": "/var/run/docker.sock", "root": "/"} {
+		if err := os.Symlink(to, filepath.Join(links, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	binds := func(dev string) map[string]string {
+		return map[string]string{"type": "none", "o": "bind", "device": dev}
+	}
+	e.AddVolume(docker.Volume{Name: "binds-etc", Driver: "local", Options: binds("/etc")})
+	e.AddVolume(docker.Volume{Name: "binds-root", Driver: "local", Options: binds("/")})
+	e.AddVolume(docker.Volume{Name: "binds-run", Driver: "local", Options: binds("/var/run")})
+	e.AddVolume(docker.Volume{Name: "on-a-plugin", Driver: "rexray/ebs"})
+	e.AddVolume(docker.Volume{Name: "plain", Driver: "local"})
+	withVolume := func(name, vol string, byMount bool) *docker.Container {
+		c := &docker.Container{
+			Name: "/" + name, Config: docker.Config{Image: "acme/app:1"},
+			Mounts: []docker.MountPoint{{Type: "volume", Name: vol, Destination: "/data", RW: true}},
+		}
+		if byMount {
+			c.HostConfig.Mounts = []docker.Mount{{Type: "volume", Source: vol, Target: "/data"}}
+		} else {
+			c.HostConfig.Binds = []string{vol + ":/data"}
+		}
+		return c
+	}
+	withBind := func(name, source string) *docker.Container {
+		return &docker.Container{
+			Name: "/" + name, Config: docker.Config{Image: "acme/app:1"},
+			HostConfig: docker.HostConfig{Binds: []string{source + ":/host"}},
+			Mounts:     []docker.MountPoint{{Type: "bind", Source: source, Destination: "/host", RW: true}},
+		}
+	}
+	for _, ctr := range []*docker.Container{
+		withVolume("vol-etc-1", "binds-etc", false),
+		withVolume("vol-root-1", "binds-root", true),
+		withVolume("vol-run-1", "binds-run", false),
+		withVolume("vol-run-2", "binds-run", true),
+		withVolume("plugin-1", "on-a-plugin", false),
+		withBind("link-etc-1", filepath.Join(links, "etc")),
+		withBind("link-sock-1", filepath.Join(links, "sock")),
+		withBind("link-root-1", filepath.Join(links, "root")),
+	} {
+		e.AddContainer(*ctr)
+		name := strings.TrimPrefix(ctr.Name, "/")
+		if _, err := open(name, ""); reasonOf(err) != authapi.ReasonNeedsStepUp || !strings.Contains(err.Error(), name+" reaches as far as root") {
+			t.Errorf("a shell in %s with no passkey = %v", name, err)
+		}
+	}
+	e.AddContainer(*withVolume("data-1", "plain", false))
+	plain, err := open("data-1", "")
+	if err != nil || plain.GetTitle() != "root@data-1" {
+		t.Errorf("a shell in a container with a plain volume = %v, %v", plain, err)
 	}
 }
 

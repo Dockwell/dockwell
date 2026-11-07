@@ -5080,6 +5080,9 @@ components:
                 container:
                     type: string
                     description: The container it ran in, by name, for a shell in a container.
+                containerId:
+                    type: string
+                    description: That container's full ID.
             description: |-
                 EventTerminal is a terminal on a server, as its opening or closing tells of it.
                  What was typed and printed in it is never kept.

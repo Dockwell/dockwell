@@ -2492,7 +2492,11 @@ type OpenTerminalResult struct {
 	Opened *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=opened,proto3" json:"opened,omitempty"`
 	// True when the container is as good as root on the server and no passkey
 	// confirmed it, so nothing was opened.
-	NeedsStepUp   bool `protobuf:"varint,3,opt,name=needs_step_up,json=needsStepUp,proto3" json:"needs_step_up,omitempty"`
+	NeedsStepUp bool `protobuf:"varint,3,opt,name=needs_step_up,json=needsStepUp,proto3" json:"needs_step_up,omitempty"`
+	// For a shell in a container, the container the call named, exactly, as Docker
+	// has it: its full ID and its name. Set with needs_step_up too.
+	ContainerId   string `protobuf:"bytes,4,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	ContainerName string `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2546,6 +2550,20 @@ func (x *OpenTerminalResult) GetNeedsStepUp() bool {
 		return x.NeedsStepUp
 	}
 	return false
+}
+
+func (x *OpenTerminalResult) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *OpenTerminalResult) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
+	}
+	return ""
 }
 
 // AttachTerminalCall has the agent open Terminal for a terminal, and carry its
@@ -6719,11 +6737,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04rows\x18\x03 \x01(\rR\x04rows\x12\x16\n" +
 	"\x06record\x18\x04 \x01(\tR\x06record\x12\x1c\n" +
 	"\tcontainer\x18\x05 \x01(\tR\tcontainer\x12\x1c\n" +
-	"\tconfirmed\x18\x06 \x01(\bR\tconfirmed\"\x82\x01\n" +
+	"\tconfirmed\x18\x06 \x01(\bR\tconfirmed\"\xcc\x01\n" +
 	"\x12OpenTerminalResult\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x122\n" +
 	"\x06opened\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06opened\x12\"\n" +
-	"\rneeds_step_up\x18\x03 \x01(\bR\vneedsStepUp\"\x82\x01\n" +
+	"\rneeds_step_up\x18\x03 \x01(\bR\vneedsStepUp\x12!\n" +
+	"\fcontainer_id\x18\x04 \x01(\tR\vcontainerId\x12%\n" +
+	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName\"\x82\x01\n" +
 	"\x12AttachTerminalCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06stream\x18\x02 \x01(\x04R\x06stream\x12\x16\n" +

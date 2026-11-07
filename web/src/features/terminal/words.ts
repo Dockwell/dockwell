@@ -7,7 +7,8 @@ import { useLingui } from "@lingui/react/macro";
 /** Why a terminal ended, for people. */
 export function useEndWords() {
   const { t } = useLingui();
-  return (end: TerminalEnd | undefined): { title: string; tone: Tone; text: string } => {
+  /** root says the shell ran as root, as a server's always does and a container's may. */
+  return (end: TerminalEnd | undefined, root = true): { title: string; tone: Tone; text: string } => {
     switch (end?.reason) {
       case TerminalEndReason.EXITED: {
         const code = end.exitCode;
@@ -31,7 +32,9 @@ export function useEndWords() {
         return {
           title: t`This terminal closed`,
           tone: "warning",
-          text: t`Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open.`,
+          text: root
+            ? t`Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open.`
+            : t`Nothing was typed into it for an hour, so its shell hung up, rather than leave it open.`,
         };
       case TerminalEndReason.SIGNED_OUT:
         return { title: t`This terminal closed`, tone: "info", text: t`The session that opened it ended.` };

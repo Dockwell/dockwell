@@ -147,8 +147,8 @@ cleanup() {
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
-  docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
-  docker volume rm e2e-by-hand-data e2e-take-on-data >/dev/null 2>&1 || true
+  docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none e2e-shell-vol e2e-shell-link e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker volume rm e2e-by-hand-data e2e-take-on-data e2e-shell-etc >/dev/null 2>&1 || true
   docker network rm e2e-by-hand-net >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
@@ -3885,6 +3885,12 @@ docker run -d --name e2e-shell-ash alpine:3.20 sleep 600 >/dev/null || fail "can
 docker run -d --name e2e-shell-bash --user nobody nginx:1.27 sleep 600 >/dev/null || fail "can't run nginx"
 docker run -d --name e2e-shell-root --privileged alpine:3.20 sleep 600 >/dev/null || fail "can't run a privileged alpine"
 docker run -d --name e2e-shell-none registry.k8s.io/pause:3.10 >/dev/null || fail "can't run the pause image"
+# What it mounts counts as where that leads: a volume that binds /etc, and a bind of a
+# link to /etc, each from a container that's otherwise ordinary.
+docker volume create --driver local -o type=none -o o=bind -o device=/etc e2e-shell-etc >/dev/null || fail "can't make a volume that binds /etc"
+ln -sfn /etc "$rollout_dir/etc-link" || fail "can't make a link to /etc"
+docker run -d --name e2e-shell-vol -v e2e-shell-etc:/host-etc:ro alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine with a volume that binds /etc"
+docker run -d --name e2e-shell-link -v "$rollout_dir/etc-link:/host-etc:ro" alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine with a link to /etc"
 # shellcheck disable=SC2016 # the line is for the container's shell to expand
 in_shell() { "$shell" "http://localhost:$port" "$cookie" "$passkey" "$own_id" "$1" 'echo "in-$((6*7)) $0 $(id -un)"'; }
 said=$(in_shell e2e-shell-ash) || fail "a shell in alpine failed: $said"
@@ -3895,8 +3901,13 @@ grep -q 'in-42 /bin/bash nobody' <<<"$said" || fail "a shell in nginx isn't bash
 said=$(in_shell e2e-shell-root) || fail "a shell in a privileged container failed: $said"
 grep -q '^passkey: true' <<<"$said" || fail "a shell in a privileged container opened with no passkey: $said"
 grep -q 'in-42 /bin/ash root' <<<"$said" || fail "a shell in a privileged alpine isn't ash: $said"
+for name in e2e-shell-vol e2e-shell-link; do
+  said=$(in_shell "$name") || fail "a shell in $name failed: $said"
+  grep -q '^passkey: true' <<<"$said" || fail "a shell in $name, which reaches /etc, opened with no passkey: $said"
+done
 if said=$(in_shell e2e-shell-none 2>&1); then fail "a shell opened in the pause image, which has none: $said"; fi
 [[ "$said" == *"has none of /bin/bash, /bin/ash and /bin/sh"* ]] || fail "a container with no shell was refused saying: $said"
-docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none >/dev/null || fail "removing the shells' containers failed"
+docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none e2e-shell-vol e2e-shell-link >/dev/null || fail "removing the shells' containers failed"
+docker volume rm e2e-shell-etc >/dev/null || fail "removing the volume that binds /etc failed"
 
 echo "docker-e2e: ok"

@@ -491,6 +491,10 @@ message OpenTerminalResult {
   // True when the container is as good as root on the server and no passkey
   // confirmed it, so nothing was opened.
   bool needs_step_up = 3;
+  // For a shell in a container, the container the call named, exactly, as Docker
+  // has it: its full ID and its name. Set with needs_step_up too.
+  string container_id = 4;
+  string container_name = 5;
 }
 
 // AttachTerminalCall has the agent open Terminal for a terminal, and carry its

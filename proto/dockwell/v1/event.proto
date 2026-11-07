@@ -189,6 +189,8 @@ message EventTerminal {
   string error = 5;
   // The container it ran in, by name, for a shell in a container.
   string container = 6;
+  // That container's full ID.
+  string container_id = 7;
 }
 
 // EventBackup is what became of one backup.

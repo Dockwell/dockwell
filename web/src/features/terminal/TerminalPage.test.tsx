@@ -297,6 +297,13 @@ describe("TerminalPage", () => {
       auth: { getAuthState: () => authState(), beginStepUp, finishStepUp: () => ({ proof: "proof_1" }) },
     });
     await userEvent.click(await screen.findByRole("button", { name: "Open a shell" }));
+    // It says why before the browser asks.
+    const why = await screen.findByText("This shell takes your passkey");
+    expect(why.closest(".dw-callout")).toHaveTextContent(
+      "admin-1 reaches as far as root on hz-1: it's privileged, holds Docker's socket, shares the server's network, or mounts a system path, through a volume or a link too.",
+    );
+    expect(beginStepUp).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm with your passkey" }));
     expect(await screen.findByRole("tab", { name: "root@admin-1", selected: true })).toBeInTheDocument();
     expect(beginStepUp).toHaveBeenCalledWith(
       expect.objectContaining({ action: StepUpAction.OPEN_TERMINAL, target: "srv_1:admin-1" }),
@@ -306,6 +313,35 @@ describe("TerminalPage", () => {
       ["admin-1", ""],
       ["admin-1", "proof_1"],
     ]);
+  });
+
+  it("asks nothing of the passkey when you'd rather not, once it's said why", async () => {
+    const openTerminal = vi.fn().mockRejectedValue(authError(Code.PermissionDenied, "needs_step_up"));
+    const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
+    renderAt("/servers/srv_1/terminal?container=admin-1", {
+      servers: { watchServers },
+      terminals: { listTerminals: () => ({}), openTerminal },
+      auth: { getAuthState: () => authState(), beginStepUp },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Open a shell" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("This shell takes your passkey")).toBeNull();
+    expect(screen.queryByText("No terminal opened")).toBeNull();
+    expect(beginStepUp).not.toHaveBeenCalled();
+    expect(openTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it("says a shell that wasn't root hung up, not a root shell", async () => {
+    const sh = shell("$ ", { reason: TerminalEndReason.IDLE });
+    renderTerminal({
+      listTerminals: () => ({ terminals: [{ ...term("trm_1", "node@web-1"), container: "web-1" }] }),
+      attachTerminal: sh.attachTerminal,
+    });
+    expect(
+      await screen.findByText(
+        "Nothing was typed into it for an hour, so its shell hung up, rather than leave it open.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("takes the phone's screen under a header of its own", async () => {

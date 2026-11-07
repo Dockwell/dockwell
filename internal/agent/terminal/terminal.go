@@ -255,10 +255,11 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 	var (
 		proc  process
 		title string
+		in    found
 		err   error
 	)
 	if container := call.GetContainer(); container != "" {
-		proc, title, err = m.startInContainer(ctx, container, call.GetConfirmed(), cols, rows)
+		proc, title, in, err = m.startInContainer(ctx, container, call.GetConfirmed(), cols, rows)
 	} else {
 		proc, title, err = m.startOnServer(cols, rows)
 	}
@@ -267,13 +268,13 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 		delete(m.open, id)
 		m.mu.Unlock()
 		if errors.Is(err, ErrNeedsStepUp) {
-			return &agentv1.OpenTerminalResult{NeedsStepUp: true}, nil
+			return &agentv1.OpenTerminalResult{NeedsStepUp: true, ContainerId: in.id, ContainerName: in.name}, nil
 		}
 		return nil, err
 	}
 	t.begin(proc, title)
 	m.logger.Info("opened a terminal", slog.String("terminal", id), slog.String("as", title))
-	return &agentv1.OpenTerminalResult{Title: t.title, Opened: timestamppb.New(t.opened)}, nil
+	return &agentv1.OpenTerminalResult{Title: t.title, Opened: timestamppb.New(t.opened), ContainerId: in.id, ContainerName: in.name}, nil
 }
 
 // Close hangs up a terminal's shell, and says how it ended.
