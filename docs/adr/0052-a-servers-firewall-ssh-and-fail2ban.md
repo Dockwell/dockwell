@@ -9,7 +9,7 @@ The PRD makes a server's firewall, fail2ban and SSH hardening a launch requireme
 
 What exists: the `firewall.rule` kind, its driver in `internal/resource/firewall`, and an in-memory backend. No agent registers the driver, so a rule can be planned and runs nowhere.
 
-Each of the three decides who reaches the server. A wrong rule can lock its owner out of SSH, of the panel, or, on the control server, every agent out of the control plane. Server-Firewall.dc.html answers that the way routers and cloud consoles do: a change applies, and rolls back on its own unless someone confirms within 60 s that they still have access. A design review of this record (#288) found that the timer alone protects much less than it seems, and this record is built around what it doesn't cover.
+Each of the three decides who reaches the server. A wrong rule can lock its owner out of SSH, of the panel, or, on the control server, every agent out of the control plane. Server-Firewall.dc.html answers that the way routers and cloud consoles do: a change applies, and rolls back on its own unless someone confirms within 60 s that they still have access. A design review of this record (#288) found that the timer alone protects much less than it seems, and a narrow check of the revision found where the checks around it were still undefined. This record is built around what the timer doesn't cover.
 
 Servers arrive with a firewall already: ufw on Ubuntu, firewalld on AlmaLinux, Docker's own rules everywhere, sometimes plain nftables or iptables-legacy a person wrote. Dockwell is a guest on them, as it is with containers it didn't make ([ADR 0031](0031-containers-dockwell-didnt-make.md)).
 
@@ -30,15 +30,24 @@ nftables runs every base chain on a hook, in every table, and a packet passes on
 - **Inbound is allowed by default, until someone chooses otherwise.** A server Dockwell meets keeps working as it did. Deny everything else, the mock's fixed last rule, is a policy a person turns on, `firewall.policy`, which is a resource like a rule and so a plan too. Turning it on lists, in the plan, every port something on the server listens on that no rule allows. The owner decided this on 2026-11-07: a default of deny would need every server's ports listed before it joined to be safe, where this leaves each as it was until someone closes it on purpose.
 - **Rules apply in a fixed order, whatever order they were made in:** what's always allowed, then every allow, then every deny, then the policy. `FirewallRule` has no order of its own, so that's what decides which wins. With inbound open by default, an allow matters only as an exception to a deny or to the policy. The plan names any rule another makes useless, such as an allow no deny or policy narrows.
 - **What keeps the server reachable is always allowed, and comes first:** traffic of connections already open; loopback; ICMP's and ICMPv6's errors, types 1 to 4, and IPv6 neighbor and router discovery, types 133 to 137 with a hop limit of 255; DHCPv4 and DHCPv6 replies, so a lease renews; and invalid packets are dropped. On the control server, the agent listener and the panel's own ports are pinned too. A rule that would deny one of these is refused when it's planned, saying which it would cut.
-- **On a control server with no domain, SSH is a panel port.** The panel is then only on `127.0.0.1:7600`, reached by `ssh -L` (ADR 0011), so the SSH port, read from `sshd -T` and not assumed to be 22, is pinned too, at least from the address in use now. With a domain, 80 and 443 may be narrowed under the timer, but a source list that leaves out the address the person is using now is refused.
+- **SSH is pinned on every server, from where people come in now, on the ports it listens on now,** whenever a rule or the policy would narrow it ([What SSH's pin holds](#what-sshs-pin-holds)). On a control server with no domain, it's also how the panel is reached.
+- **On a control server whose panel route trusts proxies** ([ADR 0030](0030-routes-behind-a-tunnel-or-a-proxy.md)), a rule that narrows 80 or 443 is refused: every request reads as the proxy's, so Dockwell can't tell whose address to keep. With a domain and no proxy, 80 and 443 may be narrowed under the timer, but a source list that leaves out the address the person is using now is refused.
 - **Under deny everything else, containers still reach the host,** as an app reaches a database on the host's address; the plan says so.
+
+### What SSH's pin holds
+
+The pin is a rule of the always-allowed part: SSH's ports, from the addresses people use for SSH now. It's worked out when a change is planned, and again on the server just before it applies.
+
+- **Addresses come from the sshd connections open now,** read from the kernel's socket table: every established TCP connection whose local port is one SSH listens on, with its peer's address. All of them are pinned, IPv4 and IPv6 alike. The request's own address isn't used: with no domain, the panel comes over `ssh -L` from `127.0.0.1`, which is loopback and pins nothing.
+- **With no sshd connection open from outside the server,** as when the person comes in over Tailscale to the panel, or through a tunnel, a rule that narrows SSH is refused, saying to open an SSH session from where they'll come in and plan again.
+- **Ports are every port SSH listens on now:** what `sshd` holds, or, under socket activation, what `ssh.socket` holds (its `ListenStream` lines, which Ubuntu 24.04's generator writes from `sshd_config`), plus the local port of each session open now. `sshd -T`'s `port` and `listenaddress` lines are a cross-check only: several `Port` lines, a `ListenAddress` with a port of its own, or a socket unit each make them wrong on their own. The confirm dialog names its port from the same set.
 
 ### Where each rule goes
 
 Each rule goes in both places a packet can arrive:
 
 - **The input chain,** for what listens on the host, and for what Docker's userland proxy accepts, which arrives there: IPv6 to an IPv4-only published port, and hairpin traffic from the host to itself.
-- **The forward chain, for ports Docker publishes.** It matches traffic Docker translated (`ct status dnat`) by the port it arrived on, `meta l4proto tcp ct original proto-dst 8080`, so `8080/tcp` means what a person means by it: the port on the server. It matches only traffic arriving on an interface that isn't one of Docker's, and the agent takes Docker's interface names from Docker's network list, not by matching `br-*`.
+- **The forward chain, for ports Docker publishes.** It matches traffic Docker translated (`ct status dnat`) by the port it arrived on, `meta l4proto tcp ct original proto-dst 8080`, so `8080/tcp` means what a person means by it: the port on the server. It matches only traffic arriving on an interface that isn't one of Docker's, by name (`iifname`), as Docker's interfaces don't exist yet at boot and `iif` would fail the load. The agent takes Docker's interface names from Docker's network list, not by matching `br-*`, and builds the table again when Docker's networks change, so a new Compose bridge doesn't count as outside.
 
 Both chains hook at `filter`, priority 0: a chain at -200 or lower runs before connection tracking, and couldn't see `ct original`. Traffic between containers, and from them out, is never filtered, and outbound is never filtered: the agent's stream to the control plane goes out, and so do the packages, images and certificates a server fetches.
 
@@ -48,32 +57,62 @@ Both chains hook at `filter`, priority 0: a chain at -200 or lower runs before c
 
 A change to the firewall or to SSH applies, then waits for a confirmation:
 
-1. Each agent the change reaches applies all of that change's steps for its server in one transaction, under one timer of 60 s, keeping what they replaced. One confirmation covers the change, not each step.
-2. The step's Verify waits up to 90 s, the timer and room for its answer to come back, for the agent's verdict.
-3. **The agent decides.** The step passes only on its "kept" answer, sent once a confirmation reached it before the timer ran out. A confirmation that arrives after gets "already rolled back", and the step fails. Confirming and running out can't both win: the agent takes whichever comes first.
-4. If the timer runs out, the agent puts the old rules back on its own, without the control plane, which it may no longer reach, and the change rolls back as any failed change does.
-5. **Automatic rollbacks, and steps that change nothing, apply with no timer.** A rollback restores what was confirmed before, so it needs no confirmation of its own, and has nothing to race.
-6. The agent records a spec as what it should hold only once it's confirmed, so its cache of desired state (#32) never re-applies rules that were rolled back.
+1. **One waiting change per server.** Every kind under the timer (`firewall.rule`, `firewall.policy`, `ssh.config`, and a `fail2ban.jail` that moves with SSH's port) also claims one shared item per server, the server's access, so the engine refuses a second change on that server as busy (`ErrBusy`) until the first is kept or rolled back. Without it, two rules, a rule and the policy, or a rule and `ssh.config` could wait at once, and the first to run out would put back a table without the second.
+2. Each agent the change reaches applies all of that change's steps for its server in one transaction, under one timer of 60 s. One confirmation covers the change, not each step.
+3. The step's Verify waits up to 90 s, the timer and room for its answer to come back, for the agent's verdict.
+4. **The agent decides.** The step passes only on its "kept" answer, sent once a confirmation reached it before the timer ran out. The agent records the change as confirmed on disk before it answers "kept". A confirmation that arrives after gets "already rolled back", and the step fails. Confirming and running out can't both win: the agent takes whichever comes first. The control plane refuses a confirm for a change it has already failed.
+5. **If the timer runs out, the agent rolls back to the last confirmed specs,** not to a snapshot taken when the change began: the table, the SSH drop-in and any jail, rebuilt from what was last confirmed, on its own, without the control plane, which it may no longer reach. The change then rolls back as any failed change does.
+6. **A waiting change outlives the call and the stream that started it.** [ADR 0017](0017-the-change-api-and-the-agent-stream.md) cancels a call when its stream ends, but the agent's timer and its record of the waiting change are its own: a dropped stream doesn't cancel them, and the verdict goes to the control plane once it's back.
+7. **A resumed step waits for the verdict.** A control plane that stops interrupts a change, and Resume plans its steps again (ADR 0017). The agent reports a waiting change as waiting, by its change ID, not as the live table, so a resumed step waits for that change's verdict rather than reading the waiting table as done. Whether a step changes nothing is judged against the last confirmed state, not the live one.
+8. **Automatic rollbacks, and steps that change nothing, apply with no timer.** A rollback restores what was confirmed before, so it needs no confirmation of its own, and has nothing to race.
+9. The agent records a spec as what it should hold only once it's confirmed, so its cache of desired state (#32) never re-applies rules that were rolled back.
 
 **The timer protects only what the person tests.** Open connections stay allowed, and reloading sshd keeps open sessions, so a click over the panel connection they already have succeeds after almost any change. So:
 
-- **The confirm dialog names the test:** "Open a new SSH session to port 22 from where you are now, then confirm." For a change to the panel's ports, it's a new tab on the panel's address.
-- **Where it can, the control plane tests on its own before it confirms:** a fresh TCP connection to the server's SSH port, and a fresh connection to its agent, not the stream already open, and the person sees what each found.
+- **The confirm dialog names the test:** "Open a new SSH session to port 22 from where you are now, with your key, then confirm." For a change to the panel's ports, it's a new tab on the panel's address. A change that reaches several servers opens the dialog once all have applied, and counts down to the earliest timer.
+- **The control plane checks SSH on its own, before and after,** on a server that isn't the control server:
+  - It opens a fresh TCP connection to each pinned SSH port, from the control plane, and reads the server's SSH banner (`SSH-2.0-`), once before the change applies and once after.
+  - It gates the confirmation only when the check before passed and the plan expects the control plane's own address to stay allowed. A failure after then means the table doesn't do what the plan said: the control plane withholds the confirmation, and the timer rolls back.
+  - Otherwise it says "can't tell from here", never a pass. The check comes from the control plane's address, not the person's, so it can't say whether the person's next login works.
+  - On the control server it's skipped: connecting to its own SSH goes over loopback, which is always allowed.
+  - There is no check of the agent. Agents dial out ([ADR 0007](0007-one-binary-two-roles.md)), so the control plane can't open a connection to one, and the agent's stream is outbound and stays open whatever the table holds.
 - **The rest is checked before anything applies,** at plan time, by the rules above and below: what's pinned, and that someone can still sign in.
 
-**The table stays in place.** At start, before it connects anywhere, the agent loads the last confirmed table; a change that was unconfirmed when it stopped reverts at once, so a reboot inside the 60 s rolls back. On every reconcile, it compares the table with what it wrote, puts it back if something changed or removed it, such as `nft flush ruleset`, which Debian's default `nftables.service` runs as it starts, and puts that drift on Activity. A small unit ordered before the network and Docker loads the last confirmed table at boot, so published ports aren't open with no Dockwell rules until the agent starts; on OpenRC the same runs as an early service. Until that unit ships, the tab says so.
+### What a restart or a reboot keeps
+
+**Only what's confirmed survives a restart.** At start, before it connects anywhere, the agent reverts the whole of a change that was unconfirmed when it stopped: the table, the SSH drop-in, with sshd reloaded, and a jail moved with the port. It then loads the last confirmed table.
+
+**A unit at boot puts back every file under the timer, from its confirmed copy.** The agent keeps a confirmed copy of each file it writes under the timer, written as it records the confirmation: the table, `00-dockwell.conf`, and Dockwell's jail file. The unit, `dockwell-access.service`, copies each back and loads the table, so a reboot inside the 60 s comes up with what was confirmed, SSH included, and published ports aren't open with no Dockwell rules until the agent starts:
+
+- It runs `nft -f` on the confirmed table and plain copies of the confirmed files, not `dockwell`, so a broken binary still loads the table.
+- It's ordered `After=nftables.service`, as Debian's runs `nft -f /etc/nftables.conf`, whose shipped file starts with `flush ruleset`, and `Before=network-pre.target docker.service ssh.service sshd.service ssh.socket fail2ban.service`.
+- On OpenRC the same runs as an early service, after `nftables` and before `net`, `docker`, `sshd` and `fail2ban`.
+- `dockwell --uninstall` removes the unit and the table. The SSH drop-in and the jail file stay, as removing them would change who can sign in, and it says where they are.
+- Until the unit ships, the tab says so.
+
+**Drift is checked every minute, while the table is Dockwell's.** The agent lists `inet dockwell` once a minute, compares it with what it read back right after loading it, and puts it back if something changed or removed it, as `nft flush ruleset` does, and as Debian's `nftables.service` does when it's started, reloaded or restarted on an upgrade. Each time, it puts the drift on Activity. It doesn't wait for the cache of desired state (#32), which isn't built.
+
+**There's a way out on the server.** Once a bad rule is confirmed, `nft delete table inet dockwell` is undone by the drift check within a minute and by the unit at the next boot. So `dockwell firewall off`, run as root on the server, turns Dockwell's table off: it deletes the table and leaves a mark that the drift check and the unit both honour. Activity shows it as drift, with who on the server turned it off if the kernel says. Turning it back on is a change from the panel, with a plan.
 
 ### SSH
 
 SSH hardening is a resource, `ssh.config`: whether passwords and root may sign in, and the port. Who may reach the port isn't a second setting of its own: the SSH card reads and edits the firewall rules for sshd's port, so it's in one place.
 
 - **It's written to `/etc/ssh/sshd_config.d/00-dockwell.conf`,** a drop-in of Dockwell's own. sshd keeps the first value it reads, and reads drop-ins in name order before the main file, so `00-` comes before Ubuntu's `50-cloud-init.conf` and RHEL 9's `50-redhat.conf`.
-- **After writing it, the agent reads `sshd -T` and refuses a change whose values in effect differ from the spec,** naming the file that wins, as an open `Match` block in an earlier file can. `sshd -t` passes in all of those cases, so it isn't enough. The tab shows the values in effect, not what Dockwell wrote.
+- **A change goes in this order:** write the file, run `sshd -t`, run `sshd -T` and compare its values with the spec, and reload only then. On a mismatch, the old file goes back without a reload, and the change is refused, naming the file that wins, as an open `Match` block in an earlier file can. `sshd -t` passes in all of those cases, so it isn't enough. The tab shows the values in effect, not what Dockwell wrote.
+- **`Match` blocks are checked too.** `sshd -T` alone doesn't apply them, so the agent also runs `sshd -T -C user=…,addr=…` for root and for each member of `sudo` or `wheel`, from each pinned address, and lists any `Match` block that sets one of these values for them as an exception in the plan.
 - **Where `sshd_config` doesn't include its drop-in folder,** as the RHEL 8 family's doesn't and Alpine's may not, Dockwell says so and changes nothing. It never edits `sshd_config`.
 - **"Password login off" turns off `PasswordAuthentication` and `KbdInteractiveAuthentication` both,** as PAM still asks for a password through the second while it's on.
-- **Turning off passwords or root login checks, at plan time, that someone can still sign in:** an account still allowed in has a key, root's if root may sign in with keys, or a member of `sudo` or `wheel`'s, following `AuthorizedKeysFile`. It refuses when none has one. Where `AuthorizedKeysCommand` or `TrustedUserCAKeys` is set, Dockwell can't tell, and the plan says so and asks the person to say they've checked.
+- **Turning off passwords or root login checks, at plan time, that someone can still sign in.** An account counts if it's root while root may sign in with keys, or a member of `sudo` or `wheel`, and all of these hold:
+  - It has a key in the file `AuthorizedKeysFile` names, that counts: no `command=`; no `restrict` without `pty`; no `expiry-time` passed; and a `from=`, if it has one, that covers a pinned address. Ubuntu's cloud images put a key in root's file with `command="echo 'Please login as the user …';echo;sleep 10;exit 142"`, which signs nobody in.
+  - `AllowUsers`, `AllowGroups`, `DenyUsers` and `DenyGroups` let it in.
+  - `StrictModes` accepts its file: the file and its folders belong to it or root, and no one else can write them.
+  - Its shell isn't `nologin` or `false`.
+  - For root, `PermitRootLogin forced-commands-only` isn't a way in.
+
+  It refuses when none counts. Where `AuthorizedKeysCommand`, `TrustedUserCAKeys`, `AuthorizedPrincipalsFile` or GSSAPI is set, Dockwell can't tell, and the plan says so and asks the person to say they've checked.
 - **On a control server with no domain, a change that could stop the person's next login is refused** (its port, passwords or root login), as SSH is the way into the panel there; the plan says to give the panel a domain first.
-- **Changing the port lists every step it takes,** and refuses where another tool would close the new port: on Ubuntu 22.10 and later, where `ssh.socket` holds the port, `daemon-reload` and a restart of the socket; on the RHEL family with SELinux, `semanage port -a`; ufw or firewalld, which it can't open; the firewall rules and the fail2ban jail for the old port, which move with it. sshd reloads with `systemctl reload` under systemd and `rc-service sshd reload` under OpenRC.
+- **Changing the port lists every step it takes,** and refuses where another tool would close the new port: on Ubuntu 22.10 and later, where `ssh.socket` holds the port, `daemon-reload`, so the generator writes the socket's new `ListenStream`, and a restart of the socket; on the RHEL family with SELinux, `semanage port -a`; ufw or firewalld, which it can't open; the firewall rules and the fail2ban jail for the old port, which move with it, and roll back with it. sshd reloads with `systemctl reload` under systemd and `rc-service sshd reload` under OpenRC.
 - **The terminal reaches the server through the agent,** so closing port 22 leaves a way in, once that terminal is there (#208). Until it merges, `ssh.config` doesn't ship, and the way back is the provider's console.
 
 ### fail2ban
@@ -85,7 +124,7 @@ fail2ban is read where it's installed: its jails and recent bans, through `fail2
 - **The SSH jail reads the journal** (`backend = systemd`), as Debian 12 has no `/var/log/auth.log`.
 - **The ingress jail watches Caddy,** which signs nobody in itself, so it needs a log source and a filter of its own: what it counts as a failure is decided with that slice. 1Panel's `openresty-auth` is its own jail, and isn't carried over.
 - **`fail2ban-client -t` runs before every reload,** and the control server's addresses are in `ignoreip`.
-- **A jail change can't lock anyone out of a new session,** so it has no timer. Unbanning an address is a change with a plan and no revision, as a restart is.
+- **A jail change on its own can't lock anyone out of a new session,** so it has no timer. A jail that moves with SSH's port is part of that change, under its timer, and rolls back with it. Unbanning an address is a change with a plan and no revision, as a restart is.
 - **Installing fail2ban** is the package manager's, which #276 brings.
 
 ### Who may change them
@@ -94,7 +133,7 @@ Every change to `firewall.rule`, `firewall.policy`, `ssh.config` and `fail2ban.j
 
 ### How the agent runs its commands
 
-The agent drives `nft`, `sshd`, `fail2ban-client`, `ufw`, `firewall-cmd`, `iptables-save`, `iptables-legacy-save`, `systemctl`, `rc-service` and `semanage` as commands, as ADR 0043 (#276) runs a package manager: by fixed paths, with no shell, a clean environment with `LC_ALL=C`, stdin from `/dev/null`, a deadline each, capped output, and one at a time. It writes with `nft -f -` and reads with `nft -j`. It links no netlink or nftables library, so its idle memory doesn't move, and it reads only while someone looks.
+The agent drives `nft`, `sshd`, `fail2ban-client`, `ufw`, `firewall-cmd`, `iptables-save`, `iptables-legacy-save`, `systemctl`, `rc-service` and `semanage` as commands, as ADR 0043 (#276) runs a package manager: by fixed paths, with no shell, a clean environment with `LC_ALL=C`, a deadline each, capped output, and one at a time. Standard input is `/dev/null`, except for `nft -f -`, which reads the table there. It writes with `nft -f -` and reads with `nft -j`. It links no netlink or nftables library, so its idle memory doesn't move. Beyond the drift check's one listing a minute, it reads only while someone looks.
 
 **A server without `nft`** says so, apart from one whose kernel won't load a table, as LXC and OpenVZ containers can refuse: each has its own words in the tab, and neither can be changed. Alpine and some minimal images ship without `nft`; installing `nftables` is a plan step through #276's install path, or `install.sh`'s.
 
@@ -110,6 +149,14 @@ The agent drives `nft`, `sshd`, `fail2ban-client`, `ufw`, `firewall-cmd`, `iptab
 
 - A server keeps working as it did when Dockwell arrives; closing everything else is a choice, made with a plan that lists what would close, as the owner decided.
 - Dockwell can't open what ufw, firewalld or iptables-legacy close, and says so. Someone who wants Dockwell to own the firewall turns those off, which the tab says how to do.
-- Every firewall and SSH change costs up to 60 s of waiting for a confirmation, and the confirmation is only as good as the test the person runs, which the dialog names. What the timer can't see, a locked-out next login, is refused before anything applies.
-- The table survives reboots and flushes, as the agent and a boot unit put it back, and drift shows on Activity.
-- Tests run the table against real nftables in CI, in a privileged container, and against a fake elsewhere. The install-test images (Debian, Ubuntu, AlmaLinux, Alpine) check the distributions' defaults this record relies on: `nft`'s presence, the sshd drop-ins and their order, fail2ban's defaults, and `ssh.socket`. Those defaults come from the review's knowledge, not live images, until those tests run.
+- Every firewall and SSH change costs up to 60 s of waiting for a confirmation, and the confirmation is only as good as the test the person runs, which the dialog names. The control plane's own check gates only when it means something, and says "can't tell from here" otherwise. What the timer can't see, a locked-out next login, is refused before anything applies.
+- One change under the timer waits on a server at a time; a second is refused as busy until the first is kept or rolled back.
+- The table, SSH's drop-in and Dockwell's jail survive reboots as confirmed, and the table survives flushes, as the agent and a boot unit put them back. Drift shows on Activity, and root on the server can turn the table off.
+- Tests run the table against real nftables in CI, in a privileged container, and against a fake elsewhere. The install-test images (Debian, Ubuntu, AlmaLinux, Alpine) check the distributions' defaults this record relies on: `nft`'s presence, the sshd drop-ins and their order, fail2ban's defaults, and `ssh.socket`.
+- Four of those defaults were checked on 2026-11-07 from the distributions' own packages, as no Docker was at hand to run the images:
+  - Debian 13's `nftables` 1.1.7-3: its unit runs `nft -f /etc/nftables.conf`, whose shipped file starts with `flush ruleset`, before `network-pre.target`; it's installed disabled; and stopping it flushes the ruleset.
+  - Ubuntu 24.04's `openssh-server` 1:9.6p1-3ubuntu13.20: `ssh.socket` listens on `0.0.0.0:22` and `[::]:22`, and `sshd-socket-generator` writes `ssh.socket.d/addresses.conf` from `sshd_config`.
+  - Ubuntu 24.04's `cloud-init` 26.2: `disable_root: true` puts `command="echo …;exit 142"` before root's keys.
+  - `sshd(8)`: `-T` applies `Match` blocks only with `-C`.
+
+  The rest come from the review's knowledge until the install tests run them.
