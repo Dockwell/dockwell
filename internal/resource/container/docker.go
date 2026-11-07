@@ -115,6 +115,10 @@ type Ingress interface {
 const (
 	LabelRevision = docker.OwnPrefix + "revision"
 	LabelChange   = docker.OwnPrefix + "change"
+	// LabelLeads says where the server paths a container mounts led when it was
+	// made, as a person approved them, for those that lead elsewhere: where one
+	// leads by the next plan is what that plan has to answer for.
+	LabelLeads = docker.OwnPrefix + "leads"
 )
 
 // LogKeeper keeps the log of a container about to be removed. A failure to

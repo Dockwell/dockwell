@@ -1084,6 +1084,10 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 			return "", nil, err
 		}
 	}
+	leads, err := d.leadsAsPlanned(ctx, t, spec, dec)
+	if err != nil {
+		return "", nil, err
+	}
 	kept, err := d.keptVolumes(ctx, t)
 	if err != nil {
 		return "", nil, err
@@ -1091,6 +1095,9 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 	req, later, restored := d.createRequest(ctx, t, spec, old, kept)
 	if err := rendered(req, spec); err != nil {
 		return "", nil, err
+	}
+	if leads != "" {
+		req.Labels[LabelLeads] = leads
 	}
 	if dec.Restores && len(restored) == 0 {
 		return "", nil, fmt.Errorf("the data %s's image kept, which this change was to mount again, is gone: the server keeps it for 7 days after a change takes it out of use, then removes it. "+

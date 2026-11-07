@@ -4837,6 +4837,12 @@ components:
                         Where the server path leads through symlinks, as its server's agent reads it,
                          when that is somewhere else. Empty when it isn't, or when no agent has said,
                          as for a server that wasn't connected when it was planned.
+                leadsMoved:
+                    type: boolean
+                    description: |-
+                        True when that isn't where the path led when what runs now was made, as its
+                         server's agent reads it. An agent sets it, for the control plane to decide
+                         what a plan gains by, and plans don't carry it.
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.

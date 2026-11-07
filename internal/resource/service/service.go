@@ -305,6 +305,12 @@ func (d *Driver) Leads(ctx context.Context, ref resource.Ref, desired proto.Mess
 	return d.Containers.LeadsAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
 }
 
+// LeadsMoved says which of the server paths a service's app mounts don't lead where
+// they did when what runs now was made.
+func (d *Driver) LeadsMoved(ctx context.Context, ref resource.Ref, desired proto.Message) ([]string, error) {
+	return d.Containers.LeadsMovedAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
+}
+
 // Check checks the app on its server, as the container driver does.
 func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Message) error {
 	return d.Containers.CheckAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())

@@ -656,6 +656,9 @@ message ApplyCall {
   // True when a run stopped partway took the step as far as it can be seen to have
   // gone, so all the agent does is its check.
   bool finishing = 6;
+  // Where the server paths this step mounts led when it was planned, by path,
+  // for those that lead elsewhere. What makes a container checks again.
+  map<string, string> planned_leads = 7;
 }
 
 // Deploy says which revision and change a step carries out.

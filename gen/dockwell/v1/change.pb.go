@@ -3775,7 +3775,11 @@ type HostAccess struct {
 	// Where the server path leads through symlinks, as its server's agent reads it,
 	// when that is somewhere else. Empty when it isn't, or when no agent has said,
 	// as for a server that wasn't connected when it was planned.
-	LeadsTo       string `protobuf:"bytes,10,opt,name=leads_to,json=leadsTo,proto3" json:"leads_to,omitempty"`
+	LeadsTo string `protobuf:"bytes,10,opt,name=leads_to,json=leadsTo,proto3" json:"leads_to,omitempty"`
+	// True when that isn't where the path led when what runs now was made, as its
+	// server's agent reads it. An agent sets it, for the control plane to decide
+	// what a plan gains by, and plans don't carry it.
+	LeadsMoved    bool `protobuf:"varint,11,opt,name=leads_moved,json=leadsMoved,proto3" json:"leads_moved,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3878,6 +3882,13 @@ func (x *HostAccess) GetLeadsTo() string {
 		return x.LeadsTo
 	}
 	return ""
+}
+
+func (x *HostAccess) GetLeadsMoved() bool {
+	if x != nil {
+		return x.LeadsMoved
+	}
+	return false
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -5747,7 +5758,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12)\n" +
 	"\x10previous_servers\x18\a \x03(\tR\x0fpreviousServers\x128\n" +
 	"\vhost_access\x18\b \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\"\xa3\x02\n" +
+	"hostAccess\"\xc4\x02\n" +
 	"\n" +
 	"HostAccess\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.dockwell.v1.HostAccessKindR\x04kind\x12\x12\n" +
@@ -5761,7 +5772,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\fsame_as_root\x18\t \x01(\bR\n" +
 	"sameAsRoot\x12\x19\n" +
 	"\bleads_to\x18\n" +
-	" \x01(\tR\aleadsTo\"\xa2\x02\n" +
+	" \x01(\tR\aleadsTo\x12\x1f\n" +
+	"\vleads_moved\x18\v \x01(\bR\n" +
+	"leadsMoved\"\xa2\x02\n" +
 	"\n" +
 	"ServerPlan\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +

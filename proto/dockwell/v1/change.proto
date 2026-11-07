@@ -822,6 +822,10 @@ message HostAccess {
   // when that is somewhere else. Empty when it isn't, or when no agent has said,
   // as for a server that wasn't connected when it was planned.
   string leads_to = 10;
+  // True when that isn't where the path led when what runs now was made, as its
+  // server's agent reads it. An agent sets it, for the control plane to decide
+  // what a plan gains by, and plans don't carry it.
+  bool leads_moved = 11;
 }
 
 // HostAccessKind is what a resource reaches on its server.

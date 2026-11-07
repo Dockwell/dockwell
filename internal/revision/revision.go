@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -637,7 +638,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = sharedNameNotes(plan, elsewhereNotes(plan, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))
+	p.Notes = sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1939,9 +1940,13 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		ids := map[resource.Ref]string{}
 		// Where the agent says each server path leads, which only it can read.
 		leads := map[string]string{}
+		moved := map[string]bool{}
 		for i := range steps {
 			maps.Copy(leads, steps[i].Leads)
-			steps[i].Leads = nil
+			for _, p := range steps[i].LeadsMoved {
+				moved[p] = true
+			}
+			steps[i].PlannedLeads, steps[i].Leads, steps[i].LeadsMoved = steps[i].Leads, nil, nil
 		}
 		// What each item reaches on this server that it couldn't, from its
 		// specs: the control plane decides it, whatever the agent says.
@@ -1949,7 +1954,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		for _, it := range its {
 			ids[it.ref] = it.id
 			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
-			if it.desiredOn(server) != nil {
+			if desired := it.desiredOn(server); desired != nil {
 				gained = append(gained, takes[it.ref]...)
 				if it.adopt != "" {
 					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
@@ -1959,6 +1964,14 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				if e.newCode(it) {
 					gained = append(gained, resource.NewAccess(gained, asRoot(e.reach(it.ref, it.desiredOn(server), after), leads))...)
 				}
+				reaches := e.reach(it.ref, desired, after)
+				// What runs has all a resource reaches, so where that's as good as
+				// root, running something else is as much as reaching it anew.
+				if e.runsSomethingElse(it, server) {
+					gained = append(gained, resource.NewAccess(gained, asRoot(reaches, leads))...)
+				}
+				// What a person approved was where a path led then.
+				gained = append(gained, resource.NewAccess(gained, movedOff(reaches, moved))...)
 			}
 			for j := range gained {
 				gained[j] = gained[j].Leading(leads[gained[j].Path])
@@ -2146,6 +2159,54 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 		return nil, fmt.Errorf("can't plan on %s: its agent judged %d steps for %d resources", name, len(steps), len(desired))
 	}
 	return steps, nil
+}
+
+// runsSomethingElse says an item changes what runs in a resource that's there on
+// server: anything in its spec, other than another tag or digest of the same image
+// repository, which is how CI deploys. That one is the same code by the same hand,
+// and everything else can be any code at all, with whatever the resource reaches: a
+// command, an entrypoint, a health check, a user or an environment.
+func (e *Engine) runsSomethingElse(it *item, server string) bool {
+	n, ok := e.imageNamer(it.ref.Kind)
+	current, desired := it.currentOn(server), it.desiredOn(server)
+	if !ok || current == nil || desired == nil {
+		return false
+	}
+	if now := n.ImageOf(desired); docker.Repository(n.ImageOf(current)) == docker.Repository(now) {
+		current = proto.Clone(current)
+		n.SetImage(current, now)
+	}
+	return !proto.Equal(current, desired)
+}
+
+// movedOff is what of list is a server path that doesn't lead where it did.
+func movedOff(list []resource.Access, moved map[string]bool) []resource.Access {
+	var out []resource.Access
+	for i := range list {
+		if moved[list[i].Path] {
+			out = append(out, list[i])
+		}
+	}
+	return out
+}
+
+// keptRootNotes are a plan's notes, saying why what keeps its access still asks.
+func (e *Engine) keptRootNotes(plan *Plan, items []item, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		for j := range plan.Resources {
+			r := &plan.Resources[j]
+			if r.Ref != it.ref || !slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot) {
+				continue
+			}
+			if slices.ContainsFunc(it.servers, func(s string) bool { return e.runsSomethingElse(it, s) }) {
+				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: it.ref.Name +
+					" reaches what's as good as root on its server, so whatever else runs in it has that reach too. Applying this takes a person and their passkey"})
+			}
+		}
+	}
+	return out
 }
 
 // resourcePlan says what the change does to the item as a whole, from its
