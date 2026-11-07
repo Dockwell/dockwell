@@ -43,9 +43,6 @@ jobs:
       DOCKWELL_TEST_POSTGRES: postgres://postgres:dockwell-ci@127.0.0.1:5432/postgres?sslmode=disable
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -120,9 +117,6 @@ jobs:
       DOCKWELL_TEST_DOCKER: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -172,9 +166,6 @@ jobs:
     # Docker (ADR 0024).
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -211,9 +202,6 @@ jobs:
       E2E_ROOT: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -252,9 +240,6 @@ jobs:
     # has, with certificates from Pebble.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -292,9 +277,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -319,9 +301,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -348,9 +327,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -436,9 +412,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
@@ -481,6 +454,10 @@ jobs:
       - name: The binary serves the API and the panel
         if: steps.pick.outputs.run == 'true'
         run: scripts/smoke.sh bin/dockwell
+      # The control plane reads the whole build at start, so its size is memory.
+      - name: The panel build is within its size
+        if: steps.pick.outputs.run == 'true'
+        run: scripts/check-panel-size.sh
       - name: Bundle size
         if: steps.pick.outputs.run == 'true'
         run: |

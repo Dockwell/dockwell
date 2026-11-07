@@ -2,9 +2,9 @@
 #
 # The install script and the footprint budgets from the PRD's non-functional
 # requirements, on every push to main, nightly, and on each pull request that
-# needs them, as scripts/ci-jobs.sh says: the budgets for a change to Go code,
-# and the install tests for one to the install script, the release, or what
-# the script runs in the binary (docs/adr/0050-ci-runs-what-a-change-needs.md).
+# needs them, as scripts/ci-jobs.sh says: the budgets and three install legs
+# for a change to Go code, and every leg for one to the install script, its
+# tests or the release (docs/adr/0050-ci-runs-what-a-change-needs.md).
 # Release snapshot asks first, and the jobs after it run only when they're
 # needed. Install, every job is the check a branch rule requires:
 #
@@ -56,17 +56,18 @@ jobs:
     timeout-minutes: 20
     outputs:
       cosign: ${{ steps.pin.outputs.cosign }}
+      jobs: ${{ steps.pick.outputs.jobs }}
       budgets: ${{ steps.pick.outputs.budgets }}
       install: ${{ steps.pick.outputs.install }}
+      install-matrix: ${{ steps.pick.outputs.install-matrix }}
       systemd: ${{ steps.pick.outputs.systemd }}
+      systemd-matrix: ${{ steps.pick.outputs.systemd-matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # A pull request's merge commit and its two parents: main, and the pull request.
-          fetch-depth: 2
           persist-credentials: false
       # The steps after this one run only when this change needs a snapshot,
-      # and the jobs after this one only when it needs them.
+      # and the jobs after this one only when it needs them, on the legs it says.
       - name: Whether this change needs this job, and the ones after it
         id: pick
         run: scripts/ci-jobs.sh needs snapshot budgets install systemd
@@ -237,9 +238,10 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        image: ["debian:13", "ubuntu:26.04", "almalinux:9", "alpine:3.24"]
-        arch: [amd64, arm64]
+      # Every image on amd64 and arm64, or, for Go code that isn't the install
+      # script or the release, Alpine on arm64 and AlmaLinux on amd64, as
+      # scripts/ci-jobs.sh says.
+      matrix: ${{ fromJSON(needs.snapshot.outputs.install-matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -282,8 +284,9 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        arch: [amd64, arm64]
+      # Both architectures, or only arm64 for Go code that isn't the install
+      # script or the release, as scripts/ci-jobs.sh says.
+      matrix: ${{ fromJSON(needs.snapshot.outputs.systemd-matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -365,9 +368,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
           persist-credentials: false
       - name: Every job this change needs passed
         env:
           NEEDS: ${{ toJSON(needs) }}
+          # What Release snapshot picked. Picking again could pick more, as
+          # main may have moved since, and hold a job that didn't run to passing.
+          JOBS: ${{ needs.snapshot.outputs.jobs }}
         run: scripts/ci-jobs.sh check
