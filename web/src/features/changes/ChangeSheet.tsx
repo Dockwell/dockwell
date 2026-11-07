@@ -25,6 +25,7 @@ import {
   StepState,
   StepUpAction,
   VariableService,
+  WebsiteService,
 } from "@dockwell/api";
 import {
   Button,
@@ -329,6 +330,7 @@ function refreshAfter(queryClient: QueryClient): void {
     VariableService,
     CatalogService,
     BackupService,
+    WebsiteService,
   ]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }

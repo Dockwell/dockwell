@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/website.proto.
  */
 export const file_dockwell_v1_website: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS93ZWJzaXRlLnByb3RvEgtkb2Nrd2VsbC52MSIVChNMaXN0V2Vic2l0ZXNSZXF1ZXN0IkIKFExpc3RXZWJzaXRlc1Jlc3BvbnNlEioKCHdlYnNpdGVzGAEgAygLMhguZG9ja3dlbGwudjEuV2Vic2l0ZUluZm8igQIKC1dlYnNpdGVJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZG9tYWluGAMgASgJEjEKBHNwZWMYBCABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEhYKDmVudmlyb25tZW50X2lkGAUgASgJEhIKCnNlcnZpY2VfaWQYBiABKAkSEAoIcm91dGVfaWQYByABKAkSLwoLdXBkYXRlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCXNlcnZlcl9pZBgJIAEoCRITCgtzZXJ2ZXJfbmFtZRgKIAEoCSK+AQoUQ3JlYXRlV2Vic2l0ZVJlcXVlc3QSDgoGZG9tYWluGAEgASgJEjQKB3dlYnNpdGUYAiABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEgsKA3RscxgDIAEoCRIXCg90cnVzdGVkX3Byb3hpZXMYBCADKAkSGAoQcGxhaW5fZm9yX2FueW9uZRgFIAEoCBIPCgdzZXJ2ZXJzGAYgAygJEg8KB3N1bW1hcnkYByABKAkiPAoVQ3JlYXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJpChRVcGRhdGVXZWJzaXRlUmVxdWVzdBIKCgJpZBgBIAEoCRI0Cgd3ZWJzaXRlGAIgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZRIPCgdzdW1tYXJ5GAMgASgJIjwKFVVwZGF0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiMwoURGVsZXRlV2Vic2l0ZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHc3VtbWFyeRgCIAEoCSI8ChVEZWxldGVXZWJzaXRlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlMvkDCg5XZWJzaXRlU2VydmljZRJwCgxMaXN0V2Vic2l0ZXMSIC5kb2Nrd2VsbC52MS5MaXN0V2Vic2l0ZXNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVzUmVzcG9uc2UiG5ACAaC7GAGC0+STAg4SDC92MS93ZWJzaXRlcxJzCg1DcmVhdGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuQ3JlYXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5DcmVhdGVXZWJzaXRlUmVzcG9uc2UiG6C7GAKC0+STAhE6ASoiDC92MS93ZWJzaXRlcxJ/Cg1VcGRhdGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuVXBkYXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5VcGRhdGVXZWJzaXRlUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS93ZWJzaXRlcy97aWR9OnVwZGF0ZRJ/Cg1EZWxldGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuRGVsZXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5EZWxldGVXZWJzaXRlUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS93ZWJzaXRlcy97aWR9OmRlbGV0ZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxXZWJzaXRlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS93ZWJzaXRlLnByb3RvEgtkb2Nrd2VsbC52MSIVChNMaXN0V2Vic2l0ZXNSZXF1ZXN0IkIKFExpc3RXZWJzaXRlc1Jlc3BvbnNlEioKCHdlYnNpdGVzGAEgAygLMhguZG9ja3dlbGwudjEuV2Vic2l0ZUluZm8igQIKC1dlYnNpdGVJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZG9tYWluGAMgASgJEjEKBHNwZWMYBCABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEhYKDmVudmlyb25tZW50X2lkGAUgASgJEhIKCnNlcnZpY2VfaWQYBiABKAkSEAoIcm91dGVfaWQYByABKAkSLwoLdXBkYXRlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCXNlcnZlcl9pZBgJIAEoCRITCgtzZXJ2ZXJfbmFtZRgKIAEoCSJNChVQcmV2aWV3V2Vic2l0ZVJlcXVlc3QSNAoHd2Vic2l0ZRgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUiXgoWUHJldmlld1dlYnNpdGVSZXNwb25zZRI0Cgd3ZWJzaXRlGAEgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZRIOCgZjb25maWcYAiABKAkivgEKFENyZWF0ZVdlYnNpdGVSZXF1ZXN0Eg4KBmRvbWFpbhgBIAEoCRI0Cgd3ZWJzaXRlGAIgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZRILCgN0bHMYAyABKAkSFwoPdHJ1c3RlZF9wcm94aWVzGAQgAygJEhgKEHBsYWluX2Zvcl9hbnlvbmUYBSABKAgSDwoHc2VydmVycxgGIAMoCRIPCgdzdW1tYXJ5GAcgASgJIjwKFUNyZWF0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiaQoUVXBkYXRlV2Vic2l0ZVJlcXVlc3QSCgoCaWQYASABKAkSNAoHd2Vic2l0ZRgCIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSDwoHc3VtbWFyeRgDIAEoCSI8ChVVcGRhdGVXZWJzaXRlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIjMKFERlbGV0ZVdlYnNpdGVSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3N1bW1hcnkYAiABKAkiPAoVRGVsZXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZTL9BAoOV2Vic2l0ZVNlcnZpY2UScAoMTGlzdFdlYnNpdGVzEiAuZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVzUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkxpc3RXZWJzaXRlc1Jlc3BvbnNlIhuQAgGguxgBgtPkkwIOEgwvdjEvd2Vic2l0ZXMSgQEKDlByZXZpZXdXZWJzaXRlEiIuZG9ja3dlbGwudjEuUHJldmlld1dlYnNpdGVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuUHJldmlld1dlYnNpdGVSZXNwb25zZSImkAIBoLsYAYLT5JMCGToBKiIUL3YxL3dlYnNpdGVzOnByZXZpZXcScwoNQ3JlYXRlV2Vic2l0ZRIhLmRvY2t3ZWxsLnYxLkNyZWF0ZVdlYnNpdGVSZXF1ZXN0GiIuZG9ja3dlbGwudjEuQ3JlYXRlV2Vic2l0ZVJlc3BvbnNlIhuguxgCgtPkkwIROgEqIgwvdjEvd2Vic2l0ZXMSfwoNVXBkYXRlV2Vic2l0ZRIhLmRvY2t3ZWxsLnYxLlVwZGF0ZVdlYnNpdGVSZXF1ZXN0GiIuZG9ja3dlbGwudjEuVXBkYXRlV2Vic2l0ZVJlc3BvbnNlIieguxgCgtPkkwIdOgEqIhgvdjEvd2Vic2l0ZXMve2lkfTp1cGRhdGUSfwoNRGVsZXRlV2Vic2l0ZRIhLmRvY2t3ZWxsLnYxLkRlbGV0ZVdlYnNpdGVSZXF1ZXN0GiIuZG9ja3dlbGwudjEuRGVsZXRlV2Vic2l0ZVJlc3BvbnNlIieguxgCgtPkkwIdOgEqIhgvdjEvd2Vic2l0ZXMve2lkfTpkZWxldGVCpQEKD2NvbS5kb2Nrd2VsbC52MUIMV2Vic2l0ZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListWebsitesRequest asks for every website.
@@ -145,6 +145,57 @@ export const WebsiteInfoSchema: GenMessage<WebsiteInfo> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_website, 2);
 
 /**
+ * PreviewWebsiteRequest is what a website would serve.
+ *
+ * @generated from message dockwell.v1.PreviewWebsiteRequest
+ */
+export type PreviewWebsiteRequest = Message<"dockwell.v1.PreviewWebsiteRequest"> & {
+  /**
+   * What it serves.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.Website website = 1;
+   */
+  website?: Website | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.PreviewWebsiteRequest.
+ * Use `create(PreviewWebsiteRequestSchema)` to create a new message.
+ */
+export const PreviewWebsiteRequestSchema: GenMessage<PreviewWebsiteRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_website, 3);
+
+/**
+ * PreviewWebsiteResponse is what serving it takes.
+ *
+ * @generated from message dockwell.v1.PreviewWebsiteResponse
+ */
+export type PreviewWebsiteResponse = Message<"dockwell.v1.PreviewWebsiteResponse"> & {
+  /**
+   * What it serves, as Dockwell keeps it, such as a URL written as it's used.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.Website website = 1;
+   */
+  website?: Website | undefined;
+
+  /**
+   * Its web server's config, a Caddyfile, as its service runs it. Empty for a
+   * website that needs no web server of its own, as one that sends to a port on
+   * the server.
+   *
+   * @generated from field: string config = 2;
+   */
+  config: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PreviewWebsiteResponse.
+ * Use `create(PreviewWebsiteResponseSchema)` to create a new message.
+ */
+export const PreviewWebsiteResponseSchema: GenMessage<PreviewWebsiteResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_website, 4);
+
+/**
  * CreateWebsiteRequest is a website to make.
  *
  * @generated from message dockwell.v1.CreateWebsiteRequest
@@ -209,7 +260,7 @@ export type CreateWebsiteRequest = Message<"dockwell.v1.CreateWebsiteRequest"> &
  * Use `create(CreateWebsiteRequestSchema)` to create a new message.
  */
 export const CreateWebsiteRequestSchema: GenMessage<CreateWebsiteRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 3);
+  messageDesc(file_dockwell_v1_website, 5);
 
 /**
  * CreateWebsiteResponse carries the planned change.
@@ -230,7 +281,7 @@ export type CreateWebsiteResponse = Message<"dockwell.v1.CreateWebsiteResponse">
  * Use `create(CreateWebsiteResponseSchema)` to create a new message.
  */
 export const CreateWebsiteResponseSchema: GenMessage<CreateWebsiteResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 4);
+  messageDesc(file_dockwell_v1_website, 6);
 
 /**
  * UpdateWebsiteRequest is what a website should serve now.
@@ -265,7 +316,7 @@ export type UpdateWebsiteRequest = Message<"dockwell.v1.UpdateWebsiteRequest"> &
  * Use `create(UpdateWebsiteRequestSchema)` to create a new message.
  */
 export const UpdateWebsiteRequestSchema: GenMessage<UpdateWebsiteRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 5);
+  messageDesc(file_dockwell_v1_website, 7);
 
 /**
  * UpdateWebsiteResponse carries the planned change.
@@ -286,7 +337,7 @@ export type UpdateWebsiteResponse = Message<"dockwell.v1.UpdateWebsiteResponse">
  * Use `create(UpdateWebsiteResponseSchema)` to create a new message.
  */
 export const UpdateWebsiteResponseSchema: GenMessage<UpdateWebsiteResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 6);
+  messageDesc(file_dockwell_v1_website, 8);
 
 /**
  * DeleteWebsiteRequest names a website to delete.
@@ -314,7 +365,7 @@ export type DeleteWebsiteRequest = Message<"dockwell.v1.DeleteWebsiteRequest"> &
  * Use `create(DeleteWebsiteRequestSchema)` to create a new message.
  */
 export const DeleteWebsiteRequestSchema: GenMessage<DeleteWebsiteRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 7);
+  messageDesc(file_dockwell_v1_website, 9);
 
 /**
  * DeleteWebsiteResponse carries the planned change.
@@ -335,7 +386,7 @@ export type DeleteWebsiteResponse = Message<"dockwell.v1.DeleteWebsiteResponse">
  * Use `create(DeleteWebsiteResponseSchema)` to create a new message.
  */
 export const DeleteWebsiteResponseSchema: GenMessage<DeleteWebsiteResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_website, 8);
+  messageDesc(file_dockwell_v1_website, 10);
 
 /**
  * WebsiteService lists your websites, and plans making one, changing what it
@@ -357,6 +408,18 @@ export const WebsiteService: GenService<{
     methodKind: "unary";
     input: typeof ListWebsitesRequestSchema;
     output: typeof ListWebsitesResponseSchema;
+  },
+  /**
+   * PreviewWebsite says what a website's own web server would run for what it
+   * serves, and how Dockwell would keep that, planning nothing. It refuses what
+   * can't be served as CreateWebsite would, so a form can say so as you type.
+   *
+   * @generated from rpc dockwell.v1.WebsiteService.PreviewWebsite
+   */
+  previewWebsite: {
+    methodKind: "unary";
+    input: typeof PreviewWebsiteRequestSchema;
+    output: typeof PreviewWebsiteResponseSchema;
   },
   /**
    * CreateWebsite plans a new website at a domain, as a project of its own,

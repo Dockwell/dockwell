@@ -195,6 +195,15 @@ func (h *Handler) find(ctx context.Context, name string) (*site, error) {
 	return out, nil
 }
 
+// PreviewWebsite says what a website's web server would run, planning nothing.
+func (h *Handler) PreviewWebsite(_ context.Context, req *connect.Request[dockwellv1.PreviewWebsiteRequest]) (*connect.Response[dockwellv1.PreviewWebsiteResponse], error) {
+	spec := proto.CloneOf(req.Msg.GetWebsite())
+	if err := website.Check(spec); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	return connect.NewResponse(&dockwellv1.PreviewWebsiteResponse{Website: spec, Config: website.Config(spec)}), nil
+}
+
 // CreateWebsite plans a new website as a project of its own.
 func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwellv1.CreateWebsiteRequest]) (*connect.Response[dockwellv1.CreateWebsiteResponse], error) {
 	m := req.Msg

@@ -2939,6 +2939,34 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/websites:preview:
+        post:
+            tags:
+                - WebsiteService
+            description: |-
+                PreviewWebsite says what a website's own web server would run for what it
+                 serves, and how Dockwell would keep that, planning nothing. It refuses what
+                 can't be served as CreateWebsite would, so a form can say so as you type.
+            operationId: WebsiteService_PreviewWebsite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PreviewWebsiteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PreviewWebsiteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
 components:
     schemas:
         Actor:
@@ -7197,6 +7225,28 @@ components:
                         How much of that a backup leaves alone, in bytes: one that would go below this is
                          refused, or stops, so a backup never fills the disk.
             description: PreviewBackupResponse says what backing up a volume would do.
+        PreviewWebsiteRequest:
+            type: object
+            properties:
+                website:
+                    allOf:
+                        - $ref: '#/components/schemas/Website'
+                    description: What it serves.
+            description: PreviewWebsiteRequest is what a website would serve.
+        PreviewWebsiteResponse:
+            type: object
+            properties:
+                website:
+                    allOf:
+                        - $ref: '#/components/schemas/Website'
+                    description: What it serves, as Dockwell keeps it, such as a URL written as it's used.
+                config:
+                    type: string
+                    description: |-
+                        Its web server's config, a Caddyfile, as its service runs it. Empty for a
+                         website that needs no web server of its own, as one that sends to a port on
+                         the server.
+            description: PreviewWebsiteResponse is what serving it takes.
         Project:
             type: object
             properties:

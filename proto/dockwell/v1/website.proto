@@ -24,6 +24,18 @@ service WebsiteService {
     option (google.api.http) = {get: "/v1/websites"};
   }
 
+  // PreviewWebsite says what a website's own web server would run for what it
+  // serves, and how Dockwell would keep that, planning nothing. It refuses what
+  // can't be served as CreateWebsite would, so a form can say so as you type.
+  rpc PreviewWebsite(PreviewWebsiteRequest) returns (PreviewWebsiteResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/websites:preview"
+      body: "*"
+    };
+  }
+
   // CreateWebsite plans a new website at a domain, as a project of its own,
   // ready to apply or discard. A website that sends to a port on the server
   // reaches past containers, so a person applies it.
@@ -91,6 +103,22 @@ message WebsiteInfo {
   string server_id = 9;
   // That server's name, such as "hz-1".
   string server_name = 10;
+}
+
+// PreviewWebsiteRequest is what a website would serve.
+message PreviewWebsiteRequest {
+  // What it serves.
+  dockwell.resource.v1alpha1.Website website = 1;
+}
+
+// PreviewWebsiteResponse is what serving it takes.
+message PreviewWebsiteResponse {
+  // What it serves, as Dockwell keeps it, such as a URL written as it's used.
+  dockwell.resource.v1alpha1.Website website = 1;
+  // Its web server's config, a Caddyfile, as its service runs it. Empty for a
+  // website that needs no web server of its own, as one that sends to a port on
+  // the server.
+  string config = 2;
 }
 
 // CreateWebsiteRequest is a website to make.

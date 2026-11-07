@@ -238,6 +238,109 @@ func (x *WebsiteInfo) GetServerName() string {
 	return ""
 }
 
+// PreviewWebsiteRequest is what a website would serve.
+type PreviewWebsiteRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What it serves.
+	Website       *v1alpha1.Website `protobuf:"bytes,1,opt,name=website,proto3" json:"website,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PreviewWebsiteRequest) Reset() {
+	*x = PreviewWebsiteRequest{}
+	mi := &file_dockwell_v1_website_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PreviewWebsiteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreviewWebsiteRequest) ProtoMessage() {}
+
+func (x *PreviewWebsiteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_website_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PreviewWebsiteRequest.ProtoReflect.Descriptor instead.
+func (*PreviewWebsiteRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PreviewWebsiteRequest) GetWebsite() *v1alpha1.Website {
+	if x != nil {
+		return x.Website
+	}
+	return nil
+}
+
+// PreviewWebsiteResponse is what serving it takes.
+type PreviewWebsiteResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What it serves, as Dockwell keeps it, such as a URL written as it's used.
+	Website *v1alpha1.Website `protobuf:"bytes,1,opt,name=website,proto3" json:"website,omitempty"`
+	// Its web server's config, a Caddyfile, as its service runs it. Empty for a
+	// website that needs no web server of its own, as one that sends to a port on
+	// the server.
+	Config        string `protobuf:"bytes,2,opt,name=config,proto3" json:"config,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PreviewWebsiteResponse) Reset() {
+	*x = PreviewWebsiteResponse{}
+	mi := &file_dockwell_v1_website_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PreviewWebsiteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PreviewWebsiteResponse) ProtoMessage() {}
+
+func (x *PreviewWebsiteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_website_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PreviewWebsiteResponse.ProtoReflect.Descriptor instead.
+func (*PreviewWebsiteResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *PreviewWebsiteResponse) GetWebsite() *v1alpha1.Website {
+	if x != nil {
+		return x.Website
+	}
+	return nil
+}
+
+func (x *PreviewWebsiteResponse) GetConfig() string {
+	if x != nil {
+		return x.Config
+	}
+	return ""
+}
+
 // CreateWebsiteRequest is a website to make.
 type CreateWebsiteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -265,7 +368,7 @@ type CreateWebsiteRequest struct {
 
 func (x *CreateWebsiteRequest) Reset() {
 	*x = CreateWebsiteRequest{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[3]
+	mi := &file_dockwell_v1_website_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -277,7 +380,7 @@ func (x *CreateWebsiteRequest) String() string {
 func (*CreateWebsiteRequest) ProtoMessage() {}
 
 func (x *CreateWebsiteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[3]
+	mi := &file_dockwell_v1_website_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -290,7 +393,7 @@ func (x *CreateWebsiteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateWebsiteRequest.ProtoReflect.Descriptor instead.
 func (*CreateWebsiteRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CreateWebsiteRequest) GetDomain() string {
@@ -353,7 +456,7 @@ type CreateWebsiteResponse struct {
 
 func (x *CreateWebsiteResponse) Reset() {
 	*x = CreateWebsiteResponse{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[4]
+	mi := &file_dockwell_v1_website_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -365,7 +468,7 @@ func (x *CreateWebsiteResponse) String() string {
 func (*CreateWebsiteResponse) ProtoMessage() {}
 
 func (x *CreateWebsiteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[4]
+	mi := &file_dockwell_v1_website_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -378,7 +481,7 @@ func (x *CreateWebsiteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateWebsiteResponse.ProtoReflect.Descriptor instead.
 func (*CreateWebsiteResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CreateWebsiteResponse) GetChange() *Change {
@@ -403,7 +506,7 @@ type UpdateWebsiteRequest struct {
 
 func (x *UpdateWebsiteRequest) Reset() {
 	*x = UpdateWebsiteRequest{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[5]
+	mi := &file_dockwell_v1_website_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -415,7 +518,7 @@ func (x *UpdateWebsiteRequest) String() string {
 func (*UpdateWebsiteRequest) ProtoMessage() {}
 
 func (x *UpdateWebsiteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[5]
+	mi := &file_dockwell_v1_website_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -428,7 +531,7 @@ func (x *UpdateWebsiteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWebsiteRequest.ProtoReflect.Descriptor instead.
 func (*UpdateWebsiteRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UpdateWebsiteRequest) GetId() string {
@@ -463,7 +566,7 @@ type UpdateWebsiteResponse struct {
 
 func (x *UpdateWebsiteResponse) Reset() {
 	*x = UpdateWebsiteResponse{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[6]
+	mi := &file_dockwell_v1_website_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -475,7 +578,7 @@ func (x *UpdateWebsiteResponse) String() string {
 func (*UpdateWebsiteResponse) ProtoMessage() {}
 
 func (x *UpdateWebsiteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[6]
+	mi := &file_dockwell_v1_website_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -488,7 +591,7 @@ func (x *UpdateWebsiteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWebsiteResponse.ProtoReflect.Descriptor instead.
 func (*UpdateWebsiteResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateWebsiteResponse) GetChange() *Change {
@@ -511,7 +614,7 @@ type DeleteWebsiteRequest struct {
 
 func (x *DeleteWebsiteRequest) Reset() {
 	*x = DeleteWebsiteRequest{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[7]
+	mi := &file_dockwell_v1_website_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -523,7 +626,7 @@ func (x *DeleteWebsiteRequest) String() string {
 func (*DeleteWebsiteRequest) ProtoMessage() {}
 
 func (x *DeleteWebsiteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[7]
+	mi := &file_dockwell_v1_website_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -536,7 +639,7 @@ func (x *DeleteWebsiteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWebsiteRequest.ProtoReflect.Descriptor instead.
 func (*DeleteWebsiteRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeleteWebsiteRequest) GetId() string {
@@ -564,7 +667,7 @@ type DeleteWebsiteResponse struct {
 
 func (x *DeleteWebsiteResponse) Reset() {
 	*x = DeleteWebsiteResponse{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[8]
+	mi := &file_dockwell_v1_website_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +679,7 @@ func (x *DeleteWebsiteResponse) String() string {
 func (*DeleteWebsiteResponse) ProtoMessage() {}
 
 func (x *DeleteWebsiteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[8]
+	mi := &file_dockwell_v1_website_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +692,7 @@ func (x *DeleteWebsiteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWebsiteResponse.ProtoReflect.Descriptor instead.
 func (*DeleteWebsiteResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeleteWebsiteResponse) GetChange() *Change {
@@ -621,7 +724,12 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\tserver_id\x18\t \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\n" +
 	" \x01(\tR\n" +
-	"serverName\"\x86\x02\n" +
+	"serverName\"V\n" +
+	"\x15PreviewWebsiteRequest\x12=\n" +
+	"\awebsite\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\"o\n" +
+	"\x16PreviewWebsiteResponse\x12=\n" +
+	"\awebsite\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\x12\x16\n" +
+	"\x06config\x18\x02 \x01(\tR\x06config\"\x86\x02\n" +
 	"\x14CreateWebsiteRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12=\n" +
 	"\awebsite\x18\x02 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\x12\x10\n" +
@@ -642,9 +750,10 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\"D\n" +
 	"\x15DeleteWebsiteResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\xf9\x03\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\xfd\x04\n" +
 	"\x0eWebsiteService\x12p\n" +
-	"\fListWebsites\x12 .dockwell.v1.ListWebsitesRequest\x1a!.dockwell.v1.ListWebsitesResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/websites\x90\x02\x01\x12s\n" +
+	"\fListWebsites\x12 .dockwell.v1.ListWebsitesRequest\x1a!.dockwell.v1.ListWebsitesResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/websites\x90\x02\x01\x12\x81\x01\n" +
+	"\x0ePreviewWebsite\x12\".dockwell.v1.PreviewWebsiteRequest\x1a#.dockwell.v1.PreviewWebsiteResponse\"&\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/websites:preview\x90\x02\x01\x12s\n" +
 	"\rCreateWebsite\x12!.dockwell.v1.CreateWebsiteRequest\x1a\".dockwell.v1.CreateWebsiteResponse\"\x1b\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/websites\x12\x7f\n" +
 	"\rUpdateWebsite\x12!.dockwell.v1.UpdateWebsiteRequest\x1a\".dockwell.v1.UpdateWebsiteResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/websites/{id}:update\x12\x7f\n" +
 	"\rDeleteWebsite\x12!.dockwell.v1.DeleteWebsiteRequest\x1a\".dockwell.v1.DeleteWebsiteResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/websites/{id}:deleteB\xa5\x01\n" +
@@ -662,43 +771,49 @@ func file_dockwell_v1_website_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_website_proto_rawDescData
 }
 
-var file_dockwell_v1_website_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_dockwell_v1_website_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_dockwell_v1_website_proto_goTypes = []any{
-	(*ListWebsitesRequest)(nil),   // 0: dockwell.v1.ListWebsitesRequest
-	(*ListWebsitesResponse)(nil),  // 1: dockwell.v1.ListWebsitesResponse
-	(*WebsiteInfo)(nil),           // 2: dockwell.v1.WebsiteInfo
-	(*CreateWebsiteRequest)(nil),  // 3: dockwell.v1.CreateWebsiteRequest
-	(*CreateWebsiteResponse)(nil), // 4: dockwell.v1.CreateWebsiteResponse
-	(*UpdateWebsiteRequest)(nil),  // 5: dockwell.v1.UpdateWebsiteRequest
-	(*UpdateWebsiteResponse)(nil), // 6: dockwell.v1.UpdateWebsiteResponse
-	(*DeleteWebsiteRequest)(nil),  // 7: dockwell.v1.DeleteWebsiteRequest
-	(*DeleteWebsiteResponse)(nil), // 8: dockwell.v1.DeleteWebsiteResponse
-	(*v1alpha1.Website)(nil),      // 9: dockwell.resource.v1alpha1.Website
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
-	(*Change)(nil),                // 11: dockwell.v1.Change
+	(*ListWebsitesRequest)(nil),    // 0: dockwell.v1.ListWebsitesRequest
+	(*ListWebsitesResponse)(nil),   // 1: dockwell.v1.ListWebsitesResponse
+	(*WebsiteInfo)(nil),            // 2: dockwell.v1.WebsiteInfo
+	(*PreviewWebsiteRequest)(nil),  // 3: dockwell.v1.PreviewWebsiteRequest
+	(*PreviewWebsiteResponse)(nil), // 4: dockwell.v1.PreviewWebsiteResponse
+	(*CreateWebsiteRequest)(nil),   // 5: dockwell.v1.CreateWebsiteRequest
+	(*CreateWebsiteResponse)(nil),  // 6: dockwell.v1.CreateWebsiteResponse
+	(*UpdateWebsiteRequest)(nil),   // 7: dockwell.v1.UpdateWebsiteRequest
+	(*UpdateWebsiteResponse)(nil),  // 8: dockwell.v1.UpdateWebsiteResponse
+	(*DeleteWebsiteRequest)(nil),   // 9: dockwell.v1.DeleteWebsiteRequest
+	(*DeleteWebsiteResponse)(nil),  // 10: dockwell.v1.DeleteWebsiteResponse
+	(*v1alpha1.Website)(nil),       // 11: dockwell.resource.v1alpha1.Website
+	(*timestamppb.Timestamp)(nil),  // 12: google.protobuf.Timestamp
+	(*Change)(nil),                 // 13: dockwell.v1.Change
 }
 var file_dockwell_v1_website_proto_depIdxs = []int32{
 	2,  // 0: dockwell.v1.ListWebsitesResponse.websites:type_name -> dockwell.v1.WebsiteInfo
-	9,  // 1: dockwell.v1.WebsiteInfo.spec:type_name -> dockwell.resource.v1alpha1.Website
-	10, // 2: dockwell.v1.WebsiteInfo.update_time:type_name -> google.protobuf.Timestamp
-	9,  // 3: dockwell.v1.CreateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
-	11, // 4: dockwell.v1.CreateWebsiteResponse.change:type_name -> dockwell.v1.Change
-	9,  // 5: dockwell.v1.UpdateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
-	11, // 6: dockwell.v1.UpdateWebsiteResponse.change:type_name -> dockwell.v1.Change
-	11, // 7: dockwell.v1.DeleteWebsiteResponse.change:type_name -> dockwell.v1.Change
-	0,  // 8: dockwell.v1.WebsiteService.ListWebsites:input_type -> dockwell.v1.ListWebsitesRequest
-	3,  // 9: dockwell.v1.WebsiteService.CreateWebsite:input_type -> dockwell.v1.CreateWebsiteRequest
-	5,  // 10: dockwell.v1.WebsiteService.UpdateWebsite:input_type -> dockwell.v1.UpdateWebsiteRequest
-	7,  // 11: dockwell.v1.WebsiteService.DeleteWebsite:input_type -> dockwell.v1.DeleteWebsiteRequest
-	1,  // 12: dockwell.v1.WebsiteService.ListWebsites:output_type -> dockwell.v1.ListWebsitesResponse
-	4,  // 13: dockwell.v1.WebsiteService.CreateWebsite:output_type -> dockwell.v1.CreateWebsiteResponse
-	6,  // 14: dockwell.v1.WebsiteService.UpdateWebsite:output_type -> dockwell.v1.UpdateWebsiteResponse
-	8,  // 15: dockwell.v1.WebsiteService.DeleteWebsite:output_type -> dockwell.v1.DeleteWebsiteResponse
-	12, // [12:16] is the sub-list for method output_type
-	8,  // [8:12] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	11, // 1: dockwell.v1.WebsiteInfo.spec:type_name -> dockwell.resource.v1alpha1.Website
+	12, // 2: dockwell.v1.WebsiteInfo.update_time:type_name -> google.protobuf.Timestamp
+	11, // 3: dockwell.v1.PreviewWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	11, // 4: dockwell.v1.PreviewWebsiteResponse.website:type_name -> dockwell.resource.v1alpha1.Website
+	11, // 5: dockwell.v1.CreateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	13, // 6: dockwell.v1.CreateWebsiteResponse.change:type_name -> dockwell.v1.Change
+	11, // 7: dockwell.v1.UpdateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	13, // 8: dockwell.v1.UpdateWebsiteResponse.change:type_name -> dockwell.v1.Change
+	13, // 9: dockwell.v1.DeleteWebsiteResponse.change:type_name -> dockwell.v1.Change
+	0,  // 10: dockwell.v1.WebsiteService.ListWebsites:input_type -> dockwell.v1.ListWebsitesRequest
+	3,  // 11: dockwell.v1.WebsiteService.PreviewWebsite:input_type -> dockwell.v1.PreviewWebsiteRequest
+	5,  // 12: dockwell.v1.WebsiteService.CreateWebsite:input_type -> dockwell.v1.CreateWebsiteRequest
+	7,  // 13: dockwell.v1.WebsiteService.UpdateWebsite:input_type -> dockwell.v1.UpdateWebsiteRequest
+	9,  // 14: dockwell.v1.WebsiteService.DeleteWebsite:input_type -> dockwell.v1.DeleteWebsiteRequest
+	1,  // 15: dockwell.v1.WebsiteService.ListWebsites:output_type -> dockwell.v1.ListWebsitesResponse
+	4,  // 16: dockwell.v1.WebsiteService.PreviewWebsite:output_type -> dockwell.v1.PreviewWebsiteResponse
+	6,  // 17: dockwell.v1.WebsiteService.CreateWebsite:output_type -> dockwell.v1.CreateWebsiteResponse
+	8,  // 18: dockwell.v1.WebsiteService.UpdateWebsite:output_type -> dockwell.v1.UpdateWebsiteResponse
+	10, // 19: dockwell.v1.WebsiteService.DeleteWebsite:output_type -> dockwell.v1.DeleteWebsiteResponse
+	15, // [15:20] is the sub-list for method output_type
+	10, // [10:15] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_website_proto_init() }
@@ -714,7 +829,7 @@ func file_dockwell_v1_website_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_website_proto_rawDesc), len(file_dockwell_v1_website_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

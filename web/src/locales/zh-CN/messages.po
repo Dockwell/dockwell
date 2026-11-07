@@ -691,23 +691,11 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
 msgstr "一条路由只在一台服务器上运行，因为证书只会发到 DNS 指向的那台服务器。"
 
-msgid "A tunnel on this server"
-msgstr "此服务器上的隧道"
-
 msgid "Add a domain"
 msgstr "添加域名"
 
 msgid "Add a domain to {name}"
 msgstr "为 {name} 添加域名"
-
-msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
-msgstr "地址或范围，例如隧道在桥接网络上时的 10.77.0.0/24。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
-
-msgid "Another proxy"
-msgstr "其他代理"
-
-msgid "Anyone who can reach this server"
-msgstr "任何能访问此服务器的人"
 
 msgid "App"
 msgstr "应用"
@@ -718,23 +706,11 @@ msgstr "选择应用"
 msgid "Choose the app this domain reaches."
 msgstr "请选择这个域名要到达的应用。"
 
-msgid "Cloudflare connects to this server's port 80."
-msgstr "Cloudflare 连接此服务器的 80 端口。"
-
-msgid "Cloudflare's proxy"
-msgstr "Cloudflare 代理"
-
 msgid "Domain"
 msgstr "域名"
 
 msgid "Edit and try again"
 msgstr "修改后重试"
-
-msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
-msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
-
-msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
-msgstr "它会通过明文 HTTP 响应任何能访问 80 端口的人，绕过前面的任何代理。你需要在计划中批准此项。"
 
 msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
 msgstr "它在服务器自身的网络上，因此填写它在那里监听的端口，例如 8080。80 端口由代理占用。"
@@ -778,29 +754,11 @@ msgstr "服务器上的端口"
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
 
-msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "例如在服务器自身网络上的 cloudflared。你的应用能读取访问者的地址和 https。桥接网络上的隧道在这里算作其他代理，用该网络的范围来指定。"
-
-msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
-msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
-
-msgid "This server takes no certificate, and traffic reaches it unencrypted."
-msgstr "此服务器不使用证书，流量以未加密方式到达。"
-
 msgid "Use a port from 1 to 65535."
 msgstr "请使用 1 到 65535 之间的端口。"
 
-msgid "What connects to this server"
-msgstr "连接此服务器的来源"
-
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
-
-msgid "What's in front"
-msgstr "前面是什么"
-
-msgid "You name what connects to this server."
-msgstr "由你写明连接此服务器的来源。"
 
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
 msgstr "{typed} 目前指向 {leavesApp}。继续操作会将它移到这里，并离开 {leavesApp}。"
@@ -1614,6 +1572,51 @@ msgstr "此应用"
 
 msgid "What to export"
 msgstr "要导出的内容"
+
+msgid "A tunnel on this server"
+msgstr "此服务器上的隧道"
+
+msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+msgstr "地址或范围，例如隧道在桥接网络上时的 10.77.0.0/24。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
+
+msgid "Another proxy"
+msgstr "其他代理"
+
+msgid "Anyone who can reach this server"
+msgstr "任何能访问此服务器的人"
+
+msgid "Cloudflare connects to this server's port 80."
+msgstr "Cloudflare 连接此服务器的 80 端口。"
+
+msgid "Cloudflare's proxy"
+msgstr "Cloudflare 代理"
+
+msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
+msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
+
+msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
+msgstr "它会通过明文 HTTP 响应任何能访问 80 端口的人，绕过前面的任何代理。你需要在计划中批准此项。"
+
+msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "例如在服务器自身网络上运行的 cloudflared。网站转发到的目标能读取访问者的地址和 https。在桥接网络上的隧道在这里算作其他代理，按该网络的范围填写。"
+
+msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "例如在服务器自身网络上的 cloudflared。你的应用能读取访问者的地址和 https。桥接网络上的隧道在这里算作其他代理，用该网络的范围来指定。"
+
+msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
+msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
+
+msgid "This server takes no certificate, and traffic reaches it unencrypted."
+msgstr "此服务器不使用证书，流量以未加密方式到达。"
+
+msgid "What connects to this server"
+msgstr "连接此服务器的来源"
+
+msgid "What's in front"
+msgstr "前面是什么"
+
+msgid "You name what connects to this server."
+msgstr "由你写明连接此服务器的来源。"
 
 msgid "Checking"
 msgstr "正在检查"
@@ -6374,6 +6377,9 @@ msgstr "打开服务器列表"
 msgid "Open the variables and secrets of {name}"
 msgstr "打开 {name} 的变量和密钥"
 
+msgid "Open the websites"
+msgstr "打开网站"
+
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
 
@@ -6962,6 +6968,267 @@ msgstr "作为 {0}"
 
 msgid "value"
 msgstr "值"
+
+msgid "A URL"
+msgstr "URL"
+
+msgid "A port on this server"
+msgstr "此服务器上的端口"
+
+msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
+msgstr "网站运行在一台服务器上，因为证书只会颁发给其 DNS 指向的那一台。"
+
+msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
+msgstr "另一个站点，或你网络中的某个地址，例如 http://10.0.0.5:8080。由它自己的小型 Web 服务器转发每个请求。"
+
+msgid "Choose a server"
+msgstr "选择服务器"
+
+msgid "Choose the server it runs on."
+msgstr "请选择它运行的服务器。"
+
+msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
+msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"
+
+msgid "Give the URL to send to, such as https://backend.example.com."
+msgstr "请填写要转发到的 URL，例如 https://backend.example.com。"
+
+msgid "Name the domain, such as blog.example.com."
+msgstr "请填写域名，例如 blog.example.com。"
+
+msgid "New website"
+msgstr "新建网站"
+
+msgid "People reach it at its domain, over HTTPS"
+msgstr "访问者通过 HTTPS 在其域名上访问它"
+
+msgid "People reach it at its domain, over plain HTTP"
+msgstr "访问者通过明文 HTTP 在其域名上访问它"
+
+msgid "People reach it at its domain, through what's in front of this server"
+msgstr "访问者经由此服务器前面的隧道或代理在其域名上访问它"
+
+msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+msgstr "将它的 DNS 指向此服务器，之前或之后均可。指向后证书会自动签发。"
+
+msgid "Send the URL's own name as Host"
+msgstr "将 URL 自己的主机名作为 Host 发送"
+
+msgid "Sends its requests to"
+msgstr "将请求转发到"
+
+msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
+msgstr "服务器本身上监听的程序，例如端口 3000。它会把每个访问者都视为本机，所以需要你在计划中批准。"
+
+msgid "Start it with http:// or https://, such as https://backend.example.com."
+msgstr "请以 http:// 或 https:// 开头，例如 https://backend.example.com。"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's."
+msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。端口 80 归代理使用。"
+
+msgid "With a path, such as /app, each request goes under it."
+msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
+
+msgid "No domain"
+msgstr "没有域名"
+
+msgid "Not serving"
+msgstr "未在服务"
+
+msgid "certificate expired"
+msgstr "证书已过期"
+
+msgid "certificate failed"
+msgstr "证书获取失败"
+
+msgid "certificate on its way"
+msgstr "证书正在签发"
+
+msgid "certificate renewal failing"
+msgstr "证书续期失败"
+
+msgid "certificate valid"
+msgstr "证书有效"
+
+msgid "plain HTTP"
+msgstr "明文 HTTP"
+
+msgid "{days, plural, one {# day left} other {# days left}}"
+msgstr "{days, plural, other {还剩 # 天}}"
+
+msgid "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
+msgstr "{days, plural, other {证书有效期还有 # 天}}"
+
+msgid "A small web server of its own sends each request on"
+msgstr "由它自己的小型 Web 服务器转发每个请求"
+
+msgid "Certificate"
+msgstr "证书"
+
+msgid "Copy the config"
+msgstr "复制配置"
+
+msgid "Delete this website"
+msgstr "删除此网站"
+
+msgid "Delete website"
+msgstr "删除网站"
+
+msgid "Go to the websites"
+msgstr "前往网站"
+
+msgid "Its route and its web server go. Undo from Activity brings them back."
+msgstr "它的路由和 Web 服务器会被删除。在“动态”中撤销即可恢复。"
+
+msgid "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
+msgstr "它的路由会被删除，端口上监听的程序继续运行。在“动态”中撤销即可恢复。"
+
+msgid "Its web server"
+msgstr "它的 Web 服务器"
+
+msgid "No route gives it a domain now"
+msgstr "目前没有路由为它提供域名"
+
+msgid "Not valid"
+msgstr "无效"
+
+msgid "Open in Domains"
+msgstr "在“域名”中打开"
+
+msgid "Over HTTPS, with its own certificate"
+msgstr "通过 HTTPS，使用它自己的证书"
+
+msgid "Over plain HTTP, to anyone who reaches the server"
+msgstr "通过明文 HTTP，任何能访问到服务器的人都可以访问"
+
+msgid "Reached"
+msgstr "访问方式"
+
+msgid "Route"
+msgstr "路由"
+
+msgid "Sends to"
+msgstr "转发到"
+
+msgid "The ingress sends each request straight to the port"
+msgstr "入口代理将每个请求直接发送到该端口"
+
+msgid "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
+msgstr "入口代理将每个请求直接发送到该端口，中间没有它自己的服务器，所以这里没有配置可显示。在那里监听的程序会把每个访问者都视为本机。"
+
+msgid "The web server's config"
+msgstr "Web 服务器的配置"
+
+msgid "Through a tunnel or a proxy in front, which ends TLS"
+msgstr "通过前面终止 TLS 的隧道或代理"
+
+msgid "Was a URL"
+msgstr "原为 URL"
+
+msgid "Was a port on this server"
+msgstr "原为此服务器上的端口"
+
+#. placeholder {0}: was.url
+msgid "Was {0}"
+msgstr "原为 {0}"
+
+#. placeholder {0}: was.port
+msgid "Was {0} · whatever listens there sees every visitor as local"
+msgstr "原为 {0} · 在那里监听的程序会把每个访问者都视为本机"
+
+msgid "Whatever listens there sees every visitor as local, so you approve it in the plan."
+msgstr "在那里监听的程序会把每个访问者都视为本机，所以需要你在计划中批准。"
+
+msgid "Where it sends"
+msgstr "转发目标"
+
+msgid "written by Dockwell from these settings"
+msgstr "由 Dockwell 根据这些设置生成"
+
+msgid "{changes, plural, one {# change} other {# changes}}"
+msgstr "{changes, plural, other {# 处更改}}"
+
+msgid "<0>{websiteId}</0> may have been deleted, or the link may be wrong."
+msgstr "<0>{websiteId}</0> 可能已被删除，或链接有误。"
+
+msgid "Can't load this website"
+msgstr "无法加载此网站"
+
+msgid "Dockwell can't read what this website serves"
+msgstr "Dockwell 无法读取此网站提供的内容"
+
+msgid "Loading the website"
+msgstr "正在加载网站"
+
+msgid "No website with this ID"
+msgstr "没有此 ID 的网站"
+
+msgid "Reverse proxy to port {port} on the server"
+msgstr "反向代理到服务器上的端口 {port}"
+
+#. placeholder {0}: targetOf(site.spec)
+msgid "Reverse proxy to {0}"
+msgstr "反向代理到 {0}"
+
+msgid "Visit site"
+msgstr "访问网站"
+
+msgid "Website"
+msgstr "网站"
+
+msgid "Website sections"
+msgstr "网站分区"
+
+msgid "Nothing here writes logs"
+msgstr "这里没有写日志的程序"
+
+msgid "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
+msgstr "入口代理将此网站直接发送到服务器上的端口 {port}，中间没有它自己的服务器。在那里监听的程序自己保存日志。"
+
+msgid "This website has no web server of its own now, so there's nothing of its own to read."
+msgstr "此网站目前没有自己的 Web 服务器，因此没有它自己的日志可读。"
+
+msgid "Can't load the websites"
+msgstr "无法加载网站"
+
+msgid "Changed"
+msgstr "更改于"
+
+msgid "Loading websites"
+msgstr "正在加载网站"
+
+msgid "No websites yet"
+msgstr "还没有网站"
+
+msgid "Port {port} on the server"
+msgstr "服务器上的端口 {port}"
+
+msgid "Reverse proxy"
+msgstr "反向代理"
+
+msgid "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
+msgstr "将域名转发到某个 URL，或你服务器上的某个端口。任何变更之前，你都会先审查计划。"
+
+msgid "Type"
+msgstr "类型"
+
+#. placeholder {0}: only.name
+msgid "Websites on {0}"
+msgstr "{0} 上的网站"
+
+msgid "What your websites serve isn't affected."
+msgstr "网站提供的服务不受影响。"
+
+#. placeholder {0}: only.name
+#. placeholder {1}: only.name
+msgid "{count, plural, one {# site on {0}} other {# sites on {1}}}"
+msgstr "{count, plural, other {{1} 上有 # 个网站}}"
+
+msgid "{count, plural, one {# site} other {# sites}}"
+msgstr "{count, plural, other {# 个网站}}"
 
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, other {# 天}}"

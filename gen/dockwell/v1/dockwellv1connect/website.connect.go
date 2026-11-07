@@ -38,6 +38,9 @@ const (
 	// WebsiteServiceListWebsitesProcedure is the fully-qualified name of the WebsiteService's
 	// ListWebsites RPC.
 	WebsiteServiceListWebsitesProcedure = "/dockwell.v1.WebsiteService/ListWebsites"
+	// WebsiteServicePreviewWebsiteProcedure is the fully-qualified name of the WebsiteService's
+	// PreviewWebsite RPC.
+	WebsiteServicePreviewWebsiteProcedure = "/dockwell.v1.WebsiteService/PreviewWebsite"
 	// WebsiteServiceCreateWebsiteProcedure is the fully-qualified name of the WebsiteService's
 	// CreateWebsite RPC.
 	WebsiteServiceCreateWebsiteProcedure = "/dockwell.v1.WebsiteService/CreateWebsite"
@@ -53,6 +56,10 @@ const (
 type WebsiteServiceClient interface {
 	// ListWebsites returns every website, sorted by domain.
 	ListWebsites(context.Context, *connect.Request[v1.ListWebsitesRequest]) (*connect.Response[v1.ListWebsitesResponse], error)
+	// PreviewWebsite says what a website's own web server would run for what it
+	// serves, and how Dockwell would keep that, planning nothing. It refuses what
+	// can't be served as CreateWebsite would, so a form can say so as you type.
+	PreviewWebsite(context.Context, *connect.Request[v1.PreviewWebsiteRequest]) (*connect.Response[v1.PreviewWebsiteResponse], error)
 	// CreateWebsite plans a new website at a domain, as a project of its own,
 	// ready to apply or discard. A website that sends to a port on the server
 	// reaches past containers, so a person applies it.
@@ -85,6 +92,13 @@ func NewWebsiteServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		previewWebsite: connect.NewClient[v1.PreviewWebsiteRequest, v1.PreviewWebsiteResponse](
+			httpClient,
+			baseURL+WebsiteServicePreviewWebsiteProcedure,
+			connect.WithSchema(websiteServiceMethods.ByName("PreviewWebsite")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		createWebsite: connect.NewClient[v1.CreateWebsiteRequest, v1.CreateWebsiteResponse](
 			httpClient,
 			baseURL+WebsiteServiceCreateWebsiteProcedure,
@@ -108,15 +122,21 @@ func NewWebsiteServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // websiteServiceClient implements WebsiteServiceClient.
 type websiteServiceClient struct {
-	listWebsites  *connect.Client[v1.ListWebsitesRequest, v1.ListWebsitesResponse]
-	createWebsite *connect.Client[v1.CreateWebsiteRequest, v1.CreateWebsiteResponse]
-	updateWebsite *connect.Client[v1.UpdateWebsiteRequest, v1.UpdateWebsiteResponse]
-	deleteWebsite *connect.Client[v1.DeleteWebsiteRequest, v1.DeleteWebsiteResponse]
+	listWebsites   *connect.Client[v1.ListWebsitesRequest, v1.ListWebsitesResponse]
+	previewWebsite *connect.Client[v1.PreviewWebsiteRequest, v1.PreviewWebsiteResponse]
+	createWebsite  *connect.Client[v1.CreateWebsiteRequest, v1.CreateWebsiteResponse]
+	updateWebsite  *connect.Client[v1.UpdateWebsiteRequest, v1.UpdateWebsiteResponse]
+	deleteWebsite  *connect.Client[v1.DeleteWebsiteRequest, v1.DeleteWebsiteResponse]
 }
 
 // ListWebsites calls dockwell.v1.WebsiteService.ListWebsites.
 func (c *websiteServiceClient) ListWebsites(ctx context.Context, req *connect.Request[v1.ListWebsitesRequest]) (*connect.Response[v1.ListWebsitesResponse], error) {
 	return c.listWebsites.CallUnary(ctx, req)
+}
+
+// PreviewWebsite calls dockwell.v1.WebsiteService.PreviewWebsite.
+func (c *websiteServiceClient) PreviewWebsite(ctx context.Context, req *connect.Request[v1.PreviewWebsiteRequest]) (*connect.Response[v1.PreviewWebsiteResponse], error) {
+	return c.previewWebsite.CallUnary(ctx, req)
 }
 
 // CreateWebsite calls dockwell.v1.WebsiteService.CreateWebsite.
@@ -138,6 +158,10 @@ func (c *websiteServiceClient) DeleteWebsite(ctx context.Context, req *connect.R
 type WebsiteServiceHandler interface {
 	// ListWebsites returns every website, sorted by domain.
 	ListWebsites(context.Context, *connect.Request[v1.ListWebsitesRequest]) (*connect.Response[v1.ListWebsitesResponse], error)
+	// PreviewWebsite says what a website's own web server would run for what it
+	// serves, and how Dockwell would keep that, planning nothing. It refuses what
+	// can't be served as CreateWebsite would, so a form can say so as you type.
+	PreviewWebsite(context.Context, *connect.Request[v1.PreviewWebsiteRequest]) (*connect.Response[v1.PreviewWebsiteResponse], error)
 	// CreateWebsite plans a new website at a domain, as a project of its own,
 	// ready to apply or discard. A website that sends to a port on the server
 	// reaches past containers, so a person applies it.
@@ -166,6 +190,13 @@ func NewWebsiteServiceHandler(svc WebsiteServiceHandler, opts ...connect.Handler
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	websiteServicePreviewWebsiteHandler := connect.NewUnaryHandler(
+		WebsiteServicePreviewWebsiteProcedure,
+		svc.PreviewWebsite,
+		connect.WithSchema(websiteServiceMethods.ByName("PreviewWebsite")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	websiteServiceCreateWebsiteHandler := connect.NewUnaryHandler(
 		WebsiteServiceCreateWebsiteProcedure,
 		svc.CreateWebsite,
@@ -188,6 +219,8 @@ func NewWebsiteServiceHandler(svc WebsiteServiceHandler, opts ...connect.Handler
 		switch r.URL.Path {
 		case WebsiteServiceListWebsitesProcedure:
 			websiteServiceListWebsitesHandler.ServeHTTP(w, r)
+		case WebsiteServicePreviewWebsiteProcedure:
+			websiteServicePreviewWebsiteHandler.ServeHTTP(w, r)
 		case WebsiteServiceCreateWebsiteProcedure:
 			websiteServiceCreateWebsiteHandler.ServeHTTP(w, r)
 		case WebsiteServiceUpdateWebsiteProcedure:
@@ -205,6 +238,10 @@ type UnimplementedWebsiteServiceHandler struct{}
 
 func (UnimplementedWebsiteServiceHandler) ListWebsites(context.Context, *connect.Request[v1.ListWebsitesRequest]) (*connect.Response[v1.ListWebsitesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.WebsiteService.ListWebsites is not implemented"))
+}
+
+func (UnimplementedWebsiteServiceHandler) PreviewWebsite(context.Context, *connect.Request[v1.PreviewWebsiteRequest]) (*connect.Response[v1.PreviewWebsiteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.WebsiteService.PreviewWebsite is not implemented"))
 }
 
 func (UnimplementedWebsiteServiceHandler) CreateWebsite(context.Context, *connect.Request[v1.CreateWebsiteRequest]) (*connect.Response[v1.CreateWebsiteResponse], error) {

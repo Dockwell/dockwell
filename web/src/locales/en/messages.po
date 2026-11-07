@@ -691,23 +691,11 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
 msgstr "A route runs on one server, as its certificate comes to the one its DNS points at."
 
-msgid "A tunnel on this server"
-msgstr "A tunnel on this server"
-
 msgid "Add a domain"
 msgstr "Add a domain"
 
 msgid "Add a domain to {name}"
 msgstr "Add a domain to {name}"
-
-msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
-msgstr "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
-
-msgid "Another proxy"
-msgstr "Another proxy"
-
-msgid "Anyone who can reach this server"
-msgstr "Anyone who can reach this server"
 
 msgid "App"
 msgstr "App"
@@ -718,23 +706,11 @@ msgstr "Choose an app"
 msgid "Choose the app this domain reaches."
 msgstr "Choose the app this domain reaches."
 
-msgid "Cloudflare connects to this server's port 80."
-msgstr "Cloudflare connects to this server's port 80."
-
-msgid "Cloudflare's proxy"
-msgstr "Cloudflare's proxy"
-
 msgid "Domain"
 msgstr "Domain"
 
 msgid "Edit and try again"
 msgstr "Edit and try again"
-
-msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
-msgstr "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
-
-msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
-msgstr "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 
 msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
 msgstr "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
@@ -778,29 +754,11 @@ msgstr "Port on the server"
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
 
-msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-
-msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
-msgstr "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
-
-msgid "This server takes no certificate, and traffic reaches it unencrypted."
-msgstr "This server takes no certificate, and traffic reaches it unencrypted."
-
 msgid "Use a port from 1 to 65535."
 msgstr "Use a port from 1 to 65535."
 
-msgid "What connects to this server"
-msgstr "What connects to this server"
-
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."
-
-msgid "What's in front"
-msgstr "What's in front"
-
-msgid "You name what connects to this server."
-msgstr "You name what connects to this server."
 
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
 msgstr "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
@@ -1614,6 +1572,51 @@ msgstr "This app"
 
 msgid "What to export"
 msgstr "What to export"
+
+msgid "A tunnel on this server"
+msgstr "A tunnel on this server"
+
+msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+msgstr "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+
+msgid "Another proxy"
+msgstr "Another proxy"
+
+msgid "Anyone who can reach this server"
+msgstr "Anyone who can reach this server"
+
+msgid "Cloudflare connects to this server's port 80."
+msgstr "Cloudflare connects to this server's port 80."
+
+msgid "Cloudflare's proxy"
+msgstr "Cloudflare's proxy"
+
+msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
+msgstr "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
+
+msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
+msgstr "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
+
+msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+
+msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+
+msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
+msgstr "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
+
+msgid "This server takes no certificate, and traffic reaches it unencrypted."
+msgstr "This server takes no certificate, and traffic reaches it unencrypted."
+
+msgid "What connects to this server"
+msgstr "What connects to this server"
+
+msgid "What's in front"
+msgstr "What's in front"
+
+msgid "You name what connects to this server."
+msgstr "You name what connects to this server."
 
 msgid "Checking"
 msgstr "Checking"
@@ -6374,6 +6377,9 @@ msgstr "Open the server list"
 msgid "Open the variables and secrets of {name}"
 msgstr "Open the variables and secrets of {name}"
 
+msgid "Open the websites"
+msgstr "Open the websites"
+
 msgid "Open your profile and security settings"
 msgstr "Open your profile and security settings"
 
@@ -6962,6 +6968,267 @@ msgstr "as {0}"
 
 msgid "value"
 msgstr "value"
+
+msgid "A URL"
+msgstr "A URL"
+
+msgid "A port on this server"
+msgstr "A port on this server"
+
+msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
+msgstr "A website runs on one server, as its certificate comes to the one its DNS points at."
+
+msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
+msgstr "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
+
+msgid "Choose a server"
+msgstr "Choose a server"
+
+msgid "Choose the server it runs on."
+msgstr "Choose the server it runs on."
+
+msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
+msgstr "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
+
+msgid "Give the URL to send to, such as https://backend.example.com."
+msgstr "Give the URL to send to, such as https://backend.example.com."
+
+msgid "Name the domain, such as blog.example.com."
+msgstr "Name the domain, such as blog.example.com."
+
+msgid "New website"
+msgstr "New website"
+
+msgid "People reach it at its domain, over HTTPS"
+msgstr "People reach it at its domain, over HTTPS"
+
+msgid "People reach it at its domain, over plain HTTP"
+msgstr "People reach it at its domain, over plain HTTP"
+
+msgid "People reach it at its domain, through what's in front of this server"
+msgstr "People reach it at its domain, through what's in front of this server"
+
+msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+msgstr "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+
+msgid "Send the URL's own name as Host"
+msgstr "Send the URL's own name as Host"
+
+msgid "Sends its requests to"
+msgstr "Sends its requests to"
+
+msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
+msgstr "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
+
+msgid "Start it with http:// or https://, such as https://backend.example.com."
+msgstr "Start it with http:// or https://, such as https://backend.example.com."
+
+msgid "URL"
+msgstr "URL"
+
+msgid "What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's."
+msgstr "What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's."
+
+msgid "With a path, such as /app, each request goes under it."
+msgstr "With a path, such as /app, each request goes under it."
+
+msgid "No domain"
+msgstr "No domain"
+
+msgid "Not serving"
+msgstr "Not serving"
+
+msgid "certificate expired"
+msgstr "certificate expired"
+
+msgid "certificate failed"
+msgstr "certificate failed"
+
+msgid "certificate on its way"
+msgstr "certificate on its way"
+
+msgid "certificate renewal failing"
+msgstr "certificate renewal failing"
+
+msgid "certificate valid"
+msgstr "certificate valid"
+
+msgid "plain HTTP"
+msgstr "plain HTTP"
+
+msgid "{days, plural, one {# day left} other {# days left}}"
+msgstr "{days, plural, one {# day left} other {# days left}}"
+
+msgid "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
+msgstr "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
+
+msgid "A small web server of its own sends each request on"
+msgstr "A small web server of its own sends each request on"
+
+msgid "Certificate"
+msgstr "Certificate"
+
+msgid "Copy the config"
+msgstr "Copy the config"
+
+msgid "Delete this website"
+msgstr "Delete this website"
+
+msgid "Delete website"
+msgstr "Delete website"
+
+msgid "Go to the websites"
+msgstr "Go to the websites"
+
+msgid "Its route and its web server go. Undo from Activity brings them back."
+msgstr "Its route and its web server go. Undo from Activity brings them back."
+
+msgid "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
+msgstr "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
+
+msgid "Its web server"
+msgstr "Its web server"
+
+msgid "No route gives it a domain now"
+msgstr "No route gives it a domain now"
+
+msgid "Not valid"
+msgstr "Not valid"
+
+msgid "Open in Domains"
+msgstr "Open in Domains"
+
+msgid "Over HTTPS, with its own certificate"
+msgstr "Over HTTPS, with its own certificate"
+
+msgid "Over plain HTTP, to anyone who reaches the server"
+msgstr "Over plain HTTP, to anyone who reaches the server"
+
+msgid "Reached"
+msgstr "Reached"
+
+msgid "Route"
+msgstr "Route"
+
+msgid "Sends to"
+msgstr "Sends to"
+
+msgid "The ingress sends each request straight to the port"
+msgstr "The ingress sends each request straight to the port"
+
+msgid "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
+msgstr "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
+
+msgid "The web server's config"
+msgstr "The web server's config"
+
+msgid "Through a tunnel or a proxy in front, which ends TLS"
+msgstr "Through a tunnel or a proxy in front, which ends TLS"
+
+msgid "Was a URL"
+msgstr "Was a URL"
+
+msgid "Was a port on this server"
+msgstr "Was a port on this server"
+
+#. placeholder {0}: was.url
+msgid "Was {0}"
+msgstr "Was {0}"
+
+#. placeholder {0}: was.port
+msgid "Was {0} · whatever listens there sees every visitor as local"
+msgstr "Was {0} · whatever listens there sees every visitor as local"
+
+msgid "Whatever listens there sees every visitor as local, so you approve it in the plan."
+msgstr "Whatever listens there sees every visitor as local, so you approve it in the plan."
+
+msgid "Where it sends"
+msgstr "Where it sends"
+
+msgid "written by Dockwell from these settings"
+msgstr "written by Dockwell from these settings"
+
+msgid "{changes, plural, one {# change} other {# changes}}"
+msgstr "{changes, plural, one {# change} other {# changes}}"
+
+msgid "<0>{websiteId}</0> may have been deleted, or the link may be wrong."
+msgstr "<0>{websiteId}</0> may have been deleted, or the link may be wrong."
+
+msgid "Can't load this website"
+msgstr "Can't load this website"
+
+msgid "Dockwell can't read what this website serves"
+msgstr "Dockwell can't read what this website serves"
+
+msgid "Loading the website"
+msgstr "Loading the website"
+
+msgid "No website with this ID"
+msgstr "No website with this ID"
+
+msgid "Reverse proxy to port {port} on the server"
+msgstr "Reverse proxy to port {port} on the server"
+
+#. placeholder {0}: targetOf(site.spec)
+msgid "Reverse proxy to {0}"
+msgstr "Reverse proxy to {0}"
+
+msgid "Visit site"
+msgstr "Visit site"
+
+msgid "Website"
+msgstr "Website"
+
+msgid "Website sections"
+msgstr "Website sections"
+
+msgid "Nothing here writes logs"
+msgstr "Nothing here writes logs"
+
+msgid "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
+msgstr "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
+
+msgid "This website has no web server of its own now, so there's nothing of its own to read."
+msgstr "This website has no web server of its own now, so there's nothing of its own to read."
+
+msgid "Can't load the websites"
+msgstr "Can't load the websites"
+
+msgid "Changed"
+msgstr "Changed"
+
+msgid "Loading websites"
+msgstr "Loading websites"
+
+msgid "No websites yet"
+msgstr "No websites yet"
+
+msgid "Port {port} on the server"
+msgstr "Port {port} on the server"
+
+msgid "Reverse proxy"
+msgstr "Reverse proxy"
+
+msgid "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
+msgstr "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
+
+msgid "Type"
+msgstr "Type"
+
+#. placeholder {0}: only.name
+msgid "Websites on {0}"
+msgstr "Websites on {0}"
+
+msgid "What your websites serve isn't affected."
+msgstr "What your websites serve isn't affected."
+
+#. placeholder {0}: only.name
+#. placeholder {1}: only.name
+msgid "{count, plural, one {# site on {0}} other {# sites on {1}}}"
+msgstr "{count, plural, one {# site on {0}} other {# sites on {1}}}"
+
+msgid "{count, plural, one {# site} other {# sites}}"
+msgstr "{count, plural, one {# site} other {# sites}}"
 
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, one {# day} other {# days}}"
