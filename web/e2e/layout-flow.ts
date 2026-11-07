@@ -2,12 +2,12 @@
 
 // How wide each kind of page grows, as Layout in design/system/README.md sets
 // out. On a 2560 px screen every page sits centred right of the rail, with
-// gutters the same on both sides: a list grows past a detail page's 1360 px
-// while its few-column table stops at 1160 px, Settings' form stops at its
-// narrower width, and an app's log view takes the whole column under a head
-// and tabs that stay where its other tabs have them. The top bar is the same on
-// every page. At 1440 px and below every kind fills the column, as the mocks
-// draw it.
+// gutters the same on both sides: the catalog's grid grows past a detail
+// page's 1360 px, Apps, a table of few columns, stays at 1360 px with its head
+// and table sharing their edges, Settings' form stops at its narrower width,
+// and an app's log view takes the whole column under a head and tabs that stay
+// where its other tabs have them. The top bar is the same on every page. At
+// 1440 px and below every kind fills the column, as the mocks draw it.
 
 import type { Page } from "playwright-core";
 
@@ -30,8 +30,9 @@ interface Measure {
   page: Box;
   heading: Box;
   tabs?: Box;
-  /** An app's list, or a log view, where the page has one. */
-  list?: Box;
+  /** The page's actions beside its title, its table, and a log view, where it has them. */
+  actions?: Box;
+  table?: Box;
   logs?: Box;
   /** The top bar's scope, and its last control. */
   scope: Box;
@@ -57,7 +58,8 @@ async function measure(page: Page): Promise<Measure> {
     const main = document.querySelector("#main");
     const content = main?.querySelector(".page");
     const tabs = box(content?.querySelector(":scope > .dw-tabs"));
-    const list = box(content?.querySelector(".apps-section"));
+    const actions = box(content?.querySelector(".page-actions"));
+    const table = box(content?.querySelector(".dw-table-wrap"));
     const logs = box(content?.querySelector("section.logs"));
     return {
       main: need(box(main), "main column"),
@@ -65,7 +67,8 @@ async function measure(page: Page): Promise<Measure> {
       page: need(box(content), "page"),
       heading: need(box(content?.querySelector("h1")), "heading"),
       ...(tabs ? { tabs } : {}),
-      ...(list ? { list } : {}),
+      ...(actions ? { actions } : {}),
+      ...(table ? { table } : {}),
       ...(logs ? { logs } : {}),
       scope: need(box(document.querySelector(".topbar-scope .topbar-scope-icon")), "top bar scope"),
       end: need(box(document.querySelector(".topbar > :last-child")), "top bar control"),
@@ -92,7 +95,8 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
   );
   const app = services[0]?.id ?? fail("no app to measure a detail page and a log view on");
   const kinds = [
-    { kind: "wide", path: "/apps", max: 1680, waitFor: ".apps-section table" },
+    { kind: "wide", path: "/catalog", max: 1680, waitFor: ".catalog-grid" },
+    { kind: "standard, a table of few columns", path: "/apps", max: 1360, waitFor: ".apps-section table" },
     { kind: "standard", path: `/apps/${app}`, max: 1360 },
     { kind: "narrow", path: "/settings/general", max: 1040 },
     { kind: "standard, with a log view", path: `/apps/${app}/logs`, max: 1360, waitFor: "section.logs" },
@@ -122,13 +126,20 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
     step(`  ${kind} ${name(path)}: ${Math.round(m.frame.width)} px, ${Math.round(left)} px either side`);
   }
 
-  // A list grows past a detail page's width, while its few-column table stops at the width it has at 1440 px.
+  // A grid grows past a detail page's width. A table of few columns doesn't: its page's head and the table share
+  // their two edges, New app over the table's right edge.
+  const catalog = seen.get("/catalog") ?? fail("the catalog wasn't measured");
+  if (catalog.page.width <= 1360)
+    fail(`the catalog at 2560 px is ${px(catalog.page.width)}, no wider than a detail page`);
   const apps = seen.get("/apps") ?? fail("Apps wasn't measured");
-  if (apps.page.width <= 1360) fail(`Apps at 2560 px is ${px(apps.page.width)} wide, no wider than a detail page`);
-  if (!apps.list || !near(apps.list.width, 1160, 1)) {
-    fail(`Apps' list at 2560 px is ${px(apps.list?.width ?? 0)} wide, not 1160`);
+  const [table, actions] = [apps.table, apps.actions];
+  if (!table || !near(table.left, apps.page.left + 24, 1) || !near(table.right, apps.page.right - 24, 1)) {
+    fail(`Apps' table at 2560 px doesn't span its page: ${px(table?.left ?? 0)} to ${px(table?.right ?? 0)}`);
   }
-  step(`  Apps' list stops at ${Math.round(apps.list.width)} px in a ${Math.round(apps.page.width)} px page`);
+  if (!actions || !near(actions.right, table.right, 1)) {
+    fail(`New app ends at ${px(actions?.right ?? 0)}, not over the table's right edge at ${px(table.right)}`);
+  }
+  step(`  Apps' head and table share their edges, ${Math.round(table.width)} px apart`);
 
   // An app's head and tabs stay put when its Logs tab opens; only the log view takes the whole column.
   const overview = seen.get(`/apps/${app}`) ?? fail("the app wasn't measured");

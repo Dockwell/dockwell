@@ -4,15 +4,11 @@ import type { IconName } from "@dockwell/ui";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 
-import type { PageWidth } from "./Page";
-
 interface Section {
   label: MessageDescriptor;
   icon: IconName;
   /** Reached from the phone's More page, rather than its tab bar. */
   inMore: boolean;
-  /** How wide its screen grows, by its kind, which the page saying it isn't here yet takes already. */
-  width: PageWidth;
 }
 
 /**
@@ -22,13 +18,13 @@ interface Section {
  * with a screen gets its own route, which takes over its path, as Backups has.
  */
 export const UPCOMING = {
-  websites: { label: msg`Websites`, icon: "browser", inMore: true, width: "wide" },
-  databases: { label: msg`Databases`, icon: "database", inMore: true, width: "wide" },
-  connections: { label: msg`Connections`, icon: "key", inMore: true, width: "wide" },
-  backups: { label: msg`Backups`, icon: "archive", inMore: true, width: "wide" },
-  "fleet-actions": { label: msg`Fleet actions`, icon: "play", inMore: true, width: "wide" },
-  alerts: { label: msg`Alerts`, icon: "bell", inMore: true, width: "wide" },
-  "scheduled-tasks": { label: msg`Scheduled tasks`, icon: "calendar", inMore: true, width: "wide" },
+  websites: { label: msg`Websites`, icon: "browser", inMore: true },
+  databases: { label: msg`Databases`, icon: "database", inMore: true },
+  connections: { label: msg`Connections`, icon: "key", inMore: true },
+  backups: { label: msg`Backups`, icon: "archive", inMore: true },
+  "fleet-actions": { label: msg`Fleet actions`, icon: "play", inMore: true },
+  alerts: { label: msg`Alerts`, icon: "bell", inMore: true },
+  "scheduled-tasks": { label: msg`Scheduled tasks`, icon: "calendar", inMore: true },
 } as const satisfies Record<string, Section>;
 
 export type UpcomingSection = keyof typeof UPCOMING;

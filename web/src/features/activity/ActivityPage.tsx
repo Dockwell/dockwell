@@ -219,7 +219,6 @@ export function ActivityPage({
 
   return (
     <Page
-      width="wide"
       title={t`Activity`}
       lead={t`Every change, server event, access grant, change of health and backup, newest first`}
       status={status}

@@ -17,10 +17,8 @@ async function pageAt(path: string, heading: string): Promise<Element> {
 // How wide each grows is the stylesheet's (Page.css), and web/e2e/layout-flow.ts measures it in a browser.
 describe("a page's width by its kind", () => {
   it.each([
-    ["/apps", "Apps", "is-wide"],
     ["/catalog", "Catalog", "is-wide"],
-    ["/activity", "Activity", "is-wide"],
-    ["/websites", "Websites", "is-wide"],
+    ["/servers", "Servers", "is-wide"],
     ["/settings/general", "General", "is-narrow"],
     ["/profile", "Profile and security", "is-narrow"],
   ])("%s is %s", async (path, heading, kind) => {
@@ -28,8 +26,15 @@ describe("a page's width by its kind", () => {
     expect(page).toHaveClass("page", kind);
   });
 
-  it("takes the standard width, with no class of its own, when it names none", async () => {
-    const page = await pageAt("/more", "More");
-    expect(page.className).not.toMatch(/\bis-(wide|narrow|full)\b/);
+  // A table of few columns reads at a detail page's width, its head and table sharing their edges.
+  it.each([
+    ["/apps", "Apps"],
+    ["/domains", "Domains"],
+    ["/backups", "Backups"],
+    ["/activity", "Activity"],
+    ["/more", "More"],
+  ])("%s takes the standard width, with no class of its own", async (path, heading) => {
+    const page = await pageAt(path, heading);
+    expect(page.className).not.toMatch(/\bis-(wide|narrow)\b/);
   });
 });

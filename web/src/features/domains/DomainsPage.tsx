@@ -313,7 +313,6 @@ export function DomainsPage({
 
   return (
     <Page
-      width="wide"
       title={t`Domains`}
       back="/more"
       // The line is held while they load, so the list doesn't move when it lands.

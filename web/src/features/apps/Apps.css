@@ -200,8 +200,6 @@
 /* The filter stays in reach down a long list, and the table's heads below it. */
 .apps-section {
   --apps-sticky-top: var(--scopebar-height);
-  /* A few columns, so the list stops at the width it has at 1440px rather than spread a row across a wide page. */
-  max-width: var(--table-max);
 }
 
 .apps-section.has-filters {
