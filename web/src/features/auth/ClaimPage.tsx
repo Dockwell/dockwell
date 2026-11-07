@@ -17,7 +17,7 @@ import { CopyCommand } from "../system/CopyCommand";
 import { StandalonePage } from "../system/StandalonePage";
 import { useDeviceName } from "./device";
 import { useAuthError } from "./messages";
-import { useAuthState, useRefreshAuth } from "./useAuthState";
+import { useAuthState, useClaimCommand, useRefreshAuth } from "./useAuthState";
 import "./auth.css";
 import "./ClaimPage.css";
 
@@ -46,8 +46,8 @@ export function useFragmentToken(path: "/claim" | "/recover"): string {
 }
 
 /**
- * The first visit: create the owner account with a passkey, using the claim
- * link that dockwell run printed on the server.
+ * The first visit: create the owner account with a passkey, using a claim
+ * link from the server: the one the install printed, or dockwell claim's.
  */
 export function ClaimPage() {
   const { t } = useLingui();
@@ -135,7 +135,8 @@ function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddre
   const transport = useTransport();
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
-  const explain = useAuthError();
+  const claimCommand = useClaimCommand();
+  const explain = useAuthError({ claimCommand });
   const [person, setPerson] = useState("");
   const [email, setEmail] = useState("");
   const [invalid, setInvalid] = useState<{ person?: string; email?: string; code?: string }>({});
@@ -149,7 +150,7 @@ function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddre
     const next = {
       person: person.trim() ? undefined : t`Enter your name.`,
       email: /^[^\s@]+@[^\s@]+$/.test(email.trim()) ? undefined : t`Enter an email address, such as mira@acme.dev.`,
-      code: token.length === TOKEN_LENGTH ? undefined : t`Paste the claim link or code that dockwell run printed.`,
+      code: token.length === TOKEN_LENGTH ? undefined : t`Paste the claim link or code you got on the server.`,
     };
     setInvalid(next);
     if (next.person || next.email || next.code) return;
@@ -214,7 +215,7 @@ function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddre
           error={invalid.code}
           hint={
             <Trans>
-              From the link <code>dockwell run</code> printed. Run <code>dockwell claim</code> on {name} for a new one.
+              From the claim link. Run <code>{claimCommand}</code> on {name} for a new one.
             </Trans>
           }
         />

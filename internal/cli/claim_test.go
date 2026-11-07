@@ -9,6 +9,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/user"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -34,8 +37,21 @@ func startRunWithOutput(t *testing.T, dir, want string, args ...string) (out *sy
 }
 
 // startRunWithLogs is startRunWithOutput that also returns what dockwell
-// run logged.
+// run logged. Its standard output stands for a terminal, where a person who
+// started it reads it, as the claim link goes nowhere else.
 func startRunWithLogs(t *testing.T, dir, want string, args ...string) (out, logs *syncBuffer, stop func()) {
+	t.Helper()
+	return startRunOn(t, true, dir, want, args...)
+}
+
+// startRunAsService is startRunWithLogs with standard output that isn't a
+// terminal, as a service's goes to the journal.
+func startRunAsService(t *testing.T, dir, want string, args ...string) (out, logs *syncBuffer, stop func()) {
+	t.Helper()
+	return startRunOn(t, false, dir, want, args...)
+}
+
+func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (out, logs *syncBuffer, stop func()) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan int, 1)
@@ -45,7 +61,7 @@ func startRunWithLogs(t *testing.T, dir, want string, args ...string) (out, logs
 	go func() {
 		done <- Execute(ctx, all, IO{Out: out, Err: errOut, Getenv: func(k string) string {
 			return map[string]string{"USER": "mira", "SSH_CONNECTION": "198.51.100.23 52000 203.0.113.7 22"}[k]
-		}})
+		}, OutIsTerminal: func() bool { return terminal }})
 	}()
 	stopped := false
 	stop = func() {
@@ -122,7 +138,7 @@ func TestClaimAndRecoverThroughTheCLI(t *testing.T) {
 		"This install has no owner yet. Claim it within 24 h",
 		"ssh -L ", ":127.0.0.1:", " mira@203.0.113.7",
 		"http://localhost:",
-		"Run dockwell claim for a new link.",
+		"Run dockwell claim --data-dir " + dir + " for a new link.",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("dockwell run didn't print %q:\n%s", want, out.String())
@@ -233,26 +249,33 @@ func TestRunRefusesToServeThePanelBeyondLoopback(t *testing.T) {
 
 func TestSSHTarget(t *testing.T) {
 	env := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
-	addr := panelAddress{Port: "7600", PublicHost: "203.0.113.7"}
+	public := panelAddress{Port: "7600", PublicHost: "203.0.113.7"}
+	// A cloud server behind 1:1 NAT, which you sign in to as ubuntu: its own
+	// address is private, and its SSH sessions arrive there too.
+	cloud := panelAddress{Port: "7600", PublicHost: "10.0.0.5"}
 	for _, tt := range []struct {
+		addr panelAddress
 		env  map[string]string
 		want string
 	}{
-		{nil, "root@203.0.113.7"},
-		{map[string]string{"USER": "mira"}, "mira@203.0.113.7"},
-		{map[string]string{"USER": "root", "SUDO_USER": "mira"}, "mira@203.0.113.7"},
-		{map[string]string{"USER": "mira", "SSH_CONNECTION": "198.51.100.23 52000 10.0.0.5 22"}, "mira@10.0.0.5"},
-		{map[string]string{"SSH_CONNECTION": "2001:db8::9 52000 2001:db8::1 22"}, "root@[2001:db8::1]"},
+		// The system service: nothing says who signs in, or as whom.
+		{public, nil, "<user>@203.0.113.7"},
+		{cloud, nil, "<user>@<your server>"},
+		// A user away from an SSH session isn't who signs in from elsewhere.
+		{public, map[string]string{"USER": "mira"}, "<user>@203.0.113.7"},
+		{public, map[string]string{"USER": "root", "SUDO_USER": "mira"}, "mira@203.0.113.7"},
+		{public, map[string]string{"USER": "mira", "SSH_CONNECTION": "198.51.100.23 52000 203.0.113.9 22"}, "mira@203.0.113.9"},
+		{public, map[string]string{"USER": "mira", "SSH_CONNECTION": "198.51.100.23 52000 10.0.0.5 22"}, "mira@203.0.113.7"},
+		{public, map[string]string{"SSH_CONNECTION": "2001:db8::9 52000 2001:db8::1 22"}, "<user>@[2001:db8::1]"},
+		{cloud, map[string]string{"USER": "root", "SUDO_USER": "ubuntu", "SSH_CONNECTION": "198.51.100.23 52000 10.0.0.5 22"}, "ubuntu@<your server>"},
+		{cloud, map[string]string{"USER": "ubuntu", "SSH_CONNECTION": "198.51.100.23 52000 10.0.0.5 22"}, "ubuntu@<your server>"},
+		{panelAddress{PublicHost: "100.64.3.2"}, nil, "<user>@<your server>"},
+		{panelAddress{}, nil, "<user>@<your server>"},
+		{panelAddress{PublicHost: "127.0.0.1"}, nil, "<user>@<your server>"},
 	} {
-		if got := sshTarget(addr, env(tt.env)); got != tt.want {
-			t.Errorf("sshTarget(%v) = %q, want %q", tt.env, got, tt.want)
+		if got := sshTarget(tt.addr, env(tt.env)); got != tt.want {
+			t.Errorf("sshTarget(%s, %v) = %q, want %q", tt.addr.PublicHost, tt.env, got, tt.want)
 		}
-	}
-	if got := sshTarget(panelAddress{}, env(nil)); got != "root@your-server" {
-		t.Errorf("with no address known: %q", got)
-	}
-	if got := sshTarget(panelAddress{PublicHost: "127.0.0.1"}, env(nil)); got != "root@your-server" {
-		t.Errorf("with only a loopback address: %q", got)
 	}
 	for addr, want := range map[panelAddress]string{
 		{Port: "7600"}: "http://localhost:7600",
@@ -292,7 +315,7 @@ func TestTheDNSAddressIsPublic(t *testing.T) {
 			t.Errorf("dnsAddress for %q = %q, want %q", host, got, want)
 		}
 		var b strings.Builder
-		printClaim(&b, addr, auth.Link{Token: "x", ExpiresAt: time.Now().Add(time.Hour)}, func(string) string { return "" })
+		printClaim(&b, addr, auth.Link{Token: "x", ExpiresAt: time.Now().Add(time.Hour)}, "dockwell claim", func(string) string { return "" })
 		switch {
 		case want == "" && !strings.Contains(b.String(), "DNS record at this server's public address,"):
 			t.Errorf("with %q, the claim says where to point a domain:\n%s", host, b.String())
@@ -346,7 +369,7 @@ func TestARestartKeepsTheClaimLink(t *testing.T) {
 
 	port := strings.TrimPrefix(linkRE.FindStringSubmatch(first)[1], "http://localhost:")
 	out, _ = startRunWithOutput(t, dir, "still works", "--listen", "127.0.0.1:"+port)
-	if strings.Contains(out.String(), "/claim#") || !strings.Contains(out.String(), "run dockwell claim for a new one") {
+	if strings.Contains(out.String(), "/claim#") || !strings.Contains(out.String(), "run dockwell claim --data-dir "+dir+" for a new one") {
 		t.Errorf("after a restart:\n%s", out.String())
 	}
 	claimOverHTTP(t, first)
@@ -392,10 +415,10 @@ func TestARestartOnAnotherAddressPrintsANewLink(t *testing.T) {
 func TestTheTunnelGoesToTheListenersAddress(t *testing.T) {
 	env := func(string) string { return "" }
 	for host, want := range map[string]string{
-		"":          "ssh -L 7600:127.0.0.1:7600 root@203.0.113.7",
-		"127.0.0.1": "ssh -L 7600:127.0.0.1:7600 root@203.0.113.7",
-		"127.0.0.2": "ssh -L 7600:127.0.0.2:7600 root@203.0.113.7",
-		"::1":       "ssh -L 7600:[::1]:7600 root@203.0.113.7",
+		"":          "ssh -L 7600:127.0.0.1:7600 <user>@203.0.113.7",
+		"127.0.0.1": "ssh -L 7600:127.0.0.1:7600 <user>@203.0.113.7",
+		"127.0.0.2": "ssh -L 7600:127.0.0.2:7600 <user>@203.0.113.7",
+		"::1":       "ssh -L 7600:[::1]:7600 <user>@203.0.113.7",
 	} {
 		var b strings.Builder
 		printLink(&b, panelAddress{Host: host, Port: "7600", PublicHost: "203.0.113.7"}, "/claim#x", env)
@@ -434,5 +457,182 @@ func TestTheRedirectGoesToTheBoundPort(t *testing.T) {
 	src.HTTPHandler().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://panel.example.com/x", http.NoBody))
 	if rec.Header().Get("Location") != "https://panel.example.com/x" {
 		t.Errorf("on 443: %q", rec.Header().Get("Location"))
+	}
+}
+
+var listenerRE = regexp.MustCompile(`"listener":"control plane","addr":"([^"]+)"`)
+
+// panelPort is the port the panel's listener logs it listens on, once it does.
+func panelPort(t *testing.T, logs *syncBuffer) string {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if m := listenerRE.FindAllStringSubmatch(logs.String(), -1); len(m) > 0 {
+			_, port, _ := net.SplitHostPort(m[len(m)-1][1])
+			return port
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("dockwell run didn't log where it listens:\n%s", logs.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// authState reads GetAuthState from the panel that logs say listens.
+func authState(t *testing.T, logs *syncBuffer) *dockwellv1.GetAuthStateResponse {
+	t.Helper()
+	port := panelPort(t, logs)
+	base := "http://localhost:" + port
+	var d net.Dialer
+	client := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return d.DialContext(ctx, network, "127.0.0.1:"+port)
+	}}}
+	c := dockwellv1connect.NewAuthServiceClient(client, base, connect.WithInterceptors(originHeader(base)))
+	res, err := c.GetAuthState(t.Context(), connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+	if err != nil {
+		t.Fatalf("GetAuthState: %v", err)
+	}
+	return res.Msg
+}
+
+// A service's standard output goes to the journal, which people other than
+// root can read, so dockwell run prints no claim link there: it says to run
+// dockwell claim, which prints one where the person running it reads it, and
+// the panel shows the same command (#110).
+func TestRunAsAServiceKeepsTheClaimLinkOutOfItsOutput(t *testing.T) {
+	dir := t.TempDir()
+	out, logs, stop := startRunAsService(t, dir, "To claim it, run this on this server")
+	command := "dockwell claim --data-dir " + dir
+	if strings.Contains(out.String(), "claim#") || strings.Contains(logs.String(), "claim#") {
+		t.Fatalf("dockwell run printed a claim link where it isn't a terminal:\n%s\n%s", out.String(), logs.String())
+	}
+	if !strings.Contains(out.String(), "\n  "+command+"\n") || !strings.Contains(out.String(), "the system journal keeps it") {
+		t.Errorf("dockwell run doesn't say how to get a link, and why it prints none:\n%s", out.String())
+	}
+	if !strings.Contains(logs.String(), `"command":"`+command+`"`) {
+		t.Errorf("dockwell run doesn't log the command that prints a link:\n%s", logs.String())
+	}
+	if got := authState(t, logs).GetClaimCommand(); got != command {
+		t.Errorf("the panel's claim command is %q, want %q", got, command)
+	}
+
+	r := run(t, map[string]string{envLogFormat: "json"}, "claim", "--data-dir", dir)
+	first := linkRE.FindString(r.out)
+	if r.code != exitOK || first == "" || !strings.Contains(r.out, "Run "+command+" for a new link.") {
+		t.Fatalf("dockwell claim = %d:\n%s%s", r.code, r.out, r.err)
+	}
+	stop()
+
+	// A restart elsewhere can't say the link works as printed, and doesn't
+	// replace it with one nobody can read: the one dockwell claim printed still
+	// claims the install, on the new port.
+	out, logs, stop = startRunAsService(t, dir, "To claim it, run this on this server")
+	if !strings.Contains(out.String(), "The panel's address changed since the last claim link was printed") || strings.Contains(out.String(), "claim#") {
+		t.Errorf("a restart on another port as a service:\n%s", out.String())
+	}
+	moved := regexp.MustCompile(`localhost:\d+`).ReplaceAllString(first, "localhost:"+panelPort(t, logs))
+	claimOverHTTP(t, moved)
+	if got := authState(t, logs); !got.GetClaimed() || got.GetClaimCommand() != "" {
+		t.Errorf("once claimed, GetAuthState says claimed %v and a claim command %q", got.GetClaimed(), got.GetClaimCommand())
+	}
+	stop()
+}
+
+// The command that prints a link is the one that works for how Dockwell runs.
+func TestTheClaimCommandFitsHowDockwellRuns(t *testing.T) {
+	defer func(was func() int) { geteuid = was }(geteuid)
+	state := t.TempDir()
+	env := func(k string) string { return map[string]string{"XDG_STATE_HOME": state}[k] }
+	for _, tt := range []struct {
+		root bool
+		dir  string
+		want string
+	}{
+		{false, filepath.Join(state, "dockwell"), "dockwell claim"},
+		{false, "/srv/dockwell", "dockwell claim --data-dir /srv/dockwell"},
+		{false, "/srv/my dockwell", "dockwell claim --data-dir '/srv/my dockwell'"},
+		{true, systemDataDir, "sudo dockwell claim"},
+		{true, systemDataDir + "/", "sudo dockwell claim"},
+		{true, "/srv/dockwell", "sudo dockwell claim --data-dir /srv/dockwell"},
+	} {
+		geteuid = func() int {
+			if tt.root {
+				return 0
+			}
+			return 1000
+		}
+		if got := claimCommand(datadir.Dir{Root: tt.dir}, env); got != tt.want {
+			t.Errorf("as root %v, in %s: %q, want %q", tt.root, tt.dir, got, tt.want)
+		}
+	}
+}
+
+// A user other than root looks in a directory of their own, so on a server
+// where the system service runs Dockwell, dockwell claim looks where it keeps
+// its state too, and when only root can, says to use sudo (#110).
+func TestClaimAsAnotherUserLooksWhereTheServiceKeepsIt(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root looks in the system's data directory already")
+	}
+	system := t.TempDir()
+	defer func(was string) { systemDataDir = was }(systemDataDir)
+	systemDataDir = system
+	_, _, stop := startRunAsService(t, system, "To claim it, run this on this server")
+	stop()
+	env := map[string]string{"XDG_STATE_HOME": t.TempDir(), envLogFormat: "json"}
+
+	r := run(t, env, "claim")
+	if r.code != exitOK || linkRE.FindString(r.out) == "" {
+		t.Fatalf("dockwell claim with the control plane in a system directory it can read = %d:\n%s%s", r.code, r.out, r.err)
+	}
+
+	if err := os.Chmod(system, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(system, 0o700) })
+	for _, command := range [][]string{{"claim"}, {"recover"}, {"token", "create"}} {
+		r = run(t, env, command...)
+		want := "Run it with sudo: sudo dockwell " + strings.Join(command, " ")
+		if r.code != exitError || !strings.Contains(r.err, "keeps its state in "+system+" on this server, where only root can look") || !strings.Contains(r.err, want) {
+			t.Errorf("dockwell %v where only root can look = %d %q, want %q", command, r.code, r.err, want)
+		}
+	}
+	r = run(t, env, "login", "--local")
+	if r.code != exitError || !strings.Contains(r.err, "sudo dockwell login --local") {
+		t.Errorf("dockwell login --local where only root can look = %d %q", r.code, r.err)
+	}
+	// With nothing in the system's directory either, it says what it always said.
+	systemDataDir = t.TempDir()
+	r = run(t, env, "claim")
+	if r.code != exitError || !strings.Contains(r.err, "there's no control plane in") || strings.Contains(r.err, "sudo") {
+		t.Errorf("dockwell claim on a server with no control plane = %d %q", r.code, r.err)
+	}
+}
+
+// sudo dockwell claim for a control plane the user runs themselves says to run
+// it as them, as root would leave files there they can't open.
+func TestClaimWithSudoForAUsersOwnControlPlane(t *testing.T) {
+	defer func(was func() int) { geteuid = was }(geteuid)
+	defer func(was func(string) (*user.User, error)) { lookupUser = was }(lookupUser)
+	defer func(was string) { systemDataDir = was }(systemDataDir)
+	geteuid = func() int { return 0 }
+	home := t.TempDir()
+	lookupUser = func(name string) (*user.User, error) { return &user.User{Username: name, HomeDir: home}, nil }
+	systemDataDir = t.TempDir()
+	own := datadir.Dir{Root: filepath.Join(home, ".local", "state", "dockwell")}
+	if err := datadir.Ensure(own.Control()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(own.SealKey(), []byte("key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := run(t, map[string]string{"SUDO_USER": "mira", envLogFormat: "json"}, "claim")
+	if r.code != exitError || !strings.Contains(r.err, "there's no control plane in "+systemDataDir+", but there's one in "+own.Root+", which mira runs") ||
+		!strings.Contains(r.err, "Run dockwell claim as mira, without sudo") {
+		t.Errorf("sudo dockwell claim for mira's own control plane = %d %q", r.code, r.err)
+	}
+	r = run(t, map[string]string{envLogFormat: "json"}, "claim")
+	if r.code != exitError || strings.Contains(r.err, "mira") {
+		t.Errorf("dockwell claim as root, not through sudo = %d %q", r.code, r.err)
 	}
 }

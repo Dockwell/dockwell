@@ -239,7 +239,8 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	} else if proxied {
 		addr.HTTPSPort = "443"
 	}
-	if err := announce(ctx, stdio, logger, db, people, addr); err != nil {
+	claim := claimCommand(dir, stdio.Getenv)
+	if err := announce(ctx, stdio, logger, db, people, addr, claim); err != nil {
 		closeAll()
 		return err
 	}
@@ -282,6 +283,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		Auth:          people,
 		Public:        public,
 		PublicAddress: addr.dnsAddress(),
+		ClaimCommand:  claim,
 		Changes:       engine,
 		Agents:        agents,
 		Store:         db,

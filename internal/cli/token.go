@@ -33,14 +33,14 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Use:   "create",
 		Short: "Make a ticket that adds one server",
 		Long: "Prints a ticket to paste on the server you're adding. It works once and expires after --ttl.\n\n" +
-			"Run it on the control server, as the user that runs dockwell.",
+			"Run it on the control server, as the user that runs dockwell: with sudo, when it runs as the system service.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger, err := g.logger(stdio.Err)
 			if err != nil {
 				return err
 			}
-			dir, err := g.dir(stdio)
+			dir, err := g.controlDir(stdio, "dockwell token create")
 			if err != nil {
 				return err
 			}

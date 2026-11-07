@@ -122,12 +122,17 @@ try {
     out += b.toString();
   });
   server.stderr?.on("data", (b: Buffer) => log.push(b.toString()));
-  let claim = "";
-  for (let i = 0; i < 200 && claim === ""; i++) {
-    claim = out.match(/http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]{43}/)?.[0] ?? "";
+  // dockwell run prints a claim link only to a terminal, so this asks for one.
+  for (let i = 0; i < 200 && !out.includes("To claim it, run this"); i++) {
     await new Promise((r) => setTimeout(r, 50));
   }
-  if (claim === "") throw new Error(`dockwell run printed no claim link:\n${out}`);
+  if (!out.includes("To claim it, run this")) throw new Error(`dockwell run didn't say how to claim it:\n${out}`);
+  const claimed = execFileSync(bin, ["claim", "--data-dir", data, "--log-format", "json"], {
+    encoding: "utf8",
+    env: { ...process.env, ...acme },
+  });
+  const claim = claimed.match(/http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]{43}/)?.[0] ?? "";
+  if (claim === "") throw new Error(`dockwell claim printed no claim link:\n${claimed}`);
   browser = await chromium.launch({
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
     headless: true,

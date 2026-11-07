@@ -133,10 +133,11 @@ async function main() {
   makeSite();
   await start();
   step("claim the install, and open a session");
-  const link = await until(
-    "a claim link",
-    () => serverLog.join("").match(/http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]+/)?.[0],
-  );
+  // dockwell run prints a claim link only to a terminal, so this asks for one.
+  await until("dockwell run to say how to claim it", () => serverLog.join("").includes("To claim it, run this"));
+  const claimed = execFileSync(bin, ["claim", "--log-format", "json"], { encoding: "utf8", env: env() });
+  const link =
+    claimed.match(/http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]+/)?.[0] ?? fail(`dockwell claim printed:\n${claimed}`);
   execFileSync("go", ["run", "./scripts/claim", link], { stdio: "inherit" });
   const recover = execFileSync(bin, ["recover", "--log-format", "json"], { encoding: "utf8", env: env() });
   const signIn =

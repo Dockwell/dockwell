@@ -245,8 +245,15 @@ fi
 # Local access acts for the install's owner, so claim it first, with a
 # software passkey, as the panel would. Local access is read-only until
 # dockwell login --local lets it make changes.
-link=$(grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' "$log" | head -1) || true
-[[ -n "$link" ]] || fail "dockwell run printed no claim link"
+# dockwell run prints no link here, as its output isn't a terminal, and says to
+# run dockwell claim, which does.
+if grep -q '/claim#' "$log"; then
+  fail "dockwell run printed a claim link where it isn't a terminal"
+fi
+grep -q 'To claim it, run this on this server' "$log" || fail "dockwell run didn't say how to get a claim link"
+claim=$(dw claim) || fail "dockwell claim failed"
+link=$(grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' <<<"$claim" | head -1) || true
+[[ -n "$link" ]] || fail "dockwell claim printed no claim link: $claim"
 (cd "$(dirname "$0")/.." && go run ./scripts/claim "$link" "$cookie") || fail "can't claim the install"
 dw login --local >/dev/null || fail "dockwell login --local failed"
 

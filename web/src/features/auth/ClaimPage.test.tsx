@@ -199,7 +199,7 @@ describe("ClaimPage", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Create passkey" }));
     expect(screen.getByText("Enter your name.")).toBeVisible();
     expect(screen.getByText("Enter an email address, such as mira@acme.dev.")).toBeVisible();
-    expect(screen.getByText("Paste the claim link or code that dockwell run printed.")).toBeVisible();
+    expect(screen.getByText("Paste the claim link or code you got on the server.")).toBeVisible();
     expect(passkeys.create).not.toHaveBeenCalled();
   });
 
@@ -212,6 +212,21 @@ describe("ClaimPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link.",
     );
+  });
+
+  it("names the command that works for how Dockwell runs on the server", async () => {
+    stubPasskeys();
+    renderAt(
+      `/claim#${TOKEN}`,
+      api({
+        getAuthState: () => authState({ claimed: false, user: undefined, claimCommand: "sudo dockwell claim" }),
+        checkClaim: () => Promise.reject(authError(Code.PermissionDenied, "claim_link_rejected")),
+      }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This claim link is invalid, already used, replaced by a newer one, or expired. Run sudo dockwell claim on the server for a new link.",
+    );
+    expect(screen.getByText("sudo dockwell claim", { selector: "code" })).toBeVisible();
   });
 
   it("says so when the passkey prompt is closed", async () => {

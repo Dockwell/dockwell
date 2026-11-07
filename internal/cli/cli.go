@@ -58,6 +58,10 @@ type IO struct {
 	// questions. Nil means whether standard input and standard error are
 	// terminals.
 	Interactive func() bool
+	// OutIsTerminal reports whether standard output is a terminal, which
+	// dockwell run prints a claim link to and nowhere else. Nil means whether
+	// Out is a file that is one.
+	OutIsTerminal func() bool
 }
 
 // Execute runs the dockwell command line with args (without the program

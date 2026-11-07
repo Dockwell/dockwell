@@ -79,15 +79,6 @@ func (a panelAddress) tunnelHost() string {
 	}
 }
 
-// reachable is the public host, or empty when all that is known is a
-// loopback address, which is no use to anyone elsewhere.
-func (a panelAddress) reachable() string {
-	if ip := net.ParseIP(a.PublicHost); ip != nil && ip.IsLoopback() {
-		return ""
-	}
-	return a.PublicHost
-}
-
 // sharedAddresses are carrier-grade NAT's (RFC 6598): not public, though
 // not private by net/netip's reckoning either.
 var sharedAddresses = netip.MustParsePrefix("100.64.0.0/10")
@@ -172,9 +163,16 @@ func newClaimLink(ctx context.Context, db *store.DB, people *auth.Service, addr 
 }
 
 // announce records where the panel answers, and tells the operator what to
-// do next: claim the install with a fresh link while it has no owner, or,
-// when the panel has just gained a domain, how to get a passkey for it.
-func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, people *auth.Service, addr panelAddress) error {
+// do next: claim the install while it has no owner, or, when the panel has just
+// gained a domain, how to get a passkey for it.
+//
+// A claim link goes only to a terminal. Anyone who spends one owns every server,
+// and standard output that isn't a terminal is kept somewhere, as the journal
+// keeps a service's, which people other than root can read: on Ubuntu, the adm
+// and systemd-journal groups. There, it makes no link and says to run command,
+// which prints one where the person running it reads it: install.sh does that
+// as it finishes. See docs/security/sign-in.md.
+func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, people *auth.Service, addr panelAddress, command string) error {
 	before, known, err := loadPanelAddress(ctx, db)
 	if err != nil {
 		return err
@@ -199,22 +197,32 @@ func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, 
 			return err
 		}
 		if waiting && recorded && printedFor.sameLink(addr) {
-			logger.Info("this install has no owner yet; the claim link printed earlier still works", slog.Time("expires", expires))
+			logger.Info("this install has no owner yet; the claim link printed earlier still works", slog.Time("expires", expires), slog.String("new_link", command))
 			fmt.Fprintf(stdio.Out, "\nThis install has no owner yet. The claim link printed earlier still works for %s. "+
-				"If you don't have it, run dockwell claim for a new one; it replaces the earlier link.\n\n", until(expires))
+				"If you don't have it, run %s for a new one; it replaces the earlier link.\n\n", until(expires), command)
+			return nil
+		}
+		if !stdio.outIsTerminal() {
+			logger.Info("this install has no owner yet; run the command below on this server for a claim link", slog.String("command", command))
+			if waiting {
+				fmt.Fprintf(stdio.Out, "\nThe panel's address changed since the last claim link was printed, so that link doesn't work as printed.")
+			}
+			fmt.Fprintf(stdio.Out, "\nThis install has no owner yet. To claim it, run this on this server, which prints a one-time link:\n\n  %s\n\n"+
+				"Dockwell doesn't print the link here, as this output isn't a terminal: a log such as the system journal keeps it, "+
+				"and anyone who reads the link before you could claim this install.\n\n", command)
 			return nil
 		}
 		link, err := newClaimLink(ctx, db, people, addr, "system")
 		if err != nil {
 			return err
 		}
-		logger.Info("this install has no owner yet; open the claim link printed on standard output to claim it",
+		logger.Info("this install has no owner yet; open the claim link printed on the terminal to claim it",
 			slog.Time("expires", link.ExpiresAt))
 		if waiting {
 			fmt.Fprintf(stdio.Out, "\nThe panel's address changed since the last claim link was printed, so that link doesn't work as printed. "+
 				"The new link below replaces it.\n")
 		}
-		printClaim(stdio.Out, addr, link, stdio.Getenv)
+		printClaim(stdio.Out, addr, link, command, stdio.Getenv)
 		return nil
 	}
 	switch {
@@ -232,8 +240,9 @@ func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, 
 	return nil
 }
 
-// printClaim prints the claim link and how to reach it.
-func printClaim(w io.Writer, addr panelAddress, link auth.Link, getenv func(string) string) {
+// printClaim prints the claim link and how to reach it, and command, which
+// prints a new one.
+func printClaim(w io.Writer, addr panelAddress, link auth.Link, command string, getenv func(string) string) {
 	fmt.Fprintf(w, "\nThis install has no owner yet. Claim it within %s with the link below; it works once.\n\n",
 		until(link.ExpiresAt))
 	printLink(w, addr, "/claim#"+link.Token, getenv)
@@ -247,7 +256,7 @@ func printClaim(w io.Writer, addr panelAddress, link auth.Link, getenv func(stri
 	default:
 		fmt.Fprintf(w, "The first visit gets the panel's certificate from Let's Encrypt, which takes a few seconds.\n")
 	}
-	fmt.Fprintf(w, "Run dockwell claim for a new link.\n\n")
+	fmt.Fprintf(w, "Run %s for a new link.\n\n", command)
 }
 
 // printLink prints a panel link: on its own with a domain, or after the SSH
@@ -277,25 +286,32 @@ func until(t time.Time) string {
 	return human.Duration(d)
 }
 
-// sshTarget guesses the user@host the operator reaches this server with:
-// the address of the SSH session this runs in, when there is one, and
-// otherwise the server's public address.
+// sshTarget is the user@host the operator signs in to this server with over
+// SSH, as far as this can tell, for the tunnel. The user is the one who ran
+// sudo, or that of the SSH session this runs in. The host is that session's
+// address, or else this server's own, and only when it is public: a cloud
+// server behind 1:1 NAT has a private address on its interface, and sees its
+// SSH sessions arrive there, though no laptop can reach it. What isn't known
+// is a placeholder, as docs/install.md writes it, rather than a guess that
+// can't work, such as root on a server you sign in to as ubuntu.
 func sshTarget(addr panelAddress, getenv func(string) string) string {
+	session := strings.Fields(getenv("SSH_CONNECTION"))
+	inSession := len(session) == 4
 	user := getenv("SUDO_USER")
-	if user == "" {
+	if user == "" && inSession {
 		user = getenv("USER")
 	}
-	if user == "" {
-		user = "root"
+	host := ""
+	if inSession {
+		host = panelAddress{PublicHost: session[2]}.dnsAddress()
 	}
-	host := addr.reachable()
-	if fields := strings.Fields(getenv("SSH_CONNECTION")); len(fields) == 4 {
-		host = fields[2]
+	if host == "" {
+		host = addr.dnsAddress()
 	}
 	if strings.Contains(host, ":") {
 		host = "[" + host + "]"
 	}
-	return user + "@" + orPlaceholder(host, "your-server")
+	return orPlaceholder(user, "<user>") + "@" + orPlaceholder(host, "<your server>")
 }
 
 func orPlaceholder(s, placeholder string) string {
@@ -341,14 +357,15 @@ func newClaimCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Long: "Prints a one-time link that creates the owner account with a passkey. It replaces any earlier link " +
 			"and expires in 24 h. Once the install has an owner, there is nothing to claim, and it exits with status " +
 			strconv.Itoa(exitClaimed) + ", so scripts can tell that from a failure.\n\n" +
-			"Run it on the control server, as the user that runs dockwell.",
+			"Run it on the control server, as the user that runs dockwell: with sudo, when it runs as the system service. " +
+			"dockwell run prints a link only to a terminal, so for a service, this is how you get one.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger, err := g.logger(stdio.Err)
 			if err != nil {
 				return err
 			}
-			dir, err := g.dir(stdio)
+			dir, err := g.controlDir(stdio, "dockwell claim")
 			if err != nil {
 				return err
 			}
@@ -373,7 +390,7 @@ func newClaimCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printClaim(cmd.OutOrStdout(), addr, link, stdio.Getenv)
+			printClaim(cmd.OutOrStdout(), addr, link, claimCommand(dir, stdio.Getenv), stdio.Getenv)
 			return nil
 		},
 	}
@@ -387,14 +404,14 @@ func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Long: "Prints a link that signs you in once, without a passkey or a code, and expires in " + human.Duration(auth.SignInLinkTTL) +
 			". It replaces any earlier link for the same person. Use it to add a passkey after losing yours, " +
 			"or for a new address after adding a domain.\n\n" +
-			"Run it on the control server, as the user that runs dockwell. Anyone who can run it already controls this server.",
+			"Run it on the control server, as the user that runs dockwell: with sudo, when it runs as the system service. Anyone who can run it already controls this server.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger, err := g.logger(stdio.Err)
 			if err != nil {
 				return err
 			}
-			dir, err := g.dir(stdio)
+			dir, err := g.controlDir(stdio, "dockwell recover")
 			if err != nil {
 				return err
 			}

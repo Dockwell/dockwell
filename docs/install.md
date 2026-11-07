@@ -20,7 +20,7 @@ The first server becomes your control server. It runs the full build of `dockwel
 ssh -L 7600:127.0.0.1:7600 <user>@<your server>
 ```
 
-The install ends with a one-time link, `http://localhost:7600/claim#…`. Open it through the tunnel to create the owner account with a passkey. It works once, for 24 h; `dockwell claim` on the server prints a new one. Open the panel at `localhost`, not `127.0.0.1`: passkeys need a hostname.
+The install ends with a one-time link, `http://localhost:7600/claim#…`. Open it through the tunnel to create the owner account with a passkey. It works once, for 24 h. For a new one, run `sudo dockwell claim` on the server; the panel's claim page shows the same command. The service itself never prints a link, as its log, the system journal, can be read by more people than root, and a link gives whoever spends it first every server ([the threat model](security/sign-in.md)). Open the panel at `localhost`, not `127.0.0.1`: passkeys need a hostname.
 
 To serve the panel over HTTPS on your own domain instead, point the domain's DNS A record at the server, then set `DOCKWELL_DOMAIN` for the service, as in [Change settings](#change-settings). The panel then also answers on `https://<domain>`, with a certificate from Let's Encrypt, on ports 443 and 80. Passkeys belong to the address they were made on, so add one for the domain after you sign in there. [ADR 0011](adr/0011-claim-and-sign-in.md) explains both ways in. When that server gets its first route, Caddy takes those ports and serves the panel's domain too. Its address and passkeys stay as they are, and the SSH tunnel works whatever Caddy is doing ([ADR 0024](adr/0024-the-caddy-ingress-driver.md#coexisting-with-the-panel)).
 
@@ -265,7 +265,7 @@ The panel itself always stays on loopback. `DOCKWELL_LISTEN` can move it to anot
 The control plane keeps its state in SQLite, in `/var/lib/dockwell/control/state.db`. To keep it in Postgres instead, ahead of running more than one control plane, set `DOCKWELL_DATABASE` to a `postgres://` URL before the first start, such as `postgres://dockwell@db.internal:5432/dockwell?sslmode=verify-full`. [ADR 0014](adr/0014-object-model-and-store.md) says how the two compare.
 
 - Keep the password out of the service file, which anyone on the server can read: put it in `/root/.pgpass`, mode 0600, or set `DOCKWELL_DATABASE` in an `EnvironmentFile=` that only root can read. Dockwell never logs or prints the password.
-- Commands you run beside the control plane, such as `dockwell claim`, `dockwell recover` and `dockwell token create`, need the same `DOCKWELL_DATABASE` in your shell.
+- Commands you run beside the control plane, such as `dockwell claim`, `dockwell recover` and `dockwell token create`, need the same `DOCKWELL_DATABASE` in your shell. `sudo` leaves it out, so pass it through: `sudo --preserve-env=DOCKWELL_DATABASE dockwell claim`.
 - Moving an install that has started on SQLite to Postgres isn't supported yet. `dockwell run` refuses to start that way, rather than begin a second install that your servers wouldn't recognize, and it also refuses when `DOCKWELL_DATABASE` goes missing from an install on Postgres.
 
 `dockwell run --help` lists every setting.

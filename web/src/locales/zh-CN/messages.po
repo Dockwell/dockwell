@@ -1884,8 +1884,8 @@ msgid "Claim code"
 msgstr "认领码"
 
 #: src/features/auth/Unclaimed.tsx
-msgid "Claim it with the one-time link that <0>dockwell run</0> printed when it started. For a new link, run this on {name} over SSH:"
-msgstr "用 <0>dockwell run</0> 启动时打印的一次性链接认领它。如需新链接，请通过 SSH 在 {name} 上运行："
+msgid "Claim it with a one-time link from {name}, such as the one the install printed. For a new link, run this on {name} over SSH:"
+msgstr "用来自 {name} 的一次性链接认领它，例如安装结束时打印的那个。如需新链接，请通过 SSH 在 {name} 上运行："
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Claim this server"
@@ -3088,13 +3088,13 @@ msgstr "来自 API"
 msgid "From the catalog"
 msgstr "来自应用目录"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "From the claim link. Run <0>{claimCommand}</0> on {name} for a new one."
+msgstr "来自认领链接。在 {name} 上运行 <0>{claimCommand}</0> 可获取新的认领码。"
+
 #: src/features/changes/words.ts
 msgid "From the CLI"
 msgstr "来自 CLI"
-
-#: src/features/auth/ClaimPage.tsx
-msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
-msgstr "来自 <0>dockwell run</0> 打印的链接。在 {name} 上运行 <1>dockwell claim</1> 可获取新的认领码。"
 
 #: src/features/changes/words.ts
 msgid "From the panel"
@@ -4646,8 +4646,8 @@ msgid "Paste it, or drop the file here. Dockwell reads it as you type, and nothi
 msgstr "粘贴内容，或将文件拖到这里。Dockwell 会在你输入时读取，应用计划之前不会保存任何内容。"
 
 #: src/features/auth/ClaimPage.tsx
-msgid "Paste the claim link or code that dockwell run printed."
-msgstr "请粘贴 dockwell run 打印的认领链接或认领码。"
+msgid "Paste the claim link or code you got on the server."
+msgstr "请粘贴你在服务器上得到的认领链接或认领码。"
 
 #: src/features/changes/fields.tsx
 msgid "path"
@@ -6560,8 +6560,8 @@ msgid "This changes what runs: a service of the same name in the file replaces i
 msgstr "这会改变正在运行的内容：文件中的同名服务会替换它。如果这不是你的本意，请修改文件中的 name:，让它有自己的项目。"
 
 #: src/features/auth/messages.ts
-msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
-msgstr "这个认领链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 dockwell claim 获取新链接。"
+msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
+msgstr "这个认领链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 {claimCommand} 获取新链接。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "This container isn't here"

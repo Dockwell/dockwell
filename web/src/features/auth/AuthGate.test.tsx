@@ -72,6 +72,16 @@ describe("the sign-in gate", () => {
     expect(screen.getByText("dockwell claim")).toBeVisible();
   });
 
+  it("gives the command that prints a link as Dockwell runs on the server", async () => {
+    renderAt("/", {
+      system,
+      auth: { getAuthState: () => authState({ claimed: false, user: undefined, claimCommand: "sudo dockwell claim" }) },
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "hz-1 has no owner yet" })).toBeVisible();
+    expect(screen.getByText("sudo dockwell claim")).toBeVisible();
+    expect(screen.getByText(/such as the one the install printed/)).toBeVisible();
+  });
+
   it("lets the claim and sign-in screens through", async () => {
     renderAt("/claim", { system, auth: { getAuthState: () => authState({ claimed: false, user: undefined }) } });
     expect(await screen.findByRole("heading", { level: 1, name: "Claim hz-1" })).toBeVisible();

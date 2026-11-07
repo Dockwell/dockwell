@@ -351,7 +351,12 @@ type GetAuthStateResponse struct {
 	// reachable only on loopback.
 	Domain string `protobuf:"bytes,6,opt,name=domain,proto3" json:"domain,omitempty"`
 	// How this session began. Unset when not signed in.
-	SignInMethod  SignInMethod `protobuf:"varint,7,opt,name=sign_in_method,json=signInMethod,proto3,enum=dockwell.v1.SignInMethod" json:"sign_in_method,omitempty"`
+	SignInMethod SignInMethod `protobuf:"varint,7,opt,name=sign_in_method,json=signInMethod,proto3,enum=dockwell.v1.SignInMethod" json:"sign_in_method,omitempty"`
+	// The command that prints a new claim link on the control server, as
+	// Dockwell runs there, such as "sudo dockwell claim" for the system service,
+	// or "dockwell claim" for a control plane a user runs themselves. Set only
+	// while the install has no owner.
+	ClaimCommand  string `protobuf:"bytes,8,opt,name=claim_command,json=claimCommand,proto3" json:"claim_command,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -433,6 +438,13 @@ func (x *GetAuthStateResponse) GetSignInMethod() SignInMethod {
 		return x.SignInMethod
 	}
 	return SignInMethod_SIGN_IN_METHOD_UNSPECIFIED
+}
+
+func (x *GetAuthStateResponse) GetClaimCommand() string {
+	if x != nil {
+		return x.ClaimCommand
+	}
+	return ""
 }
 
 // CheckClaimRequest carries a claim link's token.
@@ -3035,7 +3047,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x04role\x18\x04 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12;\n" +
 	"\vcreate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\"\x15\n" +
-	"\x13GetAuthStateRequest\"\x85\x02\n" +
+	"\x13GetAuthStateRequest\"\xaa\x02\n" +
 	"\x14GetAuthStateResponse\x12\x18\n" +
 	"\aclaimed\x18\x01 \x01(\bR\aclaimed\x12%\n" +
 	"\x04user\x18\x02 \x01(\v2\x11.dockwell.v1.UserR\x04user\x12\x1d\n" +
@@ -3045,7 +3057,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"serverName\x12\x13\n" +
 	"\x05rp_id\x18\x05 \x01(\tR\x04rpId\x12\x16\n" +
 	"\x06domain\x18\x06 \x01(\tR\x06domain\x12?\n" +
-	"\x0esign_in_method\x18\a \x01(\x0e2\x19.dockwell.v1.SignInMethodR\fsignInMethod\":\n" +
+	"\x0esign_in_method\x18\a \x01(\x0e2\x19.dockwell.v1.SignInMethodR\fsignInMethod\x12#\n" +
+	"\rclaim_command\x18\b \x01(\tR\fclaimCommand\":\n" +
 	"\x11CheckClaimRequest\x12%\n" +
 	"\x05token\x18\x01 \x01(\tB\x0f\xa2\xbb\x18\vclaim-tokenR\x05token\"\xa5\x01\n" +
 	"\x12CheckClaimResponse\x12+\n" +

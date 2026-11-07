@@ -4,10 +4,12 @@ import { Trans, useLingui } from "@lingui/react/macro";
 
 import { CopyCommand } from "../system/CopyCommand";
 import { StandalonePage } from "../system/StandalonePage";
+import { useClaimCommand } from "./useAuthState";
 
 /** The install has no owner: only a claim link from the server can make one. */
 export function Unclaimed({ serverName }: { serverName: string }) {
   const { t } = useLingui();
+  const command = useClaimCommand();
   const name = serverName || window.location.hostname;
   return (
     <StandalonePage title={t`No owner yet`}>
@@ -17,12 +19,12 @@ export function Unclaimed({ serverName }: { serverName: string }) {
         </h1>
         <p className="standalone-lead">
           <Trans>
-            Claim it with the one-time link that <code>dockwell run</code> printed when it started. For a new link, run
-            this on {name} over SSH:
+            Claim it with a one-time link from {name}, such as the one the install printed. For a new link, run this on{" "}
+            {name} over SSH:
           </Trans>
         </p>
       </header>
-      <CopyCommand command="dockwell claim" />
+      <CopyCommand command={command} />
     </StandalonePage>
   );
 }

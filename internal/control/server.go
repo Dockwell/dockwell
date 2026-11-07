@@ -97,6 +97,10 @@ type Config struct {
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
+	// ClaimCommand prints a new claim link on the control server, as it runs
+	// there, such as "sudo dockwell claim", for the panel to show while the
+	// install has no owner.
+	ClaimCommand string
 	// Changes is the revision engine, which ChangeService serves, and
 	// Agents how it reaches each server's agent over its stream. Store is
 	// the state they read. Without Changes there is no ChangeService.
@@ -207,7 +211,9 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler) (http.Hand
 		if cfg.Fleet != nil {
 			controlServer = cfg.Fleet.ControlServer
 		}
-		h := authapi.New(authapi.Config{Auth: cfg.Auth, Logger: cfg.Logger, ControlServer: controlServer, PublicAddress: cfg.PublicAddress})
+		h := authapi.New(authapi.Config{
+			Auth: cfg.Auth, Logger: cfg.Logger, ControlServer: controlServer, PublicAddress: cfg.PublicAddress, ClaimCommand: cfg.ClaimCommand,
+		})
 		handle(dockwellv1connect.NewAuthServiceHandler(h, opts...))
 		handle(dockwellv1connect.NewTokenServiceHandler(h, opts...))
 	}

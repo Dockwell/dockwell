@@ -373,6 +373,11 @@ message GetAuthStateResponse {
   string domain = 6;
   // How this session began. Unset when not signed in.
   SignInMethod sign_in_method = 7;
+  // The command that prints a new claim link on the control server, as
+  // Dockwell runs there, such as "sudo dockwell claim" for the system service,
+  // or "dockwell claim" for a control plane a user runs themselves. Set only
+  // while the install has no owner.
+  string claim_command = 8;
 }
 
 // CheckClaimRequest carries a claim link's token.

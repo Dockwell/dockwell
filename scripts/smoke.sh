@@ -65,7 +65,14 @@ grep -q 'refused an unknown API token' "$log" || fail "an unknown API token wasn
 status=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${unknown_token%?}x" "$base/v1/servers")
 [[ "$status" == 401 ]] || fail "GET /v1/servers with a mistyped API token answered $status, want 401"
 grep -q 'refused a malformed API token' "$log" || fail "a mistyped API token wasn't refused as malformed"
-grep -q "http://localhost:${addr##*:}/claim#" "$log" || fail "dockwell run didn't print a claim link"
+# Its output isn't a terminal, as a service's isn't: the journal would keep a
+# link, so it prints none, and says to run dockwell claim, which does.
+if grep -q '/claim#' "$log"; then
+  fail "dockwell run printed a claim link where it isn't a terminal"
+fi
+grep -q "dockwell claim --data-dir $data" "$log" || fail "dockwell run didn't say to run dockwell claim for a link"
+claim=$("$bin" claim --data-dir "$data" 2>&1) || fail "dockwell claim failed: $claim"
+grep -q "http://localhost:${addr##*:}/claim#" <<<"$claim" || fail "dockwell claim didn't print a claim link: $claim"
 status=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Host: evil.test' "$base/healthz")
 [[ "$status" == 421 ]] || fail "a request for another host answered $status, want 421"
 
