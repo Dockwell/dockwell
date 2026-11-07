@@ -2013,7 +2013,13 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				// What a backup holds came from what its volume reached then, and a
 				// volume of that name now may reach far less.
 				if len(asRoot(reaches, leads)) == 0 {
-					for _, p := range backupOf[it.ref] {
+					was := backupOf[it.ref]
+					if src := it.restoreOn(server); src != nil && src.Backup != "" && len(was) == 0 {
+						if was, err = e.reachedThen(ctx, src.Backup); err != nil {
+							return nil, err
+						}
+					}
+					for _, p := range was {
 						gained = append(gained, resource.Access{Kind: resource.AccessBackupOf, Path: p})
 					}
 				}
@@ -3692,6 +3698,47 @@ func (e *Engine) BackupsRestoring(ctx context.Context) (map[string]bool, error) 
 						out[r.Backup] = true
 					}
 				}
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+// reachedThen is what a backup's volume reached that's as good as root, by its spec
+// when the backup was taken, for a backup from before backups said so themselves.
+// Where a path led then is gone, so this goes by paths as they're written.
+func (e *Engine) reachedThen(ctx context.Context, backupID string) ([]string, error) {
+	var out []string
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		b, err := tx.GetBackup(ctx, backupID)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return nil
+		case err != nil:
+			return err
+		}
+		var then *store.Revision
+		for n := 1; ; n++ {
+			r, err := tx.GetRevision(ctx, b.VolumeID, n)
+			if errors.Is(err, store.ErrNotFound) || err == nil && r.CreatedAt.After(b.StartedAt) {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			then = &r
+		}
+		if then == nil || then.Spec == nil {
+			return nil
+		}
+		spec, err := e.decode(ctx, tx, store.InRevision(then.ID, then.Kind, then.Revision), then.Spec)
+		if err != nil {
+			return err
+		}
+		for _, a := range e.kinds.HostAccess(resource.Kind(then.Kind), spec) {
+			if a.AsGoodAsRoot() && a.Path != "" {
+				out = append(out, a.Path)
 			}
 		}
 		return nil

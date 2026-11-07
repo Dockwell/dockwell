@@ -312,11 +312,7 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 		}
 		return fmt.Errorf("the backup is damaged, so nothing was changed or stopped: %w. Choose another", err)
 	}
-	v, err := r.Client.InspectVolume(ctx, t.Name)
-	if err != nil {
-		return stopping(r.noVolume(ref, err))
-	}
-	if err := r.Paths.VolumeAsPlanned(ctx, v, step.PlannedLeads); err != nil {
+	if err := r.volumeAsPlanned(ctx, ref, t, step.PlannedLeads, "nothing was changed or stopped"); err != nil {
 		return stopping(err)
 	}
 	if u, err = r.users(ctx, t); err != nil {
@@ -341,7 +337,7 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 	if err := r.stop(ctx, run, stops, true); err != nil {
 		return r.giveBack(ctx, ref, t, st, run, u, db, err)
 	}
-	if err := r.replace(ctx, ref, t, st, m, file, db); err != nil {
+	if err := r.replace(ctx, ref, t, st, m, file, db, step.PlannedLeads); err != nil {
 		return r.giveBack(ctx, ref, t, st, run, u, db, err)
 	}
 	if err := r.startAll(ctx, run, u, db); err != nil {
@@ -448,7 +444,7 @@ func (r *Runner) putBack(ctx context.Context, ref resource.Ref, t volume.Target,
 }
 
 // replace does the part of a restore that touches the data, from where st says.
-func (r *Runner) replace(ctx context.Context, ref resource.Ref, t volume.Target, st *state, m *Manifest, file string, db *database) error {
+func (r *Runner) replace(ctx context.Context, ref resource.Ref, t volume.Target, st *state, m *Manifest, file string, db *database, planned map[string]string) error {
 	if !reached(st.Stage, stageCopied) {
 		resource.Progress(ctx, "Copying what's in "+ref.Name+" now, which the server keeps for 7 days")
 		st.Manifest = Manifest{
@@ -471,6 +467,11 @@ func (r *Runner) replace(ctx context.Context, ref resource.Ref, t volume.Target,
 	}
 	if reached(st.Stage, stageReplaced) {
 		return nil
+	}
+	// Again, right before the helper writes: the stops and the copy above take time,
+	// and a link made in between would be followed.
+	if err := r.volumeAsPlanned(ctx, ref, t, planned, "nothing was written over, and what stopped starts again"); err != nil {
+		return err
 	}
 	var err error
 	if m.Format == formatDump {
@@ -572,4 +573,13 @@ func (r *Runner) startAll(ctx context.Context, run string, u *users, db *databas
 		containers = append(containers, c)
 	}
 	return r.start(ctx, run, containers)
+}
+
+// volumeAsPlanned checks the server path the volume binds leads where its plan said.
+func (r *Runner) volumeAsPlanned(ctx context.Context, ref resource.Ref, t volume.Target, planned map[string]string, stopped string) error {
+	v, err := r.Client.InspectVolume(ctx, t.Name)
+	if err != nil {
+		return r.noVolume(ref, err)
+	}
+	return r.Paths.VolumeAsPlanned(ctx, v, planned, stopped)
 }
