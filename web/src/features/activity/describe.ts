@@ -59,6 +59,11 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const path = event.subject?.path ?? "";
           return { title: t`Saved ${path} on ${server}`, icon: "file" };
         }
+        case "file.save_way_back_in": {
+          // Passkey or not, this is what a stolen session would do: worth a look.
+          const path = event.subject?.path ?? "";
+          return { title: t`Saved ${path} on ${server}, which can let someone back in`, icon: "file", tone: "warning" };
+        }
         case "file.save_failed": {
           const path = event.subject?.path ?? "";
           return { title: t`Couldn't save ${path} on ${server}`, icon: "file", tone: "warning" };

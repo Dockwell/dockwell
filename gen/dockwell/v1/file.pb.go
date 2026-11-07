@@ -287,7 +287,10 @@ type ReadFileResponse struct {
 	// which file that was, and what it held, which tells whether any of it changed
 	// since. Empty for what can't be saved here: a binary file, one with more to
 	// it than content, or a file on a server whose agent is too old to save.
-	Version       string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
+	Version string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
+	// True when saving this file takes a passkey, as it's a way back onto the
+	// server, such as authorized_keys, a cron job or a systemd unit.
+	WayBackIn     bool `protobuf:"varint,7,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -364,6 +367,13 @@ func (x *ReadFileResponse) GetVersion() string {
 	return ""
 }
 
+func (x *ReadFileResponse) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
+}
+
 // SaveFileRequest replaces a file's text.
 type SaveFileRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -375,7 +385,14 @@ type SaveFileRequest struct {
 	// The file's new text, 1 MiB at most.
 	Content string `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
 	// The version from ReadFile: the file as you last read it.
-	Version       string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	Version string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	// The path ReadFile said the file is at, with every symlink followed, which
+	// proof confirms. Set it with proof.
+	ConfirmedPath string `protobuf:"bytes,5,opt,name=confirmed_path,json=confirmedPath,proto3" json:"confirmed_path,omitempty"`
+	// The proof from FinishStepUp, for saving this path on this server. A file
+	// that's a way back onto the server needs it. Call without it first: it checks
+	// everything else, then refuses with the reason needs_step_up.
+	Proof         string `protobuf:"bytes,6,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -438,6 +455,20 @@ func (x *SaveFileRequest) GetVersion() string {
 	return ""
 }
 
+func (x *SaveFileRequest) GetConfirmedPath() string {
+	if x != nil {
+		return x.ConfirmedPath
+	}
+	return ""
+}
+
+func (x *SaveFileRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
 // SaveFileResponse is the file as saved.
 type SaveFileResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -446,7 +477,9 @@ type SaveFileResponse struct {
 	// The file itself.
 	File *FileEntry `protobuf:"bytes,2,opt,name=file,proto3" json:"file,omitempty"`
 	// What the next save over this text takes.
-	Version       string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	// True when the file is a way back onto the server, which took a passkey.
+	WayBackIn     bool `protobuf:"varint,4,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -500,6 +533,13 @@ func (x *SaveFileResponse) GetVersion() string {
 		return x.Version
 	}
 	return ""
+}
+
+func (x *SaveFileResponse) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
 }
 
 // FileEntry is one file or directory on a server.
@@ -656,23 +696,27 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\ttruncated\x18\x04 \x01(\bR\ttruncated\"B\n" +
 	"\x0fReadFileRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\"\xbc\x01\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\xdc\x01\n" +
 	"\x10ReadFileResponse\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
 	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x12\x16\n" +
 	"\x06binary\x18\x04 \x01(\bR\x06binary\x12\x1c\n" +
 	"\ttruncated\x18\x05 \x01(\bR\ttruncated\x12\x18\n" +
-	"\aversion\x18\x06 \x01(\tR\aversion\"v\n" +
+	"\aversion\x18\x06 \x01(\tR\aversion\x12\x1e\n" +
+	"\vway_back_in\x18\a \x01(\bR\twayBackIn\"\xb3\x01\n" +
 	"\x0fSaveFileRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x12\x18\n" +
-	"\aversion\x18\x04 \x01(\tR\aversion\"l\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\x12%\n" +
+	"\x0econfirmed_path\x18\x05 \x01(\tR\rconfirmedPath\x12\x14\n" +
+	"\x05proof\x18\x06 \x01(\tR\x05proof\"\x8c\x01\n" +
 	"\x10SaveFileResponse\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
 	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\"\xfe\x02\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1e\n" +
+	"\vway_back_in\x18\x04 \x01(\bR\twayBackIn\"\xfe\x02\n" +
 	"\tFileEntry\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x1d\n" +

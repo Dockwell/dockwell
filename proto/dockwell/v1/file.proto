@@ -113,6 +113,9 @@ message ReadFileResponse {
   // since. Empty for what can't be saved here: a binary file, one with more to
   // it than content, or a file on a server whose agent is too old to save.
   string version = 6;
+  // True when saving this file takes a passkey, as it's a way back onto the
+  // server, such as authorized_keys, a cron job or a systemd unit.
+  bool way_back_in = 7;
 }
 
 // SaveFileRequest replaces a file's text.
@@ -126,6 +129,13 @@ message SaveFileRequest {
   string content = 3;
   // The version from ReadFile: the file as you last read it.
   string version = 4;
+  // The path ReadFile said the file is at, with every symlink followed, which
+  // proof confirms. Set it with proof.
+  string confirmed_path = 5;
+  // The proof from FinishStepUp, for saving this path on this server. A file
+  // that's a way back onto the server needs it. Call without it first: it checks
+  // everything else, then refuses with the reason needs_step_up.
+  string proof = 6;
 }
 
 // SaveFileResponse is the file as saved.
@@ -136,6 +146,8 @@ message SaveFileResponse {
   FileEntry file = 2;
   // What the next save over this text takes.
   string version = 3;
+  // True when the file is a way back onto the server, which took a passkey.
+  bool way_back_in = 4;
 }
 
 // FileType says what an entry in a directory is.

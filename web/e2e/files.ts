@@ -259,6 +259,24 @@ async function main() {
   await page.getByRole("button", { name: "Close config.yml" }).click();
   await yml.waitFor({ state: "detached" });
 
+  step("a file that's a way back in asks for a passkey, and saves nothing without one");
+  await page.getByRole("row", { name: /authorized_keys/ }).click();
+  const authorized = page.getByRole("textbox", { name: "Contents of authorized_keys" });
+  await authorized.waitFor();
+  await authorized.fill("ssh-ed25519 a key typed here\n");
+  await page.getByText("It asks for your passkey", { exact: false }).waitFor();
+  // This browser has no authenticator, so the prompt closes, as a person can close it.
+  await page.evaluate(() => {
+    navigator.credentials.get = () => Promise.reject(new DOMException("closed", "NotAllowedError"));
+  });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("The passkey prompt closed", { exact: false }).waitFor();
+  await shoot(page, "way-back-in");
+  if (readFileSync(keys, "utf8") !== "deploy_key: AAAA\n") fail("a way back in saved with no passkey");
+  await page.getByRole("button", { name: "Discard" }).click();
+  await page.getByRole("button", { name: "Close authorized_keys" }).click();
+  await authorized.waitFor({ state: "detached" });
+
   step("what isn't text, and what's too large");
   await page.getByText("logo.png").click();
   await page.getByText("This isn't a text file").waitFor();

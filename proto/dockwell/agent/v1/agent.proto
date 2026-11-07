@@ -104,6 +104,8 @@ message SaveEnded {
   bool landed = 3;
   // Why it didn't, for people.
   string reason = 4;
+  // True when the file is a way back onto the server.
+  bool way_back_in = 5;
 }
 
 // Health is how each container of a server's services is, as far as anything
@@ -418,6 +420,9 @@ message SaveFileCall {
   string version = 3;
   // What the control plane calls this save on record, for a SaveEnded to name.
   string record = 4;
+  // The path a person confirmed with a passkey. The agent writes a way back onto
+  // the server only if its walk ended there.
+  string confirmed_path = 5;
 }
 
 // FileRefusal says why the agent didn't list, read or save a path. It is an
@@ -447,6 +452,9 @@ message FileRefusal {
     // The path stopped answering after a save began to write it, so the save
     // may still land. A SaveEnded says how it came out.
     KIND_MAY_LAND = 8;
+    // The file is a way back onto the server, and no passkey confirmed saving
+    // where the walk ended, so nothing was written.
+    KIND_NEEDS_STEP_UP = 9;
   }
 
   // What went wrong.

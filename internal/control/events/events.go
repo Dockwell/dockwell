@@ -57,11 +57,12 @@ const gather = 100 * time.Millisecond
 // a passkey rests on these being where the person can see them (ADR 0032), as with
 // a secret's reveal. A save has no change of its own, as files aren't managed state.
 const (
-	fileRead        = "file.read"
-	fileRefuse      = "file.refuse"
-	fileSave        = "file.save"
-	fileSaveFailed  = "file.save_failed"
-	fileSaveUnknown = "file.save_unknown"
+	fileRead          = "file.read"
+	fileRefuse        = "file.refuse"
+	fileSave          = "file.save"
+	fileSaveWayBackIn = "file.save_way_back_in"
+	fileSaveFailed    = "file.save_failed"
+	fileSaveUnknown   = "file.save_unknown"
 )
 
 // The audit log's actions that belong on the timeline, by kind. What the
@@ -69,7 +70,7 @@ const (
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
-	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveFailed, fileSaveUnknown}
+	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown}
 	healthActions = []string{health.Action}
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
@@ -488,7 +489,7 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Id: a.ID, Kind: dockwellv1.EventKind_EVENT_KIND_ACCESS, Action: a.Action, Time: timestamppb.New(a.At),
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
-	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveFailed || a.Action == fileSaveUnknown {
+	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if a.Action == health.Action {

@@ -7,6 +7,8 @@ export interface Base {
   crlf: boolean;
   /** Where the path led when this was read: a save goes only there. */
   where: string;
+  /** Saving it takes a passkey, as it's a way back onto the server. */
+  wayBackIn: boolean;
 }
 
 /** What someone typed and hasn't saved, and what it was typed over. */

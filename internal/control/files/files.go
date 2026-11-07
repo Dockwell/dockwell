@@ -43,12 +43,16 @@ const (
 	eventSave        = "file.save"
 	eventSaveFailed  = "file.save_failed"
 	eventSaveUnknown = "file.save_unknown"
+	// eventSaveWayBackIn is eventSave of a file that lets someone back onto the
+	// server, which took a passkey, and reads as a warning on Activity.
+	eventSaveWayBackIn = "file.save_way_back_in"
 )
 
 // Handler implements FileService.
 type Handler struct {
 	fleet  *fleet.Hub
 	agents *agentapi.Agents
+	auth   *auth.Service
 	db     *store.DB
 	logger *slog.Logger
 	now    func() time.Time
@@ -56,9 +60,10 @@ type Handler struct {
 
 var _ dockwellv1connect.FileServiceHandler = (*Handler)(nil)
 
-// New returns a handler that reaches servers through agents.
-func New(hub *fleet.Hub, agents *agentapi.Agents, db *store.DB, logger *slog.Logger) *Handler {
-	h := &Handler{fleet: hub, agents: agents, db: db, logger: logger, now: time.Now}
+// New returns a handler that reaches servers through agents. people checks the
+// passkey a way back onto a server takes.
+func New(hub *fleet.Hub, agents *agentapi.Agents, people *auth.Service, db *store.DB, logger *slog.Logger) *Handler {
+	h := &Handler{fleet: hub, agents: agents, auth: people, db: db, logger: logger, now: time.Now}
 	agents.OnSaveEnded(h.saveEnded)
 	return h
 }
@@ -204,6 +209,16 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 	if err != nil {
 		return nil, failed(err)
 	}
+	// A proof is for where a read said the path leads, and the agent writes only if
+	// its own walk ends there. It says when a save needs one, as only it can tell.
+	confirmed := req.Msg.GetConfirmedPath()
+	if proof := req.Msg.GetProof(); proof != "" {
+		if err := h.auth.UseStepUp(p, proof, auth.StepUpSaveWayBackIn, srv.GetId()+":"+confirmed); err != nil {
+			return nil, failed(authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp))
+		}
+	} else {
+		confirmed = ""
+	}
 	ctx = context.WithoutCancel(ctx)
 	saving, err := record(eventSaving, path, fmt.Sprintf("saving %s on %s", path, srv.GetName()))
 	if err != nil {
@@ -214,7 +229,7 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 		h.note(ctx, record, eventSaveUnknown, "save", where, srv, err)
 		return err
 	}
-	out, err := session.SaveFile(ctx, path, content, version, saving)
+	out, err := session.SaveFile(ctx, path, content, version, saving, confirmed)
 	if err != nil {
 		if errors.Is(err, resource.ErrLost) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, unknown(path, h.rpcError(ctx, err))
@@ -226,16 +241,27 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 		if r.GetKind() == agentv1.FileRefusal_KIND_MAY_LAND {
 			return nil, unknown(where, refusal(r))
 		}
+		if r.GetKind() == agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
+			return nil, refusal(r) // not a failure: every such save starts here
+		}
 		err := refusal(r)
 		h.note(ctx, record, eventSaveFailed, "save", where, srv, err)
 		return nil, err
 	}
 	saved := out.GetSaved()
-	if _, err := record(eventSave, saved.GetPath(), fmt.Sprintf("saved %s on %s, %d bytes", saved.GetPath(), srv.GetName(), len(content))); err != nil {
+	if _, err := record(savedAs(saved.GetWayBackIn()), saved.GetPath(), fmt.Sprintf("saved %s on %s, %d bytes", saved.GetPath(), srv.GetName(), len(content))); err != nil {
 		// It's on the disk, and eventSaving says so might be: the person hears it saved.
 		h.logger.ErrorContext(ctx, "saved a file, and can't record that it saved", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
 	}
 	return connect.NewResponse(saved), nil
+}
+
+// savedAs is what a save that landed goes on record as.
+func savedAs(wayBackIn bool) string {
+	if wayBackIn {
+		return eventSaveWayBackIn
+	}
+	return eventSave
 }
 
 // saveEnded puts on record how a save came out, once the agent can say, for the
@@ -266,7 +292,7 @@ func (h *Handler) saveEnded(server string, ended *agentv1.SaveEnded) {
 	}
 	action, detail := eventSaveFailed, fmt.Sprintf("couldn't save %s on %s: %s", ended.GetPath(), name, ended.GetReason())
 	if ended.GetLanded() {
-		action, detail = eventSave, fmt.Sprintf("saved %s on %s, after it stopped answering", ended.GetPath(), name)
+		action, detail = savedAs(ended.GetWayBackIn()), fmt.Sprintf("saved %s on %s, after it stopped answering", ended.GetPath(), name)
 	}
 	if err := h.db.Update(ctx, func(tx *store.Tx) error {
 		return tx.RecordEvent(ctx, store.Event{
@@ -328,6 +354,8 @@ func refusal(r *agentv1.FileRefusal) error {
 		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "file_changed")
 	case agentv1.FileRefusal_KIND_MAY_LAND:
 		return authapi.ReasonError(connect.CodeDeadlineExceeded, err, "save_may_land")
+	case agentv1.FileRefusal_KIND_NEEDS_STEP_UP:
+		return authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
 	case agentv1.FileRefusal_KIND_DENIED, agentv1.FileRefusal_KIND_UNSPECIFIED:
 	}
 	return authapi.ReasonError(connect.CodePermissionDenied, err, "file_denied")

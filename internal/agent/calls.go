@@ -574,7 +574,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Files == nil {
 			return fail(errNoFiles)
 		}
-		saved, err := c.cfg.Files.Save(ctx, save.GetPath(), save.GetContent(), save.GetVersion(), save.GetRecord())
+		saved, err := c.cfg.Files.Save(ctx, save.GetPath(), save.GetContent(), save.GetVersion(), save.GetRecord(), save.GetConfirmedPath())
 		if err != nil {
 			return fail(err)
 		}

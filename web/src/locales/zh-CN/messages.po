@@ -3660,6 +3660,10 @@ msgstr "它只响应 {list}。其他人得到的结果和访问没有路由的�
 msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
 msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
 
+#: src/features/files/FileViewer.tsx
+msgid "It asks for your passkey, as this file can let someone back in."
+msgstr "保存时会要求验证你的通行密钥，因为这个文件可能让他人重新进入服务器。"
+
 #: src/features/changes/notices.tsx
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
@@ -6046,9 +6050,17 @@ msgstr "已保存 {name}"
 msgid "Saved {path} on {server}"
 msgstr "已保存 {server} 上的 {path}"
 
+#: src/features/activity/describe.ts
+msgid "Saved {path} on {server}, which can let someone back in"
+msgstr "已保存 {server} 上的 {path}，这个文件可能让他人重新进入服务器"
+
 #: src/features/files/FileViewer.tsx
 msgid "Saving"
 msgstr "正在保存"
+
+#: src/features/files/FileViewer.tsx
+msgid "Saving {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
+msgstr "保存 {where} 需要通行密钥，而你在这个地址上没有。请通过 SSH 连接到服务器来修改。"
 
 #: src/features/files/FileViewer.tsx
 msgid "Saving replaces the file at once, and can't be undone."

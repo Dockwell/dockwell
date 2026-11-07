@@ -64,15 +64,19 @@ Those reasons are wrong for a write to a place that lets someone back in, as the
 - That the same door is open by a plan is a reason to close that one too, not to leave this one open. A plan has a sheet, a typed fingerprint when it's as good as root, and an undo. A save is one request.
 - A server without Docker can't run that plan, so there a save is new reach for a stolen session.
 
-So this is decided, and it isn't built yet. It's the next pull request, and no release goes out without it:
+So:
 
-- A save to a short list of paths takes the existing one-minute step-up, targeted at the path the walk ended at, so a link can't stand in for it: `authorized_keys`, `passwd`, `shadow`, `sudoers*`, `/etc/ssh`, `/etc/pam.d`, cron, systemd units, `ld.so.preload`, and Dockwell's own unit and data.
-- Saves anywhere else don't need one.
+- A save to a short list of paths takes the existing one-minute step-up: `authorized_keys`, `passwd`, `shadow`, `group`, `sudoers*`, `/etc/ssh`, `/etc/pam.d`, cron, systemd units, `ld.so.preload`, and Dockwell's own unit and data. `group` is on it as joining `docker` or `sudo` is root.
+- The agent decides, on where the walk ended, as only it can tell, so a link to one of these is one too. It asks last, so a passkey isn't asked for over what would be refused anyway, and `file_changed` comes first.
+- The proof is for that path on that server, and the control plane hands the path on with the save. The agent writes only if its own walk ended there, so a link swapped in after the passkey doesn't pass.
+- Saves anywhere else don't need one, and being asked isn't a failed save, so it isn't on Activity.
 - With no passkey at that address, the panel points the person to SSH.
-- Those saves show in a warning tone on Activity.
-- A `same_as_root` plan takes the same step-up, in the same record, as this section always said it would.
+- Those saves show in a warning tone on Activity, as `file.save_way_back_in`.
+- A plan that's as good as root takes the same step-up, for that change, as this section always said it would ([ADR 0021](0021-the-docker-driver.md#host-access)).
 
-The refused list stops Files, not a stolen session: ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach everything on it. That stays so until the plan's step-up comes.
+The list goes by name, so a hard link to one of these, under another name, isn't one. Making such a link takes write access to the file already, on the same filesystem, or a mount that crosses it, which a container doesn't have. The list has to grow with what runs on a server.
+
+The refused list stops Files, not a stolen session, which can still reach it with a plan that mounts Docker's socket, now only with a passkey.
 
 ### How a save lands
 
@@ -90,6 +94,7 @@ The refused list stops Files, not a stolen session: ADR 0021 lets a session moun
 - `file.read` for each `ReadFile`, naming the person, the server and the path, written before the contents go out. If it can't be written, nothing goes out, as with `secret.reveal`.
 - `file.refuse` for each read or listing that came to nothing, however it failed. Someone looking for credentials mostly misses, so a miss leaves a mark as a hit does.
 - `file.saving` before each save, and `file.save` after one lands, or `file.save_failed`, however it failed, under where the walk ended. If the first can't be written, nothing is saved. A save that may have landed, as its stream dropped or it was left behind as it wrote, is `file.save_unknown`, and when the agent can say how it ended, that's `file.save` or `file.save_failed`, as whoever saved it. The first stays in the audit log, as a save may yet fail, so a save always leaves a line, and Activity says only what happened.
+- `file.save_way_back_in` in place of `file.save`, for a file that lets someone back in.
 - All but `file.saving` are on Activity, by person, server and path, where ADR 0020 leaves other refusals in the audit log, as the case for no step-up on reads rests on them being seen.
 - A listing that works isn't recorded: it returns names, and it runs on every click. Nor is a listing that can't reach its server, as the panel asks again by itself.
 - A file's contents are never recorded or logged. A path is cleaned before it's stored or shown, as a name can hold a newline or a terminal's escape codes, and a link can lead through one.

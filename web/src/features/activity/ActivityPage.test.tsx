@@ -273,12 +273,21 @@ describe("Activity", () => {
       time: timestampFromDate(new Date(Date.now() - 5 * HOUR)),
       subject: { ...on, path: "/etc/hosts" },
     });
-    watch.push(snapshot([read, refused, failed, saved, unknown]));
+    const wayIn = auditEvent({
+      id: "evt_way_in",
+      action: "file.save_way_back_in",
+      time: timestampFromDate(new Date(Date.now() - 6 * HOUR)),
+      subject: { ...on, path: "/root/.ssh/authorized_keys" },
+    });
+    watch.push(snapshot([read, refused, failed, saved, unknown, wayIn]));
     const { router } = renderActivity(watch);
 
     await screen.findByRole("row", { name: /Couldn't open \/root\/\.ssh\/id_rsa on hz-1/ });
     await screen.findByRole("row", { name: /Couldn't save \/etc\/cron\.d\/job on hz-1/ });
     await screen.findByRole("row", { name: /May have saved \/etc\/hosts on hz-1/ });
+    await screen.findByRole("row", {
+      name: /Saved \/root\/\.ssh\/authorized_keys on hz-1, which can let someone back in/,
+    });
     await screen.findByRole("row", { name: /Saved \/etc\/nginx\/conf\.d\/app\.conf on hz-1/ });
     await user.click(await screen.findByRole("row", { name: /Read \/etc\/nginx\/nginx\.conf on hz-1/ }));
     await user.click(await screen.findByRole("link", { name: "Open the file" }));

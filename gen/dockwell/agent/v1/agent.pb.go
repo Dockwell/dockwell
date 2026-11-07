@@ -52,6 +52,9 @@ const (
 	// The path stopped answering after a save began to write it, so the save
 	// may still land. A SaveEnded says how it came out.
 	FileRefusal_KIND_MAY_LAND FileRefusal_Kind = 8
+	// The file is a way back onto the server, and no passkey confirmed saving
+	// where the walk ended, so nothing was written.
+	FileRefusal_KIND_NEEDS_STEP_UP FileRefusal_Kind = 9
 )
 
 // Enum value maps for FileRefusal_Kind.
@@ -66,6 +69,7 @@ var (
 		6: "KIND_NOT_ANSWERING",
 		7: "KIND_CHANGED",
 		8: "KIND_MAY_LAND",
+		9: "KIND_NEEDS_STEP_UP",
 	}
 	FileRefusal_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED":     0,
@@ -77,6 +81,7 @@ var (
 		"KIND_NOT_ANSWERING":   6,
 		"KIND_CHANGED":         7,
 		"KIND_MAY_LAND":        8,
+		"KIND_NEEDS_STEP_UP":   9,
 	}
 )
 
@@ -387,7 +392,9 @@ type SaveEnded struct {
 	// True when the file now holds what was saved.
 	Landed bool `protobuf:"varint,3,opt,name=landed,proto3" json:"landed,omitempty"`
 	// Why it didn't, for people.
-	Reason        string `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	Reason string `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	// True when the file is a way back onto the server.
+	WayBackIn     bool `protobuf:"varint,5,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -448,6 +455,13 @@ func (x *SaveEnded) GetReason() string {
 		return x.Reason
 	}
 	return ""
+}
+
+func (x *SaveEnded) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
 }
 
 // Health is how each container of a server's services is, as far as anything
@@ -2291,7 +2305,10 @@ type SaveFileCall struct {
 	// The version from the read it was edited from.
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	// What the control plane calls this save on record, for a SaveEnded to name.
-	Record        string `protobuf:"bytes,4,opt,name=record,proto3" json:"record,omitempty"`
+	Record string `protobuf:"bytes,4,opt,name=record,proto3" json:"record,omitempty"`
+	// The path a person confirmed with a passkey. The agent writes a way back onto
+	// the server only if its walk ended there.
+	ConfirmedPath string `protobuf:"bytes,5,opt,name=confirmed_path,json=confirmedPath,proto3" json:"confirmed_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2350,6 +2367,13 @@ func (x *SaveFileCall) GetVersion() string {
 func (x *SaveFileCall) GetRecord() string {
 	if x != nil {
 		return x.Record
+	}
+	return ""
+}
+
+func (x *SaveFileCall) GetConfirmedPath() string {
+	if x != nil {
+		return x.ConfirmedPath
 	}
 	return ""
 }
@@ -4861,12 +4885,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"save_ended\x18\n" +
 	" \x01(\v2\x1c.dockwell.agent.v1.SaveEndedH\x00R\tsaveEndedB\t\n" +
 	"\amessage\"\t\n" +
-	"\aUnstuck\"g\n" +
+	"\aUnstuck\"\x87\x01\n" +
 	"\tSaveEnded\x12\x16\n" +
 	"\x06record\x18\x01 \x01(\tR\x06record\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
 	"\x06landed\x18\x03 \x01(\bR\x06landed\x12\x16\n" +
-	"\x06reason\x18\x04 \x01(\tR\x06reason\"\x8f\x02\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\x12\x1e\n" +
+	"\vway_back_in\x18\x05 \x01(\bR\twayBackIn\"\x8f\x02\n" +
 	"\x06Health\x129\n" +
 	"\tinstances\x18\x01 \x03(\v2\x1b.dockwell.v1.InstanceHealthR\tinstances\x129\n" +
 	"\n" +
@@ -4982,16 +5007,17 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\rListFilesCall\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"\"\n" +
 	"\fReadFileCall\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"n\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"\x95\x01\n" +
 	"\fSaveFileCall\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x16\n" +
-	"\x06record\x18\x04 \x01(\tR\x06record\"\xb6\x02\n" +
+	"\x06record\x18\x04 \x01(\tR\x06record\x12%\n" +
+	"\x0econfirmed_path\x18\x05 \x01(\tR\rconfirmedPath\"\xce\x02\n" +
 	"\vFileRefusal\x127\n" +
 	"\x04kind\x18\x01 \x01(\x0e2#.dockwell.agent.v1.FileRefusal.KindR\x04kind\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\"\xbf\x01\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\"\xd7\x01\n" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eKIND_NOT_FOUND\x10\x01\x12\x10\n" +
@@ -5001,7 +5027,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\vKIND_DENIED\x10\x05\x12\x16\n" +
 	"\x12KIND_NOT_ANSWERING\x10\x06\x12\x10\n" +
 	"\fKIND_CHANGED\x10\a\x12\x11\n" +
-	"\rKIND_MAY_LAND\x10\b\"\x85\x01\n" +
+	"\rKIND_MAY_LAND\x10\b\x12\x16\n" +
+	"\x12KIND_NEEDS_STEP_UP\x10\t\"\x85\x01\n" +
 	"\x0fListFilesResult\x128\n" +
 	"\alisting\x18\x01 \x01(\v2\x1e.dockwell.v1.ListFilesResponseR\alisting\x128\n" +
 	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"}\n" +

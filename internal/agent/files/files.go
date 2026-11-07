@@ -251,7 +251,7 @@ func (s *Server) read(ctx context.Context, t *trail, p string) *agentv1.ReadFile
 	if refusal != nil {
 		return &agentv1.ReadFileResult{Refusal: refusal}
 	}
-	out := &dockwellv1.ReadFileResponse{Path: where, File: entry(w.last().name, &w.st, owners{}), Truncated: truncated}
+	out := &dockwellv1.ReadFileResponse{Path: where, File: entry(w.last().name, &w.st, owners{}), Truncated: truncated, WayBackIn: s.wayIn(where)}
 	if isBinary(text) {
 		out.Binary, out.Truncated = true, false
 		return &agentv1.ReadFileResult{File: out}
