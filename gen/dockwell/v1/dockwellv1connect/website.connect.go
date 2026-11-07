@@ -96,7 +96,6 @@ func NewWebsiteServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+WebsiteServicePreviewWebsiteProcedure,
 			connect.WithSchema(websiteServiceMethods.ByName("PreviewWebsite")),
-			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 		createWebsite: connect.NewClient[v1.CreateWebsiteRequest, v1.CreateWebsiteResponse](
@@ -194,7 +193,6 @@ func NewWebsiteServiceHandler(svc WebsiteServiceHandler, opts ...connect.Handler
 		WebsiteServicePreviewWebsiteProcedure,
 		svc.PreviewWebsite,
 		connect.WithSchema(websiteServiceMethods.ByName("PreviewWebsite")),
-		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	websiteServiceCreateWebsiteHandler := connect.NewUnaryHandler(

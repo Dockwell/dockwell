@@ -28,7 +28,6 @@ service WebsiteService {
   // serves, and how Dockwell would keep that, planning nothing. It refuses what
   // can't be served as CreateWebsite would, so a form can say so as you type.
   rpc PreviewWebsite(PreviewWebsiteRequest) returns (PreviewWebsiteResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
     option (google.api.http) = {
       post: "/v1/websites:preview"
