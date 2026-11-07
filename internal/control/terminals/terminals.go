@@ -96,6 +96,10 @@ const MaxOpen = 32
 // HeartbeatEvery is how often an attachment says it's still there.
 var HeartbeatEvery = 10 * time.Second
 
+// RemovedEvery is how often a terminal looks for its server, which may have been
+// removed from the fleet, as its agent can't say so once it is.
+var RemovedEvery = 30 * time.Second
+
 // Handler implements TerminalService.
 type Handler struct {
 	fleet  *fleet.Hub
@@ -282,13 +286,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	}
 	e.stop = stop
 	h.mu.Unlock()
-	go func() {
-		<-tied.Done()
-		if h.forget(termID) == nil {
-			return // it ended first
-		}
-		h.closeFor(e, dockwellv1.TerminalEndReason_TERMINAL_END_REASON_SIGNED_OUT)
-	}()
+	go h.watch(tied, e) //nolint:gosec // it lasts as long as the terminal, past the request, and ends with the session tied to it
 	h.logger.InfoContext(ctx, "opened a terminal", slog.String("terminal", termID), slog.String("server", srv.GetId()), slog.String("user", p.User.ID))
 	return connect.NewResponse(&dockwellv1.OpenTerminalResponse{Terminal: e.proto()}), nil
 }
@@ -523,6 +521,37 @@ func (h *Handler) CloseTerminal(ctx context.Context, req *connect.Request[dockwe
 		end = &dockwellv1.TerminalEnd{Reason: dockwellv1.TerminalEndReason_TERMINAL_END_REASON_CLOSED, Time: timestamppb.New(h.now()), Message: "It had ended."}
 	}
 	return connect.NewResponse(&dockwellv1.CloseTerminalResponse{End: end}), nil
+}
+
+// watch ends a terminal with the session that opened it, or with its server, once
+// it's removed from the fleet: nobody can reach a removed server's terminal, and its
+// agent, which can't reach the control plane either, hangs it up once nobody has
+// been attached for a while.
+func (h *Handler) watch(tied context.Context, e *entry) {
+	tick := time.NewTicker(RemovedEvery)
+	defer tick.Stop()
+	for {
+		select {
+		case <-tied.Done():
+			if h.forget(e.id) == nil {
+				return // it ended first
+			}
+			h.closeFor(e, dockwellv1.TerminalEndReason_TERMINAL_END_REASON_SIGNED_OUT)
+			return
+		case <-tick.C:
+			if _, err := h.fleet.Get(e.server); !errors.Is(err, fleet.ErrNotFound) || h.forget(e.id) == nil {
+				continue
+			}
+			e.mu.Lock()
+			title := e.title
+			e.mu.Unlock()
+			h.recordClose(context.Background(), e.server, e.id, e.actor, e.surface, title, e.opened, &dockwellv1.TerminalEnd{
+				Reason: dockwellv1.TerminalEndReason_TERMINAL_END_REASON_SERVER_REMOVED, Time: timestamppb.New(h.now()),
+				Message: "Its server was removed from Dockwell.",
+			})
+			return
+		}
+	}
 }
 
 // forget drops a terminal the control plane knows of, and returns it if it was there.
