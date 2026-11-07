@@ -28,7 +28,22 @@ import (
 // pathHold is one mount able to move another's source.
 type pathHold struct {
 	holder, source resource.Ref
-	access         resource.Access
+	// in is the holder's path, and at the source's.
+	in, at string
+}
+
+// accessFor is what the hold is to ref, on whichever side of it ref is, naming the
+// other side. A change on either side can make one, and each person approving it has
+// to see who can move what, and that the holder asks from now on.
+func (h pathHold) accessFor(ref resource.Ref) resource.Access {
+	if h.holder == ref {
+		a := resource.Access{Kind: resource.AccessPath, Path: h.in, Holds: h.at, SameAsRoot: true}
+		if h.source != h.holder {
+			a.HoldsFor = h.source.Name
+		}
+		return a
+	}
+	return resource.Access{Kind: resource.AccessPath, Path: h.at, HeldIn: h.in, HeldBy: h.holder.Name, SameAsRoot: true}
 }
 
 // pathHolds is what's so of a server as a change finds it and as it leaves it.
@@ -40,6 +55,8 @@ type pathHolds struct {
 type serverMount struct {
 	ref    resource.Ref
 	access resource.Access
+	// root says the resource is as good as root already, by what else it reaches.
+	root bool
 }
 
 // holdingsOn works out what holds what on server. Most changes mount no server path,
@@ -47,8 +64,8 @@ type serverMount struct {
 func (e *Engine) holdingsOn(ctx context.Context, server string, its []*item, before, after map[resource.Ref]proto.Message, leads map[string]string) (pathHolds, error) {
 	var was, is []serverMount
 	for _, it := range its {
-		was = append(was, mountsOf(it.ref, e.reach(it.ref, it.currentOn(server), before))...)
-		is = append(is, mountsOf(it.ref, e.reach(it.ref, it.desiredOn(server), after))...)
+		was = append(was, mountsOf(it.ref, e.reach(it.ref, it.currentOn(server), before), leads)...)
+		is = append(is, mountsOf(it.ref, e.reach(it.ref, it.desiredOn(server), after), leads)...)
 	}
 	if len(was)+len(is) == 0 {
 		return pathHolds{}, nil
@@ -68,8 +85,8 @@ func (e *Engine) holdingsOn(ctx context.Context, server string, its []*item, bef
 	}
 	for i := range others {
 		o := &others[i]
-		was = append(was, mountsOf(o.ref, e.reach(o.ref, o.currentOn(server), namedBefore))...)
-		is = append(is, mountsOf(o.ref, e.reach(o.ref, o.desiredOn(server), namedAfter))...)
+		was = append(was, mountsOf(o.ref, e.reach(o.ref, o.currentOn(server), namedBefore), leads)...)
+		is = append(is, mountsOf(o.ref, e.reach(o.ref, o.desiredOn(server), namedAfter), leads)...)
 	}
 	return pathHolds{before: holdingsIn(was, leads), after: holdingsIn(is, leads)}, nil
 }
@@ -115,20 +132,22 @@ func (e *Engine) othersOn(ctx context.Context, server string, its []*item) ([]it
 	return out, err
 }
 
-// mountsOf is the server paths in what ref reaches.
-func mountsOf(ref resource.Ref, list []resource.Access) []serverMount {
+// mountsOf is the server paths in what ref reaches, and whether it's as good as root.
+func mountsOf(ref resource.Ref, list []resource.Access, leads map[string]string) []serverMount {
+	root := slices.ContainsFunc(list, func(a resource.Access) bool { return a.Leading(leads[a.Path]).AsGoodAsRoot() })
 	var out []serverMount
 	for i := range list {
 		if list[i].Kind == resource.AccessPath {
-			out = append(out, serverMount{ref: ref, access: list[i]})
+			out = append(out, serverMount{ref: ref, access: list[i], root: root})
 		}
 	}
 	return out
 }
 
-// holdingsIn pairs each read-write mount with the sources strictly inside it. One that's as
-// good as root already has nothing to add, and a mount point can't be replaced from
-// inside, so a source at the very path is no pair.
+// holdingsIn pairs each read-write mount with the sources strictly inside it. A mount
+// point can't be replaced from inside, so a source at the very path is no pair. A
+// holder that's as good as root already asks for everything, and what's held that is
+// gains nothing by being moved, so neither makes one.
 func holdingsIn(list []serverMount, leads map[string]string) []pathHold {
 	var out []pathHold
 	for i := range list {
@@ -138,10 +157,8 @@ func holdingsIn(list []serverMount, leads map[string]string) []pathHold {
 		}
 		for j := range list {
 			s := &list[j]
-			if strictlyInside(h.access.Path, s.access.Path, leads) {
-				out = append(out, pathHold{holder: h.ref, source: s.ref, access: resource.Access{
-					Kind: resource.AccessPath, Path: h.access.Path, Holds: s.access.Path, SameAsRoot: true,
-				}})
+			if !s.root && strictlyInside(h.access.Path, s.access.Path, leads) {
+				out = append(out, pathHold{holder: h.ref, source: s.ref, in: h.access.Path, at: s.access.Path})
 			}
 		}
 	}
@@ -171,7 +188,7 @@ func (h pathHolds) holderOf(ref resource.Ref) []resource.Access {
 	var out []resource.Access
 	for i := range h.after {
 		if h.after[i].holder == ref {
-			out = append(out, h.after[i].access)
+			out = append(out, h.after[i].accessFor(ref))
 		}
 	}
 	return out
@@ -184,7 +201,7 @@ func (h pathHolds) gained(ref resource.Ref) []resource.Access {
 	for i := range h.after {
 		a := &h.after[i]
 		if (a.holder == ref || a.source == ref) && !slices.Contains(h.before, *a) {
-			out = append(out, a.access)
+			out = append(out, a.accessFor(ref))
 		}
 	}
 	return out

@@ -280,9 +280,12 @@ func TestAMountThatCanMoveAnothersSourceIsAsGoodAsRoot(t *testing.T) {
 			if !tt.root {
 				return
 			}
-			held := slices.ContainsFunc(plan.Resources[0].HostAccess, func(a resource.Access) bool { return a.Holds != "" })
-			if !held {
-				t.Errorf("the plan doesn't say what holds what: %+v", plan.Resources)
+			// Each side names the other: the plan is for what was added, whichever side.
+			named := slices.ContainsFunc(plan.Resources[0].HostAccess, func(a resource.Access) bool {
+				return a.HoldsFor == "first" || a.HeldBy == "first"
+			})
+			if !named {
+				t.Errorf("the plan doesn't name the other side: %+v", plan.Resources)
 			}
 			// Once it's so, it stays so without asking again, for what it doesn't touch.
 			apply(t, e, plan)
@@ -291,6 +294,62 @@ func TestAMountThatCanMoveAnothersSourceIsAsGoodAsRoot(t *testing.T) {
 				t.Errorf("a limit on it asks: %+v", again.Resources)
 			}
 		})
+	}
+}
+
+// Each side of a hold is told who can move what. What comes to mount a source inside
+// another's folder hears it's the other that can move it, and that the other asks from
+// now on; what comes to hold it hears what it holds, and for whom.
+func TestBothSidesOfAHoldNameTheOther(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A")
+	env := production(t, db)
+	serve := func(name, p string) Edit {
+		return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: name}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/m"}},
+		}}}}
+	}
+	apply(t, e, propose(t, e, "Files", serve("files", "/srv")))
+	held := propose(t, e, "API", serve("api", "/srv/app/conf"))
+	want := resource.Access{Kind: resource.AccessPath, Path: "/srv/app/conf", HeldIn: "/srv", HeldBy: "files", SameAsRoot: true}
+	if got := held.Resources[0].HostAccess; !slices.Contains(got, want) {
+		t.Errorf("what's held says %+v, want %+v", got, want)
+	}
+	if err := e.Discard(t.Context(), held.Change, By{Actor: "usr_test"}); err != nil {
+		t.Fatal(err)
+	}
+
+	e, _, db = setupDocker(t, store.SQLite, "srv_A")
+	env = production(t, db)
+	serve = func(name, p string) Edit {
+		return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: name}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/m"}},
+		}}}}
+	}
+	apply(t, e, propose(t, e, "API", serve("api", "/srv/app/conf")))
+	holder := propose(t, e, "Files", serve("files", "/srv"))
+	want = resource.Access{Kind: resource.AccessPath, Path: "/srv", Holds: "/srv/app/conf", HoldsFor: "api", SameAsRoot: true}
+	if got := holder.Resources[0].HostAccess; !slices.Contains(got, want) {
+		t.Errorf("what holds says %+v, want %+v", got, want)
+	}
+}
+
+// What's held that's as good as root already gains nothing by being moved, so a mount
+// that can move its source doesn't count as root for that. One with Docker's socket
+// asks for any change of code anyway.
+func TestWhatsRootAlreadyIsNoHold(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A")
+	env := production(t, db)
+	apply(t, e, propose(t, e, "Ops", Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "ops"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Mounts: []*resourcev1.Mount{
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/ops/conf"}, Target: "/conf"},
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/var/run/docker.sock"}, Target: "/var/run/docker.sock"},
+		},
+	}}}}))
+	p := propose(t, e, "Files", Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "files"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/srv"}, Target: "/srv"}},
+	}}}})
+	if p.AsGoodAsRoot() {
+		t.Errorf("holding what's root already counts: %+v", p.Resources)
 	}
 }
 

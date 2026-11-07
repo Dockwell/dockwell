@@ -832,6 +832,13 @@ message HostAccess {
   // can turn it into a link to anywhere on the server, which what mounts it follows
   // the next time it starts, so this is as good as root.
   string holds = 12;
+  // What mounts holds, by name. Empty where that's this resource too.
+  string holds_for = 13;
+  // The other side of holds: a read-write server path that holds path, and what can
+  // write it, by name, which can make path lead anywhere. A change to that asks for a
+  // passkey from now on.
+  string held_in = 14;
+  string held_by = 15;
 }
 
 // HostAccessKind is what a resource reaches on its server.

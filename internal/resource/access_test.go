@@ -80,7 +80,9 @@ func TestAccessWords(t *testing.T) {
 		{resource.Access{Kind: resource.AccessCapability, Path: "SYS_ADMIN", SameAsRoot: true}, "the Linux capability SYS_ADMIN, which is the same as root"},
 		{resource.Access{Kind: resource.AccessGroup, Path: "999"}, "the group 999, which is the same as root if it is the group that owns Docker's socket on the server"},
 		{resource.Access{Kind: resource.AccessGroup, Path: "docker", SameAsRoot: true}, "the group docker, which is the same as root"},
-		{resource.Access{Kind: resource.AccessPath, Path: "/srv", Holds: "/srv/app/conf", SameAsRoot: true}, "the server path /srv, which holds /srv/app/conf, another mount's source, so what writes there can make that lead anywhere, as good as root"},
+		{resource.Access{Kind: resource.AccessPath, Path: "/srv", Holds: "/srv/app/conf", HoldsFor: "api", SameAsRoot: true}, "the server path /srv, which holds /srv/app/conf, which api mounts, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"},
+		{resource.Access{Kind: resource.AccessPath, Path: "/srv", Holds: "/srv/app/conf", SameAsRoot: true}, "the server path /srv, which holds /srv/app/conf, which it mounts as well, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"},
+		{resource.Access{Kind: resource.AccessPath, Path: "/srv/app/conf", HeldIn: "/srv", HeldBy: "files", SameAsRoot: true}, "the server path /srv/app/conf, inside /srv, which files can write, so it can make that lead anywhere, as good as root. Any change to files but another tag asks for a passkey from now on"},
 		{resource.Access{Kind: resource.AccessBackupOf, Path: "/etc"}, "a backup of a volume that reached /etc, which can hold what's there, as good as root"},
 		{resource.Access{Kind: resource.AccessPrivileged, SameAsRoot: true}, "privileged mode, which gives it every device and capability on the server, the same as root"},
 		// Whatever let it through, it can't read as more of the line.

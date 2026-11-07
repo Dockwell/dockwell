@@ -5214,6 +5214,17 @@ components:
                         Another mount's source inside path, a read-write server path. What writes path
                          can turn it into a link to anywhere on the server, which what mounts it follows
                          the next time it starts, so this is as good as root.
+                holdsFor:
+                    type: string
+                    description: What mounts holds, by name. Empty where that's this resource too.
+                heldIn:
+                    type: string
+                    description: |-
+                        The other side of holds: a read-write server path that holds path, and what can
+                         write it, by name, which can make path lead anywhere. A change to that asks for a
+                         passkey from now on.
+                heldBy:
+                    type: string
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.

@@ -277,8 +277,37 @@ describe("the plan sheet", () => {
     await within(sheet).findByRole("alert");
     expect(sheet.textContent).toContain("web can move what /srv/app/conf leads to on hz-1");
     expect(sheet.textContent).toContain("web can move what /srv/app/keys leads to on hz-1");
+    expect(sheet.textContent).toContain("from now on any change to web but another tag asks for a passkey");
     expect(sheet.textContent).toContain("link to anywhere on the server");
     expect(sheet.textContent).toContain("Applying this asks for your passkey");
+  });
+
+  it("names what can move a source, on the plan for what mounts it", async () => {
+    const reaching = webPlanned();
+    const plan = reaching.plan;
+    const resource = plan?.resources[0];
+    if (!plan || !resource) throw new Error("webPlanned has no resource");
+    plan.hostAccess = true;
+    resource.hostAccess = [
+      create(HostAccessSchema, {
+        kind: HostAccessKind.SERVER_PATH,
+        path: "/srv/app/conf",
+        heldIn: "/srv",
+        heldBy: "files",
+        sameAsRoot: true,
+      }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByRole("alert");
+    const text = sheet.textContent ?? "";
+    expect(text).toContain("files can move what /srv/app/conf leads to on hz-1");
+    expect(text).toContain("which web follows when it next starts");
+    expect(text).toContain("from now on any change to files but another tag asks for a passkey");
+    expect(text).not.toContain("web can move");
+    expect(text).toContain("Applying this asks for your passkey");
   });
 
   it("says a backup can hold what its volume reached, and asks as root does", async () => {

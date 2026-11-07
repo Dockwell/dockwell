@@ -116,7 +116,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   const reaches: { name: string; server: string; access: HostAccess }[] = [];
   const seen = new Set<string>();
   const add = (name: string, server: string, access: HostAccess) => {
-    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}`;
+    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}`;
     if (seen.has(key)) return;
     seen.add(key);
     reaches.push({ name, server, access });
@@ -285,15 +285,40 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           trust: true,
         };
       case HostAccessKind.SERVER_PATH: {
-        const [holder, held] = [path, plain(access.holds)];
+        const [held, holdsFor, heldIn, heldBy] = [access.holds, access.holdsFor, access.heldIn, access.heldBy].map(
+          plain,
+        );
         if (held !== "") {
+          const holder = path;
           return {
             key,
             title: t`${name} can move what ${held} leads to on ${server}`,
+            detail:
+              holdsFor !== "" ? (
+                <Trans>
+                  It can write to <code>{holder}</code>, which holds <code>{held}</code>, which {holdsFor} mounts. So it
+                  can turn that into a link to anywhere on the server, which {holdsFor} follows when it next starts.
+                  That's as good as root, so from now on any change to {name} but another tag asks for a passkey.
+                </Trans>
+              ) : (
+                <Trans>
+                  It can write to <code>{holder}</code>, which holds <code>{held}</code>, which it mounts as well. So it
+                  can turn that into a link to anywhere on the server, which it follows when it next starts. That's as
+                  good as root, so from now on any change to {name} but another tag asks for a passkey.
+                </Trans>
+              ),
+            trust: true,
+          };
+        }
+        if (heldBy !== "") {
+          return {
+            key,
+            title: t`${heldBy} can move what ${path} leads to on ${server}`,
             detail: (
               <Trans>
-                It can write to <code>{holder}</code>, which holds <code>{held}</code>, so it can turn that into a link
-                to anywhere on the server, which what mounts it follows when it next starts. That's as good as root.
+                {name} mounts <code>{path}</code>, inside <code>{heldIn}</code>, which {heldBy} can write. So {heldBy}{" "}
+                can turn it into a link to anywhere on the server, which {name} follows when it next starts. That's as
+                good as root, so from now on any change to {heldBy} but another tag asks for a passkey.
               </Trans>
             ),
             trust: true,

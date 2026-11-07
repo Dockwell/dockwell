@@ -606,8 +606,14 @@ type Access struct {
 	LeadsTo string `json:",omitempty"`
 	// Holds is another mount's source inside Path, a read-write server path. What
 	// writes Path can turn it into a link to anywhere on the server, which what mounts
-	// it follows the next time it starts, so this is as good as root.
-	Holds string `json:",omitempty"`
+	// it follows the next time it starts, so this is as good as root. HoldsFor names
+	// what mounts it, empty where that's the same resource.
+	Holds    string `json:",omitempty"`
+	HoldsFor string `json:",omitempty"`
+	// HeldIn is a read-write server path that holds Path, and HeldBy what can write
+	// it, which can make Path lead anywhere: the other side of Holds.
+	HeldIn string `json:",omitempty"`
+	HeldBy string `json:",omitempty"`
 }
 
 // Leading is a with where its path leads on the server, as an agent says. An
@@ -761,7 +767,16 @@ func AccessWords(a Access) string {
 			root = ", which is as good as root"
 		}
 		if a.Holds != "" {
-			return "the server path " + plain(a.Path) + ", which holds " + plain(a.Holds) + ", another mount's source, so what writes there can make that lead anywhere, as good as root"
+			mounts := "which it mounts as well"
+			if a.HoldsFor != "" {
+				mounts = "which " + plain(a.HoldsFor) + " mounts"
+			}
+			return "the server path " + plain(a.Path) + ", which holds " + plain(a.Holds) + ", " + mounts +
+				", so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"
+		}
+		if a.HeldBy != "" {
+			return "the server path " + plain(a.Path) + ", inside " + plain(a.HeldIn) + ", which " + plain(a.HeldBy) +
+				" can write, so it can make that lead anywhere, as good as root. Any change to " + plain(a.HeldBy) + " but another tag asks for a passkey from now on"
 		}
 		if a.LeadsTo != "" {
 			return "the server path " + plain(a.Path) + ", which leads to " + plain(a.LeadsTo) + " (" + how + ")" + root

@@ -421,6 +421,10 @@ msgstr "无法搜索 {first}"
 msgid "{free} free"
 msgstr "可用 {free}"
 
+#: src/features/changes/notices.tsx
+msgid "{heldBy} can move what {path} leads to on {server}"
+msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
@@ -650,6 +654,10 @@ msgstr "{name} 可能没有运行，也可能正在运行新版本。请检查�
 #: src/features/changes/notices.tsx
 msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
 msgstr "{name} 可能需要更久才能恢复健康，因为它的镜像还不在服务器上。"
+
+#: src/features/changes/notices.tsx
+msgid "{name} mounts <0>{path}</0>, inside <1>{heldIn}</1>, which {heldBy} can write. So {heldBy} can turn it into a link to anywhere on the server, which {name} follows when it next starts. That's as good as root, so from now on any change to {heldBy} but another tag asks for a passkey."
+msgstr "{name} 挂载了 <1>{heldIn}</1> 中的 <0>{path}</0>，而 {heldBy} 可以写入该目录。所以 {heldBy} 能把它改成指向服务器上任意位置的链接，{name} 下次启动时就会跟随该链接。这相当于拥有 root，所以从现在起，对 {heldBy} 的任何更改（另一个标签除外）都需要通行密钥。"
 
 #: src/features/changes/notices.tsx
 msgid "{name} mounts the volume {path} on {server}"
@@ -3898,8 +3906,12 @@ msgid "It can take half the server's memory. Give it one, such as {target}:size=
 msgstr "它最多可以占用服务器一半的内存。请设置大小,例如 {target}:size=64m,或者为 {name} 设置内存上限。"
 
 #: src/features/changes/notices.tsx
-msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, so it can turn that into a link to anywhere on the server, which what mounts it follows when it next starts. That's as good as root."
-msgstr "它可以写入包含 <1>{held}</1> 的 <0>{holder}</0>，所以能把它改成指向服务器上任意位置的链接，挂载它的内容下次启动时就会跟随该链接。这相当于拥有 root。"
+msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which {holdsFor} mounts. So it can turn that into a link to anywhere on the server, which {holdsFor} follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
+msgstr "它可以写入包含 <1>{held}</1> 的 <0>{holder}</0>，而 {holdsFor} 挂载了 <1>{held}</1>。所以它能把它改成指向服务器上任意位置的链接，{holdsFor} 下次启动时就会跟随该链接。这相当于拥有 root，所以从现在起，对 {name} 的任何更改（另一个标签除外）都需要通行密钥。"
+
+#: src/features/changes/notices.tsx
+msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which it mounts as well. So it can turn that into a link to anywhere on the server, which it follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
+msgstr "它可以写入包含 <1>{held}</1> 的 <0>{holder}</0>，而它自己也挂载了 <1>{held}</1>。所以它能把它改成指向服务器上任意位置的链接，下次启动时就会跟随该链接。这相当于拥有 root，所以从现在起，对 {name} 的任何更改（另一个标签除外）都需要通行密钥。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
@@ -7549,8 +7561,16 @@ msgid "the server path {path} ({how})"
 msgstr "服务器路径 {path}（{how}）"
 
 #: src/features/changes/words.ts
-msgid "the server path {path}, which holds {held}, another mount's source, so what writes there can make that lead anywhere, as good as root"
-msgstr "服务器路径 {path}，其中包含另一个挂载的来源 {held}，所以能写入此处的内容可以让它指向任何位置，相当于拥有 root"
+msgid "the server path {path}, inside {heldIn}, which {heldBy} can write, so it can make that lead anywhere, as good as root. Any change to {heldBy} but another tag asks for a passkey from now on"
+msgstr "服务器路径 {path}，位于 {heldBy} 可写入的 {heldIn} 中，所以它能让该路径指向任何位置，相当于拥有 root。从现在起，对 {heldBy} 的任何更改（另一个标签除外）都需要通行密钥"
+
+#: src/features/changes/words.ts
+msgid "the server path {path}, which holds {held}, which {holdsFor} mounts, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"
+msgstr "服务器路径 {path}，其中包含 {holdsFor} 挂载的 {held}，所以能写入此处的内容可以让它指向任何位置，相当于拥有 root。从现在起，对它的任何更改（另一个标签除外）都需要通行密钥"
+
+#: src/features/changes/words.ts
+msgid "the server path {path}, which holds {held}, which it mounts as well, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"
+msgstr "服务器路径 {path}，其中包含它自己也挂载的 {held}，所以能写入此处的内容可以让它指向任何位置，相当于拥有 root。从现在起，对它的任何更改（另一个标签除外）都需要通行密钥"
 
 #: src/features/changes/words.ts
 msgid "the server path {path}, which leads to {leadsTo} ({how})"
