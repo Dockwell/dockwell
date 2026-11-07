@@ -551,9 +551,12 @@ func TestACallThatComesBackAsItsLeftAnswers(t *testing.T) {
 		}
 	}
 	// Reading what's mounted is the first thing leaving a call does.
+	var leaving atomic.Bool
 	d.server.mounts = func() string {
-		close(gone)
-		time.Sleep(200 * time.Millisecond)
+		if leaving.CompareAndSwap(false, true) {
+			close(gone)
+			time.Sleep(200 * time.Millisecond)
+		}
 		return ""
 	}
 	got := d.read(t, p)

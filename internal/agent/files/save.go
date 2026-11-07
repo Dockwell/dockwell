@@ -107,7 +107,7 @@ func (s *Server) save(ctx context.Context, t *trail, p, content, wanted, confirm
 		return &agentv1.SaveFileResult{Refusal: changed(where)}
 	}
 	// Asked last, so a passkey isn't asked for over what would be refused anyway.
-	wayIn := s.wayIn(where)
+	wayIn := s.wayIn(w)
 	if wayIn && confirmed != where {
 		return &agentv1.SaveFileResult{Refusal: &agentv1.FileRefusal{
 			Kind: agentv1.FileRefusal_KIND_NEEDS_STEP_UP, Path: where,

@@ -34,6 +34,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/mounts"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 const (
@@ -77,6 +78,10 @@ type Server struct {
 	savesEnded chan *agentv1.SaveEnded
 	// mounts reads what's mounted, as /proc/self/mountinfo has it.
 	mounts func() string
+	// systemPlaces, listedFiles and accounts are what a way in goes by: see wayin.go.
+	systemPlaces func() []string
+	listedFiles  []string
+	accounts     func() (passwd, group string)
 	// saving keeps saves of roots to one at a time.
 	saving sync.Mutex
 }
@@ -90,6 +95,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 	s := &Server{
 		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
+		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts,
 	}
 	s.roots = s.loadRoots()
 	return s
@@ -251,7 +257,7 @@ func (s *Server) read(ctx context.Context, t *trail, p string) *agentv1.ReadFile
 	if refusal != nil {
 		return &agentv1.ReadFileResult{Refusal: refusal}
 	}
-	out := &dockwellv1.ReadFileResponse{Path: where, File: entry(w.last().name, &w.st, owners{}), Truncated: truncated, WayBackIn: s.wayIn(where)}
+	out := &dockwellv1.ReadFileResponse{Path: where, File: entry(w.last().name, &w.st, owners{}), Truncated: truncated, WayBackIn: s.wayIn(w)}
 	if isBinary(text) {
 		out.Binary, out.Truncated = true, false
 		return &agentv1.ReadFileResult{File: out}

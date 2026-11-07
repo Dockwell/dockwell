@@ -50,6 +50,10 @@ var runtimeSockets = []string{"cri-dockerd.sock", "crio.sock", "libvirt-sock", "
 // read-only to keep the server's time zone, every day.
 var harmlessToRead = []string{"/etc/localtime", "/etc/timezone", "/usr/share/zoneinfo"}
 
+// SystemPlaces are the paths SystemPath goes by, for what has to find them by what
+// they are rather than what they're called.
+func SystemPlaces() []string { return slices.Clone(systemPaths) }
+
 // SystemPath reports a server path as good as root to reach, as it is written or
 // as it resolves on a server.
 func SystemPath(p string, readOnly bool) bool {
