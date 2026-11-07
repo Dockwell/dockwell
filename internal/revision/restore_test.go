@@ -32,6 +32,8 @@ type restores struct {
 	ran []resource.RestoreSource
 	// apply runs inside ApplyRestore; an error stands for the server's.
 	apply func(context.Context) error
+	// reached is what the backup says its volume reached.
+	reached []string
 }
 
 func (r *restores) JudgeRestore(_ context.Context, _ resource.Ref, source resource.RestoreSource) (resource.Decision, bool, error) {
@@ -42,7 +44,7 @@ func (r *restores) JudgeRestore(_ context.Context, _ resource.Ref, source resour
 	}
 	return resource.Decision{
 		Action: resource.ActionReplace, Destroys: true, Downtime: time.Minute,
-		Restore: &resource.RestorePlan{Backup: source.Backup, Undoes: source.Undoes, Method: resource.BackupCopy, Stops: []string{"web"}},
+		Restore: &resource.RestorePlan{Backup: source.Backup, Undoes: source.Undoes, Method: resource.BackupCopy, Stops: []string{"web"}, Reached: r.reached},
 	}, true, nil
 }
 
@@ -250,6 +252,50 @@ func TestARestoreIntoWhatIsAsGoodAsRootTakesAPasskey(t *testing.T) {
 			}
 			if got := says(undo); got != tt.root {
 				t.Errorf("the undo says why it asks = %v, want %v: %+v", got, tt.root, undo.Notes)
+			}
+		})
+	}
+}
+
+// A backup is tied to a volume by name alone, so one of a volume that reached the
+// system can come back into an ordinary volume made since under its name, where
+// whatever mounts it can read it. So the plan asks what the backup's volume would have
+// asked, and says why. A volume that reaches that far itself already does.
+func TestARestoreAsksWhatTheBackupsVolumeWould(t *testing.T) {
+	for name, tt := range map[string]struct {
+		spec     *resourcev1.Volume
+		backupOf bool
+		says     string
+	}{
+		"into an ordinary volume": {spec: &resourcev1.Volume{}, backupOf: true, says: "This backup was taken when data reached"},
+		"into a bind of the system": {
+			spec: &resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": "/etc"}},
+			says: "data reaches what's as good as root",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			x := withVolume(t, store.SQLite)
+			e, ref := x.e, x.ref
+			x.r.reached = []string{"/etc"}
+			apply(t, e, propose(t, e, "Make it", Edit{Ref: ref, Spec: tt.spec, Servers: []string{"srv_A"}}))
+			plan, err := e.Restore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Server: "srv_A"}, restoreBy(), "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !plan.AsGoodAsRoot() {
+				t.Fatalf("it asks nothing more: %+v", plan.Resources)
+			}
+			var kinds []resource.AccessKind
+			for _, a := range plan.Resources[0].HostAccess {
+				kinds = append(kinds, a.Kind)
+			}
+			if got := slices.Contains(kinds, resource.AccessBackupOf); got != tt.backupOf {
+				t.Errorf("it says %+v, want a backup of something: %v", plan.Resources[0].HostAccess, tt.backupOf)
+			}
+			if !slices.ContainsFunc(plan.Notes, func(n Note) bool {
+				return n.Reason == "new_code_as_root" && strings.Contains(n.Message, tt.says)
+			}) {
+				t.Errorf("the plan says %+v, want %q", plan.Notes, tt.says)
 			}
 		})
 	}

@@ -8,6 +8,7 @@
 package backup
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -26,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -68,6 +70,10 @@ type Manifest struct {
 	// Unpacked is how large it is once it's out of its file, for a restore to know
 	// it fits.
 	Unpacked int64 `json:"unpacked,omitempty"`
+	// Reached is what its volume reached when it was taken that's as good as root.
+	// A backup is tied to a volume by name alone, so what it holds can come back into
+	// another of that name, and this is what says what it may hold.
+	Reached []string `json:"reached,omitempty"`
 }
 
 // Runner takes and restores backups on this server.
@@ -211,8 +217,13 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 		return nil, err
 	}
 	defer release()
-	if _, err := r.Client.InspectVolume(ctx, t.Name); err != nil {
+	v, err := r.Client.InspectVolume(ctx, t.Name)
+	if err != nil {
 		return nil, r.noVolume(take.Ref, err)
+	}
+	reached, err := r.reached(ctx, v)
+	if err != nil {
+		return nil, err
 	}
 	users, err := r.users(ctx, t)
 	if err != nil {
@@ -221,7 +232,7 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	if err := r.roomFor(ctx, take, t); err != nil {
 		return nil, err
 	}
-	m := &Manifest{ID: take.ID, Environment: take.Ref.Scope, Volume: take.Ref.Name, Taken: r.now().UTC()}
+	m := &Manifest{ID: take.ID, Environment: take.Ref.Scope, Volume: take.Ref.Name, Taken: r.now().UTC(), Reached: reached}
 	if err := os.MkdirAll(r.dir(take.Ref), 0o700); err != nil {
 		return nil, fmt.Errorf("can't make a place for the backup: %w", err)
 	}
@@ -238,6 +249,26 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// reached says what a volume reaches that's as good as root, where its path leads
+// now, as a plan would have it.
+func (r *Runner) reached(ctx context.Context, v *docker.Volume) ([]string, error) {
+	var out []string
+	for _, a := range (&volume.Driver{}).HostAccess(&resourcev1.Volume{Driver: v.Driver, Options: v.Options}) {
+		var paths []string
+		if a.Path != "" {
+			paths = append(paths, a.Path)
+		}
+		leads, err := r.Paths.Follow(ctx, paths...)
+		if err != nil {
+			return nil, err
+		}
+		if a = a.Leading(leads[a.Path]); a.AsGoodAsRoot() {
+			out = append(out, cmp.Or(a.LeadsTo, a.Path))
+		}
+	}
+	return out, nil
 }
 
 // copyVolume takes a copy of a volume's files, with what runs on it stopped if

@@ -5150,6 +5150,7 @@ components:
                         - HOST_ACCESS_KIND_HTTPS_OFF
                         - HOST_ACCESS_KIND_EXTERNAL_VOLUME
                         - HOST_ACCESS_KIND_TAKES_ON
+                        - HOST_ACCESS_KIND_BACKUP_OF
                     type: string
                     description: What it is.
                     format: enum
@@ -6993,6 +6994,14 @@ components:
                          start on them.
                 runsOn:
                     type: string
+                reached:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What the backup's volume reached when it was taken that's as good as root. A
+                         backup is tied to a volume by name alone, so what it holds may be that, whatever
+                         the volume it comes back into reaches.
             description: |-
                 RestorePlan is what a step that restores a volume does: it says what comes
                  back, and what stops while it does. What's in the volume is replaced, and the

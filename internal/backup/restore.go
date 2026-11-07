@@ -244,6 +244,7 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 		Action: resource.ActionReplace, Effect: resource.EffectRestart, Destroys: true,
 		Restore: &resource.RestorePlan{
 			Backup: src.Backup, Undoes: src.Undoes, Method: m.Method, Database: m.Database, Taken: m.Taken, Size: m.Size, Stops: namesOf(stops),
+			Reached: m.Reached,
 		},
 	}
 	// A dump loads into any release. Files open only under the one that wrote them.
@@ -310,6 +311,13 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 			return stopping(fmt.Errorf("the backup is damaged: %w. Choose another", err))
 		}
 		return fmt.Errorf("the backup is damaged, so nothing was changed or stopped: %w. Choose another", err)
+	}
+	v, err := r.Client.InspectVolume(ctx, t.Name)
+	if err != nil {
+		return stopping(r.noVolume(ref, err))
+	}
+	if err := r.Paths.VolumeAsPlanned(ctx, v, step.PlannedLeads); err != nil {
+		return stopping(err)
 	}
 	if u, err = r.users(ctx, t); err != nil {
 		u = &users{}

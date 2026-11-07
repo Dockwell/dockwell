@@ -405,6 +405,9 @@ const (
 	// A container Dockwell didn't make, in path, whose environment comes into
 	// Dockwell with it: a token mustn't be able to bring in what it couldn't read.
 	HostAccessKind_HOST_ACCESS_KIND_TAKES_ON HostAccessKind = 17
+	// A backup of a volume that reached path, which is as good as root, coming back
+	// into a volume that doesn't. What it holds can be read from there.
+	HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF HostAccessKind = 18
 )
 
 // Enum value maps for HostAccessKind.
@@ -428,6 +431,7 @@ var (
 		15: "HOST_ACCESS_KIND_HTTPS_OFF",
 		16: "HOST_ACCESS_KIND_EXTERNAL_VOLUME",
 		17: "HOST_ACCESS_KIND_TAKES_ON",
+		18: "HOST_ACCESS_KIND_BACKUP_OF",
 	}
 	HostAccessKind_value = map[string]int32{
 		"HOST_ACCESS_KIND_UNSPECIFIED":      0,
@@ -448,6 +452,7 @@ var (
 		"HOST_ACCESS_KIND_HTTPS_OFF":        15,
 		"HOST_ACCESS_KIND_EXTERNAL_VOLUME":  16,
 		"HOST_ACCESS_KIND_TAKES_ON":         17,
+		"HOST_ACCESS_KIND_BACKUP_OF":        18,
 	}
 )
 
@@ -4620,8 +4625,12 @@ type RestorePlan struct {
 	// The image that wrote a copy of a database's files, and the one that would read
 	// them, set only when those are different releases, as the database may not
 	// start on them.
-	WrittenBy     string `protobuf:"bytes,8,opt,name=written_by,json=writtenBy,proto3" json:"written_by,omitempty"`
-	RunsOn        string `protobuf:"bytes,9,opt,name=runs_on,json=runsOn,proto3" json:"runs_on,omitempty"`
+	WrittenBy string `protobuf:"bytes,8,opt,name=written_by,json=writtenBy,proto3" json:"written_by,omitempty"`
+	RunsOn    string `protobuf:"bytes,9,opt,name=runs_on,json=runsOn,proto3" json:"runs_on,omitempty"`
+	// What the backup's volume reached when it was taken that's as good as root. A
+	// backup is tied to a volume by name alone, so what it holds may be that, whatever
+	// the volume it comes back into reaches.
+	Reached       []string `protobuf:"bytes,10,rep,name=reached,proto3" json:"reached,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4717,6 +4726,13 @@ func (x *RestorePlan) GetRunsOn() string {
 		return x.RunsOn
 	}
 	return ""
+}
+
+func (x *RestorePlan) GetReached() []string {
+	if x != nil {
+		return x.Reached
+	}
+	return nil
 }
 
 // RouteMove is a route leaving one service for another.
@@ -5998,7 +6014,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\amanager\x18\x01 \x01(\tR\amanager\x12\x1c\n" +
 	"\tcontainer\x18\x02 \x01(\tR\tcontainer\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12\x16\n" +
-	"\x06folder\x18\x04 \x01(\tR\x06folder\"\xb5\x02\n" +
+	"\x06folder\x18\x04 \x01(\tR\x06folder\"\xcf\x02\n" +
 	"\vRestorePlan\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x16\n" +
 	"\x06undoes\x18\x02 \x01(\tR\x06undoes\x121\n" +
@@ -6010,7 +6026,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x05stops\x18\a \x03(\tR\x05stops\x12\x1d\n" +
 	"\n" +
 	"written_by\x18\b \x01(\tR\twrittenBy\x12\x17\n" +
-	"\aruns_on\x18\t \x01(\tR\x06runsOn\"^\n" +
+	"\aruns_on\x18\t \x01(\tR\x06runsOn\x12\x18\n" +
+	"\areached\x18\n" +
+	" \x03(\tR\areached\"^\n" +
 	"\tRouteMove\x12\x14\n" +
 	"\x05where\x18\x01 \x01(\tR\x05where\x12\x12\n" +
 	"\x04from\x18\x02 \x01(\tR\x04from\x12\x0e\n" +
@@ -6132,7 +6150,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x12INTENT_KIND_DEPLOY\x10\x01\x12\x1c\n" +
 	"\x18INTENT_KIND_PUBLISH_PORT\x10\x02\x12\x19\n" +
 	"\x15INTENT_KIND_ROLL_BACK\x10\x03\x12\x16\n" +
-	"\x12INTENT_KIND_REPULL\x10\x04*\xfa\x04\n" +
+	"\x12INTENT_KIND_REPULL\x10\x04*\x9a\x05\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -6152,7 +6170,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"!HOST_ACCESS_KIND_PLAIN_FOR_ANYONE\x10\x0e\x12\x1e\n" +
 	"\x1aHOST_ACCESS_KIND_HTTPS_OFF\x10\x0f\x12$\n" +
 	" HOST_ACCESS_KIND_EXTERNAL_VOLUME\x10\x10\x12\x1d\n" +
-	"\x19HOST_ACCESS_KIND_TAKES_ON\x10\x11*\xac\x01\n" +
+	"\x19HOST_ACCESS_KIND_TAKES_ON\x10\x11\x12\x1e\n" +
+	"\x1aHOST_ACCESS_KIND_BACKUP_OF\x10\x12*\xac\x01\n" +
 	"\fBackupMethod\x12\x1d\n" +
 	"\x19BACKUP_METHOD_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x12BACKUP_METHOD_DUMP\x10\x01\x1a\b\xa2\xbb\x18\x04Dump\x12 \n" +

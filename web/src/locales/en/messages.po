@@ -2023,7 +2023,6 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
-#: src/features/servers/SetPublicAddressSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Cancel"
 msgstr "Cancel"
@@ -8812,3 +8811,19 @@ msgstr "Your name"
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "Your session ended, so this didn't happen. Sign in again, then try again."
+
+#: src/features/changes/words.ts
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
+msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
+
+#: src/features/changes/notices.tsx
+msgid "{name} gets back what reached root on {server}"
+msgstr "{name} gets back what reached root on {server}"
+
+#: src/features/changes/words.ts
+msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
+msgstr "a backup of a volume that reached {path}, which can hold what's there, as good as root"
+
+#: src/features/changes/notices.tsx
+msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
+msgstr "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
