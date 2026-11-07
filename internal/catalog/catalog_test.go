@@ -3,6 +3,7 @@
 package catalog_test
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -129,6 +130,36 @@ func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 		e, _ := c.Entry(id)
 		if steps := e.GetFirstSteps(); !strings.Contains(steps, "on first start only") || !strings.Contains(steps, how) {
 			t.Errorf("%s doesn't say its password is set once, and %q: %q", id, how, steps)
+		}
+	}
+}
+
+// A database reads its password on first start alone, and an app beside it reads the
+// same secret each time it starts, so changing that secret leaves the app with one the
+// database doesn't take. Dockwell doesn't rotate these, and each entry says to leave it.
+func TestADatabasesSharedPasswordSaysLeaveIt(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	databases := regexp.MustCompile(`^(postgres|mysql|mariadb):`)
+	for _, e := range c.All() {
+		stack, filled := read(t, e)
+		for name, value := range filled.Secrets {
+			var database, app bool
+			for _, s := range stack.Services {
+				if !slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) {
+					continue
+				}
+				if databases.MatchString(s.Spec.GetApp().GetImage()) {
+					database = true
+				} else {
+					app = true
+				}
+			}
+			if database && app && !strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
+				t.Errorf("%s shares %s between its database and its app, and its first steps don't say to leave it as it is", e.GetId(), name)
+			}
 		}
 	}
 }
