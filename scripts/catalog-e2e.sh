@@ -316,18 +316,46 @@ check_coder() {
 # check after it.
 declare -A kept=()
 
+# kuma_emit sends Uptime Kuma one event over Socket.IO's HTTP polling, as its own pages
+# talk to it, and prints what it acknowledged. Its sign-in and setup have no other API.
+kuma_emit() {
+  local base="http://127.0.0.1:$1/socket.io/?EIO=4&transport=polling" said sid
+  said=$(curl -fsS --max-time 10 "$base") || fail "Uptime Kuma's socket doesn't answer"
+  sid=$(sed -n 's/^0{"sid":"\([^"]*\)".*/\1/p' <<<"$said")
+  [[ -n "$sid" ]] || fail "Uptime Kuma's socket opened with '${said:0:200}'"
+  curl -fsS --max-time 10 -H 'Content-Type: text/plain;charset=UTF-8' --data-binary 40 "$base&sid=$sid" >/dev/null || fail "Uptime Kuma's socket didn't connect"
+  curl -fsS --max-time 10 "$base&sid=$sid" >/dev/null || fail "Uptime Kuma's socket didn't connect"
+  curl -fsS --max-time 10 -H 'Content-Type: text/plain;charset=UTF-8' --data-binary "420$2" "$base&sid=$sid" >/dev/null || fail "Uptime Kuma didn't take $2"
+  for _ in $(seq 10); do
+    said=$(curl -fsS --max-time 30 "$base&sid=$sid") || fail "Uptime Kuma's socket closed"
+    said=$(tr '\036' '\n' <<<"$said" | sed -n 's/^430//p')
+    [[ -n "$said" ]] && break
+  done
+  [[ -n "$said" ]] || fail "Uptime Kuma didn't answer $2"
+  echo "$said"
+}
+
 check_uptime-kuma() {
   local port said
   port=$(value PORT)
   said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/api/entry-page") || fail "Uptime Kuma doesn't answer on port $port"
   jq -e '.type != "setup-database"' <<<"$said" >/dev/null || fail "Uptime Kuma asks which database to use, which its entry sets: $said"
   docker exec "$(container uptime-kuma)" test -s /app/data/kuma.db || fail "Uptime Kuma keeps no database on its volume"
+  if [[ "$1" == first ]]; then
+    said=$(kuma_emit "$port" '["setup","owner","E2e-owner-passw0rd!"]')
+    jq -e '.[0].ok == true' <<<"$said" >/dev/null || fail "Uptime Kuma didn't make its admin: $said"
+  fi
+  # Its admin is in its database, so they sign in after an upgrade too.
+  said=$(kuma_emit "$port" '["login",{"username":"owner","password":"E2e-owner-passw0rd!","token":""}]')
+  jq -e '.[0].ok == true and (.[0].token | length > 0)' <<<"$said" >/dev/null || fail "Uptime Kuma's admin can't sign in: $said"
+  said=$(kuma_emit "$port" '["login",{"username":"owner","password":"not-the-password","token":""}]')
+  jq -e '.[0].ok == false' <<<"$said" >/dev/null || fail "Uptime Kuma didn't refuse a wrong password: $said"
 }
 
 check_n8n() {
   local port said owner
   port=$(value PORT)
-  said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/healthz/readiness") || fail "n8n isn't ready on port $port"
+  said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/healthz/readiness") || fail "n8n isn't ready on port $port, with its database"
   [[ "$(jq -r .status <<<"$said")" == ok ]] || fail "n8n says it's $said"
   owner='{"email":"owner@example.com","password":"E2e-owner-passw0rd"}'
   if [[ "$1" == first ]]; then
@@ -344,11 +372,14 @@ check_n8n() {
 }
 
 check_gitea() {
-  local gitea port said banner
+  local gitea port said banner key
   gitea=$(container gitea)
   port=$(value PORT)
   said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/api/v1/version") || fail "Gitea doesn't answer on port $port"
   [[ "$(jq -r .version <<<"$said")" == "$version" ]] || fail "Gitea says it's $said, want $version"
+  # It encrypts with the key Dockwell generated, not the one its source publishes.
+  key=$(docker exec "$gitea" sed -n 's/^SECRET_KEY *= *//p' /data/gitea/conf/app.ini) || fail "Gitea has no app.ini"
+  [[ ${#key} -ge 64 && "$key" == "$(env_of "$gitea" GITEA__security__SECRET_KEY)" ]] || fail "Gitea's SECRET_KEY isn't the one Dockwell generated"
   if [[ "$1" == first ]]; then
     docker exec -u git "$gitea" gitea admin user create --username owner --password E2e-owner-passw0rd --email owner@example.com --admin --must-change-password=false >/dev/null ||
       fail "Gitea can't make a user"
@@ -356,48 +387,74 @@ check_gitea() {
   # What it keeps is on its volume, so the user signs in after an upgrade too.
   said=$(curl -fsS --max-time 10 -u owner:E2e-owner-passw0rd "http://127.0.0.1:$port/api/v1/user") || fail "Gitea's user can't sign in"
   [[ "$(jq -r .login <<<"$said")" == owner ]] || fail "Gitea signed in as $said"
-  said=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -u owner:not-the-password "http://127.0.0.1:$port/api/v1/user")
+  said=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -u owner:not-the-password "http://127.0.0.1:$port/api/v1/user") || fail "Gitea's sign-in got no answer"
   [[ "$said" == 401 ]] || fail "Gitea answered $said to a wrong password"
   banner=$(exec 3<>"/dev/tcp/127.0.0.1/$(value SSH_PORT)" && timeout 5 head -c 7 <&3) || fail "Gitea's SSH doesn't answer"
   [[ "$banner" == SSH-2.0 ]] || fail "Gitea's SSH port answers '$banner'"
 }
 
+# vaultwarden_sign_in signs in to Vaultwarden as Bitwarden's apps do, with what stands
+# for the master password's hash, and prints the status and what it answered.
+vaultwarden_sign_in() {
+  curl -sS --max-time 15 -w '\n%{http_code}' --data-urlencode grant_type=password --data-urlencode username=owner@example.com \
+    --data-urlencode "password=$2" --data-urlencode 'scope=api offline_access' --data-urlencode client_id=web --data-urlencode deviceType=10 \
+    --data-urlencode deviceIdentifier=0d5b4c2e-7c3e-4b6a-9f7a-1e2d3c4b5a69 --data-urlencode deviceName=e2e "http://127.0.0.1:$1/identity/connect/token"
+}
+
 check_vaultwarden() {
-  local vaultwarden port said key
-  vaultwarden=$(container vaultwarden)
+  local port said token hash=ZTJlLW1hc3Rlci1wYXNzd29yZC1oYXNoLXN0YW5kLWlu
   port=$(value PORT)
   curl -fsS --max-time 10 -o /dev/null "http://127.0.0.1:$port/alive" || fail "Vaultwarden doesn't answer on port $port"
   said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/api/config") || fail "Vaultwarden's API doesn't answer"
   [[ "$(jq -r .server.name <<<"$said")" == Vaultwarden ]] || fail "port $port answers something else: ${said:0:300}"
-  # The key it signs sessions with is made on first start, and stays on its volume.
-  key=$(docker exec "$vaultwarden" sha256sum /data/rsa_key.pem) || fail "Vaultwarden has no key on its volume"
-  if [[ "$1" == first ]]; then kept[vaultwarden]=$key; fi
-  [[ "$key" == "${kept[vaultwarden]}" ]] || fail "Vaultwarden's key changed through the upgrade"
+  if [[ "$1" == first ]]; then
+    # With no mail server, it gives the token a verification email would carry.
+    token=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' -H 'Accept: application/json' \
+      -d '{"email":"owner@example.com","name":"Owner"}' "http://127.0.0.1:$port/identity/accounts/register/send-verification-email") ||
+      fail "Vaultwarden doesn't take a new account"
+    token=$(jq -r . <<<"$token")
+    said=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+      -d "$(jq -nc --arg t "$token" --arg h "$hash" '{email: "owner@example.com", masterPasswordHash: $h, emailVerificationToken: $t, kdf: 0, kdfIterations: 600000,
+        userSymmetricKey: "2.AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}')" \
+      "http://127.0.0.1:$port/identity/accounts/register/finish") || fail "Vaultwarden's registration got no answer"
+    [[ "$said" == 200 ]] || fail "Vaultwarden didn't make the account: it answered $said"
+  fi
+  # The account is in its database, so it signs in after an upgrade too.
+  said=$(vaultwarden_sign_in "$port" "$hash") || fail "Vaultwarden's sign-in got no answer"
+  [[ "${said##*$'\n'}" == 200 && -n "$(jq -r '.access_token // empty' <<<"${said%$'\n'*}")" ]] || fail "Vaultwarden's account can't sign in: ${said:0:300}"
+  said=$(vaultwarden_sign_in "$port" bm90LXRoZS1wYXNzd29yZA==) || fail "Vaultwarden's sign-in got no answer"
+  [[ "${said##*$'\n'}" == 400 && "$said" == *invalid_grant* ]] || fail "Vaultwarden didn't refuse a wrong password: ${said:0:300}"
 }
 
 check_nextcloud() {
   local port password said
   port=$(value PORT)
   password=$(generated nextcloud NEXTCLOUD_ADMIN_PASSWORD)
-  said=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/status.php") || fail "Nextcloud doesn't answer on port $port"
+  # As localhost, as an SSH tunnel reaches it: it answers only at what it trusts.
+  nc_curl() { curl -H 'Host: localhost' "$@"; }
+  said=$(nc_curl -fsS --max-time 15 "http://127.0.0.1:$port/status.php") || fail "Nextcloud doesn't answer on port $port"
   jq -e --arg v "$version" '.installed == true and .versionstring == $v and .maintenance == false' <<<"$said" >/dev/null ||
     fail "Nextcloud says $said, want $version installed"
   nextcloud_user() {
-    curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -u "admin:$1" -H 'OCS-APIRequest: true' "http://127.0.0.1:$port/ocs/v2.php/cloud/user?format=json"
+    nc_curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -u "admin:$1" -H 'OCS-APIRequest: true' "http://127.0.0.1:$port/ocs/v2.php/cloud/user?format=json"
   }
-  [[ "$(nextcloud_user "$password")" == 200 ]] || fail "Nextcloud doesn't sign in with the password Dockwell generated"
+  said=$(nextcloud_user "$password") || fail "Nextcloud's sign-in got no answer"
+  [[ "$said" == 200 ]] || fail "Nextcloud doesn't sign in with the password Dockwell generated: it answered $said"
   if [[ "$1" == first ]]; then
-    curl -fsS --max-time 15 -u "admin:$password" -X PUT --data-binary kept "http://127.0.0.1:$port/remote.php/dav/files/admin/e2e.txt" ||
+    nc_curl -fsS --max-time 15 -u "admin:$password" -X PUT --data-binary kept "http://127.0.0.1:$port/remote.php/dav/files/admin/e2e.txt" ||
       fail "Nextcloud doesn't take a file"
   fi
-  [[ "$(curl -fsS --max-time 15 -u "admin:$password" "http://127.0.0.1:$port/remote.php/dav/files/admin/e2e.txt")" == kept ]] ||
-    fail "Nextcloud doesn't give back the file it took"
+  said=$(nc_curl -fsS --max-time 15 -u "admin:$password" "http://127.0.0.1:$port/remote.php/dav/files/admin/e2e.txt") || fail "Nextcloud doesn't give back the file it took"
+  [[ "$said" == kept ]] || fail "Nextcloud gave back '$said'"
+  docker exec -u www-data "$(container nextcloud)" php occ config:system:get trusted_domains | grep -qx cloud.example.com ||
+    fail "Nextcloud doesn't answer at the domain it was given"
   # Last, as a wrong password slows what comes after it from the same address.
-  [[ "$(nextcloud_user not-the-password)" == 401 ]] || fail "Nextcloud didn't refuse a wrong password"
+  said=$(nextcloud_user not-the-password) || fail "Nextcloud's sign-in got no answer"
+  [[ "$said" == 401 ]] || fail "Nextcloud answered $said to a wrong password"
 }
 
 check_rustfs() {
-  local port console key secret
+  local port console key secret said
   port=$(value S3_PORT)
   console=$(value CONSOLE_PORT)
   key=$(value ACCESS_KEY)
@@ -410,7 +467,9 @@ check_rustfs() {
     s3 "$secret" -X PUT --data-binary kept "http://127.0.0.1:$port/e2e-kept/marker" >/dev/null || fail "RustFS doesn't take an object"
   fi
   [[ "$(s3 "$secret" "http://127.0.0.1:$port/e2e-kept/marker")" == kept ]] || fail "RustFS doesn't give back the object it took"
-  if s3 not-the-secret-key-at-all "http://127.0.0.1:$port/e2e-kept/marker" >/dev/null 2>&1; then fail "RustFS answered a wrong secret key"; fi
+  said=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' --aws-sigv4 aws:amz:us-east-1:s3 --user "$key:not-the-secret-key-at-all" \
+    -H 'x-amz-content-sha256: UNSIGNED-PAYLOAD' "http://127.0.0.1:$port/e2e-kept/marker") || fail "RustFS got no answer"
+  [[ "$said" == 403 ]] || fail "RustFS answered $said to a wrong secret key, want 403"
 }
 
 check_grafana() {
@@ -432,11 +491,8 @@ check_grafana() {
 }
 
 check_umami() {
-  local umami port bound said token
-  umami=$(container umami)
+  local port said token
   port=$(value PORT)
-  bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$umami") || fail "docker inspect $umami failed"
-  jq -e '[.[][] | .HostIp] == ["127.0.0.1"]' <<<"$bound" >/dev/null || fail "Umami is published past this server before its password changes: $bound"
   umami_sign_in() {
     curl -sS --max-time 15 -H 'Content-Type: application/json' -d "{\"username\":\"admin\",\"password\":\"$1\"}" "http://127.0.0.1:$port/api/auth/login"
   }
@@ -451,8 +507,9 @@ check_umami() {
   said=$(curl -fsS --max-time 15 -H "Authorization: Bearer $token" "http://127.0.0.1:$port/api/websites/${kept[umami]}") ||
     fail "Umami doesn't have the site added before the upgrade"
   [[ "$(jq -r .name <<<"$said")" == e2e-kept ]] || fail "Umami's site reads $said"
-  said=$(umami_sign_in not-the-password)
-  [[ "$said" != *'"token"'* ]] || fail "Umami signed in with a wrong password"
+  said=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+    -d '{"username":"admin","password":"not-the-password"}' "http://127.0.0.1:$port/api/auth/login") || fail "Umami's sign-in got no answer"
+  [[ "$said" == 401 ]] || fail "Umami answered $said to a wrong password, want 401"
 }
 
 # The version before the one each entry pins, which it upgrades from, and the images
@@ -462,8 +519,8 @@ declare -A previous=(
   [redis]="8.10.1 redis:8.10.1@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2"
   [mariadb]="12.3.2 mariadb:12.3.2@sha256:a02fe89cb597d4375812b2eac90cf9d0775d4686daa7f7cc750ebbcad7525bbc"
   [coder]="2.38.2 ghcr.io/coder/coder:v2.38.2@sha256:ab17fc8e172e0f489cc1a67f513a506a49583ff692835601a614e20bb83ad34a"
-  [uptime-kuma]="2.5.6 louislam/uptime-kuma:2.5.6@sha256:9912da7d7d9b6ddc0c2d904beb84d24689c1ed9c33b81419eb9008663a92a329"
-  [n8n]="2.44.5 n8nio/n8n:2.44.5@sha256:bcb4e4917141f4a5249c8eadf2776d347f4c2ede75adfbbc82064826af9a8ead"
+  [uptime-kuma]="2.5.7 louislam/uptime-kuma:2.5.7@sha256:4b95dbe7ac5343b768f8e04e3035ccd59997872b1a35ab9b0f082d2cc279070e"
+  [n8n]="2.44.6 n8nio/n8n:2.44.6@sha256:d02752c6ab446ae9db8deec2f9cc887c378f77cdcad31650814df936b7386dfb"
   [gitea]="28.1.0 gitea/gitea:28.1.0@sha256:f505a0d3a41323b786e05942fc7a4075e07ae7c169fd9485649aa55ee543a21a"
   [vaultwarden]="1.37.3 vaultwarden/server:1.37.3@sha256:1587c45feaa479f1f5e8af3b00eded36bff77bcf1880cf8dbf0541706dd470e0"
   [nextcloud]="35.0.1 nextcloud:35.0.1-apache@sha256:8f2f0e93aca5e9457019933936dea1f313052e72c696b4aecb31580a208b859f"
@@ -474,7 +531,7 @@ declare -A previous=(
 # What a person types for an entry, as dockwell catalog install takes it.
 declare -A given=(
   [pgadmin]="ADMIN_EMAIL=owner@example.com"
-  [nextcloud]="TRUSTED_DOMAINS=127.0.0.1"
+  [nextcloud]="DOMAIN=cloud.example.com"
 )
 
 # release writes an entry into the catalog's directory, which takes over from the

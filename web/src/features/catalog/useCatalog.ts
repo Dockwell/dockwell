@@ -35,6 +35,7 @@ const CATEGORIES: Readonly<Record<string, MessageDescriptor>> = {
   "developer tools": msg`Developer tools`,
   monitoring: msg`Monitoring`,
   networking: msg`Networking`,
+  security: msg`Security`,
   storage: msg`Storage`,
 };
 

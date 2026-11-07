@@ -3443,6 +3443,9 @@ msgstr "Monitoring"
 msgid "Networking"
 msgstr "Networking"
 
+msgid "Security"
+msgstr "Security"
+
 msgid "Storage"
 msgstr "Storage"
 

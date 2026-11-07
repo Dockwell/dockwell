@@ -3443,6 +3443,9 @@ msgstr "监控"
 msgid "Networking"
 msgstr "网络"
 
+msgid "Security"
+msgstr "安全"
+
 msgid "Storage"
 msgstr "存储"
 
