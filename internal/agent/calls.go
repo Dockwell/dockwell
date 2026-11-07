@@ -546,6 +546,19 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_DiskUse{DiskUse: found}}
+	case call.GetProcesses() != nil:
+		list, err := c.cfg.procs.list(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Processes{Processes: &agentv1.ProcessesResult{List: list}}}
+	case call.GetEndProcess() != nil:
+		end := call.GetEndProcess()
+		was, killed, err := c.cfg.procs.end(ctx, end.GetPid(), end.GetStartTicks())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_EndProcess{EndProcess: &agentv1.EndProcessResult{Killed: killed, Process: was}}}
 	case call.GetAdoption() != nil:
 		found, err := c.adoption(ctx, call.GetAdoption())
 		if err != nil {

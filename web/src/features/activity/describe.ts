@@ -117,6 +117,29 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const path = event.subject?.path ?? "";
           return { title: t`May have saved ${path} on ${server}`, icon: "file", tone: "warning" };
         }
+        case "process.end": {
+          const what = event.process?.name ?? "";
+          const pid = event.process?.pid ?? 0;
+          return event.process?.killed
+            ? {
+                title: t`Killed ${what} (PID ${pid}) on ${server}, as it didn't stop within 10 s`,
+                icon: "stop",
+                tone: "warning",
+              }
+            : { title: t`Stopped ${what} (PID ${pid}) on ${server}`, icon: "stop" };
+        }
+        case "process.end_failed": {
+          const pid = event.process?.pid ?? 0;
+          return { title: t`Couldn't stop PID ${pid} on ${server}`, icon: "stop", tone: "warning" };
+        }
+        case "process.end_unconfirmed": {
+          const pid = event.process?.pid ?? 0;
+          return {
+            title: t`Asked for a passkey to stop PID ${pid} on ${server}, and none came`,
+            icon: "key",
+            tone: "warning",
+          };
+        }
         case "change.apply_unconfirmed": {
           const change = event.subject?.id ?? "";
           return { title: t`Asked for a passkey to apply ${change}, and none came`, icon: "key", tone: "warning" };
