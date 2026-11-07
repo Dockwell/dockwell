@@ -209,6 +209,7 @@ func Normalize(c *resourcev1.Container) {
 	slices.Sort(c.CapAdd)
 	slices.Sort(c.CapDrop)
 	slices.Sort(c.GroupAdd)
+	slices.Sort(c.Expose)
 }
 
 // checkOwnNames keeps a container on its own out of what isn't its own.
@@ -275,6 +276,11 @@ func Validate(c *resourcev1.Container) error {
 	}
 	if err := validatePorts(c); err != nil {
 		return err
+	}
+	for _, p := range c.GetExpose() {
+		if !exposedPort.MatchString(p) {
+			return fmt.Errorf("expose takes a port and its protocol, such as 3000/tcp, and got %q. Write it that way", p)
+		}
 	}
 	if err := validateMounts(c); err != nil {
 		return err
@@ -929,6 +935,9 @@ func (d *Driver) NotRunningAt(ctx context.Context, t Target) (string, error) {
 	}
 	return "", nil
 }
+
+// exposedPort is a port as Docker keeps one it exposes.
+var exposedPort = regexp.MustCompile(`^\d{1,5}/(tcp|udp|sctp)$`)
 
 // Code is what spec runs in its image: its command, its entrypoint and its health
 // check's, each marked off from the next. A check the agent makes runs nothing there.

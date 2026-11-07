@@ -396,7 +396,11 @@ type Container struct {
 	ShmSize string `protobuf:"bytes,30,opt,name=shm_size,json=shmSize,proto3" json:"shm_size,omitempty"`
 	// Filesystems held in memory at paths in the container. What is in one goes
 	// when the container does, so a deploy starts it empty.
-	Tmpfs         []*Tmpfs `protobuf:"bytes,31,rep,name=tmpfs,proto3" json:"tmpfs,omitempty"`
+	Tmpfs []*Tmpfs `protobuf:"bytes,31,rep,name=tmpfs,proto3" json:"tmpfs,omitempty"`
+	// Ports it exposes to what shares a network with it, beyond what its image exposes
+	// and what it publishes, such as "3000/tcp". It opens nothing on the server. What
+	// finds containers through Docker reads it, as Traefik does for the port to reach.
+	Expose        []string `protobuf:"bytes,32,rep,name=expose,proto3" json:"expose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -616,6 +620,13 @@ func (x *Container) GetShmSize() string {
 func (x *Container) GetTmpfs() []*Tmpfs {
 	if x != nil {
 		return x.Tmpfs
+	}
+	return nil
+}
+
+func (x *Container) GetExpose() []string {
+	if x != nil {
+		return x.Expose
 	}
 	return nil
 }
@@ -2283,7 +2294,7 @@ var File_dockwell_resource_v1alpha1_specs_proto protoreflect.FileDescriptor
 
 const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
-	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\x89\n" +
+	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\xa1\n" +
 	"\n" +
 	"\tContainer\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
@@ -2320,7 +2331,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"references\x18\x1d \x03(\tR\n" +
 	"references\x12\x19\n" +
 	"\bshm_size\x18\x1e \x01(\tR\ashmSize\x127\n" +
-	"\x05tmpfs\x18\x1f \x03(\v2!.dockwell.resource.v1alpha1.TmpfsR\x05tmpfs\x1a6\n" +
+	"\x05tmpfs\x18\x1f \x03(\v2!.dockwell.resource.v1alpha1.TmpfsR\x05tmpfs\x12\x16\n" +
+	"\x06expose\x18  \x03(\tR\x06expose\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +

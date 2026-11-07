@@ -388,6 +388,57 @@ func TestShmSizeAndTmpfsComeAlong(t *testing.T) {
 	}
 }
 
+// A port it exposes and doesn't publish is how what's on its network finds it: Traefik
+// routes to the one exposed port when no label says. A replace keeps it, and the one
+// after, and what its image exposes isn't anyone's to say.
+func TestAnExposedPortComesAlong(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	c := changeClient(b, b.origin)
+	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	e.AddLocalImage("exposing:1", dockertest.Image{Config: docker.Config{Cmd: []string{"run"}, ExposedPorts: map[string]struct{}{"80/tcp": {}}}})
+	e.AddLocalImage("exposing:2", dockertest.Image{Config: docker.Config{Cmd: []string{"run"}, ExposedPorts: map[string]struct{}{"80/tcp": {}}}})
+	e.AddLocalImage("exposing:3", dockertest.Image{Config: docker.Config{Cmd: []string{"run"}}})
+	runByHand(t, e, "behind-traefik", func(r *docker.CreateRequest) {
+		r.Image = "exposing:1"
+		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+		r.ExposedPorts = map[string]struct{}{"3000/tcp": {}}
+	})
+	planned := adopt(t, cc, "behind-traefik", "api")
+	if text := protojson.Format(planned); !strings.Contains(text, "3000/tcp") {
+		t.Errorf("the plan doesn't say what it exposes: %s", text)
+	}
+	applyConfirmed(t, c, planned)
+	for _, image := range []string{"exposing:2", "exposing:3"} {
+		res, err := services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "api", Image: image}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, c, res.Msg.GetChange())
+		var replaced *docker.Container
+		for _, name := range e.Containers() {
+			if got := e.Container(name); got != nil && got.Config.Labels[docker.LabelService] == "api" && got.Config.Image == image {
+				replaced = got
+			}
+		}
+		if replaced == nil {
+			t.Fatalf("nothing runs %s: %v", image, e.Containers())
+		}
+		if _, on := replaced.Config.ExposedPorts["3000/tcp"]; !on {
+			t.Errorf("on %s it exposes %v, and lost 3000/tcp", image, replaced.Config.ExposedPorts)
+		}
+	}
+	file, err := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()).ExportCompose(t.Context(), connect.NewRequest(&dockwellv1.ExportComposeRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(file.Msg.GetCompose(), "3000/tcp") {
+		t.Errorf("an export leaves out what it exposes: %s", file.Msg.GetCompose())
+	}
+}
+
 // A value of the environment is sealed, and a spec's other fields aren't, so a value
 // anywhere else in one would show in the plan, and reach a read-only token and an
 // export. Wherever it is, it's refused, and the refusal doesn't say it. A path isn't a

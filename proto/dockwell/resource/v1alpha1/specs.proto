@@ -107,6 +107,10 @@ message Container {
   // Filesystems held in memory at paths in the container. What is in one goes
   // when the container does, so a deploy starts it empty.
   repeated Tmpfs tmpfs = 31;
+  // Ports it exposes to what shares a network with it, beyond what its image exposes
+  // and what it publishes, such as "3000/tcp". It opens nothing on the server. What
+  // finds containers through Docker reads it, as Traefik does for the port to reach.
+  repeated string expose = 32;
 }
 
 // Tmpfs is a filesystem held in memory, at a path in a container.

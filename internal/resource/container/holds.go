@@ -114,11 +114,11 @@ var hostConfigRules = map[string]rule{
 // configRules are the same for a container's Config.
 var configRules = map[string]rule{
 	// A spec holds these.
-	"Cmd": kept, "Entrypoint": kept, "Env": kept, "Image": kept, "Labels": kept, "StopTimeout": kept, "User": kept,
-	"WorkingDir": kept,
+	"Cmd": kept, "Entrypoint": kept, "Env": kept, "ExposedPorts": kept, "Image": kept, "Labels": kept, "StopTimeout": kept,
+	"User": kept, "WorkingDir": kept,
 	// How it was started, and what its image says, which it says again. A replace
 	// carries each anonymous volume over, whoever asked for it: see createRequest.
-	"ArgsEscaped": kept, "AttachStderr": kept, "AttachStdin": kept, "AttachStdout": kept, "ExposedPorts": kept,
+	"ArgsEscaped": kept, "AttachStderr": kept, "AttachStdin": kept, "AttachStdout": kept,
 	"OnBuild": kept, "Shell": kept, "StdinOnce": kept, "Volumes": kept,
 
 	"Healthcheck": readHealthcheck, "Hostname": readHostname, "StopSignal": readStopSignal,

@@ -3158,6 +3158,14 @@ components:
                     description: |-
                         Filesystems held in memory at paths in the container. What is in one goes
                          when the container does, so a deploy starts it empty.
+                expose:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Ports it exposes to what shares a network with it, beyond what its image exposes
+                         and what it publishes, such as "3000/tcp". It opens nothing on the server. What
+                         finds containers through Docker reads it, as Traefik does for the port to reach.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves

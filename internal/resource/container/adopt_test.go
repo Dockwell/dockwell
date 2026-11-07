@@ -122,3 +122,33 @@ func TestAStopThatFailsLeavesTheNameItCameWith(t *testing.T) {
 		t.Errorf("it reads as having come as %q", read.Config.Labels[docker.LabelAdopted])
 	}
 }
+
+// What a spec exposes reads back as it said, on an image that exposes it too, and a
+// port it publishes or its image exposes isn't read as its own, so nothing reads as
+// drift.
+func TestWhatASpecExposesReadsBack(t *testing.T) {
+	e := dockertest.New(t)
+	e.AddLocalImage("exposing:1", dockertest.Image{Config: docker.Config{Cmd: []string{"run"}, ExposedPorts: map[string]struct{}{"80/tcp": {}, "9000/tcp": {}}}})
+	d := &Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1}
+	spec := &resourcev1.Container{
+		Image:  "exposing:1",
+		Expose: []string{"3000/tcp", "9000/tcp"},
+		Ports:  []*resourcev1.PortMapping{{HostPort: 18080, ContainerPort: 80, Protocol: resourcev1.Protocol_PROTOCOL_TCP}},
+	}
+	Normalize(spec)
+	if err := d.Run(t.Context(), taken, spec, resource.Decision{Action: resource.ActionCreate}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := d.Client.ContainerNamed(t.Context(), taken.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := d.projected(t.Context(), taken, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	Normalize(got)
+	if diff := resource.Diff(spec, got); len(diff) != 0 {
+		t.Errorf("what it exposes reads back as different: %+v", diff)
+	}
+}

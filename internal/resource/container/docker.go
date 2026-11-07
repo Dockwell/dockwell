@@ -219,6 +219,9 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	add("user", spec.GetUser() != "")
 	add("working_dir", spec.GetWorkingDir() != "")
 	add("shm_size", spec.GetShmSize() != "")
+	for _, p := range spec.GetExpose() {
+		set = append(set, "expose:"+p)
+	}
 	if hc := spec.GetHealthcheck(); hc != nil {
 		set = append(set, "healthcheck")
 		add("healthcheck.interval", hc.GetInterval() != "")
@@ -614,6 +617,12 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 		}
 		req.HostConfig.Tmpfs[m.GetTarget()] = tmpfsOptions(m)
 	}
+	for _, p := range spec.GetExpose() {
+		if req.ExposedPorts == nil {
+			req.ExposedPorts = map[string]struct{}{}
+		}
+		req.ExposedPorts[p] = struct{}{}
+	}
 	targets := mountTargets(spec)
 	for _, m := range spec.GetMounts() {
 		switch src := m.GetSource().(type) {
@@ -833,7 +842,8 @@ func environment(spec *resourcev1.Container) []string {
 // says; Dockwell's and Compose's own labels; and anything Docker adds,
 // such as IDs, start times and the volumes it made for the image.
 func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Container {
-	if img == nil {
+	imageKnown := img != nil
+	if !imageKnown {
 		img = &docker.Config{}
 	}
 	set := setOf(c.Config.Labels)
@@ -908,6 +918,16 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	if s := c.Config.StopTimeout; s != nil {
 		out.StopGracePeriod = (time.Duration(*s) * time.Second).String()
 	}
+	// Docker lists here what its image exposes and what it publishes as well, and a
+	// spec says neither. With no image to tell by, it says what the spec does alone.
+	for port := range c.Config.ExposedPorts {
+		_, fromImage := img.ExposedPorts[port]
+		_, published := c.HostConfig.PortBindings[port]
+		if set["expose:"+port] || imageKnown && !fromImage && !published {
+			out.Expose = append(out.Expose, port)
+		}
+	}
+	slices.Sort(out.Expose)
 	for key, bindings := range c.HostConfig.PortBindings {
 		port, transport, _ := strings.Cut(key, "/")
 		cp, _ := strconv.ParseUint(port, 10, 16)
