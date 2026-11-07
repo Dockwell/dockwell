@@ -89,8 +89,8 @@ function makePassphrase(): string {
   return btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "");
 }
 
-/** Adds storage. What signs in goes into the plan's change sealed, and shows nowhere. */
-function DestinationSheet({ onClose }: { onClose: () => void }) {
+/** Adds storage. What signs in goes into the plan's change sealed, and shows nowhere. Integrations opens it too. */
+export function DestinationSheet({ onClose }: { onClose: () => void }) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
   const [name, setName] = useState("");

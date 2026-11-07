@@ -16,6 +16,7 @@ interface Section {
     | "/settings/api-tokens"
     | "/settings/audit-log"
     | "/settings/control-plane"
+    | "/settings/integrations"
     | "/profile";
   label: string;
   icon: IconName;
@@ -34,7 +35,13 @@ function useSections(): { label: string; sections: Section[] }[] {
         { to: "/settings/audit-log", label: t`Audit log`, icon: "file" },
       ],
     },
-    { label: t`Platform`, sections: [{ to: "/settings/control-plane", label: t`Control plane`, icon: "server" }] },
+    {
+      label: t`Platform`,
+      sections: [
+        { to: "/settings/control-plane", label: t`Control plane`, icon: "server" },
+        { to: "/settings/integrations", label: t`Integrations`, icon: "layers" },
+      ],
+    },
     { label: t`Account`, sections: [{ to: "/profile", label: t`Profile and security`, icon: "user" }] },
   ];
 }

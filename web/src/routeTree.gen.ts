@@ -37,6 +37,7 @@ import { Route as ShellSettingsSettingsApiTokensRouteImport } from './routes/_sh
 import { Route as ShellSettingsSettingsAuditLogRouteImport } from './routes/_shell/_settings/settings.audit-log'
 import { Route as ShellSettingsSettingsControlPlaneRouteImport } from './routes/_shell/_settings/settings.control-plane'
 import { Route as ShellSettingsSettingsGeneralRouteImport } from './routes/_shell/_settings/settings.general'
+import { Route as ShellSettingsSettingsIntegrationsRouteImport } from './routes/_shell/_settings/settings.integrations'
 import { Route as ShellSettingsSettingsMembersRouteImport } from './routes/_shell/_settings/settings.members'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
 import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_shell/apps.$serviceId.deployments'
@@ -192,6 +193,12 @@ const ShellSettingsSettingsGeneralRoute =
     path: '/settings/general',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
+const ShellSettingsSettingsIntegrationsRoute =
+  ShellSettingsSettingsIntegrationsRouteImport.update({
+    id: '/settings/integrations',
+    path: '/settings/integrations',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
 const ShellSettingsSettingsMembersRoute =
   ShellSettingsSettingsMembersRouteImport.update({
     id: '/settings/members',
@@ -283,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -320,6 +328,7 @@ export interface FileRoutesByTo {
   '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -362,6 +371,7 @@ export interface FileRoutesById {
   '/_shell/_settings/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/_shell/_settings/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/_shell/_settings/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/_shell/_settings/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/_shell/_settings/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -403,6 +413,7 @@ export interface FileRouteTypes {
     | '/settings/audit-log'
     | '/settings/control-plane'
     | '/settings/general'
+    | '/settings/integrations'
     | '/settings/members'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
@@ -440,6 +451,7 @@ export interface FileRouteTypes {
     | '/settings/audit-log'
     | '/settings/control-plane'
     | '/settings/general'
+    | '/settings/integrations'
     | '/settings/members'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
@@ -481,6 +493,7 @@ export interface FileRouteTypes {
     | '/_shell/_settings/settings/audit-log'
     | '/_shell/_settings/settings/control-plane'
     | '/_shell/_settings/settings/general'
+    | '/_shell/_settings/settings/integrations'
     | '/_shell/_settings/settings/members'
     | '/_shell/apps/$serviceId/deployments'
     | '/_shell/apps/$serviceId/environment'
@@ -701,6 +714,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsGeneralRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
+    '/_shell/_settings/settings/integrations': {
+      id: '/_shell/_settings/settings/integrations'
+      path: '/settings/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof ShellSettingsSettingsIntegrationsRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
     '/_shell/_settings/settings/members': {
       id: '/_shell/_settings/settings/members'
       path: '/settings/members'
@@ -787,6 +807,7 @@ interface ShellSettingsRouteChildren {
   ShellSettingsSettingsAuditLogRoute: typeof ShellSettingsSettingsAuditLogRoute
   ShellSettingsSettingsControlPlaneRoute: typeof ShellSettingsSettingsControlPlaneRoute
   ShellSettingsSettingsGeneralRoute: typeof ShellSettingsSettingsGeneralRoute
+  ShellSettingsSettingsIntegrationsRoute: typeof ShellSettingsSettingsIntegrationsRoute
   ShellSettingsSettingsMembersRoute: typeof ShellSettingsSettingsMembersRoute
   ShellSettingsSettingsIndexRoute: typeof ShellSettingsSettingsIndexRoute
 }
@@ -798,6 +819,8 @@ const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
   ShellSettingsSettingsControlPlaneRoute:
     ShellSettingsSettingsControlPlaneRoute,
   ShellSettingsSettingsGeneralRoute: ShellSettingsSettingsGeneralRoute,
+  ShellSettingsSettingsIntegrationsRoute:
+    ShellSettingsSettingsIntegrationsRoute,
   ShellSettingsSettingsMembersRoute: ShellSettingsSettingsMembersRoute,
   ShellSettingsSettingsIndexRoute: ShellSettingsSettingsIndexRoute,
 }

@@ -129,6 +129,17 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
     fail(`the audit log's CSV reads ${JSON.stringify(csv.slice(0, 200))}`);
   }
 
+  step("settings: Integrations shows where backups go, and connects storage through Backups' plan");
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Integrations" }).click();
+  await page.getByRole("heading", { level: 1, name: "Integrations" }).waitFor();
+  await page.getByRole("article", { name: "Cloudflare" }).waitFor();
+  await shoot(page, "settings-integrations");
+  await page.getByRole("article", { name: "S3-compatible storage" }).getByRole("button", { name: "Connect" }).click();
+  const adding = page.getByRole("dialog", { name: "Add a destination" });
+  await adding.getByRole("textbox", { name: "Bucket" }).waitFor();
+  await adding.getByRole("button", { name: "Cancel" }).click();
+  await adding.waitFor({ state: "detached" });
+
   step("settings: on a phone, the sections are a list reached from More");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${origin}/more`);
