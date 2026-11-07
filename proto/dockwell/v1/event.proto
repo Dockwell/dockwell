@@ -155,6 +155,19 @@ message Event {
   EventBackup backup = 10;
   // What a person set of a server's public address, on such an event.
   EventPublicAddress public_address = 11;
+  // A setting of the install someone changed, for a settings event. Numbered
+  // apart, as open work adds to this message.
+  EventSetting setting = 31;
+}
+
+// EventSetting is a setting of the install as someone changed it.
+message EventSetting {
+  // Which: "name" or "time_zone".
+  string setting = 1;
+  // What it is now. Empty when they cleared it.
+  string value = 2;
+  // What it was. Empty when it wasn't set.
+  string previous = 3;
 }
 
 // EventBackup is what became of one backup.
@@ -248,4 +261,7 @@ enum EventKind {
   // A backup was taken, failed, was deleted, didn't reach its destination or was
   // fetched from it. Restoring one is a change.
   EVENT_KIND_BACKUP = 5;
+  // Someone changed a setting of the install, such as its name or time zone.
+  // Numbered apart, as open work adds to this enum.
+  EVENT_KIND_SETTINGS = 10;
 }

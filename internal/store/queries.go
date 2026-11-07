@@ -32,6 +32,14 @@ func (t *Tx) DeleteSetting(ctx context.Context, key string) error {
 	return nil
 }
 
+// Keys of the install's own settings (ADR 0042).
+const (
+	// SettingInstallName is what the install is called.
+	SettingInstallName = "install.name"
+	// SettingTimeZone is the zone new schedules start in.
+	SettingTimeZone = "install.time_zone"
+)
+
 // SettingPublicAddress is the key of what a person set of a server's public address.
 func SettingPublicAddress(server string) string { return "server.public_address." + server }
 

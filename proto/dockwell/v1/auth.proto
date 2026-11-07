@@ -378,6 +378,9 @@ message GetAuthStateResponse {
   // or "dockwell claim" for a control plane a user runs themselves. Set only
   // while the install has no owner.
   string claim_command = 8;
+  // What the install is called, as its settings have it, for the sign-in screen
+  // to say. Empty when nobody has named it.
+  string install_name = 9;
 }
 
 // CheckClaimRequest carries a claim link's token.

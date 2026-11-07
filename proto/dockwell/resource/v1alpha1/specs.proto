@@ -444,7 +444,9 @@ message BackupPolicy {
   string at = 3;
   // The day it runs each week, as 0 for Sunday to 6 for Saturday.
   int32 weekday = 4;
-  // The time zone at is in, such as "Europe/Amsterdam": "UTC" unless set.
+  // The time zone at is in, such as "Europe/Amsterdam". Left out, a change
+  // that makes or updates the policy sets the install's time zone, from
+  // Settings, and UTC where the install has none.
   string time_zone = 5;
   // How many of its backups to keep, on each server, newest first: 7 unless set.
   uint32 keep = 6;

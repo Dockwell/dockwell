@@ -273,6 +273,49 @@ describe("Activity", () => {
     await screen.findByRole("row", { name: /Set the public address of hz-1 to 198\.51\.100\.7(?!,)/ });
   });
 
+  it("says what the install's settings were set to, and what they were, so they can be put back", async () => {
+    const at = (hours: number) => timestampFromDate(new Date(Date.now() - hours * HOUR));
+    const events = [
+      auditEvent({ id: "evt_n3", action: "settings.name", setting: { setting: "name", previous: "Acme web" } }),
+      auditEvent({
+        id: "evt_n2",
+        action: "settings.name",
+        time: at(1),
+        setting: { setting: "name", value: "Acme web", previous: "Acme" },
+      }),
+      auditEvent({ id: "evt_n1", action: "settings.name", time: at(2), setting: { setting: "name", value: "Acme" } }),
+      auditEvent({
+        id: "evt_z3",
+        action: "settings.time_zone",
+        time: at(3),
+        setting: { setting: "time_zone", previous: "UTC" },
+      }),
+      auditEvent({
+        id: "evt_z2",
+        action: "settings.time_zone",
+        time: at(4),
+        setting: { setting: "time_zone", value: "UTC", previous: "Europe/Amsterdam" },
+      }),
+      auditEvent({
+        id: "evt_z1",
+        action: "settings.time_zone",
+        time: at(5),
+        setting: { setting: "time_zone", value: "Europe/Amsterdam" },
+      }),
+    ];
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot(events));
+    renderActivity(watch);
+    await screen.findByRole("row", { name: /Cleared this install's name, which was Acme web/ });
+    await screen.findByRole("row", { name: /Named this install Acme web, which was Acme(?! web)/ });
+    await screen.findByRole("row", { name: /Named this install Acme(?!,| web)/ });
+    await screen.findByRole("row", {
+      name: /Cleared the time zone for new schedules, which was UTC, so they start in UTC/,
+    });
+    await screen.findByRole("row", { name: /Set the time zone for new schedules to UTC, which was Europe\/Amsterdam/ });
+    await screen.findByRole("row", { name: /Set the time zone for new schedules to Europe\/Amsterdam(?!,)/ });
+  });
+
   it("shows what was read of a server and what wasn't, and leads to the file", async () => {
     const user = userEvent.setup();
     const watch = feed<WatchEventsResponse>();

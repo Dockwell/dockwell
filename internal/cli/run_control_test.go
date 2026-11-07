@@ -485,3 +485,33 @@ func TestAListenerThatWontBeFollowedClearsWhatTicketsLeadWith(t *testing.T) {
 		t.Error("it can't tell a listener bound to one address")
 	}
 }
+
+// Settings name the panel's address with its port, as a claim link does, and who
+// issues its certificate, as dockwell run was told.
+func TestThePanelsAddressAndItsCA(t *testing.T) {
+	for _, tt := range []struct {
+		addr panelAddress
+		want string
+	}{
+		{panelAddress{Port: "7600"}, ""},
+		{panelAddress{Domain: "panel.example.com", HTTPSPort: "443", Port: "7600"}, "https://panel.example.com"},
+		{panelAddress{Domain: "panel.example.com", HTTPSPort: "8443", Port: "7600"}, "https://panel.example.com:8443"},
+	} {
+		if got := panelURL(tt.addr); got != tt.want {
+			t.Errorf("panelURL(%+v) = %q, want %q", tt.addr, got, tt.want)
+		}
+	}
+	for _, tt := range []struct {
+		domain, directory, want string
+	}{
+		{"", "", ""},
+		{"panel.example.com", "", "Let's Encrypt"},
+		{"panel.example.com", "https://acme-v02.api.letsencrypt.org/directory", "Let's Encrypt"},
+		{"panel.example.com", "https://acme-staging-v02.api.letsencrypt.org/directory", "Let's Encrypt's staging CA"},
+		{"panel.example.com", "https://acme.example.com:14000/dir", "acme.example.com"},
+	} {
+		if got := certificateAuthority(runFlags{domain: tt.domain, acmeDirector: tt.directory}); got != tt.want {
+			t.Errorf("certificateAuthority(%q, %q) = %q, want %q", tt.domain, tt.directory, got, tt.want)
+		}
+	}
+}

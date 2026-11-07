@@ -122,7 +122,9 @@ export function Rail({ view }: { view: FleetView }) {
       </Link>
       {OPERATE.map(section)}
       <div className="rail-fill" />
-      {section("settings")}
+      <Link to="/settings" {...current(segment === "settings")}>
+        <ItemBody icon="settings" label={t`Settings`} />
+      </Link>
       <Profile active={segment === "profile"} />
     </nav>
   );

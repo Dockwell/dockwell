@@ -15,8 +15,9 @@
 // /changes/<id>. It adds a secret in the panel, reveals it with the passkey, and
 // checks an API token can't. Then it runs the app screens from apps-flow.ts, the
 // plan sheet's every state from plan-flow.ts, an install from catalog-flow.ts, a
-// backup and a restore of what that made from backups-flow.ts, and the Domains
-// section from domains-flow.ts, on the fake Docker Engine of
+// backup and a restore of what that made from backups-flow.ts, the Domains
+// section from domains-flow.ts, and Settings from settings-flow.ts, on the fake
+// Docker Engine of
 // scripts/fakedocker. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
@@ -46,6 +47,7 @@ import { domainsFlow } from "./domains-flow.ts";
 import { healthFlow } from "./health-flow.ts";
 import { networkFlow } from "./network-flow.ts";
 import { planFlow } from "./plan-flow.ts";
+import { settingsFlow } from "./settings-flow.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -432,8 +434,9 @@ async function main() {
   await phone.goto(link);
   await expectText(phone, "You signed in with a one-time link");
   await expectPage(phone, "Profile and security");
-  if ((await phone.getByRole("link", { name: "Back" }).getAttribute("href")) !== "/more") {
-    fail("the phone's profile header doesn't lead back to More");
+  // Profile and security is a section of Settings, so its header leads back there.
+  if ((await phone.getByRole("link", { name: "Back", exact: true }).getAttribute("href")) !== "/settings") {
+    fail("the phone's profile header doesn't lead back to Settings");
   }
   await nav(phone).getByRole("link", { name: "More" }).click();
   await expectPage(phone, "More");
@@ -862,6 +865,7 @@ async function main() {
       image: "acme/legacy:prints",
     });
     await networkFlow(page, { origin, step, shoot });
+    await settingsFlow(page, { origin, step, shoot });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
     const made = await dockerMade(fakeSocket);

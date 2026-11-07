@@ -436,7 +436,7 @@ describe("ProfilePage", () => {
     expect(document.title).toBe("Profile and security · Dockwell");
   });
 
-  it("is under More on phones, with a way back to it", async () => {
+  it("is under More on phones, with a way back to Settings, which it's a section of", async () => {
     onPhone();
     const { router } = renderAt("/more", api());
     await userEvent.click(await screen.findByRole("link", { name: "Profile and security Mira Chen" }));
@@ -445,7 +445,7 @@ describe("ProfilePage", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
     const tabs = screen.getByRole("navigation", { name: "Main" });
     expect(within(tabs).getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/more");
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/settings");
     // Signing out is on More, as the phone mock has it, not in the header.
     expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
   });

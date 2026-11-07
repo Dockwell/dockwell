@@ -117,6 +117,28 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const path = event.subject?.path ?? "";
           return { title: t`May have saved ${path} on ${server}`, icon: "file", tone: "warning" };
         }
+        // Each says what it replaced, as that's the way back to it.
+        case "settings.name": {
+          const value = event.setting?.value ?? "";
+          const previous = event.setting?.previous ?? "";
+          if (!value) return { title: t`Cleared this install's name, which was ${previous}`, icon: "settings" };
+          return previous
+            ? { title: t`Named this install ${value}, which was ${previous}`, icon: "settings" }
+            : { title: t`Named this install ${value}`, icon: "settings" };
+        }
+        case "settings.time_zone": {
+          const value = event.setting?.value ?? "";
+          const previous = event.setting?.previous ?? "";
+          if (!value) {
+            return {
+              title: t`Cleared the time zone for new schedules, which was ${previous}, so they start in UTC`,
+              icon: "settings",
+            };
+          }
+          return previous
+            ? { title: t`Set the time zone for new schedules to ${value}, which was ${previous}`, icon: "settings" }
+            : { title: t`Set the time zone for new schedules to ${value}`, icon: "settings" };
+        }
         case "change.apply_unconfirmed": {
           const change = event.subject?.id ?? "";
           return { title: t`Asked for a passkey to apply ${change}, and none came`, icon: "key", tone: "warning" };

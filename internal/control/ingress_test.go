@@ -325,12 +325,30 @@ func TestThePublicPortsGoAndComeBack(t *testing.T) {
 			}
 		}
 		waitUntil("the HTTPS listener answering", func() bool { return answers(srv.https, true) })
+		// Settings say who serves the panel's domain now, as it changes, without a restart.
+		person := signedIn(t, srv)
+		settings := dockwellv1connect.NewSettingsServiceClient(person, person.origin, connect.WithProtoJSON())
+		servedBy := func() *dockwellv1.PanelServing {
+			t.Helper()
+			res, err := settings.GetSettings(t.Context(), connect.NewRequest(&dockwellv1.GetSettingsRequest{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return res.Msg.GetSettings().GetPanel()
+		}
+		if p := servedBy(); p.GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL || p.GetUrl() != "https://panel.acme.dev" ||
+			p.GetHttpsListen() != "[::]:443" || p.GetCertificateAuthority() != "Let's Encrypt" || p.GetDomain() != "panel.acme.dev" {
+			t.Errorf("before any route, the panel is served as %v, want by Dockwell", p)
+		}
 
 		if err := ports.Release(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 		if answers(srv.https, false) || answers(srv.http, false) {
 			t.Error("the ports still answer once released")
+		}
+		if p := servedBy(); p.GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_INGRESS || p.GetHttpsListen() != "" || p.GetUrl() != "https://panel.acme.dev" {
+			t.Errorf("with the ports given to the ingress, the panel is served as %v, want by the ingress", p)
 		}
 		// Something else can bind them now, as the proxy will.
 		l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", srv.https)
@@ -352,6 +370,9 @@ func TestThePublicPortsGoAndComeBack(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitUntil("the HTTPS listener answering again", func() bool { return answers(srv.https, true) })
+		if p := servedBy(); p.GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL {
+			t.Errorf("with the ports taken back, the panel is served as %v, want by Dockwell", p)
+		}
 		if err := ports.Retake(t.Context()); err != nil {
 			t.Errorf("taking back twice: %v", err)
 		}

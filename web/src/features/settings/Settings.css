@@ -1,0 +1,258 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* ---------- The layout: its sections beside the one that's open ---------- */
+
+.settings {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 1360px;
+}
+
+.settings-nav {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex: 0 0 200px;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) 0 var(--space-6) var(--space-6);
+}
+
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-nav-label {
+  margin: 0 var(--space-2) var(--space-1);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.settings-nav-item:hover {
+  background: var(--surface-sunken);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.settings-nav-item.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.settings-nav-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.settings-page {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: var(--space-2);
+}
+
+/* ---------- On a phone: the sections as rows ---------- */
+
+/* Each group's name above its rows, as the navigation beside a page says it on wide screens. */
+.settings-list-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-list-label {
+  margin: 0;
+  padding: 0 var(--space-1);
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.settings-list {
+  overflow: hidden;
+}
+
+.settings-list nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  color: var(--ink);
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--line);
+}
+
+.settings-row:hover {
+  background: var(--surface-sunken);
+  text-decoration: none;
+}
+
+.settings-row > .dw-icon:last-child {
+  color: var(--ink-muted);
+}
+
+.settings-row-icon {
+  display: flex;
+  color: var(--ink-muted);
+}
+
+.settings-row-label {
+  flex: 1 1 auto;
+}
+
+.settings-meta {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+/* ---------- General ---------- */
+
+.general-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.general-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.general-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.general-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.general-note {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.general-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px var(--space-4);
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.general-facts dt {
+  color: var(--ink-muted);
+}
+
+.general-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.general-facts code,
+.general-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.general-muted {
+  color: var(--ink-muted);
+}
+
+.general-sub {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.general-how {
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.general-how p {
+  margin: 0;
+}
+
+.general-how ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
+}
+
+/* A link in running text, as the mocks draw them: the link colour, underlined on hover. */
+.general-link {
+  border-radius: var(--radius-xs);
+  color: var(--link);
+  text-decoration: none;
+}
+
+.general-link:hover {
+  text-decoration: underline;
+}
+
+.general-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.general-how code {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-nav-item {
+    transition: none;
+  }
+}

@@ -116,6 +116,14 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 	}
 }
 
+// addrOf is where a listener listens, or nothing without one.
+func addrOf(ln net.Listener) string {
+	if ln == nil {
+		return ""
+	}
+	return ln.Addr().String()
+}
+
 // Where the panel listens when it has a domain.
 const (
 	defaultHTTPSListen = ":443"
@@ -284,19 +292,26 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	agents.OnHealth(recorder.Heard)
 
 	srv, err := control.New(control.Config{
-		Logger:        logger,
-		Build:         build,
-		Identity:      authority,
-		Fleet:         hub,
-		AgentHosts:    hosts,
-		Auth:          people,
-		Public:        public,
-		PublicAddress: addr.dnsAddress(),
-		ClaimCommand:  claim,
-		Changes:       engine,
-		Agents:        agents,
-		Store:         db,
-		Secrets:       keeper,
+		Logger:      logger,
+		Build:       build,
+		Identity:    authority,
+		Fleet:       hub,
+		AgentHosts:  hosts,
+		Auth:        people,
+		Public:      public,
+		PanelListen: ls.API.Addr().String(),
+		HTTPSListen: addrOf(ls.HTTPS),
+		PanelURL:    panelURL(addr),
+		PanelCA:     certificateAuthority(f),
+		// The ingress takes the public ports at the server's first route, and gives them
+		// back at its last, so the settings ask which holds them on each request.
+		PanelHandsOver: handsOver,
+		PublicAddress:  addr.dnsAddress(),
+		ClaimCommand:   claim,
+		Changes:        engine,
+		Agents:         agents,
+		Store:          db,
+		Secrets:        keeper,
 	})
 	if err != nil {
 		closeAll()
@@ -531,6 +546,36 @@ func beyondLoopback(f runFlags) error {
 // acmeSource gets the panel's certificates from an ACME CA. Plain HTTP
 // redirects to the port the HTTPS listener is bound to, which --https-listen
 // may not spell as a number, as in :https or :0.
+// panelURL is the panel's address on its domain, as a claim link names it,
+// or "" without one.
+func panelURL(addr panelAddress) string {
+	if addr.Domain == "" {
+		return ""
+	}
+	return addr.url()
+}
+
+// certificateAuthority says who issues the panel's certificate: Let's Encrypt
+// unless dockwell run was given another ACME directory, which is named by its
+// host. Empty without a domain.
+func certificateAuthority(f runFlags) string {
+	if f.domain == "" {
+		return ""
+	}
+	u, err := url.Parse(f.acmeDirector)
+	switch {
+	case f.acmeDirector == "":
+		return "Let's Encrypt"
+	case err != nil || u.Hostname() == "":
+		return f.acmeDirector
+	case u.Hostname() == "acme-v02.api.letsencrypt.org":
+		return "Let's Encrypt"
+	case u.Hostname() == "acme-staging-v02.api.letsencrypt.org":
+		return "Let's Encrypt's staging CA"
+	}
+	return u.Hostname()
+}
+
 func acmeSource(f runFlags, dir datadir.Dir, httpsAddr net.Addr) (*https.ACME, error) {
 	return https.NewACME(https.ACMEConfig{
 		Domain:       f.domain,

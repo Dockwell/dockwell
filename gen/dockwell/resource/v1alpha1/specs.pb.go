@@ -1892,7 +1892,9 @@ type BackupPolicy struct {
 	At string `protobuf:"bytes,3,opt,name=at,proto3" json:"at,omitempty"`
 	// The day it runs each week, as 0 for Sunday to 6 for Saturday.
 	Weekday int32 `protobuf:"varint,4,opt,name=weekday,proto3" json:"weekday,omitempty"`
-	// The time zone at is in, such as "Europe/Amsterdam": "UTC" unless set.
+	// The time zone at is in, such as "Europe/Amsterdam". Left out, a change
+	// that makes or updates the policy sets the install's time zone, from
+	// Settings, and UTC where the install has none.
 	TimeZone string `protobuf:"bytes,5,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
 	// How many of its backups to keep, on each server, newest first: 7 unless set.
 	Keep uint32 `protobuf:"varint,6,opt,name=keep,proto3" json:"keep,omitempty"`

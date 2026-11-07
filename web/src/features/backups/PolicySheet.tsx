@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { type BackupDestinationInfo, BackupMethod, BackupService, BackupPolicy_Every as Every } from "@dockwell/api";
+import {
+  type BackupDestinationInfo,
+  BackupMethod,
+  BackupService,
+  BackupPolicy_Every as Every,
+  SettingsService,
+} from "@dockwell/api";
 import { Button, Callout, SegmentedControl, SelectField, Sheet, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -19,9 +25,15 @@ type How = "hour" | "day" | "week";
 
 const EVERY: Readonly<Record<How, Every>> = { hour: Every.HOUR, day: Every.DAY, week: Every.WEEK };
 
-/** The time zone at reads in: the browser's, as that's the clock a person means. */
-function browserZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+/**
+ * The time zone at reads in, for the form to say: the install's from Settings, or
+ * UTC where it has none, as the control plane gives a schedule that comes without
+ * one (ADR 0042). Undefined until Settings answer, so it never says another.
+ */
+function useScheduleZone(): { zone: string | undefined; set: boolean } {
+  const settings = useQuery(SettingsService.method.getSettings, {}).data?.settings;
+  if (!settings) return { zone: undefined, set: false };
+  return { zone: settings.timeZone || "UTC", set: settings.timeZone !== "" };
 }
 
 /**
@@ -40,6 +52,7 @@ export function PolicySheet({
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const weekdays = useWeekdays();
+  const { zone, set: zoneSet } = useScheduleZone();
   const [volumeId, setVolumeId] = useState(volumes[0]?.id ?? "");
   const [how, setHow] = useState<How>("day");
   const [at, setAt] = useState("03:00");
@@ -83,7 +96,8 @@ export function PolicySheet({
                 every: EVERY[how],
                 at,
                 weekday: Number(weekday),
-                timeZone: browserZone(),
+                // Left out, so the control plane gives it the install's zone, whichever client makes it.
+                timeZone: "",
                 keep: count,
                 stop: risky && stop,
                 destination,
@@ -146,6 +160,13 @@ export function PolicySheet({
           label={how === "hour" ? t`Minutes past the hour, as 00:MM` : t`At`}
           mono
           value={at}
+          hint={
+            zone === undefined
+              ? undefined
+              : zoneSet
+                ? t`In ${zone}`
+                : t`In UTC. Set the install's time zone in Settings to use another.`
+          }
           error={validAt ? undefined : t`Use 24-hour HH:MM, such as 03:00.`}
           onChange={(event) => setAt(event.target.value)}
         />

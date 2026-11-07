@@ -9,7 +9,7 @@ import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { useOpenCommandBar } from "./CommandMenu";
 import "./Page.css";
 
-type Back = "/" | "/more" | "/servers" | "/apps";
+type Back = "/" | "/more" | "/servers" | "/apps" | "/settings";
 
 export interface PageProps {
   /** The page's name: its heading, and the start of the document title. */

@@ -1145,6 +1145,7 @@ paths:
                             - EVENT_KIND_ACCESS
                             - EVENT_KIND_HEALTH
                             - EVENT_KIND_BACKUP
+                            - EVENT_KIND_SETTINGS
                         type: string
                         format: enum
                 - name: serverId
@@ -2334,6 +2335,83 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/settings:
+        get:
+            tags:
+                - SettingsService
+            description: GetSettings returns the install's settings, and how its panel is served.
+            operationId: SettingsService_GetSettings
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetSettingsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/settings:setName:
+        post:
+            tags:
+                - SettingsService
+            description: |-
+                SetInstallName names the install, as the sign-in screen and the browser's
+                 tabs say it. An empty name goes back to none, where they say Dockwell. The
+                 sign-in screen shows it to anyone who reaches the panel, so only a person
+                 signed in can set it, never an API token.
+            operationId: SettingsService_SetInstallName
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetInstallNameRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetInstallNameResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/settings:setTimeZone:
+        post:
+            tags:
+                - SettingsService
+            description: |-
+                SetTimeZone sets the time zone a new schedule starts in, such as a
+                 backup's, when it comes without one of its own. A schedule keeps the zone
+                 it was made with, so this moves none. An empty zone clears it, and new
+                 schedules start in UTC again.
+            operationId: SettingsService_SetTimeZone
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetTimeZoneRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetTimeZoneResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/tokens:
         get:
             tags:
@@ -3094,7 +3172,10 @@ components:
                     format: int32
                 timeZone:
                     type: string
-                    description: 'The time zone at is in, such as "Europe/Amsterdam": "UTC" unless set.'
+                    description: |-
+                        The time zone at is in, such as "Europe/Amsterdam". Left out, a change
+                         that makes or updates the policy sets the install's time zone, from
+                         Settings, and UTC where the install has none.
                 keep:
                     type: integer
                     description: 'How many of its backups to keep, on each server, newest first: 7 unless set.'
@@ -4486,6 +4567,7 @@ components:
                         - EVENT_KIND_ACCESS
                         - EVENT_KIND_HEALTH
                         - EVENT_KIND_BACKUP
+                        - EVENT_KIND_SETTINGS
                     type: string
                     description: What sort of event it is.
                     format: enum
@@ -4547,6 +4629,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/EventPublicAddress'
                     description: What a person set of a server's public address, on such an event.
+                setting:
+                    allOf:
+                        - $ref: '#/components/schemas/EventSetting'
+                    description: |-
+                        A setting of the install someone changed, for a settings event. Numbered
+                         apart, as open work adds to this message.
             description: Event is one thing that happened.
         EventBackup:
             type: object
@@ -4649,6 +4737,19 @@ components:
                     type: string
                     description: What a person had set before, so it can be put back. Empty when they hadn't.
             description: EventPublicAddress is a server's public address as a person changed it.
+        EventSetting:
+            type: object
+            properties:
+                setting:
+                    type: string
+                    description: 'Which: "name" or "time_zone".'
+                value:
+                    type: string
+                    description: What it is now. Empty when they cleared it.
+                previous:
+                    type: string
+                    description: What it was. Empty when it wasn't set.
+            description: EventSetting is a setting of the install as someone changed it.
         EventSubject:
             type: object
             properties:
@@ -4989,6 +5090,11 @@ components:
                          Dockwell runs there, such as "sudo dockwell claim" for the system service,
                          or "dockwell claim" for a control plane a user runs themselves. Set only
                          while the install has no owner.
+                installName:
+                    type: string
+                    description: |-
+                        What the install is called, as its settings have it, for the sign-in screen
+                         to say. Empty when nobody has named it.
             description: GetAuthStateResponse describes the install and this request's session.
         GetBackupResponse:
             type: object
@@ -5034,6 +5140,14 @@ components:
                         - $ref: '#/components/schemas/Server'
                     description: The server, with history.
             description: GetServerResponse carries one server.
+        GetSettingsResponse:
+            type: object
+            properties:
+                settings:
+                    allOf:
+                        - $ref: '#/components/schemas/Settings'
+                    description: The settings.
+            description: GetSettingsResponse carries the install's settings.
         GetTotpResponse:
             type: object
             properties:
@@ -6129,6 +6243,46 @@ components:
                  by name, as a Compose file's networks. A service reaches another on a
                  network they share by the other's name. Docker can't change a network,
                  so its spec can't change once it is made.
+        PanelServing:
+            type: object
+            properties:
+                listen:
+                    type: string
+                    description: |-
+                        The loopback address it always answers on, such as "127.0.0.1:7600", which
+                         an SSH tunnel reaches.
+                domain:
+                    type: string
+                    description: |-
+                        The domain it also answers on over HTTPS, such as "panel.example.com".
+                         Empty when it has none, and answers only on loopback.
+                servedBy:
+                    enum:
+                        - PANEL_SERVED_BY_UNSPECIFIED
+                        - PANEL_SERVED_BY_NONE
+                        - PANEL_SERVED_BY_DOCKWELL
+                        - PANEL_SERVED_BY_INGRESS
+                    type: string
+                    description: What serves it over HTTPS on its domain.
+                    format: enum
+                httpsListen:
+                    type: string
+                    description: |-
+                        The address Dockwell serves HTTPS on itself, such as "[::]:443", with
+                         PANEL_SERVED_BY_DOCKWELL. Empty otherwise.
+                url:
+                    type: string
+                    description: |-
+                        The panel's address on its domain, with its port when that isn't 443,
+                         such as "https://panel.example.com" or "https://panel.example.com:8443".
+                         Empty without a domain.
+                certificateAuthority:
+                    type: string
+                    description: |-
+                        Who issues the certificate Dockwell serves the domain with: "Let's
+                         Encrypt", or the host of the ACME directory dockwell run was given, such
+                         as "acme.example.com". Empty without a domain.
+            description: PanelServing is how the panel is served, as dockwell run was started.
         Passkey:
             type: object
             properties:
@@ -8232,6 +8386,21 @@ components:
                     type: string
                     description: 'The address it works on: "localhost" or the panel''s domain.'
             description: Session is one signed-in browser.
+        SetInstallNameRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The name, at most 64 characters. Empty clears it.
+            description: SetInstallNameRequest names the install.
+        SetInstallNameResponse:
+            type: object
+            properties:
+                settings:
+                    allOf:
+                        - $ref: '#/components/schemas/Settings'
+                    description: The settings.
+            description: SetInstallNameResponse carries the settings as they now are.
         SetServerPublicAddressRequest:
             type: object
             properties:
@@ -8255,6 +8424,46 @@ components:
                         - $ref: '#/components/schemas/Server'
                     description: The server, without history.
             description: SetServerPublicAddressResponse carries the server as it now reads.
+        SetTimeZoneRequest:
+            type: object
+            properties:
+                timeZone:
+                    type: string
+                    description: |-
+                        The zone as the IANA names it, such as "Europe/Amsterdam" or "UTC". Empty
+                         clears it, and new schedules start in UTC again.
+            description: SetTimeZoneRequest sets the time zone new schedules start in.
+        SetTimeZoneResponse:
+            type: object
+            properties:
+                settings:
+                    allOf:
+                        - $ref: '#/components/schemas/Settings'
+                    description: The settings.
+            description: SetTimeZoneResponse carries the settings as they now are.
+        Settings:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: |-
+                        What the install is called, such as "Acme servers". Empty when nobody has
+                         named it, where the panel says Dockwell.
+                timeZone:
+                    type: string
+                    description: |-
+                        The time zone a new schedule starts in when it comes without one of its
+                         own, as the IANA names it, such as "Europe/Amsterdam" or "UTC". Empty
+                         when nobody has set one, and new schedules then start in UTC.
+                panel:
+                    allOf:
+                        - $ref: '#/components/schemas/PanelServing'
+                    description: How the panel is served.
+                createTime:
+                    type: string
+                    description: When the install was set up.
+                    format: date-time
+            description: Settings are the install's own settings.
         SharedName:
             type: object
             properties:
@@ -8918,6 +9127,15 @@ tags:
          names of the values it uses in it (Container.references). A Compose file that
          writes a variable's value in a label has it read back from there, which
          importing the file says (ExposedVariable).
+    - name: SettingsService
+      description: |-
+        SettingsService reads and changes the install's own settings: what it's
+         called, the time zone its schedules start in, and how its panel is served.
+
+         None of these is managed state: they change what Dockwell says and suggests,
+         not what runs on a server, so a change needs no plan. Each is on the activity
+         log, with what it replaced. How the panel is served comes from how dockwell
+         run was started, and changes there. See docs/adr/0042-the-installs-settings.md.
     - name: SystemService
       description: |-
         SystemService describes the Dockwell install itself. It needs no sign-in, so
