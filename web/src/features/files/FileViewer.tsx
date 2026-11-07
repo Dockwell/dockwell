@@ -13,6 +13,8 @@ import { type KeyboardEvent, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { onApple } from "../../lib/platform";
+import { useSignedInUser } from "../auth/useAuthState";
+import { type Base, type Draft, dropDraft, heldDraft, holdDraft } from "./drafts";
 import { changedLines, editable, lineCount, lineEnding, nameOf, restoreEndings } from "./paths";
 
 interface FileViewerProps {
@@ -97,6 +99,33 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
         </>
       );
     }
+    if (!read.version) {
+      return (
+        <>
+          <div className="files-note">
+            <Callout tone="info" title={t`This server's agent can't save files`}>
+              <Trans>Update the agent on this server to edit {name} here. You can still read it.</Trans>
+            </Callout>
+          </div>
+          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
+        </>
+      );
+    }
+    if (lineEnding(read.content) === "mixed") {
+      return (
+        <>
+          <div className="files-note">
+            <Callout tone="info" title={t`This file can't be edited here`}>
+              <Trans>
+                {name} has more than one kind of line ending, so saving it here would change lines you didn't touch.
+                Connect to the server over SSH to edit it.
+              </Trans>
+            </Callout>
+          </div>
+          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
+        </>
+      );
+    }
     return <Editor serverId={serverId} path={path} name={name} read={read} onSaved={setSaved} onEdited={setEdited} />;
   };
   return (
@@ -143,22 +172,21 @@ interface EditorProps {
   onEdited: (edited: boolean) => void;
 }
 
-/** What the server has, as the field shows it, and what the next save goes over. */
-interface Base {
-  text: string;
-  version: string;
-  crlf: boolean;
-}
-
 function baseOf(read: ReadFileResponse): Base {
-  return { text: editable(read.content), version: read.version, crlf: lineEnding(read.content) === "CRLF" };
+  return {
+    text: editable(read.content),
+    version: read.version,
+    crlf: lineEnding(read.content) === "CRLF",
+    where: read.path,
+  };
 }
 
 /**
  * A file's text, to edit and save. A save names the version it was edited from,
  * so a file that changed since isn't written over without you saying so. What you
  * typed stays in the field whatever a save comes to, and leaving with it unsaved
- * asks first.
+ * asks first. A session that ends takes the page with it and asks nobody, so what
+ * you typed is held for when you sign in again.
  */
 function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) {
   const { t } = useLingui();
@@ -170,12 +198,22 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [problem, setProblem] = useState<string>();
+  // A save that was writing as the server stopped answering isn't a failure.
+  const [mayLand, setMayLand] = useState(false);
+  // Where the file leads now, once that isn't where it led when you read it.
+  const [moved, setMoved] = useState<string>();
   const [justSaved, setJustSaved] = useState(false);
+  const who = useSignedInUser()?.id ?? "";
+  const [offer, setOffer] = useState<Draft | undefined>(() => heldDraft(serverId, path, who));
   const edited = draft !== base.text;
   const changes = edited ? changedLines(base.text, draft) : 0;
 
   useBlocker({
-    shouldBlockFn: () => !window.confirm(t`Leave ${name} without saving? What you typed goes.`),
+    shouldBlockFn: () => {
+      if (!window.confirm(t`Leave ${name} without saving? What you typed goes.`)) return true;
+      dropDraft(serverId, path);
+      return false;
+    },
     disabled: !edited,
     enableBeforeUnload: edited,
   });
@@ -185,12 +223,28 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     setDraft(next);
     setJustSaved(false);
     onEdited(next !== base.text);
+    if (next === base.text) dropDraft(serverId, path);
+    else holdDraft(serverId, path, { who, text: next, base });
   };
 
   const discard = () => {
     change(base.text);
     setConflict(false);
+    setMoved(undefined);
     setProblem(undefined);
+  };
+
+  /** Back to what was typed before you were signed out, over what it was typed on. */
+  const bringBack = (held: Draft) => {
+    setBase(held.base);
+    setDraft(held.text);
+    onEdited(true);
+    setOffer(undefined);
+  };
+
+  const letGo = () => {
+    dropDraft(serverId, path);
+    setOffer(undefined);
   };
 
   const save = async (over: string) => {
@@ -198,11 +252,13 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     const content = restoreEndings(sent, base.crlf);
     setSaving(true);
     setProblem(undefined);
+    setMayLand(false);
     setConflict(false);
     setJustSaved(false);
     try {
       const res = await client.saveFile({ serverId, path, content, version: over });
       setBase((was) => ({ ...was, text: sent, version: res.version }));
+      dropDraft(serverId, path);
       setJustSaved(true);
       onSaved(res.file);
       onEdited(false);
@@ -210,8 +266,12 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         queryKey: createConnectQueryKey({ schema: FileService.method.listFiles, cardinality: "finite" }),
       });
     } catch (err) {
-      if (reasonOf(err) === "file_changed") setConflict(true);
-      else setProblem(sentence(err));
+      const reason = reasonOf(err);
+      if (reason === "file_changed") setConflict(true);
+      else {
+        setMayLand(reason === "save_may_land");
+        setProblem(sentence(err));
+      }
     } finally {
       setSaving(false);
     }
@@ -228,6 +288,13 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         setProblem(t`${name} isn't a text file under 1 MB any more, so it can't be saved here.`);
         return;
       }
+      // The change may be that this path leads somewhere else now, so saving would
+      // write there. You decide that with the file in front of you.
+      if (now.path !== base.where) {
+        setConflict(false);
+        setMoved(now.path);
+        return;
+      }
       await save(now.version);
     } catch (err) {
       setProblem(sentence(err));
@@ -242,10 +309,17 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         setProblem(t`${name} isn't a text file under 1 MB any more, so it can't be loaded here.`);
         return;
       }
+      if (lineEnding(now.content) === "mixed") {
+        setConflict(false);
+        setProblem(t`${name} has more than one kind of line ending now, so it can't be loaded here.`);
+        return;
+      }
       const next = baseOf(now);
       setBase(next);
       setDraft(next.text);
+      dropDraft(serverId, path);
       setConflict(false);
+      setMoved(undefined);
       setProblem(undefined);
       onSaved(now.file);
       onEdited(false);
@@ -257,12 +331,58 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      if (edited && !saving && !conflict) void save(base.version);
+      if (edited && !saving && !conflict && !moved) void save(base.version);
     }
   };
 
   return (
     <>
+      {base.where !== path ? (
+        <p className="files-facts">
+          <span>
+            <Trans>
+              Leads to <code>{base.where}</code>
+            </Trans>
+          </span>
+        </p>
+      ) : null}
+      {offer ? (
+        <div className="files-note">
+          <Callout tone="info" title={t`You have unsaved changes to ${name}`}>
+            {offer.base.version === base.version ? (
+              <Trans>You typed them before your session ended.</Trans>
+            ) : (
+              <Trans>
+                You typed them before your session ended, and the file has changed on the server since, so saving will
+                ask what to do.
+              </Trans>
+            )}
+            <span className="files-note-actions">
+              <Button size="sm" onClick={() => bringBack(offer)}>
+                <Trans>Bring them back</Trans>
+              </Button>
+              <Button size="sm" variant="ghost" onClick={letGo}>
+                <Trans>Discard them</Trans>
+              </Button>
+            </span>
+          </Callout>
+        </div>
+      ) : null}
+      {moved ? (
+        <div className="files-note">
+          <Callout tone="critical" title={t`This isn't the file you opened`}>
+            <Trans>
+              {name} now leads to <code>{moved}</code>, so saving would write there. Nothing was saved, and what you
+              typed is still here. Load the server's version to see what's there.
+            </Trans>
+            <span className="files-note-actions">
+              <Button size="sm" variant="ghost" disabled={saving} onClick={() => void loadServers()}>
+                <Trans>Load the server's version</Trans>
+              </Button>
+            </span>
+          </Callout>
+        </div>
+      ) : null}
       {conflict ? (
         <div className="files-note">
           <Callout tone="warning" title={t`This file changed on the server`}>
@@ -283,7 +403,10 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
       ) : null}
       {problem ? (
         <div className="files-note">
-          <Callout tone="critical" title={t`Can't save this file`}>
+          <Callout
+            tone={mayLand ? "warning" : "critical"}
+            title={mayLand ? t`This save may still land` : t`Can't save this file`}
+          >
             {problem} <Trans>What you typed is still here.</Trans>
           </Callout>
         </div>
@@ -292,6 +415,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         className="files-code"
         aria-label={t`Contents of ${name}`}
         value={draft}
+        readOnly={offer !== undefined}
         onChange={(event) => change(event.target.value)}
         onKeyDown={onKeyDown}
       />
@@ -317,7 +441,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
             <Button
               variant="primary"
               kbd={phone ? undefined : onApple() ? "⌘S" : "Ctrl S"}
-              disabled={saving || conflict}
+              disabled={saving || conflict || moved !== undefined}
               onClick={() => void save(base.version)}
             >
               {saving ? <Trans>Saving</Trans> : <Trans>Save</Trans>}

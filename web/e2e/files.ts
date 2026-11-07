@@ -4,7 +4,9 @@
 // its own agent, on this machine's disk, in a temporary directory: browsing, a
 // file, what isn't text, what's too large, what's refused, a path that leads
 // nowhere, and a phone. It edits and saves a file, on a desktop and a phone, finds
-// a file changed under it, keeps what it typed, and finds what it did on Activity.
+// a file changed under it, keeps what it typed, stops at a link swapped in, keeps a
+// byte order mark, which this build's binary format loses on the way in, and finds
+// what it did on Activity.
 // The CLI's token is refused. With --shots <dir> it saves screenshots at 1440, 800,
 // 390 and 360 px, light and dark.
 //
@@ -92,6 +94,10 @@ function makeSite() {
   writeFileSync(join(site, "server.key"), "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n");
   mkdirSync(join(site, "conf.d"));
   writeFileSync(join(site, "conf.d", "default.conf"), "# nothing yet\n");
+  writeFileSync(join(site, "app.ini"), "\uFEFFname = app\n");
+  writeFileSync(join(site, "mixed.sh"), "#!/bin/sh\necho a\r\necho b\n");
+  writeFileSync(join(site, "config.yml"), "deploy_key: AAAA\n");
+  writeFileSync(join(site, "authorized_keys"), "deploy_key: AAAA\n");
   symlinkSync(join(data, "control", "key"), join(site, "planted"));
   symlinkSync("conf.d", join(site, "config"));
   symlinkSync("nowhere", join(site, "broken"));
@@ -215,6 +221,42 @@ async function main() {
   await code.waitFor({ state: "detached" });
   await page.getByText("nginx.conf").click();
   await code.waitFor();
+
+  step("a byte order mark stays through a save, on the format the panel runs on");
+  await page.getByText("app.ini").click();
+  const ini = page.getByRole("textbox", { name: "Contents of app.ini" });
+  await ini.waitFor();
+  await ini.fill("name = changed\n");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("Saved app.ini").first().waitFor();
+  if (!readFileSync(join(site, "app.ini")).equals(Buffer.from("\uFEFFname = changed\n"))) {
+    fail(`a save changed bytes nobody touched: ${readFileSync(join(site, "app.ini")).toString("hex")}`);
+  }
+
+  step("a file with more than one kind of line ending reads, and doesn't edit");
+  await page.getByText("mixed.sh").click();
+  await page.getByText("This file can't be edited here").waitFor();
+  await page.getByRole("button", { name: "Close mixed.sh" }).click();
+
+  step("a link swapped in under what you typed isn't saved through, whatever its text");
+  const swapped = join(site, "config.yml");
+  const keys = join(site, "authorized_keys");
+  await page.getByText("config.yml").click();
+  const yml = page.getByRole("textbox", { name: "Contents of config.yml" });
+  await yml.waitFor();
+  await yml.fill("deploy_key: what a person typed\n");
+  rmSync(swapped);
+  symlinkSync(keys, swapped);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("This file changed on the server").waitFor();
+  await page.getByRole("button", { name: "Save over it" }).click();
+  await page.getByText("This isn't the file you opened").waitFor();
+  await page.getByText(keys).first().waitFor();
+  await shoot(page, "swapped-link");
+  if (readFileSync(keys, "utf8") !== "deploy_key: AAAA\n") fail("a save went through a link swapped in");
+  await page.getByRole("button", { name: "Discard" }).click();
+  await page.getByRole("button", { name: "Close config.yml" }).click();
+  await yml.waitFor({ state: "detached" });
 
   step("what isn't text, and what's too large");
   await page.getByText("logo.png").click();

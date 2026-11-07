@@ -26,9 +26,14 @@ export function crumbs(path: string): { name: string; path: string }[] {
   return out;
 }
 
-/** Which line ending a text uses, for the editor's footer. */
-export function lineEnding(text: string): "LF" | "CRLF" {
-  return text.includes("\r\n") ? "CRLF" : "LF";
+/**
+ * Which line ending a text uses, for the editor's footer. "mixed" is a text with more
+ * than one kind, or a lone CR: a field holds only one, so what it saves would change
+ * lines nobody touched.
+ */
+export function lineEnding(text: string): "LF" | "CRLF" | "mixed" {
+  if (!text.includes("\r")) return "LF";
+  return restoreEndings(editable(text), true) === text ? "CRLF" : "mixed";
 }
 
 /** How many lines a text has, as an editor numbers them: a last newline starts none. */

@@ -1,24 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   FileEntrySchema,
   FileType,
   ListFilesResponseSchema,
   ReadFileResponseSchema,
+  Role,
   SaveFileResponseSchema,
-  type WatchServersResponse,
+  UserSchema,
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
+import { focusManager } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { authState } from "../../test/auth";
+import { type Api, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { dropDrafts } from "./drafts";
 
 const hz1 = aServer({ id: "srv_1", name: "hz-1" });
 
@@ -71,10 +75,14 @@ const saved = (version = "v2") =>
 const refused = (reason: string, message: string, code = Code.PermissionDenied) =>
   new ConnectError(message, code, new Headers({ "Dockwell-Error": reason }));
 
-async function renderFiles(path: string, files: NonNullable<Api["files"]>) {
-  const watch = feed<WatchServersResponse>();
-  watch.push(changed(hz1), snapshotComplete);
-  const rendered = renderAt(path, { servers: { watchServers: watch.stream }, files });
+async function renderFiles(path: string, files: NonNullable<Api["files"]>, auth?: Api["auth"]) {
+  // As the control plane does, for each page that opens it, however many come.
+  async function* watchServers(_req: unknown, ctx: HandlerContext) {
+    yield changed(hz1);
+    yield snapshotComplete;
+    await untilAborted(ctx.signal);
+  }
+  const rendered = renderAt(path, { servers: { watchServers }, files, auth });
   await screen.findByRole("heading", { level: 1 });
   return rendered;
 }
@@ -87,6 +95,8 @@ const rowNames = () =>
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  focusManager.setFocused(undefined);
+  dropDrafts();
 });
 
 describe("FilesPage", () => {
@@ -291,11 +301,15 @@ describe("FilesPage", () => {
 });
 
 describe("editing a file", () => {
-  const open = (files: NonNullable<Api["files"]>) =>
-    renderFiles("/servers/srv_1/files?path=/var/www&file=/var/www/.user.ini", { listFiles: () => site, ...files });
+  const open = (files: NonNullable<Api["files"]>, auth?: Api["auth"]) =>
+    renderFiles(
+      "/servers/srv_1/files?path=/var/www&file=/var/www/.user.ini",
+      { listFiles: () => site, ...files },
+      auth,
+    );
 
-  async function edited(files: NonNullable<Api["files"]>) {
-    const rendered = await open(files);
+  async function edited(files: NonNullable<Api["files"]>, auth?: Api["auth"]) {
+    const rendered = await open(files, auth);
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
     await userEvent.clear(field);
     await userEvent.type(field, "memory_limit = 512M");
@@ -354,6 +368,77 @@ describe("editing a file", () => {
     await userEvent.click(saveButton());
     await waitFor(() => expect(saveFile).toHaveBeenCalled());
     expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\r\nc" }), expect.anything()]);
+  });
+
+  it.each([
+    ["one stray CRLF", "#!/bin/sh\necho a\r\necho b\n"],
+    ["a lone CR", "a\rb\n"],
+  ])("won't edit a file with %s, as saving it would change lines nobody touched", async (_, content) => {
+    const saveFile = vi.fn(() => saved());
+    await open({ readFile: () => text(content), saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    expect(field).toHaveAttribute("readonly");
+    expect(screen.getByText("This file can't be edited here")).toBeVisible();
+    expect(screen.getByText("would change lines you didn't touch", { exact: false })).toBeVisible();
+    await userEvent.type(field, "x");
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    expect(saveFile).not.toHaveBeenCalled();
+  });
+
+  it("won't take a file with mixed line endings in place of yours", async () => {
+    const readFile = vi
+      .fn()
+      .mockReturnValueOnce(text("old\n"))
+      .mockReturnValue(text("a\r\nb\n", { version: "v3" }));
+    const saveFile = vi.fn(() => {
+      throw refused("file_changed", "it changed", Code.FailedPrecondition);
+    });
+    const { field } = await edited({ readFile, saveFile });
+    await userEvent.click(saveButton());
+    await userEvent.click(await screen.findByRole("button", { name: "Load the server's version" }));
+    expect(await screen.findByText("has more than one kind of line ending now", { exact: false })).toBeVisible();
+    expect(field).toHaveValue("memory_limit = 512M");
+  });
+
+  it("reads a file from an agent too old to save, and says what to do", async () => {
+    const saveFile = vi.fn(() => saved());
+    await open({ readFile: () => text("old\n", { version: "" }), saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    expect(field).toHaveAttribute("readonly");
+    expect(screen.getByText("This server's agent can't save files")).toBeVisible();
+    expect(screen.getByText("Update the agent on this server", { exact: false })).toBeVisible();
+    await userEvent.type(field, "x");
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  });
+
+  it("says a save may still land, not that it failed", async () => {
+    const saveFile = vi.fn(() => {
+      throw refused(
+        "save_may_land",
+        "/var/www/.user.ini stopped answering as the agent began to write it, so this save may still land when it answers",
+        Code.DeadlineExceeded,
+      );
+    });
+    const { field } = await edited({ readFile: () => text("old\n"), saveFile });
+    await userEvent.click(saveButton());
+    expect(await screen.findByText("This save may still land")).toBeVisible();
+    expect(screen.queryByText("Can't save this file")).toBeNull();
+    expect(field).toHaveValue("memory_limit = 512M");
+  });
+
+  it("says which file a path leads to, as that's where a save goes", async () => {
+    await open({ readFile: () => text("old\n", { path: "/srv/releases/42/.user.ini" }) });
+    await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    expect(screen.getByText("/srv/releases/42/.user.ini")).toBeVisible();
+    expect(screen.getByText("Leads to", { exact: false })).toBeVisible();
+  });
+
+  // protobuf-es decodes text with a TextDecoder, which drops this mark. The panel can't
+  // see it, so what keeps it in the file is the agent (TestASaveKeepsTheMarkAFileStartsWith).
+  it("doesn't get a file's byte order mark in production's format, but does in development's", () => {
+    const sent = text("\uFEFFold\n");
+    expect(fromBinary(ReadFileResponseSchema, toBinary(ReadFileResponseSchema, sent)).content).toBe("old\n");
+    expect(sent.content.startsWith("\uFEFF")).toBe(true);
   });
 
   it("discards what you typed on your word", async () => {
@@ -422,6 +507,32 @@ describe("editing a file", () => {
       expect(screen.queryByText("This file changed on the server")).toBeNull();
     });
 
+    it("stops if the path leads somewhere else now, and names it", async () => {
+      const keys = "/root/.ssh/authorized_keys";
+      const readFile = vi
+        .fn()
+        .mockReturnValueOnce(text("old\n"))
+        .mockReturnValue(text("ssh-ed25519 AAAA admin\n", { path: keys, version: "v9" }));
+      const saveFile = vi.fn(changed);
+      const { field } = await edited({ readFile, saveFile });
+      await userEvent.click(saveButton());
+      await userEvent.click(await screen.findByRole("button", { name: "Save over it" }));
+      expect(await screen.findByText("This isn't the file you opened")).toBeVisible();
+      expect(screen.getByText(keys)).toBeVisible();
+      expect(saveFile).toHaveBeenCalledTimes(1);
+      expect(field).toHaveValue("memory_limit = 512M");
+      expect(screen.queryByRole("button", { name: "Save over it" })).toBeNull();
+      expect(saveButton()).toBeDisabled();
+      field.focus();
+      await userEvent.keyboard("{Control>}s{/Control}");
+      expect(saveFile).toHaveBeenCalledTimes(1);
+      // With it in front of you, you can go on.
+      await userEvent.click(screen.getByRole("button", { name: "Load the server's version" }));
+      await waitFor(() => expect(field).toHaveValue("ssh-ed25519 AAAA admin\n"));
+      expect(screen.queryByText("This isn't the file you opened")).toBeNull();
+      expect(screen.getByText(keys)).toBeVisible();
+    });
+
     it("won't save over a file that isn't text any more", async () => {
       const readFile = vi
         .fn()
@@ -455,6 +566,122 @@ describe("editing a file", () => {
     expect(field).toHaveValue("memory_limit = 512M");
     await userEvent.click(saveButton());
     expect(await screen.findByText("Saved .user.ini", { selector: "p" })).toBeVisible();
+  });
+
+  describe("when a session ends", () => {
+    const signedIn = () => {
+      let user = authState().user;
+      const set = (next: typeof user) => {
+        user = next;
+      };
+      return { auth: { getAuthState: () => authState({ user }) }, set };
+    };
+    const ended = () => refused("session_ended", "your session ended", Code.Unauthenticated);
+    /** What a browser does when someone comes back to the tab, and what signing in comes to. */
+    const refocus = () =>
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+    const signIn = () => screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" });
+
+    it("offers what you typed back after you sign in, over the version you read", async () => {
+      const session = signedIn();
+      const saveFile = vi
+        .fn()
+        .mockImplementationOnce(() => {
+          session.set(undefined);
+          throw ended();
+        })
+        .mockReturnValue(saved());
+      await edited({ readFile: () => text("old\n"), saveFile }, session.auth);
+      await userEvent.click(saveButton());
+      await signIn();
+
+      session.set(authState().user);
+      refocus();
+      expect(await screen.findByText("You have unsaved changes to .user.ini")).toBeVisible();
+      const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+      expect(field).toHaveValue("old\n");
+      expect(field).toHaveAttribute("readonly");
+      await userEvent.click(screen.getByRole("button", { name: "Bring them back" }));
+      expect(field).toHaveValue("memory_limit = 512M");
+      expect(screen.getByText("Edited")).toBeVisible();
+      await userEvent.click(saveButton());
+      await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+      expect(saveFile.mock.lastCall).toEqual([
+        expect.objectContaining({ content: "memory_limit = 512M", version: "v1" }),
+        expect.anything(),
+      ]);
+    });
+
+    it("does so when something in the background found it, with no save at all", async () => {
+      const session = signedIn();
+      await edited({ readFile: () => text("old\n") }, session.auth);
+      session.set(undefined);
+      refocus();
+      await signIn();
+      session.set(authState().user);
+      refocus();
+      expect(await screen.findByText("You have unsaved changes to .user.ini")).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Discard them" }));
+      const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+      expect(field).toHaveValue("old\n");
+      expect(field).not.toHaveAttribute("readonly");
+      expect(screen.queryByText("You have unsaved changes to .user.ini")).toBeNull();
+    });
+
+    it("says so if the file changed meanwhile, and a save then asks", async () => {
+      const session = signedIn();
+      const readFile = vi
+        .fn()
+        .mockReturnValueOnce(text("old\n"))
+        .mockReturnValue(text("theirs\n", { version: "v3" }));
+      const saveFile = vi.fn(() => {
+        throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      });
+      await edited({ readFile, saveFile }, session.auth);
+      session.set(undefined);
+      refocus();
+      await signIn();
+      session.set(authState().user);
+      refocus();
+      expect(await screen.findByText("the file has changed on the server since", { exact: false })).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Bring them back" }));
+      await userEvent.click(saveButton());
+      await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+      expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ version: "v1" }), expect.anything()]);
+      expect(await screen.findByText("This file changed on the server")).toBeVisible();
+    });
+
+    it("never shows one person what another typed", async () => {
+      const session = signedIn();
+      await edited({ readFile: () => text("old\n") }, session.auth);
+      session.set(undefined);
+      refocus();
+      await signIn();
+      session.set(create(UserSchema, { id: "usr_someone_else", name: "Sam Okoye", role: Role.OWNER }));
+      refocus();
+      const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+      expect(field).toHaveValue("old\n");
+      expect(screen.queryByText("You have unsaved changes to .user.ini")).toBeNull();
+    });
+  });
+
+  it("offers nothing back once you've said to leave it", async () => {
+    vi.stubGlobal("confirm", () => true);
+    const { router } = await edited({ readFile: () => text("old\n") });
+    await userEvent.click(screen.getByRole("button", { name: "Close .user.ini" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www" }));
+    await act(() =>
+      router.navigate({
+        to: "/servers/$serverId/files",
+        params: { serverId: "srv_1" },
+        search: { path: "/var/www", file: "/var/www/.user.ini" },
+      }),
+    );
+    await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    expect(screen.queryByText("You have unsaved changes to .user.ini")).toBeNull();
   });
 
   it("asks before leaving what you typed", async () => {

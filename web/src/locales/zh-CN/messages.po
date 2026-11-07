@@ -430,6 +430,14 @@ msgstr "{name} 将取回服务器保留的数据。"
 msgid "{name} gets root on {server}"
 msgstr "{name} 将获得 {server} 的 root 权限"
 
+#: src/features/files/FileViewer.tsx
+msgid "{name} has more than one kind of line ending now, so it can't be loaded here."
+msgstr "{name} 现在混用了多种换行符，所以无法在这里载入。"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} has more than one kind of line ending, so saving it here would change lines you didn't touch. Connect to the server over SSH to edit it."
+msgstr "{name} 混用了多种换行符，在这里保存会改动你没碰过的行。请通过 SSH 连接到服务器来编辑。"
+
 #: src/features/logs/LogNote.tsx
 msgid "{name} has no container now, so these are the logs of its last deploy."
 msgstr "{name} 现在没有容器，这里是它上一次部署的日志。"
@@ -573,6 +581,10 @@ msgstr "{name} 可能没有运行，也可能正在运行新版本。请检查�
 #: src/features/changes/notices.tsx
 msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
 msgstr "{name} 可能需要更久才能恢复健康，因为它的镜像还不在服务器上。"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
+msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
 
 #: src/features/changes/notices.tsx
 msgid "{name} reaches {path} on {server}"
@@ -1630,6 +1642,10 @@ msgstr "阻止 <0>{port}</0>，{proto}，来源不限"
 msgid "Breadcrumb"
 msgstr "面包屑导航"
 
+#: src/features/files/FileViewer.tsx
+msgid "Bring them back"
+msgstr "恢复这些更改"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Brings back the data the server kept"
 msgstr "恢复服务器保留的数据"
@@ -2489,6 +2505,10 @@ msgstr "服务器上的目录"
 #: src/features/files/FileViewer.tsx
 msgid "Discard"
 msgstr "丢弃"
+
+#: src/features/files/FileViewer.tsx
+msgid "Discard them"
+msgstr "丢弃这些更改"
 
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
@@ -3655,6 +3675,11 @@ msgstr "最近 24 小时"
 msgid "Last heartbeat"
 msgstr "最后心跳"
 
+#. placeholder {0}: base.where
+#: src/features/files/FileViewer.tsx
+msgid "Leads to <0>{0}</0>"
+msgstr "指向 <0>{0}</0>"
+
 #: src/features/files/FileViewer.tsx
 msgid "Leave {name} without saving? What you typed goes."
 msgstr "不保存就离开 {name} 吗？你输入的内容会丢失。"
@@ -3848,6 +3873,10 @@ msgstr "可能切断对 {server} 的访问"
 #: src/features/auth/PasskeysPanel.tsx
 msgid "May have been copied; it no longer signs in"
 msgstr "可能已被复制，不能再用于登录"
+
+#: src/features/activity/describe.ts
+msgid "May have saved {path} on {server}"
+msgstr "可能已保存 {server} 上的 {path}"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -6556,6 +6585,10 @@ msgid "This device already has a passkey for your account here. Use it, or pick 
 msgstr "这台设备已经有你在此处账户的通行密钥。请直接使用它，或选择其他设备或安全密钥。"
 
 #: src/features/files/FileViewer.tsx
+msgid "This file can't be edited here"
+msgstr "这个文件无法在这里编辑"
+
+#: src/features/files/FileViewer.tsx
 msgid "This file changed on the server"
 msgstr "这个文件在服务器上发生了变化"
 
@@ -6602,6 +6635,10 @@ msgstr "这是 {server} 上的最后一条路由，因此 {proxy} 将停止并�
 #: src/features/files/FileViewer.tsx
 msgid "This isn't a text file"
 msgstr "这不是文本文件"
+
+#: src/features/files/FileViewer.tsx
+msgid "This isn't the file you opened"
+msgstr "这不是你打开的文件"
 
 #. placeholder {0}: server.serverName
 #: src/features/changes/notices.tsx
@@ -6653,6 +6690,10 @@ msgstr "这会访问服务器上的 <0>{source}</0>。需要你在计划中批�
 msgid "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 msgstr "这会重新加载 {server} 上的代理，可能重置正在进入该服务器上任何站点的连接，并可能丢失保持连接的 HTTP/1.1 上的 POST 请求。浏览器会再次发送此类请求，而应用自身的客户端可能不会"
 
+#: src/features/files/FileViewer.tsx
+msgid "This save may still land"
+msgstr "这次保存可能仍会写入"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
 msgstr "这台服务器"
@@ -6664,6 +6705,10 @@ msgstr "这台服务器的实时带宽由所有读者分享。"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "This server takes no certificate, and traffic reaches it unencrypted."
 msgstr "此服务器不使用证书，流量以未加密方式到达。"
+
+#: src/features/files/FileViewer.tsx
+msgid "This server's agent can't save files"
+msgstr "这台服务器的 agent 无法保存文件"
 
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -6985,6 +7030,10 @@ msgstr "原地更新"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Update out"
 msgstr "有更新"
+
+#: src/features/files/FileViewer.tsx
+msgid "Update the agent on this server to edit {name} here. You can still read it."
+msgstr "更新这台服务器上的 agent，才能在这里编辑 {name}。你仍然可以查看它。"
 
 #: src/app/Providers.tsx
 msgid "updated"
@@ -7409,6 +7458,10 @@ msgstr "你将成为所有者。其他人无法登录。"
 msgid "You can't read these logs"
 msgstr "你无法读取这些日志"
 
+#: src/features/files/FileViewer.tsx
+msgid "You have unsaved changes to {name}"
+msgstr "{name} 有未保存的更改"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "You name what connects to this server."
 msgstr "由你写明连接此服务器的来源。"
@@ -7424,6 +7477,14 @@ msgstr "使用验证码登录时需要它。"
 #: src/features/auth/ProfilePage.tsx
 msgid "You signed in with a one-time link"
 msgstr "你通过一次性链接登录了"
+
+#: src/features/files/FileViewer.tsx
+msgid "You typed them before your session ended, and the file has changed on the server since, so saving will ask what to do."
+msgstr "这些更改是你在会话结束前输入的，此后服务器上的文件已有变动，所以保存时会询问如何处理。"
+
+#: src/features/files/FileViewer.tsx
+msgid "You typed them before your session ended."
+msgstr "这些更改是你在会话结束前输入的。"
 
 #: src/features/auth/ProfilePage.tsx
 msgid "You used a recovery code"

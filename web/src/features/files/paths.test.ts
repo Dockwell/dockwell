@@ -50,6 +50,29 @@ describe("lines", () => {
     expect(restoreEndings("a\nb\n", false)).toBe("a\nb\n");
   });
 
+  it.each([
+    ["one stray CRLF in a file of LF", "#!/bin/sh\necho a\r\necho b\n"],
+    ["one stray LF in a file of CRLF", "a\r\nb\nc\r\n"],
+    ["a lone CR", "a\rb\n"],
+    ["a lone CR in a file of CRLF", "a\r\nb\rc\r\n"],
+    ["a CR before a CRLF", "a\r\r\nb\r\n"],
+    ["a last line that ends in a lone CR", "a\r"],
+  ])("say so of %s, which a field can't bring back", (_, text) => {
+    expect(lineEnding(text)).toBe("mixed");
+    const back = (crlf: boolean) => restoreEndings(editable(text), crlf);
+    expect(back(true)).not.toBe(text);
+    expect(back(false)).not.toBe(text);
+  });
+
+  it.each([
+    ["no ending at all", "a"],
+    ["nothing", ""],
+    ["LF with no last ending", "a\nb"],
+    ["CRLF with no last ending", "a\r\nb"],
+  ])("bring back %s, byte for byte", (_, text) => {
+    expect(restoreEndings(editable(text), lineEnding(text) === "CRLF")).toBe(text);
+  });
+
   it("count what an edit touches", () => {
     expect(changedLines("a\nb\nc\n", "a\nx\nc\n")).toBe(1);
     expect(changedLines("a\nb\nc\n", "a\nx\ny\nc\n")).toBe(2);

@@ -430,6 +430,14 @@ msgstr "{name} gets back the data the server kept."
 msgid "{name} gets root on {server}"
 msgstr "{name} gets root on {server}"
 
+#: src/features/files/FileViewer.tsx
+msgid "{name} has more than one kind of line ending now, so it can't be loaded here."
+msgstr "{name} has more than one kind of line ending now, so it can't be loaded here."
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} has more than one kind of line ending, so saving it here would change lines you didn't touch. Connect to the server over SSH to edit it."
+msgstr "{name} has more than one kind of line ending, so saving it here would change lines you didn't touch. Connect to the server over SSH to edit it."
+
 #: src/features/logs/LogNote.tsx
 msgid "{name} has no container now, so these are the logs of its last deploy."
 msgstr "{name} has no container now, so these are the logs of its last deploy."
@@ -573,6 +581,10 @@ msgstr "{name} may not be running, or may be running the new version. Check it, 
 #: src/features/changes/notices.tsx
 msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
 msgstr "{name} may take longer to be healthy, as its image isn't on the server yet."
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
+msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 
 #: src/features/changes/notices.tsx
 msgid "{name} reaches {path} on {server}"
@@ -1630,6 +1642,10 @@ msgstr "block <0>{port}</0>, {proto}, from anywhere"
 msgid "Breadcrumb"
 msgstr "Breadcrumb"
 
+#: src/features/files/FileViewer.tsx
+msgid "Bring them back"
+msgstr "Bring them back"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Brings back the data the server kept"
 msgstr "Brings back the data the server kept"
@@ -2489,6 +2505,10 @@ msgstr "Directory on the server"
 #: src/features/files/FileViewer.tsx
 msgid "Discard"
 msgstr "Discard"
+
+#: src/features/files/FileViewer.tsx
+msgid "Discard them"
+msgstr "Discard them"
 
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
@@ -3655,6 +3675,11 @@ msgstr "Last 24 h"
 msgid "Last heartbeat"
 msgstr "Last heartbeat"
 
+#. placeholder {0}: base.where
+#: src/features/files/FileViewer.tsx
+msgid "Leads to <0>{0}</0>"
+msgstr "Leads to <0>{0}</0>"
+
 #: src/features/files/FileViewer.tsx
 msgid "Leave {name} without saving? What you typed goes."
 msgstr "Leave {name} without saving? What you typed goes."
@@ -3848,6 +3873,10 @@ msgstr "May cut off access to {server}"
 #: src/features/auth/PasskeysPanel.tsx
 msgid "May have been copied; it no longer signs in"
 msgstr "May have been copied; it no longer signs in"
+
+#: src/features/activity/describe.ts
+msgid "May have saved {path} on {server}"
+msgstr "May have saved {path} on {server}"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -6556,6 +6585,10 @@ msgid "This device already has a passkey for your account here. Use it, or pick 
 msgstr "This device already has a passkey for your account here. Use it, or pick another device or security key."
 
 #: src/features/files/FileViewer.tsx
+msgid "This file can't be edited here"
+msgstr "This file can't be edited here"
+
+#: src/features/files/FileViewer.tsx
 msgid "This file changed on the server"
 msgstr "This file changed on the server"
 
@@ -6602,6 +6635,10 @@ msgstr "This is the last route on {server}, so {proxy} stops, and ports {ports} 
 #: src/features/files/FileViewer.tsx
 msgid "This isn't a text file"
 msgstr "This isn't a text file"
+
+#: src/features/files/FileViewer.tsx
+msgid "This isn't the file you opened"
+msgstr "This isn't the file you opened"
 
 #. placeholder {0}: server.serverName
 #: src/features/changes/notices.tsx
@@ -6653,6 +6690,10 @@ msgstr "This reaches <0>{source}</0> on the server. You approve this in the plan
 msgid "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 msgstr "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 
+#: src/features/files/FileViewer.tsx
+msgid "This save may still land"
+msgstr "This save may still land"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
 msgstr "This server"
@@ -6664,6 +6705,10 @@ msgstr "this server shares what it carries live between everyone reading it."
 #: src/features/apps/AddDomainSheet.tsx
 msgid "This server takes no certificate, and traffic reaches it unencrypted."
 msgstr "This server takes no certificate, and traffic reaches it unencrypted."
+
+#: src/features/files/FileViewer.tsx
+msgid "This server's agent can't save files"
+msgstr "This server's agent can't save files"
 
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -6985,6 +7030,10 @@ msgstr "Update in place"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Update out"
 msgstr "Update out"
+
+#: src/features/files/FileViewer.tsx
+msgid "Update the agent on this server to edit {name} here. You can still read it."
+msgstr "Update the agent on this server to edit {name} here. You can still read it."
 
 #: src/app/Providers.tsx
 msgid "updated"
@@ -7409,6 +7458,10 @@ msgstr "You become the owner. Nobody else can sign in."
 msgid "You can't read these logs"
 msgstr "You can't read these logs"
 
+#: src/features/files/FileViewer.tsx
+msgid "You have unsaved changes to {name}"
+msgstr "You have unsaved changes to {name}"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "You name what connects to this server."
 msgstr "You name what connects to this server."
@@ -7424,6 +7477,14 @@ msgstr "You sign in with it when you use a code."
 #: src/features/auth/ProfilePage.tsx
 msgid "You signed in with a one-time link"
 msgstr "You signed in with a one-time link"
+
+#: src/features/files/FileViewer.tsx
+msgid "You typed them before your session ended, and the file has changed on the server since, so saving will ask what to do."
+msgstr "You typed them before your session ended, and the file has changed on the server since, so saving will ask what to do."
+
+#: src/features/files/FileViewer.tsx
+msgid "You typed them before your session ended."
+msgstr "You typed them before your session ended."
 
 #: src/features/auth/ProfilePage.tsx
 msgid "You used a recovery code"

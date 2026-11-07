@@ -267,11 +267,18 @@ describe("Activity", () => {
       time: timestampFromDate(new Date(Date.now() - 4 * HOUR)),
       subject: { ...on, path: "/etc/nginx/conf.d/app.conf" },
     });
-    watch.push(snapshot([read, refused, failed, saved]));
+    const unknown = auditEvent({
+      id: "evt_unknown",
+      action: "file.save_unknown",
+      time: timestampFromDate(new Date(Date.now() - 5 * HOUR)),
+      subject: { ...on, path: "/etc/hosts" },
+    });
+    watch.push(snapshot([read, refused, failed, saved, unknown]));
     const { router } = renderActivity(watch);
 
     await screen.findByRole("row", { name: /Couldn't open \/root\/\.ssh\/id_rsa on hz-1/ });
     await screen.findByRole("row", { name: /Couldn't save \/etc\/cron\.d\/job on hz-1/ });
+    await screen.findByRole("row", { name: /May have saved \/etc\/hosts on hz-1/ });
     await screen.findByRole("row", { name: /Saved \/etc\/nginx\/conf\.d\/app\.conf on hz-1/ });
     await user.click(await screen.findByRole("row", { name: /Read \/etc\/nginx\/nginx\.conf on hz-1/ }));
     await user.click(await screen.findByRole("link", { name: "Open the file" }));
