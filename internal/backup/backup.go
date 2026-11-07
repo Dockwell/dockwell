@@ -138,6 +138,10 @@ type Preview struct {
 	Database string
 	// Running names what runs on the volume now, as a plan does.
 	Running []string
+	// Estimate is about how much a backup will take on the disk, in bytes, and zero
+	// when that took too long to find out. Free is what's free there, and Reserve how
+	// much of that a backup leaves alone.
+	Estimate, Free, Reserve int64
 }
 
 // Preview says what backing up a volume would do.
@@ -159,6 +163,12 @@ func (r *Runner) Preview(ctx context.Context, ref resource.Ref) (Preview, error)
 	if len(running) > 0 && p.Method == resource.BackupCopy {
 		p.Method = resource.BackupCopyRunning
 	}
+	disk, err := r.disk()
+	if err != nil {
+		return Preview{}, err
+	}
+	p.Free, p.Reserve = disk.free, disk.reserve
+	p.Estimate = r.estimate(ctx, Take{Ref: ref}, t)
 	return p, nil
 }
 
@@ -316,6 +326,7 @@ func check(path string, m *Manifest, verify verifier) error {
 	return nil
 }
 
+// counter counts what's written, and looks at the disk every so often.
 type counter struct {
 	w     io.Writer
 	n     int64

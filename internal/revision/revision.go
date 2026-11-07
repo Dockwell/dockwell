@@ -1124,8 +1124,7 @@ func (e *Engine) load(ctx context.Context, tx *store.Tx, ref resource.Ref) (item
 	if err != nil {
 		return item{}, fault.New(ErrInvalid, "%w", err)
 	}
-	_, valuer := t.(resource.Valuer)
-	it := item{ref: ref, level: t.Level(), runs: t.Level().RunsOnServers() && !valuer, sealed: resource.Sealed(t)}
+	it := item{ref: ref, level: t.Level(), runs: t.Level().RunsOnServers() && !resource.RunsOnNoServer(t), sealed: resource.Sealed(t)}
 	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -3321,6 +3320,40 @@ func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, eve
 		}
 		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: actor, Action: event, Subject: c.ID, Detail: c.Summary, Surface: via})
 	})
+}
+
+// BackupsRestoring names the backups a planned or applying restore brings back.
+func (e *Engine) BackupsRestoring(ctx context.Context) (map[string]bool, error) {
+	out := map[string]bool{}
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		for _, state := range []string{store.ChangePlanned, store.ChangeApplying} {
+			ids, err := tx.ChangesIn(ctx, state)
+			if err != nil {
+				return err
+			}
+			changes, err := tx.GetChanges(ctx, ids)
+			if err != nil {
+				return err
+			}
+			for id := range changes {
+				var p struct {
+					Resources []struct {
+						Restore *resource.RestoreSource
+					}
+				}
+				if err := json.Unmarshal(changes[id].Plan, &p); err != nil {
+					return fmt.Errorf("can't read the plan of %s: %w", id, err)
+				}
+				for i := range p.Resources {
+					if r := p.Resources[i].Restore; r != nil && r.Backup != "" {
+						out[r.Backup] = true
+					}
+				}
+			}
+		}
+		return nil
+	})
+	return out, err
 }
 
 // restoring finds what a change restored, if it restored anything.

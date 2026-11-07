@@ -13,13 +13,14 @@ export function dateLocale(locale: string): string {
  * A date and time the way the product writes them: day before month, short
  * month names ("3 Nov 2026, 21:40"), and the locale's own order elsewhere.
  */
-export function formatDateTime(date: Date, locale: string): string {
+export function formatDateTime(date: Date, locale: string, timeZone?: string): string {
   return new Intl.DateTimeFormat(dateLocale(locale), {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
   }).format(date);
 }
 

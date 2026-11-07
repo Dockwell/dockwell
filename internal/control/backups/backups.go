@@ -86,9 +86,14 @@ type Handler struct {
 	base   context.Context //nolint:containedctx // what every backup under way runs under
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	// Now is the clock; nil means time.Now.
+	Now func() time.Time
+	// began is when this control plane started, as servers need a moment to connect.
+	began time.Time
 
 	mu       sync.Mutex
-	progress map[string]string // how each backup under way is going
+	progress map[string]string        // how each backup under way is going
+	turns    map[string]chan struct{} // whose turn it is on each server, for scheduled runs
 }
 
 var _ dockwellv1connect.BackupServiceHandler = (*Handler)(nil)
@@ -114,6 +119,7 @@ func (h *Handler) Stop() {
 // can't read stays as it is until the next start, as a person needs the panel to
 // find out why.
 func (h *Handler) Recover(ctx context.Context) {
+	h.began = h.now()
 	var running []store.Backup
 	if err := h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -132,7 +138,12 @@ func (h *Handler) Recover(ctx context.Context) {
 	}
 }
 
-func (h *Handler) now() time.Time { return time.Now().UTC() }
+func (h *Handler) now() time.Time {
+	if h.Now != nil {
+		return h.Now().UTC()
+	}
+	return time.Now().UTC()
+}
 
 // volumeOf reads a volume by ID, and where it is.
 func (h *Handler) volumeOf(ctx context.Context, volumeID, serverName string) (resource.Ref, store.Server, error) {
@@ -215,7 +226,10 @@ func (h *Handler) PreviewBackup(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, h.agentError(server, err)
 	}
-	return connect.NewResponse(&dockwellv1.PreviewBackupResponse{Method: p.GetMethod(), Database: p.GetDatabase(), Running: p.GetRunning()}), nil
+	return connect.NewResponse(&dockwellv1.PreviewBackupResponse{
+		Method: p.GetMethod(), Database: p.GetDatabase(), Running: p.GetRunning(),
+		EstimateBytes: p.GetEstimateBytes(), FreeBytes: p.GetFreeBytes(), ReserveBytes: p.GetReserveBytes(),
+	}), nil
 }
 
 // CreateBackup starts a backup, and returns it running.
@@ -241,7 +255,7 @@ func (h *Handler) CreateBackup(ctx context.Context, req *connect.Request[dockwel
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	h.wg.Go(func() { h.run(s, b, ref, m.GetStop(), client.Surface(p)) })
+	h.wg.Go(func() { h.run(s, b, ref, m.GetStop(), client.Surface(p), 0) })
 	out, err := h.proto(ctx, b)
 	if err != nil {
 		return nil, h.fail(ctx, err)
@@ -250,7 +264,7 @@ func (h *Handler) CreateBackup(ctx context.Context, req *connect.Request[dockwel
 }
 
 // run takes a backup on its server, and records how that went.
-func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, stop bool, surface string) {
+func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, stop bool, surface string, keep int) {
 	ctx := resource.WithProgress(h.base, func(message string) {
 		h.mu.Lock()
 		h.progress[b.ID] = message
@@ -261,8 +275,17 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 		delete(h.progress, b.ID)
 		h.mu.Unlock()
 	}()
+	// A schedule cut back holds more than it keeps now, which can be what keeps this
+	// run from fitting, and only a run that's whole would take those away otherwise.
+	if b.PolicyID != "" {
+		h.prune(ctx, s, b, keep)
+	}
 	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop})
 	h.finish(context.WithoutCancel(ctx), b, got, err, surface)
+	// Only once it's whole: a run that fails takes nothing away.
+	if err == nil && b.PolicyID != "" {
+		h.prune(context.WithoutCancel(ctx), s, b, keep)
+	}
 }
 
 // finish records how a backup ended, and says so on the timeline.
@@ -387,22 +410,26 @@ func (h *Handler) DeleteBackup(ctx context.Context, req *connect.Request[dockwel
 			return nil, err
 		}
 	}
-	detail, err := json.Marshal(Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes})
-	if err != nil {
+	if err := h.forget(ctx, &b, p.Actor(), client.Surface(p)); err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	err = h.db.Update(ctx, func(tx *store.Tx) error {
+	return connect.NewResponse(&dockwellv1.DeleteBackupResponse{}), nil
+}
+
+// forget takes a backup off the record, and says so on the timeline.
+func (h *Handler) forget(ctx context.Context, b *store.Backup, actor, surface string) error {
+	detail, err := json.Marshal(Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes})
+	if err != nil {
+		return err
+	}
+	return h.db.Update(ctx, func(tx *store.Tx) error {
 		if err := tx.DeleteBackup(ctx, b.ID); err != nil {
 			return err
 		}
 		return tx.RecordEvent(ctx, store.Event{
-			ID: id.New(id.Event), At: h.now(), Actor: p.Actor(), Action: ActionDeleted, Subject: b.VolumeID, Target: b.ServerID, Detail: string(detail), Surface: client.Surface(p),
+			ID: id.New(id.Event), At: h.now(), Actor: actor, Action: ActionDeleted, Subject: b.VolumeID, Target: b.ServerID, Detail: string(detail), Surface: surface,
 		})
 	})
-	if err != nil {
-		return nil, h.fail(ctx, err)
-	}
-	return connect.NewResponse(&dockwellv1.DeleteBackupResponse{}), nil
 }
 
 // removeFromServer removes a backup's bytes. A server that's been removed from
@@ -472,7 +499,7 @@ func (h *Handler) protoIn(look actors.Lookup, b *store.Backup) *dockwellv1.Backu
 	out := &dockwellv1.Backup{
 		Id: b.ID, EnvironmentId: b.EnvironmentID, Volume: b.Volume, VolumeId: b.VolumeID, ServerId: b.ServerID, ServerName: look.Name(b.ServerID),
 		State: states[b.State], Method: resourcepb.BackupMethod(b.Method), Database: b.Database, SizeBytes: b.SizeBytes, Sha256: b.SHA256,
-		StartedAt: timestamppb.New(b.StartedAt), Actor: look.Actor(b.Actor), Error: b.Error, FilesChanged: b.FilesChanged,
+		StartedAt: timestamppb.New(b.StartedAt), Actor: look.Actor(b.Actor), Error: b.Error, FilesChanged: b.FilesChanged, PolicyId: b.PolicyID,
 	}
 	if b.FinishedAt != nil {
 		out.FinishedAt = timestamppb.New(*b.FinishedAt)

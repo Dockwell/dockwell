@@ -3134,7 +3134,8 @@ tree_before=$(backup_tree) || fail "can't read the volume"
 [[ "$tree_before" == *"./owned/file 1234:5678 640"* && "$tree_before" == *"./owned 0:0 2750"* && "$tree_before" == *". 33:33 750"* ]] ||
   fail "the volume isn't as this step made it: $tree_before"
 said=$(dw backups preview --volume-id "$backup_volume" --json) || fail "previewing a backup failed: $said"
-jq -e '.method == "BACKUP_METHOD_COPY_RUNNING" and .running == ["files"]' <<<"$said" >/dev/null || fail "the preview says: $said"
+jq -e '.method == "BACKUP_METHOD_COPY_RUNNING" and .running == ["files"] and (.estimateBytes | tonumber > 0) and (.freeBytes | tonumber > 0)' <<<"$said" >/dev/null ||
+  fail "the preview says: $said"
 started=$(docker inspect --format '{{.State.StartedAt}}' "$backup_files") || fail "docker inspect failed"
 backup=$(backup_take "$backup_volume" --stop)
 [[ "$(backup_field "$backup" method)" == BACKUP_METHOD_COPY ]] || fail "a copy with the app stopped says $(backup_field "$backup" method)"

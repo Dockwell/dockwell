@@ -33,6 +33,9 @@ type disk struct {
 	filesystem    string // tells it from the disk a volume is on
 }
 
+// NoRoom is a disk with no room for a backup, for a test of what a full one does.
+func NoRoom() disk { return disk{free: 1 << 20, reserve: 1 << 30} }
+
 // disk reads what's free where backups go. Free is what the agent can write, past
 // what the filesystem keeps for root.
 func (r *Runner) disk() (disk, error) {
@@ -126,7 +129,7 @@ func tooFull(d disk, needs int64) error {
 	if needs > 0 {
 		left += ", and this backup takes about " + human.Size(needs)
 	}
-	return fmt.Errorf("%s, and a backup leaves %s alone, so it stopped, with nothing changed. Delete old backups or free some space, then try again", left, human.Size(d.reserve))
+	return fmt.Errorf("%s, and a backup leaves %s alone, so it stopped, with nothing changed. Delete old backups, keep fewer, or free some space, then try again", left, human.Size(d.reserve))
 }
 
 // roomToRestore refuses a restore the server has no room for, before anything stops

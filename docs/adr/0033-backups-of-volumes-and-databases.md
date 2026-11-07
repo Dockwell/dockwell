@@ -86,10 +86,21 @@ What was settled already:
 - **Deleting a backup needs a person** too, as nothing brings one back, and it is what a person relies on after something goes wrong.
 - **A download will need what revealing a secret needs.** A backup holds an app's secrets in its data, with a database's password hashes and whatever the app stored. So a download will need a session and a passkey step-up for that backup, as `RevealSecret` does, no token will be able to make one, and each will be in the audit log. This slice has no download at all. You can fetch a file from the server as root.
 
+### Schedules and retention
+
+- **A schedule is a resource, so setting one is a plan.** Kind `backup.policy`, in the volume's environment: a volume, how often, when, how many to keep, and whether to stop the app for each. Undo and history come with it. It names its volume, so the volume can't go until the policy does.
+- **The control plane keeps the schedule,** as it keeps the record of backups, so the kind runs on no server (`resource.Unplaced`). A run due while it's down happens once, when it's back: servers get 2 minutes after a start to connect, and only one still away past that fails its run. Runs due together on a server go one at a time, so each looks for room in what the last left. That's less than PRD principle 5 asks of what serves traffic, and a backup doesn't serve traffic. An agent keeping its own schedule can come later, with no change to what a policy says.
+- **A run that can't happen says so.** A server that's away, or a disk with no room, fails that run's backup, with the reason, on Activity, under Dockwell's name. The policy goes on from there.
+- **Retention is per policy and per server.** It runs before each run and after one that read back whole, and never goes below what the policy keeps, so a run of failures takes nothing away, and a schedule cut back comes down before a run is refused for room. A backup a planned or running restore names stays until that's over. A backup someone took by hand is theirs, and no policy deletes it. What goes is on the timeline.
+
+### Room on the disk
+
+- **A backup says what it will cost.** `PreviewBackup` gives the last one's size, or what's in the volume before there's been one, and what's free.
+- **A backup never takes the last of the disk.** It leaves 5% alone, between 256 MB and 2 GB. It's refused before anything stops if the last one, and a fifth more, wouldn't fit, and it stops partway if it's about to go below that. Either way nothing is kept of it, and the failure says what to do. A restore's copy of what's there goes through the same check, so a full disk stops a restore before it touches anything.
+
 ### Left for later
 
 These come with the next slices of #88 or their own issues, and each is built on the above:
-- schedules and retention, as plans, with what a backup will cost in disk;
 - S3-compatible storage, with credentials sealed, and encrypted before upload;
 - a backup before a catalog upgrade;
 - bind mounts, which aren't volumes, and websites;

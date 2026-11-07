@@ -6,6 +6,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { BackupPolicy } from "../resource/v1alpha1/specs_pb";
+import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import type { Actor, BackupMethod, Change } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
@@ -18,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/backup.proto.
  */
 export const file_dockwell_v1_backup: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9iYWNrdXAucHJvdG8SC2RvY2t3ZWxsLnYxIr0DCgZCYWNrdXASCgoCaWQYASABKAkSFgoOZW52aXJvbm1lbnRfaWQYAiABKAkSDgoGdm9sdW1lGAMgASgJEhEKCXZvbHVtZV9pZBgEIAEoCRIRCglzZXJ2ZXJfaWQYBSABKAkSEwoLc2VydmVyX25hbWUYBiABKAkSJwoFc3RhdGUYByABKA4yGC5kb2Nrd2VsbC52MS5CYWNrdXBTdGF0ZRIpCgZtZXRob2QYCCABKA4yGS5kb2Nrd2VsbC52MS5CYWNrdXBNZXRob2QSEAoIZGF0YWJhc2UYCSABKAkSEgoKc2l6ZV9ieXRlcxgKIAEoAxIOCgZzaGEyNTYYCyABKAkSLgoKc3RhcnRlZF9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiEKBWFjdG9yGA4gASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISDQoFZXJyb3IYDyABKAkSFQoNZmlsZXNfY2hhbmdlZBgQIAEoAxIQCghwcm9ncmVzcxgRIAEoCSJmChJMaXN0QmFja3Vwc1JlcXVlc3QSEQoJcGFnZV9zaXplGAEgASgFEhIKCnBhZ2VfdG9rZW4YAiABKAkSEQoJdm9sdW1lX2lkGAMgASgJEhYKDmVudmlyb25tZW50X2lkGAQgASgJIlQKE0xpc3RCYWNrdXBzUmVzcG9uc2USJAoHYmFja3VwcxgBIAMoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiHgoQR2V0QmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRCYWNrdXBSZXNwb25zZRIjCgZiYWNrdXAYASABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXAiOQoUUHJldmlld0JhY2t1cFJlcXVlc3QSEQoJdm9sdW1lX2lkGAEgASgJEg4KBnNlcnZlchgCIAEoCSJlChVQcmV2aWV3QmFja3VwUmVzcG9uc2USKQoGbWV0aG9kGAEgASgOMhkuZG9ja3dlbGwudjEuQmFja3VwTWV0aG9kEhAKCGRhdGFiYXNlGAIgASgJEg8KB3J1bm5pbmcYAyADKAkiRgoTQ3JlYXRlQmFja3VwUmVxdWVzdBIRCgl2b2x1bWVfaWQYASABKAkSDgoGc2VydmVyGAIgASgJEgwKBHN0b3AYAyABKAgiOwoUQ3JlYXRlQmFja3VwUmVzcG9uc2USIwoGYmFja3VwGAEgASgLMhMuZG9ja3dlbGwudjEuQmFja3VwIiEKE0RlbGV0ZUJhY2t1cFJlcXVlc3QSCgoCaWQYASABKAkiFgoURGVsZXRlQmFja3VwUmVzcG9uc2UiMwoUUmVzdG9yZUJhY2t1cFJlcXVlc3QSCgoCaWQYASABKAkSDwoHc3VtbWFyeRgCIAEoCSI8ChVSZXN0b3JlQmFja3VwUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlKpgBCgtCYWNrdXBTdGF0ZRIcChhCQUNLVVBfU1RBVEVfVU5TUEVDSUZJRUQQABIlChRCQUNLVVBfU1RBVEVfUlVOTklORxABGguiuxgHUnVubmluZxIfChFCQUNLVVBfU1RBVEVfRE9ORRACGgiiuxgERG9uZRIjChNCQUNLVVBfU1RBVEVfRkFJTEVEEAMaCqK7GAZGYWlsZWQyzwUKDUJhY2t1cFNlcnZpY2USbAoLTGlzdEJhY2t1cHMSHy5kb2Nrd2VsbC52MS5MaXN0QmFja3Vwc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5MaXN0QmFja3Vwc1Jlc3BvbnNlIhqQAgGguxgBgtPkkwINEgsvdjEvYmFja3VwcxJrCglHZXRCYWNrdXASHS5kb2Nrd2VsbC52MS5HZXRCYWNrdXBSZXF1ZXN0Gh4uZG9ja3dlbGwudjEuR2V0QmFja3VwUmVzcG9uc2UiH5ACAaC7GAGC0+STAhISEC92MS9iYWNrdXBzL3tpZH0SegoNUHJldmlld0JhY2t1cBIhLmRvY2t3ZWxsLnYxLlByZXZpZXdCYWNrdXBSZXF1ZXN0GiIuZG9ja3dlbGwudjEuUHJldmlld0JhY2t1cFJlc3BvbnNlIiKQAgGguxgBgtPkkwIVEhMvdjEvYmFja3VwczpwcmV2aWV3Em8KDENyZWF0ZUJhY2t1cBIgLmRvY2t3ZWxsLnYxLkNyZWF0ZUJhY2t1cFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5DcmVhdGVCYWNrdXBSZXNwb25zZSIaoLsYA4LT5JMCEDoBKiILL3YxL2JhY2t1cHMSdQoMRGVsZXRlQmFja3VwEiAuZG9ja3dlbGwudjEuRGVsZXRlQmFja3VwUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkRlbGV0ZUJhY2t1cFJlc3BvbnNlIiCguxgEsLsYAYLT5JMCEioQL3YxL2JhY2t1cHMve2lkfRJ/Cg1SZXN0b3JlQmFja3VwEiEuZG9ja3dlbGwudjEuUmVzdG9yZUJhY2t1cFJlcXVlc3QaIi5kb2Nrd2VsbC52MS5SZXN0b3JlQmFja3VwUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS9iYWNrdXBzL3tpZH06cmVzdG9yZUKkAQoPY29tLmRvY2t3ZWxsLnYxQgtCYWNrdXBQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9iYWNrdXAucHJvdG8SC2RvY2t3ZWxsLnYxItADCgZCYWNrdXASCgoCaWQYASABKAkSFgoOZW52aXJvbm1lbnRfaWQYAiABKAkSDgoGdm9sdW1lGAMgASgJEhEKCXZvbHVtZV9pZBgEIAEoCRIRCglzZXJ2ZXJfaWQYBSABKAkSEwoLc2VydmVyX25hbWUYBiABKAkSJwoFc3RhdGUYByABKA4yGC5kb2Nrd2VsbC52MS5CYWNrdXBTdGF0ZRIpCgZtZXRob2QYCCABKA4yGS5kb2Nrd2VsbC52MS5CYWNrdXBNZXRob2QSEAoIZGF0YWJhc2UYCSABKAkSEgoKc2l6ZV9ieXRlcxgKIAEoAxIOCgZzaGEyNTYYCyABKAkSLgoKc3RhcnRlZF9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiEKBWFjdG9yGA4gASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISDQoFZXJyb3IYDyABKAkSFQoNZmlsZXNfY2hhbmdlZBgQIAEoAxIQCghwcm9ncmVzcxgRIAEoCRIRCglwb2xpY3lfaWQYEiABKAki7wEKEEJhY2t1cFBvbGljeUluZm8SCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIWCg5lbnZpcm9ubWVudF9pZBgDIAEoCRI2CgRzcGVjGAQgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQmFja3VwUG9saWN5EiwKCG5leHRfcnVuGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIhCgRsYXN0GAYgASgLMhMuZG9ja3dlbGwudjEuQmFja3VwEgwKBGtlcHQYByABKAUSEgoKa2VwdF9ieXRlcxgIIAEoAyIbChlMaXN0QmFja3VwUG9saWNpZXNSZXF1ZXN0Ik0KGkxpc3RCYWNrdXBQb2xpY2llc1Jlc3BvbnNlEi8KCHBvbGljaWVzGAEgAygLMh0uZG9ja3dlbGwudjEuQmFja3VwUG9saWN5SW5mbyJmChJMaXN0QmFja3Vwc1JlcXVlc3QSEQoJcGFnZV9zaXplGAEgASgFEhIKCnBhZ2VfdG9rZW4YAiABKAkSEQoJdm9sdW1lX2lkGAMgASgJEhYKDmVudmlyb25tZW50X2lkGAQgASgJIlQKE0xpc3RCYWNrdXBzUmVzcG9uc2USJAoHYmFja3VwcxgBIAMoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiHgoQR2V0QmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRCYWNrdXBSZXNwb25zZRIjCgZiYWNrdXAYASABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXAiOQoUUHJldmlld0JhY2t1cFJlcXVlc3QSEQoJdm9sdW1lX2lkGAEgASgJEg4KBnNlcnZlchgCIAEoCSKoAQoVUHJldmlld0JhY2t1cFJlc3BvbnNlEikKBm1ldGhvZBgBIAEoDjIZLmRvY2t3ZWxsLnYxLkJhY2t1cE1ldGhvZBIQCghkYXRhYmFzZRgCIAEoCRIPCgdydW5uaW5nGAMgAygJEhYKDmVzdGltYXRlX2J5dGVzGAQgASgDEhIKCmZyZWVfYnl0ZXMYBSABKAMSFQoNcmVzZXJ2ZV9ieXRlcxgGIAEoAyJGChNDcmVhdGVCYWNrdXBSZXF1ZXN0EhEKCXZvbHVtZV9pZBgBIAEoCRIOCgZzZXJ2ZXIYAiABKAkSDAoEc3RvcBgDIAEoCCI7ChRDcmVhdGVCYWNrdXBSZXNwb25zZRIjCgZiYWNrdXAYASABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXAiIQoTRGVsZXRlQmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCSIWChREZWxldGVCYWNrdXBSZXNwb25zZSIzChRSZXN0b3JlQmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdzdW1tYXJ5GAIgASgJIjwKFVJlc3RvcmVCYWNrdXBSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UqmAEKC0JhY2t1cFN0YXRlEhwKGEJBQ0tVUF9TVEFURV9VTlNQRUNJRklFRBAAEiUKFEJBQ0tVUF9TVEFURV9SVU5OSU5HEAEaC6K7GAdSdW5uaW5nEh8KEUJBQ0tVUF9TVEFURV9ET05FEAIaCKK7GAREb25lEiMKE0JBQ0tVUF9TVEFURV9GQUlMRUQQAxoKorsYBkZhaWxlZDLyBgoNQmFja3VwU2VydmljZRJsCgtMaXN0QmFja3VwcxIfLmRvY2t3ZWxsLnYxLkxpc3RCYWNrdXBzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RCYWNrdXBzUmVzcG9uc2UiGpACAaC7GAGC0+STAg0SCy92MS9iYWNrdXBzEmsKCUdldEJhY2t1cBIdLmRvY2t3ZWxsLnYxLkdldEJhY2t1cFJlcXVlc3QaHi5kb2Nrd2VsbC52MS5HZXRCYWNrdXBSZXNwb25zZSIfkAIBoLsYAYLT5JMCEhIQL3YxL2JhY2t1cHMve2lkfRJ6Cg1QcmV2aWV3QmFja3VwEiEuZG9ja3dlbGwudjEuUHJldmlld0JhY2t1cFJlcXVlc3QaIi5kb2Nrd2VsbC52MS5QcmV2aWV3QmFja3VwUmVzcG9uc2UiIpACAaC7GAGC0+STAhUSEy92MS9iYWNrdXBzOnByZXZpZXcSbwoMQ3JlYXRlQmFja3VwEiAuZG9ja3dlbGwudjEuQ3JlYXRlQmFja3VwUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkNyZWF0ZUJhY2t1cFJlc3BvbnNlIhqguxgDgtPkkwIQOgEqIgsvdjEvYmFja3VwcxJ1CgxEZWxldGVCYWNrdXASIC5kb2Nrd2VsbC52MS5EZWxldGVCYWNrdXBSZXF1ZXN0GiEuZG9ja3dlbGwudjEuRGVsZXRlQmFja3VwUmVzcG9uc2UiIKC7GASwuxgBgtPkkwISKhAvdjEvYmFja3Vwcy97aWR9EqABChJMaXN0QmFja3VwUG9saWNpZXMSJi5kb2Nrd2VsbC52MS5MaXN0QmFja3VwUG9saWNpZXNSZXF1ZXN0GicuZG9ja3dlbGwudjEuTGlzdEJhY2t1cFBvbGljaWVzUmVzcG9uc2UiOZACAaC7GAGquxgTCgdiYWNrdXBzEghwb2xpY2llc4LT5JMCFRITL3YxL2JhY2t1cC1wb2xpY2llcxJ/Cg1SZXN0b3JlQmFja3VwEiEuZG9ja3dlbGwudjEuUmVzdG9yZUJhY2t1cFJlcXVlc3QaIi5kb2Nrd2VsbC52MS5SZXN0b3JlQmFja3VwUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS9iYWNrdXBzL3tpZH06cmVzdG9yZUKkAQoPY29tLmRvY2t3ZWxsLnYxQgtCYWNrdXBQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * Backup is one backup of one volume.
@@ -144,6 +146,13 @@ export type Backup = Message<"dockwell.v1.Backup"> & {
    * @generated from field: string progress = 17;
    */
   progress: string;
+
+  /**
+   * The policy that took it, by ID. Empty for one someone took.
+   *
+   * @generated from field: string policy_id = 18;
+   */
+  policyId: string;
 };
 
 /**
@@ -152,6 +161,112 @@ export type Backup = Message<"dockwell.v1.Backup"> & {
  */
 export const BackupSchema: GenMessage<Backup> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_backup, 0);
+
+/**
+ * BackupPolicyInfo is a schedule of backups, as it stands.
+ *
+ * @generated from message dockwell.v1.BackupPolicyInfo
+ */
+export type BackupPolicyInfo = Message<"dockwell.v1.BackupPolicyInfo"> & {
+  /**
+   * The policy's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Its name.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * The environment it's in, by ID.
+   *
+   * @generated from field: string environment_id = 3;
+   */
+  environmentId: string;
+
+  /**
+   * What it asks for.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.BackupPolicy spec = 4;
+   */
+  spec?: BackupPolicy | undefined;
+
+  /**
+   * When it next runs.
+   *
+   * @generated from field: google.protobuf.Timestamp next_run = 5;
+   */
+  nextRun?: Timestamp | undefined;
+
+  /**
+   * Its newest backup, on any server. Unset until it has run.
+   *
+   * @generated from field: dockwell.v1.Backup last = 6;
+   */
+  last?: Backup | undefined;
+
+  /**
+   * How many of its backups are kept now.
+   *
+   * @generated from field: int32 kept = 7;
+   */
+  kept: number;
+
+  /**
+   * How much those take, in bytes.
+   *
+   * @generated from field: int64 kept_bytes = 8;
+   */
+  keptBytes: bigint;
+};
+
+/**
+ * Describes the message dockwell.v1.BackupPolicyInfo.
+ * Use `create(BackupPolicyInfoSchema)` to create a new message.
+ */
+export const BackupPolicyInfoSchema: GenMessage<BackupPolicyInfo> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_backup, 1);
+
+/**
+ * ListBackupPoliciesRequest asks for the schedules of backups.
+ *
+ * @generated from message dockwell.v1.ListBackupPoliciesRequest
+ */
+export type ListBackupPoliciesRequest = Message<"dockwell.v1.ListBackupPoliciesRequest"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.ListBackupPoliciesRequest.
+ * Use `create(ListBackupPoliciesRequestSchema)` to create a new message.
+ */
+export const ListBackupPoliciesRequestSchema: GenMessage<ListBackupPoliciesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_backup, 2);
+
+/**
+ * ListBackupPoliciesResponse lists them.
+ *
+ * @generated from message dockwell.v1.ListBackupPoliciesResponse
+ */
+export type ListBackupPoliciesResponse = Message<"dockwell.v1.ListBackupPoliciesResponse"> & {
+  /**
+   * The policies, by name.
+   *
+   * @generated from field: repeated dockwell.v1.BackupPolicyInfo policies = 1;
+   */
+  policies: BackupPolicyInfo[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListBackupPoliciesResponse.
+ * Use `create(ListBackupPoliciesResponseSchema)` to create a new message.
+ */
+export const ListBackupPoliciesResponseSchema: GenMessage<ListBackupPoliciesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_backup, 3);
 
 /**
  * ListBackupsRequest asks for a page of backups.
@@ -194,7 +309,7 @@ export type ListBackupsRequest = Message<"dockwell.v1.ListBackupsRequest"> & {
  * Use `create(ListBackupsRequestSchema)` to create a new message.
  */
 export const ListBackupsRequestSchema: GenMessage<ListBackupsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 1);
+  messageDesc(file_dockwell_v1_backup, 4);
 
 /**
  * ListBackupsResponse is a page of backups.
@@ -222,7 +337,7 @@ export type ListBackupsResponse = Message<"dockwell.v1.ListBackupsResponse"> & {
  * Use `create(ListBackupsResponseSchema)` to create a new message.
  */
 export const ListBackupsResponseSchema: GenMessage<ListBackupsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 2);
+  messageDesc(file_dockwell_v1_backup, 5);
 
 /**
  * GetBackupRequest names a backup.
@@ -243,7 +358,7 @@ export type GetBackupRequest = Message<"dockwell.v1.GetBackupRequest"> & {
  * Use `create(GetBackupRequestSchema)` to create a new message.
  */
 export const GetBackupRequestSchema: GenMessage<GetBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 3);
+  messageDesc(file_dockwell_v1_backup, 6);
 
 /**
  * GetBackupResponse is one backup.
@@ -264,7 +379,7 @@ export type GetBackupResponse = Message<"dockwell.v1.GetBackupResponse"> & {
  * Use `create(GetBackupResponseSchema)` to create a new message.
  */
 export const GetBackupResponseSchema: GenMessage<GetBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 4);
+  messageDesc(file_dockwell_v1_backup, 7);
 
 /**
  * PreviewBackupRequest names a volume.
@@ -292,7 +407,7 @@ export type PreviewBackupRequest = Message<"dockwell.v1.PreviewBackupRequest"> &
  * Use `create(PreviewBackupRequestSchema)` to create a new message.
  */
 export const PreviewBackupRequestSchema: GenMessage<PreviewBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 5);
+  messageDesc(file_dockwell_v1_backup, 8);
 
 /**
  * PreviewBackupResponse says what backing up a volume would do.
@@ -321,6 +436,30 @@ export type PreviewBackupResponse = Message<"dockwell.v1.PreviewBackupResponse">
    * @generated from field: repeated string running = 3;
    */
   running: string[];
+
+  /**
+   * About how much a backup will take on the server's disk, in bytes: the last one's
+   * size, or what's in the volume before there's been one. Zero when that took too
+   * long to find out.
+   *
+   * @generated from field: int64 estimate_bytes = 4;
+   */
+  estimateBytes: bigint;
+
+  /**
+   * What's free on the disk that holds backups, in bytes.
+   *
+   * @generated from field: int64 free_bytes = 5;
+   */
+  freeBytes: bigint;
+
+  /**
+   * How much of that a backup leaves alone, in bytes: one that would go below this is
+   * refused, or stops, so a backup never fills the disk.
+   *
+   * @generated from field: int64 reserve_bytes = 6;
+   */
+  reserveBytes: bigint;
 };
 
 /**
@@ -328,7 +467,7 @@ export type PreviewBackupResponse = Message<"dockwell.v1.PreviewBackupResponse">
  * Use `create(PreviewBackupResponseSchema)` to create a new message.
  */
 export const PreviewBackupResponseSchema: GenMessage<PreviewBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 6);
+  messageDesc(file_dockwell_v1_backup, 9);
 
 /**
  * CreateBackupRequest asks to back up a volume.
@@ -364,7 +503,7 @@ export type CreateBackupRequest = Message<"dockwell.v1.CreateBackupRequest"> & {
  * Use `create(CreateBackupRequestSchema)` to create a new message.
  */
 export const CreateBackupRequestSchema: GenMessage<CreateBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 7);
+  messageDesc(file_dockwell_v1_backup, 10);
 
 /**
  * CreateBackupResponse is the backup, running.
@@ -385,7 +524,7 @@ export type CreateBackupResponse = Message<"dockwell.v1.CreateBackupResponse"> &
  * Use `create(CreateBackupResponseSchema)` to create a new message.
  */
 export const CreateBackupResponseSchema: GenMessage<CreateBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 8);
+  messageDesc(file_dockwell_v1_backup, 11);
 
 /**
  * DeleteBackupRequest names a backup.
@@ -406,7 +545,7 @@ export type DeleteBackupRequest = Message<"dockwell.v1.DeleteBackupRequest"> & {
  * Use `create(DeleteBackupRequestSchema)` to create a new message.
  */
 export const DeleteBackupRequestSchema: GenMessage<DeleteBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 9);
+  messageDesc(file_dockwell_v1_backup, 12);
 
 /**
  * DeleteBackupResponse says it's gone.
@@ -421,7 +560,7 @@ export type DeleteBackupResponse = Message<"dockwell.v1.DeleteBackupResponse"> &
  * Use `create(DeleteBackupResponseSchema)` to create a new message.
  */
 export const DeleteBackupResponseSchema: GenMessage<DeleteBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 10);
+  messageDesc(file_dockwell_v1_backup, 13);
 
 /**
  * RestoreBackupRequest asks to restore a backup.
@@ -449,7 +588,7 @@ export type RestoreBackupRequest = Message<"dockwell.v1.RestoreBackupRequest"> &
  * Use `create(RestoreBackupRequestSchema)` to create a new message.
  */
 export const RestoreBackupRequestSchema: GenMessage<RestoreBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 11);
+  messageDesc(file_dockwell_v1_backup, 14);
 
 /**
  * RestoreBackupResponse is the change that restores it.
@@ -470,7 +609,7 @@ export type RestoreBackupResponse = Message<"dockwell.v1.RestoreBackupResponse">
  * Use `create(RestoreBackupResponseSchema)` to create a new message.
  */
 export const RestoreBackupResponseSchema: GenMessage<RestoreBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 12);
+  messageDesc(file_dockwell_v1_backup, 15);
 
 /**
  * BackupState says where a backup is.
@@ -581,6 +720,18 @@ export const BackupService: GenService<{
     methodKind: "unary";
     input: typeof DeleteBackupRequestSchema;
     output: typeof DeleteBackupResponseSchema;
+  },
+  /**
+   * ListBackupPolicies returns the schedules of backups, with when each next runs
+   * and how its last run went. A policy is a resource: create, change and delete
+   * one as a change, of kind "backup.policy".
+   *
+   * @generated from rpc dockwell.v1.BackupService.ListBackupPolicies
+   */
+  listBackupPolicies: {
+    methodKind: "unary";
+    input: typeof ListBackupPoliciesRequestSchema;
+    output: typeof ListBackupPoliciesResponseSchema;
   },
   /**
    * RestoreBackup plans replacing what's in a backup's volume with what the

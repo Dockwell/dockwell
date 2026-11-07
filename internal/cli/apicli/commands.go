@@ -292,7 +292,7 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 		}
 		settingsFlags(parent, o)
 	}
-	_, unplaced := t.(resource.Valuer)
+	unplaced := resource.RunsOnNoServer(t)
 	for _, v := range kindVerbs {
 		cmd := &cobra.Command{
 			Use:   v.verb + " <name>",

@@ -134,6 +134,17 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.ListBackupsRequest, v1.ListBackupsResponse](dockwellv1connect.BackupServiceListBackupsProcedure),
 		},
 		{
+			Name:      "dockwell.v1.BackupService.ListBackupPolicies",
+			Procedure: dockwellv1connect.BackupServiceListBackupPoliciesProcedure,
+			HTTP:      "GET /v1/backup-policies",
+			Noun:      "backups",
+			Verb:      "policies",
+			Short:     "Return the schedules of backups",
+			Long:      "Return the schedules of backups, with when each next runs and how its last run\nwent. A policy is a resource: create, change and delete one as a change, of kind\n\"backup.policy\".",
+			Effect:    v1.Effect_EFFECT_READ,
+			Call:      apicli.Unary[v1.ListBackupPoliciesRequest, v1.ListBackupPoliciesResponse](dockwellv1connect.BackupServiceListBackupPoliciesProcedure),
+		},
+		{
 			Name:      "dockwell.v1.BackupService.PreviewBackup",
 			Procedure: dockwellv1connect.BackupServicePreviewBackupProcedure,
 			HTTP:      "GET /v1/backups:preview",
@@ -1187,7 +1198,7 @@ func Nouns() []apicli.Noun {
 	return []apicli.Noun{
 		{Name: "api-tokens", Short: "Create, list or revoke API tokens", Long: "TokenService manages API tokens: secrets for scripts, the CLI and integrations,\neach acting for the person who made it, within a scope. See\ndocs/adr/0016-scoped-api-tokens.md.\n\nSend a token in the Authorization header, as \"Bearer dwt_…\", with REST, Connect,\ngRPC or gRPC-Web alike. A read-only token may call the methods whose effect is\nEFFECT_READ; a read-write token may also call EFFECT_PLAN and EFFECT_APPLY\nmethods. No token may call an EFFECT_DESTRUCTIVE method, AuthService, or this\nservice: they need a signed-in session."},
 		{Name: "auth-state", Short: "Say whether the install has an owner", Long: "The install's auth state says whether it has an owner yet, who is signed in on a\nrequest, and which address passkeys are made for there. dockwell auth-state get\nneeds no sign-in."},
-		{Name: "backups", Short: "List, get, preview, create, delete or restore backups", Long: "BackupService is an app's volumes and databases, backed up on the server that\nhas them. Taking a backup is an event: it changes no desired state, so it makes\nno revision, and a failed one shows on the timeline. Restoring one is a change\nwith a plan, which says what it replaces and what stops, and which only a person\ncan apply. See docs/adr/0033-backups-of-volumes-and-databases.md.\n\nA backup holds what its app stored, secrets among them, so nothing here gives\nanyone its bytes."},
+		{Name: "backups", Short: "List, get, preview, create, delete, policies or restore backups, and 0 more", Long: "BackupService is an app's volumes and databases, backed up on the server that\nhas them. Taking a backup is an event: it changes no desired state, so it makes\nno revision, and a failed one shows on the timeline. Restoring one is a change\nwith a plan, which says what it replaces and what stops, and which only a person\ncan apply. See docs/adr/0033-backups-of-volumes-and-databases.md.\n\nA backup holds what its app stored, secrets among them, so nothing here gives\nanyone its bytes."},
 		{Name: "catalog", Short: "List, get, installs, upgrade or install catalog", Long: "CatalogService lists the apps you can install, and plans installing one as a\nproject of its own: a Compose file with sensible ports and generated passwords,\nsealed, through the same plan as any other change. Nothing runs until you apply\nit. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md."},
 		{Name: "changes", Short: "Propose, get, list, apply, watch, undo or discard changes", Long: "A change is a set of edits to managed state, with the plan that carries them\nout. You propose edits and get a plan back; applying it writes immutable\nrevisions and runs its steps on the servers; undoing it makes a new plan that\nputs things back. A change applies only as it was planned, and a plan never\nshows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and\ndocs/adr/0017-the-change-api-and-the-agent-stream.md."},
 		{Name: "claim-link", Short: "Check, begin or finish claim link", Long: "A claim link, which dockwell run and dockwell claim print, creates the install's\nowner with a passkey, and works once. dockwell claim-link check describes the\nserver a link claims, and dockwell claim-link begin and dockwell claim-link\nfinish make the passkey, which takes a browser: open the link in one."},
@@ -1404,6 +1415,21 @@ func Kinds() []*apicli.Kind {
 				{Path: "trusted_proxies", Help: "The proxies in front of this server whose word this route takes on where a request came from, each an address, a range such as \"203.0.113.0/24\", or \"cloudflare\" for Cloudflare's published ranges. A request from anywhere else has its address taken from the connection, whatever another route on the server names. From an address or a range, X-Forwarded-For is read from the right. From \"cloudflare\", CF-Connecting-IP is read, as Cloudflare documents, and it's only as sure as Cloudflare says: see docs/security/ingress.md. A person approves each one a change adds, as a proxy that isn't really one makes client addresses forgeable. A range of Cloudflare's is named by the preset, and a public range wider than /12, or /28 in IPv6, or a private one wider than /8, isn't taken."},
 				{Path: "host_port", Help: "A port on the server itself, such as 8080, in place of port, for a service on the server's own network, which a route can't send to by name, or with no service at all, for something that isn't a Dockwell service. The proxy dials 127.0.0.1 on it, so what's there sees every caller as local. It reaches past containers, so a person approves it, and any change to where it answers. Dockwell's own ports, and Docker's API, on 2375, 2376 or wherever dockerd listens, aren't taken."},
 				{Path: "plain_for_anyone", Help: "True for a route that says tls off to answer anyone who can reach this server's port 80, as for a site on a private network, or a load balancer whose addresses aren't known. It goes around whatever is in front, so a person approves it."},
+			},
+		},
+		{
+			Field: "backup_policy",
+			Noun:  "backup-policies",
+			Short: "A schedule of backups of a volume, kind \"backup.policy\"",
+			Long:  "BackupPolicy backs up a volume in its environment on a schedule, on every server\nthat has it, and keeps the newest of those backups. A backup someone takes by\nhand is theirs, and no policy deletes it. The control plane runs the schedule,\nso a run due while it's down happens when it's back.",
+			Fields: []apicli.Field{
+				{Path: "volume", Help: "The volume, by name, in this environment."},
+				{Path: "every", Help: "How often it runs."},
+				{Path: "at", Help: "The time it runs, as 24-hour HH:MM: \"03:00\" unless set."},
+				{Path: "weekday", Help: "The day it runs each week, as 0 for Sunday to 6 for Saturday."},
+				{Path: "time_zone", Help: "The time zone at is in, such as \"Europe/Amsterdam\": \"UTC\" unless set."},
+				{Path: "keep", Help: "How many of its backups to keep, on each server, newest first: 7 unless set."},
+				{Path: "stop", Help: "Stop what runs on the volume for an exact copy of its files, and start it again after. A database's dump stops nothing. Without it, a copy of a running app's files can hold half a write."},
 			},
 		},
 	}

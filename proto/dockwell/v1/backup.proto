@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -61,6 +62,19 @@ service BackupService {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
     option (dockwell.v1.needs_session) = true;
     option (google.api.http) = {delete: "/v1/backups/{id}"};
+  }
+
+  // ListBackupPolicies returns the schedules of backups, with when each next runs
+  // and how its last run went. A policy is a resource: create, change and delete
+  // one as a change, of kind "backup.policy".
+  rpc ListBackupPolicies(ListBackupPoliciesRequest) returns (ListBackupPoliciesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.command) = {
+      noun: "backups"
+      verb: "policies"
+    };
+    option (google.api.http) = {get: "/v1/backup-policies"};
   }
 
   // RestoreBackup plans replacing what's in a backup's volume with what the
@@ -124,6 +138,37 @@ message Backup {
   int64 files_changed = 16;
   // How one under way is going, for people, such as "Copying data: 1.2 GB so far".
   string progress = 17;
+  // The policy that took it, by ID. Empty for one someone took.
+  string policy_id = 18;
+}
+
+// BackupPolicyInfo is a schedule of backups, as it stands.
+message BackupPolicyInfo {
+  // The policy's ID.
+  string id = 1;
+  // Its name.
+  string name = 2;
+  // The environment it's in, by ID.
+  string environment_id = 3;
+  // What it asks for.
+  dockwell.resource.v1alpha1.BackupPolicy spec = 4;
+  // When it next runs.
+  google.protobuf.Timestamp next_run = 5;
+  // Its newest backup, on any server. Unset until it has run.
+  Backup last = 6;
+  // How many of its backups are kept now.
+  int32 kept = 7;
+  // How much those take, in bytes.
+  int64 kept_bytes = 8;
+}
+
+// ListBackupPoliciesRequest asks for the schedules of backups.
+message ListBackupPoliciesRequest {}
+
+// ListBackupPoliciesResponse lists them.
+message ListBackupPoliciesResponse {
+  // The policies, by name.
+  repeated BackupPolicyInfo policies = 1;
 }
 
 // ListBackupsRequest asks for a page of backups.
@@ -176,6 +221,15 @@ message PreviewBackupResponse {
   // What runs on the volume now: services by name, and anything else by its
   // container's.
   repeated string running = 3;
+  // About how much a backup will take on the server's disk, in bytes: the last one's
+  // size, or what's in the volume before there's been one. Zero when that took too
+  // long to find out.
+  int64 estimate_bytes = 4;
+  // What's free on the disk that holds backups, in bytes.
+  int64 free_bytes = 5;
+  // How much of that a backup leaves alone, in bytes: one that would go below this is
+  // refused, or stops, so a backup never fills the disk.
+  int64 reserve_bytes = 6;
 }
 
 // CreateBackupRequest asks to back up a volume.

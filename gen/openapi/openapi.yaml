@@ -27,6 +27,28 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/backup-policies:
+        get:
+            tags:
+                - BackupService
+            description: |-
+                ListBackupPolicies returns the schedules of backups, with when each next runs
+                 and how its last run went. A policy is a resource: create, change and delete
+                 one as a change, of kind "backup.policy".
+            operationId: BackupService_ListBackupPolicies
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListBackupPoliciesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/backups:
         get:
             tags:
@@ -2703,7 +2725,82 @@ components:
                 progress:
                     type: string
                     description: 'How one under way is going, for people, such as "Copying data: 1.2 GB so far".'
+                policyId:
+                    type: string
+                    description: The policy that took it, by ID. Empty for one someone took.
             description: Backup is one backup of one volume.
+        BackupPolicy:
+            type: object
+            properties:
+                volume:
+                    type: string
+                    description: The volume, by name, in this environment.
+                every:
+                    enum:
+                        - EVERY_UNSPECIFIED
+                        - EVERY_HOUR
+                        - EVERY_DAY
+                        - EVERY_WEEK
+                    type: string
+                    description: How often it runs.
+                    format: enum
+                at:
+                    type: string
+                    description: 'The time it runs, as 24-hour HH:MM: "03:00" unless set.'
+                weekday:
+                    type: integer
+                    description: The day it runs each week, as 0 for Sunday to 6 for Saturday.
+                    format: int32
+                timeZone:
+                    type: string
+                    description: 'The time zone at is in, such as "Europe/Amsterdam": "UTC" unless set.'
+                keep:
+                    type: integer
+                    description: 'How many of its backups to keep, on each server, newest first: 7 unless set.'
+                    format: uint32
+                stop:
+                    type: boolean
+                    description: |-
+                        Stop what runs on the volume for an exact copy of its files, and start it again
+                         after. A database's dump stops nothing. Without it, a copy of a running app's
+                         files can hold half a write.
+            description: |-
+                BackupPolicy backs up a volume in its environment on a schedule, on every server
+                 that has it, and keeps the newest of those backups. A backup someone takes by
+                 hand is theirs, and no policy deletes it. The control plane runs the schedule, so
+                 a run due while it's down happens when it's back.
+        BackupPolicyInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The policy's ID.
+                name:
+                    type: string
+                    description: Its name.
+                environmentId:
+                    type: string
+                    description: The environment it's in, by ID.
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupPolicy'
+                    description: What it asks for.
+                nextRun:
+                    type: string
+                    description: When it next runs.
+                    format: date-time
+                last:
+                    allOf:
+                        - $ref: '#/components/schemas/Backup'
+                    description: Its newest backup, on any server. Unset until it has run.
+                kept:
+                    type: integer
+                    description: How many of its backups are kept now.
+                    format: int32
+                keptBytes:
+                    type: string
+                    description: How much those take, in bytes.
+            description: BackupPolicyInfo is a schedule of backups, as it stands.
         BeginAddPasskeyRequest:
             type: object
             properties:
@@ -5038,6 +5135,15 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        ListBackupPoliciesResponse:
+            type: object
+            properties:
+                policies:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/BackupPolicyInfo'
+                    description: The policies, by name.
+            description: ListBackupPoliciesResponse lists them.
         ListBackupsResponse:
             type: object
             properties:
@@ -6055,6 +6161,20 @@ components:
                     description: |-
                         What runs on the volume now: services by name, and anything else by its
                          container's.
+                estimateBytes:
+                    type: string
+                    description: |-
+                        About how much a backup will take on the server's disk, in bytes: the last one's
+                         size, or what's in the volume before there's been one. Zero when that took too
+                         long to find out.
+                freeBytes:
+                    type: string
+                    description: What's free on the disk that holds backups, in bytes.
+                reserveBytes:
+                    type: string
+                    description: |-
+                        How much of that a backup leaves alone, in bytes: one that would go below this is
+                         refused, or stops, so a backup never fills the disk.
             description: PreviewBackupResponse says what backing up a volume would do.
         Project:
             type: object
@@ -7608,6 +7728,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/Route'
                     description: A domain or path sent to a service, kind "route".
+                backupPolicy:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupPolicy'
+                    description: |-
+                        A schedule of backups of a volume, kind "backup.policy". Numbered apart,
+                         as open work adds to this message.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
