@@ -28,11 +28,15 @@ import { Route as ShellAppsNewRouteImport } from './routes/_shell/apps.new'
 import { Route as ShellCatalogIndexRouteImport } from './routes/_shell/catalog.index'
 import { Route as ShellCatalogEntryIdRouteImport } from './routes/_shell/catalog.$entryId'
 import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
+import { Route as ShellDatabasesIndexRouteImport } from './routes/_shell/databases.index'
+import { Route as ShellDatabasesServiceIdRouteImport } from './routes/_shell/databases.$serviceId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
 import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_shell/apps.$serviceId.deployments'
 import { Route as ShellAppsServiceIdEnvironmentRouteImport } from './routes/_shell/apps.$serviceId.environment'
 import { Route as ShellAppsServiceIdLogsRouteImport } from './routes/_shell/apps.$serviceId.logs'
+import { Route as ShellDatabasesServiceIdIndexRouteImport } from './routes/_shell/databases.$serviceId.index'
+import { Route as ShellDatabasesServiceIdUsersRouteImport } from './routes/_shell/databases.$serviceId.users'
 import { Route as ShellServersServerIdIndexRouteImport } from './routes/_shell/servers.$serverId.index'
 import { Route as ShellServersServerIdFilesRouteImport } from './routes/_shell/servers.$serverId.files'
 import { Route as ShellServersServerIdContainersNameRouteImport } from './routes/_shell/servers.$serverId.containers.$name'
@@ -131,6 +135,16 @@ const ShellChangesChangeIdRoute = ShellChangesChangeIdRouteImport.update({
   path: '/changes/$changeId',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellDatabasesIndexRoute = ShellDatabasesIndexRouteImport.update({
+  id: '/databases/',
+  path: '/databases/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellDatabasesServiceIdRoute = ShellDatabasesServiceIdRouteImport.update({
+  id: '/databases/$serviceId',
+  path: '/databases/$serviceId',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellServersIndexRoute = ShellServersIndexRouteImport.update({
   id: '/servers/',
   path: '/servers/',
@@ -158,6 +172,18 @@ const ShellAppsServiceIdLogsRoute = ShellAppsServiceIdLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => ShellAppsServiceIdRoute,
 } as any)
+const ShellDatabasesServiceIdIndexRoute =
+  ShellDatabasesServiceIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ShellDatabasesServiceIdRoute,
+  } as any)
+const ShellDatabasesServiceIdUsersRoute =
+  ShellDatabasesServiceIdUsersRouteImport.update({
+    id: '/users',
+    path: '/users',
+    getParentRoute: () => ShellDatabasesServiceIdRoute,
+  } as any)
 const ShellServersServerIdIndexRoute =
   ShellServersServerIdIndexRouteImport.update({
     id: '/servers/$serverId/',
@@ -194,14 +220,18 @@ export interface FileRoutesByFullPath {
   '/apps/new': typeof ShellAppsNewRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
+  '/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/apps/': typeof ShellAppsIndexRoute
   '/catalog/': typeof ShellCatalogIndexRoute
+  '/databases/': typeof ShellDatabasesIndexRoute
   '/servers/': typeof ShellServersIndexRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/apps/$serviceId/': typeof ShellAppsServiceIdIndexRoute
+  '/databases/$serviceId/': typeof ShellDatabasesServiceIdIndexRoute
   '/servers/$serverId/': typeof ShellServersServerIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
 }
@@ -223,12 +253,15 @@ export interface FileRoutesByTo {
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/apps': typeof ShellAppsIndexRoute
   '/catalog': typeof ShellCatalogIndexRoute
+  '/databases': typeof ShellDatabasesIndexRoute
   '/servers': typeof ShellServersIndexRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdIndexRoute
+  '/databases/$serviceId': typeof ShellDatabasesServiceIdIndexRoute
   '/servers/$serverId': typeof ShellServersServerIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
 }
@@ -251,14 +284,18 @@ export interface FileRoutesById {
   '/_shell/apps/new': typeof ShellAppsNewRoute
   '/_shell/catalog/$entryId': typeof ShellCatalogEntryIdRoute
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
+  '/_shell/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/_shell/apps/': typeof ShellAppsIndexRoute
   '/_shell/catalog/': typeof ShellCatalogIndexRoute
+  '/_shell/databases/': typeof ShellDatabasesIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/_shell/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/_shell/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/_shell/apps/$serviceId/': typeof ShellAppsServiceIdIndexRoute
+  '/_shell/databases/$serviceId/': typeof ShellDatabasesServiceIdIndexRoute
   '/_shell/servers/$serverId/': typeof ShellServersServerIdIndexRoute
   '/_shell/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
 }
@@ -281,14 +318,18 @@ export interface FileRouteTypes {
     | '/apps/new'
     | '/catalog/$entryId'
     | '/changes/$changeId'
+    | '/databases/$serviceId'
     | '/apps/'
     | '/catalog/'
+    | '/databases/'
     | '/servers/'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
+    | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
     | '/apps/$serviceId/'
+    | '/databases/$serviceId/'
     | '/servers/$serverId/'
     | '/servers/$serverId/containers/$name'
   fileRoutesByTo: FileRoutesByTo
@@ -310,12 +351,15 @@ export interface FileRouteTypes {
     | '/changes/$changeId'
     | '/apps'
     | '/catalog'
+    | '/databases'
     | '/servers'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
+    | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
     | '/apps/$serviceId'
+    | '/databases/$serviceId'
     | '/servers/$serverId'
     | '/servers/$serverId/containers/$name'
   id:
@@ -337,14 +381,18 @@ export interface FileRouteTypes {
     | '/_shell/apps/new'
     | '/_shell/catalog/$entryId'
     | '/_shell/changes/$changeId'
+    | '/_shell/databases/$serviceId'
     | '/_shell/apps/'
     | '/_shell/catalog/'
+    | '/_shell/databases/'
     | '/_shell/servers/'
     | '/_shell/apps/$serviceId/deployments'
     | '/_shell/apps/$serviceId/environment'
     | '/_shell/apps/$serviceId/logs'
+    | '/_shell/databases/$serviceId/users'
     | '/_shell/servers/$serverId/files'
     | '/_shell/apps/$serviceId/'
+    | '/_shell/databases/$serviceId/'
     | '/_shell/servers/$serverId/'
     | '/_shell/servers/$serverId/containers/$name'
   fileRoutesById: FileRoutesById
@@ -492,6 +540,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellChangesChangeIdRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/databases/': {
+      id: '/_shell/databases/'
+      path: '/databases'
+      fullPath: '/databases/'
+      preLoaderRoute: typeof ShellDatabasesIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/databases/$serviceId': {
+      id: '/_shell/databases/$serviceId'
+      path: '/databases/$serviceId'
+      fullPath: '/databases/$serviceId'
+      preLoaderRoute: typeof ShellDatabasesServiceIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/': {
       id: '/_shell/servers/'
       path: '/servers'
@@ -526,6 +588,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/apps/$serviceId/logs'
       preLoaderRoute: typeof ShellAppsServiceIdLogsRouteImport
       parentRoute: typeof ShellAppsServiceIdRoute
+    }
+    '/_shell/databases/$serviceId/': {
+      id: '/_shell/databases/$serviceId/'
+      path: '/'
+      fullPath: '/databases/$serviceId/'
+      preLoaderRoute: typeof ShellDatabasesServiceIdIndexRouteImport
+      parentRoute: typeof ShellDatabasesServiceIdRoute
+    }
+    '/_shell/databases/$serviceId/users': {
+      id: '/_shell/databases/$serviceId/users'
+      path: '/users'
+      fullPath: '/databases/$serviceId/users'
+      preLoaderRoute: typeof ShellDatabasesServiceIdUsersRouteImport
+      parentRoute: typeof ShellDatabasesServiceIdRoute
     }
     '/_shell/servers/$serverId/': {
       id: '/_shell/servers/$serverId/'
@@ -568,6 +644,22 @@ const ShellAppsServiceIdRouteChildren: ShellAppsServiceIdRouteChildren = {
 const ShellAppsServiceIdRouteWithChildren =
   ShellAppsServiceIdRoute._addFileChildren(ShellAppsServiceIdRouteChildren)
 
+interface ShellDatabasesServiceIdRouteChildren {
+  ShellDatabasesServiceIdUsersRoute: typeof ShellDatabasesServiceIdUsersRoute
+  ShellDatabasesServiceIdIndexRoute: typeof ShellDatabasesServiceIdIndexRoute
+}
+
+const ShellDatabasesServiceIdRouteChildren: ShellDatabasesServiceIdRouteChildren =
+  {
+    ShellDatabasesServiceIdUsersRoute: ShellDatabasesServiceIdUsersRoute,
+    ShellDatabasesServiceIdIndexRoute: ShellDatabasesServiceIdIndexRoute,
+  }
+
+const ShellDatabasesServiceIdRouteWithChildren =
+  ShellDatabasesServiceIdRoute._addFileChildren(
+    ShellDatabasesServiceIdRouteChildren,
+  )
+
 interface ShellRouteChildren {
   ShellSectionRoute: typeof ShellSectionRoute
   ShellActivityRoute: typeof ShellActivityRoute
@@ -581,8 +673,10 @@ interface ShellRouteChildren {
   ShellAppsNewRoute: typeof ShellAppsNewRoute
   ShellCatalogEntryIdRoute: typeof ShellCatalogEntryIdRoute
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
+  ShellDatabasesServiceIdRoute: typeof ShellDatabasesServiceIdRouteWithChildren
   ShellAppsIndexRoute: typeof ShellAppsIndexRoute
   ShellCatalogIndexRoute: typeof ShellCatalogIndexRoute
+  ShellDatabasesIndexRoute: typeof ShellDatabasesIndexRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
   ShellServersServerIdFilesRoute: typeof ShellServersServerIdFilesRoute
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
@@ -602,8 +696,10 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellAppsNewRoute: ShellAppsNewRoute,
   ShellCatalogEntryIdRoute: ShellCatalogEntryIdRoute,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
+  ShellDatabasesServiceIdRoute: ShellDatabasesServiceIdRouteWithChildren,
   ShellAppsIndexRoute: ShellAppsIndexRoute,
   ShellCatalogIndexRoute: ShellCatalogIndexRoute,
+  ShellDatabasesIndexRoute: ShellDatabasesIndexRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
   ShellServersServerIdFilesRoute: ShellServersServerIdFilesRoute,
   ShellServersServerIdIndexRoute: ShellServersServerIdIndexRoute,

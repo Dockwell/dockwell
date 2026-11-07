@@ -546,6 +546,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Adoption{Adoption: found}}
+	case call.GetDatabase() != nil:
+		if c.cfg.Databases == nil {
+			return fail(errors.New("this agent can't read databases, as it has no Docker driver"))
+		}
+		read, err := c.cfg.Databases.Read(ctx, call.GetDatabase())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Database{Database: read}}
 	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))

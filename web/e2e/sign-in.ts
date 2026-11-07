@@ -15,8 +15,9 @@
 // /changes/<id>. It adds a secret in the panel, reveals it with the passkey, and
 // checks an API token can't. Then it runs the app screens from apps-flow.ts, the
 // plan sheet's every state from plan-flow.ts, an install from catalog-flow.ts, a
-// backup and a restore of what that made from backups-flow.ts, and the Domains
-// section from domains-flow.ts, on the fake Docker Engine of
+// backup and a restore of what that made from backups-flow.ts, the databases from
+// databases-flow.ts, and the Domains section from domains-flow.ts, on the fake
+// Docker Engine of
 // scripts/fakedocker. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
@@ -41,6 +42,7 @@ import { appsFlow } from "./apps-flow.ts";
 import { backupsFlow } from "./backups-flow.ts";
 import { catalogFlow } from "./catalog-flow.ts";
 import { containersFlow } from "./containers-flow.ts";
+import { databasesFlow } from "./databases-flow.ts";
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
 import { domainsFlow } from "./domains-flow.ts";
 import { healthFlow } from "./health-flow.ts";
@@ -852,6 +854,7 @@ async function main() {
     });
     await catalogFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), catalogDir });
     await backupsFlow(page, { origin, step, shoot });
+    await databasesFlow(page, { origin, step, shoot });
     await domainsFlow(page, { origin, step, shoot });
     await containersFlow(page, {
       origin,

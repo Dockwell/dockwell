@@ -69,6 +69,10 @@ export function Rail({ view }: { view: FleetView }) {
       <Link to="/apps" {...current(segment === "apps")}>
         <ItemBody icon="service" label={t`Apps`} />
       </Link>
+      {section("websites")}
+      <Link to="/databases" {...current(segment === "databases")}>
+        <ItemBody icon="database" label={t`Databases`} />
+      </Link>
       {BEFORE_DOMAINS.map(section)}
       <Link to="/domains" {...current(segment === "domains")}>
         <ItemBody icon="link" label={t`Domains`} />

@@ -115,7 +115,9 @@ msgid "{0, plural, one {# revision · newest first} other {# revisions · newest
 msgstr "{0, plural, one {# revision · newest first} other {# revisions · newest first}}"
 
 #. placeholder {0}: servers.length
+#. placeholder {0}: view.servers?.length ?? 0
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, one {# server} other {# servers}}"
 
@@ -259,9 +261,17 @@ msgstr "{count, plural, one {# app in {where}} other {# apps in {where}}}"
 msgid "{count, plural, one {# app} other {# apps}}"
 msgstr "{count, plural, one {# app} other {# apps}}"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "{count, plural, one {# can sign in to {name}} other {# can sign in to {name}}}"
+msgstr "{count, plural, one {# can sign in to {name}} other {# can sign in to {name}}}"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
+msgstr "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
 
 #: src/lib/time.ts
 msgid "{count, plural, one {# day} other {# days}}"
@@ -282,6 +292,14 @@ msgstr "{count, plural, one {# item} other {# items}}"
 #: src/app/Providers.tsx
 msgid "{count, plural, one {# new line} other {# new lines}}"
 msgstr "{count, plural, one {# new line} other {# new lines}}"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+msgstr "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "{count, plural, one {# on {where}} other {# on {where}}}"
+msgstr "{count, plural, one {# on {where}} other {# on {where}}}"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
@@ -381,6 +399,10 @@ msgstr "{database} dump"
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
+msgstr "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
+
 #: src/features/apps/DomainNote.tsx
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
 msgstr "{days, plural, one {Valid for # day} other {Valid for # days}}"
@@ -409,6 +431,22 @@ msgstr "{down} couldn't be searched, so its lines aren't in this."
 msgid "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
 msgstr "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{engine} didn't say how it is"
+msgstr "{engine} didn't say how it is"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "{engine} didn't say who's in it"
+msgstr "{engine} didn't say who's in it"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "{engine} on {server}"
+msgstr "{engine} on {server}"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{engine}'s own dump, while it runs: nothing stops"
+msgstr "{engine}'s own dump, while it runs: nothing stops"
+
 #: src/features/logs/LogsPage.tsx
 msgid "{errors, plural, one {{count} error} other {{count} errors}}"
 msgstr "{errors, plural, one {{count} error} other {{count} errors}}"
@@ -420,6 +458,10 @@ msgstr "{first} couldn't be searched"
 #: src/features/servers/ServerMetrics.tsx
 msgid "{free} free"
 msgstr "{free} free"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
+msgstr "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
@@ -449,6 +491,10 @@ msgstr "{minutes} min"
 #: src/lib/time.ts
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} min {seconds} s"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "{more, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+msgstr "{more, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
@@ -900,6 +946,14 @@ msgstr "{server} went offline during this rollback"
 msgid "{servers} offline"
 msgstr "{servers} offline"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{servers}, and sealed on {destination}"
+msgstr "{servers}, and sealed on {destination}"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{servers}, unencrypted"
+msgstr "{servers}, unencrypted"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
@@ -985,6 +1039,10 @@ msgstr "{unlisted, plural, one {This server has # more container than fit here.}
 msgid "{used} of {total}"
 msgstr "{used} of {total}"
 
+#: src/features/databases/Meter.tsx
+msgid "{usedWords} of {ofWords}"
+msgstr "{usedWords} of {ofWords}"
+
 #: src/features/logs/LogFoot.tsx
 msgid "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
 msgstr "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
@@ -1022,6 +1080,7 @@ msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 msgid "{writtenBy} wrote these files, and {runsOn} runs on them now"
 msgstr "{writtenBy} wrote these files, and {runsOn} runs on them now"
 
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "+{left}"
 msgstr "+{left}"
@@ -1139,6 +1198,10 @@ msgstr "<0>{server}</0> isn't connected, so this is what it last said, {when}: {
 msgid "<0>{server}</0> isn't connected, so this is what it last said: {last}. <1>Check its page</1>"
 msgstr "<0>{server}</0> isn't connected, so this is what it last said: {last}. <1>Check its page</1>"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
+msgstr "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
+
 #: src/features/apps/AppLayout.tsx
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
@@ -1239,6 +1302,10 @@ msgstr "A container's log goes when it is removed. Each server keeps the logs of
 #: src/features/backups/BackUpSheet.tsx
 msgid "A copy of a running app's files can hold half a write, and the app may not start from it."
 msgstr "A copy of a running app's files can hold half a write, and the app may not start from it."
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
+msgstr "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
 
 #: src/features/domains/DomainsPage.tsx
 msgid "A domain sends people to an app, so run one first."
@@ -1367,6 +1434,7 @@ msgid "Actions"
 msgstr "Actions"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Activity"
@@ -1522,6 +1590,7 @@ msgid "All actors"
 msgstr "All actors"
 
 #: src/features/backups/AppBackups.tsx
+#: src/features/databases/DatabaseOverview.tsx
 msgid "All backups"
 msgstr "All backups"
 
@@ -1788,6 +1857,7 @@ msgid "Automation"
 msgstr "Automation"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/databases/DatabaseLayout.tsx
 #: src/features/shell/Page.tsx
 msgid "Back"
 msgstr "Back"
@@ -1832,12 +1902,18 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "Back up now"
 msgstr "Back up now"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Back up on a schedule"
 msgstr "Back up on a schedule"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "backed up {ago}"
+msgstr "backed up {ago}"
 
 #: src/features/activity/describe.ts
 msgid "Backed up {volume}"
@@ -1850,6 +1926,8 @@ msgstr "backup"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
@@ -1886,6 +1964,14 @@ msgstr "Behind carrier NAT"
 msgid "Being removed"
 msgstr "Being removed"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "beside {others}"
+msgstr "beside {others}"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Beside it"
+msgstr "Beside it"
+
 #: src/features/changes/fields.tsx
 msgid "block <0>{port}</0>, {proto}, from <1>{from}</1>"
 msgstr "block <0>{port}</0>, {proto}, from <1>{from}</1>"
@@ -1895,6 +1981,7 @@ msgid "block <0>{port}</0>, {proto}, from anywhere"
 msgstr "block <0>{port}</0>, {proto}, from anywhere"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/databases/DatabaseLayout.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Breadcrumb"
 msgstr "Breadcrumb"
@@ -1915,6 +2002,22 @@ msgstr "Bucket"
 #: src/features/apps/AppDeployments.tsx
 msgid "By"
 msgstr "By"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "by hand"
+msgstr "by hand"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "By hand"
+msgstr "By hand"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Cache hit"
+msgstr "Cache hit"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Can do anything"
+msgstr "Can do anything"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Can read logs"
@@ -1952,6 +2055,10 @@ msgstr "Can't load the domains"
 #: src/features/apps/AppLayout.tsx
 msgid "Can't load this app"
 msgstr "Can't load this app"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Can't load this database"
+msgstr "Can't load this database"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -2009,6 +2116,10 @@ msgstr "Can't save this file"
 #: src/features/auth/TotpPanel.tsx
 msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
 msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Can't sign in"
+msgstr "Can't sign in"
 
 #: src/app/Providers.tsx
 #: src/features/apps/AddDomainSheet.tsx
@@ -2326,10 +2437,13 @@ msgstr "Connecting"
 msgid "Connecting to the control plane"
 msgstr "Connecting to the control plane"
 
+#: src/features/databases/DatabaseOverview.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Connection"
 msgstr "Connection"
 
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/shell/sections.ts
 msgid "Connections"
 msgstr "Connections"
@@ -2389,6 +2503,10 @@ msgstr "Copied the lines shown"
 msgid "Copied this line"
 msgstr "Copied this line"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Copied, without its password"
+msgstr "Copied, without its password"
+
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Copies an earlier destination sealed open only with the passphrase it had."
 msgstr "Copies an earlier destination sealed open only with the passphrase it had."
@@ -2437,6 +2555,10 @@ msgstr "Copy path {shown}"
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "Copy the image"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Copy the internal URL, without its password"
+msgstr "Copy the internal URL, without its password"
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Copy the passphrase"
@@ -2573,6 +2695,10 @@ msgstr "CPU"
 msgid "Create"
 msgstr "Create"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Create a database"
+msgstr "Create a database"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Create a project"
 msgstr "Create a project"
@@ -2676,10 +2802,28 @@ msgstr "data taken out of use"
 msgid "database"
 msgstr "database"
 
+#: src/features/databases/DatabaseLayout.tsx
+#: src/features/databases/DatabasesPage.tsx
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Database"
+msgstr "Database"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Database sections"
+msgstr "Database sections"
+
 #: src/features/catalog/useCatalog.ts
-#: src/features/shell/sections.ts
+#: src/features/databases/DatabaseLayout.tsx
+#: src/features/databases/DatabasesPage.tsx
+#: src/features/databases/DatabaseUsers.tsx
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
 msgid "Databases"
 msgstr "Databases"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Databases in {name}"
+msgstr "Databases in {name}"
 
 #: src/features/servers/containers.ts
 msgid "Dead"
@@ -2847,6 +2991,10 @@ msgstr "Deployment"
 msgid "Deployments"
 msgstr "Deployments"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Destination"
+msgstr "Destination"
+
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Destinations"
 msgstr "Destinations"
@@ -2986,6 +3134,10 @@ msgstr "Dockwell can't reach what this would back up"
 #: src/features/backups/BackupsPage.tsx
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell can't read its backups"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Dockwell can't read its databases"
+msgstr "Dockwell can't read its databases"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
@@ -3230,6 +3382,10 @@ msgstr "Each code signs you in once, with your email, if you lose your authentic
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Each server's own disk"
+msgstr "Each server's own disk"
+
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
@@ -3258,6 +3414,10 @@ msgstr "Ended an authenticator app's setup after 5 wrong codes"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Endpoint"
 msgstr "Endpoint"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Engines"
+msgstr "Engines"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
@@ -3354,6 +3514,10 @@ msgstr "Event type"
 msgid "Events: {caption}"
 msgstr "Events: {caption}"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "every address"
+msgstr "every address"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Every change, server event, access grant, change of health and backup, newest first"
 msgstr "Every change, server event, access grant, change of health and backup, newest first"
@@ -3415,6 +3579,10 @@ msgstr "Export"
 #: src/features/apps/ExportSheet.tsx
 msgid "Export as Compose"
 msgstr "Export as Compose"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "External access"
+msgstr "External access"
 
 #: src/features/logs/LogsPage.tsx
 msgid "failed"
@@ -3568,6 +3736,7 @@ msgstr "from"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppEnvironment.tsx
+#: src/features/databases/DatabaseUsers.tsx
 msgid "From"
 msgstr "From"
 
@@ -3582,6 +3751,10 @@ msgstr "From the API"
 #: src/features/catalog/InstalledPanel.tsx
 msgid "From the catalog"
 msgstr "From the catalog"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "From the catalog, with its password kept as a secret"
+msgstr "From the catalog, with its password kept as a secret"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "From the claim link. Run <0>{claimCommand}</0> on {name} for a new one."
@@ -3619,6 +3792,10 @@ msgstr "Go"
 msgid "Go to the apps"
 msgstr "Go to the apps"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Go to the databases"
+msgstr "Go to the databases"
+
 #: src/features/logs/LogFoot.tsx
 msgid "Go to the last"
 msgstr "Go to the last"
@@ -3633,6 +3810,10 @@ msgstr "Go to the overview"
 #: src/features/files/FilesPage.tsx
 msgid "Go up to {0}"
 msgstr "Go up to {0}"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Granted on"
+msgstr "Granted on"
 
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Hasn't run yet"
@@ -3712,6 +3893,7 @@ msgid "Hover or focus a server to inspect it."
 msgstr "Hover or focus a server to inspect it."
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseOverview.tsx
 msgid "How"
 msgstr "How"
 
@@ -3781,6 +3963,10 @@ msgstr "in {hours} h"
 msgid "in {minutes} min"
 msgstr "in {minutes} min"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "in {placeName}"
+msgstr "in {placeName}"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "In {projectName}"
 msgstr "In {projectName}"
@@ -3804,6 +3990,10 @@ msgstr "In 90 days"
 #: src/features/changes/words.ts
 msgid "In a shell on the control server"
 msgstr "In a shell on the control server"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "In a volume Dockwell didn't make"
+msgstr "In a volume Dockwell didn't make"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "In environment <0>{environment}</0>"
@@ -3846,6 +4036,10 @@ msgstr "Installed"
 #: src/features/changes/fields.tsx
 msgid "internal"
 msgstr "internal"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Internal URL"
+msgstr "Internal URL"
 
 #: src/features/apps/DomainNote.tsx
 msgid "Issuing"
@@ -4034,6 +4228,10 @@ msgstr "It runs through the Compose project {project}. Until Dockwell changes it
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
 msgstr "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "It sets no most"
+msgstr "It sets no most"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does."
 msgstr "It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does."
@@ -4047,6 +4245,10 @@ msgstr "It stays up until someone changes something. Fix what its check reports,
 #: src/features/backups/BackUpSheet.tsx
 msgid "It takes about {0}, and the disk has {1} free."
 msgstr "It takes about {0}, and the disk has {1} free."
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "It takes no password Dockwell keeps."
+msgstr "It takes no password Dockwell keeps."
 
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from."
@@ -4149,6 +4351,14 @@ msgstr "Its Compose project was taken on already, so this joins it."
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
+msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
+msgstr "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
+
 #: src/features/changes/notices.tsx
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
@@ -4168,6 +4378,14 @@ msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this
 #: src/features/logs/LogsPage.tsx
 msgid "Its logs show here once they can be read."
 msgstr "Its logs show here once they can be read."
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Its numbers, databases and users show again once it does."
+msgstr "Its numbers, databases and users show again once it does."
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Its own"
+msgstr "Its own"
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its project, which keeps it apart from your other apps."
@@ -4189,6 +4407,10 @@ msgstr "Its server can't restore this now: it's away, or no longer has the volum
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its site"
 msgstr "Its site"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Its users show again once it does."
+msgstr "Its users show again once it does."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
@@ -4248,6 +4470,10 @@ msgstr "Keeping {count} takes about {0} while the next is taken, and the disk ha
 msgid "Keeps {0}, holding {1} now ({2})"
 msgstr "Keeps {0}, holding {1} now ({2})"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Kept on"
+msgstr "Kept on"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Kernel"
 msgstr "Kernel"
@@ -4255,6 +4481,10 @@ msgstr "Kernel"
 #: src/features/variables/VariablesPage.tsx
 msgid "Key"
 msgstr "Key"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Keys asked for that were there"
+msgstr "Keys asked for that were there"
 
 #: src/features/changes/fields.tsx
 msgid "label"
@@ -4288,6 +4518,10 @@ msgstr "Last copy failed"
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "Last heartbeat"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Last run"
+msgstr "Last run"
 
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Last run failed"
@@ -4421,6 +4655,14 @@ msgstr "Loading sessions"
 #: src/features/apps/AppLayout.tsx
 msgid "Loading the app"
 msgstr "Loading the app"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Loading the database"
+msgstr "Loading the database"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Loading the databases"
+msgstr "Loading the databases"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Loading the plan"
@@ -4696,6 +4938,10 @@ msgstr "never used"
 msgid "New app"
 msgstr "New app"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "New database"
+msgstr "New database"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "New recovery codes"
 msgstr "New recovery codes"
@@ -4703,6 +4949,10 @@ msgstr "New recovery codes"
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
 msgstr "New value"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Newest"
+msgstr "Newest"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Next error"
@@ -4772,6 +5022,14 @@ msgstr "No backups yet"
 msgid "No container matches this filter."
 msgstr "No container matches this filter."
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "No database with this ID"
+msgstr "No database with this ID"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "No databases yet"
+msgstr "No databases yet"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "No domain here matches what you've chosen. Try part of a name, or another state."
@@ -4833,6 +5091,10 @@ msgstr "No server"
 msgid "No server · nothing goes down"
 msgstr "No server · nothing goes down"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "No server has said yet"
+msgstr "No server has said yet"
+
 #: src/features/apps/DomainNote.tsx
 msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
 msgstr "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
@@ -4865,6 +5127,14 @@ msgstr "No undo"
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "No volume"
+msgstr "No volume"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "No volume, so its data goes with its container"
+msgstr "No volume, so its data goes with its container"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Nobody can say how {name} runs"
 msgstr "Nobody can say how {name} runs"
@@ -4872,6 +5142,14 @@ msgstr "Nobody can say how {name} runs"
 #: src/features/apps/Health.tsx
 msgid "Nobody can say how {name} runs now."
 msgstr "Nobody can say how {name} runs now."
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "None"
+msgstr "None"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "None of their own"
+msgstr "None of their own"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -4885,6 +5163,15 @@ msgstr "None set"
 msgid "None set here. The image may have one."
 msgstr "None set here. The image may have one."
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "none yet"
+msgstr "none yet"
+
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
+msgid "None yet"
+msgstr "None yet"
+
 #: src/features/apps/AppOverview.tsx
 msgid "None. Without one, Running only means it started."
 msgstr "None. Without one, Running only means it started."
@@ -4892,6 +5179,10 @@ msgstr "None. Without one, Running only means it started."
 #: src/features/servers/ServerPanels.tsx
 msgid "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
 msgstr "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "not backed up yet"
+msgstr "not backed up yet"
 
 #: src/features/backups/AppBackups.tsx
 msgid "Not backed up yet"
@@ -4910,6 +5201,10 @@ msgstr "Not connected"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Not every server is connected"
 msgstr "Not every server is connected"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "not in a volume"
+msgstr "not in a volume"
 
 #: src/features/shell/NotYet.tsx
 msgid "Not in this release yet"
@@ -4948,6 +5243,10 @@ msgstr "Not started"
 msgid "Not used yet"
 msgstr "Not used yet"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Nothing"
+msgstr "Nothing"
+
 #: src/features/files/FilesPage.tsx
 msgid "Nothing at this path"
 msgstr "Nothing at this path"
@@ -4955,6 +5254,14 @@ msgstr "Nothing at this path"
 #: src/features/apps/AppLayout.tsx
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "Nothing changed on the server. Reload the page to try again."
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Nothing changed on the server. The page tries again by itself."
+msgstr "Nothing changed on the server. The page tries again by itself."
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Nothing changed on the servers. The page tries again by itself."
+msgstr "Nothing changed on the servers. The page tries again by itself."
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
@@ -5000,6 +5307,10 @@ msgstr "Nothing checks it, so this only means it started."
 #: src/features/logs/LogContext.tsx
 msgid "Nothing else was written around this line."
 msgstr "Nothing else was written around this line."
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Nothing has happened to them lately"
+msgstr "Nothing has happened to them lately"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
@@ -5066,6 +5377,10 @@ msgstr "Nothing outside the server reaches it yet. Other apps on its network do.
 msgid "Nothing outside the server reaches these yet."
 msgstr "Nothing outside the server reaches these yet."
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Nothing read yet"
+msgstr "Nothing read yet"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "Nothing runs on this volume, so the copy is exact."
 msgstr "Nothing runs on this volume, so the copy is exact."
@@ -5109,6 +5424,10 @@ msgstr "now"
 msgid "Nowhere else"
 msgstr "Nowhere else"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "of {mostWords}"
+msgstr "of {mostWords}"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "of {total}"
@@ -5116,6 +5435,10 @@ msgstr "of {total}"
 #: src/features/auth/TotpPanel.tsx
 msgid "Off"
 msgstr "Off"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Off. Only services on its server's networks can connect. Add a port on its app's page."
+msgstr "Off. Only services on its server's networks can connect. Add a port on its app's page."
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/changes/PlanSteps.tsx
@@ -5162,6 +5485,8 @@ msgid "on port {0}"
 msgstr "on port {0}"
 
 #: src/features/backups/PoliciesPanel.tsx
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "On schedule"
 msgstr "On schedule"
 
@@ -5173,6 +5498,10 @@ msgstr "On the internet"
 #: src/features/apps/NewAppSheet.tsx
 msgid "On the server"
 msgstr "On the server"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
+msgstr "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Once <0>{servers}</0> reconnect, Dockwell puts things back as they were"
@@ -5198,6 +5527,10 @@ msgstr "Once <0>{servers}</0> reconnects, Dockwell puts things back as they were
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "One is running now"
+msgstr "One is running now"
+
 #: src/features/files/FilesPage.tsx
 msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
 msgstr "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
@@ -5205,6 +5538,11 @@ msgstr "Only {count} of its items are here, so one you're after may be missing. 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "Only a variable's value is hidden, so don't pass a secret there."
+
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
+msgid "Only by hand"
+msgstr "Only by hand"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -5249,6 +5587,10 @@ msgstr "Open {name}"
 msgid "Open {where}"
 msgstr "Open {where}"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Open as an app"
+msgstr "Open as an app"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
 msgstr "Open plan"
@@ -5292,6 +5634,10 @@ msgstr "Open the apps"
 #: src/features/auth/ClaimPage.tsx
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the databases"
+msgstr "Open the databases"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the domains"
@@ -5388,6 +5734,7 @@ msgid "Other apps on its network reach it by this name."
 msgstr "Other apps on its network reach it by this name."
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/databases/DatabaseLayout.tsx
 #: src/features/overview/Overview.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
@@ -5400,6 +5747,7 @@ msgid "owned by <0>{owner}</0>"
 msgstr "owned by <0>{owner}</0>"
 
 #: src/features/auth/user.ts
+#: src/features/databases/DatabaseUsers.tsx
 #: src/features/files/FilesPage.tsx
 msgid "Owner"
 msgstr "Owner"
@@ -5407,6 +5755,10 @@ msgstr "Owner"
 #: src/features/auth/ClaimPage.tsx
 msgid "Owner account"
 msgstr "Owner account"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Owns"
+msgstr "Owns"
 
 #: src/app/Providers.tsx
 msgid "package"
@@ -5617,6 +5969,7 @@ msgstr "port {target}, UDP"
 
 #: src/features/apps/DomainNote.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/databases/DatabaseOverview.tsx
 msgid "Port <0>{port}</0>"
 msgstr "Port <0>{port}</0>"
 
@@ -5944,9 +6297,17 @@ msgstr "Reading this folder"
 msgid "Reading what Docker runs here"
 msgstr "Reading what Docker runs here"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Reading what happened"
+msgstr "Reading what happened"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads logs"
 msgstr "Reads logs"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Reads served from memory"
+msgstr "Reads served from memory"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
@@ -5955,6 +6316,10 @@ msgstr "Reads servers and their state. Changes nothing."
 #: src/features/servers/ServerPanels.tsx
 msgid "Receiving"
 msgstr "Receiving"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Recent activity"
+msgstr "Recent activity"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Recent changes"
@@ -6150,6 +6515,7 @@ msgid "Restarts"
 msgstr "Restarts"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "Restore"
 msgstr "Restore"
 
@@ -6233,6 +6599,10 @@ msgstr "Revoked an API token"
 #: src/features/activity/describe.ts
 msgid "Revoked the API token {name}"
 msgstr "Revoked the API token {name}"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Role"
+msgstr "Role"
 
 #: src/features/changes/words.ts
 msgid "Roll back"
@@ -6418,6 +6788,7 @@ msgstr "runs no entrypoint"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "Runs on"
 msgstr "Runs on"
 
@@ -6665,6 +7036,14 @@ msgstr "Servers"
 msgid "service"
 msgstr "service"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Services beside it reach it as <0>{host}</0>"
+msgstr "Services beside it reach it as <0>{host}</0>"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Services in {place} reach it as <0>{host}</0>"
+msgstr "Services in {place} reach it as <0>{host}</0>"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Serving"
 msgstr "Serving"
@@ -6893,10 +7272,29 @@ msgstr "Signing out everywhere else keeps this browser signed in. A session ends
 msgid "Signing you in with a one-time link"
 msgstr "Signing you in with a one-time link"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Signs in"
+msgstr "Signs in"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Since"
+msgstr "Since"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Since {started}"
+msgstr "Since {started}"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
+msgid "Size"
+msgstr "Size"
+
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
+#: src/features/databases/DatabaseUsers.tsx
+msgctxt "how much data"
 msgid "Size"
 msgstr "Size"
 
@@ -6915,6 +7313,10 @@ msgstr "Some lines from {source} are missing here."
 #: src/features/changes/RollbackLine.tsx
 msgid "Some of this may be down until that finishes."
 msgstr "Some of this may be down until that finishes."
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Some on schedule"
+msgstr "Some on schedule"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
@@ -6982,6 +7384,7 @@ msgstr "State"
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
@@ -7066,6 +7469,10 @@ msgstr "Take it on"
 #: src/features/changes/words.ts
 msgid "Take on"
 msgstr "Take on"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Take one on from its page to see it here. It keeps running as it is, with no restart."
+msgstr "Take one on from its page to see it here. It keeps running as it is, with no restart."
 
 #: src/features/changes/PlanSteps.tsx
 msgid "Takes away {stopping}"
@@ -7375,6 +7782,10 @@ msgstr "The last deploy failed, so Dockwell rolled it back"
 msgid "The last deploy of {name} failed"
 msgstr "The last deploy of {name} failed"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "The last one failed: {latestError}"
+msgstr "The last one failed: {latestError}"
+
 #: src/features/logs/LogNote.tsx
 msgid "The lines written meanwhile arrive once it answers, with none twice."
 msgstr "The lines written meanwhile arrive once it answers, with none twice."
@@ -7386,6 +7797,10 @@ msgstr "the Linux capability {path}"
 #: src/features/changes/words.ts
 msgid "the Linux capability {path}, which is the same as root"
 msgstr "the Linux capability {path}, which is the same as root"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "The most it takes is {mostWords}"
+msgstr "The most it takes is {mostWords}"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "the network {owner}"
@@ -7491,6 +7906,14 @@ msgstr "The passkey prompt closed, so nothing was saved. Save again when you're 
 #: src/features/auth/messages.ts
 msgid "The passkey request expired. Try again."
 msgstr "The passkey request expired. Try again."
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "The password is in its own environment, which Dockwell keeps sealed and never shows."
+msgstr "The password is in its own environment, which Dockwell keeps sealed and never shows."
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
+msgstr "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "The plan didn't work"
@@ -7904,6 +8327,10 @@ msgstr "This server takes no certificate, and traffic reaches it unencrypted."
 msgid "This server's agent can't save files"
 msgstr "This server's agent can't save files"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "This server's disk, unencrypted"
+msgstr "This server's disk, unencrypted"
+
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 msgstr "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -8230,6 +8657,10 @@ msgstr "Up"
 msgid "up {uptime}"
 msgstr "up {uptime}"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Up for"
+msgstr "Up for"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Up to {stepBound} until healthy"
 msgstr "Up to {stepBound} until healthy"
@@ -8357,8 +8788,18 @@ msgid "user"
 msgstr "user"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/databases/DatabaseUsers.tsx
 msgid "User"
 msgstr "User"
+
+#: src/features/databases/DatabaseLayout.tsx
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Users"
+msgstr "Users"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Users of {name}"
+msgstr "Users of {name}"
 
 #: src/features/apps/DomainNote.tsx
 msgid "Valid"
@@ -8663,12 +9104,17 @@ msgstr "What's in front gets a 404 for {where}, so visitors see whatever it show
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
+#: src/features/databases/DatabaseOverview.tsx
 msgid "When"
 msgstr "When"
 
 #: src/features/apps/words.ts
 msgid "When it exits with an error"
 msgstr "When it exits with an error"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "When you ask"
+msgstr "When you ask"
 
 #: src/features/changes/notices.tsx
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."

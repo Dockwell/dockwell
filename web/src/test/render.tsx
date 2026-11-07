@@ -9,6 +9,7 @@ import {
   ChangeService,
   ComposeService,
   ContainerService,
+  DatabaseService,
   DomainService,
   EventService,
   FileService,
@@ -54,6 +55,7 @@ export type Api = {
   containers?: Partial<ServiceImpl<typeof ContainerService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
+  databases?: Partial<ServiceImpl<typeof DatabaseService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -106,6 +108,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         listBackupDestinations: () => ({}),
         ...api.backups,
       });
+      service(DatabaseService, { listDatabases: () => ({}), ...api.databases });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

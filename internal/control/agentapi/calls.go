@@ -1246,6 +1246,20 @@ func (s *Session) BackupPreview(ctx context.Context, volume resource.Ref) (*agen
 	return r.GetBackupPreview(), nil
 }
 
+// Databases asks the agent what its databases say of themselves, each read in its
+// own container (ADR 0038). It changes nothing.
+func (s *Session) Databases(ctx context.Context, call *agentv1.DatabaseCall) (*agentv1.DatabaseResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Database{Database: call}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	read := r.GetDatabase()
+	if read == nil || len(read.GetReadings()) != len(call.GetDatabases()) {
+		return nil, errors.New("the agent didn't answer for each database it was asked about. Update it to the control plane's version")
+	}
+	return read, nil
+}
+
 // BackupTimeout bounds one backup, which runs for as long as its volume takes.
 const BackupTimeout = 24 * time.Hour
 

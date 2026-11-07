@@ -115,7 +115,9 @@ msgid "{0, plural, one {# revision · newest first} other {# revisions · newest
 msgstr "{0, plural, other {# 个修订版本 · 最新在前}}"
 
 #. placeholder {0}: servers.length
+#. placeholder {0}: view.servers?.length ?? 0
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, other {# 台服务器}}"
 
@@ -259,9 +261,17 @@ msgstr "{count, plural, other {{where} 中有 # 个应用}}"
 msgid "{count, plural, one {# app} other {# apps}}"
 msgstr "{count, plural, other {# 个应用}}"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "{count, plural, one {# can sign in to {name}} other {# can sign in to {name}}}"
+msgstr "{count, plural, other {# 个可登录 {name}}}"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, other {# 个容器，{running} 个正在运行}}"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
+msgstr "{count, plural, other {# 个数据库运行在非 Dockwell 创建的容器中}}"
 
 #: src/lib/time.ts
 msgid "{count, plural, one {# day} other {# days}}"
@@ -282,6 +292,14 @@ msgstr "{count, plural, other {# 项}}"
 #: src/app/Providers.tsx
 msgid "{count, plural, one {# new line} other {# new lines}}"
 msgstr "{count, plural, other {# 行新日志}}"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+msgstr "{count, plural, other {{name} 中有 # 个你自己的数据库}}"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "{count, plural, one {# on {where}} other {# on {where}}}"
+msgstr "{count, plural, other {{where} 上有 # 个}}"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
@@ -381,6 +399,10 @@ msgstr "{database} 转储"
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "{database} 会在空卷上重新启动并载入转储（{size}），因此此后新增的内容都会消失，密码也会恢复为当时的值。如果载入失败，现有内容会恢复。服务器会将现有内容的副本保留 7 天，撤销此操作即可恢复。"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
+msgstr "{databases, plural, other {磁盘占用，共 # 个数据库}}"
+
 #: src/features/apps/DomainNote.tsx
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
 msgstr "{days, plural, other {有效期还有 # 天}}"
@@ -409,6 +431,22 @@ msgstr "无法搜索 {down}，结果中不含它的日志。"
 msgid "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
 msgstr "{elsewhere, plural, other {此视图之外还有 # 个应用}}"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{engine} didn't say how it is"
+msgstr "{engine} 没有报告它的状况"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "{engine} didn't say who's in it"
+msgstr "{engine} 没有报告其中的用户"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "{engine} on {server}"
+msgstr "{server} 上的 {engine}"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{engine}'s own dump, while it runs: nothing stops"
+msgstr "{engine} 自带的转储，运行中进行：不会停止任何服务"
+
 #: src/features/logs/LogsPage.tsx
 msgid "{errors, plural, one {{count} error} other {{count} errors}}"
 msgstr "{errors, plural, other {{count} 个错误}}"
@@ -420,6 +458,10 @@ msgstr "无法搜索 {first}"
 #: src/features/servers/ServerMetrics.tsx
 msgid "{free} free"
 msgstr "可用 {free}"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
+msgstr "{keys, plural, other {内存占用，共 # 个键}}"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
@@ -449,6 +491,10 @@ msgstr "{minutes} 分钟"
 #: src/lib/time.ts
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} 分 {seconds} 秒"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "{more, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+msgstr "{more, plural, other {还有 # 个数据库或用户未在此列出}}"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
@@ -900,6 +946,14 @@ msgstr "{server} 在此次回滚期间离线"
 msgid "{servers} offline"
 msgstr "{servers} 离线"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{servers}, and sealed on {destination}"
+msgstr "{servers}，并加密存放在 {destination}"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "{servers}, unencrypted"
+msgstr "{servers}，未加密"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{share} of {size} used"
 msgstr "{size} 中已用 {share}"
@@ -985,6 +1039,10 @@ msgstr "{unlisted, plural, other {此服务器还有 # 个容器无法在此列�
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
 
+#: src/features/databases/Meter.tsx
+msgid "{usedWords} of {ofWords}"
+msgstr "{usedWords} / {ofWords}"
+
 #: src/features/logs/LogFoot.tsx
 msgid "{value, plural, one {{count} line not shown} other {{count} lines not shown}}"
 msgstr "{value, plural, other {{count} 行未显示}}"
@@ -1022,6 +1080,7 @@ msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 msgid "{writtenBy} wrote these files, and {runsOn} runs on them now"
 msgstr "这些文件由 {writtenBy} 写入，而现在运行的是 {runsOn}"
 
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "+{left}"
 msgstr "+{left}"
@@ -1139,6 +1198,10 @@ msgstr "<0>{server}</0> 未连接，以下是它最后的上报（{when}）：{l
 msgid "<0>{server}</0> isn't connected, so this is what it last said: {last}. <1>Check its page</1>"
 msgstr "<0>{server}</0> 未连接，以下是它最后的上报：{last}。<1>查看其页面</1>"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
+msgstr "<0>{serviceId}</0> 可能已被删除，或者它运行的已不是 Dockwell 认识的数据库。"
+
 #: src/features/apps/AppLayout.tsx
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> 可能已被删除，或链接有误。"
@@ -1239,6 +1302,10 @@ msgstr "容器被移除时，它的日志也会一并移除。每台服务器为
 #: src/features/backups/BackUpSheet.tsx
 msgid "A copy of a running app's files can hold half a write, and the app may not start from it."
 msgstr "运行中应用的文件副本可能包含写到一半的内容，应用可能无法从中启动。"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
+msgstr "这里的数据库是指用官方镜像运行 PostgreSQL、MySQL、MariaDB、Redis 或 Valkey 的服务。可以从应用目录安装一个，或接管服务器上已在运行的数据库。"
 
 #: src/features/domains/DomainsPage.tsx
 msgid "A domain sends people to an app, so run one first."
@@ -1367,6 +1434,7 @@ msgid "Actions"
 msgstr "操作"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Activity"
@@ -1522,6 +1590,7 @@ msgid "All actors"
 msgstr "所有执行者"
 
 #: src/features/backups/AppBackups.tsx
+#: src/features/databases/DatabaseOverview.tsx
 msgid "All backups"
 msgstr "全部备份"
 
@@ -1788,6 +1857,7 @@ msgid "Automation"
 msgstr "自动化"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/databases/DatabaseLayout.tsx
 #: src/features/shell/Page.tsx
 msgid "Back"
 msgstr "返回"
@@ -1832,12 +1902,18 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "Back up now"
 msgstr "立即备份"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Back up on a schedule"
 msgstr "按计划备份"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "backed up {ago}"
+msgstr "{ago}备份"
 
 #: src/features/activity/describe.ts
 msgid "Backed up {volume}"
@@ -1850,6 +1926,8 @@ msgstr "备份"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
@@ -1886,6 +1964,14 @@ msgstr "位于运营商级 NAT 之后"
 msgid "Being removed"
 msgstr "正在移除"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "beside {others}"
+msgstr "与 {others} 同在"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Beside it"
+msgstr "同环境服务"
+
 #: src/features/changes/fields.tsx
 msgid "block <0>{port}</0>, {proto}, from <1>{from}</1>"
 msgstr "阻止 <0>{port}</0>，{proto}，来源 <1>{from}</1>"
@@ -1895,6 +1981,7 @@ msgid "block <0>{port}</0>, {proto}, from anywhere"
 msgstr "阻止 <0>{port}</0>，{proto}，来源不限"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/databases/DatabaseLayout.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Breadcrumb"
 msgstr "面包屑导航"
@@ -1915,6 +2002,22 @@ msgstr "存储桶"
 #: src/features/apps/AppDeployments.tsx
 msgid "By"
 msgstr "执行者"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "by hand"
+msgstr "手动"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "By hand"
+msgstr "手动"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Cache hit"
+msgstr "缓存命中率"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Can do anything"
+msgstr "拥有全部权限"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Can read logs"
@@ -1952,6 +2055,10 @@ msgstr "无法加载域名"
 #: src/features/apps/AppLayout.tsx
 msgid "Can't load this app"
 msgstr "无法加载此应用"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Can't load this database"
+msgstr "无法加载此数据库"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -2009,6 +2116,10 @@ msgstr "无法保存这个文件"
 #: src/features/auth/TotpPanel.tsx
 msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
 msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Can't sign in"
+msgstr "不可登录"
 
 #: src/app/Providers.tsx
 #: src/features/apps/AddDomainSheet.tsx
@@ -2326,10 +2437,13 @@ msgstr "正在连接"
 msgid "Connecting to the control plane"
 msgstr "正在连接控制平面"
 
+#: src/features/databases/DatabaseOverview.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Connection"
 msgstr "连接方式"
 
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/shell/sections.ts
 msgid "Connections"
 msgstr "连接"
@@ -2389,6 +2503,10 @@ msgstr "已复制显示的日志"
 msgid "Copied this line"
 msgstr "已复制这一行"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Copied, without its password"
+msgstr "已复制，不含密码"
+
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Copies an earlier destination sealed open only with the passphrase it had."
 msgstr "之前的目的地加密的副本，只能用它当时的密码短语打开。"
@@ -2437,6 +2555,10 @@ msgstr "复制路径 {shown}"
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "复制镜像名称"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Copy the internal URL, without its password"
+msgstr "复制内部地址，不含密码"
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Copy the passphrase"
@@ -2573,6 +2695,10 @@ msgstr "CPU"
 msgid "Create"
 msgstr "创建"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Create a database"
+msgstr "创建数据库"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Create a project"
 msgstr "创建项目"
@@ -2676,10 +2802,28 @@ msgstr "不再使用的数据"
 msgid "database"
 msgstr "数据库"
 
+#: src/features/databases/DatabaseLayout.tsx
+#: src/features/databases/DatabasesPage.tsx
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Database"
+msgstr "数据库"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Database sections"
+msgstr "数据库分区"
+
 #: src/features/catalog/useCatalog.ts
-#: src/features/shell/sections.ts
+#: src/features/databases/DatabaseLayout.tsx
+#: src/features/databases/DatabasesPage.tsx
+#: src/features/databases/DatabaseUsers.tsx
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
 msgid "Databases"
 msgstr "数据库"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Databases in {name}"
+msgstr "{name} 中的数据库"
 
 #: src/features/servers/containers.ts
 msgid "Dead"
@@ -2847,6 +2991,10 @@ msgstr "部署"
 msgid "Deployments"
 msgstr "部署"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Destination"
+msgstr "存放位置"
+
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Destinations"
 msgstr "目的地"
@@ -2986,6 +3134,10 @@ msgstr "Dockwell 无法访问要备份的内容"
 #: src/features/backups/BackupsPage.tsx
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell 无法读取备份"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Dockwell can't read its databases"
+msgstr "Dockwell 无法读取数据库"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
@@ -3230,6 +3382,10 @@ msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无法在那里查看或更改它，它的容器可能仍在那些服务器上运行。部署它，即可在集群中的服务器上运行。"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Each server's own disk"
+msgstr "各服务器自己的磁盘"
+
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
@@ -3258,6 +3414,10 @@ msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Endpoint"
 msgstr "端点"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Engines"
+msgstr "数据库引擎"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
@@ -3354,6 +3514,10 @@ msgstr "事件类型"
 msgid "Events: {caption}"
 msgstr "事件：{caption}"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "every address"
+msgstr "所有地址"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Every change, server event, access grant, change of health and backup, newest first"
 msgstr "所有变更、服务器事件、访问授权、健康变化和备份，最新的在前"
@@ -3415,6 +3579,10 @@ msgstr "导出"
 #: src/features/apps/ExportSheet.tsx
 msgid "Export as Compose"
 msgstr "导出为 Compose"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "External access"
+msgstr "外部访问"
 
 #: src/features/logs/LogsPage.tsx
 msgid "failed"
@@ -3568,6 +3736,7 @@ msgstr "从"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppEnvironment.tsx
+#: src/features/databases/DatabaseUsers.tsx
 msgid "From"
 msgstr "来源"
 
@@ -3582,6 +3751,10 @@ msgstr "来自 API"
 #: src/features/catalog/InstalledPanel.tsx
 msgid "From the catalog"
 msgstr "来自应用目录"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "From the catalog, with its password kept as a secret"
+msgstr "从应用目录安装，密码保存为密钥"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "From the claim link. Run <0>{claimCommand}</0> on {name} for a new one."
@@ -3619,6 +3792,10 @@ msgstr "Go"
 msgid "Go to the apps"
 msgstr "前往应用"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Go to the databases"
+msgstr "前往数据库"
+
 #: src/features/logs/LogFoot.tsx
 msgid "Go to the last"
 msgstr "转到最后一处"
@@ -3633,6 +3810,10 @@ msgstr "前往概览"
 #: src/features/files/FilesPage.tsx
 msgid "Go up to {0}"
 msgstr "返回上级 {0}"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Granted on"
+msgstr "已授权"
 
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Hasn't run yet"
@@ -3712,6 +3893,7 @@ msgid "Hover or focus a server to inspect it."
 msgstr "悬停或聚焦一台服务器以查看详情。"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseOverview.tsx
 msgid "How"
 msgstr "方式"
 
@@ -3781,6 +3963,10 @@ msgstr "{hours} 小时后"
 msgid "in {minutes} min"
 msgstr "{minutes} 分钟后"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "in {placeName}"
+msgstr "位于 {placeName}"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "In {projectName}"
 msgstr "在 {projectName} 中"
@@ -3804,6 +3990,10 @@ msgstr "90 天后"
 #: src/features/changes/words.ts
 msgid "In a shell on the control server"
 msgstr "在控制服务器的 shell 中"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "In a volume Dockwell didn't make"
+msgstr "在非 Dockwell 创建的卷中"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "In environment <0>{environment}</0>"
@@ -3846,6 +4036,10 @@ msgstr "安装时间"
 #: src/features/changes/fields.tsx
 msgid "internal"
 msgstr "内部"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Internal URL"
+msgstr "内部地址"
 
 #: src/features/apps/DomainNote.tsx
 msgid "Issuing"
@@ -4034,6 +4228,10 @@ msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
 msgstr "在有人恢复它之前，它不提供任何服务。重启或部署也能解决这个问题。"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "It sets no most"
+msgstr "未设置上限"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does."
 msgstr "它保存在服务器自己的磁盘上，所有者和权限保持不变，因此服务器损毁时它也会一并丢失。"
@@ -4047,6 +4245,10 @@ msgstr "在有人做出更改之前，它会一直保持运行。请修复检查
 #: src/features/backups/BackUpSheet.tsx
 msgid "It takes about {0}, and the disk has {1} free."
 msgstr "约占 {0}，磁盘剩余 {1}。"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "It takes no password Dockwell keeps."
+msgstr "它没有使用 Dockwell 保存的密码。"
 
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from."
@@ -4149,6 +4351,14 @@ msgstr "它的 Compose 项目已被接管，所以它会加入其中。"
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
+msgstr "它的数据在 <0>{volume}</0> 中，这个卷不是 Dockwell 创建的，因此 Dockwell 不会备份它。请在它原来的地方备份，或把数据移到该应用自己的卷中。"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
+msgstr "它的数据不在卷中，容器被替换时数据会随之丢失，也没有可备份的内容。请在它的应用页面为它添加一个卷。"
+
 #: src/features/changes/notices.tsx
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "它的环境变量会加密后一同进入 Dockwell。任何计划或日志都不会显示其值，容器也会继续运行。"
@@ -4168,6 +4378,14 @@ msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除
 #: src/features/logs/LogsPage.tsx
 msgid "Its logs show here once they can be read."
 msgstr "能读取时，它的日志就会显示在这里。"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Its numbers, databases and users show again once it does."
+msgstr "它报告后，这里会重新显示各项数值、数据库和用户。"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Its own"
+msgstr "系统自带"
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its project, which keeps it apart from your other apps."
@@ -4189,6 +4407,10 @@ msgstr "它所在的服务器现在无法恢复：服务器未连接，或已不
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its site"
 msgstr "官网"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Its users show again once it does."
+msgstr "它报告后，这里会重新显示用户。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
@@ -4248,6 +4470,10 @@ msgstr "保留 {count} 份在下次备份期间约占 {0}，磁盘还有 {1} 可
 msgid "Keeps {0}, holding {1} now ({2})"
 msgstr "保留 {0} 份，当前有 {1} 份（{2}）"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Kept on"
+msgstr "存放于"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Kernel"
 msgstr "内核"
@@ -4255,6 +4481,10 @@ msgstr "内核"
 #: src/features/variables/VariablesPage.tsx
 msgid "Key"
 msgstr "键"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Keys asked for that were there"
+msgstr "查询的键中命中的比例"
 
 #: src/features/changes/fields.tsx
 msgid "label"
@@ -4288,6 +4518,10 @@ msgstr "上次副本发送失败"
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
 msgstr "最后心跳"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Last run"
+msgstr "最近一次"
 
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Last run failed"
@@ -4421,6 +4655,14 @@ msgstr "正在加载会话"
 #: src/features/apps/AppLayout.tsx
 msgid "Loading the app"
 msgstr "正在加载应用"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Loading the database"
+msgstr "正在加载数据库"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Loading the databases"
+msgstr "正在加载数据库"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Loading the plan"
@@ -4696,6 +4938,10 @@ msgstr "从未使用"
 msgid "New app"
 msgstr "新建应用"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "New database"
+msgstr "新建数据库"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "New recovery codes"
 msgstr "新的恢复码"
@@ -4703,6 +4949,10 @@ msgstr "新的恢复码"
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
 msgstr "新值"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Newest"
+msgstr "最新"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Next error"
@@ -4772,6 +5022,14 @@ msgstr "还没有备份"
 msgid "No container matches this filter."
 msgstr "没有符合此筛选条件的容器。"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "No database with this ID"
+msgstr "没有此 ID 的数据库"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "No databases yet"
+msgstr "还没有数据库"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "这里没有符合所选条件的域名。请试试名称的一部分，或换一种状态。"
@@ -4833,6 +5091,10 @@ msgstr "无服务器"
 msgid "No server · nothing goes down"
 msgstr "不涉及服务器 · 不会停机"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "No server has said yet"
+msgstr "还没有服务器报告"
+
 #: src/features/apps/DomainNote.tsx
 msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
 msgstr "已没有服务器运行它，因此没有任何响应。请移除它，或将其放到一台服务器上。"
@@ -4865,6 +5127,14 @@ msgstr "无法撤销"
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "{envName} 中还没有变量或密钥。请在上方添加第一个，服务随后按名称使用它。"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "No volume"
+msgstr "没有卷"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "No volume, so its data goes with its container"
+msgstr "没有卷，数据会随容器一起丢失"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Nobody can say how {name} runs"
 msgstr "无法确定 {name} 的运行情况"
@@ -4872,6 +5142,14 @@ msgstr "无法确定 {name} 的运行情况"
 #: src/features/apps/Health.tsx
 msgid "Nobody can say how {name} runs now."
 msgstr "现在无法确定 {name} 的运行情况。"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "None"
+msgstr "无"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "None of their own"
+msgstr "没有自己的数据库"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -4885,6 +5163,15 @@ msgstr "未设置"
 msgid "None set here. The image may have one."
 msgstr "这里没有设置。镜像可能自带检查。"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "none yet"
+msgstr "尚无"
+
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
+msgid "None yet"
+msgstr "尚无"
+
 #: src/features/apps/AppOverview.tsx
 msgid "None. Without one, Running only means it started."
 msgstr "无。没有检查时，“正在运行”只表示它已启动。"
@@ -4892,6 +5179,10 @@ msgstr "无。没有检查时，“正在运行”只表示它已启动。"
 #: src/features/servers/ServerPanels.tsx
 msgid "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
 msgstr "自 {ago}起没有响应，因此无法确定这里运行着什么。请用 <0>systemctl status docker</0> 检查它是否在运行。"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "not backed up yet"
+msgstr "尚未备份"
 
 #: src/features/backups/AppBackups.tsx
 msgid "Not backed up yet"
@@ -4910,6 +5201,10 @@ msgstr "未连接"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Not every server is connected"
 msgstr "并非所有服务器都已连接"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "not in a volume"
+msgstr "不在卷中"
 
 #: src/features/shell/NotYet.tsx
 msgid "Not in this release yet"
@@ -4948,6 +5243,10 @@ msgstr "未启动"
 msgid "Not used yet"
 msgstr "尚未使用"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Nothing"
+msgstr "无"
+
 #: src/features/files/FilesPage.tsx
 msgid "Nothing at this path"
 msgstr "这个路径下什么都没有"
@@ -4955,6 +5254,14 @@ msgstr "这个路径下什么都没有"
 #: src/features/apps/AppLayout.tsx
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "服务器上没有任何变化。请重新加载页面再试。"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Nothing changed on the server. The page tries again by itself."
+msgstr "服务器上没有任何改动。页面会自动重试。"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Nothing changed on the servers. The page tries again by itself."
+msgstr "服务器上没有任何改动。页面会自动重试。"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
@@ -5000,6 +5307,10 @@ msgstr "没有任何检查，因此这只表示它已启动。"
 #: src/features/logs/LogContext.tsx
 msgid "Nothing else was written around this line."
 msgstr "这一行前后没有其他日志。"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Nothing has happened to them lately"
+msgstr "最近没有相关动态"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
@@ -5066,6 +5377,10 @@ msgstr "服务器外部暂时无法访问它。同一网络中的其他应用可
 msgid "Nothing outside the server reaches these yet."
 msgstr "服务器之外还无法访问这些应用。"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Nothing read yet"
+msgstr "尚未读取任何数据"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "Nothing runs on this volume, so the copy is exact."
 msgstr "此卷上没有运行任何内容，因此副本是精确的。"
@@ -5109,6 +5424,10 @@ msgstr "现在"
 msgid "Nowhere else"
 msgstr "不发送"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "of {mostWords}"
+msgstr "/ {mostWords}"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "/ {total}"
@@ -5116,6 +5435,10 @@ msgstr "/ {total}"
 #: src/features/auth/TotpPanel.tsx
 msgid "Off"
 msgstr "关闭"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Off. Only services on its server's networks can connect. Add a port on its app's page."
+msgstr "已关闭。只有其服务器网络上的服务可以连接。可在它的应用页面添加端口。"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/changes/PlanSteps.tsx
@@ -5162,6 +5485,8 @@ msgid "on port {0}"
 msgstr "端口 {0}"
 
 #: src/features/backups/PoliciesPanel.tsx
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "On schedule"
 msgstr "按计划运行"
 
@@ -5173,6 +5498,10 @@ msgstr "直接连接互联网"
 #: src/features/apps/NewAppSheet.tsx
 msgid "On the server"
 msgstr "在服务器上"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
+msgstr "已开启。可通过其服务器的 {serverPort} 端口在{where}上访问。可在它的应用页面修改。"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Once <0>{servers}</0> reconnect, Dockwell puts things back as they were"
@@ -5198,6 +5527,10 @@ msgstr "<0>{servers}</0> 重新连接后，Dockwell 会恢复原样"
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "部署失败后，服务器重新连接时，Dockwell 会恢复 <0>{image}</0>。在此之前，无法确定那里正在运行什么。"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "One is running now"
+msgstr "正在进行一次备份"
+
 #: src/features/files/FilesPage.tsx
 msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
 msgstr "这里只显示了其中 {count} 项，你要找的可能不在其中。请通过 SSH 连接服务器查看全部内容。"
@@ -5205,6 +5538,11 @@ msgstr "这里只显示了其中 {count} 项，你要找的可能不在其中。
 #: src/features/apps/NewAppSheet.tsx
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
+
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
+msgid "Only by hand"
+msgstr "仅手动"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -5249,6 +5587,10 @@ msgstr "打开 {name}"
 msgid "Open {where}"
 msgstr "打开 {where}"
 
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Open as an app"
+msgstr "以应用打开"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
 msgstr "打开计划"
@@ -5292,6 +5634,10 @@ msgstr "打开应用"
 #: src/features/auth/ClaimPage.tsx
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开认领链接，或通过 HTTPS 在面板的域名上打开。"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the databases"
+msgstr "打开数据库"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the domains"
@@ -5388,6 +5734,7 @@ msgid "Other apps on its network reach it by this name."
 msgstr "同一网络上的其他应用通过此名称访问它。"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/databases/DatabaseLayout.tsx
 #: src/features/overview/Overview.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
@@ -5400,6 +5747,7 @@ msgid "owned by <0>{owner}</0>"
 msgstr "所有者 <0>{owner}</0>"
 
 #: src/features/auth/user.ts
+#: src/features/databases/DatabaseUsers.tsx
 #: src/features/files/FilesPage.tsx
 msgid "Owner"
 msgstr "所有者"
@@ -5407,6 +5755,10 @@ msgstr "所有者"
 #: src/features/auth/ClaimPage.tsx
 msgid "Owner account"
 msgstr "所有者账户"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Owns"
+msgstr "拥有"
 
 #: src/app/Providers.tsx
 msgid "package"
@@ -5617,6 +5969,7 @@ msgstr "端口 {target}，UDP"
 
 #: src/features/apps/DomainNote.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/databases/DatabaseOverview.tsx
 msgid "Port <0>{port}</0>"
 msgstr "端口 <0>{port}</0>"
 
@@ -5944,9 +6297,17 @@ msgstr "正在读取这个文件夹"
 msgid "Reading what Docker runs here"
 msgstr "正在读取 Docker 在这里运行的内容"
 
+#: src/features/databases/DatabasesPage.tsx
+msgid "Reading what happened"
+msgstr "正在读取动态"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads logs"
 msgstr "可读取日志"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Reads served from memory"
+msgstr "从内存读取的比例"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
@@ -5955,6 +6316,10 @@ msgstr "读取服务器及其状态，不做任何更改。"
 #: src/features/servers/ServerPanels.tsx
 msgid "Receiving"
 msgstr "接收"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Recent activity"
+msgstr "最近动态"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Recent changes"
@@ -6150,6 +6515,7 @@ msgid "Restarts"
 msgstr "重启策略"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "Restore"
 msgstr "恢复"
 
@@ -6233,6 +6599,10 @@ msgstr "撤销了 API 令牌"
 #: src/features/activity/describe.ts
 msgid "Revoked the API token {name}"
 msgstr "撤销了 API 令牌 {name}"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Role"
+msgstr "角色"
 
 #: src/features/changes/words.ts
 msgid "Roll back"
@@ -6418,6 +6788,7 @@ msgstr "不运行入口点"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/databases/DatabasesPage.tsx
 msgid "Runs on"
 msgstr "运行于"
 
@@ -6665,6 +7036,14 @@ msgstr "服务器"
 msgid "service"
 msgstr "服务"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Services beside it reach it as <0>{host}</0>"
+msgstr "同环境的服务通过 <0>{host}</0> 访问它"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Services in {place} reach it as <0>{host}</0>"
+msgstr "{place} 中的服务通过 <0>{host}</0> 访问它"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Serving"
 msgstr "正在提供服务"
@@ -6893,12 +7272,31 @@ msgstr "在其他所有地方退出登录后，这个浏览器仍保持登录。
 msgid "Signing you in with a one-time link"
 msgstr "正在用一次性链接为你登录"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Signs in"
+msgstr "可登录"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Since"
+msgstr "此后"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Since {started}"
+msgstr "自 {started} 起"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
 msgid "Size"
 msgstr "规格"
+
+#: src/features/databases/DatabaseOverview.tsx
+#: src/features/databases/DatabasesPage.tsx
+#: src/features/databases/DatabaseUsers.tsx
+msgctxt "how much data"
+msgid "Size"
+msgstr "大小"
 
 #: src/features/shell/Shell.tsx
 msgid "Skip to content"
@@ -6915,6 +7313,10 @@ msgstr "此处缺少 {source} 的部分日志。"
 #: src/features/changes/RollbackLine.tsx
 msgid "Some of this may be down until that finishes."
 msgstr "在此完成之前，部分内容可能处于中断状态。"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Some on schedule"
+msgstr "部分按计划运行"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
@@ -6982,6 +7384,7 @@ msgstr "状态"
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabasesPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
@@ -7066,6 +7469,10 @@ msgstr "接管它"
 #: src/features/changes/words.ts
 msgid "Take on"
 msgstr "接管"
+
+#: src/features/databases/DatabasesPage.tsx
+msgid "Take one on from its page to see it here. It keeps running as it is, with no restart."
+msgstr "在它的页面接管后，它就会显示在这里。接管时它保持原样运行，不会重启。"
 
 #: src/features/changes/PlanSteps.tsx
 msgid "Takes away {stopping}"
@@ -7375,6 +7782,10 @@ msgstr "上次部署失败，Dockwell 已将其回滚"
 msgid "The last deploy of {name} failed"
 msgstr "{name} 的上次部署失败"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "The last one failed: {latestError}"
+msgstr "最近一次失败：{latestError}"
+
 #: src/features/logs/LogNote.tsx
 msgid "The lines written meanwhile arrive once it answers, with none twice."
 msgstr "恢复响应后，期间写入的日志会到达，不会重复。"
@@ -7386,6 +7797,10 @@ msgstr "Linux 能力 {path}"
 #: src/features/changes/words.ts
 msgid "the Linux capability {path}, which is the same as root"
 msgstr "Linux 能力 {path}，等同于 root"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "The most it takes is {mostWords}"
+msgstr "最多可接受 {mostWords} 个"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "the network {owner}"
@@ -7491,6 +7906,14 @@ msgstr "通行密钥提示已关闭，所以没有保存任何内容。准备好
 #: src/features/auth/messages.ts
 msgid "The passkey request expired. Try again."
 msgstr "通行密钥请求已过期。请重试。"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "The password is in its own environment, which Dockwell keeps sealed and never shows."
+msgstr "密码在它自己的环境变量中，Dockwell 会加密保存且从不显示。"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
+msgstr "密码在密钥 <0>{secret}</0> 中，可在<1>变量和密钥</1>中用通行密钥查看。"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "The plan didn't work"
@@ -7904,6 +8327,10 @@ msgstr "此服务器不使用证书，流量以未加密方式到达。"
 msgid "This server's agent can't save files"
 msgstr "这台服务器的 agent 无法保存文件"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "This server's disk, unencrypted"
+msgstr "本服务器磁盘，未加密"
+
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 msgstr "此次身份验证器应用的设置已结束：它只在开始设置的会话中有效，时限为 10 分钟。请关闭此处并重新设置。"
@@ -8230,6 +8657,10 @@ msgstr "运行时间"
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Up for"
+msgstr "已运行"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Up to {stepBound} until healthy"
 msgstr "最多 {stepBound} 后恢复健康"
@@ -8357,8 +8788,18 @@ msgid "user"
 msgstr "用户"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/databases/DatabaseUsers.tsx
 msgid "User"
 msgstr "用户"
+
+#: src/features/databases/DatabaseLayout.tsx
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Users"
+msgstr "用户"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Users of {name}"
+msgstr "{name} 的用户"
 
 #: src/features/apps/DomainNote.tsx
 msgid "Valid"
@@ -8663,12 +9104,17 @@ msgstr "前面的代理访问 {where} 会得到 404，因此访问者会看到�
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
+#: src/features/databases/DatabaseOverview.tsx
 msgid "When"
 msgstr "时间"
 
 #: src/features/apps/words.ts
 msgid "When it exits with an error"
 msgstr "出错退出时"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "When you ask"
+msgstr "手动发起时"
 
 #: src/features/changes/notices.tsx
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."

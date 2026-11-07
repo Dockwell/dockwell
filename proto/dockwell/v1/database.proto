@@ -1,0 +1,201 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/backup.proto";
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// DatabaseService is the services that run a database Dockwell knows:
+// PostgreSQL, MySQL, MariaDB, Redis and Valkey, from their official images,
+// whether Dockwell made them or took them on. A database is a service, so it
+// changes as any service does, by a change with a plan. What this adds is what
+// the database itself says, read in its own container with its own tools, which
+// sign in with what its environment already holds, so no password passes
+// through Dockwell. See docs/adr/0038-databases.md.
+//
+// Nothing here carries a password, nor a value of a database's environment.
+service DatabaseService {
+  // ListDatabases returns every database, by name, with how each stands on each
+  // server it runs on, as far as each server can say within a few seconds, and
+  // the newest backup of its data.
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/databases"};
+  }
+
+  // GetDatabase returns one database, by its service's ID or its name, with what
+  // it holds: the databases inside it, and who can sign in to it.
+  rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/databases/{id}"};
+  }
+}
+
+// DatabaseEngine is which database a service runs.
+enum DatabaseEngine {
+  DATABASE_ENGINE_UNSPECIFIED = 0;
+  // PostgreSQL, from the image postgres.
+  DATABASE_ENGINE_POSTGRESQL = 1 [(dockwell.v1.word) = "PostgreSQL"];
+  // MySQL, from the image mysql.
+  DATABASE_ENGINE_MYSQL = 2 [(dockwell.v1.word) = "MySQL"];
+  // MariaDB, from the image mariadb.
+  DATABASE_ENGINE_MARIADB = 3 [(dockwell.v1.word) = "MariaDB"];
+  // Redis, from the image redis.
+  DATABASE_ENGINE_REDIS = 4 [(dockwell.v1.word) = "Redis"];
+  // Valkey, from the image valkey/valkey.
+  DATABASE_ENGINE_VALKEY = 5 [(dockwell.v1.word) = "Valkey"];
+}
+
+// Database is a service that runs a database.
+message Database {
+  // The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // The service: its kind, its environment's ID, and its name.
+  ResourceRef resource = 2;
+  // Which database it runs.
+  DatabaseEngine engine = 3;
+  // The image it runs, such as "postgres:17.2".
+  string image = 4;
+  // The version its image's tag names, such as "17.2", or the tag itself where
+  // it names none, such as "latest". What each server's database says is in
+  // readings.
+  string version = 5;
+  // The volume that holds its data, by name. Empty when none does, so its data
+  // is in the container, and goes when the container is replaced.
+  string volume = 6;
+  // The volume's ID. Empty for a volume Dockwell didn't make, as one a container
+  // came with when it was taken on.
+  string volume_id = 7;
+  // True when its data is in a volume Dockwell didn't make (Mount.external).
+  bool volume_external = 8;
+  // The port it listens on in its container, such as 5432.
+  uint32 port = 9;
+  // The name the other services in its environment reach it by: its service's.
+  string host = 10;
+  // The environment's secret its first user's password is in, by name, when the
+  // service uses one, such as "POSTGRES_PASSWORD". Empty when the password is in
+  // its own environment, or there is none.
+  string password_secret = 11;
+  // How it stands on each server it is placed on, as each said when asked, by
+  // server name.
+  repeated DatabaseReading readings = 12;
+  // Its volume's newest backup that's whole, on any server. Unset when there's
+  // none, or no volume.
+  Backup newest_backup = 13;
+  // Its volume's newest backup, whatever came of it, when that's newer than
+  // newest_backup: one running now, or one that failed.
+  Backup latest_backup = 14;
+  // The other services in its environment, by name, as those are what a Compose
+  // file or a catalog install puts beside a database to use it.
+  repeated string beside = 15;
+  // The catalog entry it was installed from, by ID, such as "postgres". Empty
+  // for anything else.
+  string catalog_entry = 16;
+}
+
+// DatabaseReading is what a database said of itself on one server.
+message DatabaseReading {
+  // The server's ID.
+  string server_id = 1;
+  // The server's name, such as "hz-1".
+  string server_name = 2;
+  // When it was read. A reading is kept for a few seconds, so several readers
+  // ask the database once.
+  google.protobuf.Timestamp read_time = 3;
+  // Why it couldn't be read, for people, such as "PostgreSQL isn't running". The
+  // rest is then unset.
+  string unread = 4;
+  // The version it says it is, such as "17.2".
+  string version = 5;
+  // How much its data takes, in bytes: its databases on disk, or for Redis and
+  // Valkey, its data in memory.
+  int64 size_bytes = 6;
+  // How many clients are connected now.
+  int64 connections = 7;
+  // How many it takes at most. Zero where it says none.
+  int64 max_connections = 8;
+  // The user Dockwell signed in as, such as "postgres" or "root". Empty for
+  // Redis and Valkey.
+  string user = 9;
+  // How long it has been up, in seconds.
+  int64 uptime_seconds = 10;
+  // Of what clients read since it started, how much came from memory rather than
+  // disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool, or the
+  // keys Redis found. Unset until anything was read.
+  optional double cache_hit = 11;
+  // The databases in it, by name. Redis and Valkey have none of their own.
+  repeated InnerDatabase databases = 12;
+  // Who can sign in to it, by name. Redis and Valkey list none.
+  repeated DatabaseAccount users = 13;
+  // How many keys it holds, for Redis and Valkey.
+  int64 keys = 14;
+  // How many more databases or users it has than this lists.
+  int32 unlisted = 15;
+}
+
+// InnerDatabase is one database inside a database server, as PostgreSQL has
+// them, or a schema, as MySQL and MariaDB call one.
+message InnerDatabase {
+  // Its name, such as "shop".
+  string name = 1;
+  // The user that owns it, for PostgreSQL.
+  string owner = 2;
+  // How much it takes on disk, in bytes.
+  int64 size_bytes = 3;
+  // True for one the server made for itself, such as PostgreSQL's postgres.
+  bool system = 4;
+}
+
+// DatabaseAccount is someone who can sign in to a database server: a user, as
+// MySQL and MariaDB call one, or a role, as PostgreSQL does.
+message DatabaseAccount {
+  // Their name, such as "shop".
+  string name = 1;
+  // Where they may sign in from, for MySQL and MariaDB, such as "%" for
+  // anywhere.
+  string host = 2;
+  // True for a user who can do anything, as PostgreSQL's postgres and MySQL's
+  // root can.
+  bool superuser = 3;
+  // False for a role that can't sign in, as PostgreSQL has for groups.
+  bool can_sign_in = 4;
+  // The databases that are theirs, by name: those they own, in PostgreSQL, or
+  // those they're granted on by name, in MySQL and MariaDB.
+  repeated string databases = 5;
+  // True for one the server made for itself, such as mysql.sys.
+  bool system = 6;
+}
+
+// ListDatabasesRequest asks for the databases.
+message ListDatabasesRequest {}
+
+// ListDatabasesResponse lists them.
+message ListDatabasesResponse {
+  // The databases, by name.
+  repeated Database databases = 1;
+}
+
+// GetDatabaseRequest names a database.
+message GetDatabaseRequest {
+  // Its service, by ID or by name.
+  string id = 1;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 2;
+  // The environment of a service named by name, by name or ID, when its project
+  // has more than one.
+  string environment = 3;
+}
+
+// GetDatabaseResponse is one database.
+message GetDatabaseResponse {
+  // The database.
+  Database database = 1;
+}
