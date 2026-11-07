@@ -1072,12 +1072,14 @@
   font-weight: 500;
 }
 
+/* A permission wraps on a phone, rather than running past its panel. */
 .members-can th[scope="row"] {
   height: 36px;
   color: var(--ink);
   font-size: 13px;
   font-weight: 400;
   text-align: left;
+  white-space: normal;
 }
 
 .members-can .members-col {
