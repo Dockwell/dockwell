@@ -45,7 +45,7 @@ That left these questions open:
   - poll `GET /v1/servers` or `GET /v1/servers/{id}`, which carry the same `Server` messages;
   - or open the stream with Connect, gRPC or gRPC-Web, which serve it at `/dockwell.v1.ServerService/WatchServers` with the same credentials. Connect works over HTTP/1.1 with JSON (`Content-Type: application/connect+json`, with each message behind a 5-byte envelope), so it needs no gRPC tooling.
 - The schema says so on `ServerService` and `WatchServers`, so the OpenAPI document and the generated clients say it too.
-- Interactive bidirectional streams, such as the terminal, run over a WebSocket, as ADR 0003 decided.
+- The terminal is a server stream for what it prints and calls for what's typed, in the schema like the rest ([ADR 0037](0037-a-terminal-on-a-server.md)), not the WebSocket ADR 0003 first said.
 - If REST clients need pushed updates later, a server-sent events path that is transcoded to a Connect call, and so passes the same interceptor, is the way to add them. That is its own decision.
 
 ### Serving
