@@ -116,7 +116,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   const reaches: { name: string; server: string; access: HostAccess }[] = [];
   const seen = new Set<string>();
   const add = (name: string, server: string, access: HostAccess) => {
-    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}`;
+    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}`;
     if (seen.has(key)) return;
     seen.add(key);
     reaches.push({ name, server, access });
@@ -234,8 +234,8 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           title: t`${name} gets back what reached root on ${server}`,
           detail: (
             <Trans>
-              This backup was taken when the volume reached <code>{path}</code>, so whatever mounts it can read
-              what comes back.
+              This backup was taken when the volume reached <code>{path}</code>, so whatever mounts it can read what
+              comes back.
             </Trans>
           ),
           trust: true,
@@ -284,7 +284,21 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           detail: t`It reaches what the server reaches, past Docker's network and the firewall.`,
           trust: true,
         };
-      case HostAccessKind.SERVER_PATH:
+      case HostAccessKind.SERVER_PATH: {
+        const [holder, held] = [path, plain(access.holds)];
+        if (held !== "") {
+          return {
+            key,
+            title: t`${name} can move what ${held} leads to on ${server}`,
+            detail: (
+              <Trans>
+                It can write to <code>{holder}</code>, which holds <code>{held}</code>, so it can turn that into a link
+                to anywhere on the server, which what mounts it follows when it next starts. That's as good as root.
+              </Trans>
+            ),
+            trust: true,
+          };
+        }
         return asGoodAsRoot(access)
           ? {
               key,
@@ -322,6 +336,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
                 ),
               ),
             };
+      }
     }
     const reach = words.access(access);
     const isDomain = access.kind === HostAccessKind.DOMAIN || access.kind === HostAccessKind.PANEL_DOMAIN;

@@ -604,6 +604,10 @@ type Access struct {
 	// it, when that is somewhere else. For a network Dockwell didn't make, it is
 	// the driver the agent reads, when that isn't Docker's bridge.
 	LeadsTo string `json:",omitempty"`
+	// Holds is another mount's source inside Path, a read-write server path. What
+	// writes Path can turn it into a link to anywhere on the server, which what mounts
+	// it follows the next time it starts, so this is as good as root.
+	Holds string `json:",omitempty"`
 }
 
 // Leading is a with where its path leads on the server, as an agent says. An
@@ -755,6 +759,9 @@ func AccessWords(a Access) string {
 		root := ""
 		if a.SameAsRoot {
 			root = ", which is as good as root"
+		}
+		if a.Holds != "" {
+			return "the server path " + plain(a.Path) + ", which holds " + plain(a.Holds) + ", another mount's source, so what writes there can make that lead anywhere, as good as root"
 		}
 		if a.LeadsTo != "" {
 			return "the server path " + plain(a.Path) + ", which leads to " + plain(a.LeadsTo) + " (" + how + ")" + root

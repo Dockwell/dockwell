@@ -80,6 +80,8 @@ func TestAccessWords(t *testing.T) {
 		{resource.Access{Kind: resource.AccessCapability, Path: "SYS_ADMIN", SameAsRoot: true}, "the Linux capability SYS_ADMIN, which is the same as root"},
 		{resource.Access{Kind: resource.AccessGroup, Path: "999"}, "the group 999, which is the same as root if it is the group that owns Docker's socket on the server"},
 		{resource.Access{Kind: resource.AccessGroup, Path: "docker", SameAsRoot: true}, "the group docker, which is the same as root"},
+		{resource.Access{Kind: resource.AccessPath, Path: "/srv", Holds: "/srv/app/conf", SameAsRoot: true}, "the server path /srv, which holds /srv/app/conf, another mount's source, so what writes there can make that lead anywhere, as good as root"},
+		{resource.Access{Kind: resource.AccessBackupOf, Path: "/etc"}, "a backup of a volume that reached /etc, which can hold what's there, as good as root"},
 		{resource.Access{Kind: resource.AccessPrivileged, SameAsRoot: true}, "privileged mode, which gives it every device and capability on the server, the same as root"},
 		// Whatever let it through, it can't read as more of the line.
 		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "lan", LeadsTo: "macvlan"}, "the macvlan network lan, which reaches past the server's firewall and is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"},

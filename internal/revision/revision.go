@@ -1983,6 +1983,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		// specs: the control plane decides it, whatever the agent says. What a
 		// backup says it came from is the agent's, and can only make a plan louder.
 		gains := map[resource.Ref][]resource.Access{}
+		mounts, err := e.holdingsOn(ctx, server, its, before, after, leads)
+		if err != nil {
+			return nil, err
+		}
 		backupOf := map[resource.Ref][]string{}
 		for i := range steps {
 			if r := steps[i].Restore; r != nil {
@@ -1997,7 +2001,8 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				if it.adopt != "" {
 					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
 				}
-				reaches := e.reach(it.ref, desired, after)
+				reaches := append(e.reach(it.ref, desired, after), mounts.holderOf(it.ref)...)
+				gained = append(gained, resource.NewAccess(gained, mounts.gained(it.ref))...)
 				// What runs has all a resource reaches, so where that's as good as
 				// root, running something else is as much as reaching it anew.
 				if e.runsSomethingElse(it, server) {

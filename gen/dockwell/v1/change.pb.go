@@ -3786,7 +3786,11 @@ type HostAccess struct {
 	// True when that isn't where the path led when what runs now was made, as its
 	// server's agent reads it. An agent sets it, for the control plane to decide
 	// what a plan gains by, and plans don't carry it.
-	LeadsMoved    bool `protobuf:"varint,11,opt,name=leads_moved,json=leadsMoved,proto3" json:"leads_moved,omitempty"`
+	LeadsMoved bool `protobuf:"varint,11,opt,name=leads_moved,json=leadsMoved,proto3" json:"leads_moved,omitempty"`
+	// Another mount's source inside path, a read-write server path. What writes path
+	// can turn it into a link to anywhere on the server, which what mounts it follows
+	// the next time it starts, so this is as good as root.
+	Holds         string `protobuf:"bytes,12,opt,name=holds,proto3" json:"holds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3896,6 +3900,13 @@ func (x *HostAccess) GetLeadsMoved() bool {
 		return x.LeadsMoved
 	}
 	return false
+}
+
+func (x *HostAccess) GetHolds() string {
+	if x != nil {
+		return x.Holds
+	}
+	return ""
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -5929,7 +5940,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12)\n" +
 	"\x10previous_servers\x18\a \x03(\tR\x0fpreviousServers\x128\n" +
 	"\vhost_access\x18\b \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\"\xc4\x02\n" +
+	"hostAccess\"\xda\x02\n" +
 	"\n" +
 	"HostAccess\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.dockwell.v1.HostAccessKindR\x04kind\x12\x12\n" +
@@ -5945,7 +5956,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\bleads_to\x18\n" +
 	" \x01(\tR\aleadsTo\x12\x1f\n" +
 	"\vleads_moved\x18\v \x01(\bR\n" +
-	"leadsMoved\"\xa2\x02\n" +
+	"leadsMoved\x12\x14\n" +
+	"\x05holds\x18\f \x01(\tR\x05holds\"\xa2\x02\n" +
 	"\n" +
 	"ServerPlan\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +

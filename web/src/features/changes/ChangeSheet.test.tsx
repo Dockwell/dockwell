@@ -234,6 +234,9 @@ describe("the plan sheet", () => {
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/srv/c", leadsTo: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: spoof, sameAsRoot: true }),
       create(HostAccessSchema, { kind: HostAccessKind.GROUP, path: spoof, sameAsRoot: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: spoof, holds: "/srv/a", sameAsRoot: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv", holds: spoof, sameAsRoot: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.BACKUP_OF, path: spoof, sameAsRoot: true }),
     ];
     renderSheet(proposeWeb, {
       changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },
@@ -245,6 +248,55 @@ describe("the plan sheet", () => {
     expect(text).toContain(`joins the group "${spoof}" on hz-1`);
     expect(text).toContain(`has the Linux capability "${spoof}" on hz-1`);
     expect(text.replace(/"(?:[^"\\]|\\.)*"/g, "")).not.toContain(spoof);
+  });
+
+  it("says what a mount that can move another's source can do, and asks as root does", async () => {
+    const reaching = webPlanned();
+    const plan = reaching.plan;
+    const resource = plan?.resources[0];
+    if (!plan || !resource) throw new Error("webPlanned has no resource");
+    plan.hostAccess = true;
+    resource.hostAccess = [
+      create(HostAccessSchema, {
+        kind: HostAccessKind.SERVER_PATH,
+        path: "/srv",
+        holds: "/srv/app/conf",
+        sameAsRoot: true,
+      }),
+      create(HostAccessSchema, {
+        kind: HostAccessKind.SERVER_PATH,
+        path: "/srv",
+        holds: "/srv/app/keys",
+        sameAsRoot: true,
+      }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByRole("alert");
+    expect(sheet.textContent).toContain("web can move what /srv/app/conf leads to on hz-1");
+    expect(sheet.textContent).toContain("web can move what /srv/app/keys leads to on hz-1");
+    expect(sheet.textContent).toContain("link to anywhere on the server");
+    expect(sheet.textContent).toContain("Applying this asks for your passkey");
+  });
+
+  it("says a backup can hold what its volume reached, and asks as root does", async () => {
+    const reaching = webPlanned();
+    const plan = reaching.plan;
+    const resource = plan?.resources[0];
+    if (!plan || !resource) throw new Error("webPlanned has no resource");
+    plan.hostAccess = true;
+    resource.hostAccess = [
+      create(HostAccessSchema, { kind: HostAccessKind.BACKUP_OF, path: "/etc", sameAsRoot: true }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByText("web gets back what reached root on hz-1")).toBeInTheDocument();
+    expect(sheet.textContent).toContain("whatever mounts it can read what comes back");
+    expect(sheet.textContent).toContain("Applying this asks for your passkey");
   });
 
   it("asks for the fingerprint before giving a container more of its server, and says what it reaches", async () => {
