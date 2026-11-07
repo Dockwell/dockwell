@@ -17,6 +17,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { anApp } from "../../test/apps";
 import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
@@ -94,6 +95,22 @@ describe("the shell on wide screens", () => {
     // The public IPv4 address, not the private one listed first.
     expect(top).toHaveTextContent("49.12.33.7");
     expect(top).not.toHaveTextContent("10.0.0.2");
+  });
+
+  it("offers New in the top bar, and counts the apps beside Apps", async () => {
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    renderAt("/", {
+      servers: { watchServers: watch.stream },
+      services: {
+        listServices: () => ({ services: [anApp("web", "nginx:1.27"), anApp("api", "ghcr.io/example/api:2")] }),
+      },
+    });
+    await screen.findByRole("heading", { level: 1 });
+    expect(within(screen.getByRole("banner")).getByRole("link", { name: "New" })).toHaveAttribute("href", "/apps/new");
+    // A glance at what Apps says in full, so screen readers hear the label alone.
+    const apps = within(rail()).getByRole("link", { name: "Apps" });
+    await waitFor(() => expect(apps).toHaveTextContent(/^Apps\s*2/));
   });
 
   it("brings in fleet concepts once a second server joins", async () => {
