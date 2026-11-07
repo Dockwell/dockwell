@@ -340,7 +340,8 @@ func folderConfig(f *resourcev1.WebsiteFolder) string {
 	if f.GetSinglePageApp() {
 		fmt.Fprintf(&b, "\ttry_files {path} {path}/ /%s\n", index[0])
 	}
-	fmt.Fprintf(&b, "\tfile_server {\n\t\tindex %s\n\t}\n", strings.Join(index, " "))
+	// What starts with a dot, such as .git and .env, is never a site's to serve.
+	fmt.Fprintf(&b, "\tfile_server {\n\t\tindex %s\n\t\thide .*\n\t}\n", strings.Join(index, " "))
 	b.WriteString("}\n")
 	return b.String()
 }

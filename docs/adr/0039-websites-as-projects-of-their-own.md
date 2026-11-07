@@ -46,6 +46,7 @@ A folder's web server serves the files as they are, with its index for a folder,
 
 - **It reads the folder as uid 65532,** so the folder must be open to everyone, as a site's usually is. The forms read it through Files and say when it isn't, or has no index, with the `chmod` that fixes it. They read the folder above first, as a listing that comes to nothing goes on Activity as refused ([ADR 0032](0032-files-on-a-server.md)), and a folder that isn't there yet is the form's business, not Activity's.
 - **A folder that isn't there yet is made by Docker,** empty and owned by root. Files edits what's there and makes no file, so a new site's first files arrive by `scp` or `rsync` for now, and the form says so.
+- **What starts with a dot isn't served,** such as `.git` and `.env`, which a site's folder often holds.
 - **Deleting the website leaves the folder as it is.**
 
 ### PHP runs beside the web server
