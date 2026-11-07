@@ -138,6 +138,8 @@ type Server struct {
 	api      http.Handler
 	agents   http.Handler
 	agentTLS *tls.Config
+	// addAgentHost has the agent listener's certificate name one more address.
+	addAgentHost func(string)
 	// logs reads service logs, and tells servers what deletions put out of reach.
 	logs *logapi.Handler
 	// backups takes backups, and those under way end with the control plane.
@@ -196,7 +198,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.Identity != nil {
 		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, agentapi.WithAgents(cfg.Agents))
-		s.agentTLS = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)
+		s.agentTLS, s.addAgentHost = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)
 	}
 	return s, nil
 }
@@ -304,6 +306,14 @@ func (s *Server) ServeAgents(ctx context.Context, ln net.Listener) error {
 		return errors.New("control: the agent listener needs Config.Identity")
 	}
 	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS})
+}
+
+// AddAgentHost has the agent listener's certificate name host too, from the next
+// connection.
+func (s *Server) AddAgentHost(host string) {
+	if s.addAgentHost != nil {
+		s.addAgentHost(host)
+	}
 }
 
 // PublicPorts returns what serves the panel on the public ports, for this

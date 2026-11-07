@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -867,5 +868,89 @@ func TestAnUnreadableSettingLeavesTheAddressUnset(t *testing.T) {
 	}
 	if got := network(t, h).GetIpv4(); got != nil {
 		t.Errorf("it reads %v", got)
+	}
+}
+
+// first is the address a ticket leads with, or none.
+func first(addresses []ControlAddress) string {
+	if len(addresses) == 0 {
+		return ""
+	}
+	return addresses[0].Address
+}
+
+func TestTheControlServersAddressIsWhatOtherNetworksReach(t *testing.T) {
+	h, _ := newHub(t, "oci-1", "home-1", "lte-1")
+	h.SetControlServer("srv_A")
+	select {
+	case <-h.ControlAddressMoved():
+	default:
+		t.Error("becoming the control server didn't signal")
+	}
+	attached(t, h, "10.0.0.25")
+	if got, known := h.ControlAddresses(); got != nil || known {
+		t.Errorf("with nothing heard: %v, known %t", got, known)
+	}
+	h.RecordNetwork("srv_A", &agentv1.Network{Provider: oracle, MachineProvider: oracle, LookedUpAddress: "203.0.113.50"})
+	select {
+	case <-h.ControlAddressMoved():
+	default:
+		t.Error("an address arriving didn't signal")
+	}
+	if got, known := h.ControlAddresses(); first(got) != "203.0.113.50" || got[0].WayIn || !known {
+		t.Errorf("once found: %v, known %t", got, known)
+	}
+	attached(t, h, "100.72.1.2")
+	h.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: "203.0.113.7"})
+	if got, known := h.ControlAddresses(); got != nil || !known {
+		t.Errorf("behind carrier NAT, a way out reads as %v, known %t", got, known)
+	}
+	attached(t, h, "203.0.113.52")
+	if got, _ := h.ControlAddresses(); first(got) != "203.0.113.52" || !got[0].WayIn {
+		t.Errorf("on an interface: %v", got)
+	}
+}
+
+// Rule 5 of ADR 0034: what's known of each family is told apart, so a ticket holds
+// every candidate: ways in of either family, then ways out. On Oracle with IPv6, a
+// joiner with IPv4 alone still has the way out to try.
+func TestATicketHoldsEveryAddressInOrder(t *testing.T) {
+	h, _ := newHub(t, "oci-1")
+	h.SetControlServer("srv_A")
+	attached(t, h, "10.0.0.5", "2001:db8::5")
+	h.RecordNetwork("srv_A", &agentv1.Network{Provider: oracle, MachineProvider: oracle, LookedUpAddress: "203.0.113.7"})
+	want := []ControlAddress{{Address: "2001:db8::5", WayIn: true}, {Address: "203.0.113.7"}}
+	if got, _ := h.ControlAddresses(); !slices.Equal(got, want) {
+		t.Errorf("it holds %v, want %v", got, want)
+	}
+	attached(t, h, "100.72.1.2", "2001:db8::5")
+	h.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: "203.0.113.7"})
+	if got, _ := h.ControlAddresses(); !slices.Equal(got, want[:1]) {
+		t.Errorf("behind carrier NAT, it holds %v", got)
+	}
+}
+
+// What's known can change with no change of address, as when the control server's
+// agent first says it has none, so a stale one can be cleared.
+func TestTheControlServerSignalsAsWhatsKnownChanges(t *testing.T) {
+	h, _ := newHub(t, "home-1")
+	h.SetControlServer("srv_A")
+	attached(t, h, "192.168.1.20")
+	// Drain what came before, so only what's next is read.
+	for drained := false; !drained; {
+		select {
+		case <-h.ControlAddressMoved():
+		default:
+			drained = true
+		}
+	}
+	h.RecordNetwork("srv_A", &agentv1.Network{})
+	select {
+	case <-h.ControlAddressMoved():
+	default:
+		t.Error("its agent saying it has none didn't signal")
+	}
+	if got, known := h.ControlAddresses(); got != nil || !known {
+		t.Errorf("it reads %v, known %t", got, known)
 	}
 }

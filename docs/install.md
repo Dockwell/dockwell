@@ -38,6 +38,8 @@ Then run the install on the new server with that ticket. The new server joins an
 curl -fsSL https://get.dockwell.dev | sh -s -- --join <ticket>
 ```
 
+A ticket names every address the control server may be reached at, in the order a joining server tries them: its public addresses known to be a way in, then how it reaches the internet, then its private address, for a server on the same network. `dockwell token create` says what the first one needs. A public way in needs port 7443 open at your provider and on the machine. An address that's only how the control server goes out reaches it only through a port forwarded on a router. A private address works only from its own network. In either of the last two cases, the fix is to set the control server's public address under Network on its page, or to restart `dockwell run` with `--advertise-url`, as in [Change settings](#change-settings). A server running an older Dockwell tries the first address alone.
+
 The `sh -s --` passes the options to the script. You can set `DOCKWELL_JOIN` instead, as long as it is set for `sh` rather than for `curl`: `curl -fsSL https://get.dockwell.dev | DOCKWELL_JOIN=<ticket> sh`. A ticket works once and expires after an hour by default, so it does little harm in your shell history.
 
 ## Two builds

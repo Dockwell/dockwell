@@ -8,7 +8,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/netip"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -54,18 +58,24 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 				return err
 			}
 			defer closeDB()
+			urls := []identity.JoinURL{{URL: controlURL, WayIn: true}}
 			if controlURL == "" {
-				if controlURL, err = auth.AgentURL(ctx); err != nil {
+				if urls, err = auth.JoinURLs(ctx); err != nil {
 					return err
 				}
 			}
-			tk, err := auth.CreateTicket(ctx, controlURL, actor(), ttl)
+			controlURL = urls[0].URL
+			var others []string
+			for _, u := range urls[1:] {
+				others = append(others, u.URL)
+			}
+			tk, err := auth.CreateTicket(ctx, controlURL, actor(), ttl, others...)
 			if err != nil {
 				return usageError{err}
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Run this on the server you're adding, as root:\n\n  dockwell join %s\n\n"+
-				"The ticket adds one server through %s. It works once and expires in %s, at %s.\n",
-				tk.Value, controlURL, human.Duration(ttl), tk.ExpiresAt.UTC().Format("15:04 MST on 2 Jan"))
+				"The ticket adds one server through %s. It works once and expires in %s, at %s.\n%s",
+				tk.Value, strings.Join(append([]string{controlURL}, others...), ", or else "), human.Duration(ttl), tk.ExpiresAt.UTC().Format("15:04 MST on 2 Jan"), joinWords(urls))
 			return nil
 		},
 	}
@@ -73,6 +83,37 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 	create.Flags().StringVar(&controlURL, "control-url", "", "the control plane's agent URL to put in the ticket; defaults to what dockwell run advertises")
 	cmd.AddCommand(create)
 	return cmd
+}
+
+// joinWords says who a ticket's addresses can reach, and what each case needs, as
+// nothing else says so until a join fails. A way in needs its port open. A way out
+// reaches this server only through a forwarded port, and a private address only from
+// its own network. A name can be anything.
+func joinWords(urls []identity.JoinURL) string {
+	lead := urls[0]
+	u, err := url.Parse(lead.URL)
+	if err != nil {
+		return ""
+	}
+	host, port := u.Hostname(), u.Port()
+	ip, err := netip.ParseAddr(host)
+	words := ""
+	switch {
+	case err != nil:
+	case resource.IsPublicAddress(ip) && lead.WayIn:
+		words = fmt.Sprintf("\nA server on another network reaches this one at %[1]s on port %[2]s, so open that port at your provider and on this machine.\n", host, port)
+	case resource.IsPublicAddress(ip):
+		words = fmt.Sprintf("\nThe ticket leads with %[1]s, which is how this server reaches the internet, and may not be a way in. "+
+			"A server on another network joins through it only if port %[2]s there leads to this server, as with a port forwarded on a router. "+
+			"If you know this server's public address, set it under Network on its page, and tickets lead with that.\n", host, port)
+	default:
+		words = fmt.Sprintf("\n%[1]s is a private address, so only a server on the same network can use this ticket. "+
+			"For a server elsewhere, set this server's public address under Network on its page, or restart dockwell run with --advertise-url set to an address that server reaches.\n", host)
+	}
+	if len(urls) > 1 {
+		words += fmt.Sprintf("A server running an older Dockwell tries %s alone, so upgrade it first if that won't reach this one.\n", lead.URL)
+	}
+	return words
 }
 
 // actor names who ran a command, for the audit log.

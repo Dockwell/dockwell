@@ -49,9 +49,11 @@ func Decode(s string) (*agentv1.JoinTicket, error) {
 	if err := proto.Unmarshal(b, t); err != nil {
 		return nil, ErrMalformed
 	}
-	u, err := url.Parse(t.GetControlUrl())
-	if err != nil || u.Scheme != "https" || u.Host == "" {
-		return nil, fmt.Errorf("%w (its control plane address %q isn't an https URL)", ErrMalformed, t.GetControlUrl())
+	for _, address := range append([]string{t.GetControlUrl()}, t.GetOtherUrls()...) {
+		u, err := url.Parse(address)
+		if err != nil || u.Scheme != "https" || u.Host == "" {
+			return nil, fmt.Errorf("%w (its control plane address %q isn't an https URL)", ErrMalformed, address)
+		}
 	}
 	if !strings.HasPrefix(t.GetCaPin(), pki.PinPrefix) || t.GetTokenId() == "" || len(t.GetSecret()) != SecretSize {
 		return nil, ErrMalformed

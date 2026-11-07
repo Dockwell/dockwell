@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -96,6 +97,50 @@ func testBootstrapKeepsTheSameIdentity(t *testing.T, backend store.Backend) {
 		}
 		return nil
 	})
+}
+
+// Every host a ticket names stays on the agent listener's certificate through a
+// restart, whatever leads now, as a server that joined through one goes on using it.
+func TestEveryHostATicketNamedSurvivesARestart(t *testing.T) {
+	storetest.Each(t, testEveryHostATicketNamedSurvivesARestart)
+}
+
+func testEveryHostATicketNamedSurvivesARestart(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
+	if err := f.a.SetAgentURL(t.Context(), "https://10.0.0.25:7443"); err != nil {
+		t.Fatal(err)
+	}
+	six := JoinURL{URL: "https://[2001:db8::5]:7443", WayIn: true}
+	four := JoinURL{URL: "https://203.0.113.7:7443"}
+	if err := f.a.SetPublicAgentURLs(t.Context(), []JoinURL{six}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.a.SetPublicAgentURLs(t.Context(), []JoinURL{four}); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Bootstrap(t.Context(), f.db, f.key, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hosts, err := again.AgentHosts(t.Context())
+	if err != nil || !slices.Equal(hosts, []string{"2001:db8::5", "203.0.113.7"}) {
+		t.Errorf("after a restart the certificate names %v (%v)", hosts, err)
+	}
+	urls, err := again.JoinURLs(t.Context())
+	want := []JoinURL{four, {URL: "https://10.0.0.25:7443"}}
+	if err != nil || !slices.Equal(urls, want) {
+		t.Errorf("tickets name %v, want %v (%v)", urls, want, err)
+	}
+	// None known leads with the server's own address, and forgets no host.
+	if err := again.SetPublicAgentURLs(t.Context(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if urls, err := again.JoinURLs(t.Context()); err != nil || !slices.Equal(urls, want[1:]) {
+		t.Errorf("with none known, tickets name %v (%v)", urls, err)
+	}
+	if hosts, _ := again.AgentHosts(t.Context()); len(hosts) != 2 {
+		t.Errorf("clearing forgot hosts: %v", hosts)
+	}
 }
 
 func TestTicketRoundTrip(t *testing.T) { storetest.Each(t, testTicketRoundTrip) }

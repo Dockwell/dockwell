@@ -116,11 +116,13 @@ type Hub struct {
 	servers  map[string]*live
 	control  string
 	watchers map[chan Update]struct{}
+	// controlMoved signals that the control server's public address may have changed.
+	controlMoved chan struct{}
 }
 
 // New loads the servers the store knows.
 func New(ctx context.Context, db *store.DB, logger *slog.Logger) (*Hub, error) {
-	h := &Hub{db: db, logger: logger, now: time.Now, servers: map[string]*live{}, watchers: map[chan Update]struct{}{}}
+	h := &Hub{db: db, logger: logger, now: time.Now, servers: map[string]*live{}, watchers: map[chan Update]struct{}{}, controlMoved: make(chan struct{}, 1)}
 	err := db.View(ctx, func(tx *store.Tx) error {
 		servers, err := tx.ListServers(ctx)
 		if err != nil {
@@ -161,6 +163,7 @@ func (h *Hub) SetControlServer(id string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.control = id
+	h.controlMovedLocked()
 }
 
 // ControlServer returns the server that runs the control plane, without

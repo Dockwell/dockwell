@@ -17,6 +17,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -395,15 +396,17 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 
 // TLSConfig is the agent listener's TLS configuration: TLS 1.3, a serving
 // certificate from the install's CA for hosts, and client certificates
-// verified against the same CA when given.
-func TLSConfig(auth *identity.Authority, hosts []string) *tls.Config {
+// verified against the same CA when given. addHost has the certificate name one
+// more, from the next connection, as a joining server checks it against the
+// address it dials, and a public address may only be known later.
+func TLSConfig(auth *identity.Authority, hosts []string) (cfg *tls.Config, addHost func(string)) {
 	sc := &servingCert{ca: auth.CA(), hosts: hosts, now: time.Now}
 	return &tls.Config{
 		MinVersion:     tls.VersionTLS13,
 		ClientAuth:     tls.VerifyClientCertIfGiven,
 		ClientCAs:      auth.CA().Pool(),
 		GetCertificate: sc.get,
-	}
+	}, sc.add
 }
 
 // servingCert issues the agent listener's certificate and reissues it when
@@ -416,6 +419,16 @@ type servingCert struct {
 
 	mu   sync.Mutex
 	cert *tls.Certificate
+}
+
+// add names one more host on the next certificate, and has it issued now.
+func (s *servingCert) add(host string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !slices.Contains(s.hosts, host) {
+		s.hosts = append(slices.Clone(s.hosts), host)
+		s.cert = nil
+	}
 }
 
 func (s *servingCert) get(*tls.ClientHelloInfo) (*tls.Certificate, error) {

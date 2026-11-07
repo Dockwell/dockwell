@@ -311,6 +311,11 @@ func (h *Hub) refreshNetworkLocked(server string, l *live) {
 	}
 	next.Reachable, next.ReachableDomain, next.ReachableTime = reachable(v, next.GetIpv4().GetAddress(), next.GetIpv6().GetAddress())
 	l.refreshed = now
+	if server == h.control {
+		// What's known of it can change with no change of address, as when its agent
+		// first says it has none, and whoever follows it compares for itself.
+		h.controlMovedLocked()
+	}
 	if proto.Equal(was, next) {
 		return
 	}
@@ -325,6 +330,57 @@ func (h *Hub) refreshNetworkLocked(server string, l *live) {
 	}
 	h.notifyLocked(server, false)
 }
+
+func (h *Hub) controlMovedLocked() {
+	select {
+	case h.controlMoved <- struct{}{}:
+	default:
+	}
+}
+
+// ControlAddress is one address other networks may reach the control server at.
+type ControlAddress struct {
+	Address string
+	// WayIn says something showed the internet comes in there. Without it, it's how
+	// the control server goes out, which may well work too.
+	WayIn bool
+}
+
+// ControlAddresses are the addresses other networks may reach the control server at,
+// in the order a join ticket tries them: ways in of either family, then ways out, which
+// aren't offered behind carrier-grade NAT. Known says whether anything's been heard of
+// its network, so an empty list isn't taken for one that's gone.
+func (h *Hub) ControlAddresses() (addresses []ControlAddress, known bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l, ok := h.servers[h.control]
+	if !ok {
+		return nil, false
+	}
+	return controlAddresses(l.network), l.outside != nil || l.person.GetIpv4() != nil || l.person.GetIpv6() != nil
+}
+
+func controlAddresses(n *dockwellv1.ServerNetwork) []ControlAddress {
+	known := []*dockwellv1.PublicAddress{n.GetIpv4(), n.GetIpv6()}
+	var out []ControlAddress
+	for _, a := range known {
+		if a != nil && !a.GetUnproven() {
+			out = append(out, ControlAddress{Address: a.GetAddress(), WayIn: true})
+		}
+	}
+	if n.GetShape() == dockwellv1.NetworkShape_NETWORK_SHAPE_CARRIER_NAT {
+		return out
+	}
+	for _, a := range known {
+		if a != nil && a.GetUnproven() {
+			out = append(out, ControlAddress{Address: a.GetAddress()})
+		}
+	}
+	return out
+}
+
+// ControlAddressMoved signals when ControlAddresses may say something new.
+func (h *Hub) ControlAddressMoved() <-chan struct{} { return h.controlMoved }
 
 // tellOf is what a server's agent should go by. An address on an interface isn't
 // its to be told: it has that, with any others, and picks by what a record needs.
