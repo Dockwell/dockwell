@@ -1160,9 +1160,11 @@ func (p *serverPlace) clone() *serverPlace {
 	return out
 }
 
-// apply makes a call carry on from a server's place.
+// apply makes a call carry on from a server's place: after its last line, or from
+// when the stream began where none came, so lines written meanwhile aren't left to
+// the tail's count.
 func (p *serverPlace) apply(call *agentv1.LogsCall) {
-	if p == nil || p.Last == 0 {
+	if p == nil || p.Last == 0 && p.From == 0 {
 		return
 	}
 	call.After = call.After[:0]
@@ -1264,7 +1266,9 @@ func (h *Handler) WatchLogs(ctx context.Context, req *connect.Request[dockwellv1
 		if len(pending.GetChunks()) == 0 && len(pending.GetSources()) == 0 && len(pending.GetServers()) == 0 && !pending.GetCaughtUp() {
 			return nil
 		}
-		if len(pending.GetChunks()) > 0 {
+		// A log that has printed nothing yet still has a place, from when the stream
+		// began, which caught up says: carrying on from it misses nothing.
+		if len(pending.GetChunks()) > 0 || pending.GetCaughtUp() {
 			pending.ResumeToken = places.encode()
 		}
 		err := stream.Send(pending)

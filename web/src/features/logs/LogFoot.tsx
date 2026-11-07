@@ -141,6 +141,7 @@ export function LogFoot({
   following,
   rangeLabel,
   rangeEnd,
+  rangeFixed,
   levelFiltered,
   phone,
   onPause,
@@ -155,6 +156,8 @@ export function LogFoot({
   following: boolean;
   rangeLabel: string;
   rangeEnd: number;
+  /** The range ends where it ends, as one this view missed while away does: refreshing adds nothing newer. */
+  rangeFixed?: boolean;
   levelFiltered: boolean;
   phone: boolean;
   onPause: () => void;
@@ -190,7 +193,11 @@ export function LogFoot({
     });
   } else if (rangeLabel) {
     const to = clockMinutes(rangeEnd);
-    words = (
+    words = rangeFixed ? (
+      <Trans>
+        {rangeLabel}, to {to}.
+      </Trans>
+    ) : (
       <Trans>
         {rangeLabel}, to {to}. Refresh for newer lines.
       </Trans>

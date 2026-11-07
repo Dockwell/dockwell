@@ -161,6 +161,8 @@ describe("a tab out of sight", () => {
     act(() => seen("visible"));
     await waitFor(() => expect(open()).toBe(2));
     unmount();
+    // Nothing is left open once the page goes.
+    await waitFor(() => expect(open()).toBe(0));
   });
 
   it("closes a log's stream too, and carries on after the last line it had on coming back", async () => {
@@ -182,5 +184,7 @@ describe("a tab out of sight", () => {
     // Coming back is no failure, so nothing says it's reconnecting.
     expect(screen.queryByText("Reconnecting to the control server")).toBeNull();
     unmount();
+    // Nothing is left open once the page goes.
+    await waitFor(() => expect(open()).toBe(0));
   });
 });

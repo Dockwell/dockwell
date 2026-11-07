@@ -32,7 +32,19 @@ export interface StreamState {
   sources: ReadonlyMap<string, LogSource>;
   servers: ReadonlyMap<string, ServerLogStatus>;
   error?: ConnectError;
+  /** Back from a tab out of sight, it's reading what came meanwhile, and isn't live until it has. */
+  catchingUp?: boolean;
+  /** Back from a tab out of sight for long, it started again from the newest lines: what came then wasn't read. */
+  missed?: { from: number; to: number };
 }
+
+/**
+ * How long a tab can be out of sight and still read all that came meanwhile on
+ * coming back. Past it, reading hours of lines through the tunnel only to keep the
+ * newest would take longer than it's worth, so it starts again from the newest
+ * and says what it didn't read.
+ */
+export const LONG_AWAY_MS = 10 * 60_000;
 
 const START: StreamState = { status: "connecting", caughtUp: false, sources: new Map(), servers: new Map() };
 
@@ -48,6 +60,8 @@ interface Progress {
   servers: Map<string, ServerLogStatus>;
   /** Read to its end, or failed for good: nothing to carry on with. */
   finished: boolean;
+  /** When its stream last closed, to know how long it was away. */
+  closedAt?: number;
 }
 
 const fresh = (): Progress => ({ token: "", sources: new Map(), servers: new Map(), finished: false });
@@ -96,6 +110,21 @@ export function useLogStream(
     const abort = new AbortController();
     const client = createClient(LogService, transport);
     const { sources, servers } = read;
+    // Back from a tab out of sight: read what came meanwhile, or, after long, start again.
+    const back = read.closedAt;
+    read.closedAt = undefined;
+    let catching = false;
+    if (back !== undefined && !req.once) {
+      const now = Date.now();
+      if (now - back > LONG_AWAY_MS) {
+        read.token = "";
+        store.markAway(back, now);
+        setState((was) => ({ ...was, missed: { from: back, to: now } }));
+      } else if (read.token !== "") {
+        catching = true;
+        setState((was) => ({ ...was, catchingUp: true }));
+      }
+    }
     let pending: LogChunk[] = [];
     let timer: ReturnType<typeof setTimeout> | undefined;
     let flushed = 0;
@@ -137,10 +166,12 @@ export function useLogStream(
           }
           if (changed || m.caughtUp) {
             saidLive = true;
+            if (m.caughtUp) catching = false;
             setState((was) => ({
               ...was,
               status: "live",
               caughtUp: was.caughtUp || m.caughtUp,
+              catchingUp: catching,
               sources: new Map(sources),
               servers: new Map(servers),
               error: undefined,
@@ -173,6 +204,7 @@ export function useLogStream(
     );
     return () => {
       abort.abort();
+      read.closedAt = Date.now();
       // Lines heard and not yet shown go in, so a stream closed for a tab out of sight carries on without a gap.
       if (timer !== undefined) {
         clearTimeout(timer);

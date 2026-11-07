@@ -191,6 +191,13 @@ func TestASourceWithNoPlaceIsReadFromWhenTheStreamBegan(t *testing.T) {
 	if call.GetTail() != 0 || len(call.GetAfter()) != 1 {
 		t.Errorf("the call is %v", call)
 	}
+	// With no line yet, it reads from when the stream began, not from its tail.
+	quiet := &serverPlace{From: 300}
+	call = &agentv1.LogsCall{Tail: 50}
+	quiet.apply(call)
+	if got := call.GetResumeFrom().AsTime().UnixNano(); got != 300 || call.GetTail() != 0 {
+		t.Errorf("with no line it reads from %d with a tail of %d, want 300 and none", got, call.GetTail())
+	}
 	// A token that doesn't say goes by the last line.
 	old := &serverPlace{}
 	old.note("aaaaaaaaaaaa", time.Unix(0, 500))

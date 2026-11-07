@@ -42,6 +42,8 @@ export interface Entry {
   started?: true;
   /** How many lines that came while this view was paused left it unseen. */
   left?: number;
+  /** This view didn't read what came between these, in milliseconds, as its tab was away for long. */
+  away?: { from: number; to: number };
   /** How it was last drawn, with the words of drawnAt. */
   drawn?: LogLine;
   drawnAt?: number;
@@ -387,6 +389,16 @@ export class LogStore implements LogLines {
   }
 
   /** Takes in lines from the API, as they came. */
+  /**
+   * Says, where it began, that this view didn't read what came from one time to
+   * another, as its tab was away for long and it started again from the newest.
+   */
+  markAway(from: number, to: number): void {
+    const seconds = Math.floor(from / 1000);
+    const time = { seconds: BigInt(seconds), nanos: (from - seconds * 1000) * 1_000_000 } as ApiLine["time"];
+    this.insert([this.entry("", time, { away: { from, to } })]);
+  }
+
   add(chunks: readonly LogChunk[]): void {
     const batch: Entry[] = [];
     for (const chunk of chunks) this.take(chunk, batch);
