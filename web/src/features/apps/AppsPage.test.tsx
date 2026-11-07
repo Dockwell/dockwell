@@ -138,29 +138,41 @@ describe("the apps list", () => {
     await expectAccessible(container);
   });
 
-  it("gives the image a column of its own from about 1100 px", async () => {
+  it("gives where each app answers a column from about 1100 px, with its image under its name", async () => {
     onScreen("(min-width: 1100px)");
-    const { container } = renderAt("/apps", api([anApp("web", "ghcr.io/acme/web:1.4"), ...aProject("shop", "a", "b")]));
+    const { container } = renderAt("/apps", {
+      ...api([anApp("web", "ghcr.io/acme/web:1.4"), anApp("api", "ghcr.io/acme/api:2"), ...aProject("shop", "a", "b")]),
+      domains: {
+        listDomains: () => ({
+          domains: [
+            { name: "www.example.com", environmentId: ENV, routes: [{ service: "web", port: 80 }] },
+            { name: "example.com", environmentId: ENV, routes: [{ service: "web", port: 80 }] },
+          ],
+        }),
+      },
+    });
     const row = await screen.findByRole("row", { name: /web/ });
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
       "App",
-      "Image",
       "Status",
       "Revision",
+      "Domain",
       "Deployed",
     ]);
-    expect(within(row).getAllByRole("cell")[1]).toHaveTextContent("ghcr.io/acme/web:1.4");
-    expect(within(row).getAllByRole("cell")[0]).not.toHaveTextContent("ghcr.io");
-    expect(within(screen.getByRole("row", { name: /shop/ })).getAllByRole("cell")[1]).toHaveTextContent("2 apps");
+    // As Apps-List has it: the image under the name, so the eye doesn't cross the row for it.
+    expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("ghcr.io/acme/web:1.4");
+    await waitFor(() => expect(within(row).getAllByRole("cell")[3]).toHaveTextContent("www.example.com+1"));
+    expect(within(screen.getByRole("row", { name: /^api/ })).getAllByRole("cell")[3]).toHaveTextContent("—");
+    expect(within(screen.getByRole("row", { name: /shop/ })).getAllByRole("cell")[0]).toHaveTextContent("2 apps");
     await expectAccessible(container);
   });
 
-  it("leaves room for an app's name beside the image on a fleet, where Runs on takes more of the row", async () => {
+  it("leaves room for an app's name on a fleet, where Runs on takes more of the row", async () => {
     onScreen("(min-width: 1100px)");
     renderAt("/apps", api([anApp("web", "ghcr.io/acme/web:1.4")], hz1, aServer({ id: "srv_2", name: "hz-2" })));
     expect(await screen.findByRole("columnheader", { name: "Runs on" })).toBeVisible();
     // A share of the row added to the fixed columns left the name 27 px at 1280.
-    expect(screen.getByRole("columnheader", { name: "Image" }).style.width).toBe("");
+    expect(screen.getByRole("columnheader", { name: "Domain" }).style.width).toBe("176px");
   });
 
   it("keeps the end of a long image, which tells it from the others, and says the whole of it on hover", async () => {

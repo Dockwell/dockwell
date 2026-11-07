@@ -1333,6 +1333,9 @@ msgstr "{revision} 开始部署于 {when}"
 msgid "{secrets, plural, one {# secret} other {# secrets}}"
 msgstr "{secrets, plural, other {# 个密钥}}"
 
+msgid "+{others}"
+msgstr "+{others}"
+
 msgid "All environments"
 msgstr "所有环境"
 
@@ -5725,9 +5728,6 @@ msgstr "在控制服务器上运行 <0>dockwell token create</0>，然后在要�
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} 个 vCPU"
-
-msgid "+{others}"
-msgstr "+{others}"
 
 msgid "Apps on this server"
 msgstr "此服务器上的应用"

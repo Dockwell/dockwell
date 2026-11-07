@@ -1333,6 +1333,9 @@ msgstr "{revision} started deploying {when}"
 msgid "{secrets, plural, one {# secret} other {# secrets}}"
 msgstr "{secrets, plural, one {# secret} other {# secrets}}"
 
+msgid "+{others}"
+msgstr "+{others}"
+
 msgid "All environments"
 msgstr "All environments"
 
@@ -5725,9 +5728,6 @@ msgstr "Run <0>dockwell token create</0> on the control server, then <1>dockwell
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
-
-msgid "+{others}"
-msgstr "+{others}"
 
 msgid "Apps on this server"
 msgstr "Apps on this server"

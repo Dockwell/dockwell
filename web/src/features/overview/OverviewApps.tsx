@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
-import { type Domain, DomainService } from "@dockwell/api";
 import { Button, Callout, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -14,6 +12,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { ListSkeleton, useAppsLead } from "../apps/AppsPage";
 import { type AppGroup, groupApps, groupDeployedAt, imageOf, nameOf, shortImage, sortGroups } from "../apps/app";
+import { useDomainNames } from "../apps/domains";
 import { HealthBadge, phoneWordClass, useHealthWords } from "../apps/Health";
 import { type AppHealth, type HealthView, useHealth, worstHealth } from "../apps/health";
 import { ImageName } from "../apps/ImageName";
@@ -29,24 +28,6 @@ const SHOWN = 8;
 interface Row {
   id: string;
   group: AppGroup;
-}
-
-/**
- * The domains each app answers on, by environment and service name. Names only,
- * so they're read once, not every few seconds as Domains reads where each stands.
- */
-function useDomainsOf(): (group: AppGroup) => string[] {
-  const domains = useQuery(DomainService.method.listDomains, {}, { staleTime: Number.POSITIVE_INFINITY }).data?.domains;
-  return useMemo(() => {
-    const by = new Map<string, string[]>();
-    for (const domain of domains ?? ([] as Domain[])) {
-      for (const route of domain.routes) {
-        const key = `${domain.environmentId}/${route.service}`;
-        by.set(key, [...(by.get(key) ?? []), domain.name]);
-      }
-    }
-    return (group) => [...new Set(group.services.flatMap((s) => by.get(`${group.environment}/${nameOf(s)}`) ?? []))];
-  }, [domains]);
 }
 
 const rowHealth = (row: Row, health: HealthView): AppHealth => worstHealth(row.group.services.map((s) => health.of(s)));
@@ -133,7 +114,8 @@ function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }
   const { t, i18n } = useLingui();
   const time = useTimeWords();
   const navigate = useNavigate();
-  const domainsOf = useDomainsOf();
+  const domainNames = useDomainNames();
+  const domainsOf = (group: AppGroup) => domainNames(group.environment, group.services);
   const words = useHealthWords();
   const newest = useMemo(() => {
     let out: Date | undefined;

@@ -49,6 +49,7 @@ import {
   shortImage,
   sortGroups,
 } from "./app";
+import { useDomainNames } from "./domains";
 import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, phoneWordClass, useHealthWords } from "./Health";
 import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
@@ -80,8 +81,8 @@ const REVISION_WIDTH = 152;
 /** A SegmentedControl holds up to five; past that, a select. */
 const SEGMENTS = 5;
 
-/** From this wide, the image has a column of its own, as the eye shouldn't have to cross the row for it. */
-const IMAGE_COLUMN_QUERY = "(min-width: 1100px)";
+/** From this wide, where each app answers has a column, as Apps-List has it. Its image is always under its name. */
+const DOMAIN_COLUMN_QUERY = "(min-width: 1100px)";
 
 /** Where the list remembers what is folded, and how many apps there were. Conveniences of this browser alone. */
 const FOLDED_KEY = "dockwell.apps.folded";
@@ -535,13 +536,13 @@ function useColumnHeads(fleet: boolean, wide: boolean) {
     const heads: { key: string; header: string; width?: number | string; align?: "right" }[] = [
       { key: "app", header: t`App` },
     ];
-    // On a fleet, Runs on takes what's left at the narrow end of this: App and Image share it.
-    if (wide) heads.push({ key: "image", header: t`Image`, width: fleet ? undefined : "42%" });
     heads.push(
       { key: "status", header: t`Status`, width: 128 },
       { key: "revision", header: t`Revision`, width: REVISION_WIDTH },
     );
     if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 168 });
+    // A fixed width on a fleet, where Runs on takes room too: a share of the row left a name 27 px at 1280.
+    if (wide) heads.push({ key: "domain", header: t`Domain`, width: fleet ? 176 : "24%" });
     heads.push({ key: "deployed", header: t`Deployed`, width: 104, align: "right" });
     return heads;
   }, [t, fleet, wide]);
@@ -578,8 +579,9 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
   const words = useAppWords();
   const titleOf = useRowTitle();
   const time = useTimeWords();
-  const wide = useMediaQuery(IMAGE_COLUMN_QUERY);
+  const wide = useMediaQuery(DOMAIN_COLUMN_QUERY);
   const heads = useColumnHeads(fleet, wide);
+  const domainNames = useDomainNames();
   const newest = useMemo(() => {
     let out: Date | undefined;
     for (const row of rows) {
@@ -611,12 +613,10 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
                 <span className="dw-cell-title apps-clip" title={title}>
                   {title}
                 </span>
-                {wide ? null : (
-                  <span className="apps-stack-sub">
-                    <Icon name="layers" size={12} />
-                    {plural(count, { one: "# app", other: "# apps" })}
-                  </span>
-                )}
+                <span className="apps-stack-sub">
+                  <Icon name="layers" size={12} />
+                  {plural(count, { one: "# app", other: "# apps" })}
+                </span>
               </span>
             </div>
           );
@@ -635,17 +635,19 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
             >
               {name}
             </Link>
-            {wide ? null : <ImageName image={imageOf(service)} className="dw-cell-sub" />}
+            <ImageName image={imageOf(service)} className="dw-cell-sub" />
           </span>
         );
       },
-      image: (row) => {
-        if (row.service) return <ImageName image={imageOf(row.service)} className="apps-image" />;
-        const count = row.group.services.length;
+      domain: (row) => {
+        const services = row.service ? [row.service] : row.group.services;
+        const [domain, ...more] = domainNames(row.group.environment, services);
+        if (!domain) return <span aria-hidden="true">—</span>;
+        const others = more.length;
         return (
-          <span className="apps-stack-sub">
-            <Icon name="layers" size={12} />
-            {plural(count, { one: "# app", other: "# apps" })}
+          <span className="apps-domain" title={[domain, ...more].join(", ")}>
+            <code className="apps-clip">{domain}</code>
+            {others > 0 ? <span className="apps-domain-more">{t`+${others}`}</span> : null}
           </span>
         );
       },
@@ -681,7 +683,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
       ...(head.key === "servers" || head.key === "deployed" ? { muted: true } : {}),
       render: render[head.key] as (row: Row) => ReactNode,
     }));
-  }, [t, i18n, words, servers, time, now, collapsed, onToggle, wide, heads, health, titleOf]);
+  }, [t, i18n, words, servers, time, now, collapsed, onToggle, heads, health, titleOf, domainNames]);
 
   return (
     <Table<Row>
@@ -819,7 +821,7 @@ function PhoneList({
 /** While the list is on its way: the table with its heads, so nothing moves when it lands. */
 function AppsSkeleton({ label, fleet, rows = 3 }: { label: string; fleet: boolean; rows?: number }) {
   const phone = useMediaQuery(PHONE_QUERY);
-  const wide = useMediaQuery(IMAGE_COLUMN_QUERY);
+  const wide = useMediaQuery(DOMAIN_COLUMN_QUERY);
   const heads = useColumnHeads(fleet, wide);
   const columns = useMemo<TableColumn<{ id: string }>[]>(
     () =>
