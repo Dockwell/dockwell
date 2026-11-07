@@ -173,7 +173,7 @@ export function AppsPage({
     return () => clearTimeout(timer);
   }, [query, search, onSearch]);
 
-  // A website's own services are its to show, on Websites (ADR 0038).
+  // A website's own services are its to show, on Websites (ADR 0039).
   const all = useMemo(() => {
     const served = new Set((sites.data ?? []).map((w) => w.environmentId));
     return services.data?.filter((s) => !served.has(environmentOf(s)));
