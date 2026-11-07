@@ -20,6 +20,7 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 
 import { formatDay } from "../../lib/format";
@@ -457,7 +458,16 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
     <Panel
       title={t`Create a token`}
       className="settings-panel tokens-create"
-      actions={<span className="settings-meta">{t`Each new address it's used from goes in the audit log`}</span>}
+      actions={
+        <span className="settings-meta">
+          <Trans>
+            Each new address it's used from goes in the{" "}
+            <Link to="/settings/audit-log" className="cp-link">
+              audit log
+            </Link>
+          </Trans>
+        </span>
+      }
     >
       <form id={formId} className="tokens-form" onSubmit={(e) => void create(e)} noValidate>
         <div className="tokens-fields">

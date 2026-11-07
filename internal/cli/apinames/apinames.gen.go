@@ -15,6 +15,7 @@ package apinames
 func Commands() []string {
 	return []string{
 		"api-tokens",
+		"audit-events",
 		"auth-state",
 		"backup-destinations",
 		"backup-policies",

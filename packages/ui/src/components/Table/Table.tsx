@@ -4,7 +4,7 @@ import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from "react"
 
 import { cx } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
-import "./Table.css";
+// Table.css loads with the foundations in styles/index.css, as pages use its classes on their own elements.
 
 /** Keys of Row whose values React can render as they are. */
 export type CellKey<Row> = {

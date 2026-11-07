@@ -13,4 +13,10 @@ describe("the foundations", () => {
     expect(read("styles/index.css")).toContain('@import "../components/Panel/Panel.css";');
     expect(read("components/Panel/Panel.tsx")).not.toMatch(/import\s+["'][^"']*\.css["']/);
   });
+
+  // The same for dw-table, which the audit log draws on its own rows.
+  it("carry Table's rules, once", () => {
+    expect(read("styles/index.css")).toContain('@import "../components/Table/Table.css";');
+    expect(read("components/Table/Table.tsx")).not.toMatch(/import\s+["'][^"']*\.css["']/);
+  });
 });

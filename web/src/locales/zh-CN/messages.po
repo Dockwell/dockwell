@@ -387,6 +387,22 @@ msgstr "{count} 台正在部署"
 msgid "{count} down"
 msgstr "{count} 台宕机"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "{count} events in the last 24 hours."
+msgstr "最近 24 小时内有 {count} 个事件。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "{count} events in the last 30 days."
+msgstr "最近 30 天内有 {count} 个事件。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "{count} events in the last 7 days."
+msgstr "最近 7 天内有 {count} 个事件。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "{count} events, all there are."
+msgstr "共 {count} 个事件，这是全部。"
+
 #: src/lib/time.ts
 msgid "{count} h ago"
 msgstr "{count} 小时前"
@@ -1084,6 +1100,10 @@ msgstr "{value, plural, other {{count} 行未显示}}"
 msgid "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
 msgstr "{value, plural, other {约 {count} 行未显示}}"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "{value}, which was {previous}"
+msgstr "{value}（原为 {previous}）"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
@@ -1249,6 +1269,22 @@ msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权�
 #: src/features/changes/fields.tsx
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>，只读"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "1 event in the last 24 hours."
+msgstr "最近 24 小时内有 1 个事件。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "1 event in the last 30 days."
+msgstr "最近 30 天内有 1 个事件。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "1 event in the last 7 days."
+msgstr "最近 7 天内有 1 个事件。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "1 event, all there is."
+msgstr "共 1 个事件，这是全部。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
@@ -1432,6 +1468,7 @@ msgid "A volume such as data at /data, or a server path."
 msgstr "可以是卷（例如挂载到 /data 的 data），也可以是服务器路径。"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "About"
 msgstr "关于"
 
@@ -1479,6 +1516,10 @@ msgstr "{cpus} 个 vCPU 合计"
 msgid "action"
 msgstr "动作"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Action"
+msgstr "操作"
+
 #: src/features/backups/BackupsPage.tsx
 #: src/features/settings/TokensPage.tsx
 #: src/features/shell/CommandMenu.tsx
@@ -1497,6 +1538,7 @@ msgid "Activity"
 msgstr "动态"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Actor"
 msgstr "执行者"
 
@@ -1671,6 +1713,7 @@ msgid "All"
 msgstr "全部"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "All actors"
 msgstr "所有执行者"
 
@@ -1710,6 +1753,10 @@ msgstr "全部为 {short}"
 #: src/features/domains/DomainsPage.tsx
 msgid "All servers"
 msgstr "所有服务器"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "All sources"
+msgstr "所有来源"
 
 #: src/features/domains/DomainsPage.tsx
 msgid "All states"
@@ -1845,10 +1892,15 @@ msgstr "能读取此应用的任何人都能看到它。它的值含有空格、
 msgid "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
 msgstr "能读取此应用的任何人都能看到它。只有变量的值会被隐藏，因此不要把机密写在变量名中。"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "API"
+msgstr "API"
+
 #: src/features/changes/words.ts
 msgid "API token"
 msgstr "API 令牌"
 
+#: src/features/settings/AuditLogPage.tsx
 #: src/features/settings/SettingsLayout.tsx
 #: src/features/settings/TokensPage.tsx
 #: src/features/settings/TokensPointer.tsx
@@ -1946,11 +1998,17 @@ msgstr "时间"
 msgid "At least 16 characters."
 msgstr "至少 16 个字符。"
 
+#: src/features/settings/AuditLogPage.tsx
+#: src/features/settings/SettingsLayout.tsx
+msgid "Audit log"
+msgstr "审计日志"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
 msgstr "身份验证器应用"
 
 #: src/features/changes/words.ts
+#: src/features/settings/AuditLogPage.tsx
 msgid "Automatic"
 msgstr "自动"
 
@@ -2400,9 +2458,17 @@ msgstr "清除了新计划的时区（原为 {previous}），新计划改用 UTC
 msgid "Cleared this install's name, which was {previous}"
 msgstr "清除了这个安装的名称（原为 {previous}）"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Cleared, which was {previous}"
+msgstr "已清除（原为 {previous}）"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Clearing this away failed too"
 msgstr "清理此次变更也失败了"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "CLI"
+msgstr "CLI"
 
 #: src/app/Providers.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -3053,8 +3119,13 @@ msgstr "目的地"
 msgid "Destroys data"
 msgstr "会销毁数据"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Detail"
+msgstr "详情"
+
 #: src/features/changes/FailureNotice.tsx
 #: src/features/changes/RollbackLine.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Details"
 msgstr "详细信息"
 
@@ -3169,6 +3240,10 @@ msgstr "Docker 套接字"
 msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 msgstr "位于 {path} 的 Docker 套接字，可控制服务器上的 Docker，等同于 root 权限"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Dockwell"
+msgstr "Dockwell"
+
 #: src/features/shell/Rail.tsx
 msgid "Dockwell {short}: control plane status"
 msgstr "Dockwell {short}：控制平面状态"
@@ -3188,6 +3263,10 @@ msgstr "Dockwell 无法访问要备份的内容"
 #: src/features/backups/BackupsPage.tsx
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell 无法读取备份"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Dockwell can't read the audit log"
+msgstr "Dockwell 无法读取审计日志"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
@@ -3445,8 +3524,8 @@ msgid "Each code signs you in once, with your email, if you lose your authentica
 msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的邮箱登录一次。它们只在此时显示。请把它们保存在安全的地方，不要和手机放在一起。"
 
 #: src/features/settings/TokensPage.tsx
-msgid "Each new address it's used from goes in the audit log"
-msgstr "每次从新地址使用都会记入审计日志"
+msgid "Each new address it's used from goes in the <0>audit log</0>"
+msgstr "每次从新地址使用都会记入<0>审计日志</0>"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
@@ -3569,6 +3648,7 @@ msgid "Errors in this log"
 msgstr "此日志中的错误"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Event"
 msgstr "事件"
 
@@ -3576,13 +3656,25 @@ msgstr "事件"
 msgid "Event type"
 msgstr "事件类型"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Events"
+msgstr "事件"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Events: {caption}"
 msgstr "事件：{caption}"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
+msgstr "人员、令牌、服务器和 Dockwell 的每一次变更和每一次访问 · 与这个安装一样长久保留"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Every change, server event, access grant, change of health and backup, newest first"
 msgstr "所有变更、服务器事件、访问授权、健康变化和备份，最新的在前"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Everything"
+msgstr "全部"
 
 #: src/features/changes/notices.tsx
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
@@ -3634,6 +3726,10 @@ msgstr "导出"
 msgid "Export as Compose"
 msgstr "导出为 Compose"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Export CSV"
+msgstr "导出 CSV"
+
 #: src/features/logs/LogsPage.tsx
 msgid "failed"
 msgstr "失败"
@@ -3679,6 +3775,10 @@ msgstr "{shown} 中的文件"
 msgid "Filter apps"
 msgstr "筛选应用"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Filter by actor, action, target or address"
+msgstr "按执行者、操作、对象或地址筛选"
+
 #: src/features/apps/AppsPage.tsx
 msgid "Filter by name or image"
 msgstr "按名称或镜像筛选"
@@ -3694,6 +3794,10 @@ msgstr "筛选容器"
 #: src/features/domains/DomainsPage.tsx
 msgid "Filter domains"
 msgstr "筛选域名"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Filter events"
+msgstr "筛选事件"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Filter log lines"
@@ -3782,6 +3886,7 @@ msgstr "从"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppEnvironment.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "From"
 msgstr "来源"
 
@@ -3926,6 +4031,11 @@ msgstr "隐藏"
 #: src/features/variables/VariablesPage.tsx
 msgid "Hide {name}"
 msgstr "隐藏 {name}"
+
+#. placeholder {0}: event.action
+#: src/features/settings/AuditLogPage.tsx
+msgid "Hide details for {0} at {time}"
+msgstr "隐藏 {time} 的 {0} 详情"
 
 #: src/features/settings/TokensPage.tsx
 msgid "Hide the token"
@@ -4488,6 +4598,10 @@ msgstr "任务"
 msgid "Joined"
 msgstr "加入时间"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "JSON lines"
+msgstr "JSON 行"
+
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/settings/TokensPage.tsx
 msgid "Keep"
@@ -4567,6 +4681,18 @@ msgstr "最近 15 分钟"
 #: src/features/logs/LogsPage.tsx
 msgid "Last 24 h"
 msgstr "最近 24 小时"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Last 24 hours"
+msgstr "最近 24 小时"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Last 30 days"
+msgstr "最近 30 天"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Last 7 days"
+msgstr "最近 7 天"
 
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Last copy failed"
@@ -4712,6 +4838,10 @@ msgstr "正在加载会话"
 #: src/features/apps/AppLayout.tsx
 msgid "Loading the app"
 msgstr "正在加载应用"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Loading the audit log"
+msgstr "正在加载审计日志"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Loading the plan"
@@ -5272,6 +5402,10 @@ msgstr "没有运行"
 msgid "Not set: UTC"
 msgstr "未设置：UTC"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Not signed in"
+msgstr "未登录"
+
 #: src/features/servers/containers.ts
 msgid "Not started"
 msgstr "未启动"
@@ -5333,6 +5467,10 @@ msgstr "没有任何检查，因此这只表示它已启动。"
 msgid "Nothing else was written around this line."
 msgstr "这一行前后没有其他日志。"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Nothing happened in this range. Pick a longer one to see more."
+msgstr "这个时间范围内没有发生任何事。选择更长的范围以查看更多。"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
 msgstr "没有符合这些筛选条件的内容。"
@@ -5377,6 +5515,14 @@ msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操�
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing matches these filters. Clear them to see everything."
 msgstr "没有符合这些筛选条件的内容。清除筛选即可查看全部。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Nothing matches. Pick a longer range, or clear the filters."
+msgstr "没有匹配的事件。请选择更长的范围，或清除筛选条件。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Nothing more"
+msgstr "没有更多内容"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing outside {server} reaches {name} yet."
@@ -5597,6 +5743,10 @@ msgstr "打开 {name}"
 msgid "Open {where}"
 msgstr "打开 {where}"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Open in Activity"
+msgstr "在动态中打开"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
 msgstr "打开计划"
@@ -5768,6 +5918,10 @@ msgstr "软件包"
 msgid "Pages"
 msgstr "页面"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Panel"
+msgstr "面板"
+
 #: src/features/auth/ClaimPage.tsx
 #: src/features/settings/GeneralPage.tsx
 msgid "Panel address"
@@ -5867,6 +6021,10 @@ msgstr "暂停以便阅读"
 msgid "Paused"
 msgstr "已暂停"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "People"
+msgstr "人员"
+
 #: src/features/apps/AddPortSheet.tsx
 msgid "People outside the server reach the app through this port"
 msgstr "服务器外部的用户通过这个端口访问应用"
@@ -5886,6 +6044,10 @@ msgstr "人们通过此名称访问应用，流量经过此服务器前面的隧
 #: src/features/files/FilesPage.tsx
 msgid "Permissions"
 msgstr "权限"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Pick a longer range to see more."
+msgstr "选择更长的范围以查看更多。"
 
 #: src/features/apps/revision.ts
 msgid "Placed it on {added}"
@@ -6853,6 +7015,10 @@ msgstr "运行控制平面"
 msgid "Runs with"
 msgstr "一同运行的应用"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Said"
+msgstr "记录内容"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "same as the control plane"
 msgstr "与控制平面相同"
@@ -6875,6 +7041,11 @@ msgstr "覆盖保存"
 msgid "Save your recovery codes"
 msgstr "保存你的恢复码"
 
+#. placeholder {0}: events.length
+#: src/features/settings/AuditLogPage.tsx
+msgid "Saved {0} events."
+msgstr "已保存 {0} 个事件。"
+
 #: src/features/files/FileViewer.tsx
 msgid "Saved {name}"
 msgstr "已保存 {name}"
@@ -6886,6 +7057,14 @@ msgstr "已保存 {server} 上的 {path}"
 #: src/features/activity/describe.ts
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "已保存 {server} 上的 {path}，这个文件可能让他人重新进入服务器"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Saved 1 event."
+msgstr "已保存 1 个事件。"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
+msgstr "已保存最新的 {MOST_EXPORTED} 个事件。缩小筛选范围以保存其余事件。"
 
 #: src/features/settings/GeneralPage.tsx
 msgid "Saved. It's on Activity."
@@ -7083,6 +7262,7 @@ msgstr "服务器根目录"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/servers/ServersPage.tsx
 #: src/features/servers/ServersPanel.tsx
+#: src/features/settings/AuditLogPage.tsx
 #: src/features/settings/ControlPlanePage.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/Rail.tsx
@@ -7172,6 +7352,10 @@ msgstr "设置、状态和账户"
 msgid "shared memory"
 msgstr "共享内存"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Shells on the control server"
+msgstr "控制服务器上的 Shell"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show"
 msgstr "显示"
@@ -7179,6 +7363,11 @@ msgstr "显示"
 #: src/app/Providers.tsx
 msgid "Show all of this line"
 msgstr "显示整行"
+
+#. placeholder {0}: event.action
+#: src/features/settings/AuditLogPage.tsx
+msgid "Show details for {0} at {time}"
+msgstr "显示 {time} 的 {0} 详情"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Show earlier events"
@@ -7202,6 +7391,7 @@ msgstr "收起"
 
 #: src/features/logs/LogNote.tsx
 #: src/features/servers/ContainersPanel.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Show more"
 msgstr "展开"
 
@@ -7402,6 +7592,7 @@ msgid "Something went wrong. Try again."
 msgstr "出了点问题。请重试。"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Source"
 msgstr "来源"
 
@@ -7542,6 +7733,10 @@ msgstr "正在把它从 {left} 上移走"
 #: src/features/changes/words.ts
 msgid "Taking on"
 msgstr "正在接管"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Target"
+msgstr "对象"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
@@ -7707,6 +7902,10 @@ msgstr "代理没有上报磁盘"
 msgid "The API"
 msgstr "API"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "The audit log, newest first"
+msgstr "审计日志，最新的在前"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "The authenticator app isn't set up yet"
 msgstr "身份验证器应用尚未设置"
@@ -7866,6 +8065,10 @@ msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称�
 #: src/features/settings/TokensPage.tsx
 msgid "The new token, partly hidden:"
 msgstr "新令牌，部分已隐藏："
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "The newest {count} events. Show more for older ones."
+msgstr "最新的 {count} 个事件。显示更多以查看更早的事件。"
 
 #. placeholder {0}: first.summary
 #: src/features/apps/AppOverview.tsx
@@ -8448,10 +8651,12 @@ msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell
 msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
 
 #: src/features/logs/LogsPage.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Time"
 msgstr "时间"
 
 #: src/features/logs/LogsPage.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Time range"
 msgstr "时间范围"
 
@@ -8528,6 +8733,10 @@ msgstr "要升级，请以 root 身份在这台服务器上再次运行安装脚
 msgid "Today"
 msgstr "今天"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Today · {day}"
+msgstr "今天 · {day}"
+
 #: src/features/settings/TokensPage.tsx
 msgid "Token"
 msgstr "令牌"
@@ -8589,6 +8798,7 @@ msgstr "趋势"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/settings/AuditLogPage.tsx
 #: src/features/settings/ControlPlanePage.tsx
 #: src/features/settings/TokensPage.tsx
 msgid "Try again"
@@ -9209,6 +9419,7 @@ msgstr "前面的代理访问 {where} 会得到 404，因此访问者会看到�
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "When"
 msgstr "时间"
 
@@ -9289,6 +9500,10 @@ msgstr "是"
 #: src/features/activity/ActivityPage.tsx
 msgid "Yesterday"
 msgstr "昨天"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Yesterday · {day}"
+msgstr "昨天 · {day}"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx

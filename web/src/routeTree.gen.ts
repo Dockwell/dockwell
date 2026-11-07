@@ -32,6 +32,7 @@ import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/change
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellSettingsSettingsIndexRouteImport } from './routes/_shell/_settings/settings.index'
 import { Route as ShellSettingsSettingsApiTokensRouteImport } from './routes/_shell/_settings/settings.api-tokens'
+import { Route as ShellSettingsSettingsAuditLogRouteImport } from './routes/_shell/_settings/settings.audit-log'
 import { Route as ShellSettingsSettingsControlPlaneRouteImport } from './routes/_shell/_settings/settings.control-plane'
 import { Route as ShellSettingsSettingsGeneralRouteImport } from './routes/_shell/_settings/settings.general'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
@@ -157,6 +158,12 @@ const ShellSettingsSettingsApiTokensRoute =
     path: '/settings/api-tokens',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
+const ShellSettingsSettingsAuditLogRoute =
+  ShellSettingsSettingsAuditLogRouteImport.update({
+    id: '/settings/audit-log',
+    path: '/settings/audit-log',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
 const ShellSettingsSettingsControlPlaneRoute =
   ShellSettingsSettingsControlPlaneRouteImport.update({
     id: '/settings/control-plane',
@@ -231,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/catalog/': typeof ShellCatalogIndexRoute
   '/servers/': typeof ShellServersIndexRoute
   '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
@@ -262,6 +270,7 @@ export interface FileRoutesByTo {
   '/catalog': typeof ShellCatalogIndexRoute
   '/servers': typeof ShellServersIndexRoute
   '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
@@ -297,6 +306,7 @@ export interface FileRoutesById {
   '/_shell/catalog/': typeof ShellCatalogIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
   '/_shell/_settings/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/_shell/_settings/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
   '/_shell/_settings/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/_shell/_settings/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/catalog/'
     | '/servers/'
     | '/settings/api-tokens'
+    | '/settings/audit-log'
     | '/settings/control-plane'
     | '/settings/general'
     | '/apps/$serviceId/deployments'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/servers'
     | '/settings/api-tokens'
+    | '/settings/audit-log'
     | '/settings/control-plane'
     | '/settings/general'
     | '/apps/$serviceId/deployments'
@@ -396,6 +408,7 @@ export interface FileRouteTypes {
     | '/_shell/catalog/'
     | '/_shell/servers/'
     | '/_shell/_settings/settings/api-tokens'
+    | '/_shell/_settings/settings/audit-log'
     | '/_shell/_settings/settings/control-plane'
     | '/_shell/_settings/settings/general'
     | '/_shell/apps/$serviceId/deployments'
@@ -579,6 +592,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsApiTokensRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
+    '/_shell/_settings/settings/audit-log': {
+      id: '/_shell/_settings/settings/audit-log'
+      path: '/settings/audit-log'
+      fullPath: '/settings/audit-log'
+      preLoaderRoute: typeof ShellSettingsSettingsAuditLogRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
     '/_shell/_settings/settings/control-plane': {
       id: '/_shell/_settings/settings/control-plane'
       path: '/settings/control-plane'
@@ -648,6 +668,7 @@ declare module '@tanstack/react-router' {
 interface ShellSettingsRouteChildren {
   ShellSettingsProfileRoute: typeof ShellSettingsProfileRoute
   ShellSettingsSettingsApiTokensRoute: typeof ShellSettingsSettingsApiTokensRoute
+  ShellSettingsSettingsAuditLogRoute: typeof ShellSettingsSettingsAuditLogRoute
   ShellSettingsSettingsControlPlaneRoute: typeof ShellSettingsSettingsControlPlaneRoute
   ShellSettingsSettingsGeneralRoute: typeof ShellSettingsSettingsGeneralRoute
   ShellSettingsSettingsIndexRoute: typeof ShellSettingsSettingsIndexRoute
@@ -656,6 +677,7 @@ interface ShellSettingsRouteChildren {
 const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
   ShellSettingsProfileRoute: ShellSettingsProfileRoute,
   ShellSettingsSettingsApiTokensRoute: ShellSettingsSettingsApiTokensRoute,
+  ShellSettingsSettingsAuditLogRoute: ShellSettingsSettingsAuditLogRoute,
   ShellSettingsSettingsControlPlaneRoute:
     ShellSettingsSettingsControlPlaneRoute,
   ShellSettingsSettingsGeneralRoute: ShellSettingsSettingsGeneralRoute,
