@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -24,6 +25,8 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/datadir"
+	"github.com/dockwell/dockwell/internal/seal"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 var linkRE = regexp.MustCompile(`(https?://\S+)/(claim|recover)#(\S+)`)
@@ -45,10 +48,11 @@ func startRunWithLogs(t *testing.T, dir, want string, args ...string) (out, logs
 }
 
 // startRunAsService is startRunWithLogs with standard output that isn't a
-// terminal, as a service's goes to the journal.
-func startRunAsService(t *testing.T, dir, want string, args ...string) (out, logs *syncBuffer, stop func()) {
+// terminal, as a service's goes to the journal, and returns once it has said
+// how to get a claim link.
+func startRunAsService(t *testing.T, dir string) (out, logs *syncBuffer, stop func()) {
 	t.Helper()
-	return startRunOn(t, false, dir, want, args...)
+	return startRunOn(t, false, dir, "To claim it, run this on this server")
 }
 
 func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (out, logs *syncBuffer, stop func()) {
@@ -368,9 +372,12 @@ func TestARestartKeepsTheClaimLink(t *testing.T) {
 	stop()
 
 	port := strings.TrimPrefix(linkRE.FindStringSubmatch(first)[1], "http://localhost:")
-	out, _ = startRunWithOutput(t, dir, "still works", "--listen", "127.0.0.1:"+port)
+	out, logs, _ := startRunWithLogs(t, dir, "still works", "--listen", "127.0.0.1:"+port)
 	if strings.Contains(out.String(), "/claim#") || !strings.Contains(out.String(), "run dockwell claim --data-dir "+dir+" for a new one") {
 		t.Errorf("after a restart:\n%s", out.String())
+	}
+	if !strings.Contains(logs.String(), `the claim link printed earlier still works","expires":`) || !strings.Contains(logs.String(), `"command":"dockwell claim --data-dir `+dir+`"`) {
+		t.Errorf("a restart doesn't log the command that prints a new link as command:\n%s", logs.String())
 	}
 	claimOverHTTP(t, first)
 }
@@ -501,7 +508,7 @@ func authState(t *testing.T, logs *syncBuffer) *dockwellv1.GetAuthStateResponse 
 // the panel shows the same command (#110).
 func TestRunAsAServiceKeepsTheClaimLinkOutOfItsOutput(t *testing.T) {
 	dir := t.TempDir()
-	out, logs, stop := startRunAsService(t, dir, "To claim it, run this on this server")
+	out, logs, stop := startRunAsService(t, dir)
 	command := "dockwell claim --data-dir " + dir
 	if strings.Contains(out.String(), "claim#") || strings.Contains(logs.String(), "claim#") {
 		t.Fatalf("dockwell run printed a claim link where it isn't a terminal:\n%s\n%s", out.String(), logs.String())
@@ -526,8 +533,9 @@ func TestRunAsAServiceKeepsTheClaimLinkOutOfItsOutput(t *testing.T) {
 	// A restart elsewhere can't say the link works as printed, and doesn't
 	// replace it with one nobody can read: the one dockwell claim printed still
 	// claims the install, on the new port.
-	out, logs, stop = startRunAsService(t, dir, "To claim it, run this on this server")
-	if !strings.Contains(out.String(), "The panel's address changed since the last claim link was printed") || strings.Contains(out.String(), "claim#") {
+	out, logs, stop = startRunAsService(t, dir)
+	if !strings.Contains(out.String(), "The panel's address changed since the last claim link was printed, so that link doesn't work as printed.\n\nThis install has no owner yet.") ||
+		strings.Contains(out.String(), "claim#") {
 		t.Errorf("a restart on another port as a service:\n%s", out.String())
 	}
 	moved := regexp.MustCompile(`localhost:\d+`).ReplaceAllString(first, "localhost:"+panelPort(t, logs))
@@ -538,22 +546,32 @@ func TestRunAsAServiceKeepsTheClaimLinkOutOfItsOutput(t *testing.T) {
 	stop()
 }
 
-// The command that prints a link is the one that works for how Dockwell runs.
+// The command that prints a link is the one that works for how Dockwell runs:
+// root has sudo in front, unless there's no sudo, as on Alpine, and keeps
+// DOCKWELL_DATABASE through it for a control plane on Postgres.
 func TestTheClaimCommandFitsHowDockwellRuns(t *testing.T) {
 	defer func(was func() int) { geteuid = was }(geteuid)
+	defer func(was func(string) (string, error)) { lookPath = was }(lookPath)
 	state := t.TempDir()
 	env := func(k string) string { return map[string]string{"XDG_STATE_HOME": state}[k] }
+	const pg = "postgres://dockwell@db.internal/dockwell"
 	for _, tt := range []struct {
-		root bool
-		dir  string
-		want string
+		root, sudo bool
+		dir        string
+		location   string
+		want       string
 	}{
-		{false, filepath.Join(state, "dockwell"), "dockwell claim"},
-		{false, "/srv/dockwell", "dockwell claim --data-dir /srv/dockwell"},
-		{false, "/srv/my dockwell", "dockwell claim --data-dir '/srv/my dockwell'"},
-		{true, systemDataDir, "sudo dockwell claim"},
-		{true, systemDataDir + "/", "sudo dockwell claim"},
-		{true, "/srv/dockwell", "sudo dockwell claim --data-dir /srv/dockwell"},
+		{false, true, filepath.Join(state, "dockwell"), "", "dockwell claim"},
+		{false, true, "/srv/dockwell", "", "dockwell claim --data-dir /srv/dockwell"},
+		{false, true, "/srv/my dockwell", "", "dockwell claim --data-dir '/srv/my dockwell'"},
+		{false, true, filepath.Join(state, "dockwell"), pg, "dockwell claim"},
+		{true, true, systemDataDir, "", "sudo dockwell claim"},
+		{true, true, systemDataDir + "/", "/var/lib/dockwell/control/state.db", "sudo dockwell claim"},
+		{true, true, "/srv/dockwell", "", "sudo dockwell claim --data-dir /srv/dockwell"},
+		{true, true, systemDataDir, pg, "sudo --preserve-env=DOCKWELL_DATABASE dockwell claim"},
+		{true, false, systemDataDir, "", "dockwell claim"},
+		{true, false, systemDataDir, pg, "dockwell claim"},
+		{true, false, "/srv/dockwell", "", "dockwell claim --data-dir /srv/dockwell"},
 	} {
 		geteuid = func() int {
 			if tt.root {
@@ -561,9 +579,34 @@ func TestTheClaimCommandFitsHowDockwellRuns(t *testing.T) {
 			}
 			return 1000
 		}
-		if got := claimCommand(datadir.Dir{Root: tt.dir}, env); got != tt.want {
-			t.Errorf("as root %v, in %s: %q, want %q", tt.root, tt.dir, got, tt.want)
+		lookPath = func(string) (string, error) {
+			if tt.sudo {
+				return "/usr/bin/sudo", nil
+			}
+			return "", exec.ErrNotFound
 		}
+		if got := claimCommand(datadir.Dir{Root: tt.dir}, tt.location, env); got != tt.want {
+			t.Errorf("as root %v, with sudo %v, in %s on %q: %q, want %q", tt.root, tt.sudo, tt.dir, tt.location, got, tt.want)
+		}
+	}
+}
+
+// A control plane on Postgres has no state in its directory, and sudo leaves
+// DOCKWELL_DATABASE out, so the error says how to keep it.
+func TestNoStateSaysSudoLeavesTheDatabaseOut(t *testing.T) {
+	dir := layout(t, "control/key")
+	r := run(t, map[string]string{envLogFormat: "json"}, "claim", "--data-dir", dir)
+	if r.code != exitError || !strings.Contains(r.err, "has no state in") ||
+		!strings.Contains(r.err, "sudo leaves DOCKWELL_DATABASE out, so with sudo, keep it: sudo --preserve-env=DOCKWELL_DATABASE") {
+		t.Errorf("dockwell claim with no state = %d %q", r.code, r.err)
+	}
+}
+
+// Words that say what dockwell run does, as it prints a link only to a terminal.
+func TestHelpSaysTheLinkGoesOnlyToATerminal(t *testing.T) {
+	r := run(t, nil, "run", "--help")
+	if !strings.Contains(r.out, "a one-time link that claims it when its output is a terminal") || !strings.Contains(r.out, "sudo dockwell claim") {
+		t.Errorf("dockwell run --help says:\n%s", r.out)
 	}
 }
 
@@ -577,7 +620,7 @@ func TestClaimAsAnotherUserLooksWhereTheServiceKeepsIt(t *testing.T) {
 	system := t.TempDir()
 	defer func(was string) { systemDataDir = was }(systemDataDir)
 	systemDataDir = system
-	_, _, stop := startRunAsService(t, system, "To claim it, run this on this server")
+	_, _, stop := startRunAsService(t, system)
 	stop()
 	env := map[string]string{"XDG_STATE_HOME": t.TempDir(), envLogFormat: "json"}
 
@@ -585,22 +628,44 @@ func TestClaimAsAnotherUserLooksWhereTheServiceKeepsIt(t *testing.T) {
 	if r.code != exitOK || linkRE.FindString(r.out) == "" {
 		t.Fatalf("dockwell claim with the control plane in a system directory it can read = %d:\n%s%s", r.code, r.out, r.err)
 	}
+	// It opens the system's: that one has no owner yet, where the user's would
+	// have had no control plane at all.
+	r = run(t, env, "login", "--local")
+	if r.code != exitError || !strings.Contains(r.err, "this install has no owner yet, so local access has nobody to act for") {
+		t.Errorf("dockwell login --local with the control plane in a system directory it can read = %d:\n%s%s", r.code, r.out, r.err)
+	}
+
+	// Its directory open to all, and its key to root alone.
+	sudo := func(what string) {
+		t.Helper()
+		for _, command := range [][]string{{"claim"}, {"recover"}, {"token", "create", "--ttl", "1h"}} {
+			r = run(t, env, command...)
+			name := "dockwell " + strings.Join(command[:min(2, len(command))], " ")
+			want := "so " + name + " can't open the control plane as you. Run the same command again with sudo in front of it"
+			if r.code != exitError || !strings.Contains(r.err, "keeps its state in "+system+" on this server, where only root can look") || !strings.Contains(r.err, want) {
+				t.Errorf("dockwell %v where %s = %d %q, want %q", command, what, r.code, r.err, want)
+			}
+		}
+		r = run(t, env, "login", "--local")
+		if r.code != exitError || !strings.Contains(r.err, "so dockwell login --local can't open the control plane as you") {
+			t.Errorf("dockwell login --local where %s = %d %q", what, r.code, r.err)
+		}
+	}
+	control := datadir.Dir{Root: system}.Control()
+	if err := os.Chmod(control, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(control, 0o700) })
+	sudo("only root can read its key")
+	if err := os.Chmod(control, 0o700); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := os.Chmod(system, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(system, 0o700) })
-	for _, command := range [][]string{{"claim"}, {"recover"}, {"token", "create"}} {
-		r = run(t, env, command...)
-		want := "Run it with sudo: sudo dockwell " + strings.Join(command, " ")
-		if r.code != exitError || !strings.Contains(r.err, "keeps its state in "+system+" on this server, where only root can look") || !strings.Contains(r.err, want) {
-			t.Errorf("dockwell %v where only root can look = %d %q, want %q", command, r.code, r.err, want)
-		}
-	}
-	r = run(t, env, "login", "--local")
-	if r.code != exitError || !strings.Contains(r.err, "sudo dockwell login --local") {
-		t.Errorf("dockwell login --local where only root can look = %d %q", r.code, r.err)
-	}
+	sudo("only root can look")
 	// With nothing in the system's directory either, it says what it always said.
 	systemDataDir = t.TempDir()
 	r = run(t, env, "claim")
@@ -634,5 +699,87 @@ func TestClaimWithSudoForAUsersOwnControlPlane(t *testing.T) {
 	r = run(t, map[string]string{envLogFormat: "json"}, "claim")
 	if r.code != exitError || strings.Contains(r.err, "mira") {
 		t.Errorf("dockwell claim as root, not through sudo = %d %q", r.code, r.err)
+	}
+}
+
+// installSummary runs the install script's summary for the control plane at
+// panel, as root would with its output going to a log rather than a terminal,
+// and returns what it printed. BIN is no dockwell at all, so a claim link made
+// there would fail it.
+func installSummary(t *testing.T, data, panel string) string {
+	t.Helper()
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Skip("there's no curl here for the install script to ask the panel with")
+	}
+	// A server with sudo, as most have, so what the script would say of its
+	// own differs from what the control plane says, as it runs here.
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "sudo"), []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.CommandContext(t.Context(), "sh", "-c", `. "$1"; BIN=/nonexistent/dockwell; DATA=$2; version=9.9.9; downloader=curl; tmp=$(mktemp -d); control_summary "$3"`,
+		"sh", installSteps(t), data, panel)
+	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("the install script's summary failed: %v\n%s", err, out)
+	}
+	return string(out)
+}
+
+// cloud-init, a tee or Ansible keep the install script's output, so it prints a
+// claim link only to a terminal. Elsewhere it says the install has no owner yet,
+// and the command the control plane gives that prints a link, and makes none
+// (#110). Once someone has claimed it, it says where the panel is.
+func TestTheInstallScriptKeepsTheClaimLinkOutOfALog(t *testing.T) {
+	dir := t.TempDir()
+	_, logs, _ := startRunAsService(t, dir)
+	panel := "http://127.0.0.1:" + panelPort(t, logs)
+	out := installSummary(t, dir, panel)
+	for _, want := range []string{
+		"Dockwell v9.9.9 is running, and this is your control server. This install has no owner yet. To claim it, run this on this server, which prints a one-time link:",
+		"\n  dockwell claim --data-dir " + dir + "\n",
+		"The script doesn't print the link here, as its output isn't a terminal",
+		"To add a server, run dockwell token create here",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the summary doesn't say %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "claim#") {
+		t.Errorf("the summary printed a claim link where it isn't a terminal:\n%s", out)
+	}
+
+	r := run(t, map[string]string{envLogFormat: "json"}, "claim", "--data-dir", dir)
+	claimOverHTTP(t, regexp.MustCompile(`localhost:\d+`).ReplaceAllString(linkRE.FindString(r.out), "localhost:"+panelPort(t, logs)))
+	if out := installSummary(t, dir, panel); !strings.Contains(out, "Its panel\nlistens on "+panel) || strings.Contains(out, "no owner") {
+		t.Errorf("once claimed, the summary says:\n%s", out)
+	}
+
+	// A panel that doesn't answer says nothing of an owner, so neither does this.
+	out = installSummary(t, dir, "http://127.0.0.1:1")
+	if !strings.Contains(out, "didn't say whether this install has an owner. If it has none yet, run this on this server") ||
+		!strings.Contains(out, "\n  sudo dockwell claim --data-dir "+dir+"\n") {
+		t.Errorf("with no panel answering, the summary says:\n%s", out)
+	}
+}
+
+// A control plane that has never started has no address to print a link for.
+func TestAControlPlaneThatHasntStartedSaysSo(t *testing.T) {
+	dir := datadir.Dir{Root: t.TempDir()}
+	if err := datadir.Ensure(dir.Control()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := seal.LoadOrCreate(dir.SealKey()); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.Context(), dir.StateDB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	r := run(t, map[string]string{envLogFormat: "json"}, "claim", "--data-dir", dir.Root)
+	if r.code != exitError || !strings.Contains(r.err, "the control plane here hasn't started yet, so there's nothing to open. Start it, with dockwell run or its service, then run this again") {
+		t.Errorf("dockwell claim before the control plane started = %d %q", r.code, r.err)
 	}
 }

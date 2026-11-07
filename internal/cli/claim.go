@@ -197,7 +197,7 @@ func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, 
 			return err
 		}
 		if waiting && recorded && printedFor.sameLink(addr) {
-			logger.Info("this install has no owner yet; the claim link printed earlier still works", slog.Time("expires", expires), slog.String("new_link", command))
+			logger.Info("this install has no owner yet; the claim link printed earlier still works", slog.Time("expires", expires), slog.String("command", command))
 			fmt.Fprintf(stdio.Out, "\nThis install has no owner yet. The claim link printed earlier still works for %s. "+
 				"If you don't have it, run %s for a new one; it replaces the earlier link.\n\n", until(expires), command)
 			return nil
@@ -205,7 +205,7 @@ func announce(ctx context.Context, stdio IO, logger *slog.Logger, db *store.DB, 
 		if !stdio.outIsTerminal() {
 			logger.Info("this install has no owner yet; run the command below on this server for a claim link", slog.String("command", command))
 			if waiting {
-				fmt.Fprintf(stdio.Out, "\nThe panel's address changed since the last claim link was printed, so that link doesn't work as printed.")
+				fmt.Fprintf(stdio.Out, "\nThe panel's address changed since the last claim link was printed, so that link doesn't work as printed.\n")
 			}
 			fmt.Fprintf(stdio.Out, "\nThis install has no owner yet. To claim it, run this on this server, which prints a one-time link:\n\n  %s\n\n"+
 				"Dockwell doesn't print the link here, as this output isn't a terminal: a log such as the system journal keeps it, "+
@@ -336,7 +336,7 @@ func openPeople(ctx context.Context, dir datadir.Dir, location string, logger *s
 func peopleOn(ctx context.Context, key *seal.Key, db *store.DB, logger *slog.Logger) (*auth.Service, *store.DB, panelAddress, error) {
 	addr, known, err := loadPanelAddress(ctx, db)
 	if err == nil && !known {
-		err = errors.New("the control plane hasn't started yet. Start it with dockwell run, which prints a claim link")
+		err = errors.New("the control plane here hasn't started yet, so there's nothing to open. Start it, with dockwell run or its service, then run this again")
 	}
 	if err != nil {
 		_ = db.Close()
@@ -390,7 +390,7 @@ func newClaimCmd(stdio IO, g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printClaim(cmd.OutOrStdout(), addr, link, claimCommand(dir, stdio.Getenv), stdio.Getenv)
+			printClaim(cmd.OutOrStdout(), addr, link, claimCommand(dir, location, stdio.Getenv), stdio.Getenv)
 			return nil
 		},
 	}

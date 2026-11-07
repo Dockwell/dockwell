@@ -593,11 +593,16 @@ func (a *apiAccess) loginLocal(cmd *cobra.Command) error {
 		return err
 	}
 	if !hasControlPlane(dir) {
-		// The system service's, which only root can look in, says to use sudo.
-		if _, err := a.g.controlDir(a.stdio, "dockwell login --local"); err != nil {
+		// The system service's, when this user can read it; when only root can,
+		// the error says to use sudo.
+		found, err := a.g.controlDir(a.stdio, "dockwell login --local")
+		if err != nil {
 			return err
 		}
-		return fmt.Errorf("there's no control plane in %s, so there's no local access to sign in to. Run it on the control server, or pass its --data-dir", dir.Root)
+		if !hasControlPlane(found) {
+			return fmt.Errorf("there's no control plane in %s, so there's no local access to sign in to. Run it on the control server, or pass its --data-dir", dir.Root)
+		}
+		dir = found
 	}
 	old, _, err := readLocalToken(dir)
 	if errors.Is(err, fs.ErrPermission) {

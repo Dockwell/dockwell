@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -16,13 +17,16 @@ import (
 	"golang.org/x/term"
 
 	"github.com/dockwell/dockwell/internal/datadir"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
-// geteuid is os.Geteuid, and lookupUser user.Lookup, which tests replace to
-// stand in for root and the user who ran sudo.
+// geteuid is os.Geteuid, lookupUser user.Lookup, and lookPath exec.LookPath,
+// which tests replace to stand in for root, the user who ran sudo, and a
+// server with sudo or without it.
 var (
 	geteuid    = os.Geteuid
 	lookupUser = user.Lookup
+	lookPath   = exec.LookPath
 )
 
 // controlDir resolves the data directory of the control plane that command,
@@ -60,12 +64,27 @@ func (g *globalFlags) controlDir(stdio IO, command string) (datadir.Dir, error) 
 	_, err = os.Stat(system.Control())
 	switch {
 	case err == nil && hasControlPlane(system):
+		// Its directory can be open to all, and its key, as the service leaves
+		// it, to root alone.
+		f, err := os.Open(system.SealKey())
+		if errors.Is(err, fs.ErrPermission) {
+			return dir, onlyRoot(system, command)
+		}
+		if err == nil {
+			_ = f.Close()
+		}
 		return system, nil
 	case errors.Is(err, fs.ErrPermission):
-		return dir, fmt.Errorf("dockwell keeps its state in %s on this server, where only root can look, so %s can't open the control plane as you. Run it with sudo: sudo %s",
-			system.Root, command, command)
+		return dir, onlyRoot(system, command)
 	}
 	return dir, nil
+}
+
+// onlyRoot says that only root can open the control plane in system, which
+// command, run as someone else, needs.
+func onlyRoot(system datadir.Dir, command string) error {
+	return fmt.Errorf("dockwell keeps its state in %s on this server, where only root can look, so %s can't open the control plane as you. "+
+		"Run the same command again with sudo in front of it", system.Root, command)
 }
 
 // sudoUserDir is the data directory dockwell run uses by default for the user
@@ -84,16 +103,24 @@ func sudoUserDir(getenv func(string) string) (string, datadir.Dir) {
 }
 
 // claimCommand is the command that prints a new claim link for the control
-// plane in dir, for whoever runs it as this process runs: with sudo for root,
-// as the system service runs, and with --data-dir when dir isn't where that
-// user's dockwell looks by default. It names no database: a control plane on
-// Postgres needs DOCKWELL_DATABASE in the shell too, and its URL may hold a
-// password.
-func claimCommand(dir datadir.Dir, getenv func(string) string) string {
+// plane in dir, with its state at location, for whoever runs it as this process
+// runs: with sudo for root, as the system service runs, unless there's no sudo
+// here, as on Alpine, where you're root already; and with --data-dir when dir
+// isn't where that user's dockwell looks by default. It never names a database,
+// whose URL may hold a password: one on Postgres needs DOCKWELL_DATABASE in the
+// shell too, and sudo leaves that out unless it's told to keep it.
+func claimCommand(dir datadir.Dir, location string, getenv func(string) string) string {
 	command := "dockwell claim"
 	var def datadir.Dir
 	if geteuid() == 0 {
-		command, def = "sudo "+command, datadir.Dir{Root: systemDataDir}
+		def = datadir.Dir{Root: systemDataDir}
+		if _, err := lookPath("sudo"); err == nil {
+			sudo := "sudo "
+			if store.IsPostgres(location) {
+				sudo = "sudo --preserve-env=" + envDatabase + " "
+			}
+			command = sudo + command
+		}
 	} else if d, err := datadir.Default(getenv); err == nil {
 		def = d
 	}
