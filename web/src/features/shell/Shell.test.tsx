@@ -330,6 +330,20 @@ describe("the command bar", () => {
     await expectAccessible(document.body);
   });
 
+  it("says a server's address is private where it can't show a tag", async () => {
+    const user = userEvent.setup();
+    const natted = aServer({
+      id: "srv_1",
+      name: "hz-1",
+      stats: sample(23.4),
+      inventory: create(ServerInventorySchema, { addresses: ["10.0.0.25"] }),
+    });
+    await renderWith("/apps", natted);
+    await user.keyboard("{Control>}k{/Control}");
+    const dialog = screen.getByRole("dialog", { name: "Command bar" });
+    expect(within(dialog).getByRole("option", { name: "Open hz-1 Healthy · 10.0.0.25, private" })).toBeVisible();
+  });
+
   it("opens your profile", async () => {
     const user = userEvent.setup();
     const { router } = await renderWith("/", hz1);

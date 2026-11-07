@@ -4,6 +4,7 @@ import { Button, Icon, StatusBadge, useUIStrings } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
 import { FleetUnknown, Reconnecting } from "../servers/FleetNotes";
+import { ServerAddress } from "../servers/ServerAddress";
 import { type FleetView, serverStatus } from "../servers/server";
 import { useFleetUnread } from "../servers/useFleet";
 import { useCommandShortcut, useOpenCommandBar } from "./CommandMenu";
@@ -51,7 +52,7 @@ function Scope({ view }: { view: FleetView }) {
           ) : (
             <StatusBadge status={serverStatus(only)} />
           ))}
-        {only.address ? <span className="topbar-address">{only.address}</span> : null}
+        {only.address ? <ServerAddress address={only.address} className="topbar-address" /> : null}
       </div>
     );
   }

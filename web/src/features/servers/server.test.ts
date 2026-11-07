@@ -6,8 +6,9 @@ import { ConnectError } from "@connectrpc/connect";
 import { Connection, ServerInventorySchema } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
+import addresses from "../../../../internal/resource/testdata/addresses.json";
 import { aServer, sample } from "../../test/servers";
-import { fleetView, serverStatus } from "./server";
+import { fleetView, isPrivateAddress, primaryAddress, serverStatus } from "./server";
 
 const hz1 = aServer({
   id: "srv_1",
@@ -16,6 +17,28 @@ const hz1 = aServer({
   inventory: create(ServerInventorySchema, { addresses: ["10.0.0.2", "49.12.33.7"] }),
 });
 const hz2 = aServer({ id: "srv_2", name: "hz-2", stats: sample(20) });
+
+describe("isPrivateAddress", () => {
+  // The table Go's resource.IsPublicAddress reads, so the two can't drift apart.
+  it.each(addresses)("$address", ({ address, public: isPublic }) => {
+    expect(isPrivateAddress(address)).toBe(!isPublic);
+  });
+
+  it("takes a server's name for no address", () => {
+    expect(isPrivateAddress("10.hz-1")).toBe(false);
+    expect(isPrivateAddress("hz-1")).toBe(false);
+  });
+
+  it("reads an address however it's written", () => {
+    expect(isPrivateAddress("0:0:0:0:0:0:0:1")).toBe(true);
+    expect(isPrivateAddress("2001:0DB8::1")).toBe(false);
+    expect(isPrivateAddress("64:FF9B:1::1")).toBe(true);
+  });
+
+  it("doesn't take a TUN's address, as mihomo's, for where to reach a server", () => {
+    expect(primaryAddress(["172.16.0.5", "198.18.0.1"])).toBe("172.16.0.5");
+  });
+});
 
 describe("fleetView", () => {
   it("knows nothing until the first snapshot", () => {

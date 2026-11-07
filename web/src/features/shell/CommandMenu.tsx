@@ -15,7 +15,7 @@ import { useServices } from "../apps/useServices";
 import { useAppWords } from "../apps/words";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
-import { serverStatus } from "../servers/server";
+import { isPrivateAddress, serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
 import { shortVersion } from "./version";
 
@@ -152,12 +152,14 @@ function Commands({ onClose }: { onClose: () => void }) {
     }
     for (const server of servers ?? []) {
       const name = server.name;
+      const address = server.address;
+      const where = address && isPrivateAddress(address) ? t`${address}, private` : address;
       list.push({
         id: `server:${server.id}`,
         group: fleet ? t`Servers` : pages,
         icon: "server",
         label: t`Open ${name}`,
-        hint: [strings.status[serverStatus(server)], server.address].filter(Boolean).join(" · "),
+        hint: [strings.status[serverStatus(server)], where].filter(Boolean).join(" · "),
         run: () => navigate({ to: "/servers/$serverId", params: { serverId: server.id } }),
       });
       list.push({

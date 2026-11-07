@@ -1314,6 +1314,27 @@ describe("the plan sheet, once it runs", () => {
     expect(applying).toHaveTextContent("hz-1 · about 2 s down");
   });
 
+  it("arrives: a port at a private address says so in its row", async () => {
+    const change = applied(aServicePlan());
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change }), doneLabel: "Open web" },
+      {
+        services: { listServices: () => ({ services: [aService([{ hostPort: 8080, containerPort: 3000 }])] }) },
+        servers: {
+          watchServers: async function* (req: unknown, ctx: HandlerContext) {
+            yield changed(aServer({ id: "srv_1", name: "hz-1", inventory: { addresses: ["10.0.0.25"] } }));
+            yield snapshotComplete;
+            yield* quietWatch(req, ctx);
+          },
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      },
+    );
+    const done = await screen.findByRole("dialog", { name: "web is deployed" });
+    const link = await within(done).findByRole("link", { name: "10.0.0.25:8080" });
+    expect(link.closest(".plan-reach-row")).toHaveTextContent("Private");
+  });
+
   it("arrives: the title says it is deployed, and its address is the first line", async () => {
     const change = applied(aServicePlan());
     change.steps = [
@@ -1992,6 +2013,61 @@ describe("the plan sheet, once it runs", () => {
       const done = await screen.findByRole("dialog", { name: "web is deployed" });
       await within(done).findByRole("link", { name: "app.example.com" });
       await waitFor(() => expect(done).not.toHaveTextContent("its certificate can't come"));
+    });
+
+    it("names no private address as where to point DNS", async () => {
+      const change = applied(aServicePlan());
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) {
+        step.domainCheck = create(DomainCheckSchema, {
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          here: ["10.0.0.25"],
+        });
+      }
+      arrivedWith([aDomain("app.example.com", CertificateState.PENDING, "Asking")], [], change);
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
+      await within(done).findByText("Asking");
+      expect(done).toHaveTextContent(
+        "Point an A record at this server's public address. Dockwell only sees 10.0.0.25 here, which is private, so the internet can't reach it",
+      );
+      expect(done).not.toHaveTextContent("record at 10.0.0.25");
+    });
+
+    it("says a record points elsewhere without calling a private address this server", async () => {
+      const change = applied(aServicePlan());
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) {
+        step.domainCheck = create(DomainCheckSchema, {
+          domain: "app.example.com",
+          state: DomainCheckState.ELSEWHERE,
+          found: ["10.9.9.9"],
+          here: ["10.0.0.25"],
+        });
+      }
+      arrivedWith([aDomain("app.example.com", CertificateState.PENDING, "Asking")], [], change);
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
+      await within(done).findByText("Asking");
+      expect(done).toHaveTextContent(
+        "DNS for app.example.com points at 10.9.9.9, not this server, so its certificate can't come yet. Point an A record at this server's public address. Dockwell only sees 10.0.0.25 here, which is private, so the internet can't reach it. If a tunnel or a proxy in front ends TLS",
+      );
+      expect(done).not.toHaveTextContent("not this server (10.0.0.25)");
+    });
+
+    it("lists addresses as the CLI does", async () => {
+      const change = applied(aServicePlan());
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) {
+        step.domainCheck = create(DomainCheckSchema, {
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          here: ["10.0.0.5", "10.0.0.6", "10.0.0.7"],
+        });
+      }
+      arrivedWith([aDomain("app.example.com", CertificateState.PENDING, "Asking")], [], change);
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
+      await within(done).findByText("Asking");
+      expect(done).toHaveTextContent("Dockwell only sees 10.0.0.5, 10.0.0.6 and 10.0.0.7 here, which are private");
     });
 
     it("keeps saying what DNS said while it hasn't served", async () => {

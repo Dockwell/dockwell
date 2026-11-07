@@ -89,6 +89,24 @@ describe("ServerOverview", () => {
     expect(errors.mock.calls.flat().join(" ")).not.toContain("same key");
   });
 
+  it("tags a private address shown as the server's", async () => {
+    const behindNAT = aServer({ ...hz1, inventory: create(ServerInventorySchema, { addresses: ["10.0.0.25"] }) });
+    await renderServer("/servers/srv_1", behindNAT);
+    await screen.findAllByText("10.0.0.25");
+    expect(document.querySelector(".server-address")).toHaveTextContent(/^10\.0\.0\.25Private$/);
+    expect(document.querySelector(".topbar-address")).toHaveTextContent(/^10\.0\.0\.25Private$/);
+  });
+
+  it("tags a TUN's address, as it's no way in", async () => {
+    const tunnelled = aServer({
+      ...hz1,
+      inventory: create(ServerInventorySchema, { addresses: ["198.18.0.1"] }),
+    });
+    await renderServer("/servers/srv_1", tunnelled);
+    await screen.findAllByText("198.18.0.1");
+    expect(document.querySelector(".server-address")).toHaveTextContent(/^198\.18\.0\.1Private$/);
+  });
+
   it("shows live CPU, memory, disk and load", async () => {
     await renderServer("/servers/srv_1", hz1);
     await screen.findByText("Load average");

@@ -184,6 +184,19 @@ export async function appsFlow(
   await adding.getByRole("button", { name: /Review plan/ }).click();
   await applyPlan(page, "Done");
   await panel.getByRole("link", { name: new RegExp(`Open .*:${port ?? 18081}`) }).waitFor({ timeout: 30_000 });
+  // One line at this width, tagged or not: this machine's address decides which.
+  const portCells = await page
+    .locator(".app-reach-row", { has: page.getByRole("link", { name: new RegExp(`Open .*:${port ?? 18081}`) }) })
+    .evaluate((row) => {
+      const edge = row.getBoundingClientRect();
+      return [...row.children].map((cell) => {
+        const box = cell.getBoundingClientRect();
+        return { top: box.top - edge.top, bottom: edge.bottom - box.bottom, right: edge.right - box.right };
+      });
+    });
+  const inRow = portCells.every((cell) => cell.top >= 0 && cell.bottom >= 0 && cell.right >= 0);
+  const sameLine = portCells.every((cell) => Math.abs(cell.top - (portCells[0]?.top ?? 0)) <= 8);
+  if (portCells.length !== 4 || !inRow || !sameLine) fail(`a port's row breaks: ${JSON.stringify(portCells)}`);
   await expectDocker("nginx", FIRST);
   await expectServes("nginx/1.27");
   await shoot(page, "apps-port");

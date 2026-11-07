@@ -195,6 +195,10 @@ msgstr "{0} 项待更新"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "{address}, private"
+msgstr "{address}，私有地址"
+
 #: src/features/catalog/InstallSheet.tsx
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
@@ -334,12 +338,12 @@ msgid "{docker} can't read Docker"
 msgstr "{docker} 台无法读取 Docker"
 
 #: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
-msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {here} 的 A 或 AAAA 记录，添加后即可获取证书"
+msgid "{domain} has no DNS record yet, so its certificate can't come until it has one. {point}"
+msgstr "{domain} 还没有 DNS 记录，在添加之前无法获取证书。{point}"
 
 #: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
-msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向此服务器的 A 或 AAAA 记录，添加后即可获取证书"
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
+msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {either} 的 A 或 AAAA 记录，添加后即可获取证书"
 
 #: src/features/logs/LogFoot.tsx
 msgid "{down} couldn't be searched, so its lines aren't in this."
@@ -2602,8 +2606,12 @@ msgid "display name"
 msgstr "显示名称"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
-msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{here}），因此暂时无法获取证书。请将其指向此服务器，之后即可获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
+msgid "DNS for {domain} points at {found}, not this server ({publics}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{publics}），因此暂时无法获取证书。请将其指向此服务器，之后即可获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
+
+#: src/features/changes/words.ts
+msgid "DNS for {domain} points at {found}, not this server, so its certificate can't come yet. {point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器，因此暂时无法获取证书。{point}。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/changes/words.ts
 msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
@@ -4891,6 +4899,18 @@ msgstr "计划只说明值已更改，绝不显示内容。"
 msgid "Platform"
 msgstr "平台"
 
+#: src/features/changes/words.ts
+msgid "Point an A or AAAA record at this server's public address"
+msgstr "请添加指向此服务器公网地址的 A 或 AAAA 记录"
+
+#: src/features/changes/words.ts
+msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which are private, so the internet can't reach it"
+msgstr "请添加指向此服务器公网地址的 A 记录。Dockwell 在这里只能看到 {here}，这些都是私有地址，互联网无法访问"
+
+#: src/features/changes/words.ts
+msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which is private, so the internet can't reach it"
+msgstr "请添加指向此服务器公网地址的 A 记录。Dockwell 在这里只能看到 {here}，这是私有地址，互联网无法访问"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
 msgstr "将它的 DNS 指向这台服务器，之前或之后都可以。指向后证书会自动获取。"
@@ -4962,6 +4982,10 @@ msgstr "按 Enter 搜索服务器保留的全部日志。"
 #: src/features/logs/LogsPage.tsx
 msgid "Previous error"
 msgstr "上一个错误"
+
+#: src/features/servers/ServerAddress.tsx
+msgid "Private"
+msgstr "私有"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Private addresses"

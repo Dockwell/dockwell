@@ -22,7 +22,7 @@ ssh -L 7600:127.0.0.1:7600 <user>@<your server>
 
 Run on a terminal, the install ends with a one-time link, `http://localhost:7600/claim#…`. Open it through the tunnel to create the owner account with a passkey. It works once, for 24 h. For a new one, run `sudo dockwell claim` on the server; the panel's claim page shows the same command. Neither the service nor the script prints a link anywhere its output is kept, as a log can be read by more people than root, and a link gives whoever spends it first every server ([the threat model](security/sign-in.md)). So run from cloud-init's user data, through `tee`, or by Ansible, the install says the server has no owner yet, and to run `sudo dockwell claim` there for a link. Open the panel at `localhost`, not `127.0.0.1`: passkeys need a hostname.
 
-To serve the panel over HTTPS on your own domain instead, point the domain's DNS A record at the server, then set `DOCKWELL_DOMAIN` for the service, as in [Change settings](#change-settings). The panel then also answers on `https://<domain>`, with a certificate from Let's Encrypt, on ports 443 and 80. Passkeys belong to the address they were made on, so add one for the domain after you sign in there. [ADR 0011](adr/0011-claim-and-sign-in.md) explains both ways in. When that server gets its first route, Caddy takes those ports and serves the panel's domain too. Its address and passkeys stay as they are, and the SSH tunnel works whatever Caddy is doing ([ADR 0024](adr/0024-the-caddy-ingress-driver.md#coexisting-with-the-panel)).
+To serve the panel over HTTPS on your own domain instead, point the domain's DNS A record at the server's public address, then set `DOCKWELL_DOMAIN` for the service, as in [Change settings](#change-settings). The panel then also answers on `https://<domain>`, with a certificate from Let's Encrypt, on ports 443 and 80. Passkeys belong to the address they were made on, so add one for the domain after you sign in there. [ADR 0011](adr/0011-claim-and-sign-in.md) explains both ways in. When that server gets its first route, Caddy takes those ports and serves the panel's domain too. Its address and passkeys stay as they are, and the SSH tunnel works whatever Caddy is doing ([ADR 0024](adr/0024-the-caddy-ingress-driver.md#coexisting-with-the-panel)).
 
 ## Add a server
 
@@ -119,7 +119,7 @@ docker stop 1Panel-openresty-abc12
 
 If something manages that container, stop it there too, as it can start it again or make it anew: for 1Panel, stop OpenResty under its installed apps, or a later upgrade there may bring it back. A proxy that isn't in a container is your init system's to stop, such as `systemctl disable --now nginx`.
 
-**4. Add a route for each site.** Point the domain's DNS record at this server first, or just after, as the certificate comes once it does. A server the internet can't reach on 80 or 443 needs [the section below](#behind-cloudflare-tunnel-or-another-proxy) instead.
+**4. Add a route for each site.** Point the domain's DNS record at this server's public address first, or just after, as the certificate comes once it does. A private address, such as `10.0.0.5`, can't work: on a cloud with 1:1 NAT, the public address isn't on any interface, so take it from the provider's console. A server the internet can't reach on 80 or 443 needs [the section below](#behind-cloudflare-tunnel-or-another-proxy) instead.
 
 ```sh
 dockwell routes create www --domain app.example.com --service myapp --port 8080 --yes

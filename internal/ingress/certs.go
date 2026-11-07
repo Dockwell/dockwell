@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
@@ -163,7 +164,7 @@ func certMessage(domain string, st CertState, check *resource.DomainCheck) strin
 		}
 		if check != nil && check.State == resource.DomainElsewhere {
 			return fmt.Sprintf("DNS for %s points at %s, not this server, so its certificate can't come and it doesn't answer over HTTPS here. %s Dockwell tries as soon as it sees the record.",
-				domain, strings.Join(check.Found, " and "), pointHere(check))
+				domain, human.List(check.Found), pointHere(check))
 		}
 		return fmt.Sprintf("Getting a certificate for %s. It answers over HTTPS once that's done, which usually takes under a minute.", domain)
 	}
@@ -181,7 +182,7 @@ func problemWords(domain string, st CertState, check *resource.DomainCheck) stri
 		}
 		return fmt.Sprintf("the certificate authority couldn't find %s in DNS. %s", domain, pointHere(check))
 	case ProblemConnection:
-		return fmt.Sprintf("the certificate authority couldn't reach this server for %s on port 80 or 443, which a firewall often blocks. Open both, in the server's firewall and at your provider.", domain)
+		return connectionWords(domain, check)
 	case ProblemWrongServer:
 		return fmt.Sprintf("something other than this server answered for %s. %s If a CDN or another proxy is in front, turn it off until the certificate comes.", domain, pointHere(check))
 	case ProblemRateLimited:
@@ -193,6 +194,28 @@ func problemWords(domain string, st CertState, check *resource.DomainCheck) stri
 	case ProblemNone, ProblemOther:
 	}
 	return fmt.Sprintf("the certificate authority couldn't issue it: %s If this goes on, see docker logs %s.", sentence(st.Detail), ContainerName)
+}
+
+// connectionWords say what's likely in the way of the certificate authority reaching
+// this server. Behind NAT that's a cloud's firewalls or a router's forward, and under
+// carrier-grade NAT nothing here can open a way in at all.
+func connectionWords(domain string, check *resource.DomainCheck) string {
+	lead := fmt.Sprintf("the certificate authority couldn't reach this server for %s on port 80 or 443", domain)
+	var here []string
+	if check != nil {
+		here = check.Here
+	}
+	switch {
+	case resource.BehindCarrierNAT(here):
+		return fmt.Sprintf("%s. %s is in carrier-grade NAT's range, so no forwarded port can reach it, and a tunnel is the way.", lead, human.List(here))
+	case resource.BehindNAT(here):
+		words := lead + ". It has only private addresses, so it's behind NAT, and two firewalls can each stop this: the cloud provider's and the machine's own, such as ufw or iptables. Open both ports in each."
+		if to := resource.ForwardTo(here); len(to) > 0 {
+			words += " Behind a home or office router, forward both to this machine's private address, " + human.Either(to) + "."
+		}
+		return words
+	}
+	return lead + ", which a firewall often blocks. Open both, in the server's firewall and at your provider."
 }
 
 // offWords say what a route's domain can do instead, when its certificate can't
@@ -219,10 +242,10 @@ func routeCertMessage(domain string, st CertState, check *resource.DomainCheck) 
 }
 
 func pointHere(check *resource.DomainCheck) string {
-	if check != nil && len(check.Here) > 0 {
-		return "Point an A or AAAA record at this server, " + strings.Join(check.Here, " or ") + "."
+	if check == nil {
+		return resource.PointHere(nil)
 	}
-	return "Point an A or AAAA record at this server."
+	return resource.PointHere(check.Here)
 }
 
 // upperFirst starts a sentence made of words that may follow a colon elsewhere.

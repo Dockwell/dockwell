@@ -195,6 +195,10 @@ msgstr "{0} to update"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "{address}, private"
+msgstr "{address}, private"
+
 #: src/features/catalog/InstallSheet.tsx
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
@@ -334,12 +338,12 @@ msgid "{docker} can't read Docker"
 msgstr "{docker} can't read Docker"
 
 #: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
-msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
+msgid "{domain} has no DNS record yet, so its certificate can't come until it has one. {point}"
+msgstr "{domain} has no DNS record yet, so its certificate can't come until it has one. {point}"
 
 #: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
-msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
+msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
 
 #: src/features/logs/LogFoot.tsx
 msgid "{down} couldn't be searched, so its lines aren't in this."
@@ -2602,8 +2606,12 @@ msgid "display name"
 msgstr "display name"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
-msgstr "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgid "DNS for {domain} points at {found}, not this server ({publics}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "DNS for {domain} points at {found}, not this server ({publics}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+
+#: src/features/changes/words.ts
+msgid "DNS for {domain} points at {found}, not this server, so its certificate can't come yet. {point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "DNS for {domain} points at {found}, not this server, so its certificate can't come yet. {point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
 
 #: src/features/changes/words.ts
 msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
@@ -4891,6 +4899,18 @@ msgstr "Plans say a value changed, and never show it."
 msgid "Platform"
 msgstr "Platform"
 
+#: src/features/changes/words.ts
+msgid "Point an A or AAAA record at this server's public address"
+msgstr "Point an A or AAAA record at this server's public address"
+
+#: src/features/changes/words.ts
+msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which are private, so the internet can't reach it"
+msgstr "Point an A record at this server's public address. Dockwell only sees {here} here, which are private, so the internet can't reach it"
+
+#: src/features/changes/words.ts
+msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which is private, so the internet can't reach it"
+msgstr "Point an A record at this server's public address. Dockwell only sees {here} here, which is private, so the internet can't reach it"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
 msgstr "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
@@ -4962,6 +4982,10 @@ msgstr "Press Enter to search all the servers keep."
 #: src/features/logs/LogsPage.tsx
 msgid "Previous error"
 msgstr "Previous error"
+
+#: src/features/servers/ServerAddress.tsx
+msgid "Private"
+msgstr "Private"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Private addresses"

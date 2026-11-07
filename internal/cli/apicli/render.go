@@ -1061,14 +1061,17 @@ func domainWords(c *dockwellv1.DomainCheck) string {
 		return ""
 	}
 	found, here := human.List(c.GetFound()), human.List(c.GetHere())
+	public := resource.PublicAddresses(c.GetHere())
+	point := resource.PointHere(c.GetHere())
 	switch c.GetState() {
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD:
-		if here == "" {
-			return c.GetDomain() + " has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do."
-		}
-		return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come. Point an A or AAAA record at %s; it comes once you do.", c.GetDomain(), here)
+		return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come until it has one. %s", c.GetDomain(), point)
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE:
-		return fmt.Sprintf("DNS for %s points at %s, not this server (%s), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain(), found, here)
+		const tunnel = "If a tunnel or a proxy in front ends TLS, set tls to off on this route instead."
+		if len(public) > 0 {
+			return fmt.Sprintf("DNS for %s points at %s, not this server (%s), so its certificate can't come yet. Point it here; it comes once you do. %s", c.GetDomain(), found, human.List(public), tunnel)
+		}
+		return fmt.Sprintf("DNS for %s points at %s, not this server, so its certificate can't come yet. %s %s", c.GetDomain(), found, point, tunnel)
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL:
 		return fmt.Sprintf("DNS for %s points at %s. This server's own addresses are private (%s), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain(), found, here)
 	default:
