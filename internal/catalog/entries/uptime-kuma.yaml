@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# 2.5.9 goes in ahead of its 14 days, as it fixes published advisories that 2.5.7 has:
-# GHSA-86ch-2247-gr56, which anyone who reaches it can use without signing in, and
-# GHSA-v2p3-6f5h-6hhf, which is high.
+# 2.5.9 goes in ahead of its 14 days, as the lowest release that fixes the published
+# advisories 2.5.7 has: GHSA-86ch-2247-gr56, which anyone who reaches it can use
+# without signing in, and GHSA-v2p3-6f5h-6hhf, which is high.
 id: uptime-kuma
 name: Uptime Kuma
 summary: Uptime checks and status pages
@@ -19,10 +19,11 @@ web:
   service: uptime-kuma
 firstSteps: >-
   Uptime Kuma answers only on this server until you add a domain, as the first person
-  to open it makes its admin account. Add a domain on its page, over HTTPS or behind
-  your tunnel, and open it there to make your account. To open it before that, use an
-  SSH tunnel from your computer: ssh -N -L 3001:127.0.0.1:3001 you@your-server, using
-  the port you gave it, then open http://localhost:3001.
+  to open it makes its admin account. So make yours first, through an SSH tunnel from
+  your computer: ssh -N -L 3001:127.0.0.1:3001 you@your-server, using the port you
+  gave it, then open http://localhost:3001. Add a domain on its page only after that,
+  over HTTPS or behind your tunnel, as a new domain's certificate shows in public
+  logs within minutes.
 inputs:
   - name: PORT
     label: Port on this server
