@@ -229,6 +229,23 @@ describe("the list of domains", () => {
     expect(await rowOf(/quiet/)).toHaveTextContent("hz-1 hasn't reported yet.");
   });
 
+  it("marks what a domain reaches by its route, while the apps are still loading or can't be read", async () => {
+    renderAt(
+      "/domains",
+      api(
+        [
+          aDomain({ name: "app.example.com", certificate: issued }),
+          aDomain({ name: "port.example.com", service: "", certificate: issued, route: { hostPort: 9000, port: 0 } }),
+        ],
+        { more: { services: { listServices: () => new Promise(() => {}) } } },
+      ),
+    );
+    const app = await rowOf(/^app\.example\.com/);
+    expect(app.querySelector(".domains-reaches-mark")).toHaveClass("is-app");
+    const port = await rowOf(/^port\.example\.com/);
+    expect(port.querySelector(".domains-reaches-mark")).toHaveClass("is-server");
+  });
+
   it("leads each row to its app, in its environment, as a name means something only in one", async () => {
     const user = userEvent.setup();
     const staging = anApp(

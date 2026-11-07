@@ -413,6 +413,10 @@ msgstr "{elsewhere, plural, other {此视图之外还有 # 个应用}}"
 msgid "{errors, plural, one {{count} error} other {{count} errors}}"
 msgstr "{errors, plural, other {{count} 个错误}}"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "{failed, plural, one {# failed} other {# failed}}"
+msgstr "{failed, plural, other {# 个失败}}"
+
 #: src/features/logs/LogsPage.tsx
 msgid "{first} couldn't be searched"
 msgstr "无法搜索 {first}"
@@ -920,9 +924,17 @@ msgstr "{servers} 离线"
 msgid "{share} of {size} used"
 msgstr "{size} 中已用 {share}"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "{shown, plural, one {# backup} other {# backups}}"
+msgstr "{shown, plural, other {# 个备份}}"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} 与最新版本一致。如果实际运行的内容已与它不同，回滚可以恢复。"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "{shown} newest"
+msgstr "最新的 {shown} 个"
 
 #: src/app/Providers.tsx
 msgid "{size} more not kept"
@@ -6099,6 +6111,10 @@ msgstr "最近部署"
 #: src/features/apps/AppOverview.tsx
 msgid "Recent health"
 msgstr "最近的健康情况"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Recent runs"
+msgstr "最近的运行"
 
 #: src/features/apps/DomainRecord.tsx
 msgid "Recommended. It needs no public address and no forwarded port."
