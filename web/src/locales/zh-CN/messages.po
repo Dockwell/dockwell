@@ -972,6 +972,10 @@ msgstr "{where} 离开 {from}，转到 {to}。"
 msgid "{where} leaves {from}, and goes to port {toPort} on the server."
 msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 
+#: src/features/changes/notices.tsx
+msgid "{writtenBy} wrote these files, and {runsOn} runs on them now"
+msgstr "这些文件由 {writtenBy} 写入，而现在运行的是 {runsOn}"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "+{left}"
 msgstr "+{left}"
@@ -1189,6 +1193,10 @@ msgstr "域名把访问者带到应用，所以请先运行一个应用。"
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "A MyISAM table written to during the dump may not come out consistent."
+msgstr "转储期间写入的 MyISAM 表可能不一致。"
 
 #: src/features/changes/words.ts
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
@@ -4707,8 +4715,8 @@ msgid "On <0>{held}</0>"
 msgstr "位于 <0>{held}</0>"
 
 #: src/features/backups/BackupsPage.tsx
-msgid "On each server's own disk, so they go if the server does"
-msgstr "保存在各服务器自己的磁盘上，服务器损毁时会一并丢失"
+msgid "On each server's own disk, unencrypted, so they go if the server does"
+msgstr "保存在各服务器自己的磁盘上，未加密，服务器没了它们也就没了"
 
 #. placeholder {0}: check.http.port
 #: src/features/apps/AppOverview.tsx
@@ -6645,6 +6653,10 @@ msgstr "控制平面拒绝了这个请求，因为它不是从面板自己的地
 msgid "the control plane runs {controlPlane}"
 msgstr "控制平面为 {controlPlane}"
 
+#: src/features/changes/notices.tsx
+msgid "The database may not start on files from another release. Deploy {writtenBy} first and restore then, or restore a dump instead."
+msgstr "数据库可能无法用其他版本的文件启动。请先部署 {writtenBy} 再恢复，或者改为恢复转储。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
 msgstr "部署正在等待其代理，重新连接后会继续。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
@@ -7782,8 +7794,8 @@ msgid "What stops starts again once the copy ends, however that goes. The copy i
 msgstr "无论结果如何，复制结束后被停止的内容都会重新启动。副本是精确的。"
 
 #: src/features/changes/notices.tsx
-msgid "What stops starts again once the volume is restored, however that goes."
-msgstr "无论结果如何，卷恢复后被停止的内容都会重新启动。"
+msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
+msgstr "卷恢复后，被停止的内容会重新启动。如果恢复失败，会先放回现有的内容。"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx

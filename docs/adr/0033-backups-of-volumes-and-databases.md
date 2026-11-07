@@ -22,6 +22,7 @@ What was settled already:
 - **On the server that has the volume,** at `<data>/agent/backups/<environment ID>/<volume>/<backup ID>.<format>`, with `<backup ID>.json` beside it saying what it is. Directories are 0700 and files 0600.
 - **A backup's ID is `bkp_…`,** like every other ID. Its environment and volume are in its path, and its time in its record and its `.json`.
 - **Plain formats.** A copy of a volume is `.tar.gz`, with numeric owners, modes, times, hard links, device nodes and extended attributes, so POSIX ACLs and capabilities too. A dump is `.sql.gz`. Each opens by hand with `tar --numeric-owner -xzpf` or `gunzip | psql`, with nothing of Dockwell's installed.
+- **Not encrypted.** A backup on the server's disk is as readable as the volume it came from, to whoever is root there. The directory modes keep other users out, and nothing more. The panel says so. Only a copy sent to S3-compatible storage is sealed.
 - **The control plane keeps a record, and the server keeps the bytes.** The `backups` table says what each backup is, for lists that work with the server offline. The file and its `.json` are the truth about what is on the disk.
 - **A backup outlives its volume.** Deleting a volume leaves its backups. Each stays until someone deletes it.
 
@@ -41,10 +42,12 @@ What was settled already:
 | The data of a known database that's running | The database's own dump. Nothing stops | An exact copy of its files |
 | Anything else | A person chooses: stop the app for an exact copy, or copy it running | An exact copy of its files |
 
-- **A known database** is the official `postgres` or `mysql` image with the volume at its data path. PostgreSQL uses `pg_dumpall --clean --if-exists` and MySQL `mysqldump --all-databases --single-transaction`. Other images, MariaDB and Redis among them, are "anything else" until they have a dump and a test that restores it for real.
+- **A known database** is the official `postgres` or `mysql` image with the volume holding its data directory: the volume is mounted at that directory or above it. The directory is `PGDATA` when the container has it, as postgres:18's image does, and the image's default otherwise. Any other volume of that container, such as an archive beside it, is "anything else": a dump holds none of its files, and restoring one would load over a database in another volume. PostgreSQL uses `pg_dumpall --clean --if-exists` and MySQL `mysqldump --all-databases --single-transaction`. Other images, MariaDB and Redis among them, are "anything else" until they have a dump and a test that restores it for real.
 - **A copy of a running app's files is worth what the app makes of it.** Files change while they are read, so the copy can hold half a write, and what opens fine in a test can fail on the day. The panel says so, and defaults to stopping the app. The record says which way it was taken, and how many files changed along the way.
 - **Stopping is a word first, then a stop.** The panel names what stops. `CreateBackup` stops only with `stop` set. What was stopped starts again whatever came of the backup. The agent notes it on disk first, so it starts again if the agent dies partway.
 - **A dump is checked at its end.** The process has to exit 0 and the stream has to end with the words the tool ends a complete dump with.
+- **A dump is consistent for transactional tables.** `--single-transaction` holds a snapshot of InnoDB's. A MyISAM table written to during the dump may not come out consistent, and the sheet says so.
+- **A backup needs room before it stops anything.** It takes the last backup's size, or before there's been one what's in the volume, plus a fifth, and leaves 5% of the disk alone, between 256 MB and 2 GB. Without that room it's refused, with the numbers, and writing watches the disk too. How many backups pile up is for retention, with schedules. A backup taken by hand stays until someone deletes it.
 
 ### What it is to the revision store
 
@@ -54,15 +57,19 @@ What was settled already:
 
 ### What a restore does
 
-1. It stops what mounts the volume, and for a dump, everything else of the app on the server, as a client mid-write would break the load.
-2. It copies the volume as it stands, with everything stopped, to `before-<change ID>.tar.gz`. The server keeps that for 7 days.
-3. **A copy** unpacks into a directory inside the volume, and only once all of it is there, moves the old files out and the new ones in, and removes the old ones. A restore that fails before then leaves the volume as it was.
-4. **A dump** empties the volume, starts the database so its image makes a new one from the environment, and loads the dump. So what was made since the backup goes too, and a broken data directory is no obstacle. If the load fails, the agent stops the database and unpacks step 2's copy.
-5. It starts what it stopped, the database first.
+1. It checks the backup, and that there's room, before anything stops: for step 3's copy where backups go, and for what comes back in the volume. Where both are on one disk, for both. Without it the restore is refused, with the numbers, and nothing was touched.
+2. It stops what mounts the volume, and for a dump, everything else of the app on the server, as a client mid-write would break the load.
+3. It copies the volume as it stands, with everything stopped, to `before-<change ID>.tar.gz`. The server keeps that for 7 days from the end of the restore.
+4. **A copy** unpacks into a directory inside the volume, and only once all of it is there, moves the old files out and the new ones in, and removes the old ones. A restore that fails before then leaves the volume as it was.
+5. **A dump** empties the volume, starts the database so its image makes a new one from the environment, and loads the dump. So what was made since the backup goes too, and a broken data directory is no obstacle.
+6. It starts what it stopped, the database first.
 
-- **Undo puts back step 2's copy,** as a restore of its own, for as long as the change's undo window lasts. Whichever kind of backup was restored, step 2's copy is files, so undo needs the same version of the database as the one that wrote them.
-- **If the agent dies partway,** the change resumes as a restart does, and the `.json` of step 2's copy says how far it got. It never copies over a finished copy.
-- **A dump restores across versions, and a copy of a database's files doesn't.** The plan says which it has. Passwords in a dump come back with it, so one changed since the backup goes back to the old one.
+**A failed restore undoes itself, as a failed deploy rolls back.** Once the volume isn't what it was, any failure puts step 3's copy back and starts what stopped on that, and the change fails saying so. That covers a load that's out of time or cut short, on a context of its own with its own deadline, as an app must never start on half a load. It covers what won't start after the data was replaced too. If the copy can't go back, what stopped stays stopped, and the copy stays on the disk: the error gives its path and `dockwell changes undo <change>`, which is why a failed restore, alone among failed changes, can be undone. A change that resumes after a restore was cut short starts over from the copy.
+
+- **Undo puts back step 3's copy,** as a restore of its own, for as long as the change's undo window lasts. Whichever kind of backup was restored, step 3's copy is files, so undo needs the same version of the database as the one that wrote them.
+- **If the agent dies partway,** the change resumes as a restart does, and the `.json` of step 3's copy says how far it got. It never copies over a finished copy.
+- **A dump restores across versions, and a copy of a database's files doesn't.** The plan says which it has, and when a copy goes under another release than the image that wrote it, an amber warning says the database may not start, and what to do. Passwords in a dump come back with it, so one changed since the backup goes back to the old one.
+- **What a database says of a failed load stays out of the change.** It can quote the rows it choked on, and a read-only token can read a change. The error keeps its code and first line, without what it quotes.
 
 ### Who may do what
 
@@ -92,6 +99,6 @@ These come with the next slices of #88 or their own issues, and each is built on
 
 - A backup depends only on Docker's API, so it works for any volume driver, and for an agent that doesn't run as root.
 - Each run imports the agent's binary as an image for a moment, so it needs that much room in Docker's storage. A crash can leave one behind, which the agent removes when it next starts.
-- A restore needs room for the copy of what's there as well as the backup, and for a copy, for the old and new files side by side in the volume. Running out fails the restore before anything is touched.
+- A restore needs room for the copy of what's there as well as the backup, and for a copy, for the old and new files side by side in the volume. Without it, the restore is refused before anything is touched. A volume too large to measure in 10 seconds goes ahead on what the disk says as it's written.
 - Backups on the server's own disk go with the server. That protects against a bad deploy, not a lost server, until S3-compatible storage arrives. The panel says so.
 - A database on an image Dockwell doesn't know is backed up as files, with the app stopped. That is exact, but it only restores on the same version.

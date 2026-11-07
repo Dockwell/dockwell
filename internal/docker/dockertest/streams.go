@@ -186,7 +186,7 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		args = c.Config.Cmd[1:]
 		mounts := e.mountsOf(c)
 		dir, mounted := mounts[args[1]]
-		writes := args[0] != "pack"
+		writes := args[0] != "pack" && args[0] != "measure"
 		switch {
 		case !mounted:
 			code = 1

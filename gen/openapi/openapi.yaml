@@ -6359,6 +6359,14 @@ components:
                         What stops while it happens: services by name, and anything else by its
                          container's. It's whatever mounts the volume, and for a dump, the rest of the
                          app on that server too.
+                writtenBy:
+                    type: string
+                    description: |-
+                        The image that wrote a copy of a database's files, and the one that would read
+                         them, set only when those are different releases, as the database may not
+                         start on them.
+                runsOn:
+                    type: string
             description: |-
                 RestorePlan is what a step that restores a volume does: it says what comes
                  back, and what stops while it does. What's in the volume is replaced, and the

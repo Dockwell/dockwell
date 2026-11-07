@@ -431,6 +431,10 @@ type RestorePlan struct {
 	// Stops names what stops while it happens, sorted: services by their names,
 	// and anything else by its container's.
 	Stops []string `json:",omitempty"`
+	// WrittenBy is the image that wrote a copy of a database's files, and RunsOn the
+	// one that would read them, set when those are different releases.
+	WrittenBy string `json:",omitempty"`
+	RunsOn    string `json:",omitempty"`
 }
 
 // IngressChange is what happens to the proxy that holds a server's public

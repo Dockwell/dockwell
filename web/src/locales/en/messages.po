@@ -972,6 +972,10 @@ msgstr "{where} leaves {from}, and goes to {to}."
 msgid "{where} leaves {from}, and goes to port {toPort} on the server."
 msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 
+#: src/features/changes/notices.tsx
+msgid "{writtenBy} wrote these files, and {runsOn} runs on them now"
+msgstr "{writtenBy} wrote these files, and {runsOn} runs on them now"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "+{left}"
 msgstr "+{left}"
@@ -1189,6 +1193,10 @@ msgstr "A domain sends people to an app, so run one first."
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "A MyISAM table written to during the dump may not come out consistent."
+msgstr "A MyISAM table written to during the dump may not come out consistent."
 
 #: src/features/changes/words.ts
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
@@ -4707,8 +4715,8 @@ msgid "On <0>{held}</0>"
 msgstr "On <0>{held}</0>"
 
 #: src/features/backups/BackupsPage.tsx
-msgid "On each server's own disk, so they go if the server does"
-msgstr "On each server's own disk, so they go if the server does"
+msgid "On each server's own disk, unencrypted, so they go if the server does"
+msgstr "On each server's own disk, unencrypted, so they go if the server does"
 
 #. placeholder {0}: check.http.port
 #: src/features/apps/AppOverview.tsx
@@ -6645,6 +6653,10 @@ msgstr "The control plane refused this because it didn't come from the panel's o
 msgid "the control plane runs {controlPlane}"
 msgstr "the control plane runs {controlPlane}"
 
+#: src/features/changes/notices.tsx
+msgid "The database may not start on files from another release. Deploy {writtenBy} first and restore then, or restore a dump instead."
+msgstr "The database may not start on files from another release. Deploy {writtenBy} first and restore then, or restore a dump instead."
+
 #: src/features/apps/AppOverview.tsx
 msgid "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
 msgstr "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
@@ -7782,8 +7794,8 @@ msgid "What stops starts again once the copy ends, however that goes. The copy i
 msgstr "What stops starts again once the copy ends, however that goes. The copy is exact."
 
 #: src/features/changes/notices.tsx
-msgid "What stops starts again once the volume is restored, however that goes."
-msgstr "What stops starts again once the volume is restored, however that goes."
+msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
+msgstr "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx

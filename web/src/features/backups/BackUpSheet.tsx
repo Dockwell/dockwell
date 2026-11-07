@@ -114,7 +114,10 @@ export function BackUpSheet({
             <Trans>
               This uses {said.database}'s own dump, with the database running, so nothing stops. A dump restores on a
               newer version too.
-            </Trans>
+            </Trans>{" "}
+            {said.database === "MySQL" ? (
+              <Trans>A MyISAM table written to during the dump may not come out consistent.</Trans>
+            ) : null}
           </p>
         ) : risky ? (
           <>

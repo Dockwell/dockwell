@@ -47,6 +47,11 @@
   justify-content: flex-end;
 }
 
+.backup-phone-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .backup-phone {
   display: flex;
   flex-direction: column;

@@ -39,6 +39,7 @@ import "./Backups.css";
  */
 export function BackupsPage() {
   const { t } = useLingui();
+  const phone = useMediaQuery(PHONE_QUERY);
   const volumes = useVolumes();
   const query = useBackups();
   const sheet = useChangeSheet();
@@ -58,12 +59,9 @@ export function BackupsPage() {
       </Button>
     ) : null;
 
+  const where = t`On each server's own disk, unencrypted, so they go if the server does`;
   return (
-    <Page
-      title={t`Backups`}
-      lead={t`On each server's own disk, so they go if the server does`}
-      actions={backups.length > 0 ? action : null}
-    >
+    <Page title={t`Backups`} lead={where} phoneSub={where} back="/more" actions={backups.length > 0 ? action : null}>
       {query.error ? (
         <Callout tone="critical" title={t`Dockwell can't read its backups`}>
           {sentence(query.error)}
@@ -82,7 +80,10 @@ export function BackupsPage() {
           )}
         </Panel>
       ) : (
-        <BackupsList backups={backups} onRestore={restore} onDelete={setDeleting} />
+        <>
+          {phone ? <div className="backup-phone-action">{action}</div> : null}
+          <BackupsList backups={backups} onRestore={restore} onDelete={setDeleting} />
+        </>
       )}
       {taking ? <BackUpSheet volumes={volumes} onClose={() => setTaking(false)} /> : null}
       {deleting ? <DeleteSheet backup={deleting} client={client} onClose={() => setDeleting(undefined)} /> : null}

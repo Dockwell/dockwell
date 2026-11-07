@@ -13,6 +13,7 @@ import {
   type CreateBackupRequest,
   PlanAction,
   PreviewBackupResponseSchema,
+  type RestorePlanSchema,
   type WatchChangeResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -104,6 +105,14 @@ describe("the backups page", () => {
     expect(await screen.findByText("orders")).toBeVisible();
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.getByRole("button", { name: "Restore" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/more");
+    expect(screen.getByRole("button", { name: "Back up now" })).toBeVisible();
+    expect(screen.getByText(/unencrypted, so they go if the server does/)).toBeVisible();
+  });
+
+  it("says a backup on a server's disk isn't encrypted", async () => {
+    renderAt("/backups", api([aBackup()]));
+    expect(await screen.findByText(/unencrypted, so they go if the server does/)).toBeVisible();
   });
 
   it("says a word before a copy of a running app, and stops it unless told not to", async () => {
@@ -146,10 +155,27 @@ describe("the backups page", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Back up now" }));
     expect(await screen.findByText(/uses PostgreSQL's own dump/)).toBeVisible();
+    expect(screen.queryByText(/MyISAM/)).toBeNull();
     expect(screen.queryByRole("switch")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Back up" }));
     await waitFor(() => expect(made).toHaveBeenCalled());
     expect(made.mock.calls[0]?.[0]).toMatchObject({ stop: false });
+  });
+
+  it("says MyISAM tables may not come out consistent in MySQL's dump", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          previewBackup: () =>
+            create(PreviewBackupResponseSchema, { method: BackupMethod.DUMP, database: "MySQL", running: ["db"] }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Back up now" }));
+    expect(await screen.findByText(/MyISAM table written to during the dump/)).toBeVisible();
   });
 
   it("says why a server can't answer, and takes nothing", async () => {
@@ -173,9 +199,8 @@ describe("the backups page", () => {
     expect(screen.getByRole("button", { name: "Back up" })).toBeDisabled();
   });
 
-  it("restores through the plan sheet, which says what it replaces and what stops", async () => {
-    const user = userEvent.setup();
-    const change = create(ChangeSchema, {
+  function restoring(restore: MessageInitShape<typeof RestorePlanSchema>) {
+    return create(ChangeSchema, {
       id: "chg_restore",
       summary: "Restore orders",
       state: ChangeState.PLANNED,
@@ -200,19 +225,24 @@ describe("the backups page", () => {
                 resource: { kind: "volume", scope: "env_1", name: "orders" },
                 action: PlanAction.REPLACE,
                 destroysData: true,
-                restore: {
-                  backupId: "bkp_1",
-                  method: BackupMethod.DUMP,
-                  database: "PostgreSQL",
-                  sizeBytes: 312n << 20n,
-                  takenAt: timestampFromDate(new Date("2026-11-06T03:00:00Z")),
-                  stops: ["db", "web"],
-                },
+                restore,
               },
             ],
           },
         ],
       },
+    });
+  }
+
+  it("restores through the plan sheet, which says what it replaces and what stops", async () => {
+    const user = userEvent.setup();
+    const change = restoring({
+      backupId: "bkp_1",
+      method: BackupMethod.DUMP,
+      database: "PostgreSQL",
+      sizeBytes: 312n << 20n,
+      takenAt: timestampFromDate(new Date("2026-11-06T03:00:00Z")),
+      stops: ["db", "web"],
     });
     const watch = feed<WatchChangeResponse>();
     renderAt(
@@ -226,5 +256,33 @@ describe("the backups page", () => {
     expect(await screen.findByText(/Everything in orders on hz-1 is replaced with the dump from/)).toBeVisible();
     expect(screen.getByText(/PostgreSQL starts anew on an empty volume and loads the dump, 312 MB/)).toBeVisible();
     expect(screen.getByText(/db and web stop while this happens/)).toBeVisible();
+    expect(screen.queryByText(/wrote these files/)).toBeNull();
+  });
+
+  it("warns in amber when a database's files go under another release", async () => {
+    const user = userEvent.setup();
+    const change = restoring({
+      backupId: "bkp_1",
+      method: BackupMethod.COPY,
+      sizeBytes: 312n << 20n,
+      takenAt: timestampFromDate(new Date("2026-11-06T03:00:00Z")),
+      writtenBy: "postgres:16.4",
+      runsOn: "postgres:17.11",
+    });
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: { listBackups: () => ({ backups: [aBackup()] }), restoreBackup: () => ({ change }) },
+        changes: { getChange: () => ({ change }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    const warning = (await screen.findByText(/wrote these files/)).closest(".plan-risk");
+    expect(warning).toHaveClass("dw-tone-warning");
+    expect(warning).toHaveTextContent("postgres:16.4 wrote these files, and postgres:17.11 runs on them now");
+    expect(screen.getByText(/may not start on files from another release. Deploy postgres:16.4 first/)).toBeVisible();
+    expect(screen.getByText(/Everything in orders on hz-1 is replaced/).closest(".plan-risk")).not.toHaveClass(
+      "dw-tone-warning",
+    );
   });
 });

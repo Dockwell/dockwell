@@ -1139,29 +1139,43 @@ function TopNotice({
   phase: Phase;
 }) {
   const { t } = useLingui();
-  const [first, ...rest] = risks;
+  const [first, ...rest] = risks.filter((risk) => !risk.amber);
   if (first) {
     return (
-      <Callout tone="critical" title={<MachineWords>{first.title}</MachineWords>} className="plan-risk">
-        {first.detail}
-        {rest.map((risk) => (
-          <p key={risk.key} className="plan-risk-more">
-            <b>
-              <MachineWords>{risk.title}</MachineWords>.
-            </b>{" "}
-            {risk.detail}
-          </p>
-        ))}
-        {risks.some((risk) => risk.trust) ? (
-          <p className="plan-risk-more">
-            {phase === "review" ? (
-              <Trans>Apply this only if you trust what it runs.</Trans>
-            ) : (
-              <Trans>Keep this only if you trust what it runs.</Trans>
-            )}
-          </p>
-        ) : null}
-      </Callout>
+      <>
+        <Callout tone="critical" title={<MachineWords>{first.title}</MachineWords>} className="plan-risk">
+          {first.detail}
+          {rest.map((risk) => (
+            <p key={risk.key} className="plan-risk-more">
+              <b>
+                <MachineWords>{risk.title}</MachineWords>.
+              </b>{" "}
+              {risk.detail}
+            </p>
+          ))}
+          {risks.some((risk) => risk.trust) ? (
+            <p className="plan-risk-more">
+              {phase === "review" ? (
+                <Trans>Apply this only if you trust what it runs.</Trans>
+              ) : (
+                <Trans>Keep this only if you trust what it runs.</Trans>
+              )}
+            </p>
+          ) : null}
+        </Callout>
+        {risks
+          .filter((risk) => risk.amber)
+          .map((risk) => (
+            <Callout
+              key={risk.key}
+              tone="warning"
+              title={<MachineWords>{risk.title}</MachineWords>}
+              className="plan-risk"
+            >
+              {risk.detail}
+            </Callout>
+          ))}
+      </>
     );
   }
   const notices: Notice[] = [...warnings];

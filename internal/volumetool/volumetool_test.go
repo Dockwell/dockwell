@@ -457,3 +457,48 @@ func TestMainPacksAndUnpacks(t *testing.T) {
 		t.Errorf("no directory: exit %d", code)
 	}
 }
+
+func TestMeasureCountsAFileOnce(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "a"), "12345", 0o644)
+	write(t, filepath.Join(dir, "deep", "b"), "123", 0o644)
+	if err := os.Link(filepath.Join(dir, "a"), filepath.Join(dir, "linked")); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := Measure(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Bytes != 8 || !stats.Done || stats.Free <= 0 || stats.Filesystem == "" {
+		t.Errorf("stats = %+v", stats)
+	}
+}
+
+// Past this point a failure leaves the volume neither what it was nor what it was to
+// be, so whoever runs it has to know.
+func TestAnUnpackSaysWhenItBeginsToMoveWhatsThere(t *testing.T) {
+	src, dir := t.TempDir(), t.TempDir()
+	write(t, filepath.Join(src, "new"), "new", 0o644)
+	write(t, filepath.Join(dir, "old"), "old", 0o644)
+	var archive bytes.Buffer
+	if _, err := Pack(&archive, src, nil); err != nil {
+		t.Fatal(err)
+	}
+	fails := hooks{lchown: func(path string, _, _ int) error {
+		if path == dir {
+			return errors.New("the disk went away")
+		}
+		return nil
+	}}
+	stats, err := unpack(bytes.NewReader(archive.Bytes()), dir, nil, fails)
+	if err == nil {
+		t.Fatal("it unpacked")
+	}
+	if !stats.Swapping {
+		t.Errorf("it stopped partway through moving things, and stats = %+v", stats)
+	}
+	stats, err = Unpack(bytes.NewReader([]byte("not an archive")), t.TempDir(), nil)
+	if err == nil || stats.Swapping {
+		t.Errorf("a bad archive touched nothing, and stats = %+v, %v", stats, err)
+	}
+}

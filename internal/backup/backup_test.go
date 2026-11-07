@@ -3,16 +3,19 @@
 package backup
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -96,10 +99,10 @@ func (b *bench) postgres(x dockertest.Exec) int {
 }
 
 // run makes a running container of a service with the volume mounted at path.
-func (b *bench) run(service, image, path string) string {
+func (b *bench) run(service, image, path string, cmd ...string) string {
 	b.t.Helper()
 	ctx := b.t.Context()
-	req := &docker.CreateRequest{Config: docker.Config{Image: image, Labels: map[string]string{
+	req := &docker.CreateRequest{Config: docker.Config{Image: image, Cmd: cmd, Labels: map[string]string{
 		docker.LabelProject: b.target.Project, docker.LabelService: service,
 	}}}
 	if path != "" {
@@ -191,11 +194,12 @@ func TestACopyGoesThroughAHelperThatLeavesNothing(t *testing.T) {
 	if m.Method != resource.BackupCopy || m.Format != formatArchive || m.Size == 0 || m.SHA256 == "" {
 		t.Errorf("manifest = %+v", m)
 	}
+	// One to measure the volume before anything stops, and one to read it.
 	helpers := b.engine.Helpers()
-	if len(helpers) != 1 {
+	if len(helpers) != 2 {
 		t.Fatalf("made %d helpers", len(helpers))
 	}
-	h := helpers[0]
+	h := helpers[1]
 	if h.HostConfig.NetworkMode != "none" || !h.HostConfig.ReadonlyRootfs {
 		t.Errorf("a helper can reach out or write to itself: %+v", h.HostConfig)
 	}
@@ -346,8 +350,10 @@ func TestARunningDatabaseIsDumpedAndNothingStops(t *testing.T) {
 	if err != nil || !strings.Contains(string(text), "CREATE TABLE notes;") {
 		t.Errorf("the dump holds %q, %v", text, err)
 	}
-	if len(b.engine.Helpers()) != 0 {
-		t.Error("a dump went through a helper")
+	for _, h := range b.engine.Helpers() {
+		if slices.Contains(h.Cmd, "pack") {
+			t.Error("a dump went through a helper")
+		}
 	}
 }
 
@@ -530,7 +536,7 @@ func TestADumpThatWontLoadPutsBackWhatWasThere(t *testing.T) {
 	b.write("data.sql", "what the app has now")
 	b.loadFails = true
 	err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"})
-	if err == nil || !strings.Contains(err.Error(), "relation") || !strings.Contains(err.Error(), "holds what it held before") {
+	if err == nil || !strings.Contains(err.Error(), "relation") || !strings.Contains(err.Error(), "What was there is back") {
 		t.Fatalf("restoring = %v", err)
 	}
 	if strings.Contains(err.Error(), "already exists\n") || strings.Contains(err.Error(), "current user") {
@@ -622,38 +628,61 @@ func TestARestoreCutShortGoesOn(t *testing.T) {
 	id := b.run("web", "nginx:1", "/data")
 	b.take(true)
 	b.write("kept.txt", "changed since")
-
 	source := resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}
-	// As if the agent died after it copied what's there, and before it unpacked.
-	st := &state{Manifest: Manifest{ID: beforePrefix + "chg_1", Environment: env, Volume: "data", Format: formatArchive, Method: resource.BackupCopy, Taken: time.Now()}, Change: "chg_1"}
-	if err := b.runner.write(ref, &st.Manifest, func(w io.Writer) (int64, error) {
-		stats, err := b.runner.tool(t.Context(), b.target, "pack", docker.Streams{Stdout: w})
-		return stats.Changed, err
-	}, verifyArchive); err != nil {
-		t.Fatal(err)
-	}
-	if err := b.runner.saveState(ref, st, stageCopied); err != nil {
-		t.Fatal(err)
-	}
-	web := &user{id: id, name: "web", stopWait: time.Second}
-	if err := b.runner.stop(t.Context(), "restore-chg_1", []*user{web}, true); err != nil {
+	dec, _, err := b.runner.JudgeRestore(t.Context(), ref, source)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	// The agent comes back. Its restore is its change's to finish.
-	if err := b.runner.Recover(t.Context()); err != nil {
+	// The agent dies as it's about to unpack: it stopped the app and copied what's
+	// there, through the real path, and its last helper never comes.
+	var helpers atomic.Int32
+	dying, gone, ended := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() {
+		close(gone)
+		<-ended
+	})
+	b.engine.Intercept(func(r *http.Request) error {
+		if !strings.Contains(r.URL.Path, "/images/create") {
+			return nil
+		}
+		if helpers.Add(1) == 3 { // to measure, to copy, and to unpack
+			close(dying)
+			<-gone
+			return errors.New("the agent died")
+		}
+		return nil
+	})
+	go func() {
+		defer close(ended)
+		_ = b.runner.ApplyRestore(context.Background(), resource.Step{Ref: ref, Decision: dec}, source)
+	}()
+	<-dying
+	b.engine.Intercept(nil)
+
+	// The agent comes back, knowing nothing but the disk. Its restore is its change's
+	// to finish.
+	back := &Runner{Client: b.client, Root: b.runner.Root, Binary: b.runner.Binary}
+	if err := back.Recover(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if b.running(id) {
 		t.Fatal("the agent started an app whose restore isn't finished")
 	}
-	b.write("half.txt", "what a half-done restore left")
+	st, err := back.stageOf(ref, "chg_1")
+	if err != nil || st.Stage != stageCopied {
+		t.Fatalf("stage = %+v, %v", st, err)
+	}
+	copied, err := os.ReadFile(back.beforeFile(ref, "chg_1"))
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	dec, left, err := b.runner.JudgeRestore(t.Context(), ref, source)
+	dec, left, err := back.JudgeRestore(t.Context(), ref, source)
 	if err != nil || !left {
 		t.Fatalf("JudgeRestore = %v, %v", left, err)
 	}
-	if err := b.runner.ApplyRestore(t.Context(), resource.Step{Ref: ref, Decision: dec}, source); err != nil {
+	if err := back.ApplyRestore(t.Context(), resource.Step{Ref: ref, Decision: dec}, source); err != nil {
 		t.Fatal(err)
 	}
 	if got := b.read("kept.txt"); got != "from the backup" {
@@ -662,12 +691,8 @@ func TestARestoreCutShortGoesOn(t *testing.T) {
 	if !b.running(id) {
 		t.Error("the app didn't start once it finished")
 	}
-	// Its copy is still what was there before it began.
-	if err := b.restore(resource.RestoreSource{Undoes: "chg_1", Change: "chg_2"}); err != nil {
-		t.Fatal(err)
-	}
-	if got := b.read("kept.txt"); got != "changed since" || b.has("half.txt") {
-		t.Errorf("undoing brought back %q, half.txt there: %v", got, b.has("half.txt"))
+	if now, err := os.ReadFile(back.beforeFile(ref, "chg_1")); err != nil || !bytes.Equal(now, copied) {
+		t.Errorf("it copied over the copy it took: %v", err)
 	}
 }
 

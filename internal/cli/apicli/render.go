@@ -808,6 +808,9 @@ func restoreWords(r *dockwellv1.RestorePlan) []string {
 	default:
 		out = append(out, fmt.Sprintf("Replaces what's in the volume with the copy from %s (%s).", taken, size))
 	}
+	if r.GetWrittenBy() != "" {
+		out = append(out, fmt.Sprintf("%s wrote these files, and %s runs on them now, so the database may not start. Deploy %s first and restore then, or restore a dump instead.", r.GetWrittenBy(), r.GetRunsOn(), r.GetWrittenBy()))
+	}
 	if stops := r.GetStops(); len(stops) > 0 {
 		out = append(out, "Stops "+human.List(stops)+" while it happens, and starts what it stopped again after.")
 	}

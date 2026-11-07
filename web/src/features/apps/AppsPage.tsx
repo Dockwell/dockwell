@@ -530,7 +530,8 @@ function useColumnHeads(fleet: boolean, wide: boolean) {
     const heads: { key: string; header: string; width?: number | string; align?: "right" }[] = [
       { key: "app", header: t`App` },
     ];
-    if (wide) heads.push({ key: "image", header: t`Image`, width: "42%" });
+    // On a fleet, Runs on takes what's left at the narrow end of this: App and Image share it.
+    if (wide) heads.push({ key: "image", header: t`Image`, width: fleet ? undefined : "42%" });
     heads.push(
       { key: "status", header: t`Status`, width: 128 },
       { key: "revision", header: t`Revision`, width: REVISION_WIDTH },

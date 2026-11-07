@@ -4412,7 +4412,12 @@ type RestorePlan struct {
 	// What stops while it happens: services by name, and anything else by its
 	// container's. It's whatever mounts the volume, and for a dump, the rest of the
 	// app on that server too.
-	Stops         []string `protobuf:"bytes,7,rep,name=stops,proto3" json:"stops,omitempty"`
+	Stops []string `protobuf:"bytes,7,rep,name=stops,proto3" json:"stops,omitempty"`
+	// The image that wrote a copy of a database's files, and the one that would read
+	// them, set only when those are different releases, as the database may not
+	// start on them.
+	WrittenBy     string `protobuf:"bytes,8,opt,name=written_by,json=writtenBy,proto3" json:"written_by,omitempty"`
+	RunsOn        string `protobuf:"bytes,9,opt,name=runs_on,json=runsOn,proto3" json:"runs_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4494,6 +4499,20 @@ func (x *RestorePlan) GetStops() []string {
 		return x.Stops
 	}
 	return nil
+}
+
+func (x *RestorePlan) GetWrittenBy() string {
+	if x != nil {
+		return x.WrittenBy
+	}
+	return ""
+}
+
+func (x *RestorePlan) GetRunsOn() string {
+	if x != nil {
+		return x.RunsOn
+	}
+	return ""
 }
 
 // RouteMove is a route leaving one service for another.
@@ -5708,7 +5727,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\amanager\x18\x01 \x01(\tR\amanager\x12\x1c\n" +
 	"\tcontainer\x18\x02 \x01(\tR\tcontainer\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12\x16\n" +
-	"\x06folder\x18\x04 \x01(\tR\x06folder\"\xfd\x01\n" +
+	"\x06folder\x18\x04 \x01(\tR\x06folder\"\xb5\x02\n" +
 	"\vRestorePlan\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x16\n" +
 	"\x06undoes\x18\x02 \x01(\tR\x06undoes\x121\n" +
@@ -5717,7 +5736,10 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\btaken_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x12\x14\n" +
-	"\x05stops\x18\a \x03(\tR\x05stops\"^\n" +
+	"\x05stops\x18\a \x03(\tR\x05stops\x12\x1d\n" +
+	"\n" +
+	"written_by\x18\b \x01(\tR\twrittenBy\x12\x17\n" +
+	"\aruns_on\x18\t \x01(\tR\x06runsOn\"^\n" +
 	"\tRouteMove\x12\x14\n" +
 	"\x05where\x18\x01 \x01(\tR\x05where\x12\x12\n" +
 	"\x04from\x18\x02 \x01(\tR\x04from\x12\x0e\n" +

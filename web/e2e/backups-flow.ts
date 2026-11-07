@@ -74,8 +74,10 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await page.getByRole("button", { name: "Undo this change" }).waitFor({ timeout: 15_000 });
 
   step("backups: an app's page shows its newest, and takes another");
-  await page.goto(`${origin}/apps`);
-  await page.getByRole("link", { name: /^db/ }).first().click();
+  // journal has a db too, so go by the app. A link that has no width can't be clicked,
+  // which holds the list to showing its names with two servers at this width.
+  await page.goto(`${origin}/apps?q=postgres`);
+  await page.getByRole("table", { name: "Apps" }).getByRole("link", { name: "db", exact: true }).click();
   const panel = page.getByRole("region", { name: "Backups" });
   await panel.getByText("PostgreSQL dump").waitFor({ timeout: 15_000 });
   await panel.getByRole("button", { name: "Back up now" }).click();
@@ -88,6 +90,8 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto(`${origin}/backups`);
   await page.locator(".backup-phone").getByText("data").first().waitFor();
+  await page.getByRole("link", { name: "Back" }).waitFor();
+  await page.getByRole("button", { name: "Back up now" }).waitFor();
   if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 360) {
     fail("the backups page scrolls sideways on a phone");
   }

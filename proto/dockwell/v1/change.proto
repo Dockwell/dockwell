@@ -1047,6 +1047,11 @@ message RestorePlan {
   // container's. It's whatever mounts the volume, and for a dump, the rest of the
   // app on that server too.
   repeated string stops = 7;
+  // The image that wrote a copy of a database's files, and the one that would read
+  // them, set only when those are different releases, as the database may not
+  // start on them.
+  string written_by = 8;
+  string runs_on = 9;
 }
 
 // RouteMove is a route leaving one service for another.

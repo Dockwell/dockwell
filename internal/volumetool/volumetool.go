@@ -46,6 +46,13 @@ type Stats struct {
 	// Skipped counts sockets, which hold nothing, and which a process makes
 	// again as it starts.
 	Skipped int64 `json:"skipped,omitempty"`
+	// Swapping says an unpack began moving what's in the volume out. A failure
+	// after that leaves the volume neither what it was nor what it was to be.
+	Swapping bool `json:"swapping,omitempty"`
+	// Free is what's free on the disk the volume is on, and Filesystem tells that
+	// disk from another. Only a measure says them.
+	Free       int64  `json:"free,omitempty"`
+	Filesystem string `json:"filesystem,omitempty"`
 	// Done marks the last line.
 	Done bool `json:"done,omitempty"`
 }
@@ -302,6 +309,10 @@ func unpack(r io.Reader, dir string, progress Progress, h hooks) (Stats, error) 
 		return stats, err
 	}
 	syscall.Sync() // what it wrote is on disk before what it replaces goes
+	stats.Swapping = true
+	if progress != nil {
+		progress(stats)
+	}
 	if err := swap(dir, top, h); err != nil {
 		return stats, err
 	}
@@ -508,6 +519,52 @@ func Empty(dir string) error {
 	return nil
 }
 
+// Measure says how much is in the volume at dir, as a backup would read it, and how
+// much is free beside it. It counts a hard link's file once.
+func Measure(dir string) (Stats, error) {
+	var stats Stats
+	seen := map[inode]bool{}
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return nil
+		case err != nil:
+			return err
+		case !d.Type().IsRegular():
+			stats.Files++
+			return nil
+		}
+		fi, err := d.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		stats.Files++
+		if st, ok := fi.Sys().(*syscall.Stat_t); ok && st.Nlink > 1 {
+			key := inode{uint64(st.Dev), st.Ino} //nolint:unconvert // Dev's type differs by architecture
+			if seen[key] {
+				return nil
+			}
+			seen[key] = true
+		}
+		stats.Bytes += fi.Size()
+		return nil
+	})
+	if err != nil {
+		return stats, err
+	}
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(dir, &st); err != nil {
+		return stats, fmt.Errorf("can't read how much is free beside the volume: %w", err)
+	}
+	stats.Free = int64(st.Bavail) * int64(st.Bsize) //nolint:gosec,unconvert // a disk's size fits, and Bsize's type differs by architecture
+	stats.Filesystem = fmt.Sprint(st.Fsid)
+	stats.Done = true
+	return stats, nil
+}
+
 // Verify reads an archive to its end, and says whether it's whole.
 func Verify(r io.Reader) (Stats, error) {
 	var stats Stats
@@ -547,7 +604,7 @@ func Verify(r io.Reader) (Stats, error) {
 // and an exit code of 1.
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 2 {
-		fmt.Fprintln(stderr, "usage: "+Command+" pack|unpack|empty <directory>")
+		fmt.Fprintln(stderr, "usage: "+Command+" pack|unpack|empty|measure <directory>")
 		return 2
 	}
 	report := json.NewEncoder(stderr)
@@ -562,8 +619,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case "empty":
 		err = Empty(dir)
 		stats.Done = true
+	case "measure":
+		stats, err = Measure(dir)
 	default:
-		fmt.Fprintln(stderr, "usage: "+Command+" pack|unpack|empty <directory>")
+		fmt.Fprintln(stderr, "usage: "+Command+" pack|unpack|empty|measure <directory>")
 		return 2
 	}
 	if err != nil {

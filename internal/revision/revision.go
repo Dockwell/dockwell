@@ -1806,7 +1806,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
 			}
 			if r := s.Restore; r != nil {
-				fmt.Fprintf(fp, "  restore %s|%s|%s|%s|%d|%d|%v\n", r.Backup, r.Undoes, r.Method, r.Database, r.Taken.UnixNano(), r.Size, r.Stops)
+				fmt.Fprintf(fp, "  restore %s|%s|%s|%s|%d|%d|%v|%s|%s\n", r.Backup, r.Undoes, r.Method, r.Database, r.Taken.UnixNano(), r.Size, r.Stops, r.WrittenBy, r.RunsOn)
 			}
 			// What DNS says, s.Domain, stays out, as people often set it after.
 			if i := s.Ingress; i != nil {
@@ -3714,13 +3714,16 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 		}
 		return nil, err
 	}
-	if c.State != store.ChangeApplied {
+	// A restore that failed may have left a volume it couldn't put right, and undoing
+	// it is the way back: its server says if there's nothing to undo.
+	ref, source, restores := restoring(c)
+	if c.State != store.ChangeApplied && (c.State != store.ChangeFailed || !restores) {
 		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", changeID, c.State)
 	}
 	if err := e.withinUndoWindow(c); err != nil {
 		return nil, err
 	}
-	if ref, source, ok := restoring(c); ok {
+	if restores {
 		return e.undoRestore(ctx, c, ref, source, by)
 	}
 	edits, err := e.reverse(ctx, changeID)

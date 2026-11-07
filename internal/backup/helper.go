@@ -62,7 +62,7 @@ func (r *Runner) tool(ctx context.Context, t volume.Target, verb string, s docke
 			NetworkMode: "none", ReadonlyRootfs: true,
 			// What it prints is an archive, and Docker would keep a copy of it.
 			LogConfig: &docker.LogConfig{Type: "none"},
-			Mounts:    []docker.Mount{{Type: "volume", Source: t.Name, Target: helperMount, ReadOnly: verb == "pack"}},
+			Mounts:    []docker.Mount{{Type: "volume", Source: t.Name, Target: helperMount, ReadOnly: verb == "pack" || verb == "measure"}},
 		},
 	}
 	id, err := r.Client.CreateContainer(ctx, helperRepository+"-"+run, req)

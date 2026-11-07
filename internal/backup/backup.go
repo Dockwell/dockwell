@@ -63,6 +63,9 @@ type Manifest struct {
 	Taken  time.Time `json:"taken"`
 	// Changed counts files that changed while they were read.
 	Changed int64 `json:"changed,omitempty"`
+	// Unpacked is how large it is once it's out of its file, for a restore to know
+	// it fits.
+	Unpacked int64 `json:"unpacked,omitempty"`
 }
 
 // Runner takes and restores backups on this server.
@@ -79,6 +82,8 @@ type Runner struct {
 	// CleanupWait bounds removing a helper, once its run has ended. Zero means a
 	// minute.
 	CleanupWait time.Duration
+	// Disk stands in for the disk that holds backups, for a test.
+	Disk func() disk
 
 	mu      sync.Mutex
 	working map[string]bool // volumes in Docker with a backup or restore under way
@@ -190,13 +195,19 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := r.roomFor(ctx, take, t); err != nil {
+		return nil, err
+	}
 	m := &Manifest{ID: take.ID, Environment: take.Ref.Scope, Volume: take.Ref.Name, Taken: r.now().UTC()}
 	if err := os.MkdirAll(r.dir(take.Ref), 0o700); err != nil {
 		return nil, fmt.Errorf("can't make a place for the backup: %w", err)
 	}
 	if db := users.database(); db != nil && db.running {
 		m.Method, m.Format, m.Database, m.Image = resource.BackupDump, formatDump, db.kind.name, db.image
-		err = r.write(take.Ref, m, func(w io.Writer) (int64, error) { return 0, r.dump(ctx, take.Ref, db, w) }, verifyDump(db.kind))
+		err = r.write(take.Ref, m, func(w io.Writer) (int64, error) {
+			m.Unpacked, err = r.dump(ctx, take.Ref, db, w)
+			return 0, err
+		}, verifyDump(db.kind))
 	} else {
 		err = r.copyVolume(ctx, take, t, users, m)
 	}
@@ -207,8 +218,9 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 }
 
 // copyVolume takes a copy of a volume's files, with what runs on it stopped if
-// that was asked for.
-func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, users *users, m *Manifest) error {
+// that was asked for. What stopped starts again as soon as the copy ends, and
+// whatever became of it.
+func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, users *users, m *Manifest) (err error) {
 	m.Format = formatArchive
 	if db := users.database(); db != nil {
 		m.Image = db.image
@@ -219,18 +231,24 @@ func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, use
 	if len(running) > 0 && !take.Stop {
 		m.Method = resource.BackupCopyRunning
 	}
+	startAgain := func() error {
+		if !stopped {
+			return nil
+		}
+		stopped = false
+		return r.startAgain(ctx, take.ID, running)
+	}
+	defer func() { err = errors.Join(err, startAgain()) }()
 	if stopped {
 		if err := r.stop(ctx, take.ID, running, false); err != nil {
-			return errors.Join(err, r.startAgain(ctx, take.ID, running))
+			return err
 		}
 	}
 	return r.write(take.Ref, m, func(w io.Writer) (int64, error) {
 		stats, err := r.tool(ctx, t, "pack", docker.Streams{Stdout: w})
+		m.Unpacked = stats.Bytes
 		// As soon as the copy ends: reading it back holds up nothing.
-		if stopped {
-			err = errors.Join(err, r.startAgain(ctx, take.ID, running))
-		}
-		return stats.Changed, err
+		return stats.Changed, errors.Join(err, startAgain())
 	}, verifyArchive)
 }
 
@@ -253,7 +271,7 @@ func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int6
 		}
 	}()
 	sum := sha256.New()
-	counted := &counter{w: io.MultiWriter(f, sum)}
+	counted := &counter{w: io.MultiWriter(f, sum), check: r.keepRoom}
 	if m.Changed, err = take(counted); err != nil {
 		return err
 	}
@@ -299,13 +317,23 @@ func check(path string, m *Manifest, verify verifier) error {
 }
 
 type counter struct {
-	w io.Writer
-	n int64
+	w     io.Writer
+	n     int64
+	since int64
+	check func() error
 }
+
+// checkEvery is how much is written between looks at the disk.
+const checkEvery = 64 << 20
 
 func (c *counter) Write(b []byte) (int, error) {
 	n, err := c.w.Write(b)
 	c.n += int64(n)
+	c.since += int64(n)
+	if err == nil && c.since >= checkEvery && c.check != nil {
+		c.since = 0
+		err = c.check()
+	}
 	return n, err
 }
 
@@ -436,25 +464,55 @@ func (r *Runner) stop(ctx context.Context, run string, containers []*user, resto
 
 // start starts containers, and forgets them once all of them are.
 func (r *Runner) start(ctx context.Context, run string, containers []*user) error {
-	var errs []error
+	var down downList
 	for _, c := range containers {
 		resource.Progress(ctx, "Starting "+c.name)
 		if err := r.Client.StartContainer(ctx, c.id); err != nil && !docker.IsNotFound(err) {
-			errs = append(errs, fmt.Errorf("can't start %s: %w. Start it with docker start %s", c.name, err, c.name))
+			down = append(down, stayedDown{user: c, err: err})
 		}
 	}
 	r.mu.Lock()
 	delete(r.running, run)
 	r.mu.Unlock()
-	if err := errors.Join(errs...); err != nil {
-		return err
+	if len(down) > 0 {
+		return down
 	}
 	return r.noteStopped(func(l stoppedFile) { delete(l, run) })
 }
 
+// stayedDown is something that wouldn't start again.
+type stayedDown struct {
+	*user
+	err error
+}
+
+// downList is what wouldn't start again, and says how to start it: by the name
+// Docker knows it by, which isn't a service's.
+type downList []stayedDown
+
+func (d downList) Error() string {
+	out := make([]string, 0, len(d))
+	for _, c := range d {
+		out = append(out, fmt.Sprintf("%s, so it's down. Start it with docker start %s", c.why(), c.dockerName()))
+	}
+	return strings.Join(out, ". ")
+}
+
+// why says what went wrong, for what doesn't go on to say what to do about it.
+func (d downList) why() string {
+	out := make([]string, 0, len(d))
+	for _, c := range d {
+		out = append(out, c.why())
+	}
+	return strings.Join(out, ". ")
+}
+
+func (c stayedDown) why() string { return fmt.Sprintf("can't start %s: %v", c.name, c.err) }
+
 // Recover clears what a run that died left: helpers and their images, unfinished
-// files, and what it stopped, which starts again. A restore isn't started again
-// here: its change resumes it, and what it stopped has to stay stopped till then.
+// files, and what it stopped, which starts again. A restore under way isn't started
+// again here: its change resumes it, and what it stopped has to stay stopped till
+// then, as does what a restore that couldn't put back what was there left stopped.
 func (r *Runner) Recover(ctx context.Context) error {
 	// Docker may only just be back, with a run started in the time that took.
 	r.mu.Lock()
@@ -480,7 +538,7 @@ func (r *Runner) Recover(ctx context.Context) error {
 		for _, id := range list[run].Containers {
 			containers = append(containers, &user{id: id, name: shortID(id)})
 		}
-		r.logger().Warn("a backup stopped containers and the agent stopped before it started them again, so it starts them now", slog.Int("containers", len(containers)))
+		r.logger().Warn("something stopped containers for a backup or restore, and they didn't start again, so the agent starts them now", slog.Int("containers", len(containers)))
 		if err := r.start(ctx, run, containers); err != nil {
 			return err
 		}
@@ -522,7 +580,12 @@ func (r *Runner) clearLeftovers(ctx context.Context) error {
 
 func shortID(id string) string { return id[:min(len(id), 12)] }
 
-// Prune removes what restores replaced, once it's been kept for KeepFor.
+// keepPast is how long what a restore replaced outlives its 7 days, as the control
+// plane counts the undo window from a moment later than the agent does.
+const keepPast = time.Hour
+
+// Prune removes what restores replaced, once it's been kept for KeepFor from the
+// end of the restore: until then, an undo that's offered still works.
 func (r *Runner) Prune() error {
 	found, err := filepath.Glob(filepath.Join(r.Root, "*", "*", beforePrefix+"*.json"))
 	if err != nil {
@@ -534,7 +597,11 @@ func (r *Runner) Prune() error {
 			r.logger().Warn("can't read what a restore kept, so it stays", slog.String("path", path), slog.String("error", err.Error()))
 			continue
 		}
-		if r.now().Sub(st.Taken) < KeepFor {
+		since := st.Taken
+		if st.Ended.After(since) {
+			since = st.Ended
+		}
+		if r.now().Sub(since) < KeepFor+keepPast {
 			continue
 		}
 		archive := strings.TrimSuffix(path, ".json") + "." + formatArchive

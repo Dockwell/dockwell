@@ -30,6 +30,8 @@ export interface Notice {
   trust?: boolean;
   /** Something to know that someone may well have chosen, so it stands out, and isn't an alarm. */
   notice?: boolean;
+  /** A risk of how this goes, not of what it does, so it's amber beside what's red. */
+  amber?: boolean;
 }
 
 /** Everything a plan says it reaches, on its resources and its steps. */
@@ -372,7 +374,16 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
           one: `${list} stops while this happens`,
           other: `${list} stop while this happens`,
         }),
-        detail: t`What stops starts again once the volume is restored, however that goes.`,
+        detail: t`What stops starts again once the volume is restored. If the restore fails, what's there now goes back first.`,
+      });
+    }
+    if (restore.writtenBy !== "") {
+      const { writtenBy, runsOn } = restore;
+      out.push({
+        key: `restore-release-${key}`,
+        amber: true,
+        title: t`${writtenBy} wrote these files, and ${runsOn} runs on them now`,
+        detail: t`The database may not start on files from another release. Deploy ${writtenBy} first and restore then, or restore a dump instead.`,
       });
     }
     return out;

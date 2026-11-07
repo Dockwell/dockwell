@@ -24,13 +24,15 @@ const beforePrefix = "before-"
 // How far a restore got, kept beside its copy of what was there, so a restore
 // that was cut short goes on from there, and never copies over that copy.
 const (
-	stageCopied   = "copied"   // what was there is safe
-	stageReplaced = "replaced" // the volume holds what the backup does
-	stageFinished = "finished" // what stopped started again
+	stageCopied    = "copied"    // what was there is safe
+	stageReplacing = "replacing" // what's in the volume is neither what was there nor the backup
+	stageReplaced  = "replaced"  // the volume holds what the backup does
+	stageFinished  = "finished"  // what stopped started again
+	stageUndone    = "undone"    // it failed, and what was there went back
 )
 
-// stages orders them.
-var stages = []string{"", stageCopied, stageReplaced, stageFinished}
+// stages orders them, for a restore on its way. It isn't on its way once it's undone.
+var stages = []string{"", stageCopied, stageReplacing, stageReplaced, stageFinished}
 
 func reached(have, want string) bool {
 	return slices.Index(stages, have) >= slices.Index(stages, want)
@@ -41,6 +43,9 @@ type state struct {
 	Manifest
 	Change string `json:"change"`
 	Stage  string `json:"stage"`
+	// Ended is when it finished or undid itself: an undo can come for 7 days after
+	// that, however long it took.
+	Ended time.Time `json:"ended,omitzero"`
 }
 
 func readState(path string) (*state, error) {
@@ -61,6 +66,9 @@ func (r *Runner) statePath(ref resource.Ref, change string) string {
 
 func (r *Runner) saveState(ref resource.Ref, s *state, stage string) error {
 	s.Stage = stage
+	if stage == stageFinished || stage == stageUndone {
+		s.Ended = r.now().UTC()
+	}
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
@@ -87,6 +95,9 @@ func (r *Runner) source(ref resource.Ref, src resource.RestoreSource) (*Manifest
 		}
 		if err != nil {
 			return nil, "", err
+		}
+		if s.Stage == stageUndone {
+			return nil, "", errors.New("that restore failed and put back what was there itself, so there's nothing to undo")
 		}
 		if !reached(s.Stage, stageCopied) {
 			return nil, "", errors.New("that restore never finished copying what it replaced, so there's nothing to put back. Restore a backup instead")
@@ -191,6 +202,10 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 			Backup: src.Backup, Undoes: src.Undoes, Method: m.Method, Database: m.Database, Taken: m.Taken, Size: m.Size, Stops: namesOf(stops),
 		},
 	}
+	// A dump loads into any release. Files open only under the one that wrote them.
+	if db := u.database(); db != nil && m.Format == formatArchive && m.Image != "" && !db.kind.sameSeries(m.Image, db.image) {
+		dec.Restore.WrittenBy, dec.Restore.RunsOn = m.Image, db.image
+	}
 	if len(stops) > 0 {
 		dec.Downtime = estimate(m)
 	}
@@ -198,8 +213,9 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 }
 
 // ApplyRestore replaces what's in a volume with what a backup holds (ADR 0033).
-// What was there goes to a copy first, and stays for KeepFor. A restore cut short
-// goes on from where it got to, and what it stopped starts again however it ends.
+// What was there goes to a copy first, and stays for KeepFor. A restore that fails
+// puts that back and starts what it stopped, as a failed deploy rolls back. One cut
+// short does the same, and its change starts it over from that copy.
 func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resource.RestoreSource) error {
 	ref, t := step.Ref, volume.TargetOf(step.Ref)
 	release, err := r.hold(t)
@@ -213,6 +229,9 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 	}
 	if st.Stage == stageFinished {
 		return nil
+	}
+	if st.Stage == stageUndone {
+		st.Stage = stageCopied
 	}
 	m, file, err := r.source(ref, src)
 	if err != nil {
@@ -239,17 +258,108 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 	if err != nil {
 		return err
 	}
+	if err := r.roomToRestore(ctx, ref, t, st, m); err != nil {
+		return err
+	}
 	run := "restore-" + src.Change
+	if err := r.adopt(run, src.Undoes); err != nil {
+		return err
+	}
 	if err := r.stop(ctx, run, stops, true); err != nil {
-		return errors.Join(err, r.startAll(ctx, run, u, db))
+		return r.giveBack(ctx, ref, t, st, run, u, db, err)
 	}
 	if err := r.replace(ctx, ref, t, st, m, file, db); err != nil {
-		return errors.Join(err, r.startAll(ctx, run, u, db))
+		return r.giveBack(ctx, ref, t, st, run, u, db, err)
 	}
 	if err := r.startAll(ctx, run, u, db); err != nil {
-		return fmt.Errorf("the volume is restored, and what stopped didn't all start: %w", err)
+		var down downList
+		if errors.As(err, &down) {
+			err = errors.New(down.why())
+		}
+		return r.giveBack(ctx, ref, t, st, run, u, db, err)
 	}
 	return r.saveState(ref, st, stageFinished)
+}
+
+// adopt takes on what the restore an undo undoes left stopped, as nothing else will
+// start it.
+func (r *Runner) adopt(run, undoes string) error {
+	if undoes == "" {
+		return nil
+	}
+	from := "restore-" + undoes
+	return r.noteStopped(func(l stoppedFile) {
+		if left, ok := l[from]; ok {
+			l[run] = stoppedRun{Containers: append(l[run].Containers, left.Containers...), Restore: true}
+			delete(l, from)
+		}
+	})
+}
+
+// giveBack ends a restore that failed. While the volume is as it was, that only
+// starts what stopped. Otherwise what was there goes back first, on a context of its
+// own, as a volume mustn't be left half replaced however the call ended, and what
+// stopped starts on that. If it can't go back, what stopped stays stopped, as an app
+// mustn't start on half its data, and the error says how to get out of that.
+func (r *Runner) giveBack(ctx context.Context, ref resource.Ref, t volume.Target, st *state, run string, u *users, db *database, failed error) error {
+	if st.Stage == stageReplacing || st.Stage == stageReplaced {
+		if err := r.putBack(ctx, ref, t, st, run, db); err != nil {
+			return fmt.Errorf("%w. Putting back what was there failed too: %w. What stopped stays stopped, as what's in %s may not be whole. "+
+				"A copy of what was there is at %s on this server. Run dockwell changes undo %s to try again",
+				failed, err, ref.Name, r.beforeFile(ref, st.Change), st.Change)
+		}
+	}
+	// Nothing waits for its change now: if what stopped won't start, a later start of
+	// the agent tries again.
+	if err := r.noteStopped(func(l stoppedFile) {
+		if left, ok := l[run]; ok {
+			left.Restore = false
+			l[run] = left
+		}
+	}); err != nil {
+		return errors.Join(failed, err)
+	}
+	if err := r.startAll(ctx, run, u, db); err != nil {
+		if st.Stage == stageUndone {
+			return fmt.Errorf("%w. What was there is back in %s, and %w", failed, ref.Name, err)
+		}
+		return fmt.Errorf("%w. %s still holds what it held, and %w", failed, ref.Name, err)
+	}
+	if st.Stage == stageUndone {
+		return fmt.Errorf("%w. What was there is back in %s, and what stopped started again", failed, ref.Name)
+	}
+	return fmt.Errorf("%w. %s still holds what it held, and what stopped started again", failed, ref.Name)
+}
+
+// beforeFile is the copy a restore took of what was there.
+func (r *Runner) beforeFile(ref resource.Ref, change string) string {
+	return filepath.Join(r.dir(ref), beforePrefix+change+"."+formatArchive)
+}
+
+// putBack stops whatever a failed restore started, and unpacks the copy it took.
+func (r *Runner) putBack(ctx context.Context, ref resource.Ref, t volume.Target, st *state, run string, db *database) error {
+	ctx, cancel := resource.Finishing(ctx, putBackWait)
+	defer cancel()
+	resource.Progress(ctx, "Putting back what was there")
+	r.mu.Lock()
+	list, err := r.readStopped()
+	r.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	ids := slices.Clone(list[run].Containers)
+	if db != nil && !slices.Contains(ids, db.id) {
+		ids = append(ids, db.id)
+	}
+	for _, id := range ids {
+		if err := r.Client.StopContainer(ctx, id, stopWait); err != nil && !docker.IsNotFound(err) {
+			return fmt.Errorf("can't stop %s: %w", shortID(id), err)
+		}
+	}
+	if _, err := r.unpack(ctx, t, r.beforeFile(ref, st.Change)); err != nil {
+		return err
+	}
+	return r.saveState(ref, st, stageUndone)
 }
 
 // replace does the part of a restore that touches the data, from where st says.
@@ -264,6 +374,7 @@ func (r *Runner) replace(ctx context.Context, ref resource.Ref, t volume.Target,
 		}
 		err := r.write(ref, &st.Manifest, func(w io.Writer) (int64, error) {
 			stats, err := r.tool(ctx, t, "pack", docker.Streams{Stdout: w})
+			st.Unpacked = stats.Bytes
 			return stats.Changed, err
 		}, verifyArchive)
 		if err != nil {
@@ -278,9 +389,17 @@ func (r *Runner) replace(ctx context.Context, ref resource.Ref, t volume.Target,
 	}
 	var err error
 	if m.Format == formatDump {
-		err = r.replaceWithDump(ctx, ref, t, st, file, db)
+		// Emptying it can't be taken back, so that's on record first.
+		if err := r.saveState(ref, st, stageReplacing); err != nil {
+			return err
+		}
+		err = r.replaceWithDump(ctx, t, file, db)
 	} else {
-		err = r.unpack(ctx, t, file)
+		var swapping bool
+		swapping, err = r.unpack(ctx, t, file)
+		if swapping && err != nil {
+			err = errors.Join(err, r.saveState(ref, st, stageReplacing))
+		}
 	}
 	if err != nil {
 		return err
@@ -288,60 +407,44 @@ func (r *Runner) replace(ctx context.Context, ref resource.Ref, t volume.Target,
 	return r.saveState(ref, st, stageReplaced)
 }
 
-// unpack replaces what's in a volume with an archive.
-func (r *Runner) unpack(ctx context.Context, t volume.Target, file string) error {
+// unpack replaces what's in a volume with an archive, and says whether it had begun
+// moving what's there out when it stopped: until then, the volume is as it was.
+func (r *Runner) unpack(ctx context.Context, t volume.Target, file string) (swapping bool, err error) {
 	f, err := os.Open(file) //nolint:gosec // under the agent's own directory
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer f.Close()
-	if _, err := r.tool(ctx, t, "unpack", docker.Streams{Stdin: f}); err != nil {
-		return fmt.Errorf("can't unpack the backup into the volume: %w", err)
+	stats, err := r.tool(ctx, t, "unpack", docker.Streams{Stdin: f})
+	if err != nil {
+		return stats.Swapping, fmt.Errorf("can't unpack the backup into the volume: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
-// replaceWithDump starts the database anew, on an empty volume, and loads the
-// dump into it. If that fails, it puts back the copy it took.
-func (r *Runner) replaceWithDump(ctx context.Context, ref resource.Ref, t volume.Target, st *state, file string, db *database) error {
+// replaceWithDump starts the database anew, on an empty volume, and loads the dump
+// into it. It stops at the first thing that fails, for giveBack to put back the copy.
+func (r *Runner) replaceWithDump(ctx context.Context, t volume.Target, file string, db *database) error {
 	f, err := os.Open(file) //nolint:gosec // under the agent's own directory
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 	resource.Progress(ctx, "Making a new "+db.kind.name+" to load the dump into")
-	load := func() error {
-		if _, err := r.tool(ctx, t, "empty", docker.Streams{}); err != nil {
-			return err
-		}
-		if err := r.Client.StartContainer(ctx, db.id); err != nil {
-			return fmt.Errorf("can't start %s: %w", db.name, err)
-		}
-		if err := r.awaitReady(ctx, db); err != nil {
-			return err
-		}
-		resource.Progress(ctx, "Loading the dump")
-		return r.loadDump(ctx, db, f)
+	if _, err := r.tool(ctx, t, "empty", docker.Streams{}); err != nil {
+		return err
 	}
-	failed := load()
-	if failed == nil {
-		return nil
+	if err := r.Client.StartContainer(ctx, db.id); err != nil {
+		return fmt.Errorf("can't start %s: %w", db.name, err)
 	}
-	if ctx.Err() != nil {
-		// Out of time or told to stop, it's for a resume to go on with.
-		return failed
+	if err := r.awaitReady(ctx, db); err != nil {
+		return err
 	}
-	resource.Progress(ctx, "Putting back what was there")
-	back, cancel := resource.Finishing(ctx, putBackWait)
-	defer cancel()
-	if err := r.Client.StopContainer(back, db.id, db.stopWait); err != nil {
-		return errors.Join(failed, fmt.Errorf("can't stop %s to put back what was there: %w", db.name, err))
+	resource.Progress(ctx, "Loading the dump")
+	if err := r.loadDump(ctx, db, f); err != nil {
+		return fmt.Errorf("the dump didn't load: %w", err)
 	}
-	before := filepath.Join(r.dir(ref), beforePrefix+st.Change+"."+formatArchive)
-	if err := r.unpack(back, t, before); err != nil {
-		return errors.Join(failed, fmt.Errorf("and putting back what was there failed too, so the volume may be empty. The copy of what was there is at %s: %w", before, err))
-	}
-	return fmt.Errorf("the dump didn't load: %w. The volume holds what it held before", failed)
+	return nil
 }
 
 const (
