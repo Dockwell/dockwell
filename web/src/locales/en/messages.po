@@ -1311,6 +1311,7 @@ msgstr "Across {cpus} vCPU"
 msgid "action"
 msgstr "action"
 
+#: src/features/backups/BackupsPage.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Actions"
@@ -1694,6 +1695,14 @@ msgstr "Apps you run with Dockwell are under <0>Apps</0>."
 msgid "as {0}"
 msgstr "as {0}"
 
+#: src/features/activity/describe.ts
+msgid "Asked for a passkey to apply {change}, and none came"
+msgstr "Asked for a passkey to apply {change}, and none came"
+
+#: src/features/activity/describe.ts
+msgid "Asked for a passkey to save {path} on {server}, and none came"
+msgstr "Asked for a passkey to save {path} on {server}, and none came"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "Asking the server what this takes"
 msgstr "Asking the server what this takes"
@@ -1761,6 +1770,9 @@ msgstr "Backed up {volume}"
 msgid "backup"
 msgstr "backup"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/backups/AppBackups.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
@@ -1904,6 +1916,8 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -3000,6 +3014,7 @@ msgid "Domains"
 msgstr "Domains"
 
 #: src/features/auth/TokensPanel.tsx
+#: src/features/backups/words.ts
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
 msgid "Done"
@@ -3224,6 +3239,7 @@ msgstr "failed"
 #: src/features/apps/DomainNote.tsx
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 msgid "Failed"
 msgstr "Failed"
@@ -5972,6 +5988,7 @@ msgstr "Run this on the server over SSH. It prints a sign-in link that works onc
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/servers/containers.ts
 msgid "Running"
@@ -6408,7 +6425,9 @@ msgstr "Signing out everywhere else keeps this browser signed in. A session ends
 msgid "Signing you in with a one-time link"
 msgstr "Signing you in with a one-time link"
 
+#: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
 msgid "Size"
 msgstr "Size"
@@ -6494,6 +6513,7 @@ msgstr "State"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
@@ -6945,6 +6965,14 @@ msgstr "the panel's domain, {path}, which moves behind {detail}"
 #: src/features/auth/messages.ts
 msgid "The passkey prompt closed before it finished. Try again when you're ready."
 msgstr "The passkey prompt closed before it finished. Try again when you're ready."
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready."
+msgstr "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready."
+
+#: src/features/files/FileViewer.tsx
+msgid "The passkey prompt closed, so nothing was saved. Save again when you're ready."
+msgstr "The passkey prompt closed, so nothing was saved. Save again when you're ready."
 
 #: src/features/auth/messages.ts
 msgid "The passkey request expired. Try again."
@@ -7429,6 +7457,7 @@ msgid "Too many wrong codes. Wait a moment, then try again."
 msgstr "Too many wrong codes. Wait a moment, then try again."
 
 #: src/features/apps/AppDeployments.tsx
+#: src/features/backups/BackupsPage.tsx
 msgid "Took"
 msgstr "Took"
 
@@ -7572,6 +7601,7 @@ msgstr "Unhealthy"
 #: src/app/Providers.tsx
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/overview/Overview.tsx
 #: src/features/servers/containers.ts
@@ -8186,35 +8216,3 @@ msgstr "Your name"
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "Your session ended, so this didn't happen. Sign in again, then try again."
-
-#: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
-msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
-
-#: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
-msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
-
-#: src/features/activity/describe.ts
-msgid "Asked for a passkey to apply {change}, and none came"
-msgstr "Asked for a passkey to apply {change}, and none came"
-
-#: src/features/activity/describe.ts
-msgid "Asked for a passkey to save {path} on {server}, and none came"
-msgstr "Asked for a passkey to save {path} on {server}, and none came"
-
-#: src/features/changes/words.ts
-msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
-msgstr "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
-
-#: src/features/activity/ActivityPage.tsx
-msgid "Every change, server event, access grant and change of health, newest first"
-msgstr "Every change, server event, access grant and change of health, newest first"
-
-#: src/features/changes/ChangeSheet.tsx
-msgid "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready."
-msgstr "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready."
-
-#: src/features/files/FileViewer.tsx
-msgid "The passkey prompt closed, so nothing was saved. Save again when you're ready."
-msgstr "The passkey prompt closed, so nothing was saved. Save again when you're ready."
