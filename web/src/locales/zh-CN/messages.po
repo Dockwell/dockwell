@@ -1280,17 +1280,8 @@ msgstr "复制镜像名称"
 msgid "Couldn't read this app's domains"
 msgstr "无法读取此应用的域名"
 
-msgid "Delete this app"
-msgstr "删除此应用"
-
 msgid "Delete {name}"
 msgstr "删除 {name}"
-
-msgid "Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first."
-msgstr "删除 {name} 会停止它并移除其容器。它的卷会保留，且你会先审查计划。"
-
-msgid "Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you review a plan first."
-msgstr "删除 {name} 会停止它、移除其容器，并一并移除其域名。卷会保留，且你会先审阅计划。"
 
 msgid "Deploy what should run, or fix it on the server."
 msgstr "请部署应当运行的版本，或在服务器上修复。"
@@ -1569,8 +1560,11 @@ msgstr "{revision} 开始部署于 {when}"
 msgid "3 failed checks in a row"
 msgstr "连续 3 次检查失败"
 
-msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
-msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权限等同于 root。需要你在计划中批准，API 令牌无法批准。"
+msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root, so applying this asks for your passkey. API tokens can't."
+msgstr "<0>{source}</0> 让这个应用控制服务器上的 Docker，等同于 root，所以应用这次更改需要你的通行密钥。API 令牌无法这样做。"
+
+msgid "<0>{source}</0> on the server is as good as root there, so applying this asks for your passkey. API tokens can't."
+msgstr "服务器上的 <0>{source}</0> 在那里等同于 root，所以应用这次更改需要你的通行密钥。API 令牌无法这样做。"
 
 msgid "A limit never asks for your passkey, whatever {name} reaches."
 msgstr "无论 {name} 能触及什么，修改限制都不需要通行密钥。"
@@ -1675,6 +1669,9 @@ msgstr "它没有发布端口。添加一个，就能从服务器外访问它。
 msgid "It publishes this port already."
 msgstr "它已经发布了这个端口。"
 
+msgid "Keep no more for it than its limit, {memory}."
+msgstr "为它预留的不能超过它的限制 {memory}。"
+
 msgid "Kept for it"
 msgstr "为它预留"
 
@@ -1712,8 +1709,8 @@ msgstr "无"
 msgid "None, not even the image's"
 msgstr "无，连镜像自带的也不用"
 
-msgid "None. Nothing outside the server reaches it, but what shares a network with it."
-msgstr "无。除了同一网络中的服务，服务器外无法访问它。"
+msgid "None. Only what shares a network with it can reach it."
+msgstr "无。只有与它在同一网络中的服务能访问它。"
 
 msgid "None. What it writes goes when its container is replaced."
 msgstr "无。容器被替换时，它写入的数据会随之消失。"
@@ -1759,6 +1756,12 @@ msgstr "填写要运行的命令，例如 curl -f http://localhost/。"
 
 msgid "Settings sections"
 msgstr "设置分区"
+
+msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
+msgstr "会停止它并移除它的容器，它的域名也会一并移除。它的卷会保留，并且你会先审查一个计划。"
+
+msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
+msgstr "会停止它并移除它的容器。它的卷会保留，并且你会先审查一个计划。"
 
 msgid "Such as 512M or 2G."
 msgstr "例如 512M 或 2G。"
@@ -1821,6 +1824,12 @@ msgstr "服务器端口到应用端口"
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
+
+msgid "{name} changed after you started, so the form shows it as it is now. Make your change again."
+msgstr "你开始编辑之后，{name} 发生了变化，所以表单现在显示它当前的样子。请重新做一次你的更改。"
+
+msgid "{name} changed after you started, so this would undo that change. Close this, and the form shows it as it is now."
+msgstr "你开始编辑之后，{name} 发生了变化，这个计划会撤销那次变化。请关闭这里，表单会显示它当前的样子。"
 
 msgid "{name} is as good as root on its server, so applying this asks for your passkey."
 msgstr "{name} 在它的服务器上等同于 root，所以应用这次更改需要你的通行密钥。"
@@ -2261,6 +2270,9 @@ msgstr ".env 文件"
 
 msgid "<0>{project}</0> is here already, so the plan updates what's in it."
 msgstr "<0>{project}</0> 已存在，因此计划会更新其中的内容。"
+
+msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
+msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权限等同于 root。需要你在计划中批准，API 令牌无法批准。"
 
 msgid "A volume such as data at /data, or a server path."
 msgstr "可以是卷（例如挂载到 /data 的 data），也可以是服务器路径。"

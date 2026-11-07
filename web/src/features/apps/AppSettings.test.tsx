@@ -1,23 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  ChangeState,
   type Container,
+  HealthcheckSchema,
   HostAccessKind,
   HostAccessSchema,
+  MountSchema,
+  PortMappingSchema,
   type ProposeChangeRequest,
   RestartPolicy,
   type ServiceInfo,
   type WatchChangeResponse,
+  type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aRevision, places } from "../../test/apps";
-import { webPlanned } from "../../test/changes";
+import { changeEvent, moved, since, snapshot, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -34,7 +40,8 @@ function anEditedApp(): ServiceInfo {
   return service;
 }
 
-function api(service: ServiceInfo, proposals: ProposeChangeRequest[] = []): Api {
+function api(service: ServiceInfo | (() => ServiceInfo), proposals: ProposeChangeRequest[] = []): Api {
+  const current = typeof service === "function" ? service : () => service;
   const watch = feed<WatchServersResponse>();
   watch.push(changed(aServer({ id: "srv_1", name: "hz-1" })), snapshotComplete);
   return {
@@ -46,7 +53,7 @@ function api(service: ServiceInfo, proposals: ProposeChangeRequest[] = []): Api 
           : places().listResources(req),
     },
     services: {
-      listServices: () => ({ services: [service] }),
+      listServices: () => ({ services: [current()] }),
       listServiceRevisions: () => ({ revisions: [aRevision(4n, "nginx:1.5")] }),
     },
     servers: { watchServers: watch.stream },
@@ -78,7 +85,9 @@ describe("an app's settings", () => {
     expect(within(section("Ports")).getByText("8080")).toBeVisible();
     expect(within(section("Volumes and mounts")).getByText("/data")).toBeVisible();
     expect(within(section("Resources")).getAllByText("No limit")).toHaveLength(2);
-    expect(within(section("Danger zone")).getByRole("button", { name: "Delete this app" })).toBeVisible();
+    expect(within(section("General")).getByText("nginx:1.5")).toBeVisible();
+    expect(within(section("Danger zone")).getByText("Delete web", { selector: ".app-danger-title" })).toBeVisible();
+    expect(within(section("Danger zone")).getByRole("button", { name: "Delete web" })).toHaveClass("dw-btn-danger");
     expect(screen.getByRole("navigation", { name: "Settings sections" })).toBeVisible();
     await expectAccessible(container);
   });
@@ -230,5 +239,171 @@ describe("an app's settings", () => {
     await user.click(screen.getByRole("button", { name: "Edit Health check" }));
     expect(screen.getByRole("combobox", { name: "How it's checked" })).toBeVisible();
     await expectAccessible(container);
+  });
+});
+
+describe("an app's settings, where it could go wrong", () => {
+  it("plans from the app as it was at Edit, so a change made meanwhile makes it stale, and starts again from that", async () => {
+    const user = userEvent.setup();
+    let app = anEditedApp();
+    const proposals: ProposeChangeRequest[] = [];
+    const events = feed<WatchEventsResponse>();
+    events.push(snapshot([]));
+    renderAt("/apps/svc_web/settings", {
+      ...api(() => app, proposals),
+      events: { watchEvents: events.stream, listEvents: () => ({}) },
+    });
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Ports" }));
+    const form = screen.getByRole("form", { name: "Edit Ports" });
+    await user.click(within(form).getByRole("button", { name: "Add a port" }));
+    await user.type(within(form).getByRole("textbox", { name: "Port 2 on the server" }), "9090");
+    await user.type(within(form).getByRole("textbox", { name: "Port 2 in the app" }), "90");
+
+    // Someone else adds a port meanwhile.
+    app = anEditedApp();
+    app.revision = 5n;
+    if (app.spec?.runs.case === "app")
+      app.spec.runs.value.ports.push(create(PortMappingSchema, { hostPort: 7070, containerPort: 70 }));
+    events.push(since([changeEvent(moved(webPlanned(), { state: ChangeState.APPLIED }))]));
+    await screen.findByText("r5", undefined, { timeout: 5000 });
+
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    // From what it read at Edit: the server finds r5 there, and refuses it as stale.
+    expect(proposals[0]?.edits[0]?.baseRevision).toBe(4n);
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+    expect(
+      await screen.findByText(
+        "web changed after you started, so the form shows it as it is now. Make your change again.",
+      ),
+    ).toBeVisible();
+    expect(within(screen.getByRole("form", { name: "Edit Ports" })).getByDisplayValue("7070")).toBeVisible();
+  });
+
+  it("says in its own words that a plan came back stale", async () => {
+    const user = userEvent.setup();
+    const stale = api(anEditedApp());
+    stale.changes = {
+      ...stale.changes,
+      proposeChange: () => {
+        throw new ConnectError("web changed", Code.FailedPrecondition, { "Dockwell-Error": "plan_stale" });
+      },
+    };
+    renderAt("/apps/svc_web/settings", stale);
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Resources" }));
+    await user.type(screen.getByRole("textbox", { name: "Memory limit" }), "256M");
+    await user.click(screen.getByRole("button", { name: /Review plan/ }));
+    expect(
+      await screen.findByText(
+        "web changed after you started, so this would undo that change. Close this, and the form shows it as it is now.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("goes into the form at its first field, and back to Edit on Cancel", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/svc_web/settings", api(anEditedApp()));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit General" }));
+    expect(screen.getByRole("textbox", { name: "Command" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit General" })).toHaveFocus());
+  });
+
+  it("keeps an exec-form check as Docker runs it while its words don't change", async () => {
+    const user = userEvent.setup();
+    const service = anEditedApp();
+    if (service.spec?.runs.case === "app")
+      service.spec.runs.value.healthcheck = create(HealthcheckSchema, { test: ["CMD", "pg_isready", "-U", "app"] });
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", api(service, proposals));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Health check" }));
+    await user.type(screen.getByRole("textbox", { name: "Every" }), "5s");
+    await user.click(screen.getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    expect(appOf(proposals[0])?.healthcheck?.test).toEqual(["CMD", "pg_isready", "-U", "app"]);
+    expect(appOf(proposals[0])?.healthcheck?.interval).toBe("5s");
+  });
+
+  it("makes no volume for a mount of an external one, as Docker's own", async () => {
+    const user = userEvent.setup();
+    const service = anEditedApp();
+    if (service.spec?.runs.case === "app")
+      service.spec.runs.value.mounts.push(
+        create(MountSchema, { source: { case: "volume", value: "1panel_data" }, target: "/opt", external: true }),
+      );
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", api(service, proposals));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
+    const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
+    await user.click(within(form).getAllByRole("checkbox")[0] as HTMLElement);
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    expect(proposals[0]?.edits.map((e) => e.resource?.kind)).toEqual(["service"]);
+    expect(appOf(proposals[0])?.mounts.find((m) => m.target === "/opt")?.external).toBe(true);
+  });
+
+  it("says a mount that's as good as root asks for the passkey, even on an app that isn't yet", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/svc_web/settings", api(anEditedApp()));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
+    const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
+    await user.click(within(form).getByRole("button", { name: "Add a volume or mount" }));
+    await user.type(within(form).getByRole("textbox", { name: "Mount 2: volume or server path" }), "/etc/nginx");
+    expect(within(form).getByText(/is as good as root there, so applying this asks for your passkey/)).toBeVisible();
+    expect(
+      within(form).getByText("web is as good as root on its server, so applying this asks for your passkey."),
+    ).toBeVisible();
+    await user.clear(within(form).getByRole("textbox", { name: "Mount 2: volume or server path" }));
+    await user.type(within(form).getByRole("textbox", { name: "Mount 2: volume or server path" }), "/srv/web");
+    expect(within(form).getByText(/You approve this in the plan; API tokens can't./)).toBeVisible();
+    expect(within(form).queryByText(/asks for your passkey/)).toBeNull();
+  });
+
+  it("keeps no more memory for it than its limit, and reads amounts as the server does", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", api(anEditedApp(), proposals));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Resources" }));
+    await user.type(screen.getByRole("textbox", { name: "Memory limit" }), "1.5G");
+    await user.type(screen.getByRole("textbox", { name: "Memory kept for it" }), "2Gi");
+    await user.click(screen.getByRole("button", { name: /Review plan/ }));
+    expect(screen.getByText("Keep no more for it than its limit, 1.5G.")).toBeVisible();
+    await user.clear(screen.getByRole("textbox", { name: "Memory kept for it" }));
+    await user.type(screen.getByRole("textbox", { name: "Memory kept for it" }), "1Gi");
+    await user.click(screen.getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    expect(appOf(proposals[0])?.resources).toEqual(
+      expect.objectContaining({ memory: "1.5G", memoryReservation: "1Gi" }),
+    );
+  });
+
+  it("marks the section in view in its nav", async () => {
+    const seen: ((entries: { target: Element; isIntersecting: boolean }[]) => void)[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: (entries: { target: Element; isIntersecting: boolean }[]) => void) {
+          seen.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    renderAt("/apps/svc_web/settings", api(anEditedApp()));
+    await ready();
+    const nav = screen.getByRole("navigation", { name: "Settings sections" });
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    act(() => seen.at(-1)?.([{ target: document.getElementById("ports") as Element, isIntersecting: true }]));
+    expect(within(nav).getByRole("link", { name: "Ports" })).toHaveAttribute("aria-current", "true");
+    expect(within(nav).getByRole("link", { name: "Ports" })).toHaveAttribute("href", "#ports");
+    vi.unstubAllGlobals();
   });
 });

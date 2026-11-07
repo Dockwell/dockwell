@@ -535,12 +535,60 @@
   box-shadow: var(--focus-ring);
 }
 
+/* The section in view, as the mock marks it. */
+.app-settings-nav-item.is-active {
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-weight: 550;
+}
+
+/* Two sections a row where they fit, as the mock pairs them; what runs wide, and a section
+   being edited, take the row. */
 .app-settings-main {
-  display: flex;
+  display: grid;
   flex: 1 1 560px;
-  flex-direction: column;
+  grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr));
   gap: var(--space-6);
+  align-items: start;
   min-width: 0;
+}
+
+.app-settings-anchor.is-wide {
+  grid-column: 1 / -1;
+}
+
+.app-settings-image {
+  overflow-wrap: anywhere;
+}
+
+.app-settings-note {
+  margin-bottom: var(--space-4);
+}
+
+.app-danger-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+}
+
+.app-danger-text {
+  display: flex;
+  flex: 1 1 360px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-danger-title {
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.app-danger-what {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
 }
 
 /* Below the sticky head, where a link from the nav lands. */
@@ -1449,19 +1497,6 @@
 }
 
 .app-companion-image {
-  color: var(--ink-muted);
-}
-
-.app-delete .dw-panel-body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.app-delete-text {
-  font-size: 13px;
-  line-height: 18px;
   color: var(--ink-muted);
 }
 

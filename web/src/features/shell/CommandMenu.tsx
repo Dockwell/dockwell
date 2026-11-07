@@ -100,7 +100,7 @@ type Prompt =
 
 /**
  * Plans deleting a project, with the volumes and networks left in it, as nothing else
- * in the panel deletes those, and "Delete this app" keeps its volumes. So the plan names
+ * in the panel deletes those, and deleting an app from its Settings keeps its volumes. So the plan names
  * each, and a volume going needs a person's confirmation, as any data loss does.
  * Whatever else is left keeps the project, and the API says what.
  */

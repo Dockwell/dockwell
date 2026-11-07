@@ -574,7 +574,15 @@ export async function appsFlow(
     if (!onHost.includes("nginx")) fail(`Caddy doesn't send ${bare} to the app's port: ${onHost.slice(0, 200)}`);
     await page.reload();
     await hostRow.waitFor({ timeout: 30_000 });
-    await page.getByRole("button", { name: "Delete this app" }).click();
+    // Deleting is in Settings' danger zone, as the mock has it.
+    await page
+      .getByRole("navigation", { name: "App sections" })
+      .getByRole("link", { name: "Settings", exact: true })
+      .click();
+    await page
+      .getByRole("region", { name: "Danger zone" })
+      .getByRole("button", { name: /^Delete / })
+      .click();
     await review.waitFor({ timeout: 30_000 });
     for (const goes of [bare, "onhost"]) await review.locator(".dw-plan-res", { hasText: goes }).first().waitFor();
     await applyPlan(page, "Done");
@@ -795,7 +803,15 @@ export async function appsFlow(
     await links.first().waitFor();
     const before = await links.count();
     await links.first().click();
-    await page.getByRole("button", { name: "Delete this app" }).click();
+    // Deleting is in Settings' danger zone, as the mock has it.
+    await page
+      .getByRole("navigation", { name: "App sections" })
+      .getByRole("link", { name: "Settings", exact: true })
+      .click();
+    await page
+      .getByRole("region", { name: "Danger zone" })
+      .getByRole("button", { name: /^Delete / })
+      .click();
     await applyPlan(page, "Done");
     await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor();
     for (let i = 0; i < 100 && (await links.count()) >= before; i++) await page.waitForTimeout(100);

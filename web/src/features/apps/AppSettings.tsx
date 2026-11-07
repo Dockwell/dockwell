@@ -14,6 +14,7 @@ import {
   ResourceService,
   ResourcesSchema,
   RestartPolicy,
+  type ServiceInfo,
 } from "@dockwell/api";
 import {
   Button,
@@ -29,18 +30,21 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, type ReactNode, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useApp } from "./AppContext";
-import { DeletePanel } from "./AppOverview";
+import { useDeleteApp } from "./AppOverview";
 import { appOf, environmentOf, isMoving, nameOf } from "./app";
 import { isServerPath, pathReach, validPort } from "./form";
 import {
+  asGoodAsRoot,
   type CheckKind,
   checkCommand,
   checkKindOf,
+  durationWords,
   joinWords,
+  parseMemory,
   serviceEdit,
   splitWords,
   validCpus,
@@ -65,11 +69,25 @@ export function AppSettings() {
   const { service, state } = useApp();
   const phone = useMediaQuery(PHONE_QUERY);
   const sheet = useChangeSheet();
-  const [editing, setEditing] = useState<SectionId>();
+  // The section being edited, with the app as it was when Edit was pressed: the edit is
+  // made from that, and its revision, so a change made meanwhile makes the plan stale
+  // rather than quietly undone.
+  const [editing, setEditing] = useState<{ id: SectionId; from: ServiceInfo; note?: string }>();
+  const latest = useRef(service);
+  latest.current = service;
+  const editButtons = useRef(new Map<SectionId, HTMLElement | null>());
+  const [returnTo, setReturnTo] = useState<SectionId>();
   const app = appOf(service);
   const name = nameOf(service);
-  const root = service.hostAccess.some((a) => a.sameAsRoot);
   const moving = isMoving(state);
+  const active = useCurrentSection(SECTIONS);
+
+  // Back from a form, focus is on its section's Edit, where it left from.
+  useEffect(() => {
+    if (!returnTo) return;
+    editButtons.current.get(returnTo)?.focus();
+    setReturnTo(undefined);
+  }, [returnTo]);
 
   if (!app) {
     return (
@@ -79,98 +97,219 @@ export function AppSettings() {
     );
   }
 
-  const plan = (summary: string, edits: Edits) =>
+  const close = (id: SectionId) => {
+    setEditing(undefined);
+    setReturnTo(id);
+  };
+  const plan = (id: SectionId, from: ServiceInfo) => (summary: string, edits: Edits) =>
     sheet.open({
       kind: "propose",
       summary,
       edits,
       onClose: (change: Change | undefined) => {
         if (change && (change.state === ChangeState.APPLIED || change.state === ChangeState.APPLYING)) {
-          setEditing(undefined);
+          close(id);
+          return;
+        }
+        // Someone changed it meanwhile: the form starts again from what it is now.
+        const now = latest.current;
+        if (now.revision !== from.revision) {
+          setEditing({
+            id,
+            from: now,
+            note: t`${name} changed after you started, so the form shows it as it is now. Make your change again.`,
+          });
         }
       },
       fix: (reason) =>
         reason === "plan_stale"
-          ? t`${name} changed after you started. Close this and review your edits again: they apply to what it is now.`
+          ? t`${name} changed after you started, so this would undo that change. Close this, and the form shows it as it is now.`
           : undefined,
     });
 
-  const sections: { id: SectionId | "danger"; label: string }[] = [
-    { id: "general", label: t`General` },
-    { id: "health", label: t`Health check` },
-    { id: "resources", label: t`Resources` },
-    { id: "ports", label: t`Ports` },
-    { id: "mounts", label: t`Volumes and mounts` },
-    { id: "danger", label: t`Danger zone` },
-  ];
-  const common = { app, name, root, moving, plan, onCancel: () => setEditing(undefined) };
+  const label: Record<SectionId | "danger", string> = {
+    general: t`General`,
+    health: t`Health check`,
+    resources: t`Resources`,
+    ports: t`Ports`,
+    mounts: t`Volumes and mounts`,
+    danger: t`Danger zone`,
+  };
+  const section = (id: SectionId, facts: (app: Container) => ReactNode, form: (props: FormProps) => ReactNode) => {
+    const open = editing?.id === id ? editing : undefined;
+    const from = open?.from ?? service;
+    const fromApp = appOf(from) ?? app;
+    return (
+      <Section
+        key={id}
+        id={id}
+        title={label[id]}
+        wide={id === "mounts"}
+        editing={open !== undefined}
+        editRef={(el) => editButtons.current.set(id, el)}
+        onEdit={() => setEditing({ id, from: service })}
+      >
+        {open ? (
+          <div key={`${from.revision}`}>
+            {open.note ? (
+              <Callout tone="info" className="app-settings-note">
+                {open.note}
+              </Callout>
+            ) : null}
+            {form({
+              service: from,
+              app: fromApp,
+              name,
+              root: from.hostAccess.some((a) => a.sameAsRoot),
+              moving,
+              plan: plan(id, from),
+              onCancel: () => close(id),
+            })}
+          </div>
+        ) : (
+          facts(app)
+        )}
+      </Section>
+    );
+  };
   return (
     <div className="app-settings">
       {phone ? null : (
         <nav aria-label={t`Settings sections`} className="app-settings-nav">
-          {sections.map((s) => (
-            <a key={s.id} href={`#${s.id}`} className="app-settings-nav-item">
-              {s.label}
+          {[...SECTIONS, "danger" as const].map((id) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              className={cx("app-settings-nav-item", active === id && "is-active")}
+              aria-current={active === id ? "true" : undefined}
+            >
+              {label[id]}
             </a>
           ))}
         </nav>
       )}
       <div className="app-settings-main">
-        <Section id="general" title={t`General`} editing={editing === "general"} onEdit={() => setEditing("general")}>
-          {editing === "general" ? <GeneralForm {...common} /> : <GeneralFacts app={app} />}
-        </Section>
-        <Section id="health" title={t`Health check`} editing={editing === "health"} onEdit={() => setEditing("health")}>
-          {editing === "health" ? <HealthForm {...common} /> : <HealthFacts app={app} />}
-        </Section>
-        <Section
-          id="resources"
-          title={t`Resources`}
-          editing={editing === "resources"}
-          onEdit={() => setEditing("resources")}
-        >
-          {editing === "resources" ? <ResourcesForm {...common} /> : <ResourcesFacts app={app} />}
-        </Section>
-        <Section id="ports" title={t`Ports`} editing={editing === "ports"} onEdit={() => setEditing("ports")}>
-          {editing === "ports" ? <PortsForm {...common} /> : <PortsFacts app={app} />}
-        </Section>
-        <Section
-          id="mounts"
-          title={t`Volumes and mounts`}
-          editing={editing === "mounts"}
-          onEdit={() => setEditing("mounts")}
-        >
-          {editing === "mounts" ? <MountsForm {...common} /> : <MountsFacts app={app} />}
-        </Section>
-        <div id="danger" className="app-settings-anchor">
-          <DeletePanel title={t`Danger zone`} />
+        {section(
+          "general",
+          (a) => (
+            <GeneralFacts app={a} />
+          ),
+          (props) => (
+            <GeneralForm {...props} />
+          ),
+        )}
+        {section(
+          "health",
+          (a) => (
+            <HealthFacts app={a} />
+          ),
+          (props) => (
+            <HealthForm {...props} />
+          ),
+        )}
+        {section(
+          "resources",
+          (a) => (
+            <ResourcesFacts app={a} />
+          ),
+          (props) => (
+            <ResourcesForm {...props} />
+          ),
+        )}
+        {section(
+          "ports",
+          (a) => (
+            <PortsFacts app={a} />
+          ),
+          (props) => (
+            <PortsForm {...props} />
+          ),
+        )}
+        {section(
+          "mounts",
+          (a) => (
+            <MountsFacts app={a} />
+          ),
+          (props) => (
+            <MountsForm {...props} />
+          ),
+        )}
+        <div id="danger" className="app-settings-anchor is-wide">
+          <DangerZone title={label.danger} />
         </div>
       </div>
     </div>
   );
 }
 
+const SECTIONS: readonly SectionId[] = ["general", "health", "resources", "ports", "mounts"];
+
+/**
+ * The section in view, for the nav to mark: the first whose top has passed the
+ * top quarter of the screen and whose end hasn't, as a reader's eye is there.
+ */
+function useCurrentSection(ids: readonly SectionId[]): SectionId | "danger" | undefined {
+  const [current, setCurrent] = useState<SectionId | "danger">();
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const all = [...ids, "danger"];
+    const seen = new Map<string, boolean>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) seen.set(entry.target.id, entry.isIntersecting);
+        const first = all.find((id) => seen.get(id));
+        if (first) setCurrent(first as SectionId | "danger");
+      },
+      { rootMargin: "-25% 0px -60% 0px" },
+    );
+    for (const id of all) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [ids]);
+  return current;
+}
+
 function Section({
   id,
   title,
+  wide,
   editing,
+  editRef,
   onEdit,
   children,
 }: {
   id: SectionId;
   title: string;
+  /** Spans both columns, as what it lists runs wide. */
+  wide?: boolean;
   editing: boolean;
+  editRef: (el: HTMLButtonElement | null) => void;
   onEdit: () => void;
   children: ReactNode;
 }) {
   const { t } = useLingui();
+  const body = useRef<HTMLDivElement>(null);
+  // Into the form at its first field, as Edit opens it.
+  useEffect(() => {
+    if (!editing) return;
+    body.current
+      ?.querySelector<HTMLElement>("input:not([disabled]), select, textarea, [role='radio'][aria-checked='true']")
+      ?.focus();
+  }, [editing]);
   return (
-    <div id={id} className="app-settings-anchor">
+    <div
+      id={id}
+      ref={body}
+      className={cx("app-settings-anchor", (wide || editing) && "is-wide", editing && "is-editing")}
+    >
       <Panel
         title={title}
         className={cx("app-settings-section", editing && "is-editing")}
         actions={
           editing ? null : (
-            <Button size="sm" variant="ghost" icon="edit" aria-label={t`Edit ${title}`} onClick={onEdit}>
+            <Button ref={editRef} size="sm" variant="ghost" icon="edit" aria-label={t`Edit ${title}`} onClick={onEdit}>
               <Trans>Edit</Trans>
             </Button>
           )
@@ -182,7 +321,39 @@ function Section({
   );
 }
 
+/** Deleting the app, as the mock's danger zone has it: what goes, and a red button to go on. */
+function DangerZone({ title }: { title: string }) {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const remove = useDeleteApp(service);
+  const name = nameOf(service);
+  return (
+    <Panel title={title} className="app-danger">
+      <div className="app-danger-row">
+        <div className="app-danger-text">
+          <span className="app-danger-title">{t`Delete ${name}`}</span>
+          <span className="app-danger-what">
+            {remove.routes > 0 ? (
+              <Trans>
+                Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan
+                first.
+              </Trans>
+            ) : (
+              <Trans>Stops it and removes its container. Its volumes stay, and you review a plan first.</Trans>
+            )}
+          </span>
+        </div>
+        <Button variant="danger" icon="trash" onClick={remove.open}>
+          {t`Delete ${name}`}
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
 interface FormProps {
+  /** The app as it was when Edit was pressed, which the edit is made from. */
+  service: ServiceInfo;
   app: Container;
   name: string;
   root: boolean;
@@ -260,6 +431,9 @@ function GeneralFacts({ app }: { app: Container }) {
   const words = useAppWords();
   return (
     <Facts>
+      <Fact term={t`Image`}>
+        <code className="app-settings-image">{app.image}</code>
+      </Fact>
       <Fact term={t`Command`}>
         {app.command.length > 0 ? <code>{joinWords(app.command)}</code> : <Muted>{t`The image's own`}</Muted>}
       </Fact>
@@ -283,10 +457,9 @@ function GeneralFacts({ app }: { app: Container }) {
 
 const RESTARTS = [RestartPolicy.UNLESS_STOPPED, RestartPolicy.ALWAYS, RestartPolicy.ON_FAILURE, RestartPolicy.NO];
 
-function GeneralForm({ app, name, root, moving, plan, onCancel }: FormProps) {
+function GeneralForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
   const words = useAppWords();
-  const service = useApp().service;
   const [command, setCommand] = useState(joinWords(app.command));
   const [entrypoint, setEntrypoint] = useState(joinWords(app.entrypoint));
   const [noEntrypoint, setNoEntrypoint] = useState(app.noEntrypoint);
@@ -420,8 +593,12 @@ function HealthFacts({ app }: { app: Container }) {
       </Fact>
       {check && kind !== "none" ? (
         <>
-          <Fact term={t`Every`}>{check.interval || <Muted>{t`Docker's default`}</Muted>}</Fact>
-          <Fact term={t`Timeout`}>{check.timeout || <Muted>{t`Docker's default`}</Muted>}</Fact>
+          <Fact term={t`Every`}>
+            {check.interval ? durationWords(check.interval) : <Muted>{t`Docker's default`}</Muted>}
+          </Fact>
+          <Fact term={t`Timeout`}>
+            {check.timeout ? durationWords(check.timeout) : <Muted>{t`Docker's default`}</Muted>}
+          </Fact>
           <Fact term={t`Unhealthy after`}>
             {check.retries > 0 ? (
               <Trans>{retries} failed checks in a row</Trans>
@@ -429,17 +606,16 @@ function HealthFacts({ app }: { app: Container }) {
               <Trans>3 failed checks in a row</Trans>
             )}
           </Fact>
-          {check.startPeriod ? <Fact term={t`Grace at start`}>{check.startPeriod}</Fact> : null}
+          {check.startPeriod ? <Fact term={t`Grace at start`}>{durationWords(check.startPeriod)}</Fact> : null}
         </>
       ) : null}
     </Facts>
   );
 }
 
-function HealthForm({ app, name, root, moving, plan, onCancel }: FormProps) {
+function HealthForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const service = useApp().service;
   const check = app.healthcheck;
   const [kind, setKind] = useState<CheckKind>(checkKindOf(check));
   const [port, setPort] = useState(String(check?.http?.port || check?.tcp?.port || ""));
@@ -516,9 +692,16 @@ function HealthForm({ app, name, root, moving, plan, onCancel }: FormProps) {
           case "tcp":
             a.healthcheck = create(HealthcheckSchema, { ...timing, tcp: { port: Number(port) } });
             break;
-          case "command":
-            a.healthcheck = create(HealthcheckSchema, { ...timing, test: ["CMD-SHELL", command.trim()] });
+          case "command": {
+            // An exec-form check keeps its words while they're as they were: a shell's form
+            // needs /bin/sh in the image, which one with no shell hasn't got.
+            const kept = check?.test[0] === "CMD" && command === checkCommand(check);
+            a.healthcheck = create(HealthcheckSchema, {
+              ...timing,
+              test: kept ? [...(check?.test ?? [])] : ["CMD-SHELL", command.trim()],
+            });
             break;
+          }
         }
       }),
     ]);
@@ -638,9 +821,8 @@ function ResourcesFacts({ app }: { app: Container }) {
   );
 }
 
-function ResourcesForm({ app, name, root, moving, plan, onCancel }: FormProps) {
+function ResourcesForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
-  const service = useApp().service;
   const r = app.resources;
   const [cpus, setCpus] = useState(r?.cpus ?? "");
   const [memory, setMemory] = useState(r?.memory ?? "");
@@ -654,7 +836,12 @@ function ResourcesForm({ app, name, root, moving, plan, onCancel }: FormProps) {
     const next = {
       cpus: cpus.trim() === "" || validCpus(cpus) ? undefined : t`Use a number of CPUs above 0, such as 0.5 or 2.`,
       memory: memory.trim() === "" || validMemory(memory) ? undefined : mem,
-      reserved: reserved.trim() === "" || validMemory(reserved) ? undefined : mem,
+      reserved:
+        reserved.trim() !== "" && !validMemory(reserved)
+          ? mem
+          : reserved.trim() !== "" && memory.trim() !== "" && (parseMemory(reserved) ?? 0) > (parseMemory(memory) ?? 0)
+            ? t`Keep no more for it than its limit, ${memory}.`
+            : undefined,
     };
     setErrors(next);
     if (next.cpus || next.memory || next.reserved || unchanged) return;
@@ -715,7 +902,7 @@ function PortsFacts({ app }: { app: Container }) {
   if (app.ports.length === 0) {
     return (
       <p className="app-settings-empty">
-        <Trans>None. Nothing outside the server reaches it, but what shares a network with it.</Trans>
+        <Trans>None. Only what shares a network with it can reach it.</Trans>
       </p>
     );
   }
@@ -742,9 +929,8 @@ interface PortRow {
   hostIp: string;
 }
 
-function PortsForm({ app, name, root, moving, plan, onCancel }: FormProps) {
+function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
-  const service = useApp().service;
   const first = app.ports.map(
     (p, i): PortRow => ({
       key: i,
@@ -803,6 +989,8 @@ function PortsForm({ app, name, root, moving, plan, onCancel }: FormProps) {
                   label={i === 0 ? t`On the server` : undefined}
                   mono
                   inputMode="numeric"
+                  // An address it's bound to stays as it is, and shows, as the port is its.
+                  prefix={row.hostIp ? `${row.hostIp}:` : undefined}
                   value={row.host}
                   error={errors[`${row.key}.host`]}
                   onChange={(event) => change(row.key, { host: event.target.value })}
@@ -886,9 +1074,8 @@ interface MountRow {
   rest: { relabel: number; external: boolean };
 }
 
-function MountsForm({ app, name, root, moving, plan, onCancel }: FormProps) {
+function MountsForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
-  const { service } = useApp();
   const scope = environmentOf(service);
   const volumes = useQuery(
     ResourceService.method.listResources,
@@ -908,6 +1095,8 @@ function MountsForm({ app, name, root, moving, plan, onCancel }: FormProps) {
   const [next, setNext] = useState(first.length);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const unchanged = JSON.stringify(rows) === JSON.stringify(first);
+  // A row that's as good as root asks for the passkey, whatever the app reaches now.
+  const reachesRoot = rows.some((r) => isServerPath(r.source) && asGoodAsRoot(r.source, r.readOnly));
   const change = (key: number, part: Partial<MountRow>) =>
     setRows((was) => was.map((r) => (r.key === key ? { ...r, ...part } : r)));
   const submit = (event: FormEvent) => {
@@ -930,7 +1119,8 @@ function MountsForm({ app, name, root, moving, plan, onCancel }: FormProps) {
     const extra: Edits = [];
     for (const row of rows) {
       const source = row.source.trim();
-      if (isServerPath(source) || made.has(source)) continue;
+      // An external volume is Docker's own, as one taken on from another tool: Dockwell never makes it.
+      if (isServerPath(source) || made.has(source) || row.rest.external) continue;
       made.add(source);
       extra.push({
         resource: { kind: "volume", scope, name: source },
@@ -992,7 +1182,7 @@ function MountsForm({ app, name, root, moving, plan, onCancel }: FormProps) {
           <Trans>Add a volume or mount</Trans>
         </Button>
       </div>
-      <Foot name={name} root={root} moving={moving} unchanged={unchanged} onCancel={onCancel} />
+      <Foot name={name} root={root || reachesRoot} moving={moving} unchanged={unchanged} onCancel={onCancel} />
     </form>
   );
 }
@@ -1062,8 +1252,18 @@ function MountEditRow({
           <Icon name="shield" size={14} />
           <span>
             <Trans>
-              <code>{source}</code> gives this app control of Docker on the server, the same as root. You approve this
-              in the plan; API tokens can't.
+              <code>{source}</code> gives this app control of Docker on the server, the same as root, so applying this
+              asks for your passkey. API tokens can't.
+            </Trans>
+          </span>
+        </p>
+      ) : reach === "path" && asGoodAsRoot(row.source, row.readOnly) ? (
+        <p className="app-reach-note is-danger">
+          <Icon name="shield" size={14} />
+          <span>
+            <Trans>
+              <code>{source}</code> on the server is as good as root there, so applying this asks for your passkey. API
+              tokens can't.
             </Trans>
           </span>
         </p>

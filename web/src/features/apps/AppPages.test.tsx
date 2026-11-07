@@ -1852,8 +1852,12 @@ describe("an app's overview", () => {
           },
         },
       );
-      expect(await screen.findByText(/takes its domains with it/)).toBeVisible();
-      await user.click(screen.getByRole("button", { name: "Delete this app" }));
+      // The danger zone is on Settings, as the mock has it.
+      await user.click(
+        within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Settings" }),
+      );
+      expect(await screen.findByText(/its domains go with it/)).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Delete web" }));
       await screen.findByRole("dialog", { name: "Review plan" });
       expect(edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete])).toEqual([
         ["route", "ours", true],
@@ -3257,7 +3261,7 @@ describe("an app's overview", () => {
     const proposals: { edits: { delete: boolean; resource?: { name: string } }[] }[] = [];
     const applied = webPlanned();
     renderAt(
-      "/apps/svc_web",
+      "/apps/svc_web/settings",
       api([web], {
         changes: {
           proposeChange: (req) => {
@@ -3269,7 +3273,7 @@ describe("an app's overview", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Delete this app" }));
+    await user.click(await screen.findByRole("button", { name: "Delete web" }));
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(proposals[0]?.edits[0]).toMatchObject({ delete: true, resource: { name: "web" } });
   });

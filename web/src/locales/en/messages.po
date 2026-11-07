@@ -1280,17 +1280,8 @@ msgstr "Copy the image"
 msgid "Couldn't read this app's domains"
 msgstr "Couldn't read this app's domains"
 
-msgid "Delete this app"
-msgstr "Delete this app"
-
 msgid "Delete {name}"
 msgstr "Delete {name}"
-
-msgid "Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first."
-msgstr "Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first."
-
-msgid "Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you review a plan first."
-msgstr "Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you review a plan first."
 
 msgid "Deploy what should run, or fix it on the server."
 msgstr "Deploy what should run, or fix it on the server."
@@ -1569,8 +1560,11 @@ msgstr "{revision} started deploying {when}"
 msgid "3 failed checks in a row"
 msgstr "3 failed checks in a row"
 
-msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
-msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
+msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root, so applying this asks for your passkey. API tokens can't."
+msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root, so applying this asks for your passkey. API tokens can't."
+
+msgid "<0>{source}</0> on the server is as good as root there, so applying this asks for your passkey. API tokens can't."
+msgstr "<0>{source}</0> on the server is as good as root there, so applying this asks for your passkey. API tokens can't."
 
 msgid "A limit never asks for your passkey, whatever {name} reaches."
 msgstr "A limit never asks for your passkey, whatever {name} reaches."
@@ -1675,6 +1669,9 @@ msgstr "It publishes none. Add one to reach it from outside the server."
 msgid "It publishes this port already."
 msgstr "It publishes this port already."
 
+msgid "Keep no more for it than its limit, {memory}."
+msgstr "Keep no more for it than its limit, {memory}."
+
 msgid "Kept for it"
 msgstr "Kept for it"
 
@@ -1712,8 +1709,8 @@ msgstr "None"
 msgid "None, not even the image's"
 msgstr "None, not even the image's"
 
-msgid "None. Nothing outside the server reaches it, but what shares a network with it."
-msgstr "None. Nothing outside the server reaches it, but what shares a network with it."
+msgid "None. Only what shares a network with it can reach it."
+msgstr "None. Only what shares a network with it can reach it."
 
 msgid "None. What it writes goes when its container is replaced."
 msgstr "None. What it writes goes when its container is replaced."
@@ -1759,6 +1756,12 @@ msgstr "Say what to run, such as curl -f http://localhost/."
 
 msgid "Settings sections"
 msgstr "Settings sections"
+
+msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
+msgstr "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
+
+msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
+msgstr "Stops it and removes its container. Its volumes stay, and you review a plan first."
 
 msgid "Such as 512M or 2G."
 msgstr "Such as 512M or 2G."
@@ -1821,6 +1824,12 @@ msgstr "on the server, to the app"
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
+
+msgid "{name} changed after you started, so the form shows it as it is now. Make your change again."
+msgstr "{name} changed after you started, so the form shows it as it is now. Make your change again."
+
+msgid "{name} changed after you started, so this would undo that change. Close this, and the form shows it as it is now."
+msgstr "{name} changed after you started, so this would undo that change. Close this, and the form shows it as it is now."
 
 msgid "{name} is as good as root on its server, so applying this asks for your passkey."
 msgstr "{name} is as good as root on its server, so applying this asks for your passkey."
@@ -2261,6 +2270,9 @@ msgstr ".env file"
 
 msgid "<0>{project}</0> is here already, so the plan updates what's in it."
 msgstr "<0>{project}</0> is here already, so the plan updates what's in it."
+
+msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
+msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 
 msgid "A volume such as data at /data, or a server path."
 msgstr "A volume such as data at /data, or a server path."
