@@ -13,7 +13,7 @@ type Tab = "overview" | "apps" | "servers" | "activity" | "more";
 
 /**
  * The tab a path belongs to. Sections without a tab of their own, your
- * profile, and an environment's variables and secrets live under More.
+ * profile, Settings, and an environment's variables and secrets live under More.
  */
 export function tabOf(pathname: string): Tab {
   const segment = firstSegment(pathname);
@@ -23,6 +23,7 @@ export function tabOf(pathname: string): Tab {
   if (
     segment === "more" ||
     segment === "profile" ||
+    segment === "settings" ||
     segment === "variables" ||
     segment === "catalog" ||
     segment === "domains" ||

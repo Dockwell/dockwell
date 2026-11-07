@@ -95,6 +95,9 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 	if srv := h.controlServer(); srv != nil {
 		msg.ServerName = srv.GetName()
 	}
+	if msg.InstallName, err = h.auth.InstallName(ctx); err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
 	if !claimed {
 		msg.ClaimCommand = h.claimCommand
 	}

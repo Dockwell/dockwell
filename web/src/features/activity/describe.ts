@@ -117,6 +117,16 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const path = event.subject?.path ?? "";
           return { title: t`May have saved ${path} on ${server}`, icon: "file", tone: "warning" };
         }
+        case "settings.name": {
+          const value = event.setting?.value ?? "";
+          return value
+            ? { title: t`Named this install ${value}`, icon: "settings" }
+            : { title: t`Cleared this install's name`, icon: "settings" };
+        }
+        case "settings.time_zone": {
+          const value = event.setting?.value || "UTC";
+          return { title: t`Set the time zone for new schedules to ${value}`, icon: "settings" };
+        }
         case "change.apply_unconfirmed": {
           const change = event.subject?.id ?? "";
           return { title: t`Asked for a passkey to apply ${change}, and none came`, icon: "key", tone: "warning" };

@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -77,6 +78,8 @@ const (
 var (
 	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear}
 	healthActions = []string{health.Action}
+	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).
+	settingsActions = settings.Actions
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
 	accessActions = []string{
@@ -526,6 +529,9 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 	}
+	if setting, ok := settings.ReadEvent(a.Action, a.Detail); ok {
+		e.Kind, e.Setting = dockwellv1.EventKind_EVENT_KIND_SETTINGS, setting
+	}
 	if a.Action == fleet.ActionPublicAddress || a.Action == fleet.ActionPublicAddressClear {
 		// Its detail leaves the store too: it's what the address was, to put it back.
 		var change fleet.AddressChange
@@ -562,6 +568,9 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	}
 	if every || want[dockwellv1.EventKind_EVENT_KIND_BACKUP] {
 		f.Actions = append(f.Actions, backupActions...)
+	}
+	if every || want[dockwellv1.EventKind_EVENT_KIND_SETTINGS] {
+		f.Actions = append(f.Actions, settingsActions...)
 	}
 	f.ResourceActions = append(slices.Clone(healthActions), backupActions...)
 	if actorID != "" {

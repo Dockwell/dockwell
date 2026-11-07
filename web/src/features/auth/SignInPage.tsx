@@ -35,8 +35,9 @@ export function SignInPage({ next }: { next?: string }) {
   if (auth.data && !auth.data.claimed) {
     return <Unclaimed serverName={auth.data.serverName} />;
   }
-  // Empty until the control plane says, so a placeholder never flashes.
-  const name = auth.data?.serverName ?? "";
+  // Empty until the control plane says, so a placeholder never flashes. The install's
+  // name, once someone has given it one, and the server's until then.
+  const name = auth.data?.installName || auth.data?.serverName || "";
   return (
     <div className="signin">
       <main className="signin-main">

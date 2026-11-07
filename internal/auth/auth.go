@@ -235,6 +235,19 @@ func (c Client) Surface(p Principal) string {
 	return store.SurfaceAPI
 }
 
+// InstallName is what the install is called, as its settings have it, or "".
+func (s *Service) InstallName(ctx context.Context) (string, error) {
+	var name []byte
+	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
+		name, err = tx.GetSetting(ctx, store.SettingInstallName)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return "", nil
+	}
+	return string(name), err
+}
+
 // Claimed reports whether the install has an owner.
 func (s *Service) Claimed(ctx context.Context) (bool, error) {
 	var n int

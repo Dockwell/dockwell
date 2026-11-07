@@ -64,7 +64,9 @@ export function MorePage() {
         {operate.map(section)}
       </nav>
       <nav className="dw-panel more-group" aria-label={t`Settings, status and account`}>
-        {section("settings")}
+        <Link to="/settings" className="more-row">
+          <RowBody icon="settings" label={t`Settings`} />
+        </Link>
         <Link to="/status" className="more-row">
           <RowBody icon="gauge" label={t`Control plane`} value={version ? shortVersion(version) : undefined} />
         </Link>

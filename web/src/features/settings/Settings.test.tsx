@@ -1,0 +1,152 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { Code } from "@connectrpc/connect";
+import { PanelServedBy, SettingsSchema } from "@dockwell/api";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { activateLocale, chosenLocale } from "../../app/i18n";
+import { expectAccessible } from "../../test/a11y";
+import { authError, authState } from "../../test/auth";
+import { type Api, onPhone, renderAt } from "../../test/render";
+
+const settings = (init: MessageInitShape<typeof SettingsSchema> = {}) =>
+  create(SettingsSchema, {
+    timeZone: "UTC",
+    createTime: timestampFromDate(new Date(2026, 10, 4, 9, 0)),
+    panel: { listen: "127.0.0.1:7600", servedBy: PanelServedBy.NONE },
+    ...init,
+  } as MessageInitShape<typeof SettingsSchema>);
+
+function renderSettings(path: string, api: Api = {}) {
+  return renderAt(path, { ...api, settings: { getSettings: () => ({ settings: settings() }), ...api.settings } });
+}
+
+afterEach(() => {
+  localStorage.clear();
+});
+
+describe("Settings", () => {
+  it("opens on General beside its sections, from the rail", async () => {
+    const user = userEvent.setup();
+    renderSettings("/");
+    await user.click(await screen.findByRole("link", { name: "Settings" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "General" })).toBeVisible();
+    const nav = screen.getByRole("navigation", { name: "Settings" });
+    expect(within(nav).getByRole("link", { name: "General" })).toHaveAttribute("aria-current", "page");
+    await user.click(within(nav).getByRole("link", { name: "Profile and security" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
+    expect(
+      within(screen.getByRole("navigation", { name: "Settings" })).getByRole("link", { name: "Profile and security" }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("names the install and sets its time zone, each once, and says it's on Activity", async () => {
+    const user = userEvent.setup();
+    const setInstallName = vi.fn(({ name }: { name: string }) => ({ settings: settings({ name }) }));
+    const setTimeZone = vi.fn(({ timeZone }: { timeZone: string }) => ({ settings: settings({ timeZone }) }));
+    renderSettings("/settings/general", { settings: { setInstallName, setTimeZone } });
+    const install = await screen.findByRole("region", { name: "This install" });
+    const save = within(install).getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+    const name = within(install).getByRole("textbox", { name: "Name" });
+    // Until the settings come, there's nothing to change.
+    await waitFor(() => expect(name).toBeEnabled());
+    await user.type(name, "Acme servers");
+    await user.selectOptions(within(install).getByRole("combobox", { name: "Time zone" }), "Europe/Amsterdam");
+    await user.click(save);
+    await waitFor(() => expect(setTimeZone).toHaveBeenCalledTimes(1));
+    expect(setInstallName).toHaveBeenCalledTimes(1);
+    expect(setInstallName.mock.calls[0]?.[0]).toMatchObject({ name: "Acme servers" });
+    expect(setTimeZone.mock.calls[0]?.[0]).toMatchObject({ timeZone: "Europe/Amsterdam" });
+    expect(await within(install).findByText("Saved. It's on Activity.")).toBeVisible();
+  });
+
+  it("says at the field why a name was refused", async () => {
+    const user = userEvent.setup();
+    const setInstallName = () => {
+      throw authError(
+        Code.InvalidArgument,
+        "invalid",
+        "a name can't hold a line break or another control character. Write it on one line",
+      );
+    };
+    renderSettings("/settings/general", { settings: { setInstallName } });
+    const install = await screen.findByRole("region", { name: "This install" });
+    const name = within(install).getByRole("textbox", { name: "Name" });
+    await waitFor(() => expect(name).toBeEnabled());
+    await user.type(name, "Acme");
+    await user.click(within(install).getByRole("button", { name: "Save" }));
+    expect(await within(install).findByText(/Write it on one line/)).toBeVisible();
+  });
+
+  it("says how the panel is served, and how to change that", async () => {
+    renderSettings("/settings/general");
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await waitFor(() => expect(panel).toHaveTextContent("AddressLoopback only"));
+    expect(panel).toHaveTextContent("Loopback127.0.0.1:7600");
+    expect(panel).toHaveTextContent("Environment=DOCKWELL_DOMAIN=panel.example.com");
+  });
+
+  it("names the domain and what serves it", async () => {
+    const served = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        domain: "panel.example.com",
+        servedBy: PanelServedBy.DOCKWELL,
+        httpsListen: ":443",
+      },
+    });
+    renderSettings("/settings/general", { settings: { getSettings: () => ({ settings: served }) } });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    expect(await within(panel).findByRole("link", { name: "https://panel.example.com" })).toHaveAttribute(
+      "href",
+      "https://panel.example.com",
+    );
+    expect(panel).toHaveTextContent("Dockwell, on :443, with a certificate from Let's Encrypt that it renews");
+  });
+
+  it("shows the panel in the language chosen for this browser, and goes back to the browser's", async () => {
+    const user = userEvent.setup();
+    renderSettings("/settings/general");
+    const language = await screen.findByRole("region", { name: "Language" });
+    await user.selectOptions(within(language).getByRole("combobox", { name: "Show the panel in" }), "zh-CN");
+    expect(await screen.findByRole("heading", { level: 1, name: "常规" })).toBeVisible();
+    expect(chosenLocale()).toBe("zh-CN");
+    await user.selectOptions(within(screen.getByRole("region", { name: "语言" })).getByRole("combobox"), "");
+    expect(await screen.findByRole("heading", { level: 1, name: "General" })).toBeVisible();
+    expect(chosenLocale()).toBeUndefined();
+  });
+
+  it("names the install on the sign-in screen and in the browser's tab", async () => {
+    renderSettings("/settings/general", { auth: { getAuthState: () => authState({ installName: "Acme servers" }) } });
+    await screen.findByRole("heading", { level: 1, name: "General" });
+    await waitFor(() => expect(document.title).toBe("General · Acme servers"));
+  });
+
+  it("lists its sections on a phone, and passes axe there and wide", async () => {
+    const { container, unmount } = renderSettings("/settings/general");
+    await screen.findByRole("region", { name: "Panel address" });
+    await expectAccessible(container);
+    unmount();
+
+    onPhone();
+    const phone = renderSettings("/settings");
+    expect(await screen.findByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/more");
+    expect(screen.getByRole("link", { name: "General" })).toHaveAttribute("href", "/settings/general");
+    expect(screen.getByRole("link", { name: "Profile and security" })).toHaveAttribute("href", "/profile");
+    await expectAccessible(phone.container);
+  });
+
+  it("speaks Simplified Chinese", async () => {
+    await activateLocale("zh-CN");
+    renderSettings("/settings/general");
+    expect(await screen.findByRole("heading", { level: 1, name: "常规" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "此安装" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "面板地址" })).toHaveTextContent("仅本机回环");
+  });
+});
