@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 
 	"github.com/dockwell/dockwell/internal/human"
 )
@@ -93,29 +94,82 @@ func PublicAddresses(list []string) []string {
 	return out
 }
 
-// PointHere says where to point a domain's DNS, given a server's own addresses.
-// It names a public address or none, as a record pointed at a private one can't
-// work: with only private addresses, it says so, and that the public one is what's
-// wanted.
-func PointHere(here []string) string {
-	public := PublicAddresses(here)
-	if len(public) > 0 {
-		return "Point an A or AAAA record at this server, " + human.Either(public) + "."
+// pointAt is the addresses to point a record at: what the control plane knows, which
+// goes first for its family, as a person's word wins over an interface, and any
+// public address on an interface of a family it doesn't know.
+func (c *DomainCheck) pointAt() []string {
+	told := PublicAddresses(c.Public)
+	out := slices.Clone(told)
+	for _, s := range PublicAddresses(c.Here) {
+		if !slices.Contains(out, s) && !slices.ContainsFunc(told, func(t string) bool { return sameFamily(s, t) }) {
+			out = append(out, s)
+		}
 	}
-	if len(here) == 0 {
+	return out
+}
+
+func sameFamily(a, b string) bool {
+	x, y := netip.MustParseAddr(a).Unmap(), netip.MustParseAddr(b).Unmap()
+	return x.Is4() == y.Is4()
+}
+
+// PointHere says where to point a domain's DNS, given what a server knows of
+// itself. It names a public address or none, as a record pointed at a private one
+// can't work: with only private addresses, it says so, and that the public one is
+// what's wanted. An address nothing has shown to be a way in is only ever named with
+// the caveat, whatever the server is on (ADR 0034).
+func (c *DomainCheck) PointHere() string {
+	if c == nil {
+		return "Point an A or AAAA record at this server's public address."
+	}
+	addresses := c.pointAt()
+	proved := slices.DeleteFunc(slices.Clone(addresses), func(s string) bool { return slices.Contains(c.Unproven, s) })
+	unproven := slices.DeleteFunc(slices.Clone(addresses), func(s string) bool { return !slices.Contains(c.Unproven, s) })
+	var words []string
+	if len(proved) > 0 {
+		words = append(words, fmt.Sprintf("Point %s record at this server, %s.", recordKinds(proved), human.Either(proved)))
+	}
+	if len(unproven) > 0 {
+		words = append(words, fmt.Sprintf("Point %s record at %s, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither.", recordKinds(unproven), human.Either(unproven)))
+	}
+	switch {
+	case len(words) > 0:
+		return strings.Join(words, " ")
+	case c.Carrier:
+		return fmt.Sprintf("This server is behind carrier NAT (%s), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither.", human.List(c.Here))
+	case len(c.Here) == 0:
 		return "Point an A or AAAA record at this server's public address."
 	}
 	are := "are"
-	if len(here) == 1 {
+	if len(c.Here) == 1 {
 		are = "is"
 	}
-	return fmt.Sprintf("Point an A record at this server's public address. Dockwell only sees %s here, which %s private, so the internet can't reach it.", human.List(here), are)
+	return fmt.Sprintf("Point an A record at this server's public address. Dockwell only sees %s here, which %s private, so the internet can't reach it.", human.List(c.Here), are)
 }
 
-// BehindNAT reports whether a server's own addresses are all private, so what the
+// recordKinds names the kinds of DNS record that point at addresses.
+func recordKinds(addresses []string) string {
+	four, six := false, false
+	for _, s := range addresses {
+		if a, err := netip.ParseAddr(s); err == nil && a.Unmap().Is4() {
+			four = true
+		} else {
+			six = true
+		}
+	}
+	switch {
+	case four && six:
+		return "an A or AAAA"
+	case six:
+		return "an AAAA"
+	}
+	return "an A"
+}
+
+// BehindNAT reports a server whose own addresses are all private, so what the
 // internet sees of it isn't on any interface. With no addresses, nothing is known.
-func BehindNAT(here []string) bool {
-	return len(here) > 0 && len(PublicAddresses(here)) == 0
+func BehindNAT(own []string) bool {
+	return len(own) > 0 && len(PublicAddresses(own)) == 0
 }
 
 // BehindCarrierNAT reports a server whose every address is carrier-grade NAT's, so

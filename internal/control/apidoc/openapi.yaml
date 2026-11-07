@@ -1401,6 +1401,43 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{id}:setPublicAddress:
+        post:
+            tags:
+                - ServerService
+            description: |-
+                SetServerPublicAddress records a server's public address, as a person
+                 knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
+                 address are kept apart. An empty address goes back to what Dockwell finds
+                 out for itself. It's on record in the activity log, with what it replaced.
+                 See docs/adr/0034-a-servers-public-address.md.
+            operationId: ServerService_SetServerPublicAddress
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetServerPublicAddressRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetServerPublicAddressResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:
         get:
             tags:
@@ -3858,6 +3895,29 @@ components:
                     items:
                         type: string
                     description: The addresses the server has, which it compared them with.
+                publicAddresses:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The server's public addresses known beyond its interfaces, which are the
+                         ones to point a record at.
+                unprovenAddresses:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Those of public_addresses nothing has shown to be a way in, so a record at
+                         one may not reach the server.
+                carrierNat:
+                    type: boolean
+                    description: |-
+                        The server is behind carrier-grade NAT with no way in known, so no record
+                         can reach it, and no forwarded port either. Only a tunnel can.
+                readTime:
+                    type: string
+                    description: When DNS was read. Unset for a check from an agent from before this.
+                    format: date-time
             description: DomainCheck is what DNS says of a domain, as a server sees it.
         DomainRoute:
             type: object
@@ -4214,6 +4274,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/EventBackup'
                     description: What became of a backup, for a backup event. Its subject is the volume.
+                publicAddress:
+                    allOf:
+                        - $ref: '#/components/schemas/EventPublicAddress'
+                    description: What a person set of a server's public address, on such an event.
             description: Event is one thing that happened.
         EventBackup:
             type: object
@@ -4303,6 +4367,16 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventPublicAddress:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: What it is now. Empty when they cleared it.
+                previous:
+                    type: string
+                    description: What a person had set before, so it can be put back. Empty when they hadn't.
+            description: EventPublicAddress is a server's public address as a person changed it.
         EventSubject:
             type: object
             properties:
@@ -6302,6 +6376,45 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ProposeChangeResponse carries the planned change.
+        PublicAddress:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: The address the internet knows the server by.
+                source:
+                    enum:
+                        - PUBLIC_ADDRESS_SOURCE_UNSPECIFIED
+                        - PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON
+                        - PUBLIC_ADDRESS_SOURCE_ON_INTERFACE
+                        - PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN
+                        - PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE
+                        - PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA
+                        - PUBLIC_ADDRESS_SOURCE_LOOKED_UP
+                    type: string
+                    description: How that's known.
+                    format: enum
+                knownTime:
+                    type: string
+                    description: |-
+                        When Dockwell came to know it that way. For a domain's, that's when its DNS
+                         was last read.
+                    format: date-time
+                domain:
+                    type: string
+                    description: |-
+                        The domain whose certificate proved it, for
+                         PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN.
+                setBy:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who set it, for PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON.
+                unproven:
+                    type: boolean
+                    description: |-
+                        True when nothing shows the address is a way in, so it's named only with a
+                         caveat: a way out, or a metadata service the machine doesn't confirm.
+            description: PublicAddress is what's known of one public address of a server.
         ReadFileRequest:
             type: object
             properties:
@@ -7143,6 +7256,12 @@ components:
                          can say how what runs there is until it can. Unset while it can, and for a
                          server that isn't connected.
                     format: date-time
+                network:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerNetwork'
+                    description: |-
+                        How the server meets the internet, as far as that's known. The addresses
+                         on its own interfaces are in its inventory.
             description: Server is one machine running the agent.
         ServerContainer:
             type: object
@@ -7317,6 +7436,11 @@ components:
                     description: |-
                         The logging driver Docker uses by default, such as "json-file". Empty
                          when Docker isn't running.
+                outboundAddress:
+                    type: string
+                    description: |-
+                        The address its route to the internet leaves from. Empty when it has no
+                         such route, or from an agent from before this.
             description: 'ServerInventory is what a server is: its system and hardware.'
         ServerLogStatus:
             type: object
@@ -7341,6 +7465,63 @@ components:
                     type: string
                     description: Why, for people, with how to fix it, when it isn't reading.
             description: ServerLogStatus is how reading logs from one server stands.
+        ServerNetwork:
+            type: object
+            properties:
+                ipv4:
+                    allOf:
+                        - $ref: '#/components/schemas/PublicAddress'
+                    description: Its public IPv4 address. Unset when nothing says.
+                ipv6:
+                    allOf:
+                        - $ref: '#/components/schemas/PublicAddress'
+                    description: Its public IPv6 address. Unset when nothing says.
+                reachable:
+                    enum:
+                        - REACHABLE_UNSPECIFIED
+                        - REACHABLE_NOT_CHECKED
+                        - REACHABLE_YES
+                        - REACHABLE_NO
+                    type: string
+                    description: Whether the internet can reach the server at either.
+                    format: enum
+                reachableDomain:
+                    type: string
+                    description: The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
+                reachableTime:
+                    type: string
+                    description: When that domain's DNS was last read, so what's shown is as of then.
+                    format: date-time
+                provider:
+                    enum:
+                        - CLOUD_PROVIDER_UNSPECIFIED
+                        - CLOUD_PROVIDER_AWS
+                        - CLOUD_PROVIDER_GCP
+                        - CLOUD_PROVIDER_AZURE
+                        - CLOUD_PROVIDER_DIGITALOCEAN
+                        - CLOUD_PROVIDER_HETZNER
+                        - CLOUD_PROVIDER_ORACLE
+                    type: string
+                    description: |-
+                        The cloud provider the machine itself says it runs on, from its firmware's
+                         tables. A metadata service answering doesn't say so on its own.
+                    format: enum
+                shape:
+                    enum:
+                        - NETWORK_SHAPE_UNSPECIFIED
+                        - NETWORK_SHAPE_INTERNET
+                        - NETWORK_SHAPE_CLOUD_NAT
+                        - NETWORK_SHAPE_LOCAL_NAT
+                        - NETWORK_SHAPE_CARRIER_NAT
+                    type: string
+                    description: Which of the shapes a server comes in this one has, as far as can be told.
+                    format: enum
+            description: |-
+                ServerNetwork is what's known of a server beyond its own interfaces. Its
+                 public address and whether the internet can reach it are separate facts: an
+                 address can be known and nothing proved of it. IPv4 and IPv6 are picked apart,
+                 as a server's A and AAAA records go to different places. See
+                 docs/adr/0034-a-servers-public-address.md.
         ServerPlan:
             type: object
             properties:
@@ -7720,6 +7901,29 @@ components:
                     type: string
                     description: 'The address it works on: "localhost" or the panel''s domain.'
             description: Session is one signed-in browser.
+        SetServerPublicAddressRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The server's ID.
+                address:
+                    type: string
+                    description: A public IP address, or empty to clear what a person set.
+                ipv6:
+                    type: boolean
+                    description: |-
+                        With an empty address, clears the IPv6 address a person set, not the IPv4
+                         one. A person's addresses are kept apart, as DNS records are.
+            description: SetServerPublicAddressRequest says what a server's public address is.
+        SetServerPublicAddressResponse:
+            type: object
+            properties:
+                server:
+                    allOf:
+                        - $ref: '#/components/schemas/Server'
+                    description: The server, without history.
+            description: SetServerPublicAddressResponse carries the server as it now reads.
         SharedName:
             type: object
             properties:

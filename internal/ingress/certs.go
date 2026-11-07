@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -201,16 +202,13 @@ func problemWords(domain string, st CertState, check *resource.DomainCheck) stri
 // carrier-grade NAT nothing here can open a way in at all.
 func connectionWords(domain string, check *resource.DomainCheck) string {
 	lead := fmt.Sprintf("the certificate authority couldn't reach this server for %s on port 80 or 443", domain)
-	var here []string
-	if check != nil {
-		here = check.Here
-	}
+	own := check.Own()
 	switch {
-	case resource.BehindCarrierNAT(here):
-		return fmt.Sprintf("%s. %s is in carrier-grade NAT's range, so no forwarded port can reach it, and a tunnel is the way.", lead, human.List(here))
-	case resource.BehindNAT(here):
+	case check != nil && check.Carrier, resource.BehindCarrierNAT(own):
+		return lead + ". It's behind carrier-grade NAT, so no forwarded port can reach it, and a tunnel is the way."
+	case check.BehindNAT():
 		words := lead + ". It has only private addresses, so it's behind NAT, and two firewalls can each stop this: the cloud provider's and the machine's own, such as ufw or iptables. Open both ports in each."
-		if to := resource.ForwardTo(here); len(to) > 0 {
+		if to := resource.ForwardTo(own); len(to) > 0 {
 			words += " Behind a home or office router, forward both to this machine's private address, " + human.Either(to) + "."
 		}
 		return words
@@ -241,12 +239,7 @@ func routeCertMessage(domain string, st CertState, check *resource.DomainCheck) 
 	return msg + " " + offWords
 }
 
-func pointHere(check *resource.DomainCheck) string {
-	if check == nil {
-		return resource.PointHere(nil)
-	}
-	return resource.PointHere(check.Here)
-}
+func pointHere(check *resource.DomainCheck) string { return check.PointHere() }
 
 // upperFirst starts a sentence made of words that may follow a colon elsewhere.
 func upperFirst(s string) string {
@@ -292,6 +285,9 @@ type statusBoard struct {
 	list    []*dockwellv1.DomainStatus
 	checks  map[string]*resource.DomainCheck
 	checked map[string]time.Time
+	// expires is when each domain's certificate last read as expiring, which shows
+	// a new one.
+	expires map[string]time.Time
 	signal  chan struct{}
 	// panel is what was last logged of the panel's own certificate.
 	panel string
@@ -307,6 +303,9 @@ type statusBoard struct {
 	restartsKnown bool
 	// ingress is what was last published of the ingress.
 	ingress *dockwellv1.IngressStatus
+	// known is what the control plane said of this server's public addresses
+	// (SetPublicAddress).
+	known *agentv1.PublicAddress
 }
 
 // problem is why a server's ingress isn't serving.
@@ -412,6 +411,13 @@ const (
 	watchSettled = time.Minute
 	// dnsEvery is how often DNS is read for a domain without a certificate.
 	dnsEvery = 30 * time.Second
+	// IssuedDNSEvery is how often DNS is read for one with a certificate, as what
+	// that proves goes stale as a record moves (ADR 0034).
+	IssuedDNSEvery = 6 * time.Hour
+	// rereadsPerWatch bounds how many of those one pass makes, as they run one after
+	// another and a server's domains can come due together. At one pass a minute that
+	// gets through 3,600 domains in IssuedDNSEvery, with 1,000 the most a server takes.
+	rereadsPerWatch = 10
 )
 
 // Watch keeps Domains up to date until ctx is done.
@@ -435,6 +441,32 @@ func (m *Manager) Watch(ctx context.Context) {
 func (m *Manager) watchWakes() chan struct{} {
 	m.wakesOnce.Do(func() { m.wakes = make(chan struct{}, 1) })
 	return m.wakes
+}
+
+// SetPublicAddress keeps what the control plane knows of this server's public
+// addresses, and has what's said of a domain with no certificate read again by it, as
+// its record may now read as pointing here. One with a certificate waits for its next
+// read: what it says doesn't hang on what's known, and it proves nothing new by being
+// read sooner.
+func (m *Manager) SetPublicAddress(known *agentv1.PublicAddress) {
+	b := &m.status
+	b.mu.Lock()
+	b.known = known
+	if b.checked != nil {
+		clear(b.checked)
+	}
+	b.mu.Unlock()
+	m.watchNow()
+}
+
+// check reads what DNS says of a domain, as far as this server knows itself.
+func (m *Manager) check(ctx context.Context, domain string) *resource.DomainCheck {
+	d := *m.dns()
+	b := &m.status
+	b.mu.Lock()
+	d.Know(b.known)
+	b.mu.Unlock()
+	return d.Check(ctx, domain)
 }
 
 // watchNow has Watch read again now, without waiting for it.
@@ -481,7 +513,7 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		}
 		return false
 	}
-	retry := false
+	retry, rereads := false, rereadsPerWatch
 	list := make([]*dockwellv1.DomainStatus, 0, len(domains))
 	for _, name := range slices.Sorted(maps.Keys(domains)) {
 		if !domains[name] {
@@ -490,7 +522,7 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 			continue
 		}
 		st := certs[name]
-		check, nowHere := m.domainCheck(ctx, name, st)
+		check, nowHere := m.domainCheck(ctx, name, st, &rereads)
 		retry = retry || (nowHere && st.Phase != CertIssued)
 		waiting = waiting || st.Phase != CertIssued
 		list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, st, check), Dns: resourcepb.DomainCheck(check)})
@@ -536,23 +568,33 @@ func (m *Manager) reportPanel(ctx context.Context) {
 }
 
 // domainCheck is what DNS says of a domain, read again every dnsEvery while it
-// has no certificate. nowHere says this read found it pointing here, as the
-// one before didn't.
-func (m *Manager) domainCheck(ctx context.Context, name string, st CertState) (check *resource.DomainCheck, nowHere bool) {
+// has no certificate, and every IssuedDNSEvery once it has, as far as rereads lets,
+// as a certificate proves where a server answers only while its record stays put.
+// nowHere says this read found it pointing here, as the one before didn't.
+func (m *Manager) domainCheck(ctx context.Context, name string, st CertState, rereads *int) (check *resource.DomainCheck, nowHere bool) {
 	b := &m.status
 	b.mu.Lock()
 	if b.checks == nil {
-		b.checks, b.checked = map[string]*resource.DomainCheck{}, map[string]time.Time{}
+		b.checks, b.checked, b.expires = map[string]*resource.DomainCheck{}, map[string]time.Time{}, map[string]time.Time{}
 	}
 	last, read := b.checks[name], b.checked[name]
+	// A certificate that's new is read at once, as what it shows is the record now.
+	renewed := st.Phase == CertIssued && !b.expires[name].Equal(st.NotAfter)
+	if st.Phase == CertIssued {
+		b.expires[name] = st.NotAfter
+	}
 	b.mu.Unlock()
-	if st.Phase == CertIssued && last != nil {
+	switch {
+	case last == nil || renewed:
+	case st.Phase == CertIssued:
+		if time.Since(last.ReadAt) < IssuedDNSEvery || *rereads == 0 {
+			return last, false
+		}
+		*rereads--
+	case time.Since(read) < dnsEvery:
 		return last, false
 	}
-	if last != nil && time.Since(read) < dnsEvery {
-		return last, false
-	}
-	check = m.dns().Check(ctx, name)
+	check = m.check(ctx, name)
 	b.mu.Lock()
 	b.checks[name], b.checked[name] = check, time.Now()
 	b.mu.Unlock()

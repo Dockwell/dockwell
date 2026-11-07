@@ -2,14 +2,16 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { Connection, type Server, SystemService } from "@dockwell/api";
-import { Panel, StatusBadge } from "@dockwell/ui";
+import { Connection, type PublicAddress, type Server, SystemService } from "@dockwell/api";
+import { Button, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { formatBitRate, formatBytes, formatDateTime, formatPercent } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { CopyButton } from "./CopyButton";
+import { publicAddressesOf, useNetworkWords } from "./network";
+import { SetPublicAddressSheet } from "./SetPublicAddressSheet";
 import { isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./ServerPanels.css";
@@ -100,13 +102,25 @@ export function SystemPanel({ server }: { server: Server }) {
   );
 }
 
-/** Where the server can be reached, and how much it is sending and receiving. */
+/**
+ * How the server meets the internet, with three facts kept apart: what its own interfaces
+ * have, what the internet knows it by and how that's known, and whether anything has
+ * shown the internet can reach it. Then how much it is sending and receiving.
+ */
 export function NetworkPanel({ server }: { server: Server }) {
   const { t, i18n } = useLingui();
   const locale = i18n.locale;
+  const words = useNetworkWords();
+  const clock = useControlPlaneNow();
+  // Which address the sheet is changing, or null for a first one.
+  const [setting, setSetting] = useState<PublicAddress | null>();
+  const network = server.network;
   const addresses = server.inventory?.addresses ?? [];
-  const publics = addresses.filter((ip) => !isPrivateAddress(ip));
+  const known = publicAddressesOf(network);
+  const publics = addresses.filter((ip) => !isPrivateAddress(ip) && !known.some((a) => a.address === ip));
   const privates = addresses.filter(isPrivateAddress);
+  const shape = words.shape(network);
+  const reach = words.reachable(network, clock);
   const stats = server.connection === Connection.CONNECTED ? server.stats : undefined;
   const now = stats
     ? formatBitRate(stats.networkRxBytesPerSecond + stats.networkTxBytesPerSecond, locale).join(" ")
@@ -114,6 +128,32 @@ export function NetworkPanel({ server }: { server: Server }) {
   return (
     <Panel title={t`Network`} actions={now ? <span className="panel-meta">{t`${now} now`}</span> : null}>
       <dl className="facts">
+        {shape ? <Fact term={t`Connection`}>{shape}</Fact> : null}
+        {known.map((address) => {
+          const ip = address.address;
+          return (
+            <Fact key={ip} term={ip.includes(":") ? t`Public IPv6` : t`Public IPv4`}>
+              <span className="fact-copy">
+                <code>{ip}</code>
+                <CopyButton text={ip} label={t`Copy ${ip}`} />
+                <Button variant="ghost" size="sm" onClick={() => setSetting(address)}>
+                  <Trans>Change</Trans>
+                </Button>
+              </span>
+              {network ? <span className="fact-note">{words.how(address, network, clock)}</span> : null}
+            </Fact>
+          );
+        })}
+        {known.length === 0 ? (
+          <Fact term={t`Public address`}>
+            <span className="fact-copy">
+              <Muted>{t`Not known`}</Muted>
+              <Button variant="ghost" size="sm" onClick={() => setSetting(null)}>
+                <Trans>Set</Trans>
+              </Button>
+            </span>
+          </Fact>
+        ) : null}
         {publics.map((ip) => (
           <Fact key={ip} term={ip.includes(":") ? t`Public IPv6` : t`Public IPv4`}>
             <span className="fact-copy">
@@ -122,6 +162,10 @@ export function NetworkPanel({ server }: { server: Server }) {
             </span>
           </Fact>
         ))}
+        <Fact term={t`Reachable`}>
+          <StatusBadge status={reach.status} label={reach.word} labelIsState />
+          <span className="fact-note">{reach.proof}</span>
+        </Fact>
         {privates.length > 0 ? (
           <Fact term={t`Private addresses`}>
             <span className="fact-list">
@@ -143,6 +187,9 @@ export function NetworkPanel({ server }: { server: Server }) {
           </>
         ) : null}
       </dl>
+      {setting !== undefined ? (
+        <SetPublicAddressSheet server={server} current={setting ?? undefined} onClose={() => setSetting(undefined)} />
+      ) : null}
     </Panel>
   );
 }

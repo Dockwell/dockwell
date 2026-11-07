@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/event.proto.
  */
 export const file_dockwell_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS9ldmVudC5wcm90bxILZG9ja3dlbGwudjEixwEKEUxpc3RFdmVudHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEiUKBWtpbmRzGAMgAygOMhYuZG9ja3dlbGwudjEuRXZlbnRLaW5kEhEKCXNlcnZlcl9pZBgEIAEoCRITCgtyZXNvdXJjZV9pZBgFIAEoCRIQCghhY3Rvcl9pZBgGIAEoCRIqCgphY3Rvcl9raW5kGAcgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kIlEKEkxpc3RFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkitAEKEldhdGNoRXZlbnRzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSJQoFa2luZHMYAiADKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSEQoJc2VydmVyX2lkGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhAKCGFjdG9yX2lkGAUgASgJEioKCmFjdG9yX2tpbmQYBiABKA4yFi5kb2Nrd2VsbC52MS5BY3RvcktpbmQidQoTV2F0Y2hFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIPCgdyZW1vdmVkGAIgAygJEhAKCHNuYXBzaG90GAMgASgIEhcKD25leHRfcGFnZV90b2tlbhgEIAEoCSLiAgoFRXZlbnQSCgoCaWQYASABKAkSJAoEa2luZBgCIAEoDjIWLmRvY2t3ZWxsLnYxLkV2ZW50S2luZBIOCgZhY3Rpb24YAyABKAkSKAoEdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIlCgdzdXJmYWNlGAYgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIjCgZjaGFuZ2UYByABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKgoHc3ViamVjdBgIIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50U3ViamVjdBIoCgZoZWFsdGgYCSABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEhlYWx0aBIoCgZiYWNrdXAYCiABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEJhY2t1cCKMAQoLRXZlbnRCYWNrdXASCgoCaWQYASABKAkSDgoGdm9sdW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEikKBm1ldGhvZBgEIAEoDjIZLmRvY2t3ZWxsLnYxLkJhY2t1cE1ldGhvZBISCgpzaXplX2J5dGVzGAUgASgDEg0KBWVycm9yGAYgASgJItQBCgtFdmVudEhlYWx0aBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSJwoFc3RhdGUYAyABKA4yGC5kb2Nrd2VsbC52MS5IZWFsdGhTdGF0ZRIqCghwcmV2aW91cxgEIAEoDjIYLmRvY2t3ZWxsLnYxLkhlYWx0aFN0YXRlEg4KBm91dHB1dBgFIAEoCRINCgVmbGlwcxgGIAEoBRIpCgVzaW5jZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiRQoMRXZlbnRTdWJqZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFc2NvcGUYAyABKAkSDAoEcGF0aBgEIAEoCSqaAQoJRXZlbnRLaW5kEhoKFkVWRU5UX0tJTkRfVU5TUEVDSUZJRUQQABIVChFFVkVOVF9LSU5EX0NIQU5HRRABEhUKEUVWRU5UX0tJTkRfU0VSVkVSEAISFQoRRVZFTlRfS0lORF9BQ0NFU1MQAxIVChFFVkVOVF9LSU5EX0hFQUxUSBAEEhUKEUVWRU5UX0tJTkRfQkFDS1VQEAUy0gEKDEV2ZW50U2VydmljZRJoCgpMaXN0RXZlbnRzEh4uZG9ja3dlbGwudjEuTGlzdEV2ZW50c1JlcXVlc3QaHy5kb2Nrd2VsbC52MS5MaXN0RXZlbnRzUmVzcG9uc2UiGZACAaC7GAGC0+STAgwSCi92MS9ldmVudHMSWAoLV2F0Y2hFdmVudHMSHy5kb2Nrd2VsbC52MS5XYXRjaEV2ZW50c1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5XYXRjaEV2ZW50c1Jlc3BvbnNlIgSguxgBMAFCowEKD2NvbS5kb2Nrd2VsbC52MUIKRXZlbnRQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_health, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS9ldmVudC5wcm90bxILZG9ja3dlbGwudjEixwEKEUxpc3RFdmVudHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEiUKBWtpbmRzGAMgAygOMhYuZG9ja3dlbGwudjEuRXZlbnRLaW5kEhEKCXNlcnZlcl9pZBgEIAEoCRITCgtyZXNvdXJjZV9pZBgFIAEoCRIQCghhY3Rvcl9pZBgGIAEoCRIqCgphY3Rvcl9raW5kGAcgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kIlEKEkxpc3RFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkitAEKEldhdGNoRXZlbnRzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSJQoFa2luZHMYAiADKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSEQoJc2VydmVyX2lkGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhAKCGFjdG9yX2lkGAUgASgJEioKCmFjdG9yX2tpbmQYBiABKA4yFi5kb2Nrd2VsbC52MS5BY3RvcktpbmQidQoTV2F0Y2hFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIPCgdyZW1vdmVkGAIgAygJEhAKCHNuYXBzaG90GAMgASgIEhcKD25leHRfcGFnZV90b2tlbhgEIAEoCSKbAwoFRXZlbnQSCgoCaWQYASABKAkSJAoEa2luZBgCIAEoDjIWLmRvY2t3ZWxsLnYxLkV2ZW50S2luZBIOCgZhY3Rpb24YAyABKAkSKAoEdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIlCgdzdXJmYWNlGAYgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIjCgZjaGFuZ2UYByABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKgoHc3ViamVjdBgIIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50U3ViamVjdBIoCgZoZWFsdGgYCSABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEhlYWx0aBIoCgZiYWNrdXAYCiABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEJhY2t1cBI3Cg5wdWJsaWNfYWRkcmVzcxgLIAEoCzIfLmRvY2t3ZWxsLnYxLkV2ZW50UHVibGljQWRkcmVzcyKMAQoLRXZlbnRCYWNrdXASCgoCaWQYASABKAkSDgoGdm9sdW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEikKBm1ldGhvZBgEIAEoDjIZLmRvY2t3ZWxsLnYxLkJhY2t1cE1ldGhvZBISCgpzaXplX2J5dGVzGAUgASgDEg0KBWVycm9yGAYgASgJIjcKEkV2ZW50UHVibGljQWRkcmVzcxIPCgdhZGRyZXNzGAEgASgJEhAKCHByZXZpb3VzGAIgASgJItQBCgtFdmVudEhlYWx0aBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSJwoFc3RhdGUYAyABKA4yGC5kb2Nrd2VsbC52MS5IZWFsdGhTdGF0ZRIqCghwcmV2aW91cxgEIAEoDjIYLmRvY2t3ZWxsLnYxLkhlYWx0aFN0YXRlEg4KBm91dHB1dBgFIAEoCRINCgVmbGlwcxgGIAEoBRIpCgVzaW5jZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiRQoMRXZlbnRTdWJqZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFc2NvcGUYAyABKAkSDAoEcGF0aBgEIAEoCSqaAQoJRXZlbnRLaW5kEhoKFkVWRU5UX0tJTkRfVU5TUEVDSUZJRUQQABIVChFFVkVOVF9LSU5EX0NIQU5HRRABEhUKEUVWRU5UX0tJTkRfU0VSVkVSEAISFQoRRVZFTlRfS0lORF9BQ0NFU1MQAxIVChFFVkVOVF9LSU5EX0hFQUxUSBAEEhUKEUVWRU5UX0tJTkRfQkFDS1VQEAUy0gEKDEV2ZW50U2VydmljZRJoCgpMaXN0RXZlbnRzEh4uZG9ja3dlbGwudjEuTGlzdEV2ZW50c1JlcXVlc3QaHy5kb2Nrd2VsbC52MS5MaXN0RXZlbnRzUmVzcG9uc2UiGZACAaC7GAGC0+STAgwSCi92MS9ldmVudHMSWAoLV2F0Y2hFdmVudHMSHy5kb2Nrd2VsbC52MS5XYXRjaEV2ZW50c1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5XYXRjaEV2ZW50c1Jlc3BvbnNlIgSguxgBMAFCowEKD2NvbS5kb2Nrd2VsbC52MUIKRXZlbnRQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_health, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListEventsRequest asks for a page of events. The filters narrow it, and
@@ -318,6 +318,13 @@ export type Event = Message<"dockwell.v1.Event"> & {
    * @generated from field: dockwell.v1.EventBackup backup = 10;
    */
   backup?: EventBackup | undefined;
+
+  /**
+   * What a person set of a server's public address, on such an event.
+   *
+   * @generated from field: dockwell.v1.EventPublicAddress public_address = 11;
+   */
+  publicAddress?: EventPublicAddress | undefined;
 };
 
 /**
@@ -382,6 +389,34 @@ export type EventBackup = Message<"dockwell.v1.EventBackup"> & {
  */
 export const EventBackupSchema: GenMessage<EventBackup> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_event, 5);
+
+/**
+ * EventPublicAddress is a server's public address as a person changed it.
+ *
+ * @generated from message dockwell.v1.EventPublicAddress
+ */
+export type EventPublicAddress = Message<"dockwell.v1.EventPublicAddress"> & {
+  /**
+   * What it is now. Empty when they cleared it.
+   *
+   * @generated from field: string address = 1;
+   */
+  address: string;
+
+  /**
+   * What a person had set before, so it can be put back. Empty when they hadn't.
+   *
+   * @generated from field: string previous = 2;
+   */
+  previous: string;
+};
+
+/**
+ * Describes the message dockwell.v1.EventPublicAddress.
+ * Use `create(EventPublicAddressSchema)` to create a new message.
+ */
+export const EventPublicAddressSchema: GenMessage<EventPublicAddress> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_event, 6);
 
 /**
  * EventHealth is how a service's health changed on a server, as far as the
@@ -453,7 +488,7 @@ export type EventHealth = Message<"dockwell.v1.EventHealth"> & {
  * Use `create(EventHealthSchema)` to create a new message.
  */
 export const EventHealthSchema: GenMessage<EventHealth> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 6);
+  messageDesc(file_dockwell_v1_event, 7);
 
 /**
  * EventSubject names what an event is about.
@@ -500,7 +535,7 @@ export type EventSubject = Message<"dockwell.v1.EventSubject"> & {
  * Use `create(EventSubjectSchema)` to create a new message.
  */
 export const EventSubjectSchema: GenMessage<EventSubject> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 7);
+  messageDesc(file_dockwell_v1_event, 8);
 
 /**
  * EventKind sorts events, for filtering.

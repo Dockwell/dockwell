@@ -40,6 +40,10 @@ concurrency:
   group: install-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # What a step starts asks nothing beyond the runner (ADR 0034).
+  DOCKWELL_TEST: "1"
+
 jobs:
   snapshot:
     name: Release snapshot

@@ -6,6 +6,7 @@ import { type Status, useUIStrings } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
 import { useTimeWords } from "../../lib/time";
+import { publicAddressOf } from "./network";
 import type { FleetState } from "./useFleet";
 
 const STATUS: Partial<Record<Connection, Status>> = {
@@ -115,7 +116,7 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
       id: server.id,
       name: server.name,
       connection: server.connection,
-      address: primaryAddress(server.inventory?.addresses ?? []),
+      address: publicAddressOf(server) ?? primaryAddress(server.inventory?.addresses ?? []),
       ...(server.connection !== Connection.CONNECTED && server.lastSeenTime
         ? { lastSeen: timestampMs(server.lastSeenTime) }
         : {}),

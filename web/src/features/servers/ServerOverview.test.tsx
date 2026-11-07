@@ -2,19 +2,27 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { Code } from "@connectrpc/connect";
 import {
   BuildInfoSchema,
+  CloudProvider,
   Connection,
   DiskSchema,
+  NetworkShape,
+  PublicAddressSchema,
+  PublicAddressSource,
+  Reachable,
   ServerInventorySchema,
+  ServerNetworkSchema,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { authError } from "../../test/auth";
 import { expectMetric } from "../../test/metrics";
 import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
@@ -137,6 +145,176 @@ describe("ServerOverview", () => {
     expect(system).toHaveTextContent("Memory8 GB");
     expect(system).toHaveTextContent("Docker27.3.1");
     expect(system).toHaveTextContent("Hostnamehz-1");
+  });
+
+  describe("its network", () => {
+    const behindNAT = (network: Parameters<typeof create<typeof ServerNetworkSchema>>[1]) =>
+      aServer({
+        ...hz1,
+        inventory: create(ServerInventorySchema, { addresses: ["10.0.0.25"] }),
+        network: create(ServerNetworkSchema, network),
+      });
+    const known = { address: "203.0.113.50", knownTime: timestampFromDate(new Date()) };
+
+    it("keeps the private address, the public one and what's proved apart", async () => {
+      await renderServer(
+        "/servers/srv_1",
+        behindNAT({
+          ipv4: create(PublicAddressSchema, {
+            ...known,
+            source: PublicAddressSource.PROVED_BY_DOMAIN,
+            domain: "app.example.com",
+          }),
+          provider: CloudProvider.ORACLE,
+          shape: NetworkShape.CLOUD_NAT,
+          reachable: Reachable.YES,
+          reachableDomain: "app.example.com",
+          reachableTime: timestampFromDate(new Date()),
+        }),
+      );
+      const network = await screen.findByRole("region", { name: "Network" });
+      expect(network).toHaveTextContent("ConnectionBehind Oracle Cloud's NAT");
+      expect(network).toHaveTextContent("Public IPv4203.0.113.50");
+      expect(network).toHaveTextContent("Proved by the certificate for app.example.com, as of");
+      expect(network).toHaveTextContent("ReachableYes");
+      expect(network).toHaveTextContent("A certificate came for app.example.com on port 80 or 443, as of");
+      expect(network).toHaveTextContent("Private addresses10.0.0.25");
+      // The public address is the server's address everywhere else, with no tag.
+      expect(document.querySelector(".server-address")).toHaveTextContent(/^203\.0\.113\.50$/);
+    });
+
+    it("says a looked-up address is a way out, and leaves reachable not checked", async () => {
+      await renderServer(
+        "/servers/srv_1",
+        behindNAT({
+          ipv4: create(PublicAddressSchema, { ...known, source: PublicAddressSource.LOOKED_UP, unproven: true }),
+          shape: NetworkShape.LOCAL_NAT,
+        }),
+      );
+      const network = await screen.findByRole("region", { name: "Network" });
+      expect(network).toHaveTextContent("ConnectionLikely a home or office network");
+      expect(network).toHaveTextContent("Looked up");
+      expect(network).toHaveTextContent("your router's address, a way out and not a way in");
+      expect(network).toHaveTextContent("ReachableNot checked");
+      // A router's address isn't the server's, so the header goes on saying what it knows.
+      expect(document.querySelector(".server-address")).toHaveTextContent(/^10\.0\.0\.25Private$/);
+    });
+
+    it("names no way out as the server's address on a cloud either, and says so", async () => {
+      await renderServer(
+        "/servers/srv_1",
+        behindNAT({
+          ipv4: create(PublicAddressSchema, { ...known, source: PublicAddressSource.LOOKED_UP, unproven: true }),
+          provider: CloudProvider.AZURE,
+          shape: NetworkShape.CLOUD_NAT,
+        }),
+      );
+      const network = await screen.findByRole("region", { name: "Network" });
+      expect(network).toHaveTextContent("That's its way out, and may not be a way in");
+      expect(network).not.toHaveTextContent("usually its way in");
+      expect(document.querySelector(".server-address")).toHaveTextContent(/^10\.0\.0\.25Private$/);
+    });
+
+    it("says metadata the machine doesn't back up may not be a way in", async () => {
+      await renderServer(
+        "/servers/srv_1",
+        behindNAT({
+          ipv4: create(PublicAddressSchema, { ...known, source: PublicAddressSource.CLOUD_METADATA, unproven: true }),
+          shape: NetworkShape.LOCAL_NAT,
+        }),
+      );
+      const network = await screen.findByRole("region", { name: "Network" });
+      expect(network).toHaveTextContent("this machine doesn't name that cloud, so it may not be a way in");
+      expect(document.querySelector(".server-address")).toHaveTextContent(/^10\.0\.0\.25Private$/);
+    });
+
+    it("keeps IPv4 and IPv6 apart, each with how it's known, and clears the one it's asked to", async () => {
+      const set = vi.fn(() => ({ server: hz1 }));
+      const watch = feed<WatchServersResponse>();
+      watch.push(
+        changed(
+          behindNAT({
+            ipv4: create(PublicAddressSchema, { ...known, source: PublicAddressSource.LOOKED_UP, unproven: true }),
+            ipv6: create(PublicAddressSchema, {
+              address: "2001:db8::5",
+              source: PublicAddressSource.SET_BY_PERSON,
+              knownTime: known.knownTime,
+            }),
+            shape: NetworkShape.LOCAL_NAT,
+          }),
+        ),
+        snapshotComplete,
+      );
+      renderAt("/servers/srv_1", { servers: { watchServers: watch.stream, setServerPublicAddress: set } });
+      const network = await screen.findByRole("region", { name: "Network" });
+      expect(network).toHaveTextContent("Public IPv4203.0.113.50");
+      expect(network).toHaveTextContent("your router's address, a way out and not a way in");
+      expect(network).toHaveTextContent("Public IPv62001:db8::5");
+      expect(network).toHaveTextContent("Set by a person");
+      // A way in of one family is the server's address, whatever's known of the other.
+      expect(document.querySelector(".server-address")).toHaveTextContent(/^2001:db8::5$/);
+
+      const [, six] = within(network).getAllByRole("button", { name: "Change" });
+      if (six) await userEvent.click(six);
+      const sheet = await screen.findByRole("dialog", { name: "Set the public address of hz-1" });
+      expect(within(sheet).getByLabelText("Public address")).toHaveValue("2001:db8::5");
+      await userEvent.click(within(sheet).getByRole("button", { name: "Clear" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(set.mock.calls[0]?.at(0)).toMatchObject({ id: "srv_1", address: "", ipv6: true });
+    });
+
+    it("offers no clearing of what no person set", async () => {
+      await renderServer(
+        "/servers/srv_1",
+        behindNAT({
+          ipv4: create(PublicAddressSchema, { ...known, source: PublicAddressSource.LOOKED_UP, unproven: true }),
+          shape: NetworkShape.LOCAL_NAT,
+        }),
+      );
+      const network = await screen.findByRole("region", { name: "Network" });
+      await userEvent.click(within(network).getByRole("button", { name: "Change" }));
+      const sheet = await screen.findByRole("dialog", { name: "Set the public address of hz-1" });
+      expect(within(sheet).getByLabelText("Public address")).toHaveValue("");
+      expect(within(sheet).queryByRole("button", { name: "Clear" })).toBeNull();
+    });
+
+    it("says when nothing is known, and takes the address from a person", async () => {
+      const set = vi.fn(() => ({ server: hz1 }));
+      const watch = feed<WatchServersResponse>();
+      watch.push(changed(behindNAT({ shape: NetworkShape.CLOUD_NAT })), snapshotComplete);
+      renderAt("/servers/srv_1", { servers: { watchServers: watch.stream, setServerPublicAddress: set } });
+      const network = await screen.findByRole("region", { name: "Network" });
+      expect(network).toHaveTextContent("Public addressNot known");
+      expect(network).toHaveTextContent("ReachableNot checked");
+
+      await userEvent.click(within(network).getByRole("button", { name: "Set" }));
+      const sheet = await screen.findByRole("dialog", { name: "Set the public address of hz-1" });
+      await userEvent.click(within(sheet).getByRole("button", { name: "Set address" }));
+      expect(await within(sheet).findByText("Name the address, such as 203.0.113.7.")).toBeVisible();
+      expect(set).not.toHaveBeenCalled();
+
+      await userEvent.type(within(sheet).getByLabelText("Public address"), "203.0.113.50{Enter}");
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(set).toHaveBeenCalledOnce();
+      expect(set.mock.calls[0]?.at(0)).toMatchObject({ id: "srv_1", address: "203.0.113.50" });
+    });
+
+    it("says at the field why it refused an address", async () => {
+      const set = vi.fn(() => {
+        throw authError(Code.InvalidArgument, "invalid", "10.0.0.5 is private, so the internet can't reach it there.");
+      });
+      const watch = feed<WatchServersResponse>();
+      watch.push(changed(behindNAT({ shape: NetworkShape.CLOUD_NAT })), snapshotComplete);
+      renderAt("/servers/srv_1", { servers: { watchServers: watch.stream, setServerPublicAddress: set } });
+      const network = await screen.findByRole("region", { name: "Network" });
+      await userEvent.click(within(network).getByRole("button", { name: "Set" }));
+      const sheet = await screen.findByRole("dialog", { name: "Set the public address of hz-1" });
+      await userEvent.type(within(sheet).getByLabelText("Public address"), "10.0.0.5{Enter}");
+      expect(
+        await within(sheet).findByText("10.0.0.5 is private, so the internet can't reach it there."),
+      ).toBeVisible();
+      expect(screen.getByRole("dialog")).toBeVisible();
+    });
   });
 
   it("lists public addresses to copy, and private ones apart", async () => {

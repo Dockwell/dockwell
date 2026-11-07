@@ -1274,6 +1274,17 @@ message DomainCheck {
   repeated string found = 3;
   // The addresses the server has, which it compared them with.
   repeated string here = 4;
+  // The server's public addresses known beyond its interfaces, which are the
+  // ones to point a record at.
+  repeated string public_addresses = 5;
+  // Those of public_addresses nothing has shown to be a way in, so a record at
+  // one may not reach the server.
+  repeated string unproven_addresses = 6;
+  // The server is behind carrier-grade NAT with no way in known, so no record
+  // can reach it, and no forwarded port either. Only a tunnel can.
+  bool carrier_nat = 7;
+  // When DNS was read. Unset for a check from an agent from before this.
+  google.protobuf.Timestamp read_time = 8;
 }
 
 // DomainCheckState is whether a domain's DNS points at a server.

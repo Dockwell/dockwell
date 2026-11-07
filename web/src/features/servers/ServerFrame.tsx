@@ -10,6 +10,7 @@ import { RouterTabLink } from "../../lib/links";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
 import { Connecting, usePageReconnecting } from "./FleetNotes";
+import { publicAddressOf } from "./network";
 import { ServerAddress } from "./ServerAddress";
 import { primaryAddress, useServerWords } from "./server";
 import { useFleet, useFleetUnread } from "./useFleet";
@@ -85,7 +86,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
   const unread = useFleetUnread();
   const { up, phoneSub } = useServerWords(server);
   const inv = server.inventory;
-  const address = primaryAddress(inv?.addresses ?? []);
+  const address = publicAddressOf(server) ?? primaryAddress(inv?.addresses ?? []);
   // The hostname only when it says something the name and address don't.
   const hostname = inv?.hostname && inv.hostname !== server.name && inv.hostname !== address ? inv.hostname : "";
   const parts: { key: string; node: ReactNode }[] = [

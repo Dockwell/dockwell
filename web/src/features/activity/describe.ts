@@ -47,6 +47,20 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`${server} renewed its certificate`, icon: "server" };
         case "server.revoke":
           return { title: t`Removed ${server} from the fleet`, icon: "server", tone: "warning" };
+        case "server.public_address": {
+          const address = event.publicAddress?.address ?? "";
+          const previous = event.publicAddress?.previous ?? "";
+          return {
+            title: previous
+              ? t`Set the public address of ${server} to ${address}, which was ${previous}`
+              : t`Set the public address of ${server} to ${address}`,
+            icon: "server",
+          };
+        }
+        case "server.public_address_clear": {
+          const previous = event.publicAddress?.previous ?? "";
+          return { title: t`Cleared the public address of ${server}, which was ${previous}`, icon: "server" };
+        }
         case "file.read": {
           const path = event.subject?.path ?? "";
           return { title: t`Read ${path} on ${server}`, icon: "file" };

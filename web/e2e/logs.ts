@@ -24,6 +24,9 @@ import { parseArgs } from "node:util";
 
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 
+// A real binary asks nothing beyond this machine in a test.
+process.env["DOCKWELL_TEST"] = "1";
+
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: { shots: { type: "string" }, measure: { type: "boolean" } },
@@ -69,7 +72,12 @@ async function until<T>(
 }
 
 function env(): NodeJS.ProcessEnv {
-  return { ...process.env, DOCKWELL_DATA_DIR: data, DOCKWELL_LOG_FORMAT: "text", USER: "mira" };
+  return {
+    ...process.env,
+    DOCKWELL_DATA_DIR: data,
+    DOCKWELL_LOG_FORMAT: "text",
+    USER: "mira",
+  };
 }
 
 function dockwell(...args: string[]): string {

@@ -25,7 +25,7 @@ func run(t *testing.T, env map[string]string, args ...string) result {
 	code := Execute(t.Context(), args, IO{
 		Out:    &out,
 		Err:    &errOut,
-		Getenv: func(k string) string { return env[k] },
+		Getenv: quiet(func(k string) string { return env[k] }),
 	})
 	return result{code: code, out: out.String(), err: errOut.String()}
 }

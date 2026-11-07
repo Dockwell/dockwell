@@ -278,6 +278,44 @@ func testRenewRotatesKeysAndRefusesReplacedCertificates(t *testing.T, backend st
 	})
 }
 
+// A removed server's setting goes with it, as one row left behind that can't be read
+// must never be what a control plane trips on.
+func TestRevokingAServerDropsItsPublicAddress(t *testing.T) {
+	storetest.Each(t, testRevokingAServerDropsItsPublicAddress)
+}
+
+func testRevokingAServerDropsItsPublicAddress(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
+	joined, err := f.a.EnrollLocal(t.Context(), csr(t), "hz-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := []string{store.SettingPublicAddress(joined.Server.ID), store.SettingDomainProofs(joined.Server.ID)}
+	if err := f.db.Update(t.Context(), func(tx *store.Tx) error {
+		for _, key := range keys {
+			if err := tx.PutSetting(t.Context(), key, []byte(`{}`)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.a.Revoke(t.Context(), joined.Server.ID, "cli:test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.View(t.Context(), func(tx *store.Tx) error {
+		for _, key := range keys {
+			if got, err := tx.GetSetting(t.Context(), key); !errors.Is(err, store.ErrNotFound) {
+				t.Errorf("%s is still there: %q, %v", key, got, err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRevokedServersCantRenew(t *testing.T) { storetest.Each(t, testRevokedServersCantRenew) }
 
 func testRevokedServersCantRenew(t *testing.T, backend store.Backend) {

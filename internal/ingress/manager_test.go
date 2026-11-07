@@ -1425,7 +1425,7 @@ func TestDomainsReportEachStateAndRetryWhenDNSComesHere(t *testing.T) {
 	if len(list) != 1 || list[0].GetDomain() != "app.example.com" {
 		t.Fatalf("Domains = %v", list)
 	}
-	if c := list[0].GetCertificate(); c.GetState().String() != "CERTIFICATE_STATE_FAILED" || c.GetProblem().String() != "CERTIFICATE_PROBLEM_DNS" || !strings.Contains(c.GetMessage(), "Point an A or AAAA record") {
+	if c := list[0].GetCertificate(); c.GetState().String() != "CERTIFICATE_STATE_FAILED" || c.GetProblem().String() != "CERTIFICATE_PROBLEM_DNS" || !strings.Contains(c.GetMessage(), "Point an A record") {
 		t.Errorf("the certificate reads %v", c)
 	}
 	if s.proxy.retries != 0 {

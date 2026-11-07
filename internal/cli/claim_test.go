@@ -63,9 +63,9 @@ func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (
 	errOut := &syncBuffer{}
 	all := append([]string{"run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", dir, "--log-format", "json"}, args...)
 	go func() {
-		done <- Execute(ctx, all, IO{Out: out, Err: errOut, Getenv: func(k string) string {
+		done <- Execute(ctx, all, IO{Out: out, Err: errOut, Getenv: quiet(func(k string) string {
 			return map[string]string{"USER": "mira", "SSH_CONNECTION": "198.51.100.23 52000 203.0.113.7 22"}[k]
-		}, OutIsTerminal: func() bool { return terminal }})
+		}), OutIsTerminal: func() bool { return terminal }})
 	}()
 	stopped := false
 	stop = func() {

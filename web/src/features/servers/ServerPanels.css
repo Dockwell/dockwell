@@ -47,6 +47,18 @@
   flex: none;
 }
 
+.fact-copy .dw-btn {
+  flex: none;
+}
+
+/* What a fact rests on, under it. */
+.fact-note {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .fact-list {
   display: flex;
   flex-wrap: wrap;

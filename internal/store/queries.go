@@ -24,6 +24,20 @@ func (t *Tx) GetSetting(ctx context.Context, key string) ([]byte, error) {
 	return v, nil
 }
 
+// DeleteSetting removes a value. Removing one that isn't there is no error.
+func (t *Tx) DeleteSetting(ctx context.Context, key string) error {
+	if _, err := t.exec(ctx, `DELETE FROM settings WHERE key = ?`, key); err != nil {
+		return fmt.Errorf("can't delete setting %s: %w", key, err)
+	}
+	return nil
+}
+
+// SettingPublicAddress is the key of what a person set of a server's public address.
+func SettingPublicAddress(server string) string { return "server.public_address." + server }
+
+// SettingDomainProofs is the key of what a server's certificates proved of its domains.
+func SettingDomainProofs(server string) string { return "server.domain_proofs." + server }
+
 // PutSetting stores a singleton value, replacing any earlier one.
 func (t *Tx) PutSetting(ctx context.Context, key string, value []byte) error {
 	_, err := t.exec(ctx, `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)

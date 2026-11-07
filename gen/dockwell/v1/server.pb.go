@@ -82,6 +82,270 @@ func (Connection) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{0}
 }
 
+// NetworkShape is how a server meets the internet. It's read from what's on its
+// interfaces and whether a cloud's metadata service answers, and says nothing
+// of whether the internet can reach it.
+type NetworkShape int32
+
+const (
+	// Not known yet: its agent hasn't said what it has, or whether a metadata
+	// service answers.
+	NetworkShape_NETWORK_SHAPE_UNSPECIFIED NetworkShape = 0
+	// A public IPv4 address is on an interface.
+	NetworkShape_NETWORK_SHAPE_INTERNET NetworkShape = 1
+	// Private IPv4 interfaces on a machine that says it runs on a cloud: its
+	// public address is the provider's NAT.
+	NetworkShape_NETWORK_SHAPE_CLOUD_NAT NetworkShape = 2
+	// Private IPv4 interfaces, on a machine that names no cloud: likely a home or
+	// office network, behind a router. Reaching it needs a forwarded port or a
+	// tunnel.
+	NetworkShape_NETWORK_SHAPE_LOCAL_NAT NetworkShape = 3
+	// It reaches the internet from 100.64.0.0/10, so it's behind its provider's
+	// carrier-grade NAT, where a forwarded port can't work. Only a tunnel can.
+	NetworkShape_NETWORK_SHAPE_CARRIER_NAT NetworkShape = 4
+)
+
+// Enum value maps for NetworkShape.
+var (
+	NetworkShape_name = map[int32]string{
+		0: "NETWORK_SHAPE_UNSPECIFIED",
+		1: "NETWORK_SHAPE_INTERNET",
+		2: "NETWORK_SHAPE_CLOUD_NAT",
+		3: "NETWORK_SHAPE_LOCAL_NAT",
+		4: "NETWORK_SHAPE_CARRIER_NAT",
+	}
+	NetworkShape_value = map[string]int32{
+		"NETWORK_SHAPE_UNSPECIFIED": 0,
+		"NETWORK_SHAPE_INTERNET":    1,
+		"NETWORK_SHAPE_CLOUD_NAT":   2,
+		"NETWORK_SHAPE_LOCAL_NAT":   3,
+		"NETWORK_SHAPE_CARRIER_NAT": 4,
+	}
+)
+
+func (x NetworkShape) Enum() *NetworkShape {
+	p := new(NetworkShape)
+	*p = x
+	return p
+}
+
+func (x NetworkShape) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NetworkShape) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_server_proto_enumTypes[1].Descriptor()
+}
+
+func (NetworkShape) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_server_proto_enumTypes[1]
+}
+
+func (x NetworkShape) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NetworkShape.Descriptor instead.
+func (NetworkShape) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{1}
+}
+
+// PublicAddressSource is how Dockwell knows a server's public address. In the
+// order they win: a person, an interface, a domain, metadata the machine
+// confirms, what the control plane sees, metadata it doesn't, and a lookup.
+type PublicAddressSource int32
+
+const (
+	PublicAddressSource_PUBLIC_ADDRESS_SOURCE_UNSPECIFIED PublicAddressSource = 0
+	// A person set it.
+	PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON PublicAddressSource = 1
+	// It's on one of the server's interfaces.
+	PublicAddressSource_PUBLIC_ADDRESS_SOURCE_ON_INTERFACE PublicAddressSource = 2
+	// A certificate came for a domain whose one record points there, over
+	// HTTP-01 or TLS-ALPN, and a recent read of its DNS still says so.
+	PublicAddressSource_PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN PublicAddressSource = 3
+	// The control plane saw the agent connect from it. That's the server's way
+	// out, which may not be a way in.
+	PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE PublicAddressSource = 4
+	// A cloud provider's metadata service gave it. It's a way in only if the
+	// machine itself says it runs on that provider.
+	PublicAddressSource_PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA PublicAddressSource = 5
+	// A public STUN server said where the server's packets come from. That's
+	// its way out, and behind a router it's the router's shared address. It
+	// never says anything of a way in.
+	PublicAddressSource_PUBLIC_ADDRESS_SOURCE_LOOKED_UP PublicAddressSource = 6
+)
+
+// Enum value maps for PublicAddressSource.
+var (
+	PublicAddressSource_name = map[int32]string{
+		0: "PUBLIC_ADDRESS_SOURCE_UNSPECIFIED",
+		1: "PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON",
+		2: "PUBLIC_ADDRESS_SOURCE_ON_INTERFACE",
+		3: "PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN",
+		4: "PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE",
+		5: "PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA",
+		6: "PUBLIC_ADDRESS_SOURCE_LOOKED_UP",
+	}
+	PublicAddressSource_value = map[string]int32{
+		"PUBLIC_ADDRESS_SOURCE_UNSPECIFIED":           0,
+		"PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON":         1,
+		"PUBLIC_ADDRESS_SOURCE_ON_INTERFACE":          2,
+		"PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN":      3,
+		"PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE": 4,
+		"PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA":        5,
+		"PUBLIC_ADDRESS_SOURCE_LOOKED_UP":             6,
+	}
+)
+
+func (x PublicAddressSource) Enum() *PublicAddressSource {
+	p := new(PublicAddressSource)
+	*p = x
+	return p
+}
+
+func (x PublicAddressSource) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PublicAddressSource) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_server_proto_enumTypes[2].Descriptor()
+}
+
+func (PublicAddressSource) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_server_proto_enumTypes[2]
+}
+
+func (x PublicAddressSource) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PublicAddressSource.Descriptor instead.
+func (PublicAddressSource) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{2}
+}
+
+// Reachable is whether the internet can reach a server. It's never a guess:
+// anything short of proof is REACHABLE_NOT_CHECKED.
+type Reachable int32
+
+const (
+	Reachable_REACHABLE_UNSPECIFIED Reachable = 0
+	// Nothing has tried, so nobody can say.
+	Reachable_REACHABLE_NOT_CHECKED Reachable = 1
+	// A certificate came over HTTP-01 or TLS-ALPN for a domain whose record
+	// points at its public address.
+	Reachable_REACHABLE_YES Reachable = 2
+	// The certificate authority couldn't connect for a domain whose record
+	// points at its public address.
+	Reachable_REACHABLE_NO Reachable = 3
+)
+
+// Enum value maps for Reachable.
+var (
+	Reachable_name = map[int32]string{
+		0: "REACHABLE_UNSPECIFIED",
+		1: "REACHABLE_NOT_CHECKED",
+		2: "REACHABLE_YES",
+		3: "REACHABLE_NO",
+	}
+	Reachable_value = map[string]int32{
+		"REACHABLE_UNSPECIFIED": 0,
+		"REACHABLE_NOT_CHECKED": 1,
+		"REACHABLE_YES":         2,
+		"REACHABLE_NO":          3,
+	}
+)
+
+func (x Reachable) Enum() *Reachable {
+	p := new(Reachable)
+	*p = x
+	return p
+}
+
+func (x Reachable) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Reachable) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_server_proto_enumTypes[3].Descriptor()
+}
+
+func (Reachable) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_server_proto_enumTypes[3]
+}
+
+func (x Reachable) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Reachable.Descriptor instead.
+func (Reachable) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{3}
+}
+
+// CloudProvider is a cloud provider whose metadata service an agent can read.
+type CloudProvider int32
+
+const (
+	CloudProvider_CLOUD_PROVIDER_UNSPECIFIED  CloudProvider = 0
+	CloudProvider_CLOUD_PROVIDER_AWS          CloudProvider = 1
+	CloudProvider_CLOUD_PROVIDER_GCP          CloudProvider = 2
+	CloudProvider_CLOUD_PROVIDER_AZURE        CloudProvider = 3
+	CloudProvider_CLOUD_PROVIDER_DIGITALOCEAN CloudProvider = 4
+	CloudProvider_CLOUD_PROVIDER_HETZNER      CloudProvider = 5
+	CloudProvider_CLOUD_PROVIDER_ORACLE       CloudProvider = 6
+)
+
+// Enum value maps for CloudProvider.
+var (
+	CloudProvider_name = map[int32]string{
+		0: "CLOUD_PROVIDER_UNSPECIFIED",
+		1: "CLOUD_PROVIDER_AWS",
+		2: "CLOUD_PROVIDER_GCP",
+		3: "CLOUD_PROVIDER_AZURE",
+		4: "CLOUD_PROVIDER_DIGITALOCEAN",
+		5: "CLOUD_PROVIDER_HETZNER",
+		6: "CLOUD_PROVIDER_ORACLE",
+	}
+	CloudProvider_value = map[string]int32{
+		"CLOUD_PROVIDER_UNSPECIFIED":  0,
+		"CLOUD_PROVIDER_AWS":          1,
+		"CLOUD_PROVIDER_GCP":          2,
+		"CLOUD_PROVIDER_AZURE":        3,
+		"CLOUD_PROVIDER_DIGITALOCEAN": 4,
+		"CLOUD_PROVIDER_HETZNER":      5,
+		"CLOUD_PROVIDER_ORACLE":       6,
+	}
+)
+
+func (x CloudProvider) Enum() *CloudProvider {
+	p := new(CloudProvider)
+	*p = x
+	return p
+}
+
+func (x CloudProvider) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CloudProvider) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_server_proto_enumTypes[4].Descriptor()
+}
+
+func (CloudProvider) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_server_proto_enumTypes[4]
+}
+
+func (x CloudProvider) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CloudProvider.Descriptor instead.
+func (CloudProvider) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{4}
+}
+
 // ListServersRequest takes no parameters yet.
 type ListServersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -257,6 +521,117 @@ func (x *GetServerResponse) GetServer() *Server {
 	return nil
 }
 
+// SetServerPublicAddressRequest says what a server's public address is.
+type SetServerPublicAddressRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// A public IP address, or empty to clear what a person set.
+	Address string `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	// With an empty address, clears the IPv6 address a person set, not the IPv4
+	// one. A person's addresses are kept apart, as DNS records are.
+	Ipv6          bool `protobuf:"varint,3,opt,name=ipv6,proto3" json:"ipv6,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetServerPublicAddressRequest) Reset() {
+	*x = SetServerPublicAddressRequest{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetServerPublicAddressRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetServerPublicAddressRequest) ProtoMessage() {}
+
+func (x *SetServerPublicAddressRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetServerPublicAddressRequest.ProtoReflect.Descriptor instead.
+func (*SetServerPublicAddressRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SetServerPublicAddressRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SetServerPublicAddressRequest) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *SetServerPublicAddressRequest) GetIpv6() bool {
+	if x != nil {
+		return x.Ipv6
+	}
+	return false
+}
+
+// SetServerPublicAddressResponse carries the server as it now reads.
+type SetServerPublicAddressResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server, without history.
+	Server        *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetServerPublicAddressResponse) Reset() {
+	*x = SetServerPublicAddressResponse{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetServerPublicAddressResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetServerPublicAddressResponse) ProtoMessage() {}
+
+func (x *SetServerPublicAddressResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetServerPublicAddressResponse.ProtoReflect.Descriptor instead.
+func (*SetServerPublicAddressResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SetServerPublicAddressResponse) GetServer() *Server {
+	if x != nil {
+		return x.Server
+	}
+	return nil
+}
+
 // WatchServersRequest takes no parameters yet.
 type WatchServersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -266,7 +641,7 @@ type WatchServersRequest struct {
 
 func (x *WatchServersRequest) Reset() {
 	*x = WatchServersRequest{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[4]
+	mi := &file_dockwell_v1_server_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -278,7 +653,7 @@ func (x *WatchServersRequest) String() string {
 func (*WatchServersRequest) ProtoMessage() {}
 
 func (x *WatchServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[4]
+	mi := &file_dockwell_v1_server_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -291,7 +666,7 @@ func (x *WatchServersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchServersRequest.ProtoReflect.Descriptor instead.
 func (*WatchServersRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{6}
 }
 
 // WatchServersResponse is one step of a watch: a server's latest state, or
@@ -320,7 +695,7 @@ type WatchServersResponse struct {
 
 func (x *WatchServersResponse) Reset() {
 	*x = WatchServersResponse{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[5]
+	mi := &file_dockwell_v1_server_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -332,7 +707,7 @@ func (x *WatchServersResponse) String() string {
 func (*WatchServersResponse) ProtoMessage() {}
 
 func (x *WatchServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[5]
+	mi := &file_dockwell_v1_server_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -345,7 +720,7 @@ func (x *WatchServersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchServersResponse.ProtoReflect.Descriptor instead.
 func (*WatchServersResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *WatchServersResponse) GetServer() *Server {
@@ -412,13 +787,16 @@ type Server struct {
 	// can say how what runs there is until it can. Unset while it can, and for a
 	// server that isn't connected.
 	DockerUnreadableSince *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=docker_unreadable_since,json=dockerUnreadableSince,proto3" json:"docker_unreadable_since,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// How the server meets the internet, as far as that's known. The addresses
+	// on its own interfaces are in its inventory.
+	Network       *ServerNetwork `protobuf:"bytes,14,opt,name=network,proto3" json:"network,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
 	*x = Server{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[6]
+	mi := &file_dockwell_v1_server_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -430,7 +808,7 @@ func (x *Server) String() string {
 func (*Server) ProtoMessage() {}
 
 func (x *Server) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[6]
+	mi := &file_dockwell_v1_server_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -443,7 +821,7 @@ func (x *Server) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server.ProtoReflect.Descriptor instead.
 func (*Server) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Server) GetId() string {
@@ -537,6 +915,212 @@ func (x *Server) GetDockerUnreadableSince() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Server) GetNetwork() *ServerNetwork {
+	if x != nil {
+		return x.Network
+	}
+	return nil
+}
+
+// ServerNetwork is what's known of a server beyond its own interfaces. Its
+// public address and whether the internet can reach it are separate facts: an
+// address can be known and nothing proved of it. IPv4 and IPv6 are picked apart,
+// as a server's A and AAAA records go to different places. See
+// docs/adr/0034-a-servers-public-address.md.
+type ServerNetwork struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its public IPv4 address. Unset when nothing says.
+	Ipv4 *PublicAddress `protobuf:"bytes,1,opt,name=ipv4,proto3" json:"ipv4,omitempty"`
+	// Its public IPv6 address. Unset when nothing says.
+	Ipv6 *PublicAddress `protobuf:"bytes,2,opt,name=ipv6,proto3" json:"ipv6,omitempty"`
+	// Whether the internet can reach the server at either.
+	Reachable Reachable `protobuf:"varint,3,opt,name=reachable,proto3,enum=dockwell.v1.Reachable" json:"reachable,omitempty"`
+	// The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
+	ReachableDomain string `protobuf:"bytes,4,opt,name=reachable_domain,json=reachableDomain,proto3" json:"reachable_domain,omitempty"`
+	// When that domain's DNS was last read, so what's shown is as of then.
+	ReachableTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=reachable_time,json=reachableTime,proto3" json:"reachable_time,omitempty"`
+	// The cloud provider the machine itself says it runs on, from its firmware's
+	// tables. A metadata service answering doesn't say so on its own.
+	Provider CloudProvider `protobuf:"varint,6,opt,name=provider,proto3,enum=dockwell.v1.CloudProvider" json:"provider,omitempty"`
+	// Which of the shapes a server comes in this one has, as far as can be told.
+	Shape         NetworkShape `protobuf:"varint,7,opt,name=shape,proto3,enum=dockwell.v1.NetworkShape" json:"shape,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ServerNetwork) Reset() {
+	*x = ServerNetwork{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServerNetwork) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServerNetwork) ProtoMessage() {}
+
+func (x *ServerNetwork) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServerNetwork.ProtoReflect.Descriptor instead.
+func (*ServerNetwork) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ServerNetwork) GetIpv4() *PublicAddress {
+	if x != nil {
+		return x.Ipv4
+	}
+	return nil
+}
+
+func (x *ServerNetwork) GetIpv6() *PublicAddress {
+	if x != nil {
+		return x.Ipv6
+	}
+	return nil
+}
+
+func (x *ServerNetwork) GetReachable() Reachable {
+	if x != nil {
+		return x.Reachable
+	}
+	return Reachable_REACHABLE_UNSPECIFIED
+}
+
+func (x *ServerNetwork) GetReachableDomain() string {
+	if x != nil {
+		return x.ReachableDomain
+	}
+	return ""
+}
+
+func (x *ServerNetwork) GetReachableTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ReachableTime
+	}
+	return nil
+}
+
+func (x *ServerNetwork) GetProvider() CloudProvider {
+	if x != nil {
+		return x.Provider
+	}
+	return CloudProvider_CLOUD_PROVIDER_UNSPECIFIED
+}
+
+func (x *ServerNetwork) GetShape() NetworkShape {
+	if x != nil {
+		return x.Shape
+	}
+	return NetworkShape_NETWORK_SHAPE_UNSPECIFIED
+}
+
+// PublicAddress is what's known of one public address of a server.
+type PublicAddress struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The address the internet knows the server by.
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// How that's known.
+	Source PublicAddressSource `protobuf:"varint,2,opt,name=source,proto3,enum=dockwell.v1.PublicAddressSource" json:"source,omitempty"`
+	// When Dockwell came to know it that way. For a domain's, that's when its DNS
+	// was last read.
+	KnownTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=known_time,json=knownTime,proto3" json:"known_time,omitempty"`
+	// The domain whose certificate proved it, for
+	// PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN.
+	Domain string `protobuf:"bytes,4,opt,name=domain,proto3" json:"domain,omitempty"`
+	// Who set it, for PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON.
+	SetBy *Actor `protobuf:"bytes,5,opt,name=set_by,json=setBy,proto3" json:"set_by,omitempty"`
+	// True when nothing shows the address is a way in, so it's named only with a
+	// caveat: a way out, or a metadata service the machine doesn't confirm.
+	Unproven      bool `protobuf:"varint,6,opt,name=unproven,proto3" json:"unproven,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublicAddress) Reset() {
+	*x = PublicAddress{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublicAddress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublicAddress) ProtoMessage() {}
+
+func (x *PublicAddress) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublicAddress.ProtoReflect.Descriptor instead.
+func (*PublicAddress) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *PublicAddress) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *PublicAddress) GetSource() PublicAddressSource {
+	if x != nil {
+		return x.Source
+	}
+	return PublicAddressSource_PUBLIC_ADDRESS_SOURCE_UNSPECIFIED
+}
+
+func (x *PublicAddress) GetKnownTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.KnownTime
+	}
+	return nil
+}
+
+func (x *PublicAddress) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *PublicAddress) GetSetBy() *Actor {
+	if x != nil {
+		return x.SetBy
+	}
+	return nil
+}
+
+func (x *PublicAddress) GetUnproven() bool {
+	if x != nil {
+		return x.Unproven
+	}
+	return false
+}
+
 // ServerInventory is what a server is: its system and hardware.
 type ServerInventory struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -568,13 +1152,16 @@ type ServerInventory struct {
 	// The logging driver Docker uses by default, such as "json-file". Empty
 	// when Docker isn't running.
 	DockerLogDriver string `protobuf:"bytes,13,opt,name=docker_log_driver,json=dockerLogDriver,proto3" json:"docker_log_driver,omitempty"`
+	// The address its route to the internet leaves from. Empty when it has no
+	// such route, or from an agent from before this.
+	OutboundAddress string `protobuf:"bytes,14,opt,name=outbound_address,json=outboundAddress,proto3" json:"outbound_address,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ServerInventory) Reset() {
 	*x = ServerInventory{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[7]
+	mi := &file_dockwell_v1_server_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -586,7 +1173,7 @@ func (x *ServerInventory) String() string {
 func (*ServerInventory) ProtoMessage() {}
 
 func (x *ServerInventory) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[7]
+	mi := &file_dockwell_v1_server_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -599,7 +1186,7 @@ func (x *ServerInventory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInventory.ProtoReflect.Descriptor instead.
 func (*ServerInventory) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ServerInventory) GetHostname() string {
@@ -693,6 +1280,13 @@ func (x *ServerInventory) GetDockerLogDriver() string {
 	return ""
 }
 
+func (x *ServerInventory) GetOutboundAddress() string {
+	if x != nil {
+		return x.OutboundAddress
+	}
+	return ""
+}
+
 // Disk is one mounted filesystem.
 type Disk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -710,7 +1304,7 @@ type Disk struct {
 
 func (x *Disk) Reset() {
 	*x = Disk{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[8]
+	mi := &file_dockwell_v1_server_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -722,7 +1316,7 @@ func (x *Disk) String() string {
 func (*Disk) ProtoMessage() {}
 
 func (x *Disk) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[8]
+	mi := &file_dockwell_v1_server_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -735,7 +1329,7 @@ func (x *Disk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Disk.ProtoReflect.Descriptor instead.
 func (*Disk) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Disk) GetMountPoint() string {
@@ -797,7 +1391,7 @@ type ServerStats struct {
 
 func (x *ServerStats) Reset() {
 	*x = ServerStats{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[9]
+	mi := &file_dockwell_v1_server_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -809,7 +1403,7 @@ func (x *ServerStats) String() string {
 func (*ServerStats) ProtoMessage() {}
 
 func (x *ServerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[9]
+	mi := &file_dockwell_v1_server_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -822,7 +1416,7 @@ func (x *ServerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerStats.ProtoReflect.Descriptor instead.
 func (*ServerStats) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ServerStats) GetTime() *timestamppb.Timestamp {
@@ -917,7 +1511,7 @@ type DiskUsage struct {
 
 func (x *DiskUsage) Reset() {
 	*x = DiskUsage{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[10]
+	mi := &file_dockwell_v1_server_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -929,7 +1523,7 @@ func (x *DiskUsage) String() string {
 func (*DiskUsage) ProtoMessage() {}
 
 func (x *DiskUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[10]
+	mi := &file_dockwell_v1_server_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -942,7 +1536,7 @@ func (x *DiskUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskUsage.ProtoReflect.Descriptor instead.
 func (*DiskUsage) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DiskUsage) GetMountPoint() string {
@@ -970,20 +1564,26 @@ var File_dockwell_v1_server_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/server.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/domain.proto\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
+	"\x18dockwell/v1/server.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x18dockwell/v1/domain.proto\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
 	"\x12ListServersRequest\"D\n" +
 	"\x13ListServersResponse\x12-\n" +
 	"\aservers\x18\x01 \x03(\v2\x13.dockwell.v1.ServerR\aservers\"\"\n" +
 	"\x10GetServerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"@\n" +
 	"\x11GetServerResponse\x12+\n" +
+	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\"]\n" +
+	"\x1dSetServerPublicAddressRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x12\n" +
+	"\x04ipv6\x18\x03 \x01(\bR\x04ipv6\"M\n" +
+	"\x1eSetServerPublicAddressResponse\x12+\n" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\"\x15\n" +
 	"\x13WatchServersRequest\"\xa8\x01\n" +
 	"\x14WatchServersResponse\x12+\n" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\x12\x18\n" +
 	"\aremoved\x18\x02 \x01(\bR\aremoved\x12+\n" +
 	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\x12\x1c\n" +
-	"\theartbeat\x18\x04 \x01(\bR\theartbeat\"\xad\x05\n" +
+	"\theartbeat\x18\x04 \x01(\bR\theartbeat\"\xe3\x05\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
@@ -1002,7 +1602,24 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	" \x01(\bR\rcontrolServer\x12=\n" +
 	"\fconnect_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vconnectTime\x124\n" +
 	"\aingress\x18\f \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\x12R\n" +
-	"\x17docker_unreadable_since\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\x15dockerUnreadableSince\"\xad\x03\n" +
+	"\x17docker_unreadable_since\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\x15dockerUnreadableSince\x124\n" +
+	"\anetwork\x18\x0e \x01(\v2\x1a.dockwell.v1.ServerNetworkR\anetwork\"\xfc\x02\n" +
+	"\rServerNetwork\x12.\n" +
+	"\x04ipv4\x18\x01 \x01(\v2\x1a.dockwell.v1.PublicAddressR\x04ipv4\x12.\n" +
+	"\x04ipv6\x18\x02 \x01(\v2\x1a.dockwell.v1.PublicAddressR\x04ipv6\x124\n" +
+	"\treachable\x18\x03 \x01(\x0e2\x16.dockwell.v1.ReachableR\treachable\x12)\n" +
+	"\x10reachable_domain\x18\x04 \x01(\tR\x0freachableDomain\x12A\n" +
+	"\x0ereachable_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\rreachableTime\x126\n" +
+	"\bprovider\x18\x06 \x01(\x0e2\x1a.dockwell.v1.CloudProviderR\bprovider\x12/\n" +
+	"\x05shape\x18\a \x01(\x0e2\x19.dockwell.v1.NetworkShapeR\x05shape\"\xfd\x01\n" +
+	"\rPublicAddress\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x128\n" +
+	"\x06source\x18\x02 \x01(\x0e2 .dockwell.v1.PublicAddressSourceR\x06source\x129\n" +
+	"\n" +
+	"known_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tknownTime\x12\x16\n" +
+	"\x06domain\x18\x04 \x01(\tR\x06domain\x12)\n" +
+	"\x06set_by\x18\x05 \x01(\v2\x12.dockwell.v1.ActorR\x05setBy\x12\x1a\n" +
+	"\bunproven\x18\x06 \x01(\bR\bunproven\"\xd8\x03\n" +
 	"\x0fServerInventory\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
 	"\aos_name\x18\x02 \x01(\tR\x06osName\x12\x13\n" +
@@ -1018,7 +1635,8 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	" \x03(\v2\x11.dockwell.v1.DiskR\x05disks\x12%\n" +
 	"\x0edocker_version\x18\v \x01(\tR\rdockerVersion\x12\x1c\n" +
 	"\taddresses\x18\f \x03(\tR\taddresses\x12*\n" +
-	"\x11docker_log_driver\x18\r \x01(\tR\x0fdockerLogDriver\"~\n" +
+	"\x11docker_log_driver\x18\r \x01(\tR\x0fdockerLogDriver\x12)\n" +
+	"\x10outbound_address\x18\x0e \x01(\tR\x0foutboundAddress\"~\n" +
 	"\x04Disk\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x16\n" +
@@ -1054,11 +1672,39 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x16CONNECTION_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CONNECTION_CONNECTED\x10\x01\x12\x1a\n" +
 	"\x16CONNECTION_UNREACHABLE\x10\x02\x12\x16\n" +
-	"\x12CONNECTION_PENDING\x10\x032\xc7\x02\n" +
+	"\x12CONNECTION_PENDING\x10\x03*\xa2\x01\n" +
+	"\fNetworkShape\x12\x1d\n" +
+	"\x19NETWORK_SHAPE_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16NETWORK_SHAPE_INTERNET\x10\x01\x12\x1b\n" +
+	"\x17NETWORK_SHAPE_CLOUD_NAT\x10\x02\x12\x1b\n" +
+	"\x17NETWORK_SHAPE_LOCAL_NAT\x10\x03\x12\x1d\n" +
+	"\x19NETWORK_SHAPE_CARRIER_NAT\x10\x04*\xb9\x02\n" +
+	"\x13PublicAddressSource\x12%\n" +
+	"!PUBLIC_ADDRESS_SOURCE_UNSPECIFIED\x10\x00\x12'\n" +
+	"#PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON\x10\x01\x12&\n" +
+	"\"PUBLIC_ADDRESS_SOURCE_ON_INTERFACE\x10\x02\x12*\n" +
+	"&PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN\x10\x03\x12/\n" +
+	"+PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE\x10\x04\x12(\n" +
+	"$PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA\x10\x05\x12#\n" +
+	"\x1fPUBLIC_ADDRESS_SOURCE_LOOKED_UP\x10\x06*f\n" +
+	"\tReachable\x12\x19\n" +
+	"\x15REACHABLE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15REACHABLE_NOT_CHECKED\x10\x01\x12\x11\n" +
+	"\rREACHABLE_YES\x10\x02\x12\x10\n" +
+	"\fREACHABLE_NO\x10\x03*\xd1\x01\n" +
+	"\rCloudProvider\x12\x1e\n" +
+	"\x1aCLOUD_PROVIDER_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12CLOUD_PROVIDER_AWS\x10\x01\x12\x16\n" +
+	"\x12CLOUD_PROVIDER_GCP\x10\x02\x12\x18\n" +
+	"\x14CLOUD_PROVIDER_AZURE\x10\x03\x12\x1f\n" +
+	"\x1bCLOUD_PROVIDER_DIGITALOCEAN\x10\x04\x12\x1a\n" +
+	"\x16CLOUD_PROVIDER_HETZNER\x10\x05\x12\x19\n" +
+	"\x15CLOUD_PROVIDER_ORACLE\x10\x062\x85\x04\n" +
 	"\rServerService\x12l\n" +
 	"\vListServers\x12\x1f.dockwell.v1.ListServersRequest\x1a .dockwell.v1.ListServersResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/servers\x90\x02\x01\x12k\n" +
 	"\tGetServer\x12\x1d.dockwell.v1.GetServerRequest\x1a\x1e.dockwell.v1.GetServerResponse\"\x1f\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/servers/{id}\x90\x02\x01\x12[\n" +
-	"\fWatchServers\x12 .dockwell.v1.WatchServersRequest\x1a!.dockwell.v1.WatchServersResponse\"\x04\xa0\xbb\x18\x010\x01B\xa4\x01\n" +
+	"\fWatchServers\x12 .dockwell.v1.WatchServersRequest\x1a!.dockwell.v1.WatchServersResponse\"\x04\xa0\xbb\x18\x010\x01\x12\xbb\x01\n" +
+	"\x16SetServerPublicAddress\x12*.dockwell.v1.SetServerPublicAddressRequest\x1a+.dockwell.v1.SetServerPublicAddressResponse\"H\xa0\xbb\x18\x03\xaa\xbb\x18\x14\x12\x12set-public-address\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/servers/{id}:setPublicAddressB\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vServerProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -1073,55 +1719,77 @@ func file_dockwell_v1_server_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_server_proto_rawDescData
 }
 
-var file_dockwell_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_dockwell_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_dockwell_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_dockwell_v1_server_proto_goTypes = []any{
-	(Connection)(0),               // 0: dockwell.v1.Connection
-	(*ListServersRequest)(nil),    // 1: dockwell.v1.ListServersRequest
-	(*ListServersResponse)(nil),   // 2: dockwell.v1.ListServersResponse
-	(*GetServerRequest)(nil),      // 3: dockwell.v1.GetServerRequest
-	(*GetServerResponse)(nil),     // 4: dockwell.v1.GetServerResponse
-	(*WatchServersRequest)(nil),   // 5: dockwell.v1.WatchServersRequest
-	(*WatchServersResponse)(nil),  // 6: dockwell.v1.WatchServersResponse
-	(*Server)(nil),                // 7: dockwell.v1.Server
-	(*ServerInventory)(nil),       // 8: dockwell.v1.ServerInventory
-	(*Disk)(nil),                  // 9: dockwell.v1.Disk
-	(*ServerStats)(nil),           // 10: dockwell.v1.ServerStats
-	(*DiskUsage)(nil),             // 11: dockwell.v1.DiskUsage
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
-	(*BuildInfo)(nil),             // 13: dockwell.v1.BuildInfo
-	(*IngressStatus)(nil),         // 14: dockwell.v1.IngressStatus
-	(*durationpb.Duration)(nil),   // 15: google.protobuf.Duration
+	(Connection)(0),                        // 0: dockwell.v1.Connection
+	(NetworkShape)(0),                      // 1: dockwell.v1.NetworkShape
+	(PublicAddressSource)(0),               // 2: dockwell.v1.PublicAddressSource
+	(Reachable)(0),                         // 3: dockwell.v1.Reachable
+	(CloudProvider)(0),                     // 4: dockwell.v1.CloudProvider
+	(*ListServersRequest)(nil),             // 5: dockwell.v1.ListServersRequest
+	(*ListServersResponse)(nil),            // 6: dockwell.v1.ListServersResponse
+	(*GetServerRequest)(nil),               // 7: dockwell.v1.GetServerRequest
+	(*GetServerResponse)(nil),              // 8: dockwell.v1.GetServerResponse
+	(*SetServerPublicAddressRequest)(nil),  // 9: dockwell.v1.SetServerPublicAddressRequest
+	(*SetServerPublicAddressResponse)(nil), // 10: dockwell.v1.SetServerPublicAddressResponse
+	(*WatchServersRequest)(nil),            // 11: dockwell.v1.WatchServersRequest
+	(*WatchServersResponse)(nil),           // 12: dockwell.v1.WatchServersResponse
+	(*Server)(nil),                         // 13: dockwell.v1.Server
+	(*ServerNetwork)(nil),                  // 14: dockwell.v1.ServerNetwork
+	(*PublicAddress)(nil),                  // 15: dockwell.v1.PublicAddress
+	(*ServerInventory)(nil),                // 16: dockwell.v1.ServerInventory
+	(*Disk)(nil),                           // 17: dockwell.v1.Disk
+	(*ServerStats)(nil),                    // 18: dockwell.v1.ServerStats
+	(*DiskUsage)(nil),                      // 19: dockwell.v1.DiskUsage
+	(*timestamppb.Timestamp)(nil),          // 20: google.protobuf.Timestamp
+	(*BuildInfo)(nil),                      // 21: dockwell.v1.BuildInfo
+	(*IngressStatus)(nil),                  // 22: dockwell.v1.IngressStatus
+	(*Actor)(nil),                          // 23: dockwell.v1.Actor
+	(*durationpb.Duration)(nil),            // 24: google.protobuf.Duration
 }
 var file_dockwell_v1_server_proto_depIdxs = []int32{
-	7,  // 0: dockwell.v1.ListServersResponse.servers:type_name -> dockwell.v1.Server
-	7,  // 1: dockwell.v1.GetServerResponse.server:type_name -> dockwell.v1.Server
-	7,  // 2: dockwell.v1.WatchServersResponse.server:type_name -> dockwell.v1.Server
-	12, // 3: dockwell.v1.Server.create_time:type_name -> google.protobuf.Timestamp
-	0,  // 4: dockwell.v1.Server.connection:type_name -> dockwell.v1.Connection
-	12, // 5: dockwell.v1.Server.last_seen_time:type_name -> google.protobuf.Timestamp
-	8,  // 6: dockwell.v1.Server.inventory:type_name -> dockwell.v1.ServerInventory
-	10, // 7: dockwell.v1.Server.stats:type_name -> dockwell.v1.ServerStats
-	10, // 8: dockwell.v1.Server.history:type_name -> dockwell.v1.ServerStats
-	13, // 9: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
-	12, // 10: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
-	14, // 11: dockwell.v1.Server.ingress:type_name -> dockwell.v1.IngressStatus
-	12, // 12: dockwell.v1.Server.docker_unreadable_since:type_name -> google.protobuf.Timestamp
-	9,  // 13: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
-	12, // 14: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
-	11, // 15: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
-	15, // 16: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
-	1,  // 17: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
-	3,  // 18: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
-	5,  // 19: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
-	2,  // 20: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
-	4,  // 21: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
-	6,  // 22: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
-	20, // [20:23] is the sub-list for method output_type
-	17, // [17:20] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	13, // 0: dockwell.v1.ListServersResponse.servers:type_name -> dockwell.v1.Server
+	13, // 1: dockwell.v1.GetServerResponse.server:type_name -> dockwell.v1.Server
+	13, // 2: dockwell.v1.SetServerPublicAddressResponse.server:type_name -> dockwell.v1.Server
+	13, // 3: dockwell.v1.WatchServersResponse.server:type_name -> dockwell.v1.Server
+	20, // 4: dockwell.v1.Server.create_time:type_name -> google.protobuf.Timestamp
+	0,  // 5: dockwell.v1.Server.connection:type_name -> dockwell.v1.Connection
+	20, // 6: dockwell.v1.Server.last_seen_time:type_name -> google.protobuf.Timestamp
+	16, // 7: dockwell.v1.Server.inventory:type_name -> dockwell.v1.ServerInventory
+	18, // 8: dockwell.v1.Server.stats:type_name -> dockwell.v1.ServerStats
+	18, // 9: dockwell.v1.Server.history:type_name -> dockwell.v1.ServerStats
+	21, // 10: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
+	20, // 11: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
+	22, // 12: dockwell.v1.Server.ingress:type_name -> dockwell.v1.IngressStatus
+	20, // 13: dockwell.v1.Server.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	14, // 14: dockwell.v1.Server.network:type_name -> dockwell.v1.ServerNetwork
+	15, // 15: dockwell.v1.ServerNetwork.ipv4:type_name -> dockwell.v1.PublicAddress
+	15, // 16: dockwell.v1.ServerNetwork.ipv6:type_name -> dockwell.v1.PublicAddress
+	3,  // 17: dockwell.v1.ServerNetwork.reachable:type_name -> dockwell.v1.Reachable
+	20, // 18: dockwell.v1.ServerNetwork.reachable_time:type_name -> google.protobuf.Timestamp
+	4,  // 19: dockwell.v1.ServerNetwork.provider:type_name -> dockwell.v1.CloudProvider
+	1,  // 20: dockwell.v1.ServerNetwork.shape:type_name -> dockwell.v1.NetworkShape
+	2,  // 21: dockwell.v1.PublicAddress.source:type_name -> dockwell.v1.PublicAddressSource
+	20, // 22: dockwell.v1.PublicAddress.known_time:type_name -> google.protobuf.Timestamp
+	23, // 23: dockwell.v1.PublicAddress.set_by:type_name -> dockwell.v1.Actor
+	17, // 24: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
+	20, // 25: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
+	19, // 26: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
+	24, // 27: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
+	5,  // 28: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
+	7,  // 29: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
+	11, // 30: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
+	9,  // 31: dockwell.v1.ServerService.SetServerPublicAddress:input_type -> dockwell.v1.SetServerPublicAddressRequest
+	6,  // 32: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
+	8,  // 33: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
+	12, // 34: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
+	10, // 35: dockwell.v1.ServerService.SetServerPublicAddress:output_type -> dockwell.v1.SetServerPublicAddressResponse
+	32, // [32:36] is the sub-list for method output_type
+	28, // [28:32] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_server_proto_init() }
@@ -1129,6 +1797,7 @@ func file_dockwell_v1_server_proto_init() {
 	if File_dockwell_v1_server_proto != nil {
 		return
 	}
+	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_domain_proto_init()
 	file_dockwell_v1_options_proto_init()
 	file_dockwell_v1_system_proto_init()
@@ -1137,8 +1806,8 @@ func file_dockwell_v1_server_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_server_proto_rawDesc), len(file_dockwell_v1_server_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   11,
+			NumEnums:      5,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

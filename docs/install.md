@@ -268,6 +268,8 @@ The control plane keeps its state in SQLite, in `/var/lib/dockwell/control/state
 - Commands you run beside the control plane, such as `dockwell claim`, `dockwell recover` and `dockwell token create`, need the same `DOCKWELL_DATABASE` in your shell. `sudo` leaves it out, so pass it through: `sudo --preserve-env=DOCKWELL_DATABASE dockwell claim`.
 - Moving an install that has started on SQLite to Postgres isn't supported yet. `dockwell run` refuses to start that way, rather than begin a second install that your servers wouldn't recognize, and it also refuses when `DOCKWELL_DATABASE` goes missing from an install on Postgres.
 
+To find its public address when it's on no interface, a server with no public IPv4 address of its own sends one small STUN request over UDP to a public server, `stun.cloudflare.com`, or `stun.l.google.com` if that doesn't answer, as it first connects and every 6 hours. It holds nothing but a random ID, and what it finds is how the server goes out, never proof the internet can come in. To turn it off, add `Environment=DOCKWELL_NO_STUN=1` with `systemctl edit dockwell`, or `export DOCKWELL_NO_STUN=1` in `/etc/conf.d/dockwell` on OpenRC, then restart the service. `dockwell run --no-stun` does the same. The first lookup runs as the service first starts, before you can set this. [The threat model](security/public-address.md) says what's sent and to whom, and you can always set the address yourself, under Network on the server's page.
+
 `dockwell run --help` lists every setting.
 
 ## What the script needs

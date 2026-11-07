@@ -239,6 +239,40 @@ describe("Activity", () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
   });
 
+  it("says what a server's public address was set to, and what it was, so it can be put back", async () => {
+    const on = { id: "srv_1", name: "hz-1" };
+    const events = [
+      auditEvent({
+        id: "evt_clear",
+        action: "server.public_address_clear",
+        subject: on,
+        publicAddress: { previous: "198.51.100.8" },
+      }),
+      auditEvent({
+        id: "evt_change",
+        action: "server.public_address",
+        time: timestampFromDate(new Date(Date.now() - HOUR)),
+        subject: on,
+        publicAddress: { address: "198.51.100.8", previous: "198.51.100.7" },
+      }),
+      auditEvent({
+        id: "evt_set",
+        action: "server.public_address",
+        time: timestampFromDate(new Date(Date.now() - 2 * HOUR)),
+        subject: on,
+        publicAddress: { address: "198.51.100.7" },
+      }),
+    ];
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot(events));
+    renderActivity(watch);
+    await screen.findByRole("row", { name: /Cleared the public address of hz-1, which was 198\.51\.100\.8/ });
+    await screen.findByRole("row", {
+      name: /Set the public address of hz-1 to 198\.51\.100\.8, which was 198\.51\.100\.7/,
+    });
+    await screen.findByRole("row", { name: /Set the public address of hz-1 to 198\.51\.100\.7(?!,)/ });
+  });
+
   it("shows what was read of a server and what wasn't, and leads to the file", async () => {
     const user = userEvent.setup();
     const watch = feed<WatchEventsResponse>();

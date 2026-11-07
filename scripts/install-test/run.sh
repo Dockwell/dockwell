@@ -90,6 +90,17 @@ else
 	mode=direct
 fi
 
+# What's run here asks nothing beyond this machine, the service included, which
+# inherits nothing from this script (DOCKWELL_TEST, ADR 0034).
+export DOCKWELL_TEST=1
+case $mode in
+systemd)
+	mkdir -p /etc/systemd/system/dockwell.service.d
+	printf '[Service]\nEnvironment=DOCKWELL_TEST=1\n' >/etc/systemd/system/dockwell.service.d/test.conf
+	;;
+openrc) echo 'export DOCKWELL_TEST=1' >>/etc/conf.d/dockwell ;;
+esac
+
 # get prints what a URL answers, with curl or, on Alpine, busybox wget.
 get() {
 	if command -v curl >/dev/null 2>&1; then

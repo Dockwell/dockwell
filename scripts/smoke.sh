@@ -7,6 +7,8 @@
 #
 #   scripts/smoke.sh bin/dockwell
 set -euo pipefail
+# Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
+export DOCKWELL_TEST=1
 
 bin=${1:?usage: scripts/smoke.sh path/to/dockwell}
 log=$(mktemp)

@@ -41,6 +41,14 @@ type Collector struct {
 	// Hostname and Addresses default to the real ones.
 	Hostname  func() (string, error)
 	Addresses func() ([]net.Addr, error)
+	// Outbound is the address this server's route to the internet leaves from.
+	// Nil says nothing of it.
+	Outbound func(ctx context.Context) string
+	// Metadata is where cloud providers' metadata services answer, for a test.
+	// Empty means where they do.
+	Metadata string
+	// STUN are the servers a lookup asks, for a test. Nil means stunServers.
+	STUN []string
 
 	prev *sample
 }
@@ -62,7 +70,24 @@ func New() *Collector {
 		DockerSocket: "/var/run/docker.sock",
 		Hostname:     os.Hostname,
 		Addresses:    net.InterfaceAddrs,
+		Outbound:     OutboundAddress,
 	}
+}
+
+// OutboundAddress is the address this server's route to the internet leaves from,
+// or empty with no such route. A UDP "connection" sends nothing: it only picks the
+// route, to an address reserved for documentation.
+func OutboundAddress(ctx context.Context) string {
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "udp", "192.0.2.1:9")
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	if udp, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+		return udp.IP.String()
+	}
+	return ""
 }
 
 // Inventory reports what the server is.
@@ -106,6 +131,9 @@ func (c *Collector) Inventory(ctx context.Context) *dockwellv1.ServerInventory {
 				inv.Addresses = append(inv.Addresses, ipn.IP.String())
 			}
 		}
+	}
+	if c.Outbound != nil {
+		inv.OutboundAddress = c.Outbound(ctx)
 	}
 	return inv
 }

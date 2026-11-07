@@ -153,6 +153,8 @@ message Event {
   EventHealth health = 9;
   // What became of a backup, for a backup event. Its subject is the volume.
   EventBackup backup = 10;
+  // What a person set of a server's public address, on such an event.
+  EventPublicAddress public_address = 11;
 }
 
 // EventBackup is what became of one backup.
@@ -169,6 +171,14 @@ message EventBackup {
   int64 size_bytes = 5;
   // Why it failed, for people. Empty unless it did.
   string error = 6;
+}
+
+// EventPublicAddress is a server's public address as a person changed it.
+message EventPublicAddress {
+  // What it is now. Empty when they cleared it.
+  string address = 1;
+  // What a person had set before, so it can be put back. Empty when they hadn't.
+  string previous = 2;
 }
 
 // EventHealth is how a service's health changed on a server, as far as the

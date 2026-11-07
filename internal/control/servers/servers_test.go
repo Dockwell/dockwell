@@ -49,7 +49,7 @@ func serve(t *testing.T, names ...string) (dockwellv1connect.ServerServiceClient
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	mux.Handle(dockwellv1connect.NewServerServiceHandler(servers.New(hub)))
+	mux.Handle(dockwellv1connect.NewServerServiceHandler(servers.New(hub, db)))
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return dockwellv1connect.NewServerServiceClient(srv.Client(), srv.URL), hub

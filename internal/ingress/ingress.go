@@ -520,7 +520,7 @@ func (m *Manager) Judge(ctx context.Context, ref resource.Ref, spec *resourcev1.
 	// say of a certificate that nothing asks for.
 	var check *resource.DomainCheck
 	if spec != nil && spec.GetTls() != TLSOff {
-		check = m.dns().Check(ctx, spec.GetDomain())
+		check = m.check(ctx, spec.GetDomain())
 	}
 	return effect, check, nil
 }

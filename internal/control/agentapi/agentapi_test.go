@@ -8,6 +8,8 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -133,6 +136,8 @@ func fakeCollector() *collect.Collector {
 		Statfs:    func(string) (uint64, uint64, error) { return 0, 0, nil },
 		Hostname:  func() (string, error) { return "hz-1", nil },
 		Addresses: func() ([]net.Addr, error) { return nil, nil },
+		Metadata:  collect.ClosedMetadata,
+		STUN:      []string{},
 	}
 }
 
@@ -342,7 +347,7 @@ func TestASilentStreamIsClosed(t *testing.T) {
 		t.Fatalf("no welcome: %v", err)
 	}
 	// Then say nothing: the control plane closes the stream.
-	_, err = stream.Receive()
+	_, err = nextCall(stream)
 	if connect.CodeOf(err) != connect.CodeDeadlineExceeded {
 		t.Errorf("after silence = %v, want DeadlineExceeded", err)
 	}
@@ -469,7 +474,7 @@ func TestDrainingIsAnsweredWithoutCalls(t *testing.T) {
 	}
 	answered := make(chan *agentv1.ConnectResponse, 1)
 	go func() {
-		msg, _ := stream.Receive()
+		msg, _ := nextCall(stream)
 		answered <- msg
 	}()
 	select {
@@ -538,5 +543,80 @@ func TestAnOlderAgentIsWarnedOfAsItConnects(t *testing.T) {
 	say(&agentv1.Hello{Build: older, WritesReferences: true}, 2)
 	if n := records(warning); n != 1 || records("server connected") != 2 {
 		t.Errorf("an agent that writes references in was warned of too:\n%s", logs.String())
+	}
+}
+
+type heardAddress struct {
+	mu    sync.Mutex
+	heard []*agentv1.PublicAddress
+}
+
+func (h *heardAddress) SetPublicAddress(known *agentv1.PublicAddress) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.heard = append(h.heard, known)
+}
+
+func (h *heardAddress) last() *agentv1.PublicAddress {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.heard) == 0 {
+		return nil
+	}
+	return h.heard[len(h.heard)-1]
+}
+
+// A real agent behind NAT, as on Oracle: what it finds out reaches the fleet, the
+// fleet's word comes back to it over the stream, and a person setting the address
+// goes the same way. Its own stream on loopback says nothing of where it is.
+func TestAPublicAddressGoesRoundThroughARealStream(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	metadata := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/opc/v2/instance/id" || r.Header.Get("Authorization") != "Bearer Oracle" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte("ocid1.instance.oc1"))
+	}))
+	defer metadata.Close()
+	collector := fakeCollector()
+	collector.Metadata = metadata.URL
+	// Metadata counts only where the machine's own firmware names that provider.
+	if root, ok := collector.Root.(fstest.MapFS); ok {
+		root["sys/class/dmi/id/chassis_asset_tag"] = &fstest.MapFile{Data: []byte("OracleCloud.com\n")}
+	}
+	collector.Addresses = func() ([]net.Addr, error) {
+		return []net.Addr{&net.IPNet{IP: net.ParseIP("10.0.0.25"), Mask: net.CIDRMask(24, 32)}}, nil
+	}
+	heard := &heardAddress{}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(), Collector: collector, Public: heard, NoLookup: true})
+		close(done)
+	}()
+	defer func() {
+		cancel()
+		<-done
+	}()
+
+	waitFor(t, s.hub, id.ServerID, "the metadata service says it's Oracle", func(srv *dockwellv1.Server) bool {
+		return srv.GetNetwork().GetProvider() == dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE &&
+			srv.GetNetwork().GetShape() == dockwellv1.NetworkShape_NETWORK_SHAPE_CLOUD_NAT
+	})
+	if srv, _ := s.hub.Get(id.ServerID); srv.GetNetwork().GetIpv4() != nil {
+		t.Errorf("loopback or Oracle's metadata gave it an address: %v", srv.GetNetwork())
+	}
+
+	if _, err := s.hub.SetPublicAddress(t.Context(), id.ServerID, "203.0.113.50", false, fleet.Setting{Actor: "user:usr_1", Surface: "panel"}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for !proto.Equal(heard.last(), &agentv1.PublicAddress{Addresses: []*agentv1.KnownAddress{{Address: "203.0.113.50", WayIn: true}}}) {
+		if time.Now().After(deadline) {
+			t.Fatalf("the agent heard %v", heard.last())
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

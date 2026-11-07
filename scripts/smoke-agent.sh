@@ -9,6 +9,8 @@
 #
 #   scripts/smoke-agent.sh bin/dockwell bin/dockwell-agent
 set -euo pipefail
+# Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
+export DOCKWELL_TEST=1
 
 usage="usage: scripts/smoke-agent.sh path/to/dockwell path/to/dockwell-agent"
 full=${1:?$usage}

@@ -6,6 +6,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Actor } from "./change_pb";
+import { file_dockwell_v1_change } from "./change_pb";
 import type { IngressStatus } from "./domain_pb";
 import { file_dockwell_v1_domain } from "./domain_pb";
 import { file_dockwell_v1_options } from "./options_pb";
@@ -20,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/server.proto.
  */
 export const file_dockwell_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9zZXJ2ZXIucHJvdG8SC2RvY2t3ZWxsLnYxIhQKEkxpc3RTZXJ2ZXJzUmVxdWVzdCI7ChNMaXN0U2VydmVyc1Jlc3BvbnNlEiQKB3NlcnZlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiHgoQR2V0U2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRTZXJ2ZXJSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiFQoTV2F0Y2hTZXJ2ZXJzUmVxdWVzdCJ6ChRXYXRjaFNlcnZlcnNSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXISDwoHcmVtb3ZlZBgCIAEoCBIZChFzbmFwc2hvdF9jb21wbGV0ZRgDIAEoCBIRCgloZWFydGJlYXQYBCABKAgimgQKBlNlcnZlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEi8KC2NyZWF0ZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgpjb25uZWN0aW9uGAQgASgOMhcuZG9ja3dlbGwudjEuQ29ubmVjdGlvbhIyCg5sYXN0X3NlZW5fdGltZRgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoJaW52ZW50b3J5GAYgASgLMhwuZG9ja3dlbGwudjEuU2VydmVySW52ZW50b3J5EicKBXN0YXRzGAcgASgLMhguZG9ja3dlbGwudjEuU2VydmVyU3RhdHMSKQoHaGlzdG9yeRgIIAMoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzEisKC2FnZW50X2J1aWxkGAkgASgLMhYuZG9ja3dlbGwudjEuQnVpbGRJbmZvEhYKDmNvbnRyb2xfc2VydmVyGAogASgIEjAKDGNvbm5lY3RfdGltZRgLIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoHaW5ncmVzcxgMIAEoCzIaLmRvY2t3ZWxsLnYxLkluZ3Jlc3NTdGF0dXMSOwoXZG9ja2VyX3VucmVhZGFibGVfc2luY2UYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIqECCg9TZXJ2ZXJJbnZlbnRvcnkSEAoIaG9zdG5hbWUYASABKAkSDwoHb3NfbmFtZRgCIAEoCRINCgVvc19pZBgDIAEoCRISCgpvc192ZXJzaW9uGAQgASgJEg4KBmtlcm5lbBgFIAEoCRIUCgxhcmNoaXRlY3R1cmUYBiABKAkSEQoJY3B1X21vZGVsGAcgASgJEhEKCWNwdV9jb3VudBgIIAEoDRIUCgxtZW1vcnlfYnl0ZXMYCSABKAQSIAoFZGlza3MYCiADKAsyES5kb2Nrd2VsbC52MS5EaXNrEhYKDmRvY2tlcl92ZXJzaW9uGAsgASgJEhEKCWFkZHJlc3NlcxgMIAMoCRIZChFkb2NrZXJfbG9nX2RyaXZlchgNIAEoCSJTCgREaXNrEhMKC21vdW50X3BvaW50GAEgASgJEg4KBmRldmljZRgCIAEoCRISCgpmaWxlc3lzdGVtGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAQizQIKC1NlcnZlclN0YXRzEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2NwdV9wZXJjZW50GAIgASgBEhkKEW1lbW9yeV91c2VkX2J5dGVzGAMgASgEEhoKEm1lbW9yeV90b3RhbF9ieXRlcxgEIAEoBBIlCgVkaXNrcxgFIAMoCzIWLmRvY2t3ZWxsLnYxLkRpc2tVc2FnZRINCgVsb2FkMRgGIAEoARINCgVsb2FkNRgHIAEoARIOCgZsb2FkMTUYCCABKAESIwobbmV0d29ya19yeF9ieXRlc19wZXJfc2Vjb25kGAkgASgEEiMKG25ldHdvcmtfdHhfYnl0ZXNfcGVyX3NlY29uZBgKIAEoBBIpCgZ1cHRpbWUYCyABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iSAoJRGlza1VzYWdlEhMKC21vdW50X3BvaW50GAEgASgJEhIKCnVzZWRfYnl0ZXMYAiABKAQSEgoKc2l6ZV9ieXRlcxgDIAEoBCp2CgpDb25uZWN0aW9uEhoKFkNPTk5FQ1RJT05fVU5TUEVDSUZJRUQQABIYChRDT05ORUNUSU9OX0NPTk5FQ1RFRBABEhoKFkNPTk5FQ1RJT05fVU5SRUFDSEFCTEUQAhIWChJDT05ORUNUSU9OX1BFTkRJTkcQAzLHAgoNU2VydmVyU2VydmljZRJsCgtMaXN0U2VydmVycxIfLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2ZXJzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2ZXJzUmVzcG9uc2UiGpACAaC7GAGC0+STAg0SCy92MS9zZXJ2ZXJzEmsKCUdldFNlcnZlchIdLmRvY2t3ZWxsLnYxLkdldFNlcnZlclJlcXVlc3QaHi5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJSZXNwb25zZSIfkAIBoLsYAYLT5JMCEhIQL3YxL3NlcnZlcnMve2lkfRJbCgxXYXRjaFNlcnZlcnMSIC5kb2Nrd2VsbC52MS5XYXRjaFNlcnZlcnNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuV2F0Y2hTZXJ2ZXJzUmVzcG9uc2UiBKC7GAEwAUKkAQoPY29tLmRvY2t3ZWxsLnYxQgtTZXJ2ZXJQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9zZXJ2ZXIucHJvdG8SC2RvY2t3ZWxsLnYxIhQKEkxpc3RTZXJ2ZXJzUmVxdWVzdCI7ChNMaXN0U2VydmVyc1Jlc3BvbnNlEiQKB3NlcnZlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiHgoQR2V0U2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRTZXJ2ZXJSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiSgodU2V0U2VydmVyUHVibGljQWRkcmVzc1JlcXVlc3QSCgoCaWQYASABKAkSDwoHYWRkcmVzcxgCIAEoCRIMCgRpcHY2GAMgASgIIkUKHlNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiFQoTV2F0Y2hTZXJ2ZXJzUmVxdWVzdCJ6ChRXYXRjaFNlcnZlcnNSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXISDwoHcmVtb3ZlZBgCIAEoCBIZChFzbmFwc2hvdF9jb21wbGV0ZRgDIAEoCBIRCgloZWFydGJlYXQYBCABKAgixwQKBlNlcnZlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEi8KC2NyZWF0ZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgpjb25uZWN0aW9uGAQgASgOMhcuZG9ja3dlbGwudjEuQ29ubmVjdGlvbhIyCg5sYXN0X3NlZW5fdGltZRgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoJaW52ZW50b3J5GAYgASgLMhwuZG9ja3dlbGwudjEuU2VydmVySW52ZW50b3J5EicKBXN0YXRzGAcgASgLMhguZG9ja3dlbGwudjEuU2VydmVyU3RhdHMSKQoHaGlzdG9yeRgIIAMoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzEisKC2FnZW50X2J1aWxkGAkgASgLMhYuZG9ja3dlbGwudjEuQnVpbGRJbmZvEhYKDmNvbnRyb2xfc2VydmVyGAogASgIEjAKDGNvbm5lY3RfdGltZRgLIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoHaW5ncmVzcxgMIAEoCzIaLmRvY2t3ZWxsLnYxLkluZ3Jlc3NTdGF0dXMSOwoXZG9ja2VyX3VucmVhZGFibGVfc2luY2UYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB25ldHdvcmsYDiABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJOZXR3b3JrIrQCCg1TZXJ2ZXJOZXR3b3JrEigKBGlwdjQYASABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEigKBGlwdjYYAiABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEikKCXJlYWNoYWJsZRgDIAEoDjIWLmRvY2t3ZWxsLnYxLlJlYWNoYWJsZRIYChByZWFjaGFibGVfZG9tYWluGAQgASgJEjIKDnJlYWNoYWJsZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghwcm92aWRlchgGIAEoDjIaLmRvY2t3ZWxsLnYxLkNsb3VkUHJvdmlkZXISKAoFc2hhcGUYByABKA4yGS5kb2Nrd2VsbC52MS5OZXR3b3JrU2hhcGUiyAEKDVB1YmxpY0FkZHJlc3MSDwoHYWRkcmVzcxgBIAEoCRIwCgZzb3VyY2UYAiABKA4yIC5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzU291cmNlEi4KCmtub3duX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRvbWFpbhgEIAEoCRIiCgZzZXRfYnkYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIQCgh1bnByb3ZlbhgGIAEoCCK7AgoPU2VydmVySW52ZW50b3J5EhAKCGhvc3RuYW1lGAEgASgJEg8KB29zX25hbWUYAiABKAkSDQoFb3NfaWQYAyABKAkSEgoKb3NfdmVyc2lvbhgEIAEoCRIOCgZrZXJuZWwYBSABKAkSFAoMYXJjaGl0ZWN0dXJlGAYgASgJEhEKCWNwdV9tb2RlbBgHIAEoCRIRCgljcHVfY291bnQYCCABKA0SFAoMbWVtb3J5X2J5dGVzGAkgASgEEiAKBWRpc2tzGAogAygLMhEuZG9ja3dlbGwudjEuRGlzaxIWCg5kb2NrZXJfdmVyc2lvbhgLIAEoCRIRCglhZGRyZXNzZXMYDCADKAkSGQoRZG9ja2VyX2xvZ19kcml2ZXIYDSABKAkSGAoQb3V0Ym91bmRfYWRkcmVzcxgOIAEoCSJTCgREaXNrEhMKC21vdW50X3BvaW50GAEgASgJEg4KBmRldmljZRgCIAEoCRISCgpmaWxlc3lzdGVtGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAQizQIKC1NlcnZlclN0YXRzEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2NwdV9wZXJjZW50GAIgASgBEhkKEW1lbW9yeV91c2VkX2J5dGVzGAMgASgEEhoKEm1lbW9yeV90b3RhbF9ieXRlcxgEIAEoBBIlCgVkaXNrcxgFIAMoCzIWLmRvY2t3ZWxsLnYxLkRpc2tVc2FnZRINCgVsb2FkMRgGIAEoARINCgVsb2FkNRgHIAEoARIOCgZsb2FkMTUYCCABKAESIwobbmV0d29ya19yeF9ieXRlc19wZXJfc2Vjb25kGAkgASgEEiMKG25ldHdvcmtfdHhfYnl0ZXNfcGVyX3NlY29uZBgKIAEoBBIpCgZ1cHRpbWUYCyABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iSAoJRGlza1VzYWdlEhMKC21vdW50X3BvaW50GAEgASgJEhIKCnVzZWRfYnl0ZXMYAiABKAQSEgoKc2l6ZV9ieXRlcxgDIAEoBCp2CgpDb25uZWN0aW9uEhoKFkNPTk5FQ1RJT05fVU5TUEVDSUZJRUQQABIYChRDT05ORUNUSU9OX0NPTk5FQ1RFRBABEhoKFkNPTk5FQ1RJT05fVU5SRUFDSEFCTEUQAhIWChJDT05ORUNUSU9OX1BFTkRJTkcQAyqiAQoMTmV0d29ya1NoYXBlEh0KGU5FVFdPUktfU0hBUEVfVU5TUEVDSUZJRUQQABIaChZORVRXT1JLX1NIQVBFX0lOVEVSTkVUEAESGwoXTkVUV09SS19TSEFQRV9DTE9VRF9OQVQQAhIbChdORVRXT1JLX1NIQVBFX0xPQ0FMX05BVBADEh0KGU5FVFdPUktfU0hBUEVfQ0FSUklFUl9OQVQQBCq5AgoTUHVibGljQWRkcmVzc1NvdXJjZRIlCiFQVUJMSUNfQUREUkVTU19TT1VSQ0VfVU5TUEVDSUZJRUQQABInCiNQVUJMSUNfQUREUkVTU19TT1VSQ0VfU0VUX0JZX1BFUlNPThABEiYKIlBVQkxJQ19BRERSRVNTX1NPVVJDRV9PTl9JTlRFUkZBQ0UQAhIqCiZQVUJMSUNfQUREUkVTU19TT1VSQ0VfUFJPVkVEX0JZX0RPTUFJThADEi8KK1BVQkxJQ19BRERSRVNTX1NPVVJDRV9TRUVOX0JZX0NPTlRST0xfUExBTkUQBBIoCiRQVUJMSUNfQUREUkVTU19TT1VSQ0VfQ0xPVURfTUVUQURBVEEQBRIjCh9QVUJMSUNfQUREUkVTU19TT1VSQ0VfTE9PS0VEX1VQEAYqZgoJUmVhY2hhYmxlEhkKFVJFQUNIQUJMRV9VTlNQRUNJRklFRBAAEhkKFVJFQUNIQUJMRV9OT1RfQ0hFQ0tFRBABEhEKDVJFQUNIQUJMRV9ZRVMQAhIQCgxSRUFDSEFCTEVfTk8QAyrRAQoNQ2xvdWRQcm92aWRlchIeChpDTE9VRF9QUk9WSURFUl9VTlNQRUNJRklFRBAAEhYKEkNMT1VEX1BST1ZJREVSX0FXUxABEhYKEkNMT1VEX1BST1ZJREVSX0dDUBACEhgKFENMT1VEX1BST1ZJREVSX0FaVVJFEAMSHwobQ0xPVURfUFJPVklERVJfRElHSVRBTE9DRUFOEAQSGgoWQ0xPVURfUFJPVklERVJfSEVUWk5FUhAFEhkKFUNMT1VEX1BST1ZJREVSX09SQUNMRRAGMoUECg1TZXJ2ZXJTZXJ2aWNlEmwKC0xpc3RTZXJ2ZXJzEh8uZG9ja3dlbGwudjEuTGlzdFNlcnZlcnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdFNlcnZlcnNSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL3NlcnZlcnMSawoJR2V0U2VydmVyEh0uZG9ja3dlbGwudjEuR2V0U2VydmVyUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkdldFNlcnZlclJlc3BvbnNlIh+QAgGguxgBgtPkkwISEhAvdjEvc2VydmVycy97aWR9ElsKDFdhdGNoU2VydmVycxIgLmRvY2t3ZWxsLnYxLldhdGNoU2VydmVyc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5XYXRjaFNlcnZlcnNSZXNwb25zZSIEoLsYATABErsBChZTZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzEiouZG9ja3dlbGwudjEuU2V0U2VydmVyUHVibGljQWRkcmVzc1JlcXVlc3QaKy5kb2Nrd2VsbC52MS5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVzcG9uc2UiSKC7GAOquxgUEhJzZXQtcHVibGljLWFkZHJlc3OC0+STAiY6ASoiIS92MS9zZXJ2ZXJzL3tpZH06c2V0UHVibGljQWRkcmVzc0KkAQoPY29tLmRvY2t3ZWxsLnYxQgtTZXJ2ZXJQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * ListServersRequest takes no parameters yet.
@@ -101,6 +103,63 @@ export const GetServerResponseSchema: GenMessage<GetServerResponse> = /*@__PURE_
   messageDesc(file_dockwell_v1_server, 3);
 
 /**
+ * SetServerPublicAddressRequest says what a server's public address is.
+ *
+ * @generated from message dockwell.v1.SetServerPublicAddressRequest
+ */
+export type SetServerPublicAddressRequest = Message<"dockwell.v1.SetServerPublicAddressRequest"> & {
+  /**
+   * The server's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * A public IP address, or empty to clear what a person set.
+   *
+   * @generated from field: string address = 2;
+   */
+  address: string;
+
+  /**
+   * With an empty address, clears the IPv6 address a person set, not the IPv4
+   * one. A person's addresses are kept apart, as DNS records are.
+   *
+   * @generated from field: bool ipv6 = 3;
+   */
+  ipv6: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SetServerPublicAddressRequest.
+ * Use `create(SetServerPublicAddressRequestSchema)` to create a new message.
+ */
+export const SetServerPublicAddressRequestSchema: GenMessage<SetServerPublicAddressRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 4);
+
+/**
+ * SetServerPublicAddressResponse carries the server as it now reads.
+ *
+ * @generated from message dockwell.v1.SetServerPublicAddressResponse
+ */
+export type SetServerPublicAddressResponse = Message<"dockwell.v1.SetServerPublicAddressResponse"> & {
+  /**
+   * The server, without history.
+   *
+   * @generated from field: dockwell.v1.Server server = 1;
+   */
+  server?: Server | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SetServerPublicAddressResponse.
+ * Use `create(SetServerPublicAddressResponseSchema)` to create a new message.
+ */
+export const SetServerPublicAddressResponseSchema: GenMessage<SetServerPublicAddressResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 5);
+
+/**
  * WatchServersRequest takes no parameters yet.
  *
  * @generated from message dockwell.v1.WatchServersRequest
@@ -113,7 +172,7 @@ export type WatchServersRequest = Message<"dockwell.v1.WatchServersRequest"> & {
  * Use `create(WatchServersRequestSchema)` to create a new message.
  */
 export const WatchServersRequestSchema: GenMessage<WatchServersRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 4);
+  messageDesc(file_dockwell_v1_server, 6);
 
 /**
  * WatchServersResponse is one step of a watch: a server's latest state, or
@@ -164,7 +223,7 @@ export type WatchServersResponse = Message<"dockwell.v1.WatchServersResponse"> &
  * Use `create(WatchServersResponseSchema)` to create a new message.
  */
 export const WatchServersResponseSchema: GenMessage<WatchServersResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 5);
+  messageDesc(file_dockwell_v1_server, 7);
 
 /**
  * Server is one machine running the agent.
@@ -269,6 +328,14 @@ export type Server = Message<"dockwell.v1.Server"> & {
    * @generated from field: google.protobuf.Timestamp docker_unreadable_since = 13;
    */
   dockerUnreadableSince?: Timestamp | undefined;
+
+  /**
+   * How the server meets the internet, as far as that's known. The addresses
+   * on its own interfaces are in its inventory.
+   *
+   * @generated from field: dockwell.v1.ServerNetwork network = 14;
+   */
+  network?: ServerNetwork | undefined;
 };
 
 /**
@@ -276,7 +343,134 @@ export type Server = Message<"dockwell.v1.Server"> & {
  * Use `create(ServerSchema)` to create a new message.
  */
 export const ServerSchema: GenMessage<Server> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 6);
+  messageDesc(file_dockwell_v1_server, 8);
+
+/**
+ * ServerNetwork is what's known of a server beyond its own interfaces. Its
+ * public address and whether the internet can reach it are separate facts: an
+ * address can be known and nothing proved of it. IPv4 and IPv6 are picked apart,
+ * as a server's A and AAAA records go to different places. See
+ * docs/adr/0034-a-servers-public-address.md.
+ *
+ * @generated from message dockwell.v1.ServerNetwork
+ */
+export type ServerNetwork = Message<"dockwell.v1.ServerNetwork"> & {
+  /**
+   * Its public IPv4 address. Unset when nothing says.
+   *
+   * @generated from field: dockwell.v1.PublicAddress ipv4 = 1;
+   */
+  ipv4?: PublicAddress | undefined;
+
+  /**
+   * Its public IPv6 address. Unset when nothing says.
+   *
+   * @generated from field: dockwell.v1.PublicAddress ipv6 = 2;
+   */
+  ipv6?: PublicAddress | undefined;
+
+  /**
+   * Whether the internet can reach the server at either.
+   *
+   * @generated from field: dockwell.v1.Reachable reachable = 3;
+   */
+  reachable: Reachable;
+
+  /**
+   * The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
+   *
+   * @generated from field: string reachable_domain = 4;
+   */
+  reachableDomain: string;
+
+  /**
+   * When that domain's DNS was last read, so what's shown is as of then.
+   *
+   * @generated from field: google.protobuf.Timestamp reachable_time = 5;
+   */
+  reachableTime?: Timestamp | undefined;
+
+  /**
+   * The cloud provider the machine itself says it runs on, from its firmware's
+   * tables. A metadata service answering doesn't say so on its own.
+   *
+   * @generated from field: dockwell.v1.CloudProvider provider = 6;
+   */
+  provider: CloudProvider;
+
+  /**
+   * Which of the shapes a server comes in this one has, as far as can be told.
+   *
+   * @generated from field: dockwell.v1.NetworkShape shape = 7;
+   */
+  shape: NetworkShape;
+};
+
+/**
+ * Describes the message dockwell.v1.ServerNetwork.
+ * Use `create(ServerNetworkSchema)` to create a new message.
+ */
+export const ServerNetworkSchema: GenMessage<ServerNetwork> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 9);
+
+/**
+ * PublicAddress is what's known of one public address of a server.
+ *
+ * @generated from message dockwell.v1.PublicAddress
+ */
+export type PublicAddress = Message<"dockwell.v1.PublicAddress"> & {
+  /**
+   * The address the internet knows the server by.
+   *
+   * @generated from field: string address = 1;
+   */
+  address: string;
+
+  /**
+   * How that's known.
+   *
+   * @generated from field: dockwell.v1.PublicAddressSource source = 2;
+   */
+  source: PublicAddressSource;
+
+  /**
+   * When Dockwell came to know it that way. For a domain's, that's when its DNS
+   * was last read.
+   *
+   * @generated from field: google.protobuf.Timestamp known_time = 3;
+   */
+  knownTime?: Timestamp | undefined;
+
+  /**
+   * The domain whose certificate proved it, for
+   * PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN.
+   *
+   * @generated from field: string domain = 4;
+   */
+  domain: string;
+
+  /**
+   * Who set it, for PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON.
+   *
+   * @generated from field: dockwell.v1.Actor set_by = 5;
+   */
+  setBy?: Actor | undefined;
+
+  /**
+   * True when nothing shows the address is a way in, so it's named only with a
+   * caveat: a way out, or a metadata service the machine doesn't confirm.
+   *
+   * @generated from field: bool unproven = 6;
+   */
+  unproven: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.PublicAddress.
+ * Use `create(PublicAddressSchema)` to create a new message.
+ */
+export const PublicAddressSchema: GenMessage<PublicAddress> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 10);
 
 /**
  * ServerInventory is what a server is: its system and hardware.
@@ -376,6 +570,14 @@ export type ServerInventory = Message<"dockwell.v1.ServerInventory"> & {
    * @generated from field: string docker_log_driver = 13;
    */
   dockerLogDriver: string;
+
+  /**
+   * The address its route to the internet leaves from. Empty when it has no
+   * such route, or from an agent from before this.
+   *
+   * @generated from field: string outbound_address = 14;
+   */
+  outboundAddress: string;
 };
 
 /**
@@ -383,7 +585,7 @@ export type ServerInventory = Message<"dockwell.v1.ServerInventory"> & {
  * Use `create(ServerInventorySchema)` to create a new message.
  */
 export const ServerInventorySchema: GenMessage<ServerInventory> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 7);
+  messageDesc(file_dockwell_v1_server, 11);
 
 /**
  * Disk is one mounted filesystem.
@@ -425,7 +627,7 @@ export type Disk = Message<"dockwell.v1.Disk"> & {
  * Use `create(DiskSchema)` to create a new message.
  */
 export const DiskSchema: GenMessage<Disk> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 8);
+  messageDesc(file_dockwell_v1_server, 12);
 
 /**
  * ServerStats is one sample of a server's resource use.
@@ -516,7 +718,7 @@ export type ServerStats = Message<"dockwell.v1.ServerStats"> & {
  * Use `create(ServerStatsSchema)` to create a new message.
  */
 export const ServerStatsSchema: GenMessage<ServerStats> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 9);
+  messageDesc(file_dockwell_v1_server, 13);
 
 /**
  * DiskUsage is one filesystem's use.
@@ -551,7 +753,7 @@ export type DiskUsage = Message<"dockwell.v1.DiskUsage"> & {
  * Use `create(DiskUsageSchema)` to create a new message.
  */
 export const DiskUsageSchema: GenMessage<DiskUsage> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 10);
+  messageDesc(file_dockwell_v1_server, 14);
 
 /**
  * Connection says whether a server's agent is talking to the control plane.
@@ -591,6 +793,218 @@ export enum Connection {
  */
 export const ConnectionSchema: GenEnum<Connection> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_server, 0);
+
+/**
+ * NetworkShape is how a server meets the internet. It's read from what's on its
+ * interfaces and whether a cloud's metadata service answers, and says nothing
+ * of whether the internet can reach it.
+ *
+ * @generated from enum dockwell.v1.NetworkShape
+ */
+export enum NetworkShape {
+  /**
+   * Not known yet: its agent hasn't said what it has, or whether a metadata
+   * service answers.
+   *
+   * @generated from enum value: NETWORK_SHAPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A public IPv4 address is on an interface.
+   *
+   * @generated from enum value: NETWORK_SHAPE_INTERNET = 1;
+   */
+  INTERNET = 1,
+
+  /**
+   * Private IPv4 interfaces on a machine that says it runs on a cloud: its
+   * public address is the provider's NAT.
+   *
+   * @generated from enum value: NETWORK_SHAPE_CLOUD_NAT = 2;
+   */
+  CLOUD_NAT = 2,
+
+  /**
+   * Private IPv4 interfaces, on a machine that names no cloud: likely a home or
+   * office network, behind a router. Reaching it needs a forwarded port or a
+   * tunnel.
+   *
+   * @generated from enum value: NETWORK_SHAPE_LOCAL_NAT = 3;
+   */
+  LOCAL_NAT = 3,
+
+  /**
+   * It reaches the internet from 100.64.0.0/10, so it's behind its provider's
+   * carrier-grade NAT, where a forwarded port can't work. Only a tunnel can.
+   *
+   * @generated from enum value: NETWORK_SHAPE_CARRIER_NAT = 4;
+   */
+  CARRIER_NAT = 4,
+}
+
+/**
+ * Describes the enum dockwell.v1.NetworkShape.
+ */
+export const NetworkShapeSchema: GenEnum<NetworkShape> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_server, 1);
+
+/**
+ * PublicAddressSource is how Dockwell knows a server's public address. In the
+ * order they win: a person, an interface, a domain, metadata the machine
+ * confirms, what the control plane sees, metadata it doesn't, and a lookup.
+ *
+ * @generated from enum dockwell.v1.PublicAddressSource
+ */
+export enum PublicAddressSource {
+  /**
+   * @generated from enum value: PUBLIC_ADDRESS_SOURCE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A person set it.
+   *
+   * @generated from enum value: PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON = 1;
+   */
+  SET_BY_PERSON = 1,
+
+  /**
+   * It's on one of the server's interfaces.
+   *
+   * @generated from enum value: PUBLIC_ADDRESS_SOURCE_ON_INTERFACE = 2;
+   */
+  ON_INTERFACE = 2,
+
+  /**
+   * A certificate came for a domain whose one record points there, over
+   * HTTP-01 or TLS-ALPN, and a recent read of its DNS still says so.
+   *
+   * @generated from enum value: PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN = 3;
+   */
+  PROVED_BY_DOMAIN = 3,
+
+  /**
+   * The control plane saw the agent connect from it. That's the server's way
+   * out, which may not be a way in.
+   *
+   * @generated from enum value: PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE = 4;
+   */
+  SEEN_BY_CONTROL_PLANE = 4,
+
+  /**
+   * A cloud provider's metadata service gave it. It's a way in only if the
+   * machine itself says it runs on that provider.
+   *
+   * @generated from enum value: PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA = 5;
+   */
+  CLOUD_METADATA = 5,
+
+  /**
+   * A public STUN server said where the server's packets come from. That's
+   * its way out, and behind a router it's the router's shared address. It
+   * never says anything of a way in.
+   *
+   * @generated from enum value: PUBLIC_ADDRESS_SOURCE_LOOKED_UP = 6;
+   */
+  LOOKED_UP = 6,
+}
+
+/**
+ * Describes the enum dockwell.v1.PublicAddressSource.
+ */
+export const PublicAddressSourceSchema: GenEnum<PublicAddressSource> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_server, 2);
+
+/**
+ * Reachable is whether the internet can reach a server. It's never a guess:
+ * anything short of proof is REACHABLE_NOT_CHECKED.
+ *
+ * @generated from enum dockwell.v1.Reachable
+ */
+export enum Reachable {
+  /**
+   * @generated from enum value: REACHABLE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Nothing has tried, so nobody can say.
+   *
+   * @generated from enum value: REACHABLE_NOT_CHECKED = 1;
+   */
+  NOT_CHECKED = 1,
+
+  /**
+   * A certificate came over HTTP-01 or TLS-ALPN for a domain whose record
+   * points at its public address.
+   *
+   * @generated from enum value: REACHABLE_YES = 2;
+   */
+  YES = 2,
+
+  /**
+   * The certificate authority couldn't connect for a domain whose record
+   * points at its public address.
+   *
+   * @generated from enum value: REACHABLE_NO = 3;
+   */
+  NO = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.Reachable.
+ */
+export const ReachableSchema: GenEnum<Reachable> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_server, 3);
+
+/**
+ * CloudProvider is a cloud provider whose metadata service an agent can read.
+ *
+ * @generated from enum dockwell.v1.CloudProvider
+ */
+export enum CloudProvider {
+  /**
+   * @generated from enum value: CLOUD_PROVIDER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CLOUD_PROVIDER_AWS = 1;
+   */
+  AWS = 1,
+
+  /**
+   * @generated from enum value: CLOUD_PROVIDER_GCP = 2;
+   */
+  GCP = 2,
+
+  /**
+   * @generated from enum value: CLOUD_PROVIDER_AZURE = 3;
+   */
+  AZURE = 3,
+
+  /**
+   * @generated from enum value: CLOUD_PROVIDER_DIGITALOCEAN = 4;
+   */
+  DIGITALOCEAN = 4,
+
+  /**
+   * @generated from enum value: CLOUD_PROVIDER_HETZNER = 5;
+   */
+  HETZNER = 5,
+
+  /**
+   * @generated from enum value: CLOUD_PROVIDER_ORACLE = 6;
+   */
+  ORACLE = 6,
+}
+
+/**
+ * Describes the enum dockwell.v1.CloudProvider.
+ */
+export const CloudProviderSchema: GenEnum<CloudProvider> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_server, 4);
 
 /**
  * ServerService lists the servers Dockwell manages and streams their live
@@ -635,6 +1049,20 @@ export const ServerService: GenService<{
     methodKind: "server_streaming";
     input: typeof WatchServersRequestSchema;
     output: typeof WatchServersResponseSchema;
+  },
+  /**
+   * SetServerPublicAddress records a server's public address, as a person
+   * knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
+   * address are kept apart. An empty address goes back to what Dockwell finds
+   * out for itself. It's on record in the activity log, with what it replaced.
+   * See docs/adr/0034-a-servers-public-address.md.
+   *
+   * @generated from rpc dockwell.v1.ServerService.SetServerPublicAddress
+   */
+  setServerPublicAddress: {
+    methodKind: "unary";
+    input: typeof SetServerPublicAddressRequestSchema;
+    output: typeof SetServerPublicAddressResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_server, 0);

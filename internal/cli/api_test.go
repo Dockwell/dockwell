@@ -48,7 +48,7 @@ func runIn(t *testing.T, env map[string]string, input string, interactive bool, 
 	code := Execute(t.Context(), args, IO{
 		Out:         &out,
 		Err:         &errOut,
-		Getenv:      func(k string) string { return env[k] },
+		Getenv:      quiet(func(k string) string { return env[k] }),
 		In:          strings.NewReader(input),
 		Interactive: func() bool { return interactive },
 	})

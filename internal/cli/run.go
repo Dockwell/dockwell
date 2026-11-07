@@ -46,6 +46,8 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Short: "Run Dockwell on this server",
 		Args:  noArgs,
 	}
+	cmd.Flags().BoolVar(&g.noStun, "no-stun", stunOff(stdio),
+		"never ask a public STUN server how this server reaches the internet ("+envNoStun+")")
 	start := runCommand(cmd, stdio, g)
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		logger, err := g.logger(stdio.Err)
@@ -79,10 +81,34 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // has a domain; nil on a server that joined. ownPorts are the ports the control
 // plane beside it listens on, which no route may send to; a server that joined
 // has none, as its agent opens no ports.
-func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
+func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
+	lookups(&cfg, stdio, g)
 	return agent.Run(ctx, cfg)
+}
+
+// lookups says how this server's agent finds out how the internet sees it: what the
+// flag or the variable says of STUN, where metadata is, and that a route out through a
+// TUN is no way of saying where the server is, as a Tailscale exit node's isn't.
+func lookups(cfg *agent.Config, stdio IO, g *globalFlags) {
+	cfg.NoLookup = g.noStun
+	if isSet(stdio.Getenv(envTest)) {
+		cfg.NoLookup, cfg.Collector.Metadata = true, collect.ClosedMetadata
+	}
+	cfg.Collector.Outbound = func(ctx context.Context) string {
+		return ingress.OwnAddress(collect.OutboundAddress(ctx))
+	}
+}
+
+// stunOff reports DOCKWELL_NO_STUN set to turn the lookup off.
+func stunOff(stdio IO) bool {
+	return isSet(stdio.Getenv(envNoStun))
+}
+
+// isSet reports a variable set to turn something on.
+func isSet(v string) bool {
+	return v != "" && v != "0" && v != "false"
 }
 
 // serverFiles reads this server's disk for a person. What it refuses takes this
@@ -153,7 +179,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 			&volume.Driver{Runtime: volumes, Restores: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}),
-		Collector: collector, Domains: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
+		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups},
 	}
 }

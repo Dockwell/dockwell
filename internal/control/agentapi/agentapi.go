@@ -128,6 +128,25 @@ func (h *Handler) Join(ctx context.Context, req *connect.Request[agentv1.JoinReq
 	}), nil
 }
 
+// tellPublicAddress tells a server's agent the public address it goes by, as its
+// stream opens and whenever that changes, until the stream ends. An agent from
+// before this ignores it, and goes on reading only its own interfaces.
+func (h *Handler) tellPublicAddress(ctx context.Context, server string, session *Session) {
+	changed, stop := h.fleet.WatchPublicAddress(server)
+	defer stop()
+	for {
+		msg := &agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_PublicAddress{PublicAddress: h.fleet.PublicAddress(server)}}
+		if err := session.write(msg); err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-changed:
+		}
+	}
+}
+
 // RenewCertificate signs a fresh certificate for the calling server.
 func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[agentv1.RenewCertificateRequest]) (*connect.Response[agentv1.RenewCertificateResponse], error) {
 	peer, err := requireServer(ctx)
@@ -201,6 +220,7 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	if err != nil {
 		return h.rpcError(ctx, err)
 	}
+	h.fleet.SeenConnecting(peer.ServerID, stream.Peer().Addr)
 	var session *Session
 	defer func() {
 		// An agent moving to a new stream, as each renewed certificate has it do,
@@ -230,6 +250,7 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	if h.agents != nil {
 		session = h.agents.open(peer.ServerID, srv.Name, hello, stream.Send)
 		defer session.close()
+		go h.tellPublicAddress(ctx, peer.ServerID, session)
 	}
 
 	recheck := time.NewTicker(h.recheck)
@@ -248,6 +269,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 			switch {
 			case msg.GetStats() != nil:
 				h.fleet.Record(peer.ServerID, msg.GetStats())
+			case msg.GetNetwork() != nil:
+				h.fleet.RecordNetwork(peer.ServerID, msg.GetNetwork())
 			case msg.GetResult() != nil && session != nil:
 				session.deliver(msg.GetResult())
 			case msg.GetProgress() != nil && session != nil:
@@ -269,6 +292,7 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 			case msg.GetDomains() != nil && h.agents != nil:
 				h.agents.Report(peer.ServerID, msg.GetDomains().GetDomains(), msg.GetDomains().GetIngress())
 				h.fleet.RecordIngress(peer.ServerID, msg.GetDomains().GetIngress())
+				h.fleet.RecordDomains(peer.ServerID, msg.GetDomains().GetDomains())
 			case msg.GetHealth() != nil && h.agents != nil:
 				h.agents.ReportHealth(peer.ServerID, msg.GetHealth())
 				h.fleet.RecordDocker(peer.ServerID, msg.GetHealth().GetDockerUnreadableSince())
