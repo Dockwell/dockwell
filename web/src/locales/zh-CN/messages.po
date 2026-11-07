@@ -6563,6 +6563,10 @@ msgstr "私密密钥"
 msgid "secrets"
 msgstr "密钥"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Security"
+msgstr "安全"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See its logs"
 msgstr "查看日志"

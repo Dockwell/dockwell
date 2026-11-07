@@ -6563,6 +6563,10 @@ msgstr "Secret key"
 msgid "secrets"
 msgstr "secrets"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Security"
+msgstr "Security"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See its logs"
 msgstr "See its logs"

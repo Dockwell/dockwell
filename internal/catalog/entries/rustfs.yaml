@@ -14,20 +14,23 @@ source:
 web:
   service: rustfs
 firstSteps: >-
-  RustFS answers over plain HTTP, so signing in from outside this server sends its
-  secret key in clear. Add a domain first, or reach it another way, such as a VPN or
-  an SSH tunnel. Then open its console and sign in with your access key and the secret
-  key in the RUSTFS_SECRET_KEY secret. S3 clients reach it on the S3 port with the
-  same pair, as they would MinIO.
+  RustFS answers only on this server until you add a domain, as its console signs in
+  over plain HTTP. Add a domain on its page for the console, over HTTPS or behind
+  your tunnel, and another for the S3 port if S3 clients elsewhere need it. To open
+  it before that, use an SSH tunnel from your computer: ssh -N -L 9001:127.0.0.1:9001
+  you@your-server, using the port you gave it, then open http://localhost:9001. Sign
+  in with your access key and the secret key in the RUSTFS_SECRET_KEY secret. S3
+  clients on this server reach it at 127.0.0.1 on the S3 port with the same pair, as
+  they would MinIO.
 inputs:
   - name: CONSOLE_PORT
-    label: Console port
-    hint: You open RustFS's console on this port of the server.
+    label: Console port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "9001"
   - name: S3_PORT
-    label: S3 port
-    hint: S3 clients reach it on this port.
+    label: S3 port on this server
+    hint: S3 clients on this server reach it on 127.0.0.1 at this port, and others through a domain.
     type: INPUT_TYPE_PORT
     defaultValue: "9000"
   - name: ACCESS_KEY
@@ -52,8 +55,8 @@ compose: |
         RUSTFS_CONSOLE_ENABLE: "true"
         RUSTFS_OBS_LOG_DIRECTORY: ""
       ports:
-        - "${S3_PORT}:9000"
-        - "${CONSOLE_PORT}:9001"
+        - "127.0.0.1:${S3_PORT}:9000"
+        - "127.0.0.1:${CONSOLE_PORT}:9001"
       volumes:
         - data:/data
       healthcheck:

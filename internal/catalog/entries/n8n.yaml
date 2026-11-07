@@ -1,44 +1,51 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+#
+# 2.45.5 goes in ahead of its 14 days, as it fixes published advisories that 2.44.6 has,
+# among them GHSA-gx3v-3x3v-f8r5 and GHSA-f2cw-9483-7vcp, which are high.
 id: n8n
 name: n8n
 summary: Automate workflows across your tools
 category: automation
-version: "2.44.6"
+version: "2.45.5"
 release: 1
 homepage: https://n8n.io
 license: AGPL-3.0-only
-appLicense: Sustainable Use
+appLicense: Sustainable Use, with Enterprise code under n8n's own
 source:
   repository: https://github.com/Dockwell/dockwell
   path: internal/catalog/entries/n8n.yaml
 web:
   service: n8n
 firstSteps: >-
-  n8n signs you in only over HTTPS, or from this server itself, so add a domain over
-  HTTPS first. Then open it there: the first person to open it makes its owner
-  account. Set WEBHOOK_URL on the n8n service to that address, so the webhooks it
-  shows use it. n8n keeps the key that encrypts your credentials on its volume, so a
-  backup of the volume holds both.
+  n8n answers only on this server until you add a domain, as the first person to open
+  it makes its owner account, and it signs you in only over HTTPS or from this server
+  itself. Add a domain on its page, over HTTPS, then set WEBHOOK_URL on the n8n
+  service to that address, so the webhooks it shows use it, and N8N_PROXY_HOPS to 1,
+  so it reads who's calling from the proxy in front. Open it there and make your
+  account. To open it before that, use an SSH tunnel from your computer: ssh -N -L
+  5678:127.0.0.1:5678 you@your-server, using the port you gave it, then open
+  http://localhost:5678. n8n keeps the key that encrypts your credentials on its
+  volume, so a backup of the volume holds both.
 inputs:
   - name: PORT
-    label: n8n port
-    hint: You open n8n on this port of the server.
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "5678"
 compose: |
   services:
     n8n:
-      image: n8nio/n8n:2.44.6@sha256:d02752c6ab446ae9db8deec2f9cc887c378f77cdcad31650814df936b7386dfb
+      image: n8nio/n8n:2.45.5@sha256:9f6d0a5987ab5a297c4b0b38fbf1a22285dd1364551478e93f03d506908fa74c
       restart: unless-stopped
       environment:
         N8N_LISTEN_ADDRESS: 0.0.0.0
         N8N_PORT: "5678"
       ports:
-        - "${PORT}:5678"
+        - "127.0.0.1:${PORT}:5678"
       volumes:
         - data:/home/node/.n8n
       healthcheck:
-        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5678/healthz"]
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5678/healthz/readiness"]
         interval: 10s
         timeout: 5s
         retries: 18

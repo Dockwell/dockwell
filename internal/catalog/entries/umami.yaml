@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 id: umami
 name: Umami
-summary: Simple, fast website analytics
+summary: Counts your sites' visitors and pages, without cookies
 category: analytics
 version: "3.4.1"
 release: 1
@@ -14,12 +14,15 @@ source:
 web:
   service: umami
 firstSteps: >-
-  Umami makes the account admin with the password umami on first start, which anyone
-  who reaches it could sign in with, so it answers only on this server at first.
-  Reach it through an SSH tunnel to its port, sign in, and change the password under
-  Settings, Profile. Then add a domain, which your sites load its tracker from. Leave
-  the POSTGRES_PASSWORD secret as it is: its database keeps the password it started
-  with, and Umami would then use one it doesn't take.
+  Umami answers only on this server until you add a domain, as it starts with the
+  account admin and the password umami, which anyone who reaches it could sign in
+  with. To open it, use an SSH tunnel from your computer: ssh -N -L
+  3000:127.0.0.1:3000 you@your-server, using the port you gave it, then open
+  http://localhost:3000. Sign in, and change the password under Settings, Profile.
+  Add a domain on its page only after that, over HTTPS or behind your tunnel, as your
+  sites load its tracker from it. Leave the POSTGRES_PASSWORD secret as it is: its
+  database keeps the password it started with, and Umami would then use one it
+  doesn't take.
 inputs:
   - name: PORT
     label: Port on this server
@@ -43,15 +46,17 @@ compose: |
         db:
           condition: service_healthy
       # Its migrations read the database's password from the URL alone, so a shell
-      # writes that from the secret as it starts, and a rotation reaches it.
+      # writes that from the secret as it starts, and the file names no password.
       command: ["sh", "-c", "export DATABASE_URL=\"postgresql://umami:$$POSTGRES_PASSWORD@db:5432/umami\" && exec sh scripts/start-docker.sh"]
       environment:
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
         APP_SECRET: ${APP_SECRET}
       ports:
         - "127.0.0.1:${PORT}:3000"
+      # Its heartbeat touches no database, and a sign-in does: one that doesn't exist is
+      # refused only once PostgreSQL has said so.
       healthcheck:
-        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/heartbeat"]
+        test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/auth/login', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({username: 'health-check', password: 'health-check'})}).then(r => process.exit(r.status === 401 ? 0 : 1), () => process.exit(1))"]
         interval: 10s
         timeout: 5s
         retries: 18

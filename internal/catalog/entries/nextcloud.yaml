@@ -1,4 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+#
+# On its first install, upstream's entrypoint gives occ the admin and database
+# passwords on its command line, for the seconds the install takes.
 id: nextcloud
 name: Nextcloud
 summary: Files, calendars and contacts
@@ -14,27 +17,34 @@ source:
 web:
   service: nextcloud
 firstSteps: >-
-  Nextcloud answers over plain HTTP, so signing in from outside this server sends your
-  password in clear. Add a domain first, or reach it another way, such as a VPN or an
-  SSH tunnel, and over HTTPS set OVERWRITEPROTOCOL to https on the nextcloud service.
-  Then sign in as your admin user, with the password in the NEXTCLOUD_ADMIN_PASSWORD
-  secret. That secret sets the password on first start only, so changing it doesn't
-  change what signs in. To change the password, use Nextcloud's personal settings,
-  under Security, then set the secret to match. Leave the POSTGRES_PASSWORD secret as
-  it is: its database keeps the password it started with. It answers only at the
-  addresses you gave, and the first start takes a minute or two.
+  Nextcloud answers only on this server until you add a domain, as it signs in over
+  plain HTTP. Add a domain on its page, the one you gave, over HTTPS or behind your tunnel,
+  and open it there. To open it before that, use an SSH tunnel from your computer:
+  ssh -N -L 8084:127.0.0.1:8084 you@your-server, using the port you gave it, then
+  open http://localhost:8084. Behind a domain, set OVERWRITEPROTOCOL to https on the
+  nextcloud service, and TRUSTED_PROXIES to the range Dockwell's proxy reaches it
+  from, such as 172.16.0.0/12. Sign in as your admin user, with the password in the
+  NEXTCLOUD_ADMIN_PASSWORD secret. That secret sets the password on first start only,
+  so changing it doesn't change what signs in. To change the password, use
+  Nextcloud's personal settings, under Security, then set the secret to match.
+  Nextcloud reads the domain you gave on its first install only. To answer at
+  another, run php occ config:system:set trusted_domains 2 --value=cloud.example.com
+  as www-data in the nextcloud container. Leave the POSTGRES_PASSWORD secret as it
+  is: its database keeps the password it started with. The first start takes a minute
+  or two.
 inputs:
   - name: PORT
-    label: Nextcloud port
-    hint: You open Nextcloud on this port of the server.
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8084"
-  - name: TRUSTED_DOMAINS
-    label: Addresses you open it at
+  - name: DOMAIN
+    label: Domain you'll add
     hint: >-
-      Nextcloud answers only at these, separated by spaces, such as cloud.example.com
-      203.0.113.10. Give the domain you'll add, or this server's address.
+      Nextcloud answers at this as well as on this server, such as cloud.example.com. It
+      reads this on its first install only.
     type: INPUT_TYPE_TEXT
+    optional: true
   - name: ADMIN_USER
     label: Admin user
     hint: You sign in to Nextcloud with this.
@@ -63,13 +73,13 @@ compose: |
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
         NEXTCLOUD_ADMIN_USER: ${ADMIN_USER}
         NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
-        NEXTCLOUD_TRUSTED_DOMAINS: ${TRUSTED_DOMAINS}
+        NEXTCLOUD_TRUSTED_DOMAINS: ${DOMAIN}
       ports:
-        - "${PORT}:80"
+        - "127.0.0.1:${PORT}:80"
       volumes:
         - html:/var/www/html
       healthcheck:
-        test: ["CMD-SHELL", "curl -fsS --max-time 8 -H 'Host: localhost' http://127.0.0.1/status.php | grep -q '\"installed\":true'"]
+        test: ["CMD-SHELL", "curl -fsS --max-time 8 -H 'Host: localhost' http://127.0.0.1/status.php | grep '\"installed\":true' | grep -q '\"maintenance\":false'"]
         interval: 10s
         timeout: 10s
         retries: 30

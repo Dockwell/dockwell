@@ -68,7 +68,11 @@ func TestTheBuiltInEntries(t *testing.T) {
 	// The first set: a database with its admin tool, a reverse proxy's
 	// replacement, a tunnel, and something that runs AI agents. Then what the two
 	// real servers run beside those (#221).
-	for _, want := range []string{"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code", "pgadmin", "redis", "mariadb", "coder"} {
+	for _, want := range []string{
+		"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code",
+		"pgadmin", "redis", "mariadb", "coder",
+		"uptime-kuma", "n8n", "gitea", "vaultwarden", "nextcloud", "rustfs", "grafana", "umami",
+	} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the catalog has no %s: %v", want, ids)
 		}
@@ -88,6 +92,8 @@ func TestEveryAppsLicenceHasHadALook(t *testing.T) {
 	allowed := map[string]string{
 		// The official image is built from ./enterprise/cmd/coder.
 		"coder": "AGPL-3.0-only, with Enterprise code under Coder's own",
+		// Source-available, with its .ee files under n8n's Enterprise licence.
+		"n8n": "Sustainable Use, with Enterprise code under n8n's own",
 	}
 	for _, e := range c.All() {
 		l := e.GetAppLicense()
@@ -207,6 +213,8 @@ func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 		"mariadb":             "ALTER USER",
 		"nginx-proxy-manager": "change the password in the console",
 		"pgadmin":             "choose Change password",
+		"nextcloud":           "under Security",
+		"grafana":             "choose Change password",
 	} {
 		e, _ := c.Entry(id)
 		if steps := e.GetFirstSteps(); !strings.Contains(steps, "on first start only") || !strings.Contains(steps, how) {
@@ -241,6 +249,36 @@ func TestADatabasesSharedPasswordSaysLeaveIt(t *testing.T) {
 			if database && app && !strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
 				t.Errorf("%s shares %s between its database and its app, and its first steps don't say to leave it as it is", e.GetId(), name)
 			}
+		}
+	}
+}
+
+// An app that encrypts what it keeps with a key of its own can't read it with another,
+// and Gitea and Grafana fall back to one everyone knows when they're given none. Each
+// gets a key generated from its first release, and its first steps say to leave it.
+func TestAnEncryptionKeyIsGeneratedAndLeftAlone(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, key := range map[string]struct{ input, env string }{
+		"gitea":   {"SECRET_KEY", "GITEA__security__SECRET_KEY"},
+		"grafana": {"GRAFANA_SECRET_KEY", "GF_SECURITY_SECRET_KEY"},
+	} {
+		e, ok := c.Entry(id)
+		if !ok {
+			t.Fatalf("the catalog has no %s", id)
+		}
+		i := slices.IndexFunc(e.GetInputs(), func(in *catalogv1.Input) bool { return in.GetName() == key.input })
+		if i < 0 || !catalog.Secret(e.GetInputs()[i]) || e.GetInputs()[i].GetGenerate() < 40 {
+			t.Errorf("%s doesn't generate %s, of 40 characters or more", id, key.input)
+		}
+		stack, filled := read(t, e)
+		if got := stack.Services[0].Spec.GetApp().GetEnv()[key.env]; got == "" || got != filled.Secrets[key.input] {
+			t.Errorf("%s's %s isn't its generated key", id, key.env)
+		}
+		if !strings.Contains(e.GetFirstSteps(), "Leave the "+key.input+" secret as it is") {
+			t.Errorf("%s's first steps don't say to leave %s as it is", id, key.input)
 		}
 	}
 }
