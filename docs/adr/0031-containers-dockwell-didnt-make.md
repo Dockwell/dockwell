@@ -73,9 +73,30 @@ A row opens the container's page: what Docker says of it, and the log view an ap
 - **What a replace would drop is refused by name.** A spec holds less than Docker can run. Taking on a container with `hostname`, `sysctls`, `ulimits` or the like would be safe today and lose them on the first change of image, without a word, and the point of taking it on is that a change of image is safe. So it is refused, naming each, as Compose import refuses what it can't run. `make` it again without them, or give specs the field. Port bindings with a port Docker picks are refused the same way, by what Validate says of them.
 - **What's refused is whatever isn't on an allow list.** A list of what to refuse passes anything it forgot: a GPU, a log driver, `-P`, a bind's propagation. So the agent reads `Config` and `HostConfig` key by key, against what a spec holds and what makes no difference, and any other key that isn't Docker's default is refused by its name, so a setting Docker adds later can't pass. A network's static address and options are read as well. `Config.MacAddress` says a static MAC only below API 1.52, and for a container's main network alone, so a static MAC on any other network can't be told from a generated one.
 - **A value of the environment shows nowhere else.** A plan shows every field but the environment, so a value in any other field of the spec is refused, by the variable's name and where it is, never the value. That looks through every field, so a new one is looked through too, but for mount paths and the working directory: a path isn't a secret, and `TZ=Asia/Shanghai` beside a mount of its zoneinfo is ordinary. An ordinary value that happens to be in a label, such as a domain, is refused with the rest, as nothing can tell it from a password.
-- **A plan says what else may run it.** A container from a Compose project usually has something else running that project, and Dockwell taking it on doesn't stop that. Once Dockwell replaces the container, a restart or an upgrade there can start a second copy on the same folders, under the same name on the network. So the plan warns, and says what to do first: stop it there, or remove it there and keep its data. It names the tool where the labels show one. It warns and doesn't refuse, as a project someone ran by hand is fine to take on.
+- **A plan says what else may run it, and what's safe.** A container from a Compose project usually has something else running that project, and Dockwell taking it on doesn't stop that. So the plan warns when it's taken on, and again on the first plan that replaces it, which is when it starts to matter. It warns and doesn't refuse, as a project someone ran by hand is fine to take on. It names the tool and the folder where the labels show them. What it advises is read from what each tool does, as a plan is what someone follows: see "In 1Panel, after taking on". No other tool's remove has been read, so a plan tells no one to use it, and says to find out what it does to the folder first.
 - **Volumes it came with stay its own.** A service's volumes are its environment's, `<project>_<name>`, so one read back from a stranger would plan a new, empty volume at the next replace, which is the worst thing this could do. `Mount.external` says a volume is one Dockwell didn't make, by its name in Docker: Dockwell never makes, changes or deletes it, and it must be on the server. As with `external_networks`, what else mounts it shares it, so it is host access. Volumes Docker made for the image move on to the new container as they always did, and server paths stay what they are, under every rule in ADR 0021.
 - **Deleting the service before anything replaces the container lets go of it.** Dockwell never made it, so that is no reason to remove it, and it's what makes an undo of taking it on true. The step says `releases`, with no downtime and nothing lost, and the container is back on the list. Once a change has replaced it, what runs is Dockwell's own, and deleting it does what deleting any service does.
+
+## In 1Panel, after taking on
+
+Read from 1Panel's source at `726fd94e07`, for an app from its store. An app's Compose file and what it binds live in one folder, `/opt/1panel/apps/<app>/<name>`, which is the Compose working-directory label: its MySQL binds `./data/:/var/lib/mysql`. So what a taken-on service mounts is in that folder.
+
+| In 1Panel | What it runs | Until Dockwell changes the image | After that |
+| --- | --- | --- | --- |
+| Stop | `compose stop` | Stops this container | Finds nothing to stop |
+| Restart | `compose restart` | Restarts this container | Finds nothing to restart |
+| Start | `compose up` | Starts this container | Starts a second copy |
+| Rebuild, or a change of port | `compose down`, then `up` | Removes this container and makes another, which Dockwell doesn't know | Starts a second copy |
+| Upgrade, or editing its settings | ends in `compose up` | Makes another, if what it asks for changed | Starts a second copy |
+| Uninstall | `compose down`, then deletes the folder, with no way to keep it | Removes this container, then deletes its data | Deletes the folder under the running service |
+
+So, after taking an app on:
+
+1. Leave it alone in 1Panel, which goes on listing it, and don't uninstall it there. Nothing in 1Panel keeps the folder.
+2. Change its image from Dockwell from then on, not there.
+3. To clear it out of 1Panel, first give the service what it mounts somewhere outside that folder, with a copy you've checked, and only then uninstall it there.
+
+A second copy shares the folders and answers to the same name on the network, and two databases on one folder can corrupt it, which is why this is said twice. Where it publishes a port the service holds, the second copy fails to start, and Compose still makes it.
 
 ## Consequences
 

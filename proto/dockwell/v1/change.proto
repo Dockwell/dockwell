@@ -993,6 +993,22 @@ message PlanStep {
   // True when this deletion lets go of a container that was taken on and hasn't been
   // replaced since: it goes on running as it is, and nothing about it changes.
   bool releases = 34;
+  // What else may still run what this step replaces, which came from a Compose
+  // project. A plan says what that means in a note.
+  ManagedElsewhere managed_elsewhere = 35;
+}
+
+// ManagedElsewhere is what else may run a container that was taken on.
+message ManagedElsewhere {
+  // The tool that runs its Compose project, such as "1Panel". Empty when its labels
+  // don't show one.
+  string manager = 1;
+  // The name it came with.
+  string container = 2;
+  // Its Compose project.
+  string project = 3;
+  // Where that project runs from, which may hold what the service mounts.
+  string folder = 4;
 }
 
 // RouteMove is a route leaving one service for another.

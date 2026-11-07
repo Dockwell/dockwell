@@ -5113,6 +5113,24 @@ components:
             description: |-
                 LoggedService says which service logs are from, or which container, for one
                  Dockwell didn't make.
+        ManagedElsewhere:
+            type: object
+            properties:
+                manager:
+                    type: string
+                    description: |-
+                        The tool that runs its Compose project, such as "1Panel". Empty when its labels
+                         don't show one.
+                container:
+                    type: string
+                    description: The name it came with.
+                project:
+                    type: string
+                    description: Its Compose project.
+                folder:
+                    type: string
+                    description: Where that project runs from, which may hold what the service mounts.
+            description: ManagedElsewhere is what else may run a container that was taken on.
         Mount:
             type: object
             properties:
@@ -5539,6 +5557,12 @@ components:
                     description: |-
                         True when this deletion lets go of a container that was taken on and hasn't been
                          replaced since: it goes on running as it is, and nothing about it changes.
+                managedElsewhere:
+                    allOf:
+                        - $ref: '#/components/schemas/ManagedElsewhere'
+                    description: |-
+                        What else may still run what this step replaces, which came from a Compose
+                         project. A plan says what that means in a note.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object

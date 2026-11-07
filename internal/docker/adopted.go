@@ -21,6 +21,10 @@ import (
 // never on the container, with the name it came with. See Adopted.
 const LabelAdopted = OwnPrefix + "adopted"
 
+// LabelAdoptedFrom says the Compose project such a container came from, in what the
+// client reads alone.
+const LabelAdoptedFrom = OwnPrefix + "adopted-from"
+
 // Taken is what a container that was taken on is now.
 type Taken struct {
 	Project string `json:"project"`
@@ -28,6 +32,9 @@ type Taken struct {
 	// Name is what it was called when it was taken on. A rollout renames it while
 	// it stops it, so what it's called in Docker may not be that any more.
 	Name string `json:"name,omitempty"`
+	// Compose is the Compose project it came from. What it reads as has the project
+	// of what it is now, so nothing else says.
+	Compose string `json:"compose,omitempty"`
 }
 
 // Adopted is the record of the containers a server took on as services. Docker
@@ -141,6 +148,9 @@ func asTaken(labels map[string]string, t Taken, name string) map[string]string {
 	maps.Copy(out, labels)
 	out[LabelProject], out[LabelService], out[LabelNumber], out[LabelOneoff] = t.Project, t.Service, strconv.Itoa(1), "False"
 	out[LabelAdopted] = cmp.Or(t.Name, strings.TrimPrefix(name, "/"))
+	if t.Compose != "" {
+		out[LabelAdoptedFrom] = t.Compose
+	}
 	return out
 }
 

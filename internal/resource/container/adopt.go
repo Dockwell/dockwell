@@ -81,7 +81,8 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 		return resource.Adoption{}, fmt.Errorf("can't ask Docker how it runs containers, so what this one needs can't be read: %w", err)
 	}
 	return resource.Adoption{
-		Spec: spec, Refused: noSpecHolds(c, options, imageSignal, info), Shows: valuesShown(spec), Manager: docker.ManagedBy(c.Config.Labels),
+		Spec: spec, Refused: noSpecHolds(c, options, imageSignal, info), Shows: valuesShown(spec),
+		Manager: docker.ManagedBy(c.Config.Labels), Folder: c.Config.Labels[docker.LabelWorkingDir],
 	}, nil
 }
 
@@ -200,7 +201,9 @@ func (d *Docker) Adopt(ctx context.Context, t Target, id string, spec *resourcev
 	if c.Config.Labels[docker.LabelAdopted] != "" {
 		return nil
 	}
-	return d.Client.Adopted.Take(id, docker.Taken{Project: t.Project, Service: t.Service, Name: strings.TrimPrefix(c.Name, "/")})
+	return d.Client.Adopted.Take(id, docker.Taken{
+		Project: t.Project, Service: t.Service, Name: strings.TrimPrefix(c.Name, "/"), Compose: c.Config.Labels[docker.LabelProject],
+	})
 }
 
 // takenOn is the full ID of what t runs, while that is a container that was taken on
@@ -226,4 +229,17 @@ func (d *Docker) takenOn(ctx context.Context, t Target) (string, error) {
 func (d *Docker) lettingGo(ctx context.Context, t Target) (bool, error) {
 	id, err := d.takenOn(ctx, t)
 	return id != "", err
+}
+
+// elsewhere says what else runs a container that was taken on from a Compose project
+// and hasn't been replaced since, for the plan that's about to replace it.
+func elsewhere(c *docker.Container) *resource.Elsewhere {
+	project := c.Config.Labels[docker.LabelAdoptedFrom]
+	if project == "" {
+		return nil
+	}
+	return &resource.Elsewhere{
+		Manager: docker.ManagedBy(c.Config.Labels), Container: c.Config.Labels[docker.LabelAdopted],
+		Project: project, Folder: c.Config.Labels[docker.LabelWorkingDir],
+	}
 }

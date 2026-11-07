@@ -597,7 +597,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = e.newImageNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))
+	p.Notes = elsewhereNotes(plan, e.newImageNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1450,6 +1450,52 @@ func (e *Engine) newImage(it *item) bool {
 		return false
 	}
 	return it.pull || n.ImageOf(it.current) != n.ImageOf(it.spec)
+}
+
+// ManagedElsewhere is what a plan says of a container from a Compose project, as
+// something else may run that yet, and Dockwell taking it on doesn't stop that. It
+// says it when it's taken on and on the first plan that replaces it, which is when it
+// starts to matter. It warns and doesn't refuse, as a project someone ran by hand is
+// fine to take on.
+//
+// Each word of what's safe is read from what the tool does, as a plan is what someone
+// follows. 1Panel's are from its source, and ADR 0031 says which: its uninstall runs
+// docker compose down, then deletes the app's folder, with no way to keep it, and that
+// folder holds what its apps bind. No other tool's remove has been read, so a plan
+// says to find out, and tells no one to use it.
+func ManagedElsewhere(e resource.Elsewhere) Note {
+	folder := cmp.Or(e.Folder, "the folder it runs from")
+	var message string
+	switch e.Manager {
+	case "":
+		message = fmt.Sprintf("%s came from the Compose project %s, and something may still run that. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to %s before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again",
+			e.Container, e.Project, folder)
+	case "1Panel":
+		message = fmt.Sprintf("1Panel still manages %s, through the Compose project %s. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes %s, which holds what this service mounts",
+			e.Container, e.Project, folder)
+	default:
+		message = fmt.Sprintf("%[1]s still manages %[2]s, through the Compose project %[3]s. Until Dockwell changes its image, what you do to it in %[1]s acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to %[4]s, as it may delete what this service mounts",
+			e.Manager, e.Container, e.Project, folder)
+	}
+	return Note{Reason: "managed_elsewhere", Message: message, Names: []string{e.Manager, e.Container, e.Project, e.Folder}}
+}
+
+// elsewhereNotes are a plan's notes, saying again what else may run what it replaces.
+func elsewhereNotes(plan *Plan, notes []Note) []Note {
+	out := slices.Clone(notes)
+	seen := map[resource.Ref]bool{}
+	for i := range plan.Servers {
+		steps := plan.Servers[i].Steps
+		for j := range steps {
+			if e := steps[j].Elsewhere; e != nil && !seen[steps[j].Ref] {
+				seen[steps[j].Ref] = true
+				n := ManagedElsewhere(*e)
+				n.Ref = steps[j].Ref
+				out = append(out, n)
+			}
+		}
+	}
+	return out
 }
 
 // newImageNotes are a plan's notes, saying why a new image alone needs a person.

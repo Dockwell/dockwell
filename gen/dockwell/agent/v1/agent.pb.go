@@ -3770,7 +3770,9 @@ type AdoptionResult struct {
 	Shows []string `protobuf:"bytes,3,rep,name=shows,proto3" json:"shows,omitempty"`
 	// The tool that runs its Compose project, where its labels show one, such as
 	// "1Panel".
-	Manager       string `protobuf:"bytes,4,opt,name=manager,proto3" json:"manager,omitempty"`
+	Manager string `protobuf:"bytes,4,opt,name=manager,proto3" json:"manager,omitempty"`
+	// Where its Compose project runs from.
+	Folder        string `protobuf:"bytes,5,opt,name=folder,proto3" json:"folder,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3829,6 +3831,13 @@ func (x *AdoptionResult) GetShows() []string {
 func (x *AdoptionResult) GetManager() string {
 	if x != nil {
 		return x.Manager
+	}
+	return ""
+}
+
+func (x *AdoptionResult) GetFolder() string {
+	if x != nil {
+		return x.Folder
 	}
 	return ""
 }
@@ -4519,12 +4528,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tread_file\x18\v \x01(\v2!.dockwell.agent.v1.ReadFileResultH\x00R\breadFile\x12@\n" +
 	"\tsave_file\x18\f \x01(\v2!.dockwell.agent.v1.SaveFileResultH\x00R\bsaveFile\x12?\n" +
 	"\badoption\x18\r \x01(\v2!.dockwell.agent.v1.AdoptionResultH\x00R\badoptionB\b\n" +
-	"\x06result\"n\n" +
+	"\x06result\"\x86\x01\n" +
 	"\x0eAdoptionResult\x12\x12\n" +
 	"\x04spec\x18\x01 \x01(\fR\x04spec\x12\x18\n" +
 	"\arefused\x18\x02 \x03(\tR\arefused\x12\x14\n" +
 	"\x05shows\x18\x03 \x03(\tR\x05shows\x12\x18\n" +
-	"\amanager\x18\x04 \x01(\tR\amanager\"\x86\x01\n" +
+	"\amanager\x18\x04 \x01(\tR\amanager\x12\x16\n" +
+	"\x06folder\x18\x05 \x01(\tR\x06folder\"\x86\x01\n" +
 	"\x10ContainersResult\x12<\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x1c.dockwell.v1.ServerContainerR\n" +

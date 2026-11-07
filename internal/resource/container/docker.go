@@ -1441,6 +1441,9 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	var c *docker.Container
 	if len(all) > 0 {
 		c = all[0].Container
+		if dec.Action == resource.ActionReplace {
+			dec.Elsewhere = elsewhere(c)
+		}
 		if dec.Action == resource.ActionReplace && !all[0].temp && !all[0].stopping {
 			// A replace makes the new one under this name, and a try that
 			// failed before leaves one there, but it may be someone's.

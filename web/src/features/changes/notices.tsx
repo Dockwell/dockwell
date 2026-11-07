@@ -419,17 +419,25 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
       case "managed_elsewhere": {
-        const [tool = "", container = "", project = ""] = note.names;
+        const [tool = "", container = "", project = "", folder = ""] = note.names;
+        const where = folder || t`the folder it runs from`;
+        if (tool === "1Panel") {
+          return {
+            key,
+            title: t`1Panel still manages ${container}`,
+            detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes ${where}, which holds what this service mounts.`,
+          };
+        }
         return tool !== ""
           ? {
               key,
               title: t`${tool} still manages ${container}`,
-              detail: t`It runs through the Compose project ${project}. After a change of image here, a restart or an upgrade in ${tool} can start a second copy on the same folders, answering to the same name. Stop it in ${tool} first, or remove it there and keep its data.`,
+              detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, what you do to it in ${tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to ${where}, as it may delete what this service mounts.`,
             }
           : {
               key,
               title: t`Something may still manage ${container}`,
-              detail: t`It came from the Compose project ${project}. After a change of image here, whatever runs that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again.`,
+              detail: t`It came from the Compose project ${project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to ${where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again.`,
             };
       }
       case "no_backup":

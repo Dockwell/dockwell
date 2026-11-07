@@ -1096,6 +1096,10 @@ msgstr "超过 1 万行新日志"
 msgid "15 min"
 msgstr "15 分钟"
 
+#: src/features/changes/notices.tsx
+msgid "1Panel still manages {container}"
+msgstr "1Panel 仍在管理 {container}"
+
 #: src/features/logs/LogsPage.tsx
 msgid "24 h"
 msgstr "24 小时"
@@ -3386,8 +3390,8 @@ msgid "It answers only what runs on {server} itself, such as a tunnel on its own
 msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
 
 #: src/features/changes/notices.tsx
-msgid "It came from the Compose project {project}. After a change of image here, whatever runs that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again."
-msgstr "它来自 Compose 项目 {project}。在这里更换镜像后，运行该项目的工具可能会在相同目录上再启动一个副本，并使用相同的名称。如果是面板或脚本在运行它，请先在那里停止，或在那里移除并保留数据。如果是你自己运行的 docker compose，请不要再运行那个文件。"
+msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
+msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
 
 #: src/features/changes/notices.tsx
 msgid "It can read and write that path on the server."
@@ -3518,8 +3522,12 @@ msgid "It runs the new image with the rest as it is"
 msgstr "运行新镜像，其余保持不变"
 
 #: src/features/changes/notices.tsx
-msgid "It runs through the Compose project {project}. After a change of image here, a restart or an upgrade in {tool} can start a second copy on the same folders, answering to the same name. Stop it in {tool} first, or remove it there and keep its data."
-msgstr "它通过 Compose 项目 {project} 运行。在这里更换镜像后，在 {tool} 中重启或升级可能会在相同目录上再启动一个副本，并使用相同的名称。请先在 {tool} 中停止它，或在那里移除并保留数据。"
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，在 1Panel 中对它的任何操作都会作用于这个容器。更换之后，在那里启动、重建、升级或编辑其设置都会启动第二个副本，使用相同的目录和相同的名称。无论何时都不要在 1Panel 中卸载它：那会删除 {where}，其中保存着此服务挂载的内容。"
+
+#: src/features/changes/notices.tsx
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
+msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，你在 {tool} 中的操作会作用于这个容器。更换之后，在那里启动或重新部署可能会启动第二个副本，使用相同的目录和相同的名称。在那里移除它之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
@@ -6351,6 +6359,10 @@ msgstr "文件使用这些变量。有默认值的留空即使用默认值。"
 #: src/features/changes/notices.tsx
 msgid "The file writes more variables in plain sight than these"
 msgstr "该文件以明文写出的变量比这里列出的更多"
+
+#: src/features/changes/notices.tsx
+msgid "the folder it runs from"
+msgstr "它运行所在的目录"
 
 #: src/features/changes/words.ts
 msgid "the group {path}, which is the same as root"

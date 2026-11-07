@@ -1096,6 +1096,10 @@ msgstr "10k+ new lines"
 msgid "15 min"
 msgstr "15 min"
 
+#: src/features/changes/notices.tsx
+msgid "1Panel still manages {container}"
+msgstr "1Panel still manages {container}"
+
 #: src/features/logs/LogsPage.tsx
 msgid "24 h"
 msgstr "24 h"
@@ -3386,8 +3390,8 @@ msgid "It answers only what runs on {server} itself, such as a tunnel on its own
 msgstr "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
 
 #: src/features/changes/notices.tsx
-msgid "It came from the Compose project {project}. After a change of image here, whatever runs that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again."
-msgstr "It came from the Compose project {project}. After a change of image here, whatever runs that can start a second copy on the same folders, answering to the same name. If a panel or a script runs it, stop it there first, or remove it there and keep its data. If you ran docker compose yourself, don't run that file again."
+msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
+msgstr "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 
 #: src/features/changes/notices.tsx
 msgid "It can read and write that path on the server."
@@ -3518,8 +3522,12 @@ msgid "It runs the new image with the rest as it is"
 msgstr "It runs the new image with the rest as it is"
 
 #: src/features/changes/notices.tsx
-msgid "It runs through the Compose project {project}. After a change of image here, a restart or an upgrade in {tool} can start a second copy on the same folders, answering to the same name. Stop it in {tool} first, or remove it there and keep its data."
-msgstr "It runs through the Compose project {project}. After a change of image here, a restart or an upgrade in {tool} can start a second copy on the same folders, answering to the same name. Stop it in {tool} first, or remove it there and keep its data."
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+
+#: src/features/changes/notices.tsx
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
+msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
 
 #: src/features/apps/AppOverview.tsx
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
@@ -6351,6 +6359,10 @@ msgstr "The file uses these. Leave one with a default empty to use its default."
 #: src/features/changes/notices.tsx
 msgid "The file writes more variables in plain sight than these"
 msgstr "The file writes more variables in plain sight than these"
+
+#: src/features/changes/notices.tsx
+msgid "the folder it runs from"
+msgstr "the folder it runs from"
 
 #: src/features/changes/words.ts
 msgid "the group {path}, which is the same as root"

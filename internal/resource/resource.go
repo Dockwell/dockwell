@@ -161,6 +161,9 @@ type Decision struct {
 	// Releases says this deletion lets go of a container that was taken on and hasn't
 	// been replaced since: it goes on running as it is.
 	Releases bool `json:",omitempty"`
+	// Elsewhere is what else may run what this step replaces, which came from a
+	// Compose project and is about to stop being what that project finds.
+	Elsewhere *Elsewhere `json:",omitempty"`
 	// Leads says where the server paths the resource mounts lead through symlinks,
 	// by path, for those that lead elsewhere, and which driver a network Dockwell
 	// didn't make uses, by name, where that isn't Docker's bridge. An agent reads it;
@@ -818,6 +821,19 @@ type Adoption struct {
 	Shows []string
 	// Manager is the tool that runs its Compose project, where its labels show one.
 	Manager string
+	// Folder is where its Compose project runs from.
+	Folder string
+}
+
+// Elsewhere is what else may still run a container that was taken on from a Compose
+// project.
+type Elsewhere struct {
+	// Manager is the tool that runs the project, where its labels show one.
+	Manager string `json:",omitempty"`
+	// Container is the name it came with, and Project its Compose project.
+	Container, Project string
+	// Folder is where that project runs from.
+	Folder string `json:",omitempty"`
 }
 
 // Adopter is a driver that can take on what runs on a server already, as what a

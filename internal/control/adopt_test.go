@@ -464,22 +464,78 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 		return nil
 	}
 
-	runByHand(t, e, "1Panel-blog-Ab3x", compose("blog", "/opt/1panel/apps/blog/blog"))
-	n := managed(adopt(t, cc, "1Panel-blog-Ab3x", "blog"))
-	if n == nil || !slices.Equal(n.GetNames(), []string{"1Panel", "1Panel-blog-Ab3x", "blog"}) {
+	// What a person is told to do is what 1Panel's source says is safe: its uninstall
+	// runs docker compose down, then deletes the app's folder, with no way to keep it,
+	// and a stop stops this same container.
+	const folder = "/opt/1panel/apps/mysql/blog"
+	runByHand(t, e, "1Panel-blog-Ab3x", compose("blog", folder))
+	planned := adopt(t, cc, "1Panel-blog-Ab3x", "blog")
+	n := managed(planned)
+	if n == nil || !slices.Equal(n.GetNames(), []string{"1Panel", "1Panel-blog-Ab3x", "blog", folder}) {
 		t.Fatalf("taking on what 1Panel made says %v", n)
 	}
-	for _, says := range []string{"1Panel still manages 1Panel-blog-Ab3x", "second copy", "Stop it in 1Panel first", "keep its data"} {
-		if !strings.Contains(n.GetMessage(), says) {
-			t.Errorf("the note %q doesn't say %q", n.GetMessage(), says)
+	advice := func(what string, n *dockwellv1.PlanNote) {
+		t.Helper()
+		for _, says := range []string{
+			"1Panel still manages 1Panel-blog-Ab3x",
+			"Until Dockwell changes its image, anything done to it in 1Panel acts on this container",
+			"Start, Rebuild, Upgrade or editing its settings there starts a second copy",
+			"Don't uninstall it in 1Panel", "that deletes " + folder, "which holds what this service mounts",
+		} {
+			if !strings.Contains(n.GetMessage(), says) {
+				t.Errorf("%s: the note %q doesn't say %q", what, n.GetMessage(), says)
+			}
 		}
+		// Each of these would lose someone's data, or stop what they took on.
+		for _, never := range []string{"keep its data", "Stop it in", "remove it there", "Restart"} {
+			if strings.Contains(n.GetMessage(), never) {
+				t.Errorf("%s: the note %q says %q", what, n.GetMessage(), never)
+			}
+		}
+	}
+	advice("taking it on", n)
+
+	// The first plan that replaces it says it again, when it starts to matter, and
+	// the next has nothing left to say.
+	applyConfirmed(t, changeClient(b, b.origin), planned)
+	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	deploy := func(image string) *dockwellv1.Change {
+		t.Helper()
+		res, err := services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "blog", Image: image}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetChange()
+	}
+	first := deploy("nginx:1.27")
+	n = managed(first)
+	if n == nil {
+		t.Fatalf("the first plan that replaces it says nothing of 1Panel: %v", first.GetPlan().GetNotes())
+	}
+	advice("replacing it", n)
+	apply(t, changeClient(b, b.origin), first)
+	e.AddLocalImage("nginx:1.28", dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}})
+	if n := managed(deploy("nginx:1.28")); n != nil {
+		t.Errorf("a plan after the first still says %v", n)
+	}
+
+	// Another tool's remove hasn't been read, so it isn't told to use it, or not.
+	runByHand(t, e, "coolify-web", func(r *docker.CreateRequest) {
+		compose("web", "/data/coolify/applications/x")(r)
+		r.Labels["coolify.managed"] = "true"
+	})
+	n = managed(adopt(t, cc, "coolify-web", "web"))
+	if n == nil || n.GetNames()[0] != "Coolify" || strings.Contains(n.GetMessage(), "keep its data") ||
+		!strings.Contains(n.GetMessage(), "find out what that does to /data/coolify/applications/x") {
+		t.Errorf("taking on what Coolify made says %v", n)
 	}
 
 	// With no way to tell, it says what to look for, and asks nothing of a project
 	// made by hand.
 	runByHand(t, e, "shop-app-1", compose("shop", "/srv/shop"))
 	n = managed(adopt(t, cc, "shop-app-1", "shop"))
-	if n == nil || n.GetNames()[0] != "" || !strings.Contains(n.GetMessage(), "If you ran docker compose yourself") {
+	if n == nil || n.GetNames()[0] != "" || !strings.Contains(n.GetMessage(), "If you ran docker compose yourself") ||
+		strings.Contains(n.GetMessage(), "keep its data") || !strings.Contains(n.GetMessage(), "find out what its remove does to /srv/shop") {
 		t.Errorf("taking on a Compose project nothing names says %v", n)
 	}
 

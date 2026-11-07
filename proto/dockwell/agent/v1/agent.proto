@@ -710,6 +710,8 @@ message AdoptionResult {
   // The tool that runs its Compose project, where its labels show one, such as
   // "1Panel".
   string manager = 4;
+  // Where its Compose project runs from.
+  string folder = 5;
 }
 
 // ContainersResult lists the containers Docker has.
