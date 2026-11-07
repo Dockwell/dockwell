@@ -275,6 +275,10 @@
   text-overflow: ellipsis;
 }
 
+.topbar-new.dw-btn {
+  flex: none;
+}
+
 /* ---------- Tab bar ---------- */
 
 /* How tall the tab bar is, for what sits right above it. */
