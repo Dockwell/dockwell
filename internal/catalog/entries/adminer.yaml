@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 id: adminer
 name: Adminer
-summary: Manage PostgreSQL, MySQL, MariaDB and SQLite from one page
+summary: Manage PostgreSQL, MySQL and MariaDB from one page
 category: databases
 version: "6.2.0"
 release: 1
@@ -14,16 +14,20 @@ source:
 web:
   service: adminer
 firstSteps: >-
-  Adminer answers over plain HTTP, so signing in from outside this server sends your
-  database's password in clear. Add a domain first, or reach it another way, such as a
-  VPN or an SSH tunnel. Then open Adminer and sign in to a database by this server's
-  address and the database's port. A database installed here publishes no port, so
-  add one to its db service first. PostgreSQL and MySQL from the catalog each come
-  with an admin tool of their own already.
+  Adminer answers only on this server until you add a domain, as it signs in over
+  plain HTTP. Add a domain on its page, over HTTPS or behind your tunnel, and open it
+  there. To open it before that, use an SSH tunnel from your computer: ssh -N -L
+  8086:127.0.0.1:8086 you@your-server, using the port you gave it, then open
+  http://localhost:8086. Sign in to a database by an address Adminer's container
+  reaches: host.docker.internal is this server, for a database it runs with a port of
+  its own, such as one another panel set up. A database installed from this catalog
+  keeps to its own project, where its services reach it by name, such as db, and
+  publishes no port. PostgreSQL, MySQL and MariaDB from this catalog each come with
+  an admin tool of their own already.
 inputs:
   - name: PORT
-    label: Adminer port
-    hint: You open Adminer on this port of the server. It asks for each database's password.
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8086"
 compose: |
@@ -32,9 +36,12 @@ compose: |
       image: adminer:6.2.0@sha256:400af848ac3f57938abde4867677df1b195674d232c8896a27d111d04b9c088c
       restart: unless-stopped
       ports:
-        - "${PORT}:8080"
+        - "127.0.0.1:${PORT}:8080"
+      # This server, as Adminer reaches it, for a database it runs outside this project.
+      extra_hosts:
+        - host.docker.internal:host-gateway
       healthcheck:
-        test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 8080) ? 0 : 1);"]
+        test: ["CMD", "php", "-r", "exit(str_contains((string) @file_get_contents('http://127.0.0.1:8080/'), 'auth[driver]') ? 0 : 1);"]
         interval: 5s
         timeout: 5s
         retries: 12

@@ -14,27 +14,22 @@ source:
 web:
   service: plausible
 firstSteps: >-
-  Plausible answers over plain HTTP, so signing in from outside this server sends your
-  password in clear, and the first person to open it makes its account. Add a domain
-  first, or reach it another way, such as a VPN or an SSH tunnel, and set BASE_URL on
-  the plausible service to where you open it, as its pages take nothing from anywhere
-  else. Then open it and register. Leave the POSTGRES_PASSWORD secret as it is: its
-  database keeps the password it started with, and Plausible would then use one it
-  doesn't take. Changing SECRET_KEY_BASE signs everyone out and loses two-factor
-  sign-in.
+  Plausible answers only on this server until you add a domain, as the first person
+  to open it makes its account. Add a domain on its page, over HTTPS or behind your
+  tunnel, then set BASE_URL on the plausible service to that address, as Plausible
+  builds its links and your sites' tracker from it, and open it there to register. To
+  open it before that, use an SSH tunnel from your computer: ssh -N -L
+  8000:127.0.0.1:8000 you@your-server, using the port you gave it, then open
+  http://localhost:8000. Leave the POSTGRES_PASSWORD secret as it is: its database
+  keeps the password it started with, and Plausible would then use one it doesn't
+  take. Leave the SECRET_KEY_BASE secret as it is too: changing it signs everyone out
+  and turns off two-factor sign-in.
 inputs:
   - name: PORT
-    label: Plausible port
-    hint: You open Plausible on this port of the server.
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8000"
-  - name: BASE_URL
-    label: Address you open it at
-    hint: >-
-      Plausible's pages and your sites' tracker use this, such as
-      https://stats.example.com once you add a domain.
-    type: INPUT_TYPE_TEXT
-    defaultValue: http://localhost:8000
   - name: SECRET_KEY_BASE
     label: Secret key
     type: INPUT_TYPE_SECRET
@@ -53,17 +48,17 @@ compose: |
           condition: service_healthy
         events:
           condition: service_healthy
-      # Its database is named by a URL alone, so a shell writes that from the secret as
-      # it starts, and a rotation reaches it. Then it makes and migrates what it keeps.
+      # Its database is named by a URL alone, so a shell writes that from the secret as it
+      # starts, and the file names no password. Then it makes and migrates what it keeps.
       command: ["sh", "-c", "export DATABASE_URL=\"postgres://plausible:$$POSTGRES_PASSWORD@db:5432/plausible\" && /entrypoint.sh db createdb && /entrypoint.sh db migrate && exec /entrypoint.sh run"]
       environment:
-        BASE_URL: ${BASE_URL}
+        BASE_URL: http://localhost:${PORT}
         SECRET_KEY_BASE: ${SECRET_KEY_BASE}
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
         CLICKHOUSE_DATABASE_URL: http://events:8123/plausible_events_db
         TMPDIR: /var/lib/plausible/tmp
       ports:
-        - "${PORT}:8000"
+        - "127.0.0.1:${PORT}:8000"
       volumes:
         - data:/var/lib/plausible
       healthcheck:
@@ -87,6 +82,8 @@ compose: |
         timeout: 5s
         retries: 12
     events:
+      # ClickHouse 24.12 is out of upstream's support, and it's what Plausible's own
+      # Compose file pins, which this follows until Plausible moves.
       image: clickhouse/clickhouse-server:24.12.6.70-alpine@sha256:cd450891db46cc6ffe313ca2b0fb7dbfb897a6873ca74a724cbe050a2cf62621
       restart: unless-stopped
       # Plausible's own settings for a small server, which its Compose file mounts:
