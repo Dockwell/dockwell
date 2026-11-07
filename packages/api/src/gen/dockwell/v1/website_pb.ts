@@ -394,7 +394,7 @@ export const DeleteWebsiteResponseSchema: GenMessage<DeleteWebsiteResponse> = /*
  * project of its own: Dockwell writes its route, and the service that serves
  * it, from what you choose, such as a URL to send its requests to. Its domain
  * gets its certificate as any route's does, or none behind a tunnel or a proxy
- * that ends TLS. See docs/adr/0037-websites-as-projects-of-their-own.md.
+ * that ends TLS. See docs/adr/0038-websites-as-projects-of-their-own.md.
  *
  * @generated from service dockwell.v1.WebsiteService
  */

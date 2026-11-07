@@ -7267,7 +7267,7 @@ components:
                     description: |-
                         What this project serves, for a project made as a website. Dockwell writes
                          the route and the services of its environment from it. Unset for any other
-                         project. See docs/adr/0037-websites-as-projects-of-their-own.md.
+                         project. See docs/adr/0038-websites-as-projects-of-their-own.md.
             description: |-
                 Project is a product or client in the organization. It holds
                  environments, and scopes members, secrets and domains. An install starts
@@ -9806,4 +9806,4 @@ tags:
          project of its own: Dockwell writes its route, and the service that serves
          it, from what you choose, such as a URL to send its requests to. Its domain
          gets its certificate as any route's does, or none behind a tunnel or a proxy
-         that ends TLS. See docs/adr/0037-websites-as-projects-of-their-own.md.
+         that ends TLS. See docs/adr/0038-websites-as-projects-of-their-own.md.

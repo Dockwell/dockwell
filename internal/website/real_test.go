@@ -99,7 +99,7 @@ func asTheIngress(t *testing.T, addr, path string) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+path, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+path, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,7 +3,7 @@
 // Package websites serves dockwell.v1.WebsiteService: the websites, and planning
 // making one, changing what it serves and deleting it, each as a change. A website
 // is a project of its own, and what it serves is written from Project.website. See
-// docs/adr/0037-websites-as-projects-of-their-own.md.
+// docs/adr/0038-websites-as-projects-of-their-own.md.
 package websites
 
 import (
@@ -161,9 +161,9 @@ func (h *Handler) sites(ctx context.Context, tx *store.Tx) ([]site, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, l := range live {
-			if l.UpdatedAt.After(s.updated) {
-				s.updated = l.UpdatedAt
+		for i := range live {
+			if live[i].UpdatedAt.After(s.updated) {
+				s.updated = live[i].UpdatedAt
 			}
 		}
 		out = append(out, s)

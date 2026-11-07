@@ -695,7 +695,7 @@ export type Project = Message<"dockwell.resource.v1alpha1.Project"> & {
   /**
    * What this project serves, for a project made as a website. Dockwell writes
    * the route and the services of its environment from it. Unset for any other
-   * project. See docs/adr/0037-websites-as-projects-of-their-own.md.
+   * project. See docs/adr/0038-websites-as-projects-of-their-own.md.
    *
    * @generated from field: dockwell.resource.v1alpha1.Website website = 3;
    */
