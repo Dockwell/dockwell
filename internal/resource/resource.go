@@ -164,6 +164,9 @@ type Decision struct {
 	// Elsewhere is what else may run what this step replaces, which came from a
 	// Compose project and is about to stop being what that project finds.
 	Elsewhere *Elsewhere `json:",omitempty"`
+	// SharedNames are names what this step takes on keeps, that others hold too on a
+	// network it's on.
+	SharedNames []SharedName `json:",omitempty"`
 	// Leads says where the server paths the resource mounts lead through symlinks,
 	// by path, for those that lead elsewhere, and which driver a network Dockwell
 	// didn't make uses, by name, where that isn't Docker's bridge. An agent reads it;
@@ -897,6 +900,13 @@ type Adoption struct {
 	Manager string
 	// Folder is where its Compose project runs from.
 	Folder string
+}
+
+// SharedName is a name more than one container answers to on a network: Name, which a
+// container taken on goes on holding beside Others, on Network.
+type SharedName struct {
+	Name, Network string
+	Others        []string
 }
 
 // Elsewhere is what else may still run a container that was taken on from a Compose

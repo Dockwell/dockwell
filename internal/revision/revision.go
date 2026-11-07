@@ -628,7 +628,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = elsewhereNotes(plan, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))
+	p.Notes = sharedNameNotes(plan, elsewhereNotes(plan, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1576,7 +1576,7 @@ func ManagedElsewhere(e resource.Elsewhere) Note {
 		message = fmt.Sprintf("%s came from the Compose project %s, and something may still run that. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to %s before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again",
 			e.Container, e.Project, folder)
 	case "1Panel":
-		message = fmt.Sprintf("1Panel still manages %s, through the Compose project %s. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes %s, which holds what this service mounts",
+		message = fmt.Sprintf("1Panel still manages %s, through the Compose project %s. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes %s, which holds what this service mounts",
 			e.Container, e.Project, folder)
 	default:
 		message = fmt.Sprintf("%[1]s still manages %[2]s, through the Compose project %[3]s. Until Dockwell changes its image, what you do to it in %[1]s acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to %[4]s, as it may delete what this service mounts",
@@ -1597,6 +1597,25 @@ func elsewhereNotes(plan *Plan, notes []Note) []Note {
 				n := ManagedElsewhere(*e)
 				n.Ref = steps[j].Ref
 				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
+// sharedNameNotes are a plan's notes, saying which names what it takes on keeps beside
+// others on a network, and what that means. Taking one on changes nothing about it.
+func sharedNameNotes(plan *Plan, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range plan.Servers {
+		steps := plan.Servers[i].Steps
+		for j := range steps {
+			for _, n := range steps[j].SharedNames {
+				out = append(out, Note{
+					Reason: "shares_a_name", Ref: steps[j].Ref, Names: append([]string{n.Name, n.Network}, n.Others...),
+					Message: fmt.Sprintf("More than one container answers to %s on the network %s, as they do now: this one and %s. What asks for %s there can reach either, so point what uses it at a name only one of them has",
+						n.Name, n.Network, human.List(n.Others), n.Name),
+				})
 			}
 		}
 	}

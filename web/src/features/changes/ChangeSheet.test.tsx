@@ -770,6 +770,9 @@ describe("the plan sheet", () => {
     ).toBeVisible();
     expect(within(sheet).getByText(/Don't uninstall it in 1Panel/)).toBeVisible();
     expect(within(sheet).getByText(/Something may still manage shop-app-1/)).toBeVisible();
+    // It leads the plan, before everything a plan of many services has to say.
+    expect(sheet.querySelector(".plan-risk")?.textContent).toMatch(/^1Panel still manages 1Panel-blog-Ab3x/);
+    expect(within(sheet).getByText(/After that, 1Panel shows it in error/)).toBeVisible();
     // A path is set apart from the words around it, so these read across elements.
     expect(sheet.textContent).toContain(
       "that deletes /opt/1panel/apps/mysql/blog, which holds what this service mounts",
@@ -797,6 +800,23 @@ describe("the plan sheet", () => {
       "dockwell volumes delete data --project shop",
       "dockwell networks delete default --project shop --environment production",
     ]);
+  });
+
+  it("says who else answers to a name that comes with what's taken on", async () => {
+    const taking = webPlanned();
+    if (taking.plan) {
+      taking.plan.notes = [
+        create(PlanNoteSchema, { reason: "shares_a_name", names: ["redis", "1panel-network", "1Panel-redis2-EfGh"] }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: taking }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText(/More than one container answers to/);
+    expect(sheet.textContent).toContain("More than one container answers to redis on 1panel-network");
+    expect(sheet.textContent).toContain("This one and 1Panel-redis2-EfGh, as they do now");
+    expect(sheet.textContent).toContain("point what uses it at a name only one of them has");
   });
 
   it("says what a server's note means in its own words, so they translate", async () => {

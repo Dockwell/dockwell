@@ -269,7 +269,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			}
 			dec, err := a.Adopts(ctx, want.Ref, want.Adopt, spec)
 			if err != nil {
-				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+				return nil, fmt.Errorf("can't take on %s: %w", want.Ref.Name, err)
 			}
 			steps = append(steps, Step{Ref: want.Ref, Decision: dec, Changes: Diff(nil, spec)})
 			continue

@@ -39,7 +39,8 @@ export function sentence(error: unknown): string {
   const err = ConnectError.from(error);
   const text = (err.rawMessage || err.message).trim();
   if (!text) return "";
-  // A domain or an address leads as it's written.
-  const capital = /^\S*[.:/]\S*\s/.test(text) ? text : text.charAt(0).toUpperCase() + text.slice(1);
+  // A domain, an address or a name leads as it's written, and what's in it tells it
+  // from a word: bad-db-1, legacy_api, shop2.
+  const capital = /^\S*[.:/_\d-]\S*\s/.test(text) ? text : text.charAt(0).toUpperCase() + text.slice(1);
   return /[.!?]$/.test(capital) ? capital : `${capital}.`;
 }

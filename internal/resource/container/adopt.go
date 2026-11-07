@@ -49,7 +49,7 @@ func (d *Driver) AdoptsAt(ctx context.Context, t Target, id string, spec *resour
 func (d *Docker) inspectToAdopt(ctx context.Context, t Target, id string) (*docker.Container, *resourcev1.Container, error) {
 	c, err := d.Client.InspectContainer(ctx, id)
 	if docker.IsNotFound(err) {
-		return nil, nil, fmt.Errorf("the container %.12s isn't on this server any more, so there's nothing to take on. Check what's there with docker ps -a", id)
+		return nil, nil, fmt.Errorf("the container %.12s isn't on this server any more, as what made it may have made it again. Plan taking it on again, from what's there now", id)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -206,7 +206,11 @@ func (d *Docker) Adoption(ctx context.Context, t Target, id string, spec *resour
 	if changes := resource.Diff(spec, got); len(changes) > 0 {
 		return resource.Decision{}, fmt.Errorf("%s has changed since it was read: its %s differs. Take it on again, to plan it from what it is now", name, changes[0].Path)
 	}
-	return resource.Decision{Action: resource.ActionCreate, Adopts: c.ID}, nil
+	shared, err := d.sharedNames(ctx, t, spec, c.ID)
+	if err != nil {
+		return resource.Decision{}, err
+	}
+	return resource.Decision{Action: resource.ActionCreate, Adopts: c.ID, SharedNames: shared}, nil
 }
 
 // Adopt records a container as what t runs, and does nothing else to it. Done

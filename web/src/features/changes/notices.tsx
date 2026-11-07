@@ -7,6 +7,7 @@ import {
   HostAccessKind,
   IntentKind,
   type Plan,
+  type PlanNote,
   PlanWarning,
   type RestorePlan,
 } from "@dockwell/api";
@@ -325,6 +326,36 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   };
 }
 
+/** A note that a tool it can name still manages a container. */
+const namesItsManager = (note: PlanNote) => note.reason === "managed_elsewhere" && (note.names[0] ?? "") !== "";
+
+/** What a plan says of what else may run a container it takes on or replaces. */
+function useManagedElsewhere(): (note: PlanNote, key: string) => Notice {
+  const { t } = useLingui();
+  return (note, key) => {
+    const [tool = "", container = "", project = "", folder = ""] = note.names;
+    const where = folder || t`the folder it runs from`;
+    if (tool === "1Panel") {
+      return {
+        key,
+        title: t`1Panel still manages ${container}`,
+        detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes ${where}, which holds what this service mounts.`,
+      };
+    }
+    return tool !== ""
+      ? {
+          key,
+          title: t`${tool} still manages ${container}`,
+          detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, what you do to it in ${tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to ${where}, as it may delete what this service mounts.`,
+        }
+      : {
+          key,
+          title: t`Something may still manage ${container}`,
+          detail: t`It came from the Compose project ${project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to ${where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again.`,
+        };
+  };
+}
+
 /**
  * What a plan can't take back, worst first: what is as good as root on its
  * server, what data it takes away, and whether it may cut off access. They are
@@ -394,8 +425,14 @@ export function useRisks(plan: Plan | undefined): Notice[] {
   const { t } = useLingui();
   const restoreNotices = useRestoreNotices();
   const { root } = useReaches(plan);
+  const managed = useManagedElsewhere();
   if (!plan) return [];
-  const out: Notice[] = [...root];
+  // What a tool would delete leads, as acting on it there is what loses data, and it
+  // can't wait below everything a plan of many services has to say.
+  const out: Notice[] = [
+    ...plan.notes.filter(namesItsManager).map((note, i) => managed(note, `managed-${i}`)),
+    ...root,
+  ];
 
   for (const server of plan.servers) {
     for (const step of server.steps) {
@@ -469,16 +506,31 @@ export function useDataLeft(plan: Plan | undefined): Omit<Notice, "key"> | undef
  */
 export function useWarnings(plan: Plan | undefined, applied = false, serving: readonly string[] = []): Notice[] {
   const { t } = useLingui();
+  const managed = useManagedElsewhere();
   const words = useChangeWords();
   const { rest } = useReaches(plan);
   const rollouts = useRolloutLines(plan);
   // Going back is when this is news. Any other plan says it among what it means.
   const rollingBack = plan?.intent?.kind === IntentKind.ROLL_BACK;
-  const worthWarning = (plan?.notes ?? []).filter((note) => note.reason !== "volumes_stay" || rollingBack);
+  // One a tool still manages leads the plan, as a person acts on it first.
+  const worthWarning = (plan?.notes ?? [])
+    .filter((note) => (note.reason !== "volumes_stay" || rollingBack) && !namesItsManager(note))
+    .sort((a, b) => Number(b.reason === "managed_elsewhere") - Number(a.reason === "managed_elsewhere"));
   const notes = worthWarning.map((note, i): Notice => {
     const key = `note-${i}`;
     const name = note.resource?.name ?? "";
     switch (note.reason) {
+      case "managed_elsewhere":
+        return managed(note, key);
+      case "shares_a_name": {
+        const [shared = "", network = "", ...others] = note.names;
+        const also = others.join(", ");
+        return {
+          key,
+          title: t`More than one container answers to ${shared} on ${network}`,
+          detail: t`This one and ${also}, as they do now. What asks for ${shared} there can reach either, so point what uses it at a name only one of them has.`,
+        };
+      }
       case "volumes_stay": {
         const names = note.names.join(", ");
         return {
@@ -491,28 +543,6 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       }
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
-      case "managed_elsewhere": {
-        const [tool = "", container = "", project = "", folder = ""] = note.names;
-        const where = folder || t`the folder it runs from`;
-        if (tool === "1Panel") {
-          return {
-            key,
-            title: t`1Panel still manages ${container}`,
-            detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes ${where}, which holds what this service mounts.`,
-          };
-        }
-        return tool !== ""
-          ? {
-              key,
-              title: t`${tool} still manages ${container}`,
-              detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, what you do to it in ${tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to ${where}, as it may delete what this service mounts.`,
-            }
-          : {
-              key,
-              title: t`Something may still manage ${container}`,
-              detail: t`It came from the Compose project ${project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to ${where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again.`,
-            };
-      }
       case "no_backup":
         return {
           key,

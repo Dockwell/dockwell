@@ -276,6 +276,33 @@ func joinedByName(t Target, spec *resourcev1.Container) (networks, names []strin
 // name is looked up without regard to case, as DNS names are. A service's own
 // environment's networks are the control plane's to check (revision.checkAnswers).
 func (d *Docker) checkNetworks(ctx context.Context, t Target, spec *resourcev1.Container) error {
+	found, err := d.nameClashes(ctx, t, spec)
+	if err != nil {
+		return err
+	}
+	for i := range found {
+		if !found[i].held {
+			return takenName(t, found[i].network, found[i].name, found[i].other)
+		}
+	}
+	return nil
+}
+
+// nameClash is a name a container of t would answer to on a network it shares, and
+// another there answers to as well.
+type nameClash struct {
+	network, name string
+	other         *docker.Container
+	// held says what's being taken on or replaced answers to it there already. Compose
+	// gives a service its name on every network it joins, so two installs of one app
+	// answer to one name on a network they share, and that's how they run today. Dockwell
+	// keeping that changes nothing, where taking the name for a new one would.
+	held bool
+}
+
+// nameClashes finds every such name, on the networks spec joins. also are containers
+// the plan is about that it doesn't say yet.
+func (d *Docker) nameClashes(ctx context.Context, t Target, spec *resourcev1.Container, also ...string) ([]nameClash, error) {
 	networks, names := joinedByName(t, spec)
 	ours := map[string]bool{}
 	for _, a := range names {
@@ -283,50 +310,92 @@ func (d *Docker) checkNetworks(ctx context.Context, t Target, spec *resourcev1.C
 	}
 	// What a plan takes on answers to what it answers to already, and goes on doing so.
 	takingOn := map[string]bool{}
+	for _, id := range also {
+		takingOn[id] = true
+	}
 	for _, want := range resource.DesiredIn(ctx) {
 		if want.Adopt != "" {
 			takingOn[want.Adopt] = true
 		}
 	}
+	var out []nameClash
 	for _, name := range networks {
 		n, err := d.Client.NetworkNamed(ctx, name)
 		switch {
 		case docker.IsNotFound(err):
-			return d.noSuchNetwork(ctx, t, name)
+			return nil, d.noSuchNetwork(ctx, t, name)
 		case err != nil:
-			return err
+			return nil, err
 		}
 		// By its name: Docker has a container's ID for a network only once it first
 		// starts, so asking by ID wouldn't list one another change has made and not
 		// started yet.
 		list, err := d.Client.ListContainers(ctx, map[string][]string{"network": {n.Name}})
 		if err != nil {
-			return err
+			return nil, err
 		}
+		held := map[string]bool{}
+		var others []*docker.Container
 		for i := range list {
 			other := &list[i]
-			if takingOn[other.ID] || other.Labels[docker.LabelProject] == t.Project && other.Labels[docker.LabelService] == t.Service {
-				continue // itself, or what a replace left of it
-			}
 			c, err := d.Client.InspectContainer(ctx, other.ID)
 			switch {
 			case docker.IsNotFound(err):
 				continue
 			case err != nil:
-				return err
+				return nil, err
 			}
-			theirs := []string{strings.TrimPrefix(c.Name, "/")}
-			if ep := c.NetworkSettings.Networks[name]; ep != nil {
-				theirs = append(theirs, ep.Aliases...)
+			if takingOn[other.ID] || other.Labels[docker.LabelProject] == t.Project && other.Labels[docker.LabelService] == t.Service {
+				// Itself, or what a replace left of it.
+				for _, a := range answersTo(c, name) {
+					held[strings.ToLower(a)] = true
+				}
+				continue
 			}
-			for _, a := range theirs {
+			others = append(others, c)
+		}
+		for _, c := range others {
+			for _, a := range answersTo(c, name) {
 				if ours[strings.ToLower(a)] {
-					return takenName(t, name, a, c)
+					out = append(out, nameClash{network: name, name: a, other: c, held: held[strings.ToLower(a)]})
 				}
 			}
 		}
 	}
-	return nil
+	return out, nil
+}
+
+// answersTo is what c answers to on a network.
+func answersTo(c *docker.Container, network string) []string {
+	out := []string{strings.TrimPrefix(c.Name, "/")}
+	if ep := c.NetworkSettings.Networks[network]; ep != nil {
+		out = append(out, ep.Aliases...)
+	}
+	return out
+}
+
+// sharedNames are the names t keeps that others on its networks hold too, for a plan
+// to say.
+func (d *Docker) sharedNames(ctx context.Context, t Target, spec *resourcev1.Container, container string) ([]resource.SharedName, error) {
+	found, err := d.nameClashes(ctx, t, spec, container)
+	if err != nil {
+		return nil, err
+	}
+	var out []resource.SharedName
+	for i := range found {
+		c := &found[i]
+		if !c.held {
+			continue
+		}
+		other := strings.TrimPrefix(c.other.Name, "/")
+		at := slices.IndexFunc(out, func(s resource.SharedName) bool { return s.Name == c.name && s.Network == c.network })
+		if at < 0 {
+			out = append(out, resource.SharedName{Name: c.name, Network: c.network, Others: []string{other}})
+		} else if !slices.Contains(out[at].Others, other) {
+			out[at].Others = append(out[at].Others, other)
+		}
+	}
+	return out, nil
 }
 
 // noSuchNetwork says that the network a container at t names isn't on the server,

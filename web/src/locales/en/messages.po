@@ -3789,8 +3789,8 @@ msgid "It runs the new image with the rest as it is"
 msgstr "It runs the new image with the rest as it is"
 
 #: src/features/changes/notices.tsx
-msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
-msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
 
 #: src/features/changes/notices.tsx
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
@@ -3898,6 +3898,10 @@ msgstr "Its check passed."
 #: src/features/activity/ActivityPage.tsx
 msgid "Its check said"
 msgstr "Its check said"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "Its Compose project was taken on already, so this joins it."
+msgstr "Its Compose project was taken on already, so this joins it."
 
 #: src/features/logs/LogNote.tsx
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
@@ -4269,6 +4273,10 @@ msgstr "Monitoring"
 #: src/features/shell/TabBar.tsx
 msgid "More"
 msgstr "More"
+
+#: src/features/changes/notices.tsx
+msgid "More than one container answers to {shared} on {network}"
+msgstr "More than one container answers to {shared} on {network}"
 
 #: src/features/changes/fields.tsx
 msgid "mounted at"
@@ -5151,6 +5159,10 @@ msgstr "Plan"
 #: src/features/servers/ContainerPage.tsx
 msgid "Plan taking it on"
 msgstr "Plan taking it on"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "Plan taking on all {inProject} of {project}"
+msgstr "Plan taking on all {inProject} of {project}"
 
 #: src/features/changes/words.ts
 msgid "Planned"
@@ -7229,6 +7241,10 @@ msgstr "This may cut off access to {0}"
 #: src/features/backups/PolicySheet.tsx
 msgid "This may not fit"
 msgstr "This may not fit"
+
+#: src/features/changes/notices.tsx
+msgid "This one and {also}, as they do now. What asks for {shared} there can reach either, so point what uses it at a name only one of them has."
+msgstr "This one and {also}, as they do now. What asks for {shared} there can reach either, so point what uses it at a name only one of them has."
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."

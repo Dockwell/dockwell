@@ -38,6 +38,9 @@ const (
 	// ComposeServiceImportComposeProcedure is the fully-qualified name of the ComposeService's
 	// ImportCompose RPC.
 	ComposeServiceImportComposeProcedure = "/dockwell.v1.ComposeService/ImportCompose"
+	// ComposeServiceAdoptComposeProcedure is the fully-qualified name of the ComposeService's
+	// AdoptCompose RPC.
+	ComposeServiceAdoptComposeProcedure = "/dockwell.v1.ComposeService/AdoptCompose"
 	// ComposeServiceCheckComposeProcedure is the fully-qualified name of the ComposeService's
 	// CheckCompose RPC.
 	ComposeServiceCheckComposeProcedure = "/dockwell.v1.ComposeService/CheckCompose"
@@ -55,6 +58,13 @@ type ComposeServiceClient interface {
 	// than dropped. The plan brings the project to life if it doesn't exist yet,
 	// and importing into one that does shows as updates.
 	ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error)
+	// AdoptCompose plans taking on a Compose project made elsewhere, whole: each of
+	// its containers on a server becomes a service of a project of its own, as
+	// AdoptContainer takes one on, in one change a person plans and applies, never a
+	// token, as its plan shows what the list of containers leaves out. Nothing about them
+	// changes, and none restarts. They stay on the networks and volumes they have,
+	// which stay Docker's: Dockwell doesn't make or delete them.
+	AdoptCompose(context.Context, *connect.Request[v1.AdoptComposeRequest]) (*connect.Response[v1.AdoptComposeResponse], error)
 	// CheckCompose reads a Compose file as ImportCompose would and says what
 	// it would make, or why it can't, without planning anything or recording a
 	// change, so a form can check a file as someone types it. It is a POST, as
@@ -85,6 +95,12 @@ func NewComposeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(composeServiceMethods.ByName("ImportCompose")),
 			connect.WithClientOptions(opts...),
 		),
+		adoptCompose: connect.NewClient[v1.AdoptComposeRequest, v1.AdoptComposeResponse](
+			httpClient,
+			baseURL+ComposeServiceAdoptComposeProcedure,
+			connect.WithSchema(composeServiceMethods.ByName("AdoptCompose")),
+			connect.WithClientOptions(opts...),
+		),
 		checkCompose: connect.NewClient[v1.CheckComposeRequest, v1.CheckComposeResponse](
 			httpClient,
 			baseURL+ComposeServiceCheckComposeProcedure,
@@ -104,6 +120,7 @@ func NewComposeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 // composeServiceClient implements ComposeServiceClient.
 type composeServiceClient struct {
 	importCompose *connect.Client[v1.ImportComposeRequest, v1.ImportComposeResponse]
+	adoptCompose  *connect.Client[v1.AdoptComposeRequest, v1.AdoptComposeResponse]
 	checkCompose  *connect.Client[v1.CheckComposeRequest, v1.CheckComposeResponse]
 	exportCompose *connect.Client[v1.ExportComposeRequest, v1.ExportComposeResponse]
 }
@@ -111,6 +128,11 @@ type composeServiceClient struct {
 // ImportCompose calls dockwell.v1.ComposeService.ImportCompose.
 func (c *composeServiceClient) ImportCompose(ctx context.Context, req *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error) {
 	return c.importCompose.CallUnary(ctx, req)
+}
+
+// AdoptCompose calls dockwell.v1.ComposeService.AdoptCompose.
+func (c *composeServiceClient) AdoptCompose(ctx context.Context, req *connect.Request[v1.AdoptComposeRequest]) (*connect.Response[v1.AdoptComposeResponse], error) {
+	return c.adoptCompose.CallUnary(ctx, req)
 }
 
 // CheckCompose calls dockwell.v1.ComposeService.CheckCompose.
@@ -132,6 +154,13 @@ type ComposeServiceHandler interface {
 	// than dropped. The plan brings the project to life if it doesn't exist yet,
 	// and importing into one that does shows as updates.
 	ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error)
+	// AdoptCompose plans taking on a Compose project made elsewhere, whole: each of
+	// its containers on a server becomes a service of a project of its own, as
+	// AdoptContainer takes one on, in one change a person plans and applies, never a
+	// token, as its plan shows what the list of containers leaves out. Nothing about them
+	// changes, and none restarts. They stay on the networks and volumes they have,
+	// which stay Docker's: Dockwell doesn't make or delete them.
+	AdoptCompose(context.Context, *connect.Request[v1.AdoptComposeRequest]) (*connect.Response[v1.AdoptComposeResponse], error)
 	// CheckCompose reads a Compose file as ImportCompose would and says what
 	// it would make, or why it can't, without planning anything or recording a
 	// change, so a form can check a file as someone types it. It is a POST, as
@@ -158,6 +187,12 @@ func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.Handler
 		connect.WithSchema(composeServiceMethods.ByName("ImportCompose")),
 		connect.WithHandlerOptions(opts...),
 	)
+	composeServiceAdoptComposeHandler := connect.NewUnaryHandler(
+		ComposeServiceAdoptComposeProcedure,
+		svc.AdoptCompose,
+		connect.WithSchema(composeServiceMethods.ByName("AdoptCompose")),
+		connect.WithHandlerOptions(opts...),
+	)
 	composeServiceCheckComposeHandler := connect.NewUnaryHandler(
 		ComposeServiceCheckComposeProcedure,
 		svc.CheckCompose,
@@ -175,6 +210,8 @@ func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.Handler
 		switch r.URL.Path {
 		case ComposeServiceImportComposeProcedure:
 			composeServiceImportComposeHandler.ServeHTTP(w, r)
+		case ComposeServiceAdoptComposeProcedure:
+			composeServiceAdoptComposeHandler.ServeHTTP(w, r)
 		case ComposeServiceCheckComposeProcedure:
 			composeServiceCheckComposeHandler.ServeHTTP(w, r)
 		case ComposeServiceExportComposeProcedure:
@@ -190,6 +227,10 @@ type UnimplementedComposeServiceHandler struct{}
 
 func (UnimplementedComposeServiceHandler) ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.ImportCompose is not implemented"))
+}
+
+func (UnimplementedComposeServiceHandler) AdoptCompose(context.Context, *connect.Request[v1.AdoptComposeRequest]) (*connect.Response[v1.AdoptComposeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.AdoptCompose is not implemented"))
 }
 
 func (UnimplementedComposeServiceHandler) CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error) {

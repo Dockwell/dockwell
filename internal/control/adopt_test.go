@@ -3,9 +3,14 @@
 package control
 
 import (
+	"errors"
+	"net/http"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -279,9 +285,24 @@ func TestWhatCantBeTakenOnSaysWhy(t *testing.T) {
 		t.Errorf("taking on as a name that's taken: %v", err)
 	}
 
+	// One thing is it and that, and more are them and those.
+	runByHand(t, e, "two-things", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+		r.HostConfig.ReadonlyRootfs = true
+	})
+	e.Reports("two-things", "HostConfig", map[string]any{"CpuQuota": 50000})
+	_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "two-things"}))
+	if err == nil || !strings.Contains(err.Error(), "would drop them without a word") || !strings.Contains(err.Error(), "without those") {
+		t.Errorf("taking on what has two things: %v", err)
+	}
+	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "own-rootfs"}))
+	if err == nil || !strings.Contains(err.Error(), "without that, then take it on") {
+		t.Errorf("taking on what has one thing: %v", err)
+	}
+
 	for name, says := range map[string]string{
-		"in-word":    "the value of DB_PASSWORD in its command",
-		"own-rootfs": "read_only",
+		"in-word":    "so a plan would show it to anyone",
+		"own-rootfs": "would drop it without a word",
 	} {
 		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name}))
 		if err == nil || !strings.Contains(err.Error(), says) || !strings.Contains(err.Error(), "It stays as it is") {
@@ -604,6 +625,9 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 		for _, says := range []string{
 			"1Panel still manages 1Panel-blog-Ab3x",
 			"Until Dockwell changes its image, anything done to it in 1Panel acts on this container",
+			// Its status sync reports a container it can't find as an error, which
+			// invites just what would start a second copy.
+			"After that, 1Panel shows it in error", "Leave that as it is",
 			"Start, Rebuild, Upgrade or editing its settings there starts a second copy",
 			"Don't uninstall it in 1Panel", "that deletes " + folder, "which holds what this service mounts",
 		} {
@@ -721,6 +745,195 @@ func TestWhatOthersLeanOnStaysAsItIs(t *testing.T) {
 	e.Remove("app")
 	if _, err := deploy(); err != nil {
 		t.Errorf("with nothing leaning on it: %v", err)
+	}
+}
+
+// A step that fails partway leaves no project half taken on: what it had taken on it
+// lets go of, with nothing touched, and the project it made goes.
+func TestAFailedStepLeavesNoProjectHalfTakenOn(t *testing.T) {
+	for _, failAt := range []int{2, 4} {
+		t.Run(strconv.Itoa(failAt), func(t *testing.T) {
+			f := startFull(t, store.SQLite, nil)
+			b := signedIn(t, f)
+			e := f.addDockerServer(t)
+			e.AddNetwork(docker.Network{ID: "shopnet", Name: "shop_default", Driver: "bridge"})
+			c := changeClient(b, b.origin)
+			cc := containerClient(b, b.origin)
+			imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+			composeContainer(t, e, "shop", "db", "shop-db-1", nil)
+			web := composeContainer(t, e, "shop", "web", "shop-web-1", nil)
+			res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "shop"}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			planned := res.Msg.GetChange()
+			from := len(e.Seen())
+			var seen atomic.Int32
+			e.Intercept(func(r *http.Request) error {
+				if strings.HasSuffix(r.URL.Path, "/containers/"+web+"/json") && int(seen.Add(1)) == failAt {
+					return errors.New("the engine failed this one")
+				}
+				return nil
+			})
+			w := watch(t, c, planned.GetId())
+			_, err = c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: planned.GetId(), Fingerprint: planned.GetPlan().GetFingerprint()}))
+			if err == nil {
+				waitWatch(t, w)
+			}
+			e.Intercept(nil)
+			if got := mutations(e, from); len(got) != 0 {
+				t.Errorf("a failed take-on asked Docker for %v", got)
+			}
+			var list *connect.Response[dockwellv1.ListContainersResponse]
+			for range 100 {
+				if list, err = cc.ListContainers(t.Context(), connect.NewRequest(&dockwellv1.ListContainersRequest{})); err != nil {
+					t.Fatal(err)
+				}
+				if len(list.Msg.GetContainers()) == 2 {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+			if got := list.Msg.GetContainers(); len(got) != 2 {
+				t.Errorf("after a failed step, what Dockwell didn't make is %v, want both back", got)
+			}
+			var projects []string
+			err = f.store.View(t.Context(), func(tx *store.Tx) error {
+				tree, err := scope.Load(t.Context(), tx)
+				for _, p := range tree.Projects {
+					projects = append(projects, p.Name)
+				}
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(projects, []string{"default"}) {
+				t.Errorf("after a failed step the projects are %v", projects)
+			}
+		})
+	}
+}
+
+// One refusal says everything in the way, so a person fixes it once, whatever kind of
+// thing is in the way: a scaled service, a name the project runs already, and what no
+// spec holds all come together.
+func TestARefusalSaysEverythingAtOnce(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	for _, n := range []string{"mix", "split", "shop", "shop2"} {
+		e.AddNetwork(docker.Network{ID: n + "net", Name: n + "_default", Driver: "bridge"})
+	}
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	take := func(req *dockwellv1.AdoptComposeRequest) error {
+		_, err := imports.AdoptCompose(t.Context(), connect.NewRequest(req))
+		return err
+	}
+	says := func(what string, err error, want ...string) {
+		t.Helper()
+		if err == nil {
+			t.Fatalf("%s wasn't refused", what)
+		}
+		for _, w := range want {
+			if !strings.Contains(err.Error(), w) {
+				t.Errorf("%s: %v, want it to say %q", what, err, w)
+			}
+		}
+	}
+	readOnly := func(r *docker.CreateRequest) { r.HostConfig.ReadonlyRootfs = true }
+
+	composeContainer(t, e, "mix", "web", "mix-web-1", nil)
+	composeContainer(t, e, "mix", "web", "mix-web-2", nil)
+	composeContainer(t, e, "mix", "db", "mix-db-1", readOnly)
+	says("a scaled service beside what can't come", take(&dockwellv1.AdoptComposeRequest{Name: "mix"}),
+		"mix-web-1 and mix-web-2 are the service web", "--scale web=1", "mix-db-1 runs with read_only", "It all stays as it is")
+
+	// Two services that come to one name are no scaled service, so no --scale helps.
+	composeContainer(t, e, "split", "api_v1", "split-api_v1-1", nil)
+	composeContainer(t, e, "split", "api-v1", "split-api-v1-1", nil)
+	err := take(&dockwellv1.AdoptComposeRequest{Name: "split"})
+	says("two services of one name", err, "split-api-v1-1 and split-api_v1-1 would both be the service api-v1", "Rename one")
+	if err != nil && strings.Contains(err.Error(), "--scale") {
+		t.Errorf("two services read as a scaled one: %v", err)
+	}
+
+	composeContainer(t, e, "shop", "web", "shop-web-1", nil)
+	planned, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "shop"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, changeClient(b, b.origin), planned.Msg.GetChange())
+	composeContainer(t, e, "shop2", "web", "shop2-web-1", readOnly)
+	says("a name it runs beside what can't come", take(&dockwellv1.AdoptComposeRequest{Name: "shop2", Project: "shop"}),
+		"the project shop runs a service web already", "shop2-web-1 runs with read_only")
+}
+
+// Compose gives a service its name on every network it joins, so two installs of one
+// app both answer to it on 1panel-network, as they do today. Taking one on changes
+// nothing about that, so it isn't refused, and the plan says what it means. A clash
+// Dockwell would make itself still is.
+func TestAContainerKeepsANameOthersHoldToo(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddNetwork(docker.Network{ID: "onepanel", Name: "1panel-network", Driver: "bridge"})
+	c := changeClient(b, b.origin)
+	cc := containerClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	onPanel := func(project, name string) func(*docker.CreateRequest) {
+		return func(r *docker.CreateRequest) {
+			r.Labels["createdBy"] = "Apps"
+			r.Labels[docker.LabelWorkingDir] = "/opt/1panel/apps/redis/" + project
+			r.HostConfig.NetworkMode = "1panel-network"
+			r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"1panel-network": {Aliases: []string{"redis", name}}}
+		}
+	}
+	composeContainer(t, e, "redis", "redis", "1Panel-redis-AbCd", onPanel("redis", "1Panel-redis-AbCd"))
+	composeContainer(t, e, "redis2", "redis", "1Panel-redis2-EfGh", onPanel("redis2", "1Panel-redis2-EfGh"))
+
+	res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "redis"}))
+	if err != nil {
+		t.Fatalf("taking on one of two installs: %v", err)
+	}
+	planned := res.Msg.GetChange()
+	var n *dockwellv1.PlanNote
+	for _, note := range planned.GetPlan().GetNotes() {
+		if note.GetReason() == "shares_a_name" {
+			n = note
+		}
+	}
+	if n == nil || !slices.Equal(n.GetNames(), []string{"redis", "1panel-network", "1Panel-redis2-EfGh"}) {
+		t.Fatalf("the plan doesn't say who else answers to it: %v", planned.GetPlan().GetNotes())
+	}
+	for _, says := range []string{"More than one container answers to redis on the network 1panel-network", "can reach either"} {
+		if !strings.Contains(n.GetMessage(), says) {
+			t.Errorf("the note %q doesn't say %q", n.GetMessage(), says)
+		}
+	}
+	applyConfirmed(t, c, planned)
+
+	// A replace keeps what it held, so the first new image isn't refused for it either.
+	rep, err := services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "redis", Project: "redis", Image: "nginx:1.27"}))
+	if err != nil {
+		t.Fatalf("a new image of what holds a shared name: %v", err)
+	}
+	apply(t, c, rep.Msg.GetChange())
+
+	// Alone, under a name of its own, the other comes the same way.
+	if _, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "1Panel-redis2-EfGh", Service: "redis-b", Project: "default"})); err != nil {
+		t.Errorf("taking on the other under a name of its own: %v", err)
+	}
+
+	// A name it doesn't hold is one Dockwell would be taking, which it won't.
+	composeContainer(t, e, "clash", "other", "clash-other-1", func(r *docker.CreateRequest) {
+		r.HostConfig.NetworkMode = "1panel-network"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"1panel-network": {Aliases: []string{"other"}}}
+	})
+	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "clash-other-1", Service: "redis", Project: "default"}))
+	if err == nil || !strings.Contains(err.Error(), "would answer to redis on the network 1panel-network") {
+		t.Errorf("a service named what others answer to, which it doesn't: %v", err)
 	}
 }
 
@@ -859,4 +1072,149 @@ func TestATokenCantTakeOnAContainer(t *testing.T) {
 	}
 	planned := adopt(t, containerClient(b, b.origin), "by-hand", "api")
 	tokenRefused(t, changeClient(token, b.origin), planned, "its environment, which comes in with it")
+
+	// Nor a project whole.
+	imports := dockwellv1connect.NewComposeServiceClient(token, b.origin, connect.WithProtoJSON())
+	_, err = imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "shop"}))
+	if reasonOf(err) != authapi.ReasonNeedsSession {
+		t.Errorf("a token planning a take-on of a project = %v, want %s", err, authapi.ReasonNeedsSession)
+	}
+}
+
+// composeContainer runs what docker compose makes of one service: its labels, and a
+// place on the project's network under the service's name.
+func composeContainer(t *testing.T, e *dockertest.Engine, project, service, name string, edit func(*docker.CreateRequest)) string {
+	t.Helper()
+	return runByHand(t, e, name, func(r *docker.CreateRequest) {
+		r.Labels = map[string]string{docker.LabelProject: project, docker.LabelService: service, docker.LabelNumber: "1", docker.LabelOneoff: "False"}
+		r.HostConfig.PortBindings, r.HostConfig.Binds, r.HostConfig.NetworkMode = nil, nil, project+"_default"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{project + "_default": {Aliases: []string{service, name}}}
+		if edit != nil {
+			edit(r)
+		}
+	})
+}
+
+// A Compose project made elsewhere comes in whole, in one change, with none of it
+// touched: each of its containers a service, on the network and volumes it has, and
+// each one's image can then change on its own.
+func TestTakingOnACompose(t *testing.T) { storetest.Each(t, testTakingOnACompose) }
+
+func testTakingOnACompose(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddNetwork(docker.Network{ID: "shopnet", Name: "shop_default", Driver: "bridge"})
+	e.AddNetwork(docker.Network{ID: "othernet", Name: "other_default", Driver: "bridge"})
+	c := changeClient(b, b.origin)
+	cc := containerClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+
+	web := composeContainer(t, e, "shop", "web", "shop-web-1", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings = map[string][]docker.PortBinding{"80/tcp": {{HostPort: "8089"}}}
+	})
+	// A one-off is no container of the service it ran as, so it's no scaled one.
+	composeContainer(t, e, "shop", "web", "shop-web-run-1", func(r *docker.CreateRequest) { r.Labels[docker.LabelOneoff] = "True" })
+	db := composeContainer(t, e, "shop", "db", "shop-db-1", func(r *docker.CreateRequest) {
+		r.HostConfig.Binds = []string{"shop_db-data:/var/lib/data"}
+	})
+	composeContainer(t, e, "other", "web", "other-web-1", nil)
+
+	seen := len(e.Seen())
+	res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "shop"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned := res.Msg.GetChange()
+	for _, n := range planned.GetPlan().GetNotes() {
+		if n.GetReason() == "takes_on" && !strings.HasSuffix(n.GetMessage(), ".") {
+			t.Errorf("the note %q has no full stop", n.GetMessage())
+		}
+	}
+	if !slices.ContainsFunc(planned.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+		return n.GetReason() == "managed_elsewhere" && strings.Contains(n.GetMessage(), "the Compose project shop")
+	}) {
+		t.Errorf("the plan doesn't say something may still run the project: %v", planned.GetPlan().GetNotes())
+	}
+	if s := planned.String(); strings.Contains(s, secretValue) {
+		t.Fatalf("the plan shows a value of an environment: %s", s)
+	}
+	took := map[string]bool{}
+	for _, step := range planned.GetPlan().GetServers()[0].GetSteps() {
+		if step.GetAdopts() != "" {
+			took[step.GetAdopts()] = true
+		}
+	}
+	if !took[web] || !took[db] || len(took) != 2 {
+		t.Fatalf("the plan takes on %v, want the two of shop", took)
+	}
+	applyConfirmed(t, c, planned)
+	if got := mutations(e, seen); len(got) != 0 {
+		t.Errorf("taking the project on asked Docker to %v", got)
+	}
+	list, err := cc.ListContainers(t.Context(), connect.NewRequest(&dockwellv1.ListContainersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(list.Msg.GetContainers()); !slices.Equal(got, []string{"other-web-1", "shop-web-run-1"}) {
+		t.Errorf("the list has %v, want what's left", got)
+	}
+	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil || len(drift.Msg.GetDrift()) != 0 {
+		t.Errorf("drift after taking it on = %v, %v", drift.Msg.GetDrift(), err)
+	}
+
+	// One service's image changes on its own, on the project's network, and the other
+	// isn't touched.
+	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	deployed, err := svc.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "web", Project: "shop", Image: "nginx:1.27"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := apply(t, c, deployed.Msg.GetChange())
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the image change ended %v: %s", done.GetState(), done.GetError())
+	}
+	project := docker.Project(planned.GetPlan().GetResources()[len(planned.GetPlan().GetResources())-1].GetResource().GetScope())
+	now := e.Newest(project, "web")
+	if now == nil || now.Config.Image != "nginx:1.27" {
+		t.Fatalf("Docker runs %+v", now)
+	}
+	if _, on := now.NetworkSettings.Networks["shop_default"]; !on {
+		t.Errorf("web left the project's network: %v", now.NetworkSettings.Networks)
+	}
+	if e.Container("shop-db-1") == nil {
+		t.Errorf("the other service's container went")
+	}
+}
+
+// A project comes in whole or not at all, and a refusal says so for all of it at once.
+func TestAComposeThatCantComeInSaysWhy(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddNetwork(docker.Network{ID: "shopnet", Name: "shop_default", Driver: "bridge"})
+	e.AddNetwork(docker.Network{ID: "scalednet", Name: "scaled_default", Driver: "bridge"})
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+
+	composeContainer(t, e, "shop", "web", "shop-web-1", func(r *docker.CreateRequest) { r.HostConfig.ReadonlyRootfs = true })
+	composeContainer(t, e, "shop", "db", "shop-db-1", func(r *docker.CreateRequest) {
+		r.Cmd = []string{"db", "--password=" + secretValue}
+	})
+	composeContainer(t, e, "scaled", "web", "scaled-web-1", nil)
+	composeContainer(t, e, "scaled", "web", "scaled-web-2", nil)
+
+	_, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "shop"}))
+	if err == nil || !strings.Contains(err.Error(), "shop-web-1 runs with read_only") || !strings.Contains(err.Error(), "shop-db-1 holds the value of DB_PASSWORD") {
+		t.Errorf("a project with what can't come: %v", err)
+	}
+	if err != nil && strings.Contains(err.Error(), secretValue) {
+		t.Errorf("the refusal shows a value: %v", err)
+	}
+	if _, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "scaled"})); err == nil || !strings.Contains(err.Error(), "--scale web=1") {
+		t.Errorf("a scaled service: %v", err)
+	}
+	if _, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "nothing"})); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("a project that isn't there: %v", err)
+	}
 }

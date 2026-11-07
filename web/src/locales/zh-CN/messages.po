@@ -3789,8 +3789,8 @@ msgid "It runs the new image with the rest as it is"
 msgstr "运行新镜像，其余保持不变"
 
 #: src/features/changes/notices.tsx
-msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
-msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，在 1Panel 中对它的任何操作都会作用于这个容器。更换之后，在那里启动、重建、升级或编辑其设置都会启动第二个副本，使用相同的目录和相同的名称。无论何时都不要在 1Panel 中卸载它：那会删除 {where}，其中保存着此服务挂载的内容。"
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，在 1Panel 中对它的任何操作都会作用于这个容器。更换之后，1Panel 会显示它出错，因为找不到这个容器。不要理会这个状态：在那里启动、重建、升级或编辑其设置都会启动第二个副本，使用相同的目录和相同的名称。无论何时都不要在 1Panel 中卸载它：那会删除 {where}，其中保存着此服务挂载的内容。"
 
 #: src/features/changes/notices.tsx
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
@@ -3898,6 +3898,10 @@ msgstr "它的检查已通过。"
 #: src/features/activity/ActivityPage.tsx
 msgid "Its check said"
 msgstr "检查结果"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "Its Compose project was taken on already, so this joins it."
+msgstr "它的 Compose 项目已被接管，所以它会加入其中。"
 
 #: src/features/logs/LogNote.tsx
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
@@ -4269,6 +4273,10 @@ msgstr "监控"
 #: src/features/shell/TabBar.tsx
 msgid "More"
 msgstr "更多"
+
+#: src/features/changes/notices.tsx
+msgid "More than one container answers to {shared} on {network}"
+msgstr "在 {network} 上有多个容器响应 {shared}"
 
 #: src/features/changes/fields.tsx
 msgid "mounted at"
@@ -5151,6 +5159,10 @@ msgstr "计划"
 #: src/features/servers/ContainerPage.tsx
 msgid "Plan taking it on"
 msgstr "计划接管"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "Plan taking on all {inProject} of {project}"
+msgstr "计划接管 {project} 的全部 {inProject} 个容器"
 
 #: src/features/changes/words.ts
 msgid "Planned"
@@ -7229,6 +7241,10 @@ msgstr "这可能切断对 {0} 的访问"
 #: src/features/backups/PolicySheet.tsx
 msgid "This may not fit"
 msgstr "可能放不下"
+
+#: src/features/changes/notices.tsx
+msgid "This one and {also}, as they do now. What asks for {shared} there can reach either, so point what uses it at a name only one of them has."
+msgstr "这个容器和 {also}，现在就是如此。在那里请求 {shared} 可能会到达其中任何一个，所以请让使用方指向只有其中一个容器拥有的名称。"
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."

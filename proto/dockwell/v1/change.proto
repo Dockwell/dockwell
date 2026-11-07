@@ -997,9 +997,22 @@ message PlanStep {
   // What else may still run what this step replaces, which came from a Compose
   // project. A plan says what that means in a note.
   ManagedElsewhere managed_elsewhere = 35;
+  // Names what this step takes on goes on answering to, that others hold too on a
+  // network it's on.
+  repeated SharedName shared_names = 36;
   // What a step that restores a volume from a backup does. Numbered apart, as open
   // work adds to this message.
   RestorePlan restore = 40;
+}
+
+// SharedName is a name more than one container answers to on a network.
+message SharedName {
+  // The name, such as "redis".
+  string name = 1;
+  // The network, such as "1panel-network".
+  string network = 2;
+  // The other containers that answer to it there, by name.
+  repeated string others = 3;
 }
 
 // ManagedElsewhere is what else may run a container that was taken on.
