@@ -437,8 +437,14 @@ func (t *Terminal) readOutput(done chan<- struct{}) {
 	}
 }
 
-// writeInput writes what's typed to the shell, in order.
+// inputPiece is the most of what's typed one write to the shell carries.
+const inputPiece = 4 << 10
+
+// writeInput writes what's typed to the shell, in order, a piece at a time. A
+// piece leaves the queue only once the shell has it, so what's being written still
+// counts, and the queue never holds more than MaxInput, however long a write blocks.
 func (t *Terminal) writeInput() {
+	piece := make([]byte, 0, inputPiece)
 	for {
 		t.mu.Lock()
 		for len(t.input) == 0 && t.end == nil {
@@ -451,18 +457,22 @@ func (t *Terminal) writeInput() {
 			t.mu.Unlock()
 			return
 		}
-		p := t.input
-		t.input = nil
+		piece = append(piece[:0], t.input[:min(len(t.input), inputPiece)]...)
 		t.mu.Unlock()
-		if _, err := t.pty.Write(p); err != nil {
+		n, err := t.pty.Write(piece)
+		t.mu.Lock()
+		t.input = t.input[n:]
+		if len(t.input) == 0 {
+			t.input = nil
+		}
+		t.notify() // there's room for more
+		t.mu.Unlock()
+		if err != nil {
 			if !isHangUp(err) {
 				t.m.logger.Warn("can't write to a terminal", slog.String("terminal", t.id), slog.String("error", err.Error()))
 			}
 			return
 		}
-		t.mu.Lock()
-		t.notify() // there's room for more
-		t.mu.Unlock()
 	}
 }
 

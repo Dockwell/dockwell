@@ -39,6 +39,8 @@ A terminal hands a browser a root shell on a server, through an agent that runs 
 | Use a proof it watched go by for another action, another server, or a terminal already opened | Refused: a proof is for opening one terminal, on one server, in the session that confirmed it, once. Tested |
 | Reach a terminal the person opened from this session | It can, as it is that session, until the session is revoked, which ends the terminal. The terminal opened with the person's passkey, so it's on Activity under their name |
 | Keep a shell after the session is revoked or signed out | It can't. The terminal ends within the stream recheck (30 s), and at once on revoking or signing out, as its attachment is a stream the interceptor ties to the session. Tested |
+| Keep its session alive through a terminal nobody is attached to | It can't. The control plane checks a detached terminal's session every 30 s, and that check isn't use: it keeps no session past its idle limit, and leaves its last-seen time and address as they were. Tested |
+| Take every terminal a server or the control plane has | It can't. One session holds 4 of a server's 8 and 16 of the control plane's 32. Tested |
 
 ### Another session of the same person
 
@@ -59,6 +61,7 @@ A terminal hands a browser a root shell on a server, through an agent that runs 
 | --- | --- |
 | Inject markup or script into the panel | It can't: xterm.js draws what's printed as text in cells, never as HTML, and the panel's Content-Security-Policy refuses inline scripts and styles. The rules xterm.js makes for its own rows go in as constructed style sheets, and nothing printed reaches them |
 | Read the clipboard | It can't: OSC 52 and the like aren't wired to the browser's clipboard. Copying takes a person choosing text, and pasting takes the platform's paste |
+| Make a link that runs script or opens something else (OSC 8) | It can't: a printed link leads only to an http or https URL, shows where it leads on hover, opens only with Ctrl, or Cmd on an Apple keyboard, held, and opens in a new tab with `noopener` and `noreferrer`. Tested |
 
 ## What's on record
 

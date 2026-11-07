@@ -5,6 +5,7 @@ package control
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -572,16 +573,86 @@ func testATerminalEndsWithItsServer(t *testing.T, backend store.Backend) {
 // A server keeps 8 terminals, and the ninth says so.
 func TestAServerKeepsEightTerminals(t *testing.T) { storetest.Each(t, testAServerKeepsEightTerminals) }
 
+// A server keeps eight terminals, and one session half of them, so a session, a
+// stolen one too, can't take every place there is.
 func testAServerKeepsEightTerminals(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	id := f.addServer(t, false).id.ServerID
-	for range terminal.MaxOpen {
+	for range terminals.MaxPerSession {
 		openTerminal(t, b, id)
 	}
 	c := terminalClient(b, b.origin)
 	_, err := c.OpenTerminal(t.Context(), connect.NewRequest(&dockwellv1.OpenTerminalRequest{ServerId: id, Columns: 80, Rows: 24}))
-	if connect.CodeOf(err) != connect.CodeResourceExhausted || !strings.Contains(err.Error(), "Close one, then open another") {
+	if connect.CodeOf(err) != connect.CodeResourceExhausted || !strings.Contains(err.Error(), "from this session, which is as many as one session keeps there") {
+		t.Errorf("a fifth from one session = %v", err)
+	}
+	other := newBrowser(t, b.origin, f.api, nil)
+	other.auth = b.auth
+	other.signIn(t)
+	for range terminal.MaxOpen - terminals.MaxPerSession {
+		openTerminal(t, other, id)
+	}
+	third := newBrowser(t, b.origin, f.api, nil)
+	third.auth = b.auth
+	third.signIn(t)
+	_, err = terminalClient(third, third.origin).OpenTerminal(t.Context(), connect.NewRequest(&dockwellv1.OpenTerminalRequest{ServerId: id, Columns: 80, Rows: 24}))
+	if connect.CodeOf(err) != connect.CodeResourceExhausted || !strings.Contains(err.Error(), "hz-1 has 8 terminals open, which is as many as it keeps") {
 		t.Errorf("a ninth = %v", err)
+	}
+}
+
+// One session keeps half the control plane's terminals, across its servers.
+func TestASessionKeepsSixteenTerminals(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	var servers []string
+	for i := range terminals.MaxPerSessionInAll/terminals.MaxPerSession + 1 {
+		servers = append(servers, f.addNamedServer(t, fmt.Sprintf("hz-%d", i+1), false).id.ServerID)
+	}
+	for _, id := range servers[:len(servers)-1] {
+		for range terminals.MaxPerSession {
+			openTerminal(t, b, id)
+		}
+	}
+	_, err := terminalClient(b, b.origin).OpenTerminal(t.Context(),
+		connect.NewRequest(&dockwellv1.OpenTerminalRequest{ServerId: servers[len(servers)-1], Columns: 80, Rows: 24}))
+	if connect.CodeOf(err) != connect.CodeResourceExhausted || !strings.Contains(err.Error(), "you have 16 terminals open from this session") {
+		t.Errorf("a seventeenth from one session = %v", err)
+	}
+}
+
+// A terminal nobody is attached to ends with its session, and isn't use of it: its
+// checks keep no session alive, and leave the address it was last used from as it
+// was. Here the session was last used from elsewhere, which a check that counted
+// as use would put back to the address the terminal was opened from.
+func TestADetachedTerminalIsntUseOfItsSession(t *testing.T) {
+	testRecheck = 20 * time.Millisecond
+	t.Cleanup(func() { testRecheck = 0 })
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	openTerminal(t, b, id)
+	list, err := b.authClient().ListSessions(t.Context(), connect.NewRequest(&dockwellv1.ListSessionsRequest{}))
+	if err != nil || len(list.Msg.GetSessions()) != 1 {
+		t.Fatalf("sessions = %v, %v", list, err)
+	}
+	session := list.Msg.GetSessions()[0].GetId()
+	away := time.Now().Add(-2 * time.Minute).Truncate(time.Second)
+	if err := f.store.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.TouchSession(t.Context(), session, away, "203.0.113.5")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond) // many rechecks
+	var got store.Session
+	if err := f.store.View(t.Context(), func(tx *store.Tx) (err error) {
+		got, err = tx.GetSession(t.Context(), session)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got.LastIP != "203.0.113.5" || !got.LastSeenAt.Equal(away) {
+		t.Errorf("a detached terminal counted as use of its session: last seen %v from %s", got.LastSeenAt, got.LastIP)
 	}
 }

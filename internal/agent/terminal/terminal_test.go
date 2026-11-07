@@ -481,3 +481,42 @@ func TestRootsShell(t *testing.T) {
 		t.Errorf("starts with %s", env)
 	}
 }
+
+// What's typed into a shell that reads none of it waits in the terminal, at most
+// MaxInput of it, whatever's being written: a paste of a megabyte into a program
+// that doesn't read holds the paste, not the megabyte. Past the kernel's own
+// buffer, the terminal takes no more until the shell reads.
+func TestInputHeldStaysWithinItsLimit(t *testing.T) {
+	m := shellManager(t, Options{})
+	open(t, m, "trm_1")
+	s := attach(t, m, 0)
+	s.typed("stty -echo -icanon; sleep 30\n")
+	time.Sleep(300 * time.Millisecond)
+	start := s.next
+	paste := strings.Repeat("x", MaxInput)
+	var took uint64
+	for stalled := 0; stalled < 5; {
+		n := s.typed(paste)
+		if n == took {
+			stalled++
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		took = n
+	}
+	// What the kernel's terminal buffer holds, which isn't the agent's to count.
+	const kernel = 128 << 10
+	if held := took - start; held > MaxInput+kernel {
+		t.Errorf("took %d KiB of what's typed into a shell that reads none, want at most %d KiB and the kernel's buffer", held>>10, MaxInput>>10)
+	}
+	term, err := m.get("trm_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	term.mu.Lock()
+	queued := len(term.input)
+	term.mu.Unlock()
+	if queued > MaxInput {
+		t.Errorf("holds %d KiB, more than MaxInput", queued>>10)
+	}
+}

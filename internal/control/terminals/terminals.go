@@ -93,6 +93,13 @@ func (t Told) String() string {
 // MaxOpen is how many terminals the control plane holds, across servers.
 const MaxOpen = 32
 
+// What one session may hold of those: half a server's, and half the control
+// plane's, so a session, a stolen one included, can't take every place there is.
+const (
+	MaxPerSession      = terminal.MaxOpen / 2
+	MaxPerSessionInAll = MaxOpen / 2
+)
+
 // HeartbeatEvery is how often an attachment says it's still there.
 var HeartbeatEvery = 10 * time.Second
 
@@ -213,7 +220,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's agent is too old to open terminals. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated")
 	}
-	if err := h.room(srv); err != nil {
+	if err := h.room(srv, p.Session.ID); err != nil {
 		return nil, err
 	}
 	record := h.recorder(ctx, p, srv)
@@ -276,7 +283,9 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		return nil, h.rpcError(ctx, err)
 	}
 	// It ends with the session that opened it: signed out, revoked or past its limits.
-	tied, stop := h.auth.Track(context.Background(), client, p)
+	// Following it isn't use: a terminal nobody is attached to keeps no session alive,
+	// and its address stays the one the session last really came from.
+	tied, stop := h.auth.Follow(context.Background(), client, p)
 	h.mu.Lock()
 	if h.terms[termID] == nil {
 		// It ended as it opened, and went on record so.
@@ -295,28 +304,41 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 func (h *Handler) reserve(srv *dockwellv1.Server, e *entry) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if err := h.roomLocked(srv); err != nil {
+	if err := h.roomLocked(srv, e.session); err != nil {
 		return err
 	}
 	h.terms[e.id] = e
 	return nil
 }
 
-// room refuses a terminal past what a server, and the control plane, hold.
-func (h *Handler) room(srv *dockwellv1.Server) error {
+// room refuses a terminal past what a server, and the control plane, hold, and
+// past what one session may hold of those.
+func (h *Handler) room(srv *dockwellv1.Server, session string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.roomLocked(srv)
+	return h.roomLocked(srv, session)
 }
 
-func (h *Handler) roomLocked(srv *dockwellv1.Server) error {
-	here := 0
+func (h *Handler) roomLocked(srv *dockwellv1.Server, session string) error {
+	here, mine, mineHere := 0, 0, 0
 	for _, e := range h.terms {
 		if e.server == srv.GetId() {
 			here++
 		}
+		if e.session == session {
+			mine++
+			if e.server == srv.GetId() {
+				mineHere++
+			}
+		}
 	}
 	switch {
+	case mineHere >= MaxPerSession:
+		return authapi.ReasonError(connect.CodeResourceExhausted,
+			fmt.Errorf("you have %d terminals open on %s from this session, which is as many as one session keeps there. Close one, then open another", MaxPerSession, srv.GetName()), "too_many_terminals")
+	case mine >= MaxPerSessionInAll:
+		return authapi.ReasonError(connect.CodeResourceExhausted,
+			fmt.Errorf("you have %d terminals open from this session, which is as many as one session keeps. Close one, then open another", MaxPerSessionInAll), "too_many_terminals")
 	case here >= terminal.MaxOpen:
 		return authapi.ReasonError(connect.CodeResourceExhausted,
 			fmt.Errorf("%s has %d terminals open, which is as many as it keeps. Close one, then open another", srv.GetName(), terminal.MaxOpen), "too_many_terminals")

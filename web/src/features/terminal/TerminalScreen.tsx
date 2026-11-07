@@ -8,7 +8,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
-
+import { linkHandler } from "./links";
 import { type TerminalClient, TerminalSession, type TerminalStatus } from "./session";
 import { adoptStyles } from "./styles";
 import { lineHeightFor, TERMINAL_FONT, terminalTheme } from "./theme";
@@ -105,6 +105,8 @@ export function TerminalScreen({
       allowProposedApi: true,
       macOptionIsMeta: true,
       rightClickSelectsWord: true,
+      // A link a program prints goes only to http(s), with Ctrl or Cmd held.
+      linkHandler: linkHandler(() => host.current),
     });
     const fit = new FitAddon();
     const search = new SearchAddon();
