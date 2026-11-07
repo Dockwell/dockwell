@@ -85,6 +85,63 @@ func (PanelServedBy) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{0}
 }
 
+// ServiceManager is what runs dockwell run as a service on the control server.
+type ServiceManager int32
+
+const (
+	ServiceManager_SERVICE_MANAGER_UNSPECIFIED ServiceManager = 0
+	// Nothing: it was started by hand, or in a container, and stops as it was
+	// started.
+	ServiceManager_SERVICE_MANAGER_NONE ServiceManager = 1
+	// systemd, as the dockwell unit: systemctl stop dockwell.
+	ServiceManager_SERVICE_MANAGER_SYSTEMD ServiceManager = 2
+	// OpenRC, as the dockwell service: rc-service dockwell stop.
+	ServiceManager_SERVICE_MANAGER_OPENRC ServiceManager = 3
+)
+
+// Enum value maps for ServiceManager.
+var (
+	ServiceManager_name = map[int32]string{
+		0: "SERVICE_MANAGER_UNSPECIFIED",
+		1: "SERVICE_MANAGER_NONE",
+		2: "SERVICE_MANAGER_SYSTEMD",
+		3: "SERVICE_MANAGER_OPENRC",
+	}
+	ServiceManager_value = map[string]int32{
+		"SERVICE_MANAGER_UNSPECIFIED": 0,
+		"SERVICE_MANAGER_NONE":        1,
+		"SERVICE_MANAGER_SYSTEMD":     2,
+		"SERVICE_MANAGER_OPENRC":      3,
+	}
+)
+
+func (x ServiceManager) Enum() *ServiceManager {
+	p := new(ServiceManager)
+	*p = x
+	return p
+}
+
+func (x ServiceManager) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ServiceManager) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_settings_proto_enumTypes[1].Descriptor()
+}
+
+func (ServiceManager) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_settings_proto_enumTypes[1]
+}
+
+func (x ServiceManager) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ServiceManager.Descriptor instead.
+func (ServiceManager) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{1}
+}
+
 // StateStoreEngine is a kind of database the control plane can keep its state in.
 type StateStoreEngine int32
 
@@ -121,11 +178,11 @@ func (x StateStoreEngine) String() string {
 }
 
 func (StateStoreEngine) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_settings_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_settings_proto_enumTypes[2].Descriptor()
 }
 
 func (StateStoreEngine) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_settings_proto_enumTypes[1]
+	return &file_dockwell_v1_settings_proto_enumTypes[2]
 }
 
 func (x StateStoreEngine) Number() protoreflect.EnumNumber {
@@ -134,7 +191,7 @@ func (x StateStoreEngine) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use StateStoreEngine.Descriptor instead.
 func (StateStoreEngine) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{2}
 }
 
 // GetSettingsRequest takes no parameters.
@@ -670,11 +727,12 @@ type ControlPlane struct {
 	Build *BuildInfo `protobuf:"bytes,1,opt,name=build,proto3" json:"build,omitempty"`
 	// When it started.
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
-	// The directory it keeps its files in, such as "/var/lib/dockwell".
+	// The directory it keeps its files in, such as "/var/lib/dockwell". Empty
+	// for an API token.
 	DataDir string `protobuf:"bytes,3,opt,name=data_dir,json=dataDir,proto3" json:"data_dir,omitempty"`
 	// The install's key, which opens every secret the state store keeps, such
 	// as "/var/lib/dockwell/control/key". A backup of the store needs it too,
-	// kept apart.
+	// kept apart. Empty for an API token.
 	KeyFile string `protobuf:"bytes,4,opt,name=key_file,json=keyFile,proto3" json:"key_file,omitempty"`
 	// Where it keeps its state.
 	Store *StateStore `protobuf:"bytes,5,opt,name=store,proto3" json:"store,omitempty"`
@@ -684,9 +742,11 @@ type ControlPlane struct {
 	Agents *AgentListener `protobuf:"bytes,7,opt,name=agents,proto3" json:"agents,omitempty"`
 	// The memory it holds, with its own agent's, in bytes: its resident set.
 	// Zero where the system doesn't say.
-	MemoryBytes   int64 `protobuf:"varint,8,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MemoryBytes int64 `protobuf:"varint,8,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
+	// What runs it as a service, and so stops and starts it.
+	ServiceManager ServiceManager `protobuf:"varint,9,opt,name=service_manager,json=serviceManager,proto3,enum=dockwell.v1.ServiceManager" json:"service_manager,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ControlPlane) Reset() {
@@ -775,13 +835,20 @@ func (x *ControlPlane) GetMemoryBytes() int64 {
 	return 0
 }
 
+func (x *ControlPlane) GetServiceManager() ServiceManager {
+	if x != nil {
+		return x.ServiceManager
+	}
+	return ServiceManager_SERVICE_MANAGER_UNSPECIFIED
+}
+
 // StateStore is the database the control plane keeps its state in.
 type StateStore struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What kind of database it is.
 	Engine StateStoreEngine `protobuf:"varint,1,opt,name=engine,proto3,enum=dockwell.v1.StateStoreEngine" json:"engine,omitempty"`
 	// Where it is: a SQLite file's path, or a Postgres URL without its
-	// password.
+	// password. Empty for an API token.
 	Location string `protobuf:"bytes,2,opt,name=location,proto3" json:"location,omitempty"`
 	// The database's own version, such as "3.50.4" or "17.2".
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -864,10 +931,11 @@ type AgentListener struct {
 	// The address it listens on, such as ":7443".
 	Listen string `protobuf:"bytes,1,opt,name=listen,proto3" json:"listen,omitempty"`
 	// The URL a server on the control server's own network reaches it at, as
-	// a join ticket names it, such as "https://192.0.2.10:7443".
+	// a join ticket names it, such as "https://192.0.2.10:7443". Empty for an
+	// API token.
 	Url string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
 	// The URLs a server elsewhere reaches it at, in the order a ticket tries
-	// them. Empty when that isn't known.
+	// them. Empty when that isn't known, and for an API token.
 	PublicUrls    []string `protobuf:"bytes,3,rep,name=public_urls,json=publicUrls,proto3" json:"public_urls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -955,7 +1023,7 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\bsettings\x18\x01 \x01(\v2\x15.dockwell.v1.SettingsR\bsettings\"\x18\n" +
 	"\x16GetControlPlaneRequest\"Y\n" +
 	"\x17GetControlPlaneResponse\x12>\n" +
-	"\rcontrol_plane\x18\x01 \x01(\v2\x19.dockwell.v1.ControlPlaneR\fcontrolPlane\"\xe4\x02\n" +
+	"\rcontrol_plane\x18\x01 \x01(\v2\x19.dockwell.v1.ControlPlaneR\fcontrolPlane\"\xaa\x03\n" +
 	"\fControlPlane\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x129\n" +
 	"\n" +
@@ -965,7 +1033,8 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x05store\x18\x05 \x01(\v2\x17.dockwell.v1.StateStoreR\x05store\x12/\n" +
 	"\x05panel\x18\x06 \x01(\v2\x19.dockwell.v1.PanelServingR\x05panel\x122\n" +
 	"\x06agents\x18\a \x01(\v2\x1a.dockwell.v1.AgentListenerR\x06agents\x12!\n" +
-	"\fmemory_bytes\x18\b \x01(\x03R\vmemoryBytes\"\xd2\x01\n" +
+	"\fmemory_bytes\x18\b \x01(\x03R\vmemoryBytes\x12D\n" +
+	"\x0fservice_manager\x18\t \x01(\x0e2\x1b.dockwell.v1.ServiceManagerR\x0eserviceManager\"\xd2\x01\n" +
 	"\n" +
 	"StateStore\x125\n" +
 	"\x06engine\x18\x01 \x01(\x0e2\x1d.dockwell.v1.StateStoreEngineR\x06engine\x12\x1a\n" +
@@ -984,7 +1053,12 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x1bPANEL_SERVED_BY_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14PANEL_SERVED_BY_NONE\x10\x01\x12\x1c\n" +
 	"\x18PANEL_SERVED_BY_DOCKWELL\x10\x02\x12\x1b\n" +
-	"\x17PANEL_SERVED_BY_INGRESS\x10\x03*v\n" +
+	"\x17PANEL_SERVED_BY_INGRESS\x10\x03*\x84\x01\n" +
+	"\x0eServiceManager\x12\x1f\n" +
+	"\x1bSERVICE_MANAGER_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14SERVICE_MANAGER_NONE\x10\x01\x12\x1b\n" +
+	"\x17SERVICE_MANAGER_SYSTEMD\x10\x02\x12\x1a\n" +
+	"\x16SERVICE_MANAGER_OPENRC\x10\x03*v\n" +
 	"\x10StateStoreEngine\x12\"\n" +
 	"\x1eSTATE_STORE_ENGINE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19STATE_STORE_ENGINE_SQLITE\x10\x01\x12\x1f\n" +
@@ -1014,56 +1088,58 @@ func file_dockwell_v1_settings_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_settings_proto_rawDescData
 }
 
-var file_dockwell_v1_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_v1_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_dockwell_v1_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_dockwell_v1_settings_proto_goTypes = []any{
 	(PanelServedBy)(0),              // 0: dockwell.v1.PanelServedBy
-	(StateStoreEngine)(0),           // 1: dockwell.v1.StateStoreEngine
-	(*GetSettingsRequest)(nil),      // 2: dockwell.v1.GetSettingsRequest
-	(*GetSettingsResponse)(nil),     // 3: dockwell.v1.GetSettingsResponse
-	(*Settings)(nil),                // 4: dockwell.v1.Settings
-	(*PanelServing)(nil),            // 5: dockwell.v1.PanelServing
-	(*SetInstallNameRequest)(nil),   // 6: dockwell.v1.SetInstallNameRequest
-	(*SetInstallNameResponse)(nil),  // 7: dockwell.v1.SetInstallNameResponse
-	(*SetTimeZoneRequest)(nil),      // 8: dockwell.v1.SetTimeZoneRequest
-	(*SetTimeZoneResponse)(nil),     // 9: dockwell.v1.SetTimeZoneResponse
-	(*GetControlPlaneRequest)(nil),  // 10: dockwell.v1.GetControlPlaneRequest
-	(*GetControlPlaneResponse)(nil), // 11: dockwell.v1.GetControlPlaneResponse
-	(*ControlPlane)(nil),            // 12: dockwell.v1.ControlPlane
-	(*StateStore)(nil),              // 13: dockwell.v1.StateStore
-	(*AgentListener)(nil),           // 14: dockwell.v1.AgentListener
-	(*timestamppb.Timestamp)(nil),   // 15: google.protobuf.Timestamp
-	(*BuildInfo)(nil),               // 16: dockwell.v1.BuildInfo
-	(*durationpb.Duration)(nil),     // 17: google.protobuf.Duration
+	(ServiceManager)(0),             // 1: dockwell.v1.ServiceManager
+	(StateStoreEngine)(0),           // 2: dockwell.v1.StateStoreEngine
+	(*GetSettingsRequest)(nil),      // 3: dockwell.v1.GetSettingsRequest
+	(*GetSettingsResponse)(nil),     // 4: dockwell.v1.GetSettingsResponse
+	(*Settings)(nil),                // 5: dockwell.v1.Settings
+	(*PanelServing)(nil),            // 6: dockwell.v1.PanelServing
+	(*SetInstallNameRequest)(nil),   // 7: dockwell.v1.SetInstallNameRequest
+	(*SetInstallNameResponse)(nil),  // 8: dockwell.v1.SetInstallNameResponse
+	(*SetTimeZoneRequest)(nil),      // 9: dockwell.v1.SetTimeZoneRequest
+	(*SetTimeZoneResponse)(nil),     // 10: dockwell.v1.SetTimeZoneResponse
+	(*GetControlPlaneRequest)(nil),  // 11: dockwell.v1.GetControlPlaneRequest
+	(*GetControlPlaneResponse)(nil), // 12: dockwell.v1.GetControlPlaneResponse
+	(*ControlPlane)(nil),            // 13: dockwell.v1.ControlPlane
+	(*StateStore)(nil),              // 14: dockwell.v1.StateStore
+	(*AgentListener)(nil),           // 15: dockwell.v1.AgentListener
+	(*timestamppb.Timestamp)(nil),   // 16: google.protobuf.Timestamp
+	(*BuildInfo)(nil),               // 17: dockwell.v1.BuildInfo
+	(*durationpb.Duration)(nil),     // 18: google.protobuf.Duration
 }
 var file_dockwell_v1_settings_proto_depIdxs = []int32{
-	4,  // 0: dockwell.v1.GetSettingsResponse.settings:type_name -> dockwell.v1.Settings
-	5,  // 1: dockwell.v1.Settings.panel:type_name -> dockwell.v1.PanelServing
-	15, // 2: dockwell.v1.Settings.create_time:type_name -> google.protobuf.Timestamp
+	5,  // 0: dockwell.v1.GetSettingsResponse.settings:type_name -> dockwell.v1.Settings
+	6,  // 1: dockwell.v1.Settings.panel:type_name -> dockwell.v1.PanelServing
+	16, // 2: dockwell.v1.Settings.create_time:type_name -> google.protobuf.Timestamp
 	0,  // 3: dockwell.v1.PanelServing.served_by:type_name -> dockwell.v1.PanelServedBy
-	4,  // 4: dockwell.v1.SetInstallNameResponse.settings:type_name -> dockwell.v1.Settings
-	4,  // 5: dockwell.v1.SetTimeZoneResponse.settings:type_name -> dockwell.v1.Settings
-	12, // 6: dockwell.v1.GetControlPlaneResponse.control_plane:type_name -> dockwell.v1.ControlPlane
-	16, // 7: dockwell.v1.ControlPlane.build:type_name -> dockwell.v1.BuildInfo
-	15, // 8: dockwell.v1.ControlPlane.start_time:type_name -> google.protobuf.Timestamp
-	13, // 9: dockwell.v1.ControlPlane.store:type_name -> dockwell.v1.StateStore
-	5,  // 10: dockwell.v1.ControlPlane.panel:type_name -> dockwell.v1.PanelServing
-	14, // 11: dockwell.v1.ControlPlane.agents:type_name -> dockwell.v1.AgentListener
-	1,  // 12: dockwell.v1.StateStore.engine:type_name -> dockwell.v1.StateStoreEngine
-	17, // 13: dockwell.v1.StateStore.round_trip:type_name -> google.protobuf.Duration
-	2,  // 14: dockwell.v1.SettingsService.GetSettings:input_type -> dockwell.v1.GetSettingsRequest
-	6,  // 15: dockwell.v1.SettingsService.SetInstallName:input_type -> dockwell.v1.SetInstallNameRequest
-	8,  // 16: dockwell.v1.SettingsService.SetTimeZone:input_type -> dockwell.v1.SetTimeZoneRequest
-	10, // 17: dockwell.v1.SettingsService.GetControlPlane:input_type -> dockwell.v1.GetControlPlaneRequest
-	3,  // 18: dockwell.v1.SettingsService.GetSettings:output_type -> dockwell.v1.GetSettingsResponse
-	7,  // 19: dockwell.v1.SettingsService.SetInstallName:output_type -> dockwell.v1.SetInstallNameResponse
-	9,  // 20: dockwell.v1.SettingsService.SetTimeZone:output_type -> dockwell.v1.SetTimeZoneResponse
-	11, // 21: dockwell.v1.SettingsService.GetControlPlane:output_type -> dockwell.v1.GetControlPlaneResponse
-	18, // [18:22] is the sub-list for method output_type
-	14, // [14:18] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	5,  // 4: dockwell.v1.SetInstallNameResponse.settings:type_name -> dockwell.v1.Settings
+	5,  // 5: dockwell.v1.SetTimeZoneResponse.settings:type_name -> dockwell.v1.Settings
+	13, // 6: dockwell.v1.GetControlPlaneResponse.control_plane:type_name -> dockwell.v1.ControlPlane
+	17, // 7: dockwell.v1.ControlPlane.build:type_name -> dockwell.v1.BuildInfo
+	16, // 8: dockwell.v1.ControlPlane.start_time:type_name -> google.protobuf.Timestamp
+	14, // 9: dockwell.v1.ControlPlane.store:type_name -> dockwell.v1.StateStore
+	6,  // 10: dockwell.v1.ControlPlane.panel:type_name -> dockwell.v1.PanelServing
+	15, // 11: dockwell.v1.ControlPlane.agents:type_name -> dockwell.v1.AgentListener
+	1,  // 12: dockwell.v1.ControlPlane.service_manager:type_name -> dockwell.v1.ServiceManager
+	2,  // 13: dockwell.v1.StateStore.engine:type_name -> dockwell.v1.StateStoreEngine
+	18, // 14: dockwell.v1.StateStore.round_trip:type_name -> google.protobuf.Duration
+	3,  // 15: dockwell.v1.SettingsService.GetSettings:input_type -> dockwell.v1.GetSettingsRequest
+	7,  // 16: dockwell.v1.SettingsService.SetInstallName:input_type -> dockwell.v1.SetInstallNameRequest
+	9,  // 17: dockwell.v1.SettingsService.SetTimeZone:input_type -> dockwell.v1.SetTimeZoneRequest
+	11, // 18: dockwell.v1.SettingsService.GetControlPlane:input_type -> dockwell.v1.GetControlPlaneRequest
+	4,  // 19: dockwell.v1.SettingsService.GetSettings:output_type -> dockwell.v1.GetSettingsResponse
+	8,  // 20: dockwell.v1.SettingsService.SetInstallName:output_type -> dockwell.v1.SetInstallNameResponse
+	10, // 21: dockwell.v1.SettingsService.SetTimeZone:output_type -> dockwell.v1.SetTimeZoneResponse
+	12, // 22: dockwell.v1.SettingsService.GetControlPlane:output_type -> dockwell.v1.GetControlPlaneResponse
+	19, // [19:23] is the sub-list for method output_type
+	15, // [15:19] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_settings_proto_init() }
@@ -1078,7 +1154,7 @@ func file_dockwell_v1_settings_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_settings_proto_rawDesc), len(file_dockwell_v1_settings_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,

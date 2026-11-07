@@ -75,6 +75,10 @@ service SettingsService {
   // GetControlPlane returns what serves the panel and API: its build, where it
   // keeps its state, the addresses it answers on, and how it's doing. Most of
   // it comes from how dockwell run was started, and changes there.
+  //
+  // A call with an API token gets no paths, no state store location and no
+  // agent URLs: they say where the key and the store are, and the panel needs
+  // them only for a person signed in, to say how to back the control plane up.
   rpc GetControlPlane(GetControlPlaneRequest) returns (GetControlPlaneResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -188,11 +192,12 @@ message ControlPlane {
   BuildInfo build = 1;
   // When it started.
   google.protobuf.Timestamp start_time = 2;
-  // The directory it keeps its files in, such as "/var/lib/dockwell".
+  // The directory it keeps its files in, such as "/var/lib/dockwell". Empty
+  // for an API token.
   string data_dir = 3;
   // The install's key, which opens every secret the state store keeps, such
   // as "/var/lib/dockwell/control/key". A backup of the store needs it too,
-  // kept apart.
+  // kept apart. Empty for an API token.
   string key_file = 4;
   // Where it keeps its state.
   StateStore store = 5;
@@ -203,6 +208,20 @@ message ControlPlane {
   // The memory it holds, with its own agent's, in bytes: its resident set.
   // Zero where the system doesn't say.
   int64 memory_bytes = 8;
+  // What runs it as a service, and so stops and starts it.
+  ServiceManager service_manager = 9;
+}
+
+// ServiceManager is what runs dockwell run as a service on the control server.
+enum ServiceManager {
+  SERVICE_MANAGER_UNSPECIFIED = 0;
+  // Nothing: it was started by hand, or in a container, and stops as it was
+  // started.
+  SERVICE_MANAGER_NONE = 1;
+  // systemd, as the dockwell unit: systemctl stop dockwell.
+  SERVICE_MANAGER_SYSTEMD = 2;
+  // OpenRC, as the dockwell service: rc-service dockwell stop.
+  SERVICE_MANAGER_OPENRC = 3;
 }
 
 // StateStore is the database the control plane keeps its state in.
@@ -210,7 +229,7 @@ message StateStore {
   // What kind of database it is.
   StateStoreEngine engine = 1;
   // Where it is: a SQLite file's path, or a Postgres URL without its
-  // password.
+  // password. Empty for an API token.
   string location = 2;
   // The database's own version, such as "3.50.4" or "17.2".
   string version = 3;
@@ -234,9 +253,10 @@ message AgentListener {
   // The address it listens on, such as ":7443".
   string listen = 1;
   // The URL a server on the control server's own network reaches it at, as
-  // a join ticket names it, such as "https://192.0.2.10:7443".
+  // a join ticket names it, such as "https://192.0.2.10:7443". Empty for an
+  // API token.
   string url = 2;
   // The URLs a server elsewhere reaches it at, in the order a ticket tries
-  // them. Empty when that isn't known.
+  // them. Empty when that isn't known, and for an API token.
   repeated string public_urls = 3;
 }

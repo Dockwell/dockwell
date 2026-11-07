@@ -967,6 +967,10 @@ paths:
                 GetControlPlane returns what serves the panel and API: its build, where it
                  keeps its state, the addresses it answers on, and how it's doing. Most of
                  it comes from how dockwell run was started, and changes there.
+
+                 A call with an API token gets no paths, no state store location and no
+                 agent URLs: they say where the key and the store are, and the panel needs
+                 them only for a person signed in, to say how to back the control plane up.
             operationId: SettingsService_GetControlPlane
             responses:
                 "200":
@@ -2935,14 +2939,15 @@ components:
                     type: string
                     description: |-
                         The URL a server on the control server's own network reaches it at, as
-                         a join ticket names it, such as "https://192.0.2.10:7443".
+                         a join ticket names it, such as "https://192.0.2.10:7443". Empty for an
+                         API token.
                 publicUrls:
                     type: array
                     items:
                         type: string
                     description: |-
                         The URLs a server elsewhere reaches it at, in the order a ticket tries
-                         them. Empty when that isn't known.
+                         them. Empty when that isn't known, and for an API token.
             description: AgentListener is where servers' agents reach the control plane.
         ApplyChangeRequest:
             type: object
@@ -4073,13 +4078,15 @@ components:
                     format: date-time
                 dataDir:
                     type: string
-                    description: The directory it keeps its files in, such as "/var/lib/dockwell".
+                    description: |-
+                        The directory it keeps its files in, such as "/var/lib/dockwell". Empty
+                         for an API token.
                 keyFile:
                     type: string
                     description: |-
                         The install's key, which opens every secret the state store keeps, such
                          as "/var/lib/dockwell/control/key". A backup of the store needs it too,
-                         kept apart.
+                         kept apart. Empty for an API token.
                 store:
                     allOf:
                         - $ref: '#/components/schemas/StateStore'
@@ -4097,6 +4104,15 @@ components:
                     description: |-
                         The memory it holds, with its own agent's, in bytes: its resident set.
                          Zero where the system doesn't say.
+                serviceManager:
+                    enum:
+                        - SERVICE_MANAGER_UNSPECIFIED
+                        - SERVICE_MANAGER_NONE
+                        - SERVICE_MANAGER_SYSTEMD
+                        - SERVICE_MANAGER_OPENRC
+                    type: string
+                    description: What runs it as a service, and so stops and starts it.
+                    format: enum
             description: |-
                 ControlPlane is the dockwell run that serves the panel and API, with the
                  agent it runs beside them.
@@ -8707,7 +8723,7 @@ components:
                     type: string
                     description: |-
                         Where it is: a SQLite file's path, or a Postgres URL without its
-                         password.
+                         password. Empty for an API token.
                 version:
                     type: string
                     description: The database's own version, such as "3.50.4" or "17.2".

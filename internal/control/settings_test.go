@@ -3,6 +3,8 @@
 package control
 
 import (
+	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -239,6 +241,22 @@ func testTheControlPlaneSaysWhatItIs(t *testing.T, backend store.Backend) {
 	if strings.Contains(st.GetLocation(), "password") || strings.Contains(st.GetLocation(), ":"+"secret@") {
 		t.Errorf("the state store's location %q says its password", st.GetLocation())
 	}
+	// CI's server takes a password, which the store's URL carries, and which the location leaves out.
+	if backend == store.Postgres {
+		server, err := url.Parse(os.Getenv(storetest.EnvPostgres))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if password, ok := server.User.Password(); !ok {
+			t.Logf("%s has no password, so nothing shows one isn't said", storetest.EnvPostgres)
+		} else if !strings.Contains(f.db, password) || strings.Contains(st.GetLocation(), password) {
+			t.Errorf("the state store at %q is said as %q, want it without its password", f.db, st.GetLocation())
+		}
+	}
+	// Started by hand, as a test is, nothing runs it as a service to stop it with.
+	if cp.GetServiceManager() != dockwellv1.ServiceManager_SERVICE_MANAGER_NONE {
+		t.Errorf("it runs under %v, want none", cp.GetServiceManager())
+	}
 	if backend == store.SQLite && st.GetLocation() != f.db {
 		t.Errorf("the SQLite file is at %q, want %q", st.GetLocation(), f.db)
 	}
@@ -252,5 +270,21 @@ func testTheControlPlaneSaysWhatItIs(t *testing.T, backend store.Backend) {
 	}
 	if runtime.GOOS == "linux" && cp.GetMemoryBytes() < 1<<20 {
 		t.Errorf("it holds %d bytes, want its resident set", cp.GetMemoryBytes())
+	}
+
+	// A script reads what runs and how it's doing, but not where the key and the store are.
+	script := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY), rt: b.client.Transport}
+	read, err := dockwellv1connect.NewSettingsServiceClient(script, b.origin, connect.WithProtoJSON()).
+		GetControlPlane(t.Context(), connect.NewRequest(&dockwellv1.GetControlPlaneRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := read.Msg.GetControlPlane()
+	if seen.GetDataDir() != "" || seen.GetKeyFile() != "" || seen.GetStore().GetLocation() != "" ||
+		seen.GetAgents().GetUrl() != "" || len(seen.GetAgents().GetPublicUrls()) > 0 {
+		t.Errorf("a token reads the control plane as %v, want no paths, location or agent URLs", seen)
+	}
+	if seen.GetBuild().GetVersion() != testBuild.Version || seen.GetStore().GetVersion() == "" {
+		t.Errorf("a token reads the control plane as %v, want what it runs and how it's doing", seen)
 	}
 }

@@ -224,16 +224,27 @@ What to copy, from `/var/lib/dockwell`:
 - `control/key`, the key that seals every secret in the store. Keep this copy apart from the rest: the store's secrets open with nothing else, and the key opens nothing without the store.
 - `agent/`, the control server's own agent, so it comes back as the same server rather than joining again as a new one.
 
-Stop Dockwell for the copy, so the store is whole: SQLite writes to a file beside it while it runs. Your apps keep serving while it's stopped, Caddy keeps routing to them, and the servers that joined reconnect when it's back.
+Stop Dockwell for the copy, so the store is whole: SQLite writes to a file beside it while it runs. Your apps keep serving while it's stopped, Caddy keeps routing to them, and the servers that joined reconnect when it's back. The commands copy only once Dockwell has stopped, so a failed stop copies nothing, and start it again whatever the copy did. The archive leaves out the key, and anything a first start left beside it.
+
+With systemd:
 
 ```sh
-sudo systemctl stop dockwell
-sudo tar -C /var/lib/dockwell --exclude control/key -czf /root/dockwell-control.tgz control agent
-sudo cp -p /var/lib/dockwell/control/key /root/dockwell-key
+sudo systemctl stop dockwell &&
+  sudo tar -C /var/lib/dockwell --exclude 'control/key*' -czf /root/dockwell-control.tgz control agent &&
+  sudo cp -p /var/lib/dockwell/control/key /root/dockwell-key
 sudo systemctl start dockwell
 ```
 
-On OpenRC, stop and start it with `rc-service dockwell stop` and `rc-service dockwell start`. Then move `/root/dockwell-control.tgz` and `/root/dockwell-key` off the server, to two different places, and delete them from it. The archive holds the panel's certificate keys and a token that acts for you, so keep it as carefully as the key. The panel's Settings, under Control plane, shows these commands with this install's own paths.
+With OpenRC, as root:
+
+```sh
+rc-service dockwell stop &&
+  tar -C /var/lib/dockwell --exclude 'control/key*' -czf /root/dockwell-control.tgz control agent &&
+  cp -p /var/lib/dockwell/control/key /root/dockwell-key
+rc-service dockwell start
+```
+
+If you started `dockwell run` yourself, stop it first, run the `tar` and `cp` lines as root, and start it again. Then move `/root/dockwell-control.tgz` and `/root/dockwell-key` off the server, to two different places, and delete them from it. The archive holds the panel's certificate keys and a token that acts for you, so keep it as carefully as the key. The panel's Settings, under Control plane, shows these commands with this install's own paths, for what runs Dockwell there.
 
 With the state in Postgres (`DOCKWELL_DATABASE`), back the database up with `pg_dump`, as any Postgres database, and copy `control/`, `agent/` and the key as above: the key and the agent are still files on the control server.
 
@@ -246,6 +257,8 @@ sudo tar -C /var/lib/dockwell -xzpf dockwell-control.tgz
 sudo install -m 0600 dockwell-key /var/lib/dockwell/control/key
 sudo systemctl start dockwell
 ```
+
+With OpenRC, run the same as root, with `rc-service dockwell stop` and `rc-service dockwell start`.
 
 The control plane comes back as it was when you copied it: the same install, the same sign-in, and the same servers, which reconnect to it at the address they joined with. What you changed after the copy is gone from the control plane, even where a server still runs it. Restoring onto a different server isn't supported yet, as the servers that joined reach the control plane at the old one's address.
 

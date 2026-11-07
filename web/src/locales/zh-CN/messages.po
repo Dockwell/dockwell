@@ -3228,6 +3228,10 @@ msgstr "Dockwell 不打开这个文件"
 msgid "Dockwell doesn't open this folder"
 msgstr "Dockwell 不打开这个文件夹"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
+msgstr "Dockwell 在这里没有作为服务运行，所以请先停止 <0>dockwell run</0>：只有在没有任何写入时，存储才是完整的。然后以 root 身份运行以下命令，完成后再启动 Dockwell。"
+
 #: src/features/catalog/InstallSheet.tsx
 msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
 msgstr "Dockwell 会生成{inLog}，但 {app} 会把它写入日志，而查看日志不需要通行密钥。请在首次登录后修改。"
@@ -6739,6 +6743,10 @@ msgstr "在服务器上运行镜像或 Compose 文件。开始之前你会先审
 msgid "Run by hand, <0>dockwell run --domain …</0>."
 msgstr "手动运行时，使用 <0>dockwell run --domain …</0>。"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "请以 root 身份运行。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Run this on {server} over SSH. It prints a sign-in link that works once."
 msgstr "通过 SSH 在 {server} 上运行此命令。它会打印一个只能使用一次的登录链接。"
@@ -7410,10 +7418,6 @@ msgstr "每次备份时停止 {running}"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Stop backing up {volume} on a schedule"
 msgstr "停止按计划备份 {volume}"
-
-#: src/features/settings/ControlPlanePage.tsx
-msgid "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "复制时请先停止 Dockwell，以保证存储完整。停止期间你的应用照常提供服务，Dockwell 恢复后服务器会重新连接。"
 
 #. placeholder {0}: d.name
 #: src/features/backups/DestinationsPanel.tsx
@@ -8369,6 +8373,10 @@ msgstr "此次变更在改动服务器上的任何内容之前就已停止。"
 #: src/features/changes/RollbackLine.tsx
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "此次变更在涉及它之前就已停止，Dockwell 已恢复其余部分。"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
 
 #. placeholder {0}: said.database
 #: src/features/backups/BackUpSheet.tsx

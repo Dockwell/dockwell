@@ -3228,6 +3228,10 @@ msgstr "Dockwell doesn't open this file"
 msgid "Dockwell doesn't open this folder"
 msgstr "Dockwell doesn't open this folder"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
+msgstr "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
+
 #: src/features/catalog/InstallSheet.tsx
 msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
 msgstr "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
@@ -6739,6 +6743,10 @@ msgstr "Run an image or a Compose file on your server. You review a plan before 
 msgid "Run by hand, <0>dockwell run --domain …</0>."
 msgstr "Run by hand, <0>dockwell run --domain …</0>."
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+
 #: src/features/auth/SignInPage.tsx
 msgid "Run this on {server} over SSH. It prints a sign-in link that works once."
 msgstr "Run this on {server} over SSH. It prints a sign-in link that works once."
@@ -7410,10 +7418,6 @@ msgstr "Stop {running} for each backup"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Stop backing up {volume} on a schedule"
 msgstr "Stop backing up {volume} on a schedule"
-
-#: src/features/settings/ControlPlanePage.tsx
-msgid "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 
 #. placeholder {0}: d.name
 #: src/features/backups/DestinationsPanel.tsx
@@ -8369,6 +8373,10 @@ msgstr "This stopped before it changed anything on the server."
 #: src/features/changes/RollbackLine.tsx
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "This stopped before it reached that, and Dockwell put back the rest."
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 
 #. placeholder {0}: said.database
 #: src/features/backups/BackUpSheet.tsx
