@@ -321,6 +321,11 @@ describe("Audit log", () => {
         "2026-11-07",
       ].join(","),
     );
+    // Excel where ; separates splits a field there, and on a tab or a line, whatever the quotes say.
+    expect(csvLine(["x;=1+1", "a\t+b", "a\r@c", "a\n-d", "a;b", "1;2"])).toBe(
+      [`"x;'=1+1"`, `"a\t'+b"`, `"a\r'@c"`, `"a\n'-d"`, `"a;b"`, `"1;2"`].join(","),
+    );
+    expect(csvLine(["=a;=b"])).toBe(`"'=a;'=b"`);
     const named = anEvent({
       id: "evt_f",
       action: "token.create",

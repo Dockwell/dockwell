@@ -673,15 +673,24 @@ function PhoneLog({ events }: { events: readonly AuditEvent[] }) {
   );
 }
 
+/** What a spreadsheet reads as the start of a formula. */
+const FORMULA = /^[=+\-@\t\r]/;
 /**
- * One field of CSV, quoted where it must be. One a spreadsheet would read as a
- * formula, starting =, +, -, @, a tab or a carriage return, as a token's name
- * may, gets a ' before it, so it reads as text.
+ * The same after what a spreadsheet may split a field on: Excel in a locale that
+ * separates with ; splits there and on a tab, whatever the quotes say, and a line
+ * break starts a cell too.
+ */
+const FORMULA_INSIDE = /([;\t\r\n])([=+\-@])/g;
+
+/**
+ * One field of CSV, quoted where it must be. Anything a spreadsheet would read
+ * as a formula, at the start or after a ;, a tab or a line break inside it, as a
+ * token's name may hold, gets a ' before it, so it reads as text.
  */
 export function csvField(f: string): string {
-  const formula = /^[=+\-@\t\r]/.test(f);
-  const safe = formula ? `'${f}` : f;
-  return formula || /[",\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+  let safe = f.replace(FORMULA_INSIDE, "$1'$2");
+  if (FORMULA.test(safe)) safe = `'${safe}`;
+  return safe !== f || /[",;\t\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
 /** One line of CSV. */
