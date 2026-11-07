@@ -144,7 +144,7 @@ describe("an app's frame", () => {
       within(tabs)
         .getAllByRole("link")
         .map((l) => l.textContent),
-    ).toEqual(["Overview", "Deployments 3", "Logs", "Environment"]);
+    ).toEqual(["Overview", "Deployments 3", "Logs", "Environment", "Settings"]);
     expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Apps/web");
     expect(document.title).toBe("web · Dockwell");

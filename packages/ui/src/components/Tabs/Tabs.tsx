@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type AnchorHTMLAttributes, type ReactNode, type Ref, useEffect, useRef, useState } from "react";
+import {
+  type AnchorHTMLAttributes,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { cx } from "../../lib/cx";
 import { handleRovingKeyDown, tabStop } from "../../lib/roving";
@@ -131,6 +139,20 @@ export interface TabNavProps {
  */
 export function TabNav({ label, children, className }: TabNavProps) {
   const { ref, more } = useMoreEdges<HTMLElement>();
+  // Where the list scrolls, as on a phone, the page you're on is in sight when you land on it.
+  // Only the list moves: scrollIntoView would move the page to it too.
+  const shown = useRef<Element | null>(null);
+  useLayoutEffect(() => {
+    const nav = ref.current;
+    const on = nav?.querySelector('[aria-current="page"]');
+    if (!nav || !on || on === shown.current) return;
+    shown.current = on;
+    const box = on.getBoundingClientRect();
+    const edge = nav.getBoundingClientRect();
+    const room = 32;
+    if (box.right > edge.right) nav.scrollLeft += box.right - edge.right + room;
+    else if (box.left < edge.left) nav.scrollLeft -= edge.left - box.left + room;
+  });
   return (
     <nav ref={ref} data-more={more} className={cx("dw-tabs", className)} aria-label={label}>
       {children}

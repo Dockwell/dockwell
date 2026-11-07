@@ -1202,7 +1202,8 @@ function RunsWithPanel() {
 }
 
 /** Deleting is a plan too: this only opens it. */
-function DeletePanel() {
+/** Deleting the app, through a plan; on Settings it's the danger zone, under a title. */
+export function DeletePanel({ title }: { title?: string } = {}) {
   const { t } = useLingui();
   const { service } = useApp();
   const sheet = useChangeSheet();
@@ -1214,7 +1215,7 @@ function DeletePanel() {
     domain.routes.filter((route) => route.service === name),
   );
   return (
-    <Panel className="app-delete">
+    <Panel title={title} className="app-delete">
       <p className="app-delete-text">
         {routes.length > 0 ? (
           <Trans>
