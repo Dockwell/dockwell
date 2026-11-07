@@ -171,8 +171,68 @@
     flex: 1;
     max-height: none;
   }
+  /* As M-CommandBar has them: each group's options on a card on the canvas, and what an
+     option says under its name, so a long hint never cuts the name short. */
+  .dw-cmd-layer > .dw-cmd {
+    background: var(--canvas);
+  }
+  .dw-cmd-layer .dw-cmd-list {
+    padding: 0 var(--space-4) var(--space-4);
+    scroll-padding: var(--space-4);
+  }
+  .dw-cmd-layer .dw-cmd-group {
+    padding: var(--space-4) 0 var(--space-2);
+  }
   .dw-cmd-layer .dw-cmd-item {
-    height: 46px;
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    align-content: center;
+    align-items: center;
+    gap: 2px var(--space-3);
+    height: auto;
+    min-height: 52px;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--line);
+    border-top-width: 0;
+    border-radius: 0;
+    background: var(--surface);
+  }
+  .dw-cmd-layer .dw-cmd-item.is-active {
+    background: var(--surface-sunken);
+  }
+  .dw-cmd-layer .dw-cmd-item:has(.dw-cmd-hint) > .dw-icon {
+    grid-row: 1 / span 2;
+  }
+  .dw-cmd-layer .dw-cmd-label,
+  .dw-cmd-layer .dw-cmd-hint {
+    grid-column: 2;
+  }
+  .dw-cmd-layer .dw-cmd-hint {
+    overflow: hidden;
+    font-size: 12.5px;
+    line-height: 16px;
+    text-overflow: ellipsis;
+  }
+  .dw-cmd-layer .dw-cmd-item > .dw-kbd {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .dw-cmd-layer .dw-cmd-item:has(.dw-cmd-hint) > .dw-kbd {
+    grid-row: 1 / span 2;
+  }
+  .dw-cmd-layer .dw-cmd-group + .dw-cmd-item,
+  .dw-cmd-layer .dw-cmd-options > .dw-cmd-item:first-child {
+    border-top-width: 1px;
+    border-top-left-radius: var(--radius-md);
+    border-top-right-radius: var(--radius-md);
+  }
+  .dw-cmd-layer .dw-cmd-section > .dw-cmd-item:last-child,
+  .dw-cmd-layer .dw-cmd-options > .dw-cmd-item:last-child {
+    border-bottom-left-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
+  }
+  .dw-cmd-layer .dw-cmd-options > .dw-cmd-item:first-child {
+    margin-top: var(--space-3);
   }
   .dw-cmd-layer .dw-cmd-foot > span[aria-hidden] {
     display: none;
