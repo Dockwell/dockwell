@@ -106,7 +106,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Sigstore's TUF repository sometimes doesn't answer, and the installer then fails
+      # before it has verified anything, so it's tried once more.
+      - id: cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        continue-on-error: true
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+      - if: steps.cosign.outcome == 'failure'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: The pin is the trust root Sigstore publishes now, and verifies keyless signatures offline
@@ -129,7 +137,15 @@ jobs:
         with:
           name: dockwell-release
           path: dist
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Sigstore's TUF repository sometimes doesn't answer, and the installer then fails
+      # before it has verified anything, so it's tried once more.
+      - id: cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        continue-on-error: true
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+      - if: steps.cosign.outcome == 'failure'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Sign the checksums

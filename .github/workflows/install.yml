@@ -76,7 +76,15 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Sigstore's TUF repository sometimes doesn't answer, and the installer then fails
+      # before it has verified anything, so it's tried once more.
+      - id: cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        continue-on-error: true
+        with:
+          cosign-release: ${{ steps.pin.outputs.cosign }}
+      - if: steps.cosign.outcome == 'failure'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: ${{ steps.pin.outputs.cosign }}
       - name: Build and sign the test releases
@@ -217,7 +225,15 @@ jobs:
         with:
           name: install-test
           path: releases
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Sigstore's TUF repository sometimes doesn't answer, and the installer then fails
+      # before it has verified anything, so it's tried once more.
+      - id: cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        continue-on-error: true
+        with:
+          cosign-release: ${{ needs.snapshot.outputs.cosign }}
+      - if: steps.cosign.outcome == 'failure'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: ${{ needs.snapshot.outputs.cosign }}
       - name: The install script pins the cosign that cosign-installer verified
@@ -252,7 +268,15 @@ jobs:
         with:
           name: install-test
           path: releases
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Sigstore's TUF repository sometimes doesn't answer, and the installer then fails
+      # before it has verified anything, so it's tried once more.
+      - id: cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        continue-on-error: true
+        with:
+          cosign-release: ${{ needs.snapshot.outputs.cosign }}
+      - if: steps.cosign.outcome == 'failure'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: ${{ needs.snapshot.outputs.cosign }}
       - name: Install, upgrade and uninstall under systemd
