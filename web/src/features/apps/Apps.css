@@ -172,8 +172,9 @@
 }
 
 .app-env-name {
-  display: block;
   font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .app-env-source {
@@ -187,6 +188,301 @@
 .app-environment .dw-table-wrap {
   border: 0;
   border-radius: inherit;
+}
+
+/* The editor: what it has, what's pending, and the bar that plans it. */
+.app-env-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.app-env-counts {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.app-env-spacer {
+  flex: 1 1 auto;
+}
+
+.app-env-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.app-env-field.is-key {
+  flex: 0 1 304px;
+  min-width: 200px;
+}
+
+.app-env-field.is-value {
+  flex: 1 1 280px;
+  min-width: 200px;
+}
+
+.app-env-form-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.app-env-form-error,
+.app-env-form-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.app-env-form-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  color: var(--critical);
+}
+
+.app-env-form-note {
+  color: var(--ink-muted);
+}
+
+.app-env-use {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.app-env-use .dw-field {
+  flex: 0 1 304px;
+  min-width: 200px;
+}
+
+.app-env-key {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.app-env-mark {
+  flex: none;
+  width: 10px;
+  font: 600 13px / 1 var(--font-mono);
+  color: transparent;
+}
+
+.app-env-mark.is-add,
+.app-env-mark.is-use {
+  color: var(--diff-add);
+}
+
+.app-env-mark.is-change {
+  color: var(--diff-change);
+}
+
+.app-env-mark.is-remove {
+  color: var(--diff-remove);
+}
+
+.app-env-removed .app-env-name {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+
+.app-env-diff {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+}
+
+.app-env-to,
+.app-env-from {
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.app-env-to {
+  background: var(--diff-add-soft);
+}
+
+.app-env-from {
+  background: var(--diff-remove-soft);
+  text-decoration: line-through;
+}
+
+.app-env-masked-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.app-env-masked {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.app-env-updated {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.app-env-updated .app-muted {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.app-env-actions {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.app-env-phone-value {
+  display: block;
+  margin-top: 2px;
+}
+
+.app-env-empty {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.app-env-bar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+
+.app-env-bar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-env-bar-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.app-env-bar-title {
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.app-env-bar-counts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.app-env-bar-note,
+.app-env-bar-root {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.app-env-bar-root {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+
+.app-env-bar-root .dw-icon {
+  flex: none;
+  color: var(--warning);
+}
+
+.app-env-bar-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.app-env-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.app-env-import-label {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.app-env-import-text {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 200px;
+  padding: var(--space-2) 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: 13px / 20px var(--font-mono);
+  resize: vertical;
+}
+
+.app-env-import-text:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 639.98px) {
+  /* Above the tab bar, and the app's own Restart and Deploy bar (.app-actionbar) over it. */
+  .app-env-bar {
+    bottom: calc(var(--tabbar-height) + 48px + 2 * var(--space-3) + 1px + var(--space-2));
+  }
+
+  .app-env-bar .app-env-spacer {
+    display: none;
+  }
+
+  .app-env-bar-buttons {
+    flex: 1 1 100%;
+  }
+
+  .app-env-bar-buttons .dw-btn {
+    flex: 1 1 0;
+  }
+
+  .app-env-field.is-key,
+  .app-env-field.is-value,
+  .app-env-use .dw-field {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
 }
 
 /* The list. */

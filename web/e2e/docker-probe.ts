@@ -18,6 +18,8 @@ export interface Running {
   /** The networks it is on. */
   networks: string[];
   running: boolean;
+  /** Its environment, as NAME=value. */
+  env: string[];
 }
 
 function call(socket: string, method: string, path: string, body?: unknown): Promise<string> {
@@ -49,7 +51,7 @@ interface Summary {
 
 interface Inspected {
   Name: string;
-  Config: { Image: string; Labels?: Record<string, string> };
+  Config: { Image: string; Labels?: Record<string, string>; Env?: string[] };
   State: { Running: boolean };
   NetworkSettings: { Networks?: Record<string, unknown> };
 }
@@ -73,6 +75,7 @@ export function dockerProbe(socket: string) {
           service: seen.Config.Labels?.[SERVICE] ?? "",
           networks: Object.keys(seen.NetworkSettings.Networks ?? {}),
           running: seen.State.Running,
+          env: seen.Config.Env ?? [],
         };
       }),
     );
