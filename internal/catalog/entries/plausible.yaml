@@ -15,15 +15,15 @@ web:
   service: plausible
 firstSteps: >-
   Plausible answers only on this server until you add a domain, as the first person
-  to open it makes its account. Add a domain on its page, over HTTPS or behind your
-  tunnel, then set BASE_URL on the plausible service to that address, as Plausible
-  builds its links and your sites' tracker from it, and open it there to register. To
-  open it before that, use an SSH tunnel from your computer: ssh -N -L
-  8000:127.0.0.1:8000 you@your-server, using the port you gave it, then open
-  http://localhost:8000. Leave the POSTGRES_PASSWORD secret as it is: its database
-  keeps the password it started with, and Plausible would then use one it doesn't
-  take. Leave the SECRET_KEY_BASE secret as it is too: changing it signs everyone out
-  and turns off two-factor sign-in.
+  to open it makes its account. So register first, through an SSH tunnel from your
+  computer: ssh -N -L 8000:127.0.0.1:8000 you@your-server, using the port you gave
+  it, then open http://localhost:8000. Add a domain on its page only after that, over
+  HTTPS or behind your tunnel, as a new domain's certificate shows in public logs
+  within minutes, then set BASE_URL on the plausible service to that address, as
+  Plausible builds its links and your sites' tracker from it. Leave the
+  POSTGRES_PASSWORD secret as it is: its database keeps the password it started with,
+  and Plausible would then use one it doesn't take. Leave the SECRET_KEY_BASE secret
+  as it is too: changing it signs everyone out and turns off two-factor sign-in.
 inputs:
   - name: PORT
     label: Port on this server
