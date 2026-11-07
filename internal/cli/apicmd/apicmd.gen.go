@@ -530,7 +530,7 @@ func Methods() []*apicli.Method {
 			Noun:      "control-plane",
 			Verb:      "get",
 			Short:     "Return what serves the panel and API",
-			Long:      "Return what serves the panel and API: its build, where it keeps its state, the\naddresses it answers on, and how it's doing. Most of it comes from how dockwell\nrun was started, and changes there.",
+			Long:      "Return what serves the panel and API: its build, where it keeps its state, the\naddresses it answers on, and how it's doing. Most of it comes from how dockwell\nrun was started, and changes there.\n\nA call with an API token gets no paths, no state store location and no agent\nURLs: they say where the key and the store are, and the panel needs them only\nfor a person signed in, to say how to back the control plane up.",
 			Effect:    v1.Effect_EFFECT_READ,
 			Call:      apicli.Unary[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse](dockwellv1connect.SettingsServiceGetControlPlaneProcedure),
 		},

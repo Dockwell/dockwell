@@ -16,6 +16,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/buildinfo"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -30,6 +31,8 @@ type Plane struct {
 	// AgentURLs says where agents reach it: on the control server's own network,
 	// and from elsewhere, in the order a ticket tries them.
 	AgentURLs func(ctx context.Context) (local string, public []string, err error)
+	// ServiceManager is what runs it as a service, if anything.
+	ServiceManager dockwellv1.ServiceManager
 }
 
 // GetControlPlane implements dockwell.v1.SettingsService.
@@ -54,9 +57,13 @@ func (h *Handler) GetControlPlane(ctx context.Context, _ *connect.Request[dockwe
 			SizeBytes: about.Size,
 			RoundTrip: durationpb.New(about.RoundTrip),
 		},
-		Panel:       h.panel(),
-		Agents:      &dockwellv1.AgentListener{Listen: p.AgentListen},
-		MemoryBytes: residentBytes(),
+		Panel:          h.panel(),
+		Agents:         &dockwellv1.AgentListener{Listen: p.AgentListen},
+		MemoryBytes:    residentBytes(),
+		ServiceManager: p.ServiceManager,
+	}
+	if cp.ServiceManager == dockwellv1.ServiceManager_SERVICE_MANAGER_UNSPECIFIED {
+		cp.ServiceManager = dockwellv1.ServiceManager_SERVICE_MANAGER_NONE
 	}
 	if !p.Started.IsZero() {
 		cp.StartTime = timestamppb.New(p.Started)
@@ -65,6 +72,12 @@ func (h *Handler) GetControlPlane(ctx context.Context, _ *connect.Request[dockwe
 		if cp.Agents.Url, cp.Agents.PublicUrls, err = p.AgentURLs(ctx); err != nil {
 			return nil, err
 		}
+	}
+	// Where the key and the store are is for a person backing them up, not a
+	// script's: a token that reads gets what runs and how it's doing.
+	if who, ok := authapi.PrincipalFrom(ctx); !ok || who.Token != nil {
+		cp.DataDir, cp.KeyFile, cp.Store.Location = "", "", ""
+		cp.Agents.Url, cp.Agents.PublicUrls = "", nil
 	}
 	return connect.NewResponse(&dockwellv1.GetControlPlaneResponse{ControlPlane: cp}), nil
 }

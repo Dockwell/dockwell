@@ -111,9 +111,11 @@ type Config struct {
 	PanelListen, PanelURL, PanelCA string
 	PanelHandsOver                 bool
 	// DataDir is the directory dockwell run keeps its files in, KeyFile the
-	// install's key there, and AgentListen where servers' agents reach it, for
-	// the settings to say what the control plane is.
+	// install's key there, AgentListen where servers' agents reach it, and
+	// ServiceManager what runs it as a service, for the settings to say what
+	// the control plane is, and how to stop it for a backup.
 	DataDir, KeyFile, AgentListen string
+	ServiceManager                dockwellv1.ServiceManager
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
@@ -252,11 +254,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			}
 		}
 		plane := settings.Plane{
-			Build:       cfg.Build,
-			Started:     time.Now(),
-			DataDir:     cfg.DataDir,
-			KeyFile:     cfg.KeyFile,
-			AgentListen: cfg.AgentListen,
+			Build:          cfg.Build,
+			Started:        time.Now(),
+			DataDir:        cfg.DataDir,
+			KeyFile:        cfg.KeyFile,
+			AgentListen:    cfg.AgentListen,
+			ServiceManager: cfg.ServiceManager,
 		}
 		if cfg.Identity != nil {
 			plane.AgentURLs = agentURLs(cfg.Identity)
