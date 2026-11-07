@@ -868,9 +868,9 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_DESTRUCTIVE,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server's ID."},
-				{Path: "pid", Help: "The process ID."},
+				{Path: "pid", Help: "The process ID, 4194304 at most, as Linux gives them."},
 				{Path: "start_ticks", Help: "When it started, as Process.start_ticks has it, so a process that ended and gave its PID to another isn't ended in its place."},
-				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for STEP_UP_ACTION_END_PROCESS on \"<server ID>:<PID>\"."},
+				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for STEP_UP_ACTION_END_PROCESS on \"<server ID>:<PID>:<start ticks>\"."},
 			},
 			Call: apicli.Unary[v1.EndProcessRequest, v1.EndProcessResponse](dockwellv1connect.ProcessServiceEndProcessProcedure),
 		},

@@ -4,8 +4,10 @@ package collect
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -180,4 +182,102 @@ func TestProcessesOnThisMachine(t *testing.T) {
 	if again.GetCpuWindow() == nil {
 		t.Error("a second list measures no CPU")
 	}
+}
+
+// What can't be ended says so, and so does what takes more with it: the SSH
+// server that takes new logins, as it's a way back in, but not a login it
+// started; whatever the agent runs under; Docker's daemons, which every
+// container needs; and a container's shim. A container's main process, the
+// one its shim started, says so, as only it is started again (#218's review).
+func TestProcessesSayWhatTheyHoldUp(t *testing.T) {
+	fsys := procFixture()
+	add := func(pid int, name string, ppid uint64, cgroup string) {
+		dir := fmt.Sprintf("proc/%d/", pid)
+		fsys[dir+"stat"] = &fstest.MapFile{Data: []byte(stat(pid, name, ppid, 0, 1, uint64(pid), 10))}
+		fsys[dir+"status"] = &fstest.MapFile{Data: []byte(fmt.Sprintf("Tgid:\t%d\nUid:\t0\t0\t0\t0\n", pid))}
+		fsys[dir+"cgroup"] = &fstest.MapFile{Data: []byte(cgroup)}
+	}
+	add(700, "sshd", 1, "0::/system.slice/ssh.service\n")
+	add(1990, "sshd-session", 700, "0::/system.slice/ssh.service\n")
+	add(1980, "sh", 1, "0::/system.slice/dockwell.service\n")
+	add(2001, "dockwell", 1980, "0::/system.slice/dockwell.service\n")
+	add(820, "containerd", 1, "0::/system.slice/containerd.service\n")
+	add(1170, "containerd-shim", 1, "0::/system.slice/containerd.service\n")
+	add(1200, "postgres", 1184, "0::/system.slice/docker-"+containerHex+".scope\n")
+	c := &Collector{Root: fsys}
+	list, _ := c.Processes(time.Now(), nil, 2001, nil, nil)
+	by := map[uint32]*dockwellv1.Process{}
+	for _, p := range list.GetProcesses() {
+		by[p.GetPid()] = p
+	}
+	for pid, want := range map[uint32]string{700: "ssh", 1990: "", 2000: "", 1980: "dockwell", 2001: "dockwell", 1: "init", 812: "", 1184: "", 1200: ""} {
+		if got := by[pid].GetProtected(); got != want {
+			t.Errorf("PID %d (%s) is protected as %q, want %q", pid, by[pid].GetName(), got, want)
+		}
+	}
+	for pid, want := range map[uint32]string{812: "containers", 820: "containers", 1170: "container", 1184: "", 700: ""} {
+		if got := by[pid].GetStops(); got != want {
+			t.Errorf("PID %d (%s) stops %q with it, want %q", pid, by[pid].GetName(), got, want)
+		}
+	}
+	if !by[1184].GetContainerMain() || by[1200].GetContainerMain() || by[812].GetContainerMain() {
+		t.Errorf("main processes: postgres %v, its child %v, dockerd %v", by[1184].GetContainerMain(), by[1200].GetContainerMain(), by[812].GetContainerMain())
+	}
+}
+
+// A container writes its own /etc/passwd, so a name is at most 32 bytes of what
+// prints, one with anything else names nobody, and only the start of a huge file
+// is read.
+func TestParsePasswdKeepsNamesShort(t *testing.T) {
+	huge := "web:x:1000:1000::/:/bin/sh\n" + strings.Repeat("a", 64<<10) + ":x:1001:1001::/:/bin/sh\nbell\a:x:1002:1002::/:/bin/sh\n"
+	huge += strings.Repeat("filler:x:9:9::/:/bin/sh\n", (1<<20)/24) + "late:x:1003:1003::/:/bin/sh\n"
+	users := ParsePasswd([]byte(huge))
+	if users[1000] != "web" || users[1001] != strings.Repeat("a", 32) {
+		t.Errorf("names: %q, and one of 64 KB as %d bytes", users[1000], len(users[1001]))
+	}
+	if _, ok := users[1002]; ok {
+		t.Errorf("a name with a control character in it names %q", users[1002])
+	}
+	if _, ok := users[1003]; ok {
+		t.Error("a name past the first 256 KB was read")
+	}
+}
+
+// A command line is read only as far as it's shown, however long it runs.
+func TestACommandLineIsReadOnlyAsFarAsItsShown(t *testing.T) {
+	fsys := procFixture()
+	fsys["proc/1184/cmdline"] = &fstest.MapFile{Data: []byte(strings.Repeat("x", 8<<20))}
+	counted := &countingFS{FS: fsys}
+	p, ok := (&Collector{Root: counted}).readProcess(1184)
+	if !ok || len(p.command) != maxCommand {
+		t.Errorf("an 8 MB command line reads as %d characters, want %d", len(p.command), maxCommand)
+	}
+	if counted.read > 64<<10 {
+		t.Errorf("reading a process read %d bytes, its 8 MB command line too", counted.read)
+	}
+}
+
+// countingFS counts the bytes read through it.
+type countingFS struct {
+	fs.FS
+	read int
+}
+
+func (c *countingFS) Open(name string) (fs.File, error) {
+	f, err := c.FS.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return &countingFile{File: f, fsys: c}, nil
+}
+
+type countingFile struct {
+	fs.File
+	fsys *countingFS
+}
+
+func (f *countingFile) Read(b []byte) (int, error) {
+	n, err := f.File.Read(b)
+	f.fsys.read += n
+	return n, err
 }

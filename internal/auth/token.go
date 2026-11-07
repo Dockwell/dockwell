@@ -77,7 +77,7 @@ var (
 	// ErrTokenLogs is a token without the logs grant reading logs.
 	ErrTokenLogs = errors.New("this API token can't read logs, which often hold secrets that apps print. " +
 		"Create a token that can read logs under Profile and security")
-	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. " +
+	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. " +
 		"Sign in and do it in the panel")
 )
 

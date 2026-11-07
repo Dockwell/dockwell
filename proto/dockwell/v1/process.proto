@@ -105,9 +105,18 @@ message Process {
   // process in a container, or outside any unit.
   string unit = 12;
   // Why it can't be ended here: "dockwell" for the process Dockwell's agent
-  // runs in, which on the control server is the control plane's too, and "init"
-  // for PID 1. Empty for everything else.
+  // runs in, which on the control server is the control plane's too, and for
+  // what the agent runs under, such as the shell or container that started it;
+  // "init" for PID 1; and "ssh" for the SSH server that takes new logins, which
+  // is a way back onto the server. Empty for everything else.
   string protected = 13;
+  // What else stops with it, when that's more than itself: "containers" for
+  // Docker's daemons, dockerd and containerd, which every container needs, and
+  // "container" for the shim that runs one. Empty for everything else.
+  string stops = 14;
+  // True for the process its container runs, which the container's restart
+  // policy starts again. Another process in a container stops for good.
+  bool container_main = 15;
 }
 
 // ProcessContainer is the container a process runs in.
@@ -121,19 +130,22 @@ message ProcessContainer {
   string compose_project = 3;
   // Its Compose service.
   string compose_service = 4;
+  // Its restart policy, as Docker says it: "no", "always", "unless-stopped" or
+  // "on-failure". Empty when it isn't known.
+  string restart_policy = 5;
 }
 
 // EndProcessRequest names a process.
 message EndProcessRequest {
   // The server's ID.
   string server_id = 1;
-  // The process ID.
+  // The process ID, 4194304 at most, as Linux gives them.
   uint32 pid = 2;
   // When it started, as Process.start_ticks has it, so a process that ended
   // and gave its PID to another isn't ended in its place.
   uint64 start_ticks = 3;
   // The proof from FinishStepUp, for STEP_UP_ACTION_END_PROCESS on
-  // "<server ID>:<PID>".
+  // "<server ID>:<PID>:<start ticks>".
   string proof = 4;
 }
 

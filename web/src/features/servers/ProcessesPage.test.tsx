@@ -41,7 +41,14 @@ const list = (measured: boolean) =>
           memoryBytes: BigInt(312 * MB),
           startTime: started(41 * 86_400_000),
           startTicks: 5000n,
-          container: { id: "c".repeat(64), name: "shop-db-1", composeProject: ENV, composeService: "db" },
+          container: {
+            id: "c".repeat(64),
+            name: "shop-db-1",
+            composeProject: ENV,
+            composeService: "db",
+            restartPolicy: "unless-stopped",
+          },
+          containerMain: true,
         }),
         create(ProcessSchema, {
           pid: 812,
@@ -53,6 +60,7 @@ const list = (measured: boolean) =>
           startTime: started(41 * 86_400_000),
           startTicks: 300n,
           unit: "docker.service",
+          stops: "containers",
         }),
         create(ProcessSchema, {
           pid: 731,
@@ -206,16 +214,68 @@ describe("ProcessesPage", () => {
     await user.click(screen.getByRole("button", { name: "Stop postgres (PID 1184)" }));
     const sheet = await screen.findByRole("dialog", { name: "Stop postgres?" });
     expect(sheet).toHaveTextContent("It gets SIGTERM");
-    expect(sheet).toHaveTextContent("It runs app db, which starts it again.");
+    expect(sheet).toHaveTextContent(
+      "It's the main process of app db, which Docker starts again, as its restart policy says. To stop the app, stop it on its own page.",
+    );
     expect(sheet).toHaveTextContent("Commandpostgres -D /var/lib/postgresql/data");
     expect(sheet).toHaveTextContent("It asks for your passkey, and goes on Activity");
     await user.click(within(sheet).getByRole("button", { name: "Stop process" }));
     expect(await screen.findByRole("dialog", { name: "Stopped postgres" })).toHaveTextContent("postgres stopped.");
-    expect(steps).toEqual([{ action: StepUpAction.END_PROCESS, target: "srv_1:1184" }]);
+    expect(steps).toEqual([{ action: StepUpAction.END_PROCESS, target: "srv_1:1184:5000" }]);
     expect(ended.map((r) => [r.pid, r.startTicks, r.proof])).toEqual([
       [1184, 5000n, ""],
       [1184, 5000n, "proof-1"],
     ]);
+  });
+
+  it("says Docker starts a container's process again only as its restart policy says, and only its main one", async () => {
+    const user = userEvent.setup();
+    const cases: [string, Partial<{ restartPolicy: string; containerMain: boolean }>][] = [
+      [
+        "isn't its main process, so nothing starts it again, and the container goes on running",
+        { containerMain: false },
+      ],
+      ["Docker doesn't start it again, as its restart policy is no", { restartPolicy: "no" }],
+      ["Docker starts it again only if it ends with an error", { restartPolicy: "on-failure" }],
+    ];
+    for (const [words, change] of cases) {
+      const { processes, unmount } = await renderProcesses();
+      const l = list(true);
+      const pg = l.processes?.processes[0];
+      if (!pg?.container) throw new Error("the fixture has no postgres");
+      if (change.restartPolicy) pg.container.restartPolicy = change.restartPolicy;
+      if (change.containerMain !== undefined) pg.containerMain = change.containerMain;
+      processes.push(l);
+      await screen.findByRole("table", { name: "Processes on hz-1" });
+      await user.click(screen.getByRole("button", { name: "Stop postgres (PID 1184)" }));
+      const sheet = await screen.findByRole("dialog", { name: "Stop postgres?" });
+      expect(sheet).toHaveTextContent(words);
+      expect(sheet).not.toHaveTextContent("which Docker starts again");
+      unmount();
+    }
+  });
+
+  it("says what else stops with Docker, and why the SSH server is protected", async () => {
+    const user = userEvent.setup();
+    const { processes } = await renderProcesses();
+    const l = list(true);
+    l.processes?.processes.push(
+      create(ProcessSchema, {
+        pid: 700,
+        name: "sshd",
+        command: "sshd: /usr/sbin/sshd -D",
+        user: "root",
+        startTicks: 200n,
+        protected: "ssh",
+      }),
+    );
+    processes.push(l);
+    await screen.findByRole("table", { name: "Processes on hz-1" });
+    const sshd = rows().find((r) => r.textContent?.includes("sshd"));
+    expect(sshd).toHaveTextContent("This SSH server takes new logins, a way back onto the server.");
+    await user.click(screen.getByRole("button", { name: "Stop dockerd (PID 812)" }));
+    const sheet = await screen.findByRole("dialog", { name: "Stop dockerd?" });
+    expect(sheet).toHaveTextContent("Every container on hz-1 stops with it, as Docker needs it to run them.");
   });
 
   it("says why a process couldn't be stopped, and keeps the sheet open", async () => {

@@ -225,9 +225,18 @@ type Process struct {
 	// process in a container, or outside any unit.
 	Unit string `protobuf:"bytes,12,opt,name=unit,proto3" json:"unit,omitempty"`
 	// Why it can't be ended here: "dockwell" for the process Dockwell's agent
-	// runs in, which on the control server is the control plane's too, and "init"
-	// for PID 1. Empty for everything else.
-	Protected     string `protobuf:"bytes,13,opt,name=protected,proto3" json:"protected,omitempty"`
+	// runs in, which on the control server is the control plane's too, and for
+	// what the agent runs under, such as the shell or container that started it;
+	// "init" for PID 1; and "ssh" for the SSH server that takes new logins, which
+	// is a way back onto the server. Empty for everything else.
+	Protected string `protobuf:"bytes,13,opt,name=protected,proto3" json:"protected,omitempty"`
+	// What else stops with it, when that's more than itself: "containers" for
+	// Docker's daemons, dockerd and containerd, which every container needs, and
+	// "container" for the shim that runs one. Empty for everything else.
+	Stops string `protobuf:"bytes,14,opt,name=stops,proto3" json:"stops,omitempty"`
+	// True for the process its container runs, which the container's restart
+	// policy starts again. Another process in a container stops for good.
+	ContainerMain bool `protobuf:"varint,15,opt,name=container_main,json=containerMain,proto3" json:"container_main,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -353,6 +362,20 @@ func (x *Process) GetProtected() string {
 	return ""
 }
 
+func (x *Process) GetStops() string {
+	if x != nil {
+		return x.Stops
+	}
+	return ""
+}
+
+func (x *Process) GetContainerMain() bool {
+	if x != nil {
+		return x.ContainerMain
+	}
+	return false
+}
+
 // ProcessContainer is the container a process runs in.
 type ProcessContainer struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -365,8 +388,11 @@ type ProcessContainer struct {
 	ComposeProject string `protobuf:"bytes,3,opt,name=compose_project,json=composeProject,proto3" json:"compose_project,omitempty"`
 	// Its Compose service.
 	ComposeService string `protobuf:"bytes,4,opt,name=compose_service,json=composeService,proto3" json:"compose_service,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Its restart policy, as Docker says it: "no", "always", "unless-stopped" or
+	// "on-failure". Empty when it isn't known.
+	RestartPolicy string `protobuf:"bytes,5,opt,name=restart_policy,json=restartPolicy,proto3" json:"restart_policy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ProcessContainer) Reset() {
@@ -427,18 +453,25 @@ func (x *ProcessContainer) GetComposeService() string {
 	return ""
 }
 
+func (x *ProcessContainer) GetRestartPolicy() string {
+	if x != nil {
+		return x.RestartPolicy
+	}
+	return ""
+}
+
 // EndProcessRequest names a process.
 type EndProcessRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The server's ID.
 	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	// The process ID.
+	// The process ID, 4194304 at most, as Linux gives them.
 	Pid uint32 `protobuf:"varint,2,opt,name=pid,proto3" json:"pid,omitempty"`
 	// When it started, as Process.start_ticks has it, so a process that ended
 	// and gave its PID to another isn't ended in its place.
 	StartTicks uint64 `protobuf:"varint,3,opt,name=start_ticks,json=startTicks,proto3" json:"start_ticks,omitempty"`
 	// The proof from FinishStepUp, for STEP_UP_ACTION_END_PROCESS on
-	// "<server ID>:<PID>".
+	// "<server ID>:<PID>:<start ticks>".
 	Proof         string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -562,7 +595,7 @@ const file_dockwell_v1_process_proto_rawDesc = "" +
 	"\tprocesses\x18\x02 \x03(\v2\x14.dockwell.v1.ProcessR\tprocesses\x12\x14\n" +
 	"\x05total\x18\x03 \x01(\rR\x05total\x128\n" +
 	"\n" +
-	"cpu_window\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\tcpuWindow\"\x9d\x03\n" +
+	"cpu_window\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\tcpuWindow\"\xda\x03\n" +
 	"\aProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x1d\n" +
 	"\n" +
@@ -581,12 +614,15 @@ const file_dockwell_v1_process_proto_rawDesc = "" +
 	"startTicks\x12;\n" +
 	"\tcontainer\x18\v \x01(\v2\x1d.dockwell.v1.ProcessContainerR\tcontainer\x12\x12\n" +
 	"\x04unit\x18\f \x01(\tR\x04unit\x12\x1c\n" +
-	"\tprotected\x18\r \x01(\tR\tprotected\"\x88\x01\n" +
+	"\tprotected\x18\r \x01(\tR\tprotected\x12\x14\n" +
+	"\x05stops\x18\x0e \x01(\tR\x05stops\x12%\n" +
+	"\x0econtainer_main\x18\x0f \x01(\bR\rcontainerMain\"\xaf\x01\n" +
 	"\x10ProcessContainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12'\n" +
 	"\x0fcompose_project\x18\x03 \x01(\tR\x0ecomposeProject\x12'\n" +
-	"\x0fcompose_service\x18\x04 \x01(\tR\x0ecomposeService\"y\n" +
+	"\x0fcompose_service\x18\x04 \x01(\tR\x0ecomposeService\x12%\n" +
+	"\x0erestart_policy\x18\x05 \x01(\tR\rrestartPolicy\"y\n" +
 	"\x11EndProcessRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x10\n" +
 	"\x03pid\x18\x02 \x01(\rR\x03pid\x12\x1f\n" +

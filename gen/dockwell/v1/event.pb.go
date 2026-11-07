@@ -614,10 +614,10 @@ type EventProcess struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Its process ID.
 	Pid uint32 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
-	// What the kernel called it, such as "postgres".
+	// What the kernel called it, such as "postgres". Its command line isn't
+	// kept, as one can hold a password typed with it, and anyone who reads the
+	// activity log, an API token too, would read it.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// Its command line, at most 512 characters.
-	Command string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
 	// Who it ran as.
 	User string `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
 	// The container it ran in, by name. Empty for one that didn't.
@@ -670,13 +670,6 @@ func (x *EventProcess) GetPid() uint32 {
 func (x *EventProcess) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *EventProcess) GetCommand() string {
-	if x != nil {
-		return x.Command
 	}
 	return ""
 }
@@ -1162,15 +1155,14 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	" \x01(\v2\x18.dockwell.v1.EventBackupR\x06backup\x12F\n" +
 	"\x0epublic_address\x18\v \x01(\v2\x1f.dockwell.v1.EventPublicAddressR\rpublicAddress\x123\n" +
 	"\aprocess\x18\x1e \x01(\v2\x19.dockwell.v1.EventProcessR\aprocess\x123\n" +
-	"\asetting\x18\x1f \x01(\v2\x19.dockwell.v1.EventSettingR\asetting\"\xae\x01\n" +
+	"\asetting\x18\x1f \x01(\v2\x19.dockwell.v1.EventSettingR\asetting\"\xa3\x01\n" +
 	"\fEventProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
-	"\acommand\x18\x03 \x01(\tR\acommand\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04user\x18\x04 \x01(\tR\x04user\x12\x1c\n" +
 	"\tcontainer\x18\x05 \x01(\tR\tcontainer\x12\x16\n" +
 	"\x06killed\x18\x06 \x01(\bR\x06killed\x12\x14\n" +
-	"\x05error\x18\a \x01(\tR\x05error\"Z\n" +
+	"\x05error\x18\a \x01(\tR\x05errorJ\x04\b\x03\x10\x04R\acommand\"Z\n" +
 	"\fEventSetting\x12\x18\n" +
 	"\asetting\x18\x01 \x01(\tR\asetting\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x1a\n" +

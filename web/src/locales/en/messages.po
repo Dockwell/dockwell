@@ -2831,8 +2831,8 @@ msgstr "{name} has no owner yet"
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
 
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. Sign in and do it in the panel."
 
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
@@ -6347,23 +6347,37 @@ msgstr "{share} of the disk"
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
 
+#. placeholder {0}: server.name
+msgid "Every container on {0} stops with it, as Docker needs it to run them."
+msgstr "Every container on {0} stops with it, as Docker needs it to run them."
+
 msgid "It asks for your passkey, and goes on Activity"
 msgstr "It asks for your passkey, and goes on Activity"
 
 msgid "It gets SIGTERM, to end as it would on shutdown, and SIGKILL if it's still running 10 s later. What it hasn't saved is lost, and this can't be undone."
 msgstr "It gets SIGTERM, to end as it would on shutdown, and SIGKILL if it's still running 10 s later. What it hasn't saved is lost, and this can't be undone."
 
-#. placeholder {0}: owner.name
-msgid "It runs app <0>{0}</0>, which starts it again. To stop the app, stop it on its own page."
-msgstr "It runs app <0>{0}</0>, which starts it again. To stop the app, stop it on its own page."
-
-#. placeholder {0}: owner.name
-msgid "It runs in container {0}, which may start it again, as its restart policy says."
-msgstr "It runs in container {0}, which may start it again, as its restart policy says."
+msgid "It runs in {where}, but isn't its main process, so nothing starts it again, and the container goes on running."
+msgstr "It runs in {where}, but isn't its main process, so nothing starts it again, and the container goes on running."
 
 #. placeholder {0}: owner.name
 msgid "It runs under {0}.service, which may start it again, as the unit says."
 msgstr "It runs under {0}.service, which may start it again, as the unit says."
+
+msgid "It's the main process of {where}, which Docker starts again, as its restart policy says."
+msgstr "It's the main process of {where}, which Docker starts again, as its restart policy says."
+
+msgid "It's the main process of {where}, which stops with it, and Docker doesn't start it again, as its restart policy is no."
+msgstr "It's the main process of {where}, which stops with it, and Docker doesn't start it again, as its restart policy is no."
+
+msgid "It's the main process of {where}, which stops with it, and may start again, as its restart policy says."
+msgstr "It's the main process of {where}, which stops with it, and may start again, as its restart policy says."
+
+msgid "It's the main process of {where}, which stops with it. Docker starts it again only if it ends with an error, and a process that takes SIGTERM can end without one."
+msgstr "It's the main process of {where}, which stops with it. Docker starts it again only if it ends with an error, and a process that takes SIGTERM can end without one."
+
+msgid "Its container stops with it, as this is what runs the container."
+msgstr "Its container stops with it, as this is what runs the container."
 
 #. placeholder {0}: server.name
 msgid "PID {pid} on {0}"
@@ -6378,8 +6392,19 @@ msgstr "Stop {name}?"
 msgid "Stopped {name}"
 msgstr "Stopped {name}"
 
+msgid "To stop the app, stop it on its own page."
+msgstr "To stop the app, stop it on its own page."
+
 msgid "Your passkey didn't confirm it, so {name} still runs. Try again, and confirm when your browser asks."
 msgstr "Your passkey didn't confirm it, so {name} still runs. Try again, and confirm when your browser asks."
+
+#. placeholder {0}: owner.name
+msgid "app <0>{0}</0>"
+msgstr "app <0>{0}</0>"
+
+#. placeholder {0}: owner.name
+msgid "container {0}"
+msgstr "container {0}"
 
 msgid "{name} didn't stop within 10 s, so it was killed."
 msgstr "{name} didn't stop within 10 s, so it was killed."
@@ -6505,8 +6530,8 @@ msgstr "Containers on {0}"
 msgid "Dockwell"
 msgstr "Dockwell"
 
-msgid "Dockwell needs this process. Restart Dockwell instead."
-msgstr "Dockwell needs this process. Restart Dockwell instead."
+msgid "Dockwell needs this process, or runs under it. Restart Dockwell instead."
+msgstr "Dockwell needs this process, or runs under it. Restart Dockwell instead."
 
 msgid "Filter by name, PID or user"
 msgstr "Filter by name, PID or user"
@@ -6591,6 +6616,9 @@ msgstr "The agent hasn't reported yet."
 #. placeholder {0}: server.name
 msgid "The agent on {0} isn't connected, so what runs there can't be read now. This page reads again when it reconnects."
 msgstr "The agent on {0} isn't connected, so what runs there can't be read now. This page reads again when it reconnects."
+
+msgid "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
+msgstr "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
 
 msgid "Totals"
 msgstr "Totals"

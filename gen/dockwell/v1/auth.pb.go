@@ -167,7 +167,8 @@ const (
 	// The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
 	StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN StepUpAction = 9
 	// End a process on a server (ProcessService.EndProcess), whose target is
-	// "<server ID>:<PID>". Numbered apart, as open work adds to this enum.
+	// "<server ID>:<PID>:<start ticks>", so a proof ends no other process that
+	// gets the PID once it has gone. Numbered apart, as open work adds to this enum.
 	StepUpAction_STEP_UP_ACTION_END_PROCESS StepUpAction = 20
 )
 

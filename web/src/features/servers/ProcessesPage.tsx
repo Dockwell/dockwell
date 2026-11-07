@@ -359,10 +359,17 @@ function ProcessTable({
 function EndButton({ process, onEnd }: { process: Process; onEnd: (p: Process) => void }) {
   const { t } = useLingui();
   if (process.protected) {
-    const why =
-      process.protected === "init"
-        ? t`PID 1 starts and stops everything else. Restart the server instead.`
-        : t`Dockwell needs this process. Restart Dockwell instead.`;
+    let why: string;
+    switch (process.protected) {
+      case "init":
+        why = t`PID 1 starts and stops everything else. Restart the server instead.`;
+        break;
+      case "ssh":
+        why = t`This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead.`;
+        break;
+      default:
+        why = t`Dockwell needs this process, or runs under it. Restart Dockwell instead.`;
+    }
     return (
       <span className="procs-protected" title={why}>
         <Icon name="lock" size={13} />

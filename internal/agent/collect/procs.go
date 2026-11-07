@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -33,8 +35,16 @@ const (
 // MaxProcesses is the most a list holds, busiest first. The rest are counted.
 const MaxProcesses = 1000
 
-// maxCommand bounds a command line, which can run to megabytes.
+// maxCommand bounds a command line, which can run to megabytes, so only its
+// start, twice this, is ever read.
 const maxCommand = 512
+
+// maxPasswd bounds what's read of an /etc/passwd, a container's included, which
+// whoever runs the container writes.
+const maxPasswd = 256 << 10
+
+// maxUserName bounds a user's name, as useradd does.
+const maxUserName = 32
 
 // userHZ is how many clock ticks the kernel counts a second in /proc, which is
 // 100 on every architecture Linux runs on for userspace.
@@ -58,7 +68,7 @@ type procKey struct {
 
 // Process is one process as /proc says it, before it's named for people.
 type process struct {
-	pid, ppid       uint32
+	pid, ppid, tgid uint32
 	name, command   string
 	uid             uint32
 	ticks, start    uint64
@@ -86,7 +96,7 @@ func (c *Collector) Processes(now time.Time, prev *ProcTimes, self int, containe
 		return &dockwellv1.ProcessList{Time: timestamppb.New(now)}, nil
 	}
 	boot := c.bootTime(now)
-	users := parsePasswd(c.read("etc/passwd"))
+	users := parsePasswd(readAtMost(c.Root, "etc/passwd", maxPasswd))
 	next := &ProcTimes{at: now, ticks: map[procKey]uint64{}}
 	window := time.Duration(0)
 	if prev != nil && now.After(prev.at) {
@@ -95,6 +105,8 @@ func (c *Collector) Processes(now time.Time, prev *ProcTimes, self int, containe
 	pageSize := uint64(os.Getpagesize()) //nolint:gosec // a page size is positive
 	var found []*dockwellv1.Process
 	byContainer := map[string]*dockwellv1.ProcessContainer{}
+	var all []process
+	byPID := map[uint32]process{}
 	for _, e := range entries {
 		pid, err := strconv.ParseUint(e.Name(), 10, 32)
 		if err != nil || !e.IsDir() {
@@ -104,6 +116,11 @@ func (c *Collector) Processes(now time.Time, prev *ProcTimes, self int, containe
 		if !ok || p.kthread {
 			continue
 		}
+		all = append(all, p)
+		byPID[p.pid] = p
+	}
+	g := guard{self: self, of: func(pid uint32) (process, bool) { p, ok := byPID[pid]; return p, ok }}
+	for _, p := range all {
 		key := procKey{p.pid, p.start}
 		next.ticks[key] = p.ticks
 		out := &dockwellv1.Process{
@@ -143,12 +160,7 @@ func (c *Collector) Processes(now time.Time, prev *ProcTimes, self int, containe
 				out.User = strconv.FormatUint(uint64(p.uid), 10)
 			}
 		}
-		switch {
-		case p.pid == 1:
-			out.Protected = "init"
-		case self > 0 && int(p.pid) == self:
-			out.Protected = "dockwell"
-		}
+		out.Protected, out.Stops, out.ContainerMain = g.protected(p), stopsWith(p), g.containerMain(p)
 		found = append(found, out)
 	}
 	slices.SortStableFunc(found, func(a, b *dockwellv1.Process) int {
@@ -166,21 +178,44 @@ func (c *Collector) Processes(now time.Time, prev *ProcTimes, self int, containe
 	return list, next
 }
 
-// Process reads one process as a list would have it, without its CPU, and with
-// its user as the server names it: what a record of it needs. false for one that
-// has gone.
-func (c *Collector) Process(pid uint32) (*dockwellv1.Process, bool) {
-	p, ok := c.readProcess(pid)
-	if !ok || p.kthread {
-		return nil, false
+// Found is one process as ending it reads it: what a record of it needs, and what
+// says whether it may be ended.
+type Found struct {
+	// Process is the process as a list would have it, without its CPU, and with
+	// its user as the server names it.
+	Process *dockwellv1.Process
+	// Tgid is the process a thread is of, the PID itself for a process.
+	Tgid uint32
+	// KernelThread is a thread the kernel runs, which no signal ends.
+	KernelThread bool
+	// Zombie is a process that has ended and only waits for its parent to read how.
+	Zombie bool
+}
+
+// ProcessIn reads one process from its /proc directory, as dir has it: a handle on
+// that directory, which names that process and no later one given its PID. false
+// for one that has gone.
+func (c *Collector) ProcessIn(dir fs.FS, pid uint32) (Found, bool) {
+	p, ok := readProcessIn(dir, pid)
+	if !ok {
+		return Found{}, false
 	}
 	out := &dockwellv1.Process{Pid: p.pid, ParentPid: p.ppid, Name: p.name, Command: p.command, Uid: p.uid, StartTicks: p.start, Unit: p.unit}
 	if p.containerID != "" {
 		out.Container = &dockwellv1.ProcessContainer{Id: p.containerID}
 	} else {
-		out.User = parsePasswd(c.read("etc/passwd"))[p.uid]
+		out.User = parsePasswd(readAtMost(c.Root, "etc/passwd", maxPasswd))[p.uid]
 	}
-	return out, true
+	return Found{Process: out, Tgid: p.tgid, KernelThread: p.kthread, Zombie: p.zombie}, true
+}
+
+// Protected says why a process can't be ended, as a list says it, and what else
+// stops with it, reading the processes above it from /proc. self is the agent's
+// own PID.
+func (c *Collector) Protected(f Found, self int) (protected, stops string) {
+	g := guard{self: self, of: c.readProcess}
+	p := process{pid: f.Process.GetPid(), ppid: f.Process.GetParentPid(), tgid: f.Tgid, name: f.Process.GetName()}
+	return g.protected(p), stopsWith(p)
 }
 
 // ProcessStart says when a process started, in clock ticks after boot, and false
@@ -191,6 +226,77 @@ func (c *Collector) ProcessStart(pid uint32) (uint64, bool) {
 		return 0, false
 	}
 	return p.start, true
+}
+
+// guard says which processes can't be ended, from what of looks up by PID.
+type guard struct {
+	self int
+	of   func(pid uint32) (process, bool)
+}
+
+// protected is why p can't be ended, or "": PID 1; the agent, any thread of it,
+// and what it runs under, such as the shell, service or container that started
+// it; and the SSH server that takes new logins, as ending that locks out a way
+// back onto the server.
+func (g guard) protected(p process) string {
+	switch {
+	case p.pid == 1:
+		return "init"
+	case g.self > 0 && (int(p.pid) == g.self || int(p.tgid) == g.self):
+		return "dockwell"
+	case g.underAgent(p.pid):
+		return "dockwell"
+	case sshd(p.name):
+		if parent, ok := g.of(p.ppid); !ok || !sshd(parent.name) {
+			return "ssh"
+		}
+	}
+	return ""
+}
+
+// underAgent reports whether the agent runs under pid, however far down.
+func (g guard) underAgent(pid uint32) bool {
+	if g.self <= 0 {
+		return false
+	}
+	self, ok := g.of(uint32(g.self)) //nolint:gosec // a PID, positive and at most pid_max
+	// A few dozen levels at most, as a loop in what /proc says ends it.
+	for at, hops := self.ppid, 0; ok && at > 1 && hops < 64; hops++ {
+		if at == pid {
+			return true
+		}
+		var up process
+		if up, ok = g.of(at); ok {
+			at = up.ppid
+		}
+	}
+	return false
+}
+
+// containerMain reports whether p is the process its container runs, which the
+// container's runtime shim started.
+func (g guard) containerMain(p process) bool {
+	if p.containerID == "" {
+		return false
+	}
+	parent, ok := g.of(p.ppid)
+	return ok && strings.HasPrefix(parent.name, "containerd-shim")
+}
+
+// sshd reports an SSH server's process: the one that listens, and those it
+// starts for each login.
+func sshd(name string) bool { return name == "sshd" || strings.HasPrefix(name, "sshd-") }
+
+// stopsWith is what else stops with p: every container, with Docker's daemons,
+// or its container, with the shim that runs it.
+func stopsWith(p process) string {
+	switch {
+	case p.name == "dockerd" || p.name == "containerd":
+		return "containers"
+	case strings.HasPrefix(p.name, "containerd-shim"):
+		return "container"
+	}
+	return ""
 }
 
 // bootTime is when the server booted, from /proc/uptime.
@@ -208,8 +314,23 @@ func (c *Collector) bootTime(now time.Time) time.Time {
 
 // readProcess reads one process from /proc. ok is false for one that has gone.
 func (c *Collector) readProcess(pid uint32) (p process, ok bool) {
-	dir := path.Join("proc", strconv.FormatUint(uint64(pid), 10))
-	stat := c.read(path.Join(dir, "stat"))
+	dir, err := fs.Sub(c.Root, path.Join("proc", strconv.FormatUint(uint64(pid), 10)))
+	if err != nil {
+		return p, false
+	}
+	return readProcessIn(dir, pid)
+}
+
+// readProcessIn reads one process from its /proc directory, dir.
+func readProcessIn(dir fs.FS, pid uint32) (p process, ok bool) {
+	read := func(name string) []byte {
+		b, err := fs.ReadFile(dir, name)
+		if err != nil {
+			return nil
+		}
+		return b
+	}
+	stat := read("stat")
 	// The name is in parentheses and can hold anything, spaces and ")" too, so
 	// what follows is after the last ")".
 	open, end := bytes.IndexByte(stat, '('), bytes.LastIndexByte(stat, ')')
@@ -232,25 +353,39 @@ func (c *Collector) readProcess(pid uint32) (p process, ok bool) {
 	p.ticks = field(14) + field(15)
 	p.start = field(22)
 	p.rss = field(24)
-	for line := range strings.SplitSeq(string(c.read(path.Join(dir, "status"))), "\n") {
+	p.tgid = pid
+	for line := range strings.SplitSeq(string(read("status")), "\n") {
+		if rest, ok := strings.CutPrefix(line, "Tgid:"); ok {
+			if tgid, err := strconv.ParseUint(strings.TrimSpace(rest), 10, 32); err == nil {
+				p.tgid = uint32(tgid)
+			}
+		}
 		if rest, ok := strings.CutPrefix(line, "Uid:"); ok {
 			if f := strings.Fields(rest); len(f) > 0 {
 				uid, _ := strconv.ParseUint(f[0], 10, 32)
 				p.uid = uint32(uid)
 			}
-			break
 		}
 	}
-	cmdline := c.read(path.Join(dir, "cmdline"))
-	if len(cmdline) > maxCommand*2 {
-		cmdline = cmdline[:maxCommand*2]
-	}
+	// Only the start of a command line is read, as one can run to megabytes.
+	cmdline := readAtMost(dir, "cmdline", maxCommand*2)
 	p.command = strings.TrimSpace(strings.ReplaceAll(string(cmdline), "\x00", " "))
 	if len(p.command) > maxCommand {
 		p.command = strings.ToValidUTF8(p.command[:maxCommand], "")
 	}
-	p.containerID, p.unit = cgroupOf(c.read(path.Join(dir, "cgroup")))
+	p.containerID, p.unit = cgroupOf(read("cgroup"))
 	return p, true
+}
+
+// readAtMost reads the first n bytes of a file, or nothing if it can't.
+func readAtMost(fsys fs.FS, name string, n int64) []byte {
+	f, err := fsys.Open(name)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	b, _ := io.ReadAll(io.LimitReader(f, n))
+	return b
 }
 
 // containerID finds a Docker container's ID in a cgroup path: systemd's
@@ -280,14 +415,22 @@ func cgroupOf(b []byte) (container, unit string) {
 	return "", unit
 }
 
-// parsePasswd reads /etc/passwd's names by user ID.
+// parsePasswd reads /etc/passwd's names by user ID. A container's is whatever its
+// image wrote, so a name is at most maxUserName bytes of what prints, and one
+// that holds anything else names nobody.
 func parsePasswd(b []byte) map[uint32]string {
 	out := map[uint32]string{}
 	sc := bufio.NewScanner(bytes.NewReader(b))
+	// A line runs as long as the file, or the scanner would stop at the first long
+	// one, and every user after it would name nobody.
+	sc.Buffer(nil, max(len(b), bufio.MaxScanTokenSize)+1)
 	for sc.Scan() {
 		f := strings.Split(sc.Text(), ":")
-		if len(f) < 3 || strings.HasPrefix(f[0], "#") {
+		if len(f) < 3 || strings.HasPrefix(f[0], "#") || !printable(f[0]) {
 			continue
+		}
+		if len(f[0]) > maxUserName {
+			f[0] = strings.ToValidUTF8(f[0][:maxUserName], "")
 		}
 		uid, err := strconv.ParseUint(f[2], 10, 32)
 		if err != nil {
@@ -300,5 +443,22 @@ func parsePasswd(b []byte) map[uint32]string {
 	return out
 }
 
-// ParsePasswd reads /etc/passwd's names by user ID, for a container's own.
-func ParsePasswd(b []byte) map[uint32]string { return parsePasswd(b) }
+// ParsePasswd reads /etc/passwd's names by user ID, for a container's own, of
+// which it reads MaxPasswd bytes at most.
+func ParsePasswd(b []byte) map[uint32]string { return parsePasswd(b[:min(len(b), maxPasswd)]) }
+
+// MaxPasswd is the most of an /etc/passwd that's read.
+const MaxPasswd = maxPasswd
+
+// printable reports a name made only of what prints, as a user's is.
+func printable(name string) bool {
+	if name == "" || !utf8.ValidString(name) {
+		return false
+	}
+	for _, r := range name {
+		if r < 0x21 || r == 0x7f || (r >= 0x80 && r < 0xa0) {
+			return false
+		}
+	}
+	return true
+}

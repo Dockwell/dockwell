@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/process.proto.
  */
 export const file_dockwell_v1_process: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9wcm9jZXNzLnByb3RvEgtkb2Nrd2VsbC52MSIqChVXYXRjaFByb2Nlc3Nlc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIkUKFldhdGNoUHJvY2Vzc2VzUmVzcG9uc2USKwoJcHJvY2Vzc2VzGAEgASgLMhguZG9ja3dlbGwudjEuUHJvY2Vzc0xpc3QingEKC1Byb2Nlc3NMaXN0EigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEicKCXByb2Nlc3NlcxgCIAMoCzIULmRvY2t3ZWxsLnYxLlByb2Nlc3MSDQoFdG90YWwYAyABKA0SLQoKY3B1X3dpbmRvdxgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiKnAgoHUHJvY2VzcxILCgNwaWQYASABKA0SEgoKcGFyZW50X3BpZBgCIAEoDRIMCgRuYW1lGAMgASgJEg8KB2NvbW1hbmQYBCABKAkSDAoEdXNlchgFIAEoCRILCgN1aWQYBiABKA0SEwoLY3B1X3BlcmNlbnQYByABKAESFAoMbWVtb3J5X2J5dGVzGAggASgEEi4KCnN0YXJ0X3RpbWUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC3N0YXJ0X3RpY2tzGAogASgEEjAKCWNvbnRhaW5lchgLIAEoCzIdLmRvY2t3ZWxsLnYxLlByb2Nlc3NDb250YWluZXISDAoEdW5pdBgMIAEoCRIRCglwcm90ZWN0ZWQYDSABKAkiXgoQUHJvY2Vzc0NvbnRhaW5lchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhcKD2NvbXBvc2VfcHJvamVjdBgDIAEoCRIXCg9jb21wb3NlX3NlcnZpY2UYBCABKAkiVwoRRW5kUHJvY2Vzc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgsKA3BpZBgCIAEoDRITCgtzdGFydF90aWNrcxgDIAEoBBINCgVwcm9vZhgEIAEoCSIkChJFbmRQcm9jZXNzUmVzcG9uc2USDgoGa2lsbGVkGAEgASgIMpsCCg5Qcm9jZXNzU2VydmljZRJlCg5XYXRjaFByb2Nlc3NlcxIiLmRvY2t3ZWxsLnYxLldhdGNoUHJvY2Vzc2VzUmVxdWVzdBojLmRvY2t3ZWxsLnYxLldhdGNoUHJvY2Vzc2VzUmVzcG9uc2UiCKC7GAGwuxgBMAESoQEKCkVuZFByb2Nlc3MSHi5kb2Nrd2VsbC52MS5FbmRQcm9jZXNzUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkVuZFByb2Nlc3NSZXNwb25zZSJSoLsYBKq7GBAKCXByb2Nlc3NlcxIDZW5ksLsYAYLT5JMCMDoBKiIrL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vcHJvY2Vzc2VzL3twaWR9OmVuZEKlAQoPY29tLmRvY2t3ZWxsLnYxQgxQcm9jZXNzUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9wcm9jZXNzLnByb3RvEgtkb2Nrd2VsbC52MSIqChVXYXRjaFByb2Nlc3Nlc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIkUKFldhdGNoUHJvY2Vzc2VzUmVzcG9uc2USKwoJcHJvY2Vzc2VzGAEgASgLMhguZG9ja3dlbGwudjEuUHJvY2Vzc0xpc3QingEKC1Byb2Nlc3NMaXN0EigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEicKCXByb2Nlc3NlcxgCIAMoCzIULmRvY2t3ZWxsLnYxLlByb2Nlc3MSDQoFdG90YWwYAyABKA0SLQoKY3B1X3dpbmRvdxgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiLOAgoHUHJvY2VzcxILCgNwaWQYASABKA0SEgoKcGFyZW50X3BpZBgCIAEoDRIMCgRuYW1lGAMgASgJEg8KB2NvbW1hbmQYBCABKAkSDAoEdXNlchgFIAEoCRILCgN1aWQYBiABKA0SEwoLY3B1X3BlcmNlbnQYByABKAESFAoMbWVtb3J5X2J5dGVzGAggASgEEi4KCnN0YXJ0X3RpbWUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC3N0YXJ0X3RpY2tzGAogASgEEjAKCWNvbnRhaW5lchgLIAEoCzIdLmRvY2t3ZWxsLnYxLlByb2Nlc3NDb250YWluZXISDAoEdW5pdBgMIAEoCRIRCglwcm90ZWN0ZWQYDSABKAkSDQoFc3RvcHMYDiABKAkSFgoOY29udGFpbmVyX21haW4YDyABKAgidgoQUHJvY2Vzc0NvbnRhaW5lchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhcKD2NvbXBvc2VfcHJvamVjdBgDIAEoCRIXCg9jb21wb3NlX3NlcnZpY2UYBCABKAkSFgoOcmVzdGFydF9wb2xpY3kYBSABKAkiVwoRRW5kUHJvY2Vzc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgsKA3BpZBgCIAEoDRITCgtzdGFydF90aWNrcxgDIAEoBBINCgVwcm9vZhgEIAEoCSIkChJFbmRQcm9jZXNzUmVzcG9uc2USDgoGa2lsbGVkGAEgASgIMpsCCg5Qcm9jZXNzU2VydmljZRJlCg5XYXRjaFByb2Nlc3NlcxIiLmRvY2t3ZWxsLnYxLldhdGNoUHJvY2Vzc2VzUmVxdWVzdBojLmRvY2t3ZWxsLnYxLldhdGNoUHJvY2Vzc2VzUmVzcG9uc2UiCKC7GAGwuxgBMAESoQEKCkVuZFByb2Nlc3MSHi5kb2Nrd2VsbC52MS5FbmRQcm9jZXNzUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkVuZFByb2Nlc3NSZXNwb25zZSJSoLsYBKq7GBAKCXByb2Nlc3NlcxIDZW5ksLsYAYLT5JMCMDoBKiIrL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vcHJvY2Vzc2VzL3twaWR9OmVuZEKlAQoPY29tLmRvY2t3ZWxsLnYxQgxQcm9jZXNzUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * WatchProcessesRequest names a server.
@@ -200,12 +200,31 @@ export type Process = Message<"dockwell.v1.Process"> & {
 
   /**
    * Why it can't be ended here: "dockwell" for the process Dockwell's agent
-   * runs in, which on the control server is the control plane's too, and "init"
-   * for PID 1. Empty for everything else.
+   * runs in, which on the control server is the control plane's too, and for
+   * what the agent runs under, such as the shell or container that started it;
+   * "init" for PID 1; and "ssh" for the SSH server that takes new logins, which
+   * is a way back onto the server. Empty for everything else.
    *
    * @generated from field: string protected = 13;
    */
   protected: string;
+
+  /**
+   * What else stops with it, when that's more than itself: "containers" for
+   * Docker's daemons, dockerd and containerd, which every container needs, and
+   * "container" for the shim that runs one. Empty for everything else.
+   *
+   * @generated from field: string stops = 14;
+   */
+  stops: string;
+
+  /**
+   * True for the process its container runs, which the container's restart
+   * policy starts again. Another process in a container stops for good.
+   *
+   * @generated from field: bool container_main = 15;
+   */
+  containerMain: boolean;
 };
 
 /**
@@ -249,6 +268,14 @@ export type ProcessContainer = Message<"dockwell.v1.ProcessContainer"> & {
    * @generated from field: string compose_service = 4;
    */
   composeService: string;
+
+  /**
+   * Its restart policy, as Docker says it: "no", "always", "unless-stopped" or
+   * "on-failure". Empty when it isn't known.
+   *
+   * @generated from field: string restart_policy = 5;
+   */
+  restartPolicy: string;
 };
 
 /**
@@ -272,7 +299,7 @@ export type EndProcessRequest = Message<"dockwell.v1.EndProcessRequest"> & {
   serverId: string;
 
   /**
-   * The process ID.
+   * The process ID, 4194304 at most, as Linux gives them.
    *
    * @generated from field: uint32 pid = 2;
    */
@@ -288,7 +315,7 @@ export type EndProcessRequest = Message<"dockwell.v1.EndProcessRequest"> & {
 
   /**
    * The proof from FinishStepUp, for STEP_UP_ACTION_END_PROCESS on
-   * "<server ID>:<PID>".
+   * "<server ID>:<PID>:<start ticks>".
    *
    * @generated from field: string proof = 4;
    */

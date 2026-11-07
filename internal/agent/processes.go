@@ -41,14 +41,23 @@ type processes struct {
 	docker    *docker.Client
 	self      int
 	now       func() time.Time
-	// signal sends a signal to a process, for a test. Nil sends it through a pidfd.
-	signal func(pid uint32, sig syscall.Signal) error
+	// For a test: pidfdOpen opens a pidfd, unix.PidfdOpen unless set; opened runs
+	// once it has, before the process is checked, as a PID that gives way to
+	// another then would; and signal sends a signal through the pidfd.
+	pidfdOpen func(pid int, flags int) (int, error)
+	opened    func(pid uint32)
+	signal    func(pidfd int, sig syscall.Signal) error
 
+	// mu guards what's below, and is never held while Docker or a container's
+	// files are read, which either can make wait.
 	mu      sync.Mutex
 	prev    *collect.ProcTimes
 	forget  *time.Timer
 	names   map[string]*dockwellv1.ProcessContainer
 	namedAt time.Time
+	// policies are containers' restart policies, by full ID: each is asked of
+	// Docker once, as a container's seldom changes.
+	policies map[string]string
 }
 
 func newProcesses(c *collect.Collector, d *docker.Client) *processes {
@@ -60,22 +69,25 @@ func (p *processes) list(ctx context.Context) (*dockwellv1.ProcessList, error) {
 	if p == nil {
 		return nil, errors.New("this agent can't list processes")
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	now := p.now()
 	names := p.containerNames(ctx, now)
+	p.mu.Lock()
+	prev := p.prev
+	p.mu.Unlock()
 	// Each container's users, read once a list, through its first process.
 	users := map[string]map[uint32]string{}
 	byID := func(id string) *dockwellv1.ProcessContainer { return names[id] }
 	userIn := func(container string, pid, uid uint32) string {
 		known, ok := users[container]
 		if !ok {
-			known = containerUsers(pid)
+			known = containerUsersOf(pid)
 			users[container] = known
 		}
 		return known[uid]
 	}
-	list, next := p.collector.Processes(now, p.prev, p.self, byID, userIn)
+	list, next := p.collector.Processes(now, prev, p.self, byID, userIn)
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.prev = next
 	if p.forget != nil {
 		p.forget.Stop()
@@ -83,18 +95,25 @@ func (p *processes) list(ctx context.Context) (*dockwellv1.ProcessList, error) {
 	p.forget = time.AfterFunc(forgetProcessesAfter, func() {
 		p.mu.Lock()
 		defer p.mu.Unlock()
-		p.prev, p.names = nil, nil
+		p.prev, p.names, p.policies = nil, nil, nil
 	})
 	return list, nil
 }
 
 // containerNames is what Docker says of its containers, by full ID, read again
-// once it's older than containerNamesFor. Without Docker it's empty.
+// once it's older than containerNamesFor, with each one's restart policy. Without
+// Docker it's empty.
 func (p *processes) containerNames(ctx context.Context, now time.Time) map[string]*dockwellv1.ProcessContainer {
+	p.mu.Lock()
 	if p.names != nil && now.Sub(p.namedAt) < containerNamesFor {
-		return p.names
+		names := p.names
+		p.mu.Unlock()
+		return names
 	}
+	policies := p.policies
+	p.mu.Unlock()
 	names := map[string]*dockwellv1.ProcessContainer{}
+	known := map[string]string{}
 	if p.docker != nil {
 		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
@@ -108,30 +127,69 @@ func (p *processes) containerNames(ctx context.Context, now time.Time) map[strin
 			}
 			return nil
 		})
+		for id, c := range names {
+			policy, ok := policies[id]
+			if !ok {
+				if full, err := p.docker.InspectContainer(ctx, id); err == nil {
+					policy, ok = full.HostConfig.RestartPolicy.Name, true
+					if policy == "" {
+						policy = "no"
+					}
+				}
+			}
+			if ok {
+				c.RestartPolicy, known[id] = policy, policy
+			}
+		}
 	}
-	p.names, p.namedAt = names, now
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.names, p.namedAt, p.policies = names, now, known
 	return names
 }
 
-// containerUsers reads a container's own /etc/passwd through its process, as the
-// container knows its users. The path is resolved inside the container's root, so
-// a link it holds can't lead out of it. What can't be read names nobody.
-func containerUsers(pid uint32) map[uint32]string {
-	root, err := unix.Open("/proc/"+strconv.FormatUint(uint64(pid), 10)+"/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+// containerUsersOf reads a container's own /etc/passwd through one of its
+// processes, as the container knows its users. What can't be read names nobody.
+func containerUsersOf(pid uint32) map[uint32]string {
+	dir, err := unix.Open("/proc/"+strconv.FormatUint(uint64(pid), 10), unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil
+	}
+	defer unix.Close(dir)
+	return containerUsers(dir)
+}
+
+// containerUsers reads a container's own /etc/passwd through dir, a handle on
+// one of its processes' /proc directories. The path is resolved inside the
+// container's root, so a link it holds can't lead out of it, and only a regular
+// file is read: a FIFO would hold the agent up, and a device node would be
+// opened by root on the server, both whatever the container put there.
+func containerUsers(dir int) map[uint32]string {
+	root, err := unix.Openat(dir, "root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil
 	}
 	defer unix.Close(root)
-	fd, err := unix.Openat2(root, "etc/passwd", &unix.OpenHow{
-		Flags:   unix.O_RDONLY | unix.O_CLOEXEC | unix.O_NOFOLLOW,
+	path, err := unix.Openat2(root, "etc/passwd", &unix.OpenHow{
+		Flags:   unix.O_PATH | unix.O_CLOEXEC | unix.O_NOFOLLOW,
 		Resolve: unix.RESOLVE_IN_ROOT | unix.RESOLVE_NO_MAGICLINKS | unix.RESOLVE_NO_XDEV,
 	})
 	if err != nil {
 		return nil
 	}
+	defer unix.Close(path)
+	var st unix.Stat_t
+	if err := unix.Fstat(path, &st); err != nil || st.Mode&unix.S_IFMT != unix.S_IFREG {
+		return nil
+	}
+	// Opened again through the handle, for reading, which still never waits.
+	fd, err := unix.Open("/proc/self/fd/"+strconv.Itoa(path), unix.O_RDONLY|unix.O_NONBLOCK|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil
+	}
 	f := os.NewFile(uintptr(fd), "passwd")
 	defer f.Close()
-	b, err := io.ReadAll(io.LimitReader(f, 1<<20))
+	b, err := io.ReadAll(io.LimitReader(f, collect.MaxPasswd))
 	if err != nil {
 		return nil
 	}
@@ -155,53 +213,145 @@ func (p *processes) end(ctx context.Context, pid uint32, start uint64) (was *doc
 	if p == nil {
 		return nil, false, errors.New("this agent can't end processes")
 	}
-	was, _ = p.collector.Process(pid)
-	if was != nil && was.GetContainer() != nil {
-		p.mu.Lock()
-		if known := p.containerNames(ctx, p.now())[was.GetContainer().GetId()]; known != nil {
+	if pid == 0 || pid > maxPID {
+		return nil, false, fmt.Errorf("there's no PID %d: Linux gives PIDs from 1 to %d", pid, maxPID)
+	}
+	h, err := p.open(pid, start)
+	if err != nil {
+		return nil, false, err
+	}
+	defer h.close()
+	was = h.found.Process
+	if c := was.GetContainer(); c != nil {
+		if known := p.containerNames(ctx, p.now())[c.GetId()]; known != nil {
 			was.Container = known
 		}
-		p.mu.Unlock()
-		was.User = containerUsers(pid)[was.GetUid()]
+		was.User = containerUsers(h.dir)[was.GetUid()]
 	}
-	killed, err = p.signalEnd(ctx, pid, start)
+	killed, err = p.signalEnd(ctx, h)
 	return was, killed, err
 }
 
-// signalEnd sends SIGTERM, then SIGKILL after endGrace.
-func (p *processes) signalEnd(ctx context.Context, pid uint32, start uint64) (killed bool, err error) {
-	switch {
-	case pid == 1:
-		return false, protected("PID 1 starts and stops everything else on the server, so Dockwell won't end it. Restart the server instead.")
-	case int(pid) == p.self:
-		return false, protected("Dockwell's agent runs in this process, and ending it would cut this server off. Restart Dockwell instead, with systemctl restart dockwell.")
+// maxPID is the highest PID Linux gives, its pid_max at most. Past it, as a
+// signal reads it, a PID can be negative, and -1 names every process.
+const maxPID = 4194304
+
+// handle is a process opened to be ended: a pidfd, which names that process and
+// no other, whatever comes of its PID, and its /proc directory, through which
+// it's checked.
+type handle struct {
+	pid, pidfd, dir int
+	found           collect.Found
+}
+
+func (h *handle) close() {
+	_ = unix.Close(h.pidfd)
+	_ = unix.Close(h.dir)
+}
+
+// open opens the process pid names, checks it's the one that started at start,
+// and refuses what Dockwell won't end. With the pidfd open first, a process found
+// through its directory afterwards to have started then is the one the pidfd
+// names: a later one given its PID would have started later.
+func (p *processes) open(pid uint32, start uint64) (*handle, error) {
+	pidfdOpen := p.pidfdOpen
+	if pidfdOpen == nil {
+		pidfdOpen = unix.PidfdOpen
 	}
+	fd, err := pidfdOpen(int(pid), 0)
+	switch {
+	case errors.Is(err, unix.ESRCH):
+		return nil, gone()
+	case errors.Is(err, unix.EINVAL):
+		// A thread, which has a PID of its own and no pidfd of its own.
+		if tgid := p.threadOf(pid); tgid != 0 {
+			return nil, protected(fmt.Sprintf("PID %d is a thread of process %d, which only stops as a whole. End process %d instead.", pid, tgid, tgid))
+		}
+		return nil, fmt.Errorf("can't open process %d: %w", pid, err)
+	case errors.Is(err, unix.ENOSYS):
+		// A kernel before 5.3 has no pidfds, and a signal by PID alone could end
+		// whatever took the PID in the meantime.
+		return nil, protected(fmt.Sprintf("this server's kernel is older than 5.3, which Dockwell needs to end a process safely. End it over SSH instead, with sudo kill %d.", pid))
+	case err != nil:
+		return nil, fmt.Errorf("can't open process %d: %w", pid, err)
+	}
+	if p.opened != nil {
+		p.opened(pid)
+	}
+	dir, err := unix.Open("/proc/"+strconv.FormatUint(uint64(pid), 10), unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		_ = unix.Close(fd)
+		if errors.Is(err, unix.ENOENT) {
+			return nil, gone()
+		}
+		return nil, fmt.Errorf("can't open process %d: %w", pid, err)
+	}
+	h := &handle{pid: int(pid), pidfd: fd, dir: dir}
+	found, ok := p.collector.ProcessIn(os.DirFS("/proc/self/fd/"+strconv.Itoa(dir)), pid)
+	if !ok || found.Zombie || found.Process.GetStartTicks() != start {
+		h.close()
+		return nil, gone()
+	}
+	h.found = found
+	if err := p.refuse(found); err != nil {
+		h.close()
+		return nil, err
+	}
+	return h, nil
+}
+
+// threadOf is the process a thread is of, or 0 when pid isn't a thread.
+func (p *processes) threadOf(pid uint32) uint32 {
+	dir, err := unix.Open("/proc/"+strconv.FormatUint(uint64(pid), 10), unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return 0
+	}
+	defer unix.Close(dir)
+	found, ok := p.collector.ProcessIn(os.DirFS("/proc/self/fd/"+strconv.Itoa(dir)), pid)
+	if !ok || found.Tgid == pid {
+		return 0
+	}
+	return found.Tgid
+}
+
+// refuse says why Dockwell won't end a process, or nothing.
+func (p *processes) refuse(f collect.Found) error {
+	pid := f.Process.GetPid()
+	if f.KernelThread {
+		return protected(fmt.Sprintf("PID %d is a thread the kernel runs, which no signal ends.", pid))
+	}
+	if f.Tgid != pid {
+		return protected(fmt.Sprintf("PID %d is a thread of process %d, which only stops as a whole. End process %d instead.", pid, f.Tgid, f.Tgid))
+	}
+	why, _ := p.collector.Protected(f, p.self)
+	switch why {
+	case "init":
+		return protected("PID 1 starts and stops everything else on the server, so Dockwell won't end it. Restart the server instead.")
+	case "dockwell":
+		return protected("Dockwell's agent runs in this process, or under it, and ending it would cut this server off. Restart Dockwell instead, with systemctl restart dockwell.")
+	case "ssh":
+		return protected("this is the SSH server that takes new logins, and ending it would lock you out of SSH, a way back onto the server. Restart it instead, with systemctl restart ssh.")
+	}
+	return nil
+}
+
+// signalEnd sends SIGTERM, then SIGKILL after endGrace, through the pidfd.
+func (p *processes) signalEnd(ctx context.Context, h *handle) (killed bool, err error) {
 	signal := p.signal
 	if signal == nil {
-		fd, err := unix.PidfdOpen(int(pid), 0)
-		if err != nil {
-			if errors.Is(err, unix.ESRCH) {
-				return false, gone()
-			}
-			// A kernel before 5.3 has no pidfds: the start time is checked just before.
-			signal = func(pid uint32, sig syscall.Signal) error { return syscall.Kill(int(pid), sig) }
-		} else {
-			defer unix.Close(fd)
-			signal = func(_ uint32, sig syscall.Signal) error { return unix.PidfdSendSignal(fd, sig, nil, 0) }
+		signal = func(pidfd int, sig syscall.Signal) error { return unix.PidfdSendSignal(pidfd, sig, nil, 0) }
+	}
+	pid, start := uint32(h.pid), h.found.Process.GetStartTicks() //nolint:gosec // a PID checked against maxPID
+	if err := signal(h.pidfd, syscall.SIGTERM); err != nil {
+		if errors.Is(err, unix.ESRCH) {
+			return false, gone()
 		}
-	}
-	// With the pidfd open, the process it names can't be another, so this check
-	// holds for what it signals.
-	if s, ok := p.collector.ProcessStart(pid); !ok || s != start {
-		return false, gone()
-	}
-	if err := signal(pid, syscall.SIGTERM); err != nil {
 		return false, fmt.Errorf("can't end process %d: %w", pid, err)
 	}
 	if p.waitGone(ctx, pid, start, endGrace) {
 		return false, nil
 	}
-	if err := signal(pid, syscall.SIGKILL); err != nil && !errors.Is(err, unix.ESRCH) {
+	if err := signal(h.pidfd, syscall.SIGKILL); err != nil && !errors.Is(err, unix.ESRCH) {
 		return false, fmt.Errorf("process %d didn't end within %s of SIGTERM, and can't take SIGKILL: %w", pid, endGrace, err)
 	}
 	if !p.waitGone(ctx, pid, start, 5*time.Second) {

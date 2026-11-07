@@ -167,10 +167,12 @@ message Event {
 message EventProcess {
   // Its process ID.
   uint32 pid = 1;
-  // What the kernel called it, such as "postgres".
+  // What the kernel called it, such as "postgres". Its command line isn't
+  // kept, as one can hold a password typed with it, and anyone who reads the
+  // activity log, an API token too, would read it.
   string name = 2;
-  // Its command line, at most 512 characters.
-  string command = 3;
+  reserved 3;
+  reserved "command";
   // Who it ran as.
   string user = 4;
   // The container it ran in, by name. Empty for one that didn't.

@@ -42,7 +42,9 @@ export function EndProcessSheet({
     setFailure(undefined);
     try {
       const client = createClient(ProcessService, transport);
-      const out = await withStepUpIfAsked(transport, StepUpAction.END_PROCESS, `${server.id}:${pid}`, (proof) =>
+      // The proof names when the process started too, so it ends no other that gets its PID.
+      const target = `${server.id}:${pid}:${process.startTicks}`;
+      const out = await withStepUpIfAsked(transport, StepUpAction.END_PROCESS, target, (proof) =>
         client.endProcess({ serverId: server.id, pid, startTicks: process.startTicks, proof }),
       );
       setDone(out.killed ? t`${name} didn't stop within 10 s, so it was killed.` : t`${name} stopped.`);
@@ -61,13 +63,20 @@ export function EndProcessSheet({
   switch (owner.kind) {
     case "app":
       what = (
-        <Trans>
-          It runs app <strong>{owner.name}</strong>, which starts it again. To stop the app, stop it on its own page.
-        </Trans>
+        <AgainInContainer
+          process={process}
+          where={
+            <Trans>
+              app <strong>{owner.name}</strong>
+            </Trans>
+          }
+        >
+          <Trans>To stop the app, stop it on its own page.</Trans>
+        </AgainInContainer>
       );
       break;
     case "container":
-      what = <Trans>It runs in container {owner.name}, which may start it again, as its restart policy says.</Trans>;
+      what = <AgainInContainer process={process} where={<Trans>container {owner.name}</Trans>} />;
       break;
     case "unit":
       what = <Trans>It runs under {owner.name}.service, which may start it again, as the unit says.</Trans>;
@@ -114,6 +123,15 @@ export function EndProcessSheet({
                 hasn't saved is lost, and this can't be undone.
               </Trans>
             </p>
+            {process.stops === "containers" ? (
+              <Callout tone="warning">
+                <Trans>Every container on {server.name} stops with it, as Docker needs it to run them.</Trans>
+              </Callout>
+            ) : process.stops === "container" ? (
+              <Callout tone="warning">
+                <Trans>Its container stops with it, as this is what runs the container.</Trans>
+              </Callout>
+            ) : null}
             {what ? <p>{what}</p> : null}
             <dl className="facts">
               <dt>{t`Command`}</dt>
@@ -132,4 +150,49 @@ export function EndProcessSheet({
       </div>
     </Sheet>
   );
+}
+
+/**
+ * Whether Docker starts a process in a container again: only its main process, and
+ * only as the container's restart policy says, which for "on-failure" leaves out
+ * one that ends cleanly on SIGTERM.
+ */
+function AgainInContainer({ process, where, children }: { process: Process; where: ReactNode; children?: ReactNode }) {
+  if (!process.containerMain) {
+    return (
+      <Trans>
+        It runs in {where}, but isn't its main process, so nothing starts it again, and the container goes on running.
+      </Trans>
+    );
+  }
+  switch (process.container?.restartPolicy) {
+    case "always":
+    case "unless-stopped":
+      return (
+        <>
+          <Trans>It's the main process of {where}, which Docker starts again, as its restart policy says.</Trans>{" "}
+          {children}
+        </>
+      );
+    case "on-failure":
+      return (
+        <Trans>
+          It's the main process of {where}, which stops with it. Docker starts it again only if it ends with an error,
+          and a process that takes SIGTERM can end without one.
+        </Trans>
+      );
+    case "no":
+      return (
+        <Trans>
+          It's the main process of {where}, which stops with it, and Docker doesn't start it again, as its restart
+          policy is no.
+        </Trans>
+      );
+    default:
+      return (
+        <Trans>
+          It's the main process of {where}, which stops with it, and may start again, as its restart policy says.
+        </Trans>
+      );
+  }
 }

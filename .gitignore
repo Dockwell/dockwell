@@ -8,6 +8,9 @@
 # Dependencies
 node_modules/
 
+# What TanStack's router writes as it generates the route tree
+web/.tanstack/
+
 # Test and coverage output
 *.test
 *.out

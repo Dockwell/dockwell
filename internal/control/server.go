@@ -307,7 +307,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
 		handle(dockwellv1connect.NewDatabaseServiceHandler(databases.New(cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
 	}
-	restPaths, err := restHandler(rest)
+	restPaths, err := restHandler(rest, authapi.Authorizer(cfg.Auth, cfg.Logger))
 	if err != nil {
 		return nil, err
 	}

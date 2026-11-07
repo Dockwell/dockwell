@@ -1838,7 +1838,7 @@ paths:
                     type: string
                 - name: pid
                   in: path
-                  description: The process ID.
+                  description: The process ID, 4194304 at most, as Linux gives them.
                   required: true
                   schema:
                     type: integer
@@ -5182,7 +5182,7 @@ components:
                     description: The server's ID.
                 pid:
                     type: integer
-                    description: The process ID.
+                    description: The process ID, 4194304 at most, as Linux gives them.
                     format: uint32
                 startTicks:
                     type: string
@@ -5193,7 +5193,7 @@ components:
                     type: string
                     description: |-
                         The proof from FinishStepUp, for STEP_UP_ACTION_END_PROCESS on
-                         "<server ID>:<PID>".
+                         "<server ID>:<PID>:<start ticks>".
             description: EndProcessRequest names a process.
         EndProcessResponse:
             type: object
@@ -5524,10 +5524,10 @@ components:
                     format: uint32
                 name:
                     type: string
-                    description: What the kernel called it, such as "postgres".
-                command:
-                    type: string
-                    description: Its command line, at most 512 characters.
+                    description: |-
+                        What the kernel called it, such as "postgres". Its command line isn't
+                         kept, as one can hold a password typed with it, and anyone who reads the
+                         activity log, an API token too, would read it.
                 user:
                     type: string
                     description: Who it ran as.
