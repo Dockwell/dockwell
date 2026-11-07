@@ -206,7 +206,11 @@ func (d *Docker) Adoption(ctx context.Context, t Target, id string, spec *resour
 	if changes := resource.Diff(spec, got); len(changes) > 0 {
 		return resource.Decision{}, fmt.Errorf("%s has changed since it was read: its %s differs. Take it on again, to plan it from what it is now", name, changes[0].Path)
 	}
-	return resource.Decision{Action: resource.ActionCreate, Adopts: c.ID}, nil
+	shared, err := d.sharedNames(ctx, t, spec, c.ID)
+	if err != nil {
+		return resource.Decision{}, err
+	}
+	return resource.Decision{Action: resource.ActionCreate, Adopts: c.ID, SharedNames: shared}, nil
 }
 
 // Adopt records a container as what t runs, and does nothing else to it. Done

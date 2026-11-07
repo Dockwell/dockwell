@@ -6092,6 +6092,13 @@ components:
                     description: |-
                         What else may still run what this step replaces, which came from a Compose
                          project. A plan says what that means in a note.
+                sharedNames:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SharedName'
+                    description: |-
+                        Names what this step takes on goes on answering to, that others hold too on a
+                         network it's on.
                 restore:
                     allOf:
                         - $ref: '#/components/schemas/RestorePlan'
@@ -7679,6 +7686,21 @@ components:
                     type: string
                     description: 'The address it works on: "localhost" or the panel''s domain.'
             description: Session is one signed-in browser.
+        SharedName:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The name, such as "redis".
+                network:
+                    type: string
+                    description: The network, such as "1panel-network".
+                others:
+                    type: array
+                    items:
+                        type: string
+                    description: The other containers that answer to it there, by name.
+            description: SharedName is a name more than one container answers to on a network.
         SignInWithCodeRequest:
             type: object
             properties:

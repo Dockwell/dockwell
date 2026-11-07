@@ -522,6 +522,15 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     switch (note.reason) {
       case "managed_elsewhere":
         return managed(note, key);
+      case "shares_a_name": {
+        const [shared = "", network = "", ...others] = note.names;
+        const also = others.join(", ");
+        return {
+          key,
+          title: t`More than one container answers to ${shared} on ${network}`,
+          detail: t`This one and ${also}, as they do now. What asks for ${shared} there can reach either, so point what uses it at a name only one of them has.`,
+        };
+      }
       case "volumes_stay": {
         const names = note.names.join(", ");
         return {

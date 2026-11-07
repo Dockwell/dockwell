@@ -4270,6 +4270,10 @@ msgstr "Monitoring"
 msgid "More"
 msgstr "More"
 
+#: src/features/changes/notices.tsx
+msgid "More than one container answers to {shared} on {network}"
+msgstr "More than one container answers to {shared} on {network}"
+
 #: src/features/changes/fields.tsx
 msgid "mounted at"
 msgstr "mounted at"
@@ -7233,6 +7237,10 @@ msgstr "This may cut off access to {0}"
 #: src/features/backups/PolicySheet.tsx
 msgid "This may not fit"
 msgstr "This may not fit"
+
+#: src/features/changes/notices.tsx
+msgid "This one and {also}, as they do now. What asks for {shared} there can reach either, so point what uses it at a name only one of them has."
+msgstr "This one and {also}, as they do now. What asks for {shared} there can reach either, so point what uses it at a name only one of them has."
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."

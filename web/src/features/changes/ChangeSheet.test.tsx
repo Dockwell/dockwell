@@ -802,6 +802,23 @@ describe("the plan sheet", () => {
     ]);
   });
 
+  it("says who else answers to a name that comes with what's taken on", async () => {
+    const taking = webPlanned();
+    if (taking.plan) {
+      taking.plan.notes = [
+        create(PlanNoteSchema, { reason: "shares_a_name", names: ["redis", "1panel-network", "1Panel-redis2-EfGh"] }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: taking }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText(/More than one container answers to/);
+    expect(sheet.textContent).toContain("More than one container answers to redis on 1panel-network");
+    expect(sheet.textContent).toContain("This one and 1Panel-redis2-EfGh, as they do now");
+    expect(sheet.textContent).toContain("point what uses it at a name only one of them has");
+  });
+
   it("says what a server's note means in its own words, so they translate", async () => {
     await activateLocale("zh-CN");
     try {

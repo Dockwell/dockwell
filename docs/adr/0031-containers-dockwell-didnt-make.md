@@ -86,6 +86,7 @@ A row opens the container's page: what Docker says of it, and the log view an ap
 
 - **Whole, or not at all.** One container that can't come stops the plan, and the refusal says everything that's in the way, so a person fixes it once, rather than leave half a project on each side.
 - **A service runs one container,** so one scaled with `--scale` is refused, with how to scale it down.
+- **A name it already holds comes with it.** Compose gives a service its name on every network it joins, so two 1Panel installs of one app both answer to `redis` on `1panel-network`. Refusing that would change nothing, as both do so today, and nothing could fix it. So a name a container holds on a network Dockwell didn't make isn't refused for others holding it too, then or at a replace, and the plan says who else answers to it and what that means. A clash Dockwell would make itself, for a name the container doesn't hold there, is still refused.
 - **Its networks and volumes stay Docker's.** They read back as `external_networks` and external mounts, so nothing is made, and they keep working for whatever else is on them. The services go on reaching each other by name, as a replace joins the same network under the service's name.
 - **`docker compose` still sees what hasn't been replaced,** as its labels are its own. What runs after a replace is in Dockwell's project, so `docker compose -p shop up` would make the old one again. Taking it on is the point at which Compose stops being how it runs.
 

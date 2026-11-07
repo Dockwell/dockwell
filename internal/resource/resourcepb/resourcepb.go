@@ -151,6 +151,9 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	p.HidesLogs = s.HidesLogs
 	p.Rollout, p.Restart = rollout(s.Rollout), s.Restart
 	p.Adopts, p.Releases = s.Adopts, s.Releases
+	for _, n := range s.SharedNames {
+		p.SharedNames = append(p.SharedNames, &dockwellv1.SharedName{Name: n.Name, Network: n.Network, Others: n.Others})
+	}
 	if e := s.Elsewhere; e != nil {
 		p.ManagedElsewhere = &dockwellv1.ManagedElsewhere{Manager: e.Manager, Container: e.Container, Project: e.Project, Folder: e.Folder}
 	}
@@ -354,6 +357,9 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs = p.GetKeptPaths(), p.GetRestores(), p.GetHealthUnknown(), p.GetHidesLogs()
 	s.Pull, s.ImageGone = p.GetPull(), p.GetImageGone()
 	s.Adopts, s.Releases = p.GetAdopts(), p.GetReleases()
+	for _, n := range p.GetSharedNames() {
+		s.SharedNames = append(s.SharedNames, resource.SharedName{Name: n.GetName(), Network: n.GetNetwork(), Others: n.GetOthers()})
+	}
 	if e := p.GetManagedElsewhere(); e != nil {
 		s.Elsewhere = &resource.Elsewhere{Manager: e.GetManager(), Container: e.GetContainer(), Project: e.GetProject(), Folder: e.GetFolder()}
 	}

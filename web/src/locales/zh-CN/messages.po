@@ -4270,6 +4270,10 @@ msgstr "监控"
 msgid "More"
 msgstr "更多"
 
+#: src/features/changes/notices.tsx
+msgid "More than one container answers to {shared} on {network}"
+msgstr "在 {network} 上有多个容器响应 {shared}"
+
 #: src/features/changes/fields.tsx
 msgid "mounted at"
 msgstr "挂载位置"
@@ -7233,6 +7237,10 @@ msgstr "这可能切断对 {0} 的访问"
 #: src/features/backups/PolicySheet.tsx
 msgid "This may not fit"
 msgstr "可能放不下"
+
+#: src/features/changes/notices.tsx
+msgid "This one and {also}, as they do now. What asks for {shared} there can reach either, so point what uses it at a name only one of them has."
+msgstr "这个容器和 {also}，现在就是如此。在那里请求 {shared} 可能会到达其中任何一个，所以请让使用方指向只有其中一个容器拥有的名称。"
 
 #: src/features/auth/RecoverPage.tsx
 msgid "This page needs the whole link that dockwell recover printed, including the part after “#”."

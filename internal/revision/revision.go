@@ -628,7 +628,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = elsewhereNotes(plan, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))
+	p.Notes = sharedNameNotes(plan, elsewhereNotes(plan, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1597,6 +1597,25 @@ func elsewhereNotes(plan *Plan, notes []Note) []Note {
 				n := ManagedElsewhere(*e)
 				n.Ref = steps[j].Ref
 				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
+// sharedNameNotes are a plan's notes, saying which names what it takes on keeps beside
+// others on a network, and what that means. Taking one on changes nothing about it.
+func sharedNameNotes(plan *Plan, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range plan.Servers {
+		steps := plan.Servers[i].Steps
+		for j := range steps {
+			for _, n := range steps[j].SharedNames {
+				out = append(out, Note{
+					Reason: "shares_a_name", Ref: steps[j].Ref, Names: append([]string{n.Name, n.Network}, n.Others...),
+					Message: fmt.Sprintf("More than one container answers to %s on the network %s, as they do now: this one and %s. What asks for %s there can reach either, so point what uses it at a name only one of them has",
+						n.Name, n.Network, human.List(n.Others), n.Name),
+				})
 			}
 		}
 	}

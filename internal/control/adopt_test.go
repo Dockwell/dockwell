@@ -781,6 +781,74 @@ func TestARefusalSaysEverythingAtOnce(t *testing.T) {
 		"shop runs a service web already", "shop2-web-1 runs with read_only")
 }
 
+// Compose gives a service its name on every network it joins, so two installs of one
+// app both answer to it on 1panel-network, as they do today. Taking one on changes
+// nothing about that, so it isn't refused, and the plan says what it means. A clash
+// Dockwell would make itself still is.
+func TestAContainerKeepsANameOthersHoldToo(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddNetwork(docker.Network{ID: "onepanel", Name: "1panel-network", Driver: "bridge"})
+	c := changeClient(b, b.origin)
+	cc := containerClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	onPanel := func(project, name string) func(*docker.CreateRequest) {
+		return func(r *docker.CreateRequest) {
+			r.Labels["createdBy"] = "Apps"
+			r.Labels[docker.LabelWorkingDir] = "/opt/1panel/apps/redis/" + project
+			r.HostConfig.NetworkMode = "1panel-network"
+			r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"1panel-network": {Aliases: []string{"redis", name}}}
+		}
+	}
+	composeContainer(t, e, "redis", "redis", "1Panel-redis-AbCd", onPanel("redis", "1Panel-redis-AbCd"))
+	composeContainer(t, e, "redis2", "redis", "1Panel-redis2-EfGh", onPanel("redis2", "1Panel-redis2-EfGh"))
+
+	res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "redis"}))
+	if err != nil {
+		t.Fatalf("taking on one of two installs: %v", err)
+	}
+	planned := res.Msg.GetChange()
+	var n *dockwellv1.PlanNote
+	for _, note := range planned.GetPlan().GetNotes() {
+		if note.GetReason() == "shares_a_name" {
+			n = note
+		}
+	}
+	if n == nil || !slices.Equal(n.GetNames(), []string{"redis", "1panel-network", "1Panel-redis2-EfGh"}) {
+		t.Fatalf("the plan doesn't say who else answers to it: %v", planned.GetPlan().GetNotes())
+	}
+	for _, says := range []string{"More than one container answers to redis on the network 1panel-network", "can reach either"} {
+		if !strings.Contains(n.GetMessage(), says) {
+			t.Errorf("the note %q doesn't say %q", n.GetMessage(), says)
+		}
+	}
+	applyConfirmed(t, c, planned)
+
+	// A replace keeps what it held, so the first new image isn't refused for it either.
+	rep, err := services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "redis", Project: "redis", Image: "nginx:1.27"}))
+	if err != nil {
+		t.Fatalf("a new image of what holds a shared name: %v", err)
+	}
+	apply(t, c, rep.Msg.GetChange())
+
+	// Alone, under a name of its own, the other comes the same way.
+	if _, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "1Panel-redis2-EfGh", Service: "redis-b", Project: "default"})); err != nil {
+		t.Errorf("taking on the other under a name of its own: %v", err)
+	}
+
+	// A name it doesn't hold is one Dockwell would be taking, which it won't.
+	composeContainer(t, e, "clash", "other", "clash-other-1", func(r *docker.CreateRequest) {
+		r.HostConfig.NetworkMode = "1panel-network"
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"1panel-network": {Aliases: []string{"other"}}}
+	})
+	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "clash-other-1", Service: "redis", Project: "default"}))
+	if err == nil || !strings.Contains(err.Error(), "would answer to redis on the network 1panel-network") {
+		t.Errorf("a service named what others answer to, which it doesn't: %v", err)
+	}
+}
+
 // A token may run a new image on what was taken on, as on any service: that's what a
 // deploy from CI is. Not on what's as good as root, where a new image is any code
 // with root's reach, so a person approves that, whichever way it got there.
