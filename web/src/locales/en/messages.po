@@ -243,6 +243,10 @@ msgstr "{app} is under the {license} licence."
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "{changes, plural, one {# change} other {# changes}}"
+msgstr "{changes, plural, one {# change} other {# changes}}"
+
 #: src/features/files/FileViewer.tsx
 msgid "{changes, plural, one {# line changed} other {# lines changed}}"
 msgstr "{changes, plural, one {# line changed} other {# lines changed}}"
@@ -291,6 +295,16 @@ msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} 
 #: src/features/apps/AppsPage.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, one {# server} other {# servers}}"
+
+#. placeholder {0}: only.name
+#. placeholder {1}: only.name
+#: src/features/websites/WebsitesPage.tsx
+msgid "{count, plural, one {# site on {0}} other {# sites on {1}}}"
+msgstr "{count, plural, one {# site on {0}} other {# sites on {1}}}"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "{count, plural, one {# site} other {# sites}}"
+msgstr "{count, plural, one {# site} other {# sites}}"
 
 #. placeholder {0}: formatBytes(each, i18n.locale)
 #. placeholder {1}: formatBytes(total, i18n.locale)
@@ -380,6 +394,14 @@ msgstr "{database} dump"
 #: src/features/changes/notices.tsx
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+
+#: src/features/websites/Standing.tsx
+msgid "{days, plural, one {# day left} other {# days left}}"
+msgstr "{days, plural, one {# day left} other {# days left}}"
+
+#: src/features/websites/Standing.tsx
+msgid "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
+msgstr "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
 
 #: src/features/apps/DomainNote.tsx
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
@@ -1159,6 +1181,10 @@ msgstr "<0>{source}</0> gives this app control of Docker on the server, the same
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>, read-only"
 
+#: src/features/websites/WebsiteLayout.tsx
+msgid "<0>{websiteId}</0> may have been deleted, or the link may be wrong."
+msgstr "<0>{websiteId}</0> may have been deleted, or the link may be wrong."
+
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
 msgstr "1 h"
@@ -1264,6 +1290,11 @@ msgstr "A new container takes over once it has been healthy for {soak}, and what
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 msgstr "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "A port on this server"
+msgstr "A port on this server"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "A restart has no undo, as it changes nothing to go back to."
 msgstr "A restart has no undo, as it changes nothing to go back to."
@@ -1296,17 +1327,26 @@ msgstr "a server"
 msgid "A service"
 msgstr "A service"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "A small web server of its own sends each request on"
+msgstr "A small web server of its own sends each request on"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "A tunnel on this server"
 msgstr "A tunnel on this server"
 
 #: src/features/apps/DomainNote.tsx
 msgid "A tunnel or a proxy in front handles HTTPS"
 msgstr "A tunnel or a proxy in front handles HTTPS"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "A URL"
+msgstr "A URL"
 
 #: src/features/apps/AppEnvironment.tsx
 msgid "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
@@ -1315,6 +1355,10 @@ msgstr "A value lives in its environment, and goes only to the servers that run 
 #: src/features/apps/NewAppSheet.tsx
 msgid "A volume such as data at /data, or a server path."
 msgstr "A volume such as data at /data, or a server path."
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
+msgstr "A website runs on one server, as its certificate comes to the one its DNS points at."
 
 #: src/features/activity/ActivityPage.tsx
 msgid "About"
@@ -1595,7 +1639,7 @@ msgstr "Also plans and applies changes that can be undone. Never removes data or
 msgid "Always"
 msgstr "Always"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
 msgstr "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
 
@@ -1624,9 +1668,13 @@ msgstr "and {moreMounts} more"
 msgid "and {morePorts} more"
 msgstr "and {morePorts} more"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "Another proxy"
 msgstr "Another proxy"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
+msgstr "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Any image your server can pull, such as nginx:1.27."
@@ -1656,7 +1704,7 @@ msgstr "Anyone visiting {where} stops reaching it."
 msgid "anyone who can reach {server}"
 msgstr "anyone who can reach {server}"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "Anyone who can reach this server"
 msgstr "Anyone who can reach this server"
 
@@ -1789,6 +1837,7 @@ msgstr "Automation"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/shell/Page.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Back"
 msgstr "Back"
 
@@ -1896,6 +1945,7 @@ msgstr "block <0>{port}</0>, {proto}, from anywhere"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/servers/ContainerPage.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Breadcrumb"
 msgstr "Breadcrumb"
 
@@ -1949,9 +1999,17 @@ msgstr "Can't load the deployments"
 msgid "Can't load the domains"
 msgstr "Can't load the domains"
 
+#: src/features/websites/WebsitesPage.tsx
+msgid "Can't load the websites"
+msgstr "Can't load the websites"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Can't load this app"
 msgstr "Can't load this app"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Can't load this website"
+msgstr "Can't load this website"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -2025,6 +2083,7 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/servers/SetPublicAddressSheet.tsx
 #: src/features/variables/VariablesPage.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -2037,6 +2096,31 @@ msgstr "Catalog"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Categories"
 msgstr "Categories"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsitesPage.tsx
+msgid "Certificate"
+msgstr "Certificate"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate expired"
+msgstr "certificate expired"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate failed"
+msgstr "certificate failed"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate on its way"
+msgstr "certificate on its way"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate renewal failing"
+msgstr "certificate renewal failing"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate valid"
+msgstr "certificate valid"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Change"
@@ -2061,6 +2145,10 @@ msgstr "Change the variable {trimmed}"
 #: src/features/apps/AppDeployments.tsx
 msgid "changed"
 msgstr "changed"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "Changed"
+msgstr "Changed"
 
 #: src/features/apps/revision.ts
 msgid "Changed {field}"
@@ -2152,6 +2240,10 @@ msgstr "Choose a file"
 msgid "Choose a longer range, or follow what it writes next."
 msgstr "Choose a longer range, or follow what it writes next."
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Choose a server"
+msgstr "Choose a server"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Choose an app"
 msgstr "Choose an app"
@@ -2159,6 +2251,10 @@ msgstr "Choose an app"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Choose the app this domain reaches."
 msgstr "Choose the app this domain reaches."
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Choose the server it runs on."
+msgstr "Choose the server it runs on."
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -2230,11 +2326,11 @@ msgstr "Close the search"
 msgid "Close, and lose what you typed here?"
 msgstr "Close, and lose what you typed here?"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "Cloudflare connects to this server's port 80."
 msgstr "Cloudflare connects to this server's port 80."
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare's proxy"
 
@@ -2302,6 +2398,7 @@ msgid "Compose project"
 msgstr "Compose project"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Configuration"
 msgstr "Configuration"
 
@@ -2433,6 +2530,10 @@ msgstr "Copy of a running app"
 #: src/features/files/FilesPage.tsx
 msgid "Copy path {shown}"
 msgstr "Copy path {shown}"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Copy the config"
+msgstr "Copy the config"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
@@ -2686,6 +2787,7 @@ msgid "Dead"
 msgstr "Dead"
 
 #: src/app/Providers.tsx
+#: src/features/websites/Standing.tsx
 msgid "Degraded"
 msgstr "Degraded"
 
@@ -2730,6 +2832,14 @@ msgstr "Delete this backup"
 #: src/features/backups/BackupsPage.tsx
 msgid "Delete this backup of {0}"
 msgstr "Delete this backup of {0}"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Delete this website"
+msgstr "Delete this website"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Delete website"
+msgstr "Delete website"
 
 #: src/app/Providers.tsx
 msgid "deleted"
@@ -2874,6 +2984,7 @@ msgstr "Directory on the server"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/files/FileViewer.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Discard"
 msgstr "Discard"
 
@@ -2994,6 +3105,10 @@ msgstr "Dockwell can't read what {name} runs"
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell can't read what this runs"
 msgstr "Dockwell can't read what this runs"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Dockwell can't read what this website serves"
+msgstr "Dockwell can't read what this website serves"
 
 #: src/features/changes/words.ts
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
@@ -3176,6 +3291,8 @@ msgstr "domain"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/domains/DomainsPage.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Domain"
 msgstr "Domain"
 
@@ -3235,6 +3352,8 @@ msgstr "Each server it ran on has left the fleet, so Dockwell can't see it or ch
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Edit and try again"
 msgstr "Edit and try again"
 
@@ -3446,6 +3565,7 @@ msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
 #: src/features/servers/ServerFrame.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Files"
 msgstr "Files"
 
@@ -3545,13 +3665,18 @@ msgstr "For {connected}"
 msgid "for {span}"
 msgstr "for {span}"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
 msgstr "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
 
 #: src/features/auth/TokensPanel.tsx
 msgid "For a script, the CLI or an integration"
 msgstr "For a script, the CLI or an integration"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
+msgstr "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
@@ -3611,6 +3736,11 @@ msgstr "Give {missingLabel} a value to review the plan"
 msgid "Give each variable a value to review the plan"
 msgstr "Give each variable a value to review the plan"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Give the URL to send to, such as https://backend.example.com."
+msgstr "Give the URL to send to, such as https://backend.example.com."
+
 #: src/features/system/StatusPage.tsx
 msgid "Go"
 msgstr "Go"
@@ -3628,6 +3758,11 @@ msgstr "Go to the last"
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
 msgstr "Go to the overview"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Go to the websites"
+msgstr "Go to the websites"
 
 #. placeholder {0}: parentOf(folder)
 #: src/features/files/FilesPage.tsx
@@ -3671,6 +3806,7 @@ msgstr "health check timeout"
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/websites/Standing.tsx
 msgid "Healthy"
 msgstr "Healthy"
 
@@ -3859,7 +3995,7 @@ msgstr "It also removes {extra} more containers of this service, which a rollout
 msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
 msgstr "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 msgstr "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 
@@ -4177,6 +4313,14 @@ msgstr "Its project, which keeps it apart from your other apps."
 msgid "Its rollout order says to stop first, so there are never two"
 msgstr "Its rollout order says to stop first, so there are never two"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Its route and its web server go. Undo from Activity brings them back."
+msgstr "Its route and its web server go. Undo from Activity brings them back."
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
+msgstr "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
+
 #: src/features/activity/describe.ts
 #: src/features/changes/notices.tsx
 msgid "its server"
@@ -4197,6 +4341,10 @@ msgstr "Its value has a space, a quote or another character Compose reads as par
 #: src/features/changes/notices.tsx
 msgid "Its volumes are backed up first"
 msgstr "Its volumes are backed up first"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Its web server"
+msgstr "Its web server"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
@@ -4426,6 +4574,10 @@ msgstr "Loading the app"
 msgid "Loading the plan"
 msgstr "Loading the plan"
 
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Loading the website"
+msgstr "Loading the website"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Loading tokens"
 msgstr "Loading tokens"
@@ -4434,6 +4586,10 @@ msgstr "Loading tokens"
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
 
+#: src/features/websites/WebsitesPage.tsx
+msgid "Loading websites"
+msgstr "Loading websites"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Log filters"
 msgstr "Log filters"
@@ -4441,6 +4597,7 @@ msgstr "Log filters"
 #: src/features/apps/AppLayout.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Logs"
 msgstr "Logs"
 
@@ -4616,6 +4773,10 @@ msgstr "Name the address, such as 203.0.113.7."
 msgid "Name the domain, such as app.example.com."
 msgstr "Name the domain, such as app.example.com."
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Name the domain, such as blog.example.com."
+msgstr "Name the domain, such as blog.example.com."
+
 #: src/features/apps/DeploySheet.tsx
 msgid "Name the image to run, such as {current}."
 msgstr "Name the image to run, such as {current}."
@@ -4637,6 +4798,7 @@ msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "Name the token after what will use it, such as GitHub Actions deploy."
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Name what connects to this server, as an address or a range."
 msgstr "Name what connects to this server, as an address or a range."
 
@@ -4703,6 +4865,11 @@ msgstr "New recovery codes"
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
 msgstr "New value"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsitesPage.tsx
+msgid "New website"
+msgstr "New website"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Next error"
@@ -4772,6 +4939,10 @@ msgstr "No backups yet"
 msgid "No container matches this filter."
 msgstr "No container matches this filter."
 
+#: src/features/websites/Standing.tsx
+msgid "No domain"
+msgstr "No domain"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "No domain here matches what you've chosen. Try part of a name, or another state."
@@ -4816,6 +4987,10 @@ msgstr "No passkey works at {rpId} yet"
 #: src/features/domains/DomainsPage.tsx
 msgid "No report"
 msgstr "No report"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "No route gives it a domain now"
+msgstr "No route gives it a domain now"
 
 #: src/features/changes/words.ts
 msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
@@ -4864,6 +5039,14 @@ msgstr "No undo"
 #: src/features/variables/VariablesPage.tsx
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "No website with this ID"
+msgstr "No website with this ID"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "No websites yet"
+msgstr "No websites yet"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Nobody can say how {name} runs"
@@ -4940,6 +5123,10 @@ msgstr "Not placed"
 msgid "Not running"
 msgstr "Not running"
 
+#: src/features/websites/Standing.tsx
+msgid "Not serving"
+msgstr "Not serving"
+
 #: src/features/servers/containers.ts
 msgid "Not started"
 msgstr "Not started"
@@ -4948,16 +5135,22 @@ msgstr "Not started"
 msgid "Not used yet"
 msgstr "Not used yet"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Not valid"
+msgstr "Not valid"
+
 #: src/features/files/FilesPage.tsx
 msgid "Nothing at this path"
 msgstr "Nothing at this path"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "Nothing changed on the server. Reload the page to try again."
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Nothing changes until you apply the plan"
 msgstr "Nothing changes until you apply the plan"
 
@@ -5008,6 +5201,10 @@ msgstr "Nothing here matches these filters."
 #: src/features/files/FilesPage.tsx
 msgid "Nothing here matches your search."
 msgstr "Nothing here matches your search."
+
+#: src/features/websites/WebsiteLogs.tsx
+msgid "Nothing here writes logs"
+msgstr "Nothing here writes logs"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing here yet"
@@ -5124,6 +5321,7 @@ msgstr "Offline"
 
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/PolicySheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "On"
 msgstr "On"
 
@@ -5249,6 +5447,10 @@ msgstr "Open {name}"
 msgid "Open {where}"
 msgstr "Open {where}"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Open in Domains"
+msgstr "Open in Domains"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
 msgstr "Open plan"
@@ -5331,6 +5533,10 @@ msgid "Open the variables and secrets of {name}"
 msgstr "Open the variables and secrets of {name}"
 
 #: src/features/shell/CommandMenu.tsx
+msgid "Open the websites"
+msgstr "Open the websites"
+
+#: src/features/shell/CommandMenu.tsx
 msgid "Open your profile and security settings"
 msgstr "Open your profile and security settings"
 
@@ -5386,6 +5592,14 @@ msgstr "Other apps are here, so it needs a name of its own, such as <0>shop</0>.
 #: src/features/apps/NewAppSheet.tsx
 msgid "Other apps on its network reach it by this name."
 msgstr "Other apps on its network reach it by this name."
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Over HTTPS, with its own certificate"
+msgstr "Over HTTPS, with its own certificate"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Over plain HTTP, to anyone who reaches the server"
+msgstr "Over plain HTTP, to anyone who reaches the server"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
@@ -5496,6 +5710,18 @@ msgstr "Paused"
 msgid "People outside the server reach the app through this port"
 msgstr "People outside the server reach the app through this port"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "People reach it at its domain, over HTTPS"
+msgstr "People reach it at its domain, over HTTPS"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "People reach it at its domain, over plain HTTP"
+msgstr "People reach it at its domain, over plain HTTP"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "People reach it at its domain, through what's in front of this server"
+msgstr "People reach it at its domain, through what's in front of this server"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "People reach the app at this name, over HTTPS"
 msgstr "People reach the app at this name, over HTTPS"
@@ -5523,6 +5749,10 @@ msgstr "Places"
 #: src/features/apps/revision.ts
 msgid "Placing it on {added}"
 msgstr "Placing it on {added}"
+
+#: src/features/websites/Standing.tsx
+msgid "plain HTTP"
+msgstr "plain HTTP"
 
 #: src/features/apps/DomainNote.tsx
 msgid "Plain HTTP"
@@ -5590,11 +5820,17 @@ msgstr "Point an A record at this server's public address. Dockwell only sees {h
 msgid "Point an A record at your router's public address."
 msgstr "Point an A record at your router's public address."
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+msgstr "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Point its DNS at this server."
 msgstr "Point its DNS at this server."
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Point its DNS at your tunnel or proxy."
 msgstr "Point its DNS at your tunnel or proxy."
 
@@ -5605,6 +5841,10 @@ msgstr "port"
 #: src/features/apps/DomainNote.tsx
 msgid "port {hostPort} on the server"
 msgstr "port {hostPort} on the server"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "Port {port} on the server"
+msgstr "Port {port} on the server"
 
 #: src/features/apps/AppOverview.tsx
 msgid "port {target}"
@@ -5633,6 +5873,8 @@ msgid "port on the server"
 msgstr "port on the server"
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Port on the server"
 msgstr "Port on the server"
 
@@ -5848,6 +6090,10 @@ msgstr "Queued"
 #: src/features/servers/ServerPanels.tsx
 msgid "Reachable"
 msgstr "Reachable"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Reached"
+msgstr "Reached"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Reaches {path}"
@@ -6183,6 +6429,19 @@ msgstr "Revealed a secret"
 msgid "Revealed the secret {name}"
 msgstr "Revealed the secret {name}"
 
+#: src/features/websites/WebsitesPage.tsx
+msgid "Reverse proxy"
+msgstr "Reverse proxy"
+
+#. placeholder {0}: targetOf(site.spec)
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Reverse proxy to {0}"
+msgstr "Reverse proxy to {0}"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Reverse proxy to port {port} on the server"
+msgstr "Reverse proxy to port {port} on the server"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
@@ -6194,6 +6453,8 @@ msgstr "Revealed the secret {name}"
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Review plan"
 msgstr "Review plan"
 
@@ -6358,6 +6619,10 @@ msgstr "Rotated the key that wraps every secret"
 msgid "route"
 msgstr "route"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Route"
+msgstr "Route"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Routes to"
 msgstr "Routes to"
@@ -6418,6 +6683,7 @@ msgstr "runs no entrypoint"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Runs on"
 msgstr "Runs on"
 
@@ -6600,6 +6866,10 @@ msgstr "Send {wanted} to {name}"
 msgid "Send a copy to"
 msgstr "Send a copy to"
 
+#: src/features/websites/WebsitesPage.tsx
+msgid "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
+msgstr "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Send a domain to one of your apps. You review a plan before anything changes."
 msgstr "Send a domain to one of your apps. You review a plan before anything changes."
@@ -6607,6 +6877,11 @@ msgstr "Send a domain to one of your apps. You review a plan before anything cha
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Send backups to {name}"
 msgstr "Send backups to {name}"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Send the URL's own name as Host"
+msgstr "Send the URL's own name as Host"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
@@ -6616,6 +6891,15 @@ msgstr "Sending"
 #: src/features/backups/BackupsPage.tsx
 msgid "Sending to {0}"
 msgstr "Sending to {0}"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Sends its requests to"
+msgstr "Sends its requests to"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Sends to"
+msgstr "Sends to"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -6631,6 +6915,7 @@ msgstr "server"
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Server"
 msgstr "Server"
 
@@ -6933,6 +7218,10 @@ msgstr "Someone paused it, so it serves nothing and no check runs. Unpause it wi
 msgid "something else on the server"
 msgstr "something else on the server"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
+msgstr "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
+
 #: src/features/changes/notices.tsx
 msgid "Something may still manage {container}"
 msgstr "Something may still manage {container}"
@@ -6957,6 +7246,10 @@ msgstr "Source"
 msgid "sources"
 msgstr "sources"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Start it with http:// or https://, such as https://backend.example.com."
+msgstr "Start it with http:// or https://, such as https://backend.example.com."
+
 #: src/features/logs/LogsPage.tsx
 msgid "Start of the log"
 msgstr "Start of the log"
@@ -6970,6 +7263,7 @@ msgid "Started"
 msgstr "Started"
 
 #: src/features/apps/Health.tsx
+#: src/features/websites/Standing.tsx
 msgid "Starting"
 msgstr "Starting"
 
@@ -6984,6 +7278,7 @@ msgstr "State"
 #: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Status"
 msgstr "Status"
 
@@ -7041,7 +7336,11 @@ msgstr "Such as 1Password, Google Authenticator or Aegis"
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "Such as 8080 on the server, to 80 in the app."
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
+msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+
+#: src/features/apps/FrontFields.tsx
 msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
 msgstr "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
 
@@ -7367,6 +7666,18 @@ msgstr "The hour {name}'s backup gets is a guess"
 msgid "The image's own"
 msgstr "The image's own"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "The ingress sends each request straight to the port"
+msgstr "The ingress sends each request straight to the port"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
+msgstr "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
+
+#: src/features/websites/WebsiteLogs.tsx
+msgid "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
+msgstr "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
+
 #: src/features/apps/AppOverview.tsx
 msgid "The last deploy failed, so Dockwell rolled it back"
 msgstr "The last deploy failed, so Dockwell rolled it back"
@@ -7587,6 +7898,10 @@ msgstr "the volume driver {driver} at {path}, which reaches what the plugin does
 #: src/features/changes/words.ts
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
 msgstr "the volume driver {driver}, which reaches what the plugin does ({reads})"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "The web server's config"
+msgstr "The web server's config"
 
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
@@ -7815,7 +8130,7 @@ msgstr "This panel controls {name}. Create the owner account with a passkey."
 msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 msgstr "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 
@@ -7896,7 +8211,7 @@ msgstr "This server is behind carrier NAT, so a DNS record can't reach it, and n
 msgid "this server shares what it carries live between everyone reading it."
 msgstr "this server shares what it carries live between everyone reading it."
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "This server takes no certificate, and traffic reaches it unencrypted."
 msgstr "This server takes no certificate, and traffic reaches it unencrypted."
 
@@ -7933,6 +8248,14 @@ msgstr "This uses {0}'s own dump, with the database running, so nothing stops. A
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 
+#: src/features/websites/WebsiteLogs.tsx
+msgid "This website has no web server of its own now, so there's nothing of its own to read."
+msgstr "This website has no web server of its own now, so there's nothing of its own to read."
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Through a tunnel or a proxy in front, which ends TLS"
+msgstr "Through a tunnel or a proxy in front, which ends TLS"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Time"
 msgstr "Time"
@@ -7942,6 +8265,7 @@ msgid "Time range"
 msgstr "Time range"
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/websites/Standing.tsx
 msgid "TLS ends in front"
 msgstr "TLS ends in front"
 
@@ -8059,6 +8383,7 @@ msgstr "trend"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Try again"
 msgstr "Try again"
 
@@ -8101,6 +8426,10 @@ msgstr "Two containers mustn't write to the server path {paths} at once, so the 
 #: src/features/changes/words.ts
 msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "Type"
+msgstr "Type"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Type <0>{confirmWith}</0> to apply it"
@@ -8175,6 +8504,8 @@ msgstr "Unhealthy"
 #: src/features/servers/FleetNotes.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/servers/ServerPanels.tsx
+#: src/features/websites/Standing.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Unknown"
 msgstr "Unknown"
 
@@ -8275,6 +8606,11 @@ msgstr "Upgrade to {latest}"
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "URL"
+msgstr "URL"
+
 #: src/features/backups/PolicySheet.tsx
 msgid "Use 24-hour HH:MM, such as 03:00."
 msgstr "Use 24-hour HH:MM, such as 03:00."
@@ -8298,6 +8634,8 @@ msgstr "Use a passphrase I already have"
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Use a port from 1 to 65535."
 msgstr "Use a port from 1 to 65535."
 
@@ -8361,6 +8699,8 @@ msgid "User"
 msgstr "User"
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/websites/Standing.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Valid"
 msgstr "Valid"
 
@@ -8423,6 +8763,10 @@ msgstr "Version {version}"
 #: src/features/auth/SignInPage.tsx
 msgid "Version <0>{0}</0>"
 msgstr "Version <0>{0}</0>"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Visit site"
+msgstr "Visit site"
 
 #. placeholder {0}: going.length
 #: src/features/changes/ChangeSheet.tsx
@@ -8488,10 +8832,45 @@ msgstr "Warning"
 msgid "Warnings"
 msgstr "Warnings"
 
+#. placeholder {0}: was.url
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Was {0}"
+msgstr "Was {0}"
+
+#. placeholder {0}: was.port
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Was {0} · whatever listens there sees every visitor as local"
+msgstr "Was {0} · whatever listens there sees every visitor as local"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Was a port on this server"
+msgstr "Was a port on this server"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Was a URL"
+msgstr "Was a URL"
+
+#: src/features/websites/WebsiteLayout.tsx
+#: src/features/websites/WebsitesPage.tsx
+msgid "Website"
+msgstr "Website"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Website sections"
+msgstr "Website sections"
+
 #: src/features/files/FilesPage.tsx
-#: src/features/shell/sections.ts
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
+#: src/features/websites/WebsiteLayout.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Websites"
 msgstr "Websites"
+
+#. placeholder {0}: only.name
+#: src/features/websites/WebsitesPage.tsx
+msgid "Websites on {0}"
+msgstr "Websites on {0}"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Weekly"
@@ -8510,7 +8889,7 @@ msgstr "What applying means"
 msgid "What changed"
 msgstr "What changed"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "What connects to this server"
 msgstr "What connects to this server"
 
@@ -8533,6 +8912,10 @@ msgstr "What it set out to do"
 #: src/features/changes/ChangeSheet.tsx
 msgid "What it would have done"
 msgstr "What it would have done"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's."
+msgstr "What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's."
 
 #: src/features/apps/AddPortSheet.tsx
 msgid "What people connect to, such as 8080."
@@ -8649,7 +9032,11 @@ msgstr "What you typed is still here."
 msgid "What your domains serve isn't affected."
 msgstr "What your domains serve isn't affected."
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/WebsitesPage.tsx
+msgid "What your websites serve isn't affected."
+msgstr "What your websites serve isn't affected."
+
+#: src/features/apps/FrontFields.tsx
 msgid "What's in front"
 msgstr "What's in front"
 
@@ -8661,6 +9048,10 @@ msgstr "What's in front can't connect for {where} any more, so visitors see what
 msgid "What's in front gets a 404 for {where}, so visitors see whatever it shows for one."
 msgstr "What's in front gets a 404 for {where}, so visitors see whatever it shows for one."
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Whatever listens there sees every visitor as local, so you approve it in the plan."
+msgstr "Whatever listens there sees every visitor as local, so you approve it in the plan."
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 msgid "When"
@@ -8669,6 +9060,10 @@ msgstr "When"
 #: src/features/apps/words.ts
 msgid "When it exits with an error"
 msgstr "When it exits with an error"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Where it sends"
+msgstr "Where it sends"
 
 #: src/features/changes/notices.tsx
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
@@ -8703,6 +9098,11 @@ msgstr "whoever comes through {list}"
 msgid "Why it failed"
 msgstr "Why it failed"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "With a path, such as /app, each request goes under it."
+msgstr "With a path, such as /app, each request goes under it."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "Without a volume, what it writes is lost when its container is replaced."
@@ -8723,6 +9123,10 @@ msgstr "Works on {where}"
 #: src/features/logs/LogsPage.tsx
 msgid "Wrap long lines"
 msgstr "Wrap long lines"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "written by Dockwell from these settings"
+msgstr "written by Dockwell from these settings"
 
 #: src/features/changes/fields.tsx
 msgid "yes"
@@ -8757,7 +9161,7 @@ msgstr "You can't read these logs"
 msgid "You have unsaved changes to {name}"
 msgstr "You have unsaved changes to {name}"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "You name what connects to this server."
 msgstr "You name what connects to this server."
 

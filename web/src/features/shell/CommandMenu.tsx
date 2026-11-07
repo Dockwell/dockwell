@@ -223,6 +223,13 @@ function Commands({ onClose }: { onClose: () => void }) {
       run: () => navigate({ to: "/variables" }),
     });
     list.push({
+      id: "websites",
+      group: pages,
+      icon: "browser",
+      label: t`Open the websites`,
+      run: () => navigate({ to: "/websites" }),
+    });
+    list.push({
       id: "domains",
       group: pages,
       icon: "link",

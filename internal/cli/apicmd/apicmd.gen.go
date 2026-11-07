@@ -1317,6 +1317,20 @@ func Methods() []*apicli.Method {
 			Call:      apicli.Unary[v1.ListWebsitesRequest, v1.ListWebsitesResponse](dockwellv1connect.WebsiteServiceListWebsitesProcedure),
 		},
 		{
+			Name:      "dockwell.v1.WebsiteService.PreviewWebsite",
+			Procedure: dockwellv1connect.WebsiteServicePreviewWebsiteProcedure,
+			HTTP:      "POST /v1/websites:preview",
+			Noun:      "websites",
+			Verb:      "preview",
+			Short:     "Say what a website's own web server would run for what it serves",
+			Long:      "Say what a website's own web server would run for what it serves, and how\nDockwell would keep that, planning nothing. It refuses what can't be served as\ndockwell websites create would, so a form can say so as you type.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "website", Help: "What it serves."},
+			},
+			Call: apicli.Unary[v1.PreviewWebsiteRequest, v1.PreviewWebsiteResponse](dockwellv1connect.WebsiteServicePreviewWebsiteProcedure),
+		},
+		{
 			Name:      "dockwell.v1.WebsiteService.UpdateWebsite",
 			Procedure: dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure,
 			HTTP:      "POST /v1/websites/{id}:update",
@@ -1361,7 +1375,7 @@ func Nouns() []apicli.Noun {
 		{Name: "system", Short: "Return the build of the control plane that answers", Long: "SystemService describes the Dockwell install itself. It needs no sign-in, so the\nCLI, agents and other tools can check what they are talking to first."},
 		{Name: "totp", Short: "Get, disable or unlock TOTP, and 4 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},
 		{Name: "variables", Short: "List, create, update or delete variables", Long: "A variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use\nvariables and secrets by reference, under the names they expect, so changing one\nis a plan that restarts every service that uses it.\n\ndockwell variables create, update and delete each propose a change, show its\nplan, and ask before applying it."},
-		{Name: "websites", Short: "List, create, update or delete websites", Long: "WebsiteService lists your websites, and plans making one, changing what it\nserves and deleting it, each as a change to apply or discard. A website is a\nproject of its own: Dockwell writes its route, and the service that serves it,\nfrom what you choose, such as a URL to send its requests to. Its domain gets its\ncertificate as any route's does, or none behind a tunnel or a proxy that ends\nTLS. See docs/adr/0037-websites-as-projects-of-their-own.md."},
+		{Name: "websites", Short: "List, preview, create, update or delete websites", Long: "WebsiteService lists your websites, and plans making one, changing what it\nserves and deleting it, each as a change to apply or discard. A website is a\nproject of its own: Dockwell writes its route, and the service that serves it,\nfrom what you choose, such as a URL to send its requests to. Its domain gets its\ncertificate as any route's does, or none behind a tunnel or a proxy that ends\nTLS. See docs/adr/0037-websites-as-projects-of-their-own.md."},
 	}
 }
 

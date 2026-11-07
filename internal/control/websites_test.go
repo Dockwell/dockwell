@@ -296,6 +296,21 @@ func testWhatAWebsiteRefuses(t *testing.T, backend store.Backend) {
 		}
 	}
 
+	// A preview says what the web server runs, as it would be kept, and refuses alike.
+	preview, err := sites.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{Website: toURL("HTTPS://Backend.example.com/app/")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := preview.Msg; got.GetWebsite().GetProxy().GetUrl() != "https://backend.example.com/app" || !strings.Contains(got.GetConfig(), "rewrite * /app{uri}") {
+		t.Errorf("PreviewWebsite = %v", got)
+	}
+	if got, err := sites.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{Website: toPort(3000)})); err != nil || got.Msg.GetConfig() != "" {
+		t.Errorf("PreviewWebsite of a port = %v, %v, want no config", got, err)
+	}
+	if _, err := sites.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{Website: toURL("http://localhost")})); reasonOf(err) != "invalid" {
+		t.Errorf("PreviewWebsite of localhost = %v, want invalid", err)
+	}
+
 	// One whose name comes out the same gets the next.
 	other, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{Domain: "shop-example.com", Website: toURL("https://backend.example.com")}))
 	if err != nil {

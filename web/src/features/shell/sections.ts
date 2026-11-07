@@ -18,7 +18,6 @@ interface Section {
  * with a screen gets its own route, which takes over its path, as Backups has.
  */
 export const UPCOMING = {
-  websites: { label: msg`Websites`, icon: "browser", inMore: true },
   databases: { label: msg`Databases`, icon: "database", inMore: true },
   connections: { label: msg`Connections`, icon: "key", inMore: true },
   backups: { label: msg`Backups`, icon: "archive", inMore: true },
@@ -30,8 +29,8 @@ export const UPCOMING = {
 
 export type UpcomingSection = keyof typeof UPCOMING;
 
-/** The rail's resource sections between Apps and Domains, which have screens of their own, in its order. */
-export const BEFORE_DOMAINS = ["websites", "databases", "connections"] as const satisfies readonly UpcomingSection[];
+/** The rail's resource sections between Websites and Domains, which have screens of their own, in its order. */
+export const BEFORE_DOMAINS = ["databases", "connections"] as const satisfies readonly UpcomingSection[];
 
 /** The rail's resource sections between Domains and the catalog, which have screens of their own, in its order. */
 export const AFTER_DOMAINS = ["backups"] as const satisfies readonly UpcomingSection[];
