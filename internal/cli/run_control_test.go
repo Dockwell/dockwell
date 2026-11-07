@@ -98,7 +98,7 @@ func TestRunStopsOnCancel(t *testing.T) {
 	var out, errOut bytes.Buffer
 	go func() {
 		done <- Execute(ctx, []string{"run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", t.TempDir(), "--log-format", "json"}, IO{
-			Out: &out, Err: &errOut, Getenv: func(string) string { return "" },
+			Out: &out, Err: &errOut, Getenv: noEnv,
 		})
 	}()
 	time.Sleep(100 * time.Millisecond)
@@ -123,7 +123,7 @@ func startRun(t *testing.T) string {
 	var errOut syncBuffer
 	go func() {
 		done <- Execute(ctx, []string{"run", "--listen", "127.0.0.1:0", "--agent-listen", "127.0.0.1:0", "--data-dir", dir, "--log-format", "json"}, IO{
-			Out: io.Discard, Err: &errOut, Getenv: func(string) string { return "" },
+			Out: io.Discard, Err: &errOut, Getenv: noEnv,
 		})
 	}()
 	t.Cleanup(func() {

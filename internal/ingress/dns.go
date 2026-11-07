@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -25,18 +26,16 @@ type DNS struct {
 	Lookup func(ctx context.Context, domain string) ([]netip.Addr, error)
 	// Addrs finds this server's addresses. Nil means its interfaces.
 	Addrs func() ([]netip.Addr, error)
-	// Public is this server's public address, when the control plane knows one
-	// beyond its interfaces. The zero address is none.
-	Public netip.Addr
-	// WayIn says Public is known to be a way in, so a record that points anywhere
-	// else points elsewhere. One that's only how the server goes out may not be how
-	// the internet comes in, when a record pointing somewhere else may be right.
-	WayIn bool
-	// Unproven says nothing has proved Public is a way in, and this server isn't on
-	// a known cloud, so it may be a router's.
-	Unproven bool
-	// Carrier says this server is behind carrier-grade NAT.
+	// Told is what the control plane knows of this server's public addresses, beyond
+	// its interfaces.
+	Told []*agentv1.KnownAddress
+	// Carrier says this server is behind carrier-grade NAT, with no way in known.
 	Carrier bool
+}
+
+// Know takes what the control plane says of this server's public addresses.
+func (d *DNS) Know(known *agentv1.PublicAddress) {
+	d.Told, d.Carrier = known.GetAddresses(), known.GetCarrierNat()
 }
 
 // Check says what DNS says of a domain. It never fails: what it can't find
@@ -44,18 +43,38 @@ type DNS struct {
 func (d *DNS) Check(ctx context.Context, domain string) *resource.DomainCheck {
 	ctx, cancel := context.WithTimeout(ctx, dnsWait)
 	defer cancel()
-	out := &resource.DomainCheck{Domain: domain, Unproven: d.Unproven, Carrier: d.Carrier}
+	out := &resource.DomainCheck{Domain: domain, Carrier: d.Carrier, ReadAt: time.Now()}
 	found, err := d.lookup(ctx, domain)
 	own, herr := d.addrs()
 	here := own
-	if d.Public.IsValid() {
-		here = append(slices.Clone(own), d.Public)
-		out.Public = d.Public.String()
+	var wayIn []netip.Addr
+	for _, known := range d.Told {
+		a, perr := netip.ParseAddr(known.GetAddress())
+		if perr != nil || !resource.IsPublicAddress(a) {
+			continue
+		}
+		here = append(slices.Clip(here), a.Unmap())
+		out.Public = append(out.Public, a.Unmap().String())
+		if known.GetWayIn() {
+			wayIn = append(wayIn, a.Unmap())
+		} else {
+			out.Unproven = append(out.Unproven, a.Unmap().String())
+		}
+	}
+	for _, a := range own {
+		if resource.IsPublicAddress(a) {
+			wayIn = append(wayIn, a)
+		}
 	}
 	if herr == nil {
 		out.Here = addrWords(here)
 	}
 	out.Found = addrWords(found)
+	// A record can only be wrong against a way in of its own family: an A record
+	// says nothing of a server whose way in is known only for IPv6.
+	noWayIn := func(a netip.Addr) bool {
+		return resource.IsPublicAddress(a) && !slices.ContainsFunc(wayIn, func(in netip.Addr) bool { return in.Is4() == a.Unmap().Is4() })
+	}
 	switch {
 	case isNoRecord(err) || (err == nil && len(found) == 0):
 		out.State = resource.DomainNoRecord
@@ -65,7 +84,7 @@ func (d *DNS) Check(ctx context.Context, domain string) *resource.DomainCheck {
 		out.State = resource.DomainUnknown
 	case slices.ContainsFunc(found, func(a netip.Addr) bool { return slices.Contains(here, a.Unmap()) }):
 		out.State = resource.DomainHere
-	case !d.WayIn && !slices.ContainsFunc(own, resource.IsPublicAddress) && slices.ContainsFunc(found, resource.IsPublicAddress):
+	case slices.ContainsFunc(found, noWayIn):
 		// Behind NAT, as on many clouds: the public address isn't on an
 		// interface, so it may be this server's or not.
 		out.State = resource.DomainCantTell

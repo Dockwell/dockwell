@@ -68,7 +68,7 @@ func (s *Service) SetServerPublicAddress(ctx context.Context, req *connect.Reque
 	}); err != nil {
 		return nil, err
 	}
-	srv, err := s.fleet.SetPublicAddress(ctx, id, strings.TrimSpace(req.Msg.GetAddress()), by)
+	srv, err := s.fleet.SetPublicAddress(ctx, id, strings.TrimSpace(req.Msg.GetAddress()), req.Msg.GetIpv6(), by)
 	switch {
 	case errors.Is(err, fleet.ErrNotFound):
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("there's no server "+id+". List them with ListServers"))

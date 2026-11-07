@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 
 	"github.com/dockwell/dockwell/internal/human"
 )
@@ -93,26 +94,49 @@ func PublicAddresses(list []string) []string {
 	return out
 }
 
+// pointAt is the addresses to point a record at: what the control plane knows, which
+// goes first for its family, as a person's word wins over an interface, and any
+// public address on an interface of a family it doesn't know.
+func (c *DomainCheck) pointAt() []string {
+	told := PublicAddresses(c.Public)
+	out := slices.Clone(told)
+	for _, s := range PublicAddresses(c.Here) {
+		if !slices.Contains(out, s) && !slices.ContainsFunc(told, func(t string) bool { return sameFamily(s, t) }) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func sameFamily(a, b string) bool {
+	x, y := netip.MustParseAddr(a).Unmap(), netip.MustParseAddr(b).Unmap()
+	return x.Is4() == y.Is4()
+}
+
 // PointHere says where to point a domain's DNS, given what a server knows of
 // itself. It names a public address or none, as a record pointed at a private one
 // can't work: with only private addresses, it says so, and that the public one is
-// what's wanted. An address nothing has proved is a way in says as much, unless
-// the server is on a known cloud, where it is its 1:1 NAT.
+// what's wanted. An address nothing has shown to be a way in is only ever named with
+// the caveat, whatever the server is on (ADR 0034).
 func (c *DomainCheck) PointHere() string {
 	if c == nil {
 		return "Point an A or AAAA record at this server's public address."
 	}
-	addresses := PublicAddresses(c.Here)
-	if c.Public != "" {
-		addresses = []string{c.Public}
+	addresses := c.pointAt()
+	proved := slices.DeleteFunc(slices.Clone(addresses), func(s string) bool { return slices.Contains(c.Unproven, s) })
+	unproven := slices.DeleteFunc(slices.Clone(addresses), func(s string) bool { return !slices.Contains(c.Unproven, s) })
+	var words []string
+	if len(proved) > 0 {
+		words = append(words, fmt.Sprintf("Point %s record at this server, %s.", recordKinds(proved), human.Either(proved)))
+	}
+	if len(unproven) > 0 {
+		words = append(words, fmt.Sprintf("Point %s record at %s, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither.", recordKinds(unproven), human.Either(unproven)))
 	}
 	switch {
+	case len(words) > 0:
+		return strings.Join(words, " ")
 	case c.Carrier:
 		return fmt.Sprintf("This server is behind carrier NAT (%s), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither.", human.List(c.Here))
-	case c.Unproven && len(addresses) > 0:
-		return fmt.Sprintf("Point %s record at %s, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither.", recordKinds(addresses), human.Either(addresses))
-	case len(addresses) > 0:
-		return fmt.Sprintf("Point %s record at this server, %s.", recordKinds(addresses), human.Either(addresses))
 	case len(c.Here) == 0:
 		return "Point an A or AAAA record at this server's public address."
 	}
@@ -143,10 +167,8 @@ func recordKinds(addresses []string) string {
 }
 
 // BehindNAT reports a server whose own addresses are all private, so what the
-// internet sees of it isn't on any interface. public is the one it goes by, if any,
-// which isn't its own. With no addresses of its own, nothing is known.
-func BehindNAT(public string, here []string) bool {
-	own := slices.DeleteFunc(slices.Clone(here), func(s string) bool { return s == public })
+// internet sees of it isn't on any interface. With no addresses, nothing is known.
+func BehindNAT(own []string) bool {
 	return len(own) > 0 && len(PublicAddresses(own)) == 0
 }
 

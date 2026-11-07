@@ -125,7 +125,7 @@ func TestTheAgentBuildJoinsAndRunsTheAgent(t *testing.T) {
 	var logs syncBuffer
 	go func() {
 		done <- Execute(ctx, []string{"run", "--data-dir", dir, "--log-format", "json"}, IO{
-			Out: io.Discard, Err: &logs, Getenv: func(string) string { return "" },
+			Out: io.Discard, Err: &logs, Getenv: noEnv,
 		})
 	}()
 	// The hello says which build the agent is, and the control plane keeps
@@ -182,12 +182,12 @@ func TestTheAgentBuildRunsContainers(t *testing.T) {
 	var logs syncBuffer
 	go func() {
 		done <- Execute(ctx, []string{"run", "--data-dir", dir, "--log-format", "json"}, IO{
-			Out: io.Discard, Err: &logs, Getenv: func(k string) string {
+			Out: io.Discard, Err: &logs, Getenv: quiet(func(k string) string {
 				if k == "DOCKER_HOST" {
 					return "unix://" + e.Socket
 				}
 				return ""
-			},
+			}),
 		})
 	}()
 	defer func() {

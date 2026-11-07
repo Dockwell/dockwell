@@ -48,6 +48,9 @@ const (
 	// envNoStun turns off asking a public STUN server, when set to anything but
 	// false or 0 (ADR 0034).
 	envNoStun = "DOCKWELL_NO_STUN"
+	// envMetadataURL is where a cloud's metadata service answers, for a test that
+	// has nothing there to ask.
+	envMetadataURL = "DOCKWELL_METADATA_URL"
 )
 
 // IO carries the streams and environment a command runs with, so tests can

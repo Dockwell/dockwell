@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"net/netip"
 	"regexp"
 	"slices"
 	"strings"
@@ -301,10 +300,9 @@ type statusBoard struct {
 	restartsKnown bool
 	// ingress is what was last published of the ingress.
 	ingress *dockwellv1.IngressStatus
-	// public is the public address the control plane knows this server by, and
-	// known is all it said of it (SetPublicAddress).
-	public netip.Addr
-	known  *agentv1.PublicAddress
+	// known is what the control plane said of this server's public addresses
+	// (SetPublicAddress).
+	known *agentv1.PublicAddress
 }
 
 // problem is why a server's ingress isn't serving.
@@ -410,6 +408,13 @@ const (
 	watchSettled = time.Minute
 	// dnsEvery is how often DNS is read for a domain without a certificate.
 	dnsEvery = 30 * time.Second
+	// IssuedDNSEvery is how often DNS is read for one with a certificate, as what
+	// that proves goes stale as a record moves (ADR 0034).
+	IssuedDNSEvery = 6 * time.Hour
+	// rereadsPerWatch bounds how many of those one pass makes, as they run one after
+	// another and a server's domains can come due together. At one pass a minute that
+	// gets through 3,600 domains in IssuedDNSEvery, with 1,000 the most a server takes.
+	rereadsPerWatch = 10
 )
 
 // Watch keeps Domains up to date until ctx is done.
@@ -435,17 +440,13 @@ func (m *Manager) watchWakes() chan struct{} {
 	return m.wakes
 }
 
-// SetPublicAddress keeps the public address the control plane knows this server
-// by, and has what's said of its domains read again by it, as a domain's record
+// SetPublicAddress keeps what the control plane knows of this server's public
+// addresses, and has what's said of its domains read again by it, as a domain's record
 // may now read as pointing here.
 func (m *Manager) SetPublicAddress(known *agentv1.PublicAddress) {
-	public, err := netip.ParseAddr(known.GetAddress())
-	if err != nil {
-		public = netip.Addr{}
-	}
 	b := &m.status
 	b.mu.Lock()
-	b.public, b.known = public, known
+	b.known = known
 	if b.checked != nil {
 		clear(b.checked)
 	}
@@ -458,7 +459,7 @@ func (m *Manager) check(ctx context.Context, domain string) *resource.DomainChec
 	d := *m.dns()
 	b := &m.status
 	b.mu.Lock()
-	d.Public, d.WayIn, d.Unproven, d.Carrier = b.public, b.known.GetWayIn(), b.known.GetUnproven(), b.known.GetCarrierNat()
+	d.Know(b.known)
 	b.mu.Unlock()
 	return d.Check(ctx, domain)
 }
@@ -507,7 +508,7 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		}
 		return false
 	}
-	retry := false
+	retry, rereads := false, rereadsPerWatch
 	list := make([]*dockwellv1.DomainStatus, 0, len(domains))
 	for _, name := range slices.Sorted(maps.Keys(domains)) {
 		if !domains[name] {
@@ -516,7 +517,7 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 			continue
 		}
 		st := certs[name]
-		check, nowHere := m.domainCheck(ctx, name, st)
+		check, nowHere := m.domainCheck(ctx, name, st, &rereads)
 		retry = retry || (nowHere && st.Phase != CertIssued)
 		waiting = waiting || st.Phase != CertIssued
 		list = append(list, &dockwellv1.DomainStatus{Domain: name, Certificate: certProto(name, st, check), Dns: resourcepb.DomainCheck(check)})
@@ -562,9 +563,10 @@ func (m *Manager) reportPanel(ctx context.Context) {
 }
 
 // domainCheck is what DNS says of a domain, read again every dnsEvery while it
-// has no certificate. nowHere says this read found it pointing here, as the
-// one before didn't.
-func (m *Manager) domainCheck(ctx context.Context, name string, st CertState) (check *resource.DomainCheck, nowHere bool) {
+// has no certificate, and every IssuedDNSEvery once it has, as far as rereads lets,
+// as a certificate proves where a server answers only while its record stays put.
+// nowHere says this read found it pointing here, as the one before didn't.
+func (m *Manager) domainCheck(ctx context.Context, name string, st CertState, rereads *int) (check *resource.DomainCheck, nowHere bool) {
 	b := &m.status
 	b.mu.Lock()
 	if b.checks == nil {
@@ -573,9 +575,11 @@ func (m *Manager) domainCheck(ctx context.Context, name string, st CertState) (c
 	last, read := b.checks[name], b.checked[name]
 	b.mu.Unlock()
 	if st.Phase == CertIssued && last != nil {
-		return last, false
-	}
-	if last != nil && time.Since(read) < dnsEvery {
+		if time.Since(read) < IssuedDNSEvery || *rereads == 0 {
+			return last, false
+		}
+		*rereads--
+	} else if last != nil && time.Since(read) < dnsEvery {
 		return last, false
 	}
 	check = m.check(ctx, name)

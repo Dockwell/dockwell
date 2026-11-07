@@ -69,7 +69,14 @@ async function until<T>(
 }
 
 function env(): NodeJS.ProcessEnv {
-  return { ...process.env, DOCKWELL_DATA_DIR: data, DOCKWELL_LOG_FORMAT: "text", DOCKWELL_NO_STUN: "1", USER: "mira" };
+  return {
+    ...process.env,
+    DOCKWELL_DATA_DIR: data,
+    DOCKWELL_LOG_FORMAT: "text",
+    DOCKWELL_NO_STUN: "1",
+    DOCKWELL_METADATA_URL: "http://127.0.0.1:1",
+    USER: "mira",
+  };
 }
 
 function dockwell(...args: string[]): string {

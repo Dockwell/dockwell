@@ -1092,23 +1092,26 @@ func domainWords(c *dockwellv1.DomainCheck) string {
 		return ""
 	}
 	found, here := human.List(c.GetFound()), human.List(c.GetHere())
+	// What's told is filtered as what an interface has is, so a plan never names a
+	// private address, whatever an agent said.
+	told := resource.PublicAddresses(c.GetPublicAddresses())
 	public := resource.PublicAddresses(c.GetHere())
-	if c.GetPublicAddress() != "" {
-		public = []string{c.GetPublicAddress()}
+	if len(told) > 0 {
+		public = told
 	}
-	point := (&resource.DomainCheck{Public: c.GetPublicAddress(), Here: c.GetHere(), Unproven: c.GetPublicUnproven(), Carrier: c.GetCarrierNat()}).PointHere()
+	point := (&resource.DomainCheck{Public: told, Here: c.GetHere(), Unproven: c.GetUnprovenAddresses(), Carrier: c.GetCarrierNat()}).PointHere()
 	switch c.GetState() {
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD:
 		return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come until it has one. %s", c.GetDomain(), point)
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE:
 		const tunnel = "If a tunnel or a proxy in front ends TLS, set tls to off on this route instead."
-		if len(public) > 0 && !c.GetPublicUnproven() && !c.GetCarrierNat() {
+		if len(public) > 0 && len(c.GetUnprovenAddresses()) == 0 && !c.GetCarrierNat() {
 			return fmt.Sprintf("DNS for %s points at %s, not this server (%s), so its certificate can't come yet. Point it here; it comes once you do. %s", c.GetDomain(), found, human.List(public), tunnel)
 		}
 		return fmt.Sprintf("DNS for %s points at %s, not this server, so its certificate can't come yet. %s %s", c.GetDomain(), found, point, tunnel)
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL:
-		if c.GetPublicAddress() != "" {
-			return fmt.Sprintf("DNS for %s points at %s. This server goes out from %s, which may not be its way in, so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain(), found, c.GetPublicAddress())
+		if out := resource.PublicAddresses(c.GetUnprovenAddresses()); len(out) > 0 {
+			return fmt.Sprintf("DNS for %s points at %s. This server goes out from %s, which may not be its way in, so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain(), found, human.List(out))
 		}
 		return fmt.Sprintf("DNS for %s points at %s. This server's own addresses are private (%s), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain(), found, here)
 	default:

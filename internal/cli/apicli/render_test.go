@@ -838,12 +838,12 @@ func TestDNSWordsSayWhatsKnownOfTheAddress(t *testing.T) {
 	}{
 		{
 			"known beyond the interfaces",
-			&dockwellv1.DomainCheck{Domain: "a.example.com", State: noRecord, PublicAddress: "203.0.113.50", Here: []string{"10.0.0.25", "203.0.113.50"}},
+			&dockwellv1.DomainCheck{Domain: "a.example.com", State: noRecord, PublicAddresses: []string{"203.0.113.50"}, Here: []string{"10.0.0.25", "203.0.113.50"}},
 			"Point an A record at this server, 203.0.113.50.",
 		},
 		{
 			"looked up, and not on a known cloud",
-			&dockwellv1.DomainCheck{Domain: "a.example.com", State: noRecord, PublicAddress: "203.0.113.7", PublicUnproven: true, Here: []string{"192.168.1.20", "203.0.113.7"}},
+			&dockwellv1.DomainCheck{Domain: "a.example.com", State: noRecord, PublicAddresses: []string{"203.0.113.7"}, UnprovenAddresses: []string{"203.0.113.7"}, Here: []string{"192.168.1.20", "203.0.113.7"}},
 			"Point an A record at 203.0.113.7, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither.",
 		},
 		{
@@ -852,13 +852,28 @@ func TestDNSWordsSayWhatsKnownOfTheAddress(t *testing.T) {
 			"This server is behind carrier NAT (100.72.1.2), so a DNS record can't reach it, and neither can a forwarded port.",
 		},
 		{
+			"a private address told by an agent gone wrong",
+			&dockwellv1.DomainCheck{Domain: "a.example.com", State: noRecord, PublicAddresses: []string{"10.0.0.9"}, Here: []string{"10.0.0.25"}},
+			"Point an A record at this server's public address. Dockwell only sees 10.0.0.25 here, which is private",
+		},
+		{
+			"elsewhere, with a private address told by an agent gone wrong",
+			&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, Found: []string{"198.51.100.1"}, PublicAddresses: []string{"10.0.0.9"}, Here: []string{"10.0.0.25"}},
+			"points at 198.51.100.1, not this server, so its certificate can't come yet.",
+		},
+		{
+			"each family by what's known of it",
+			&dockwellv1.DomainCheck{Domain: "a.example.com", State: noRecord, PublicAddresses: []string{"203.0.113.7"}, UnprovenAddresses: []string{"203.0.113.7"}, Here: []string{"10.0.0.5", "2001:db8::5", "203.0.113.7"}},
+			"Point an AAAA record at this server, 2001:db8::5. Point an A record at 203.0.113.7, which is how this server reaches the internet.",
+		},
+		{
 			"another address, with only a way out known",
-			&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL, Found: []string{"198.51.100.1"}, PublicAddress: "203.0.113.7", PublicUnproven: true, Here: []string{"192.168.1.20", "203.0.113.7"}},
+			&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL, Found: []string{"198.51.100.1"}, PublicAddresses: []string{"203.0.113.7"}, UnprovenAddresses: []string{"203.0.113.7"}, Here: []string{"192.168.1.20", "203.0.113.7"}},
 			"This server goes out from 203.0.113.7, which may not be its way in, so the agent can't tell",
 		},
 		{
 			"elsewhere, with only a way out known, names no address as this server",
-			&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, Found: []string{"10.9.9.9"}, PublicAddress: "203.0.113.7", PublicUnproven: true, Here: []string{"192.168.1.20", "203.0.113.7"}},
+			&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, Found: []string{"10.9.9.9"}, PublicAddresses: []string{"203.0.113.7"}, UnprovenAddresses: []string{"203.0.113.7"}, Here: []string{"192.168.1.20", "203.0.113.7"}},
 			"not this server, so its certificate can't come yet. Point an A record at 203.0.113.7, which is how",
 		},
 	} {

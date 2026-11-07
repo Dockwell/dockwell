@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -135,6 +136,8 @@ func fakeCollector() *collect.Collector {
 		Statfs:    func(string) (uint64, uint64, error) { return 0, 0, nil },
 		Hostname:  func() (string, error) { return "hz-1", nil },
 		Addresses: func() ([]net.Addr, error) { return nil, nil },
+		Metadata:  collect.ClosedMetadata,
+		STUN:      []string{},
 	}
 }
 
@@ -579,6 +582,10 @@ func TestAPublicAddressGoesRoundThroughARealStream(t *testing.T) {
 	defer metadata.Close()
 	collector := fakeCollector()
 	collector.Metadata = metadata.URL
+	// Metadata counts only where the machine's own firmware names that provider.
+	if root, ok := collector.Root.(fstest.MapFS); ok {
+		root["sys/class/dmi/id/chassis_asset_tag"] = &fstest.MapFile{Data: []byte("OracleCloud.com\n")}
+	}
 	collector.Addresses = func() ([]net.Addr, error) {
 		return []net.Addr{&net.IPNet{IP: net.ParseIP("10.0.0.25"), Mask: net.CIDRMask(24, 32)}}, nil
 	}
@@ -598,15 +605,15 @@ func TestAPublicAddressGoesRoundThroughARealStream(t *testing.T) {
 		return srv.GetNetwork().GetProvider() == dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE &&
 			srv.GetNetwork().GetShape() == dockwellv1.NetworkShape_NETWORK_SHAPE_CLOUD_NAT
 	})
-	if srv, _ := s.hub.Get(id.ServerID); srv.GetNetwork().GetPublicAddress() != "" {
+	if srv, _ := s.hub.Get(id.ServerID); srv.GetNetwork().GetIpv4() != nil {
 		t.Errorf("loopback or Oracle's metadata gave it an address: %v", srv.GetNetwork())
 	}
 
-	if _, err := s.hub.SetPublicAddress(t.Context(), id.ServerID, "203.0.113.50", fleet.Setting{Actor: "user:usr_1", Surface: "panel"}); err != nil {
+	if _, err := s.hub.SetPublicAddress(t.Context(), id.ServerID, "203.0.113.50", false, fleet.Setting{Actor: "user:usr_1", Surface: "panel"}); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(5 * time.Second)
-	for heard.last().GetAddress() != "203.0.113.50" || !heard.last().GetWayIn() {
+	for !proto.Equal(heard.last(), &agentv1.PublicAddress{Addresses: []*agentv1.KnownAddress{{Address: "203.0.113.50", WayIn: true}}}) {
 		if time.Now().After(deadline) {
 			t.Fatalf("the agent heard %v", heard.last())
 		}

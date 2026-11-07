@@ -4,6 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import {
   CloudProvider,
   NetworkShape,
+  type PublicAddress,
   PublicAddressSource,
   Reachable,
   type Server,
@@ -28,21 +29,17 @@ export function providerName(provider: CloudProvider | undefined): string | unde
   return provider === undefined ? undefined : PROVIDERS[provider];
 }
 
-/** Whether all that's known of an address is how the server goes out, as a way in takes something outside connecting. */
-function onlyAWayOut(network: ServerNetwork): boolean {
-  return (
-    network.source === PublicAddressSource.LOOKED_UP || network.source === PublicAddressSource.SEEN_BY_CONTROL_PLANE
-  );
+/** What's known of a server's public addresses, IPv4 first, as each family has its own. */
+export function publicAddressesOf(network: ServerNetwork | undefined): PublicAddress[] {
+  return [network?.ipv4, network?.ipv6].filter((address) => address !== undefined);
 }
 
 /**
- * The public address to show as the server's, or nothing. A way out on a cloud is its
- * 1:1 NAT, and anywhere else it may be a router's, which is no address of the server's.
+ * The public address to show as the server's, or nothing. Only a way in is one: a way
+ * out may be a router's or a NAT gateway's, which is no address of the server's.
  */
 export function publicAddressOf(server: Server): string | undefined {
-  const network = server.network;
-  if (!network?.publicAddress) return undefined;
-  return onlyAWayOut(network) && network.shape !== NetworkShape.CLOUD_NAT ? undefined : network.publicAddress;
+  return publicAddressesOf(server.network).find((address) => !address.unproven)?.address;
 }
 
 /** What to say of a server's network: which shape it has, how its address is known, and what's proved of the way in. */
@@ -66,46 +63,50 @@ export function useNetworkWords() {
           return undefined;
       }
     },
-    /** How its public address is known, and since when. */
-    how(network: ServerNetwork, now: number): string {
-      const when = network.knownTime ? time.ago(timestampDate(network.knownTime), now) : "";
-      const by = network.setBy?.name ?? "";
-      const domain = network.domain;
-      const provider = providerName(network.provider) ?? t`The cloud provider`;
-      switch (network.source) {
+    /** How one of its public addresses is known, and since when. */
+    how(address: PublicAddress, network: ServerNetwork, now: number): string {
+      const when = address.knownTime ? time.ago(timestampDate(address.knownTime), now) : "";
+      const by = address.setBy?.name ?? "";
+      const domain = address.domain;
+      const provider = providerName(network.provider);
+      switch (address.source) {
         case PublicAddressSource.SET_BY_PERSON:
           return by ? t`Set by ${by}, ${when}` : t`Set by a person, ${when}`;
         case PublicAddressSource.ON_INTERFACE:
           return t`On one of this server's interfaces`;
         case PublicAddressSource.PROVED_BY_DOMAIN:
-          return t`Proved by the certificate for ${domain}`;
+          return t`Proved by the certificate for ${domain}, as of ${when}`;
         case PublicAddressSource.CLOUD_METADATA:
-          return t`${provider}'s metadata says so, ${when}`;
+          if (address.unproven) {
+            return t`A metadata service says so, ${when}, and this machine doesn't name that cloud, so it may not be a way in`;
+          }
+          return provider ? t`${provider}'s metadata says so, ${when}` : t`The cloud's metadata says so, ${when}`;
         case PublicAddressSource.SEEN_BY_CONTROL_PLANE:
-          return network.shape === NetworkShape.CLOUD_NAT
-            ? t`Seen as its agent connected, ${when}. That's its way out, and on a cloud usually its way in`
-            : t`Seen as its agent connected, ${when}. That's its way out, and may not be a way in`;
+          return t`Seen as its agent connected, ${when}. That's its way out, and may not be a way in`;
         case PublicAddressSource.LOOKED_UP:
-          return network.shape === NetworkShape.CLOUD_NAT
-            ? t`Looked up, ${when}. That's its way out, and on a cloud usually its way in`
-            : network.shape === NetworkShape.LOCAL_NAT
-              ? t`Looked up, ${when}. That's likely your router's address, a way out and not a way in`
-              : t`Looked up, ${when}. That's its way out, and may not be a way in`;
+          return network.shape === NetworkShape.LOCAL_NAT
+            ? t`Looked up, ${when}. That's likely your router's address, a way out and not a way in`
+            : t`Looked up, ${when}. That's its way out, and may not be a way in`;
         default:
           return "";
       }
     },
     /** What's proved of the internet reaching it, in a state's shape and word, and the proof. */
-    reachable(network: ServerNetwork | undefined): { status: Status; word: string; proof: string } {
+    reachable(network: ServerNetwork | undefined, now: number): { status: Status; word: string; proof: string } {
       const domain = network?.reachableDomain ?? "";
+      const when = network?.reachableTime ? time.ago(timestampDate(network.reachableTime), now) : "";
       switch (network?.reachable) {
         case Reachable.YES:
-          return { status: "healthy", word: t`Yes`, proof: t`A certificate came for ${domain} on port 80 or 443` };
+          return {
+            status: "healthy",
+            word: t`Yes`,
+            proof: t`A certificate came for ${domain} on port 80 or 443, as of ${when}`,
+          };
         case Reachable.NO:
           return {
             status: "down",
             word: t`No`,
-            proof: t`The certificate authority couldn't connect for ${domain} on port 80 or 443`,
+            proof: t`The certificate authority couldn't connect for ${domain} on port 80 or 443, as of ${when}`,
           };
         default:
           return {

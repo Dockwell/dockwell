@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/server.proto.
  */
 export const file_dockwell_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9zZXJ2ZXIucHJvdG8SC2RvY2t3ZWxsLnYxIhQKEkxpc3RTZXJ2ZXJzUmVxdWVzdCI7ChNMaXN0U2VydmVyc1Jlc3BvbnNlEiQKB3NlcnZlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiHgoQR2V0U2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRTZXJ2ZXJSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiPAodU2V0U2VydmVyUHVibGljQWRkcmVzc1JlcXVlc3QSCgoCaWQYASABKAkSDwoHYWRkcmVzcxgCIAEoCSJFCh5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyIhUKE1dhdGNoU2VydmVyc1JlcXVlc3QiegoUV2F0Y2hTZXJ2ZXJzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyEg8KB3JlbW92ZWQYAiABKAgSGQoRc25hcHNob3RfY29tcGxldGUYAyABKAgSEQoJaGVhcnRiZWF0GAQgASgIIscECgZTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgtjcmVhdGVfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoKY29ubmVjdGlvbhgEIAEoDjIXLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb24SMgoObGFzdF9zZWVuX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KCWludmVudG9yeRgGIAEoCzIcLmRvY2t3ZWxsLnYxLlNlcnZlckludmVudG9yeRInCgVzdGF0cxgHIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzEikKB2hpc3RvcnkYCCADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2ZXJTdGF0cxIrCgthZ2VudF9idWlsZBgJIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIWCg5jb250cm9sX3NlcnZlchgKIAEoCBIwCgxjb25uZWN0X3RpbWUYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB2luZ3Jlc3MYDCABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzEjsKF2RvY2tlcl91bnJlYWRhYmxlX3NpbmNlGA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgduZXR3b3JrGA4gASgLMhouZG9ja3dlbGwudjEuU2VydmVyTmV0d29yayLaAgoNU2VydmVyTmV0d29yaxIWCg5wdWJsaWNfYWRkcmVzcxgBIAEoCRIwCgZzb3VyY2UYAiABKA4yIC5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzU291cmNlEi4KCmtub3duX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRvbWFpbhgEIAEoCRIiCgZzZXRfYnkYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIpCglyZWFjaGFibGUYBiABKA4yFi5kb2Nrd2VsbC52MS5SZWFjaGFibGUSGAoQcmVhY2hhYmxlX2RvbWFpbhgHIAEoCRIsCghwcm92aWRlchgIIAEoDjIaLmRvY2t3ZWxsLnYxLkNsb3VkUHJvdmlkZXISKAoFc2hhcGUYCSABKA4yGS5kb2Nrd2VsbC52MS5OZXR3b3JrU2hhcGUiuwIKD1NlcnZlckludmVudG9yeRIQCghob3N0bmFtZRgBIAEoCRIPCgdvc19uYW1lGAIgASgJEg0KBW9zX2lkGAMgASgJEhIKCm9zX3ZlcnNpb24YBCABKAkSDgoGa2VybmVsGAUgASgJEhQKDGFyY2hpdGVjdHVyZRgGIAEoCRIRCgljcHVfbW9kZWwYByABKAkSEQoJY3B1X2NvdW50GAggASgNEhQKDG1lbW9yeV9ieXRlcxgJIAEoBBIgCgVkaXNrcxgKIAMoCzIRLmRvY2t3ZWxsLnYxLkRpc2sSFgoOZG9ja2VyX3ZlcnNpb24YCyABKAkSEQoJYWRkcmVzc2VzGAwgAygJEhkKEWRvY2tlcl9sb2dfZHJpdmVyGA0gASgJEhgKEG91dGJvdW5kX2FkZHJlc3MYDiABKAkiUwoERGlzaxITCgttb3VudF9wb2ludBgBIAEoCRIOCgZkZXZpY2UYAiABKAkSEgoKZmlsZXN5c3RlbRgDIAEoCRISCgpzaXplX2J5dGVzGAQgASgEIs0CCgtTZXJ2ZXJTdGF0cxIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtjcHVfcGVyY2VudBgCIAEoARIZChFtZW1vcnlfdXNlZF9ieXRlcxgDIAEoBBIaChJtZW1vcnlfdG90YWxfYnl0ZXMYBCABKAQSJQoFZGlza3MYBSADKAsyFi5kb2Nrd2VsbC52MS5EaXNrVXNhZ2USDQoFbG9hZDEYBiABKAESDQoFbG9hZDUYByABKAESDgoGbG9hZDE1GAggASgBEiMKG25ldHdvcmtfcnhfYnl0ZXNfcGVyX3NlY29uZBgJIAEoBBIjChtuZXR3b3JrX3R4X2J5dGVzX3Blcl9zZWNvbmQYCiABKAQSKQoGdXB0aW1lGAsgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uIkgKCURpc2tVc2FnZRITCgttb3VudF9wb2ludBgBIAEoCRISCgp1c2VkX2J5dGVzGAIgASgEEhIKCnNpemVfYnl0ZXMYAyABKAQqdgoKQ29ubmVjdGlvbhIaChZDT05ORUNUSU9OX1VOU1BFQ0lGSUVEEAASGAoUQ09OTkVDVElPTl9DT05ORUNURUQQARIaChZDT05ORUNUSU9OX1VOUkVBQ0hBQkxFEAISFgoSQ09OTkVDVElPTl9QRU5ESU5HEAMqogEKDE5ldHdvcmtTaGFwZRIdChlORVRXT1JLX1NIQVBFX1VOU1BFQ0lGSUVEEAASGgoWTkVUV09SS19TSEFQRV9JTlRFUk5FVBABEhsKF05FVFdPUktfU0hBUEVfQ0xPVURfTkFUEAISGwoXTkVUV09SS19TSEFQRV9MT0NBTF9OQVQQAxIdChlORVRXT1JLX1NIQVBFX0NBUlJJRVJfTkFUEAQquQIKE1B1YmxpY0FkZHJlc3NTb3VyY2USJQohUFVCTElDX0FERFJFU1NfU09VUkNFX1VOU1BFQ0lGSUVEEAASJwojUFVCTElDX0FERFJFU1NfU09VUkNFX1NFVF9CWV9QRVJTT04QARImCiJQVUJMSUNfQUREUkVTU19TT1VSQ0VfT05fSU5URVJGQUNFEAISKgomUFVCTElDX0FERFJFU1NfU09VUkNFX1BST1ZFRF9CWV9ET01BSU4QAxIvCitQVUJMSUNfQUREUkVTU19TT1VSQ0VfU0VFTl9CWV9DT05UUk9MX1BMQU5FEAQSKAokUFVCTElDX0FERFJFU1NfU09VUkNFX0NMT1VEX01FVEFEQVRBEAUSIwofUFVCTElDX0FERFJFU1NfU09VUkNFX0xPT0tFRF9VUBAGKmYKCVJlYWNoYWJsZRIZChVSRUFDSEFCTEVfVU5TUEVDSUZJRUQQABIZChVSRUFDSEFCTEVfTk9UX0NIRUNLRUQQARIRCg1SRUFDSEFCTEVfWUVTEAISEAoMUkVBQ0hBQkxFX05PEAMq0QEKDUNsb3VkUHJvdmlkZXISHgoaQ0xPVURfUFJPVklERVJfVU5TUEVDSUZJRUQQABIWChJDTE9VRF9QUk9WSURFUl9BV1MQARIWChJDTE9VRF9QUk9WSURFUl9HQ1AQAhIYChRDTE9VRF9QUk9WSURFUl9BWlVSRRADEh8KG0NMT1VEX1BST1ZJREVSX0RJR0lUQUxPQ0VBThAEEhoKFkNMT1VEX1BST1ZJREVSX0hFVFpORVIQBRIZChVDTE9VRF9QUk9WSURFUl9PUkFDTEUQBjKFBAoNU2VydmVyU2VydmljZRJsCgtMaXN0U2VydmVycxIfLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2ZXJzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2ZXJzUmVzcG9uc2UiGpACAaC7GAGC0+STAg0SCy92MS9zZXJ2ZXJzEmsKCUdldFNlcnZlchIdLmRvY2t3ZWxsLnYxLkdldFNlcnZlclJlcXVlc3QaHi5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJSZXNwb25zZSIfkAIBoLsYAYLT5JMCEhIQL3YxL3NlcnZlcnMve2lkfRJbCgxXYXRjaFNlcnZlcnMSIC5kb2Nrd2VsbC52MS5XYXRjaFNlcnZlcnNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuV2F0Y2hTZXJ2ZXJzUmVzcG9uc2UiBKC7GAEwARK7AQoWU2V0U2VydmVyUHVibGljQWRkcmVzcxIqLmRvY2t3ZWxsLnYxLlNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXF1ZXN0GisuZG9ja3dlbGwudjEuU2V0U2VydmVyUHVibGljQWRkcmVzc1Jlc3BvbnNlIkiguxgDqrsYFBISc2V0LXB1YmxpYy1hZGRyZXNzgtPkkwImOgEqIiEvdjEvc2VydmVycy97aWR9OnNldFB1YmxpY0FkZHJlc3NCpAEKD2NvbS5kb2Nrd2VsbC52MUILU2VydmVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9zZXJ2ZXIucHJvdG8SC2RvY2t3ZWxsLnYxIhQKEkxpc3RTZXJ2ZXJzUmVxdWVzdCI7ChNMaXN0U2VydmVyc1Jlc3BvbnNlEiQKB3NlcnZlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiHgoQR2V0U2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRTZXJ2ZXJSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiSgodU2V0U2VydmVyUHVibGljQWRkcmVzc1JlcXVlc3QSCgoCaWQYASABKAkSDwoHYWRkcmVzcxgCIAEoCRIMCgRpcHY2GAMgASgIIkUKHlNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiFQoTV2F0Y2hTZXJ2ZXJzUmVxdWVzdCJ6ChRXYXRjaFNlcnZlcnNSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXISDwoHcmVtb3ZlZBgCIAEoCBIZChFzbmFwc2hvdF9jb21wbGV0ZRgDIAEoCBIRCgloZWFydGJlYXQYBCABKAgixwQKBlNlcnZlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEi8KC2NyZWF0ZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgpjb25uZWN0aW9uGAQgASgOMhcuZG9ja3dlbGwudjEuQ29ubmVjdGlvbhIyCg5sYXN0X3NlZW5fdGltZRgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoJaW52ZW50b3J5GAYgASgLMhwuZG9ja3dlbGwudjEuU2VydmVySW52ZW50b3J5EicKBXN0YXRzGAcgASgLMhguZG9ja3dlbGwudjEuU2VydmVyU3RhdHMSKQoHaGlzdG9yeRgIIAMoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzEisKC2FnZW50X2J1aWxkGAkgASgLMhYuZG9ja3dlbGwudjEuQnVpbGRJbmZvEhYKDmNvbnRyb2xfc2VydmVyGAogASgIEjAKDGNvbm5lY3RfdGltZRgLIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoHaW5ncmVzcxgMIAEoCzIaLmRvY2t3ZWxsLnYxLkluZ3Jlc3NTdGF0dXMSOwoXZG9ja2VyX3VucmVhZGFibGVfc2luY2UYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB25ldHdvcmsYDiABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJOZXR3b3JrIrQCCg1TZXJ2ZXJOZXR3b3JrEigKBGlwdjQYASABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEigKBGlwdjYYAiABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEikKCXJlYWNoYWJsZRgDIAEoDjIWLmRvY2t3ZWxsLnYxLlJlYWNoYWJsZRIYChByZWFjaGFibGVfZG9tYWluGAQgASgJEjIKDnJlYWNoYWJsZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghwcm92aWRlchgGIAEoDjIaLmRvY2t3ZWxsLnYxLkNsb3VkUHJvdmlkZXISKAoFc2hhcGUYByABKA4yGS5kb2Nrd2VsbC52MS5OZXR3b3JrU2hhcGUiyAEKDVB1YmxpY0FkZHJlc3MSDwoHYWRkcmVzcxgBIAEoCRIwCgZzb3VyY2UYAiABKA4yIC5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzU291cmNlEi4KCmtub3duX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRvbWFpbhgEIAEoCRIiCgZzZXRfYnkYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIQCgh1bnByb3ZlbhgGIAEoCCK7AgoPU2VydmVySW52ZW50b3J5EhAKCGhvc3RuYW1lGAEgASgJEg8KB29zX25hbWUYAiABKAkSDQoFb3NfaWQYAyABKAkSEgoKb3NfdmVyc2lvbhgEIAEoCRIOCgZrZXJuZWwYBSABKAkSFAoMYXJjaGl0ZWN0dXJlGAYgASgJEhEKCWNwdV9tb2RlbBgHIAEoCRIRCgljcHVfY291bnQYCCABKA0SFAoMbWVtb3J5X2J5dGVzGAkgASgEEiAKBWRpc2tzGAogAygLMhEuZG9ja3dlbGwudjEuRGlzaxIWCg5kb2NrZXJfdmVyc2lvbhgLIAEoCRIRCglhZGRyZXNzZXMYDCADKAkSGQoRZG9ja2VyX2xvZ19kcml2ZXIYDSABKAkSGAoQb3V0Ym91bmRfYWRkcmVzcxgOIAEoCSJTCgREaXNrEhMKC21vdW50X3BvaW50GAEgASgJEg4KBmRldmljZRgCIAEoCRISCgpmaWxlc3lzdGVtGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAQizQIKC1NlcnZlclN0YXRzEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2NwdV9wZXJjZW50GAIgASgBEhkKEW1lbW9yeV91c2VkX2J5dGVzGAMgASgEEhoKEm1lbW9yeV90b3RhbF9ieXRlcxgEIAEoBBIlCgVkaXNrcxgFIAMoCzIWLmRvY2t3ZWxsLnYxLkRpc2tVc2FnZRINCgVsb2FkMRgGIAEoARINCgVsb2FkNRgHIAEoARIOCgZsb2FkMTUYCCABKAESIwobbmV0d29ya19yeF9ieXRlc19wZXJfc2Vjb25kGAkgASgEEiMKG25ldHdvcmtfdHhfYnl0ZXNfcGVyX3NlY29uZBgKIAEoBBIpCgZ1cHRpbWUYCyABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iSAoJRGlza1VzYWdlEhMKC21vdW50X3BvaW50GAEgASgJEhIKCnVzZWRfYnl0ZXMYAiABKAQSEgoKc2l6ZV9ieXRlcxgDIAEoBCp2CgpDb25uZWN0aW9uEhoKFkNPTk5FQ1RJT05fVU5TUEVDSUZJRUQQABIYChRDT05ORUNUSU9OX0NPTk5FQ1RFRBABEhoKFkNPTk5FQ1RJT05fVU5SRUFDSEFCTEUQAhIWChJDT05ORUNUSU9OX1BFTkRJTkcQAyqiAQoMTmV0d29ya1NoYXBlEh0KGU5FVFdPUktfU0hBUEVfVU5TUEVDSUZJRUQQABIaChZORVRXT1JLX1NIQVBFX0lOVEVSTkVUEAESGwoXTkVUV09SS19TSEFQRV9DTE9VRF9OQVQQAhIbChdORVRXT1JLX1NIQVBFX0xPQ0FMX05BVBADEh0KGU5FVFdPUktfU0hBUEVfQ0FSUklFUl9OQVQQBCq5AgoTUHVibGljQWRkcmVzc1NvdXJjZRIlCiFQVUJMSUNfQUREUkVTU19TT1VSQ0VfVU5TUEVDSUZJRUQQABInCiNQVUJMSUNfQUREUkVTU19TT1VSQ0VfU0VUX0JZX1BFUlNPThABEiYKIlBVQkxJQ19BRERSRVNTX1NPVVJDRV9PTl9JTlRFUkZBQ0UQAhIqCiZQVUJMSUNfQUREUkVTU19TT1VSQ0VfUFJPVkVEX0JZX0RPTUFJThADEi8KK1BVQkxJQ19BRERSRVNTX1NPVVJDRV9TRUVOX0JZX0NPTlRST0xfUExBTkUQBBIoCiRQVUJMSUNfQUREUkVTU19TT1VSQ0VfQ0xPVURfTUVUQURBVEEQBRIjCh9QVUJMSUNfQUREUkVTU19TT1VSQ0VfTE9PS0VEX1VQEAYqZgoJUmVhY2hhYmxlEhkKFVJFQUNIQUJMRV9VTlNQRUNJRklFRBAAEhkKFVJFQUNIQUJMRV9OT1RfQ0hFQ0tFRBABEhEKDVJFQUNIQUJMRV9ZRVMQAhIQCgxSRUFDSEFCTEVfTk8QAyrRAQoNQ2xvdWRQcm92aWRlchIeChpDTE9VRF9QUk9WSURFUl9VTlNQRUNJRklFRBAAEhYKEkNMT1VEX1BST1ZJREVSX0FXUxABEhYKEkNMT1VEX1BST1ZJREVSX0dDUBACEhgKFENMT1VEX1BST1ZJREVSX0FaVVJFEAMSHwobQ0xPVURfUFJPVklERVJfRElHSVRBTE9DRUFOEAQSGgoWQ0xPVURfUFJPVklERVJfSEVUWk5FUhAFEhkKFUNMT1VEX1BST1ZJREVSX09SQUNMRRAGMoUECg1TZXJ2ZXJTZXJ2aWNlEmwKC0xpc3RTZXJ2ZXJzEh8uZG9ja3dlbGwudjEuTGlzdFNlcnZlcnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdFNlcnZlcnNSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL3NlcnZlcnMSawoJR2V0U2VydmVyEh0uZG9ja3dlbGwudjEuR2V0U2VydmVyUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkdldFNlcnZlclJlc3BvbnNlIh+QAgGguxgBgtPkkwISEhAvdjEvc2VydmVycy97aWR9ElsKDFdhdGNoU2VydmVycxIgLmRvY2t3ZWxsLnYxLldhdGNoU2VydmVyc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5XYXRjaFNlcnZlcnNSZXNwb25zZSIEoLsYATABErsBChZTZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzEiouZG9ja3dlbGwudjEuU2V0U2VydmVyUHVibGljQWRkcmVzc1JlcXVlc3QaKy5kb2Nrd2VsbC52MS5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVzcG9uc2UiSKC7GAOquxgUEhJzZXQtcHVibGljLWFkZHJlc3OC0+STAiY6ASoiIS92MS9zZXJ2ZXJzL3tpZH06c2V0UHVibGljQWRkcmVzc0KkAQoPY29tLmRvY2t3ZWxsLnYxQgtTZXJ2ZXJQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * ListServersRequest takes no parameters yet.
@@ -121,6 +121,14 @@ export type SetServerPublicAddressRequest = Message<"dockwell.v1.SetServerPublic
    * @generated from field: string address = 2;
    */
   address: string;
+
+  /**
+   * With an empty address, clears the IPv6 address a person set, not the IPv4
+   * one. A person's addresses are kept apart, as DNS records are.
+   *
+   * @generated from field: bool ipv6 = 3;
+   */
+  ipv6: boolean;
 };
 
 /**
@@ -340,18 +348,83 @@ export const ServerSchema: GenMessage<Server> = /*@__PURE__*/
 /**
  * ServerNetwork is what's known of a server beyond its own interfaces. Its
  * public address and whether the internet can reach it are separate facts: an
- * address can be known and nothing proved of it. See
+ * address can be known and nothing proved of it. IPv4 and IPv6 are picked apart,
+ * as a server's A and AAAA records go to different places. See
  * docs/adr/0034-a-servers-public-address.md.
  *
  * @generated from message dockwell.v1.ServerNetwork
  */
 export type ServerNetwork = Message<"dockwell.v1.ServerNetwork"> & {
   /**
-   * The address the internet knows the server by. Empty when nothing says.
+   * Its public IPv4 address. Unset when nothing says.
    *
-   * @generated from field: string public_address = 1;
+   * @generated from field: dockwell.v1.PublicAddress ipv4 = 1;
    */
-  publicAddress: string;
+  ipv4?: PublicAddress | undefined;
+
+  /**
+   * Its public IPv6 address. Unset when nothing says.
+   *
+   * @generated from field: dockwell.v1.PublicAddress ipv6 = 2;
+   */
+  ipv6?: PublicAddress | undefined;
+
+  /**
+   * Whether the internet can reach the server at either.
+   *
+   * @generated from field: dockwell.v1.Reachable reachable = 3;
+   */
+  reachable: Reachable;
+
+  /**
+   * The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
+   *
+   * @generated from field: string reachable_domain = 4;
+   */
+  reachableDomain: string;
+
+  /**
+   * When that domain's DNS was last read, so what's shown is as of then.
+   *
+   * @generated from field: google.protobuf.Timestamp reachable_time = 5;
+   */
+  reachableTime?: Timestamp | undefined;
+
+  /**
+   * The cloud provider the machine itself says it runs on, from its firmware's
+   * tables. A metadata service answering doesn't say so on its own.
+   *
+   * @generated from field: dockwell.v1.CloudProvider provider = 6;
+   */
+  provider: CloudProvider;
+
+  /**
+   * Which of the shapes a server comes in this one has, as far as can be told.
+   *
+   * @generated from field: dockwell.v1.NetworkShape shape = 7;
+   */
+  shape: NetworkShape;
+};
+
+/**
+ * Describes the message dockwell.v1.ServerNetwork.
+ * Use `create(ServerNetworkSchema)` to create a new message.
+ */
+export const ServerNetworkSchema: GenMessage<ServerNetwork> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 9);
+
+/**
+ * PublicAddress is what's known of one public address of a server.
+ *
+ * @generated from message dockwell.v1.PublicAddress
+ */
+export type PublicAddress = Message<"dockwell.v1.PublicAddress"> & {
+  /**
+   * The address the internet knows the server by.
+   *
+   * @generated from field: string address = 1;
+   */
+  address: string;
 
   /**
    * How that's known.
@@ -361,8 +434,8 @@ export type ServerNetwork = Message<"dockwell.v1.ServerNetwork"> & {
   source: PublicAddressSource;
 
   /**
-   * When Dockwell came to know it that way. For anything but what a person
-   * set, that's since the control plane last started.
+   * When Dockwell came to know it that way. For a domain's, that's when its DNS
+   * was last read.
    *
    * @generated from field: google.protobuf.Timestamp known_time = 3;
    */
@@ -384,40 +457,20 @@ export type ServerNetwork = Message<"dockwell.v1.ServerNetwork"> & {
   setBy?: Actor | undefined;
 
   /**
-   * Whether the internet can reach the server there.
+   * True when nothing shows the address is a way in, so it's named only with a
+   * caveat: a way out, or a metadata service the machine doesn't confirm.
    *
-   * @generated from field: dockwell.v1.Reachable reachable = 6;
+   * @generated from field: bool unproven = 6;
    */
-  reachable: Reachable;
-
-  /**
-   * The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
-   *
-   * @generated from field: string reachable_domain = 7;
-   */
-  reachableDomain: string;
-
-  /**
-   * The cloud provider it runs on, when its metadata service says so.
-   *
-   * @generated from field: dockwell.v1.CloudProvider provider = 8;
-   */
-  provider: CloudProvider;
-
-  /**
-   * Which of the shapes a server comes in this one has, as far as can be told.
-   *
-   * @generated from field: dockwell.v1.NetworkShape shape = 9;
-   */
-  shape: NetworkShape;
+  unproven: boolean;
 };
 
 /**
- * Describes the message dockwell.v1.ServerNetwork.
- * Use `create(ServerNetworkSchema)` to create a new message.
+ * Describes the message dockwell.v1.PublicAddress.
+ * Use `create(PublicAddressSchema)` to create a new message.
  */
-export const ServerNetworkSchema: GenMessage<ServerNetwork> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 9);
+export const PublicAddressSchema: GenMessage<PublicAddress> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 10);
 
 /**
  * ServerInventory is what a server is: its system and hardware.
@@ -532,7 +585,7 @@ export type ServerInventory = Message<"dockwell.v1.ServerInventory"> & {
  * Use `create(ServerInventorySchema)` to create a new message.
  */
 export const ServerInventorySchema: GenMessage<ServerInventory> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 10);
+  messageDesc(file_dockwell_v1_server, 11);
 
 /**
  * Disk is one mounted filesystem.
@@ -574,7 +627,7 @@ export type Disk = Message<"dockwell.v1.Disk"> & {
  * Use `create(DiskSchema)` to create a new message.
  */
 export const DiskSchema: GenMessage<Disk> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 11);
+  messageDesc(file_dockwell_v1_server, 12);
 
 /**
  * ServerStats is one sample of a server's resource use.
@@ -665,7 +718,7 @@ export type ServerStats = Message<"dockwell.v1.ServerStats"> & {
  * Use `create(ServerStatsSchema)` to create a new message.
  */
 export const ServerStatsSchema: GenMessage<ServerStats> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 12);
+  messageDesc(file_dockwell_v1_server, 13);
 
 /**
  * DiskUsage is one filesystem's use.
@@ -700,7 +753,7 @@ export type DiskUsage = Message<"dockwell.v1.DiskUsage"> & {
  * Use `create(DiskUsageSchema)` to create a new message.
  */
 export const DiskUsageSchema: GenMessage<DiskUsage> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 13);
+  messageDesc(file_dockwell_v1_server, 14);
 
 /**
  * Connection says whether a server's agent is talking to the control plane.
@@ -758,23 +811,24 @@ export enum NetworkShape {
   UNSPECIFIED = 0,
 
   /**
-   * A public address is on an interface.
+   * A public IPv4 address is on an interface.
    *
    * @generated from enum value: NETWORK_SHAPE_INTERNET = 1;
    */
   INTERNET = 1,
 
   /**
-   * Private interfaces, and a cloud provider's metadata service answers: its
-   * public address is the provider's 1:1 NAT.
+   * Private IPv4 interfaces on a machine that says it runs on a cloud: its
+   * public address is the provider's NAT.
    *
    * @generated from enum value: NETWORK_SHAPE_CLOUD_NAT = 2;
    */
   CLOUD_NAT = 2,
 
   /**
-   * Private interfaces, and no metadata service: likely a home or office
-   * network, behind a router. Reaching it needs a forwarded port or a tunnel.
+   * Private IPv4 interfaces, on a machine that names no cloud: likely a home or
+   * office network, behind a router. Reaching it needs a forwarded port or a
+   * tunnel.
    *
    * @generated from enum value: NETWORK_SHAPE_LOCAL_NAT = 3;
    */
@@ -796,8 +850,9 @@ export const NetworkShapeSchema: GenEnum<NetworkShape> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_server, 1);
 
 /**
- * PublicAddressSource is how Dockwell knows a server's public address. A
- * source higher on this list wins over one lower on it.
+ * PublicAddressSource is how Dockwell knows a server's public address. In the
+ * order they win: a person, an interface, a domain, metadata the machine
+ * confirms, what the control plane sees, metadata it doesn't, and a lookup.
  *
  * @generated from enum dockwell.v1.PublicAddressSource
  */
@@ -822,8 +877,8 @@ export enum PublicAddressSource {
   ON_INTERFACE = 2,
 
   /**
-   * A certificate came for a domain whose record points there, over HTTP-01
-   * or TLS-ALPN, so the server answers there.
+   * A certificate came for a domain whose one record points there, over
+   * HTTP-01 or TLS-ALPN, and a recent read of its DNS still says so.
    *
    * @generated from enum value: PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN = 3;
    */
@@ -838,7 +893,8 @@ export enum PublicAddressSource {
   SEEN_BY_CONTROL_PLANE = 4,
 
   /**
-   * The cloud provider's metadata service gave it.
+   * A cloud provider's metadata service gave it. It's a way in only if the
+   * machine itself says it runs on that provider.
    *
    * @generated from enum value: PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA = 5;
    */
@@ -996,9 +1052,10 @@ export const ServerService: GenService<{
   },
   /**
    * SetServerPublicAddress records a server's public address, as a person
-   * knows it, which no other way of knowing it overrides. An empty address
-   * goes back to what Dockwell finds out for itself. It's on record in the
-   * activity log. See docs/adr/0034-a-servers-public-address.md.
+   * knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
+   * address are kept apart. An empty address goes back to what Dockwell finds
+   * out for itself. It's on record in the activity log, with what it replaced.
+   * See docs/adr/0034-a-servers-public-address.md.
    *
    * @generated from rpc dockwell.v1.ServerService.SetServerPublicAddress
    */

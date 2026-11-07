@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { PublicAddressSource, type Server, ServerService } from "@dockwell/api";
+import { type PublicAddress, PublicAddressSource, type Server, ServerService } from "@dockwell/api";
 import { Button, Callout, Sheet, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useMemo, useRef, useState } from "react";
@@ -15,13 +15,22 @@ import { reasonOf, sentence } from "../../lib/errors";
  * every word about DNS uses it, and it goes in the activity log. It says nothing of
  * whether the internet can reach the server, which only something outside can show.
  */
-export function SetPublicAddressSheet({ server, onClose }: { server: Server; onClose: () => void }) {
+export function SetPublicAddressSheet({
+  server,
+  current,
+  onClose,
+}: {
+  server: Server;
+  /** The address it changes, or nothing for a first one. */
+  current?: PublicAddress;
+  onClose: () => void;
+}) {
   const { t } = useLingui();
   const transport = useTransport();
   const client = useMemo(() => createClient(ServerService, transport), [transport]);
   const field = useRef<HTMLInputElement>(null);
-  const set = server.network?.source === PublicAddressSource.SET_BY_PERSON;
-  const [address, setAddress] = useState(set ? (server.network?.publicAddress ?? "") : "");
+  const set = current?.source === PublicAddressSource.SET_BY_PERSON;
+  const [address, setAddress] = useState(set ? (current?.address ?? "") : "");
   const [error, setError] = useState<string>();
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -33,7 +42,9 @@ export function SetPublicAddressSheet({ server, onClose }: { server: Server; onC
     setError(undefined);
     setFailure(undefined);
     try {
-      await client.setServerPublicAddress({ id: server.id, address: wanted });
+      // With nothing to go by, clearing has to say which of the server's two it means.
+      const ipv6 = wanted === "" && Boolean(current?.address.includes(":"));
+      await client.setServerPublicAddress({ id: server.id, address: wanted, ipv6 });
       onClose();
     } catch (err) {
       if (reasonOf(err) === "invalid") {

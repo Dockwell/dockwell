@@ -2116,8 +2116,8 @@ describe("the plan sheet, once it runs", () => {
         step.domainCheck = create(DomainCheckSchema, {
           domain: "app.example.com",
           state: DomainCheckState.NO_RECORD,
-          publicAddress: "203.0.113.7",
-          publicUnproven: true,
+          publicAddresses: ["203.0.113.7"],
+          unprovenAddresses: ["203.0.113.7"],
           here: ["192.168.1.20", "203.0.113.7"],
         });
       }
@@ -2127,6 +2127,52 @@ describe("the plan sheet, once it runs", () => {
       expect(done).toHaveTextContent(
         "Point an A record at 203.0.113.7, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither",
       );
+    });
+
+    it.each([
+      {
+        name: "says AAAA for an IPv6 way out",
+        check: {
+          publicAddresses: ["2001:db8::7"],
+          unprovenAddresses: ["2001:db8::7"],
+          here: ["fd00::5", "2001:db8::7"],
+        },
+        says: "Point an AAAA record at 2001:db8::7, which is how this server reaches the internet.",
+      },
+      {
+        name: "tells a way in from a way out",
+        check: {
+          publicAddresses: ["203.0.113.7"],
+          unprovenAddresses: ["203.0.113.7"],
+          here: ["10.0.0.5", "2001:db8::5", "203.0.113.7"],
+        },
+        says: "Point an AAAA record at this server, 2001:db8::5. Point an A record at 203.0.113.7, which is how",
+      },
+      {
+        name: "names both when each has a way in",
+        check: { publicAddresses: ["203.0.113.50", "2001:db8::9"], here: ["10.0.0.25", "203.0.113.50", "2001:db8::9"] },
+        says: "Point an A or AAAA record at 203.0.113.50 or 2001:db8::9; it comes once you do",
+      },
+      {
+        name: "names no private address it was told",
+        check: { publicAddresses: ["10.0.0.9"], here: ["10.0.0.25"] },
+        says: "Dockwell only sees 10.0.0.25 here, which is private",
+      },
+    ])("$name", async ({ check, says }) => {
+      const change = applied(aServicePlan());
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) {
+        step.domainCheck = create(DomainCheckSchema, {
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          ...check,
+        });
+      }
+      arrivedWith([aDomain("app.example.com", CertificateState.PENDING, "Asking")], [], change);
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
+      await within(done).findByText("Asking");
+      expect(done).toHaveTextContent(says);
+      expect(done).not.toHaveTextContent("10.0.0.9");
     });
 
     it("keeps saying what DNS said while it hasn't served", async () => {

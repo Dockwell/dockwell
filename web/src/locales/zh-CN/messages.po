@@ -378,8 +378,8 @@ msgid "{domain} has no DNS record yet, so its certificate can't come until it ha
 msgstr "{domain} 还没有 DNS 记录，在添加之前无法获取证书。{point}"
 
 #: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
-msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {either} 的 A 或 AAAA 记录，添加后即可获取证书"
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an {record} record at {either}; it comes once you do"
+msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {either} 的 {record} 记录，添加后即可获取证书"
 
 #: src/features/logs/LogFoot.tsx
 msgid "{down} couldn't be searched, so its lines aren't in this."
@@ -1179,8 +1179,8 @@ msgid "A backup is of a volume. Add one to an app, or install a database from th
 msgstr "备份的对象是卷。请为应用添加卷，或从应用目录安装数据库。"
 
 #: src/features/servers/network.ts
-msgid "A certificate came for {domain} on port 80 or 443"
-msgstr "{domain} 的证书已通过 80 或 443 端口签发"
+msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
+msgstr "{domain} 的证书已通过 80 或 443 端口签发，截至{when}"
 
 #: src/features/catalog/InstalledPanel.tsx
 msgid "A change to how {version} runs is out."
@@ -1214,6 +1214,10 @@ msgstr "域名把访问者带到应用，所以请先运行一个应用。"
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
+
+#: src/features/servers/network.ts
+msgid "A metadata service says so, {when}, and this machine doesn't name that cloud, so it may not be a way in"
+msgstr "元数据服务给出此地址，{when}，但此机器未表明运行在该云上，因此不一定是入站地址"
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "A MyISAM table written to during the dump may not come out consistent."
@@ -2120,6 +2124,10 @@ msgstr "清除筛选"
 msgid "Clear the search"
 msgstr "清除搜索"
 
+#: src/features/activity/describe.ts
+msgid "Cleared the public address of {server}, which was {previous}"
+msgstr "清除了 {server} 的公网地址，原地址为 {previous}"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Clearing this away failed too"
 msgstr "清理此次变更也失败了"
@@ -2316,10 +2324,6 @@ msgstr "复制 {at}"
 #: src/features/servers/ServerPanels.tsx
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
-
-#: src/features/servers/ServerPanels.tsx
-msgid "Copy {known}"
-msgstr "复制 {known}"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Copy {name}"
@@ -2810,8 +2814,8 @@ msgid "DNS for {domain} points at {found}, not this server, so its certificate c
 msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器，因此暂时无法获取证书。{point}。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at {found}. This server goes out from {known}, which may not be its way in, so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
-msgstr "{domain} 的 DNS 指向 {found}。此服务器从 {known} 出站，这不一定是入站地址，因此 Agent 无法判断那是否就是此服务器。如果不是，在指向此服务器之前无法获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
+msgid "DNS for {domain} points at {found}. This server goes out from {goesOut}, which may not be its way in, so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}。此服务器从 {goesOut} 出站，这不一定是入站地址，因此 Agent 无法判断那是否就是此服务器。如果不是，在指向此服务器之前无法获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/changes/words.ts
 msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
@@ -4247,10 +4251,6 @@ msgid "Looked up, {when}. That's its way out, and may not be a way in"
 msgstr "查询所得，{when}。这是它的出站地址，不一定能从这里入站"
 
 #: src/features/servers/network.ts
-msgid "Looked up, {when}. That's its way out, and on a cloud usually its way in"
-msgstr "查询所得，{when}。这是它的出站地址，在云上通常也是入站地址"
-
-#: src/features/servers/network.ts
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "查询所得，{when}。这可能是你路由器的地址，只能出站，不能入站"
 
@@ -5286,12 +5286,16 @@ msgid "Platform"
 msgstr "平台"
 
 #: src/features/changes/words.ts
-msgid "Point an A or AAAA record at this server's public address"
-msgstr "请添加指向此服务器公网地址的 A 或 AAAA 记录"
+msgid "Point an {goesOutRecord} record at {goesOut}, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither"
+msgstr "请添加指向 {goesOut} 的 {goesOutRecord} 记录，这是此服务器访问互联网所用的地址。如果它在路由器之后，没有端口转发时该记录无法到达它，而隧道两者都不需要"
 
 #: src/features/changes/words.ts
-msgid "Point an A record at {either}, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither"
-msgstr "请添加指向 {either} 的 A 记录，这是此服务器访问互联网所用的地址。如果它在路由器之后，没有端口转发时该记录无法到达它，而隧道两者都不需要"
+msgid "Point an {record} record at this server, {either}"
+msgstr "请添加指向此服务器 {either} 的 {record} 记录"
+
+#: src/features/changes/words.ts
+msgid "Point an A or AAAA record at this server's public address"
+msgstr "请添加指向此服务器公网地址的 A 或 AAAA 记录"
 
 #: src/features/changes/words.ts
 msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which are private, so the internet can't reach it"
@@ -5436,8 +5440,8 @@ msgid "Protocol"
 msgstr "协议"
 
 #: src/features/servers/network.ts
-msgid "Proved by the certificate for {domain}"
-msgstr "由 {domain} 的证书证明"
+msgid "Proved by the certificate for {domain}, as of {when}"
+msgstr "由 {domain} 的证书证明，截至{when}"
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/SetPublicAddressSheet.tsx
@@ -6272,10 +6276,6 @@ msgstr "查看原因"
 msgid "Seen as its agent connected, {when}. That's its way out, and may not be a way in"
 msgstr "在其 Agent 连接时看到，{when}。这是它的出站地址，不一定能从这里入站"
 
-#: src/features/servers/network.ts
-msgid "Seen as its agent connected, {when}. That's its way out, and on a cloud usually its way in"
-msgstr "在其 Agent 连接时看到，{when}。这是它的出站地址，在云上通常也是入站地址"
-
 #: src/features/changes/fields.tsx
 msgid "SELinux label"
 msgstr "SELinux 标签"
@@ -6381,8 +6381,12 @@ msgid "Set the public address of {name}"
 msgstr "设置 {name} 的公网地址"
 
 #: src/features/activity/describe.ts
-msgid "Set the public address of {server}"
-msgstr "设置了 {server} 的公网地址"
+msgid "Set the public address of {server} to {address}"
+msgstr "将 {server} 的公网地址设置为 {address}"
+
+#: src/features/activity/describe.ts
+msgid "Set the public address of {server} to {address}, which was {previous}"
+msgstr "将 {server} 的公网地址设置为 {address}，原地址为 {previous}"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
@@ -6914,8 +6918,8 @@ msgid "The browser couldn't finish with the passkey. Try again, or use another d
 msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备。"
 
 #: src/features/servers/network.ts
-msgid "The certificate authority couldn't connect for {domain} on port 80 or 443"
-msgstr "证书颁发机构无法通过 80 或 443 端口连接 {domain}"
+msgid "The certificate authority couldn't connect for {domain} on port 80 or 443, as of {when}"
+msgstr "证书颁发机构无法通过 80 或 443 端口连接 {domain}，截至{when}"
 
 #: src/features/apps/DomainNote.tsx
 msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
@@ -6938,8 +6942,8 @@ msgid "the CLI on {local}"
 msgstr "{local} 上的命令行"
 
 #: src/features/servers/network.ts
-msgid "The cloud provider"
-msgstr "云服务商"
+msgid "The cloud's metadata says so, {when}"
+msgstr "云服务商的元数据服务给出此地址，{when}"
 
 #: src/features/changes/words.ts
 msgid "the container {path}, which Dockwell didn't make, and its environment, which comes in with it"

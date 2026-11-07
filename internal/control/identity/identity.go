@@ -410,6 +410,9 @@ func (a *Authority) Revoke(ctx context.Context, serverID, actor string) error {
 		if err := tx.RevokeServer(ctx, serverID, a.now()); err != nil {
 			return err
 		}
+		if err := tx.DeleteSetting(ctx, store.SettingPublicAddress(serverID)); err != nil {
+			return err
+		}
 		return a.audit(ctx, tx, actor, store.SurfaceOf(actor), "server.revoke", serverID, serverID, "")
 	})
 }

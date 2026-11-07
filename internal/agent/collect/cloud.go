@@ -8,8 +8,11 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"strings"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -80,30 +83,74 @@ var metadataServices = []metadataService{
 	},
 }
 
+// ClosedMetadata is somewhere nothing answers, for a test or a server that shouldn't
+// ask a metadata service at all.
+const ClosedMetadata = "http://127.0.0.1:1"
+
+// aTestBinary reports that this is go test's binary, which never reaches a real STUN
+// server or metadata service: what it found would depend on where the test ran, as
+// GitHub's runners are Azure VMs with a real one to answer.
+func aTestBinary() bool { return strings.HasSuffix(os.Args[0], ".test") }
+
 // Network finds out what this server can of how the internet sees it, beyond its
-// interfaces: what a cloud provider's metadata service says, and with lookup, what a
-// public STUN server sees. Each is bounded, and with nothing to answer, each says
-// nothing. A server with a public IPv4 address of its own has nothing to ask a third
-// party. Reading the metadata sends nothing off the server's own network.
+// interfaces: what the machine itself says it runs on, what a cloud provider's metadata
+// service says, and with lookup, what a public STUN server sees. Each is bounded, and
+// with nothing to answer, each says nothing. A server with a public IPv4 address of its
+// own has nothing to ask a third party. Reading the metadata sends nothing off the
+// server's own network.
 func (c *Collector) Network(ctx context.Context, lookup bool) *agentv1.Network {
-	looked := make(chan string, 1)
+	servers := c.STUN
+	if servers == nil {
+		servers = stunServers
+	}
+	if aTestBinary() && (c.Metadata == "" || (lookup && c.STUN == nil)) {
+		panic("a test reached for a real metadata service or STUN server: set Collector.Metadata and Collector.STUN")
+	}
+	type answer struct {
+		address string
+		at      time.Time
+	}
+	looked := make(chan answer, 1)
 	go func() {
 		if !lookup || c.hasPublicIPv4() {
-			looked <- ""
+			looked <- answer{}
 			return
 		}
-		servers := c.STUN
-		if servers == nil {
-			servers = stunServers
-		}
-		looked <- stunLookup(ctx, servers)
+		looked <- answer{stunLookup(ctx, servers), time.Now()}
 	}()
-	out := &agentv1.Network{}
+	out := &agentv1.Network{MachineProvider: c.machineProvider()}
 	if cloud := c.cloud(ctx); cloud != nil {
 		out.Provider, out.MetadataAddress = cloud.provider, cloud.address
 	}
-	out.LookedUpAddress = <-looked
+	if said := <-looked; said.address != "" {
+		out.LookedUpAddress, out.LookedUpTime = said.address, timestamppb.New(said.at)
+	}
 	return out
+}
+
+// machineProvider is the cloud this machine's own firmware tables say it runs on, the
+// way cloud-init tells. Anything on a local network can answer at the metadata address,
+// but it can't change these, so it's what makes that answer count (ADR 0034).
+func (c *Collector) machineProvider() dockwellv1.CloudProvider {
+	dmi := func(name string) string {
+		return strings.TrimSpace(string(c.read("sys/class/dmi/id/" + name)))
+	}
+	vendor, product, tag := dmi("sys_vendor"), dmi("product_name"), dmi("chassis_asset_tag")
+	switch {
+	case vendor == "Amazon EC2", strings.Contains(strings.ToLower(dmi("bios_version")), "amazon"):
+		return dockwellv1.CloudProvider_CLOUD_PROVIDER_AWS
+	case vendor == "Google" && product == "Google Compute Engine":
+		return dockwellv1.CloudProvider_CLOUD_PROVIDER_GCP
+	case vendor == "Microsoft Corporation" && tag == "7783-7084-3265-9085-8269-3286-77":
+		return dockwellv1.CloudProvider_CLOUD_PROVIDER_AZURE
+	case vendor == "DigitalOcean":
+		return dockwellv1.CloudProvider_CLOUD_PROVIDER_DIGITALOCEAN
+	case vendor == "Hetzner":
+		return dockwellv1.CloudProvider_CLOUD_PROVIDER_HETZNER
+	case tag == "OracleCloud.com":
+		return dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE
+	}
+	return dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED
 }
 
 // hasPublicIPv4 reports a public IPv4 address on an interface.
@@ -139,7 +186,11 @@ func (c *Collector) cloud(ctx context.Context) *cloudSays {
 	}
 	// Directly, whatever a proxy this server has for the internet says, and
 	// never kept open, as this is the once.
-	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
+	client := &http.Client{
+		Transport: &http.Transport{DisableKeepAlives: true},
+		// A service here answers itself. One that sends a request elsewhere isn't one.
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	defer client.CloseIdleConnections()
 	answers := make(chan *cloudSays, len(metadataServices))
 	for _, s := range metadataServices {

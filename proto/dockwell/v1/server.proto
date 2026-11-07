@@ -42,9 +42,10 @@ service ServerService {
   }
 
   // SetServerPublicAddress records a server's public address, as a person
-  // knows it, which no other way of knowing it overrides. An empty address
-  // goes back to what Dockwell finds out for itself. It's on record in the
-  // activity log. See docs/adr/0034-a-servers-public-address.md.
+  // knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
+  // address are kept apart. An empty address goes back to what Dockwell finds
+  // out for itself. It's on record in the activity log, with what it replaced.
+  // See docs/adr/0034-a-servers-public-address.md.
   rpc SetServerPublicAddress(SetServerPublicAddressRequest) returns (SetServerPublicAddressResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.command) = {verb: "set-public-address"};
@@ -82,6 +83,9 @@ message SetServerPublicAddressRequest {
   string id = 1;
   // A public IP address, or empty to clear what a person set.
   string address = 2;
+  // With an empty address, clears the IPv6 address a person set, not the IPv4
+  // one. A person's addresses are kept apart, as DNS records are.
+  bool ipv6 = 3;
 }
 
 // SetServerPublicAddressResponse carries the server as it now reads.
@@ -167,29 +171,44 @@ message Server {
 
 // ServerNetwork is what's known of a server beyond its own interfaces. Its
 // public address and whether the internet can reach it are separate facts: an
-// address can be known and nothing proved of it. See
+// address can be known and nothing proved of it. IPv4 and IPv6 are picked apart,
+// as a server's A and AAAA records go to different places. See
 // docs/adr/0034-a-servers-public-address.md.
 message ServerNetwork {
-  // The address the internet knows the server by. Empty when nothing says.
-  string public_address = 1;
+  // Its public IPv4 address. Unset when nothing says.
+  PublicAddress ipv4 = 1;
+  // Its public IPv6 address. Unset when nothing says.
+  PublicAddress ipv6 = 2;
+  // Whether the internet can reach the server at either.
+  Reachable reachable = 3;
+  // The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
+  string reachable_domain = 4;
+  // When that domain's DNS was last read, so what's shown is as of then.
+  google.protobuf.Timestamp reachable_time = 5;
+  // The cloud provider the machine itself says it runs on, from its firmware's
+  // tables. A metadata service answering doesn't say so on its own.
+  CloudProvider provider = 6;
+  // Which of the shapes a server comes in this one has, as far as can be told.
+  NetworkShape shape = 7;
+}
+
+// PublicAddress is what's known of one public address of a server.
+message PublicAddress {
+  // The address the internet knows the server by.
+  string address = 1;
   // How that's known.
   PublicAddressSource source = 2;
-  // When Dockwell came to know it that way. For anything but what a person
-  // set, that's since the control plane last started.
+  // When Dockwell came to know it that way. For a domain's, that's when its DNS
+  // was last read.
   google.protobuf.Timestamp known_time = 3;
   // The domain whose certificate proved it, for
   // PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN.
   string domain = 4;
   // Who set it, for PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON.
   Actor set_by = 5;
-  // Whether the internet can reach the server there.
-  Reachable reachable = 6;
-  // The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
-  string reachable_domain = 7;
-  // The cloud provider it runs on, when its metadata service says so.
-  CloudProvider provider = 8;
-  // Which of the shapes a server comes in this one has, as far as can be told.
-  NetworkShape shape = 9;
+  // True when nothing shows the address is a way in, so it's named only with a
+  // caveat: a way out, or a metadata service the machine doesn't confirm.
+  bool unproven = 6;
 }
 
 // NetworkShape is how a server meets the internet. It's read from what's on its
@@ -199,34 +218,37 @@ enum NetworkShape {
   // Not known yet: its agent hasn't said what it has, or whether a metadata
   // service answers.
   NETWORK_SHAPE_UNSPECIFIED = 0;
-  // A public address is on an interface.
+  // A public IPv4 address is on an interface.
   NETWORK_SHAPE_INTERNET = 1;
-  // Private interfaces, and a cloud provider's metadata service answers: its
-  // public address is the provider's 1:1 NAT.
+  // Private IPv4 interfaces on a machine that says it runs on a cloud: its
+  // public address is the provider's NAT.
   NETWORK_SHAPE_CLOUD_NAT = 2;
-  // Private interfaces, and no metadata service: likely a home or office
-  // network, behind a router. Reaching it needs a forwarded port or a tunnel.
+  // Private IPv4 interfaces, on a machine that names no cloud: likely a home or
+  // office network, behind a router. Reaching it needs a forwarded port or a
+  // tunnel.
   NETWORK_SHAPE_LOCAL_NAT = 3;
   // It reaches the internet from 100.64.0.0/10, so it's behind its provider's
   // carrier-grade NAT, where a forwarded port can't work. Only a tunnel can.
   NETWORK_SHAPE_CARRIER_NAT = 4;
 }
 
-// PublicAddressSource is how Dockwell knows a server's public address. A
-// source higher on this list wins over one lower on it.
+// PublicAddressSource is how Dockwell knows a server's public address. In the
+// order they win: a person, an interface, a domain, metadata the machine
+// confirms, what the control plane sees, metadata it doesn't, and a lookup.
 enum PublicAddressSource {
   PUBLIC_ADDRESS_SOURCE_UNSPECIFIED = 0;
   // A person set it.
   PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON = 1;
   // It's on one of the server's interfaces.
   PUBLIC_ADDRESS_SOURCE_ON_INTERFACE = 2;
-  // A certificate came for a domain whose record points there, over HTTP-01
-  // or TLS-ALPN, so the server answers there.
+  // A certificate came for a domain whose one record points there, over
+  // HTTP-01 or TLS-ALPN, and a recent read of its DNS still says so.
   PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN = 3;
   // The control plane saw the agent connect from it. That's the server's way
   // out, which may not be a way in.
   PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE = 4;
-  // The cloud provider's metadata service gave it.
+  // A cloud provider's metadata service gave it. It's a way in only if the
+  // machine itself says it runs on that provider.
   PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA = 5;
   // A public STUN server said where the server's packets come from. That's
   // its way out, and behind a router it's the router's shared address. It

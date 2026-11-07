@@ -4,10 +4,13 @@ package fleet
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"slices"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -21,9 +24,16 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// ActionPublicAddress is the audit log's action for a person setting a server's
-// public address.
-const ActionPublicAddress = "server.public_address"
+// The audit log's actions for a person changing a server's public address.
+const (
+	ActionPublicAddress      = "server.public_address"
+	ActionPublicAddressClear = "server.public_address_clear"
+)
+
+// proofFresh is how old a read of a domain's DNS can be and still prove anything.
+// An agent reads it again every ingress.IssuedDNSEvery, so this is two of those
+// missed, as an agent that's still connected and has stopped reading.
+const proofFresh = 2*ingress.IssuedDNSEvery + time.Hour
 
 // ErrNotAPublicAddress reports an address that can't be a server's public one.
 var ErrNotAPublicAddress = errors.New("not a public address")
@@ -34,109 +44,197 @@ type sighting struct {
 	source  dockwellv1.PublicAddressSource
 	// domain is the one that proved it, for a domain's.
 	domain string
+	// at is when that was so, where a source can say.
+	at time.Time
+	// unproven says nothing shows it's a way in (ADR 0034).
+	unproven bool
+}
+
+// looking is what a source goes by: one server, one family, and the time.
+type looking struct {
+	l    *live
+	four bool
+	now  time.Time
 }
 
 // publicSources are the ways of knowing a server's public address, in the order
-// they win. A new one goes here, and nowhere else: each only looks at what the
-// hub has heard, and says what that makes of the address, or nothing (ADR 0034).
-var publicSources = []func(*live) (sighting, bool){
+// they win, and they're asked for each family apart. A new one goes here, and
+// nowhere else: each only looks at what the hub has heard, and says what that makes
+// of the address, or nothing (ADR 0034).
+var publicSources = []func(looking) (sighting, bool){
 	setByPerson,
 	onInterface,
 	provedByDomain,
+	confirmedMetadata,
 	seenByControlPlane,
-	fromMetadata,
+	unconfirmedMetadata,
 	lookedUp,
 }
 
 // publicAddress is what the first source that knows says.
-func publicAddress(l *live) sighting {
+func publicAddress(v looking) sighting {
 	for _, source := range publicSources {
-		if seen, ok := source(l); ok {
+		if seen, ok := source(v); ok {
 			return seen
 		}
 	}
 	return sighting{}
 }
 
-func setByPerson(l *live) (sighting, bool) {
-	if l.person.GetPublicAddress() == "" {
-		return sighting{}, false
+// isFour reports an IPv4 address.
+func isFour(s string) bool {
+	a, err := netip.ParseAddr(s)
+	return err == nil && a.Unmap().Is4()
+}
+
+// person is what a person set of one family.
+func (v looking) person() *dockwellv1.PublicAddress {
+	if v.four {
+		return v.l.person.GetIpv4()
 	}
-	return sighting{address: l.person.GetPublicAddress(), source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON}, true
+	return v.l.person.GetIpv6()
 }
 
-func onInterface(l *live) (sighting, bool) {
-	address, ok := preferred(resource.PublicAddresses(l.inventory.GetAddresses()))
-	return sighting{address: address, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_ON_INTERFACE}, ok
+func setByPerson(v looking) (sighting, bool) {
+	address := v.person().GetAddress()
+	return sighting{address: address, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON}, address != ""
 }
 
-// provedByDomain finds a certificate that came for a name whose record points at
-// a public address. The agent reads a domain's DNS as it waits for its certificate,
-// and once more if it starts holding one, so that's what the record said around
-// when the certificate came. One that points at a shared range such as Cloudflare's,
-// or at more than one address, says nothing of which is this server's.
-func provedByDomain(l *live) (sighting, bool) {
-	for _, status := range l.domains {
-		cert, dns := status.GetCertificate(), status.GetDns()
-		if !served(cert) || !pointsHere(dns) {
-			continue
-		}
-		found := slices.DeleteFunc(resource.PublicAddresses(dns.GetFound()), func(s string) bool {
-			a, err := netip.ParseAddr(s)
-			return err != nil || ingress.IsCloudflare(a)
-		})
-		if len(found) != len(dns.GetFound()) {
-			continue
-		}
-		if address, ok := only(found); ok {
-			return sighting{address: address, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN, domain: status.GetDomain()}, true
+func onInterface(v looking) (sighting, bool) {
+	for _, s := range resource.PublicAddresses(v.l.inventory.GetAddresses()) {
+		if isFour(s) == v.four {
+			return sighting{address: s, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_ON_INTERFACE}, true
 		}
 	}
 	return sighting{}, false
 }
 
-func seenByControlPlane(l *live) (sighting, bool) {
-	return sighting{address: l.seen, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE}, l.seen != ""
+// provedByDomain finds a certificate for a name whose record points at one public
+// address. That the certificate came is only as good as the last read of the record,
+// so a read must be fresh, and on a home or office network, where an address can change
+// under a record, a newer way out that disagrees overtakes it.
+func provedByDomain(v looking) (sighting, bool) {
+	for _, status := range v.l.domains {
+		cert, dns := status.GetCertificate(), status.GetDns()
+		if !served(cert) || !pointsHere(dns) || !fresh(dns, v.now) {
+			continue
+		}
+		address, ok := recordAddress(dns, v.four)
+		if !ok || overtaken(v.l, dns, address) {
+			continue
+		}
+		return sighting{
+			address: address, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN,
+			domain: status.GetDomain(), at: dns.GetReadTime().AsTime(),
+		}, true
+	}
+	return sighting{}, false
 }
 
-func fromMetadata(l *live) (sighting, bool) {
-	return sighting{address: l.outside.GetMetadataAddress(), source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA}, l.outside.GetMetadataAddress() != ""
+// fresh reports DNS read recently enough to go by.
+func fresh(dns *dockwellv1.DomainCheck, now time.Time) bool {
+	return dns.GetReadTime() != nil && now.Sub(dns.GetReadTime().AsTime()) <= proofFresh
 }
 
-func lookedUp(l *live) (sighting, bool) {
-	return sighting{address: l.outside.GetLookedUpAddress(), source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_LOOKED_UP}, l.outside.GetLookedUpAddress() != ""
+// recordAddress is the one address of a family a domain's record names. One that
+// points at a shared range such as Cloudflare's, or at more than one address, says
+// nothing of which is this server's.
+func recordAddress(dns *dockwellv1.DomainCheck, four bool) (string, bool) {
+	found := resource.PublicAddresses(dns.GetFound())
+	if len(found) != len(dns.GetFound()) {
+		return "", false
+	}
+	var family []string
+	for _, s := range found {
+		if a, err := netip.ParseAddr(s); err != nil || ingress.IsCloudflare(a) {
+			return "", false
+		}
+		if isFour(s) == four {
+			family = append(family, s)
+		}
+	}
+	if len(family) != 1 {
+		return "", false
+	}
+	return family[0], true
+}
+
+// overtaken reports a record a newer way out disagrees with, on a home or office
+// network. On a cloud they're allowed to differ, as a NAT gateway's way out does, and
+// the address behind a home router is the router's, in and out.
+func overtaken(l *live, dns *dockwellv1.DomainCheck, address string) bool {
+	if shapeOf(l) != dockwellv1.NetworkShape_NETWORK_SHAPE_LOCAL_NAT {
+		return false
+	}
+	read := dns.GetReadTime().AsTime()
+	newer := func(out string, at time.Time) bool {
+		return out != "" && out != address && isFour(out) == isFour(address) && at.After(read)
+	}
+	return newer(l.outside.GetLookedUpAddress(), l.outside.GetLookedUpTime().AsTime()) || newer(l.seen, l.seenAt)
+}
+
+// confirmed reports metadata from the provider the machine itself says it runs on.
+// Anything on a local network can answer at the metadata address.
+func confirmed(l *live) bool {
+	return l.outside.GetProvider() != dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED &&
+		l.outside.GetProvider() == l.outside.GetMachineProvider()
+}
+
+func fromMetadata(v looking, trusted bool) (sighting, bool) {
+	address := v.l.outside.GetMetadataAddress()
+	if address == "" || isFour(address) != v.four || confirmed(v.l) != trusted {
+		return sighting{}, false
+	}
+	return sighting{address: address, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA, unproven: !trusted}, true
+}
+
+func confirmedMetadata(v looking) (sighting, bool)   { return fromMetadata(v, true) }
+func unconfirmedMetadata(v looking) (sighting, bool) { return fromMetadata(v, false) }
+
+func seenByControlPlane(v looking) (sighting, bool) {
+	address := v.l.seen
+	return sighting{address: address, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE, unproven: true},
+		address != "" && isFour(address) == v.four
+}
+
+func lookedUp(v looking) (sighting, bool) {
+	address := v.l.outside.GetLookedUpAddress()
+	return sighting{address: address, source: dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_LOOKED_UP, unproven: true},
+		address != "" && isFour(address) == v.four
 }
 
 // shapeOf says which of the shapes a server comes in this one has, from what it
-// has and what answers it. A metadata service answering means a cloud, whatever
-// else its interfaces have. Carrier-grade NAT goes by the address its route to the
-// internet leaves from, as a VPN such as Tailscale puts 100.64.0.0/10 on an interface
-// of a server that's on a network like any other.
+// has and what the machine says of itself. It goes by IPv4, as a public IPv6 address
+// on an interface says nothing of how the rest of the internet reaches it. A cloud is
+// whatever the machine names, whatever else its interfaces have. Carrier-grade NAT goes
+// by the address its route to the internet leaves from, as a VPN such as Tailscale puts
+// 100.64.0.0/10 on an interface of a server that's on a network like any other.
 func shapeOf(l *live) dockwellv1.NetworkShape {
 	addresses := l.inventory.GetAddresses()
+	four := slices.DeleteFunc(slices.Clone(addresses), func(s string) bool { return !isFour(s) })
 	switch {
-	case len(addresses) == 0:
+	case len(four) == 0:
 		return dockwellv1.NetworkShape_NETWORK_SHAPE_UNSPECIFIED
-	case len(resource.PublicAddresses(addresses)) > 0:
+	case len(resource.PublicAddresses(four)) > 0:
 		return dockwellv1.NetworkShape_NETWORK_SHAPE_INTERNET
 	case l.outside == nil:
 		return dockwellv1.NetworkShape_NETWORK_SHAPE_UNSPECIFIED
-	case l.outside.GetProvider() != dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED:
+	case l.outside.GetMachineProvider() != dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED:
 		return dockwellv1.NetworkShape_NETWORK_SHAPE_CLOUD_NAT
-	case carrierNAT(l.inventory):
+	case carrierNAT(l.inventory.GetOutboundAddress(), four):
 		return dockwellv1.NetworkShape_NETWORK_SHAPE_CARRIER_NAT
 	}
 	return dockwellv1.NetworkShape_NETWORK_SHAPE_LOCAL_NAT
 }
 
 // carrierNAT reports a server whose way to the internet leaves from a shared
-// address. An agent that doesn't say where it leaves from counts only if every
-// address it has is one.
-func carrierNAT(inventory *dockwellv1.ServerInventory) bool {
-	if out := inventory.GetOutboundAddress(); out != "" {
-		return resource.IsSharedAddress(out)
+// address. An agent that doesn't say where it leaves from counts only if every IPv4
+// address it has is one, as IPv6 says nothing of how IPv4 gets out.
+func carrierNAT(outbound string, four []string) bool {
+	if outbound != "" {
+		return resource.IsSharedAddress(outbound)
 	}
-	return !slices.ContainsFunc(inventory.GetAddresses(), func(s string) bool { return !resource.IsSharedAddress(s) })
+	return !slices.ContainsFunc(four, func(s string) bool { return !resource.IsSharedAddress(s) })
 }
 
 // served reports a certificate that's there, with nothing failing about it.
@@ -152,120 +250,105 @@ func pointsHere(c *dockwellv1.DomainCheck) bool {
 		c.GetState() == dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL
 }
 
-// preferred is the IPv4 address of a list, as most people's records are, or else
-// its first.
-func preferred(list []string) (string, bool) {
-	if len(list) == 0 {
-		return "", false
-	}
-	for _, s := range list {
-		if a, err := netip.ParseAddr(s); err == nil && a.Unmap().Is4() {
-			return s, true
+// reachable says what's proved of the internet reaching a server at its addresses,
+// by which domain, and as of when. Nothing short of a certificate authority's try says
+// yes or no (ADR 0034), and a domain counts only as a proof does: its one record, read
+// lately. A domain that proves it wins over one that failed, which may have other reasons.
+func reachable(v looking, addresses ...string) (dockwellv1.Reachable, string, *timestamppb.Timestamp) {
+	var failed *dockwellv1.DomainStatus
+	for _, status := range v.l.domains {
+		cert, dns := status.GetCertificate(), status.GetDns()
+		if !fresh(dns, v.now) || !recordIsOneOf(dns, addresses) {
+			continue
+		}
+		if served(cert) {
+			return dockwellv1.Reachable_REACHABLE_YES, status.GetDomain(), dns.GetReadTime()
+		}
+		if failed == nil && cert.GetProblem() == dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_CONNECTION {
+			failed = status
 		}
 	}
-	return list[0], true
+	if failed != nil {
+		return dockwellv1.Reachable_REACHABLE_NO, failed.GetDomain(), failed.GetDns().GetReadTime()
+	}
+	return dockwellv1.Reachable_REACHABLE_NOT_CHECKED, "", nil
 }
 
-// only is the one address of a record, or of its IPv4 side, as a server with both
-// has an A and an AAAA. More than that is several servers, and can't be told apart.
-func only(list []string) (string, bool) {
-	var four []string
-	for _, s := range list {
-		if a, err := netip.ParseAddr(s); err == nil && a.Unmap().Is4() {
-			four = append(four, s)
+// recordIsOneOf reports a domain whose one record of a family is one of addresses.
+func recordIsOneOf(dns *dockwellv1.DomainCheck, addresses []string) bool {
+	for _, four := range []bool{true, false} {
+		if address, ok := recordAddress(dns, four); ok && slices.Contains(addresses, address) {
+			return true
 		}
 	}
+	return false
+}
+
+// picked is what's known of one family, as the API has it.
+func picked(v looking, was *dockwellv1.PublicAddress) *dockwellv1.PublicAddress {
+	pick := publicAddress(v)
+	if pick.address == "" {
+		return nil
+	}
+	out := &dockwellv1.PublicAddress{Address: pick.address, Source: pick.source, Domain: pick.domain, Unproven: pick.unproven}
 	switch {
-	case len(four) == 1:
-		return four[0], true
-	case len(four) == 0 && len(list) == 1:
-		return list[0], true
+	case pick.source == dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON:
+		out.KnownTime, out.SetBy = v.person().GetKnownTime(), v.person().GetSetBy()
+	case !pick.at.IsZero():
+		out.KnownTime = timestamppb.New(pick.at)
+	case was.GetAddress() == pick.address && was.GetSource() == pick.source:
+		out.KnownTime = was.GetKnownTime()
+	default:
+		out.KnownTime = timestamppb.New(v.now)
 	}
-	return "", false
-}
-
-// reachable says what's proved of the internet reaching a server at address, and
-// by which domain. Nothing short of a certificate authority's try says yes or no
-// (ADR 0034). A domain that proves it wins over one that failed, which may have
-// other reasons.
-func reachable(l *live, address string) (dockwellv1.Reachable, string) {
-	failed := ""
-	if address != "" {
-		for _, status := range l.domains {
-			cert, dns := status.GetCertificate(), status.GetDns()
-			if !slices.Contains(dns.GetFound(), address) {
-				continue
-			}
-			if served(cert) {
-				return dockwellv1.Reachable_REACHABLE_YES, status.GetDomain()
-			}
-			if failed == "" && cert.GetProblem() == dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_CONNECTION {
-				failed = status.GetDomain()
-			}
-		}
-	}
-	if failed != "" {
-		return dockwellv1.Reachable_REACHABLE_NO, failed
-	}
-	return dockwellv1.Reachable_REACHABLE_NOT_CHECKED, ""
+	return out
 }
 
 // refreshNetworkLocked works out what's known of a server's network, and tells
-// its agent if the address it goes by changed.
+// its agent if what it goes by changed.
 func (h *Hub) refreshNetworkLocked(server string, l *live) {
 	was := l.network
-	pick := publicAddress(l)
-	next := &dockwellv1.ServerNetwork{PublicAddress: pick.address, Source: pick.source, Domain: pick.domain, Provider: l.outside.GetProvider(), Shape: shapeOf(l)}
-	next.Reachable, next.ReachableDomain = reachable(l, pick.address)
-	switch {
-	case pick.source == dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON:
-		next.KnownTime, next.SetBy = l.person.GetKnownTime(), l.person.GetSetBy()
-	case pick.address == "":
-	case was.GetPublicAddress() == pick.address && was.GetSource() == pick.source:
-		next.KnownTime = was.GetKnownTime()
-	default:
-		next.KnownTime = timestamppb.New(h.now())
+	now := h.now()
+	v := looking{l: l, four: true, now: now}
+	v6 := v
+	v6.four = false
+	next := &dockwellv1.ServerNetwork{
+		Ipv4: picked(v, was.GetIpv4()), Ipv6: picked(v6, was.GetIpv6()),
+		Provider: l.outside.GetMachineProvider(), Shape: shapeOf(l),
 	}
+	next.Reachable, next.ReachableDomain, next.ReachableTime = reachable(v, next.GetIpv4().GetAddress(), next.GetIpv6().GetAddress())
+	l.refreshed = now
 	if proto.Equal(was, next) {
 		return
 	}
 	l.network = next
 	if !proto.Equal(tellOf(was), tellOf(next)) {
-		select {
-		case l.told <- struct{}{}:
-		default:
+		for told := range l.told {
+			select {
+			case told <- struct{}{}:
+			default:
+			}
 		}
 	}
 	h.notifyLocked(server, false)
-}
-
-// wayIn reports a source that says the internet can come in at the address. What
-// the control plane sees, and what a STUN server sees, is how a server goes out,
-// which may be another address altogether, as behind a NAT gateway, and behind a
-// router is the router's. Only something outside connecting proves a way in.
-func wayIn(source dockwellv1.PublicAddressSource) bool {
-	return source != dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE &&
-		source != dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_LOOKED_UP
 }
 
 // tellOf is what a server's agent should go by. An address on an interface isn't
 // its to be told: it has that, with any others, and picks by what a record needs.
 // Behind carrier-grade NAT, a way out is no address to point anything at at all.
 func tellOf(n *dockwellv1.ServerNetwork) *agentv1.PublicAddress {
-	source := n.GetSource()
-	if source == dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_ON_INTERFACE {
-		return &agentv1.PublicAddress{}
+	out := &agentv1.PublicAddress{}
+	wayIn := false
+	carrier := n.GetShape() == dockwellv1.NetworkShape_NETWORK_SHAPE_CARRIER_NAT
+	for _, a := range []*dockwellv1.PublicAddress{n.GetIpv4(), n.GetIpv6()} {
+		wayIn = wayIn || (a != nil && !a.GetUnproven())
+		if a == nil || a.GetSource() == dockwellv1.PublicAddressSource_PUBLIC_ADDRESS_SOURCE_ON_INTERFACE || (carrier && a.GetUnproven()) {
+			continue
+		}
+		out.Addresses = append(out.Addresses, &agentv1.KnownAddress{Address: a.GetAddress(), WayIn: !a.GetUnproven()})
 	}
-	in := wayIn(source)
-	shape := n.GetShape()
-	if !in && shape == dockwellv1.NetworkShape_NETWORK_SHAPE_CARRIER_NAT {
-		return &agentv1.PublicAddress{CarrierNat: true}
-	}
-	address := n.GetPublicAddress()
-	return &agentv1.PublicAddress{
-		Address: address, WayIn: address != "" && in,
-		Unproven: address != "" && !in && shape != dockwellv1.NetworkShape_NETWORK_SHAPE_CLOUD_NAT,
-	}
+	out.CarrierNat = carrier && !wayIn
+	return out
 }
 
 // SeenConnecting records the address a server's agent connected from, as
@@ -276,7 +359,7 @@ func (h *Hub) SeenConnecting(server, from string) {
 	if at, err := netip.ParseAddrPort(from); err == nil && resource.IsPublicAddress(at.Addr()) {
 		seen = at.Addr().Unmap().String()
 	}
-	h.update(server, func(l *live) { l.seen = seen })
+	h.update(server, func(l *live) { l.seen, l.seenAt = seen, h.now() })
 }
 
 // RecordDomains keeps what a server says of its routes' domains, as a certificate
@@ -285,12 +368,19 @@ func (h *Hub) RecordDomains(server string, domains []*dockwellv1.DomainStatus) {
 	h.update(server, func(l *live) { l.domains = domains })
 }
 
+// knownProvider is a provider this build knows, or none.
+func knownProvider(p dockwellv1.CloudProvider) dockwellv1.CloudProvider {
+	if _, ok := dockwellv1.CloudProvider_name[int32(p)]; ok {
+		return p
+	}
+	return dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED
+}
+
 // RecordNetwork keeps what a server found out for itself. An address that isn't
 // public is dropped, whatever said it, and so is a provider this build doesn't know.
 func (h *Hub) RecordNetwork(server string, n *agentv1.Network) {
-	kept := &agentv1.Network{Provider: n.GetProvider()}
-	if _, ok := dockwellv1.CloudProvider_name[int32(n.GetProvider())]; !ok {
-		kept.Provider = dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED
+	kept := &agentv1.Network{
+		Provider: knownProvider(n.GetProvider()), MachineProvider: knownProvider(n.GetMachineProvider()), LookedUpTime: n.GetLookedUpTime(),
 	}
 	if len(resource.PublicAddresses([]string{n.GetMetadataAddress()})) == 1 {
 		kept.MetadataAddress = n.GetMetadataAddress()
@@ -323,14 +413,23 @@ func (h *Hub) PublicAddress(server string) *agentv1.PublicAddress {
 	return tellOf(l.network)
 }
 
-// PublicAddressChanged signals when PublicAddress may say something new.
-func (h *Hub) PublicAddressChanged(server string) <-chan struct{} {
+// WatchPublicAddress signals when PublicAddress may say something new, until the
+// returned function is called. Each watcher has its own signal, as an agent moving to
+// a new stream has two at once, and one taking the signal mustn't leave the other short.
+func (h *Hub) WatchPublicAddress(server string) (<-chan struct{}, func()) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if l, ok := h.servers[server]; ok {
-		return l.told
+	told := make(chan struct{}, 1)
+	l, ok := h.servers[server]
+	if !ok {
+		return told, func() {}
 	}
-	return nil
+	l.told[told] = struct{}{}
+	return told, func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		delete(l.told, told)
+	}
 }
 
 // Setting is who sets a server's public address, as the audit log has them.
@@ -340,29 +439,41 @@ type Setting struct {
 	Who            *dockwellv1.Actor
 }
 
-// settingPublicAddress is the store's key for what a person set of a server's
-// public address.
-func settingPublicAddress(server string) string { return "server.public_address." + server }
+// AddressChange is what the audit log keeps of a person changing a server's public
+// address. The previous one is what lets them put it back.
+type AddressChange struct {
+	Address  string `json:"address,omitempty"`
+	Previous string `json:"previous,omitempty"`
+}
 
-// SetPublicAddress records a server's public address as a person says it, or
-// clears it with an empty one, and puts that in the audit log with it. It returns
-// the server as it now reads.
-func (h *Hub) SetPublicAddress(ctx context.Context, server, address string, by Setting) (*dockwellv1.Server, error) {
-	now := h.now()
-	set := &dockwellv1.ServerNetwork{}
-	if address != "" {
-		a, err := netip.ParseAddr(address)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %s isn't an IP address. Use the one your provider's console shows for this server", ErrNotAPublicAddress, address)
-		}
-		if !resource.IsPublicAddress(a) {
-			return nil, fmt.Errorf("%w: %s is private, so the internet can't reach it there. Use the public address your provider's console shows for this server", ErrNotAPublicAddress, address)
-		}
-		set = &dockwellv1.ServerNetwork{PublicAddress: a.Unmap().String(), KnownTime: timestamppb.New(now), SetBy: by.Who}
-	}
-	raw, err := protojson.Marshal(set)
+// checkAddress is address as a server's public one, or why it can't be.
+func checkAddress(address string) (netip.Addr, error) {
+	a, err := netip.ParseAddr(address)
 	if err != nil {
-		return nil, err
+		return a, fmt.Errorf("%w: %s isn't an IP address. Use the one your provider's console shows for this server", ErrNotAPublicAddress, address)
+	}
+	if !resource.IsPublicAddress(a) {
+		return a, fmt.Errorf("%w: %s is private, so the internet can't reach it there. Use the public address your provider's console shows for this server", ErrNotAPublicAddress, address)
+	}
+	return a.Unmap(), nil
+}
+
+// SetPublicAddress records a server's public address as a person says it, for the
+// family it's in, or with an empty one clears what they set of IPv4, or of IPv6 with
+// ipv6. It goes in the audit log, with what it replaced, and it returns the server as
+// it now reads.
+func (h *Hub) SetPublicAddress(ctx context.Context, server, address string, ipv6 bool, by Setting) (*dockwellv1.Server, error) {
+	now := h.now()
+	change := AddressChange{Address: address}
+	var entry *dockwellv1.PublicAddress
+	if address != "" {
+		a, err := checkAddress(address)
+		if err != nil {
+			return nil, err
+		}
+		ipv6 = !a.Is4()
+		change.Address = a.String()
+		entry = &dockwellv1.PublicAddress{Address: a.String(), KnownTime: timestamppb.New(now), SetBy: by.Who}
 	}
 	h.mu.Lock()
 	_, known := h.servers[server]
@@ -370,13 +481,35 @@ func (h *Hub) SetPublicAddress(ctx context.Context, server, address string, by S
 	if !known {
 		return nil, fmt.Errorf("server %s: %w", server, ErrNotFound)
 	}
-	err = h.db.Update(ctx, func(tx *store.Tx) error {
-		if err := tx.PutSetting(ctx, settingPublicAddress(server), raw); err != nil {
+	action := ActionPublicAddress
+	if address == "" {
+		action = ActionPublicAddressClear
+	}
+	set := &dockwellv1.ServerNetwork{}
+	err := h.db.Update(ctx, func(tx *store.Tx) error {
+		was, err := loadPublicAddress(ctx, tx, h.logger, server)
+		if err != nil {
+			return err
+		}
+		set = &dockwellv1.ServerNetwork{Ipv4: was.GetIpv4(), Ipv6: was.GetIpv6()}
+		if ipv6 {
+			change.Previous, set.Ipv6 = was.GetIpv6().GetAddress(), entry
+		} else {
+			change.Previous, set.Ipv4 = was.GetIpv4().GetAddress(), entry
+		}
+		raw, err := protojson.Marshal(set)
+		if err != nil {
+			return err
+		}
+		if err := tx.PutSetting(ctx, store.SettingPublicAddress(server), raw); err != nil {
+			return err
+		}
+		detail, err := json.Marshal(change)
+		if err != nil {
 			return err
 		}
 		return tx.RecordEvent(ctx, store.Event{
-			ID: id.New(id.Event), At: now, Actor: by.Actor, Action: ActionPublicAddress, Subject: server, Target: server, Surface: by.Surface,
-			Detail: "public address: " + publicWords(set),
+			ID: id.New(id.Event), At: now, Actor: by.Actor, Action: action, Subject: server, Target: server, Surface: by.Surface, Detail: string(detail),
 		})
 	})
 	if err != nil {
@@ -393,16 +526,11 @@ func (h *Hub) SetPublicAddress(ctx context.Context, server, address string, by S
 	return h.toProtoLocked(server, l, false), nil
 }
 
-func publicWords(set *dockwellv1.ServerNetwork) string {
-	if set.GetPublicAddress() == "" {
-		return "cleared"
-	}
-	return set.GetPublicAddress()
-}
-
-// loadPublicAddress reads what a person set of a server's public address.
-func loadPublicAddress(ctx context.Context, tx *store.Tx, server string) (*dockwellv1.ServerNetwork, error) {
-	raw, err := tx.GetSetting(ctx, settingPublicAddress(server))
+// loadPublicAddress reads what a person set of a server's public address. A row
+// that can't be read says nothing, and is logged: one bad row can't keep the control
+// plane from starting, and a person can set the address again.
+func loadPublicAddress(ctx context.Context, tx *store.Tx, logger *slog.Logger, server string) (*dockwellv1.ServerNetwork, error) {
+	raw, err := tx.GetSetting(ctx, store.SettingPublicAddress(server))
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, nil //nolint:nilnil // nothing set is no error
 	}
@@ -411,7 +539,8 @@ func loadPublicAddress(ctx context.Context, tx *store.Tx, server string) (*dockw
 	}
 	set := &dockwellv1.ServerNetwork{}
 	if err := protojson.Unmarshal(raw, set); err != nil {
-		return nil, fmt.Errorf("can't read the public address set for server %s: %w", server, err)
+		logger.WarnContext(ctx, "can't read the public address set for a server, so it's left unset. Set it again on the server's page", slog.String("server", server), slog.String("error", err.Error()))
+		return nil, nil //nolint:nilnil // a bad row is logged, and reads as none
 	}
 	return set, nil
 }

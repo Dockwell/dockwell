@@ -24,6 +24,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
+	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/auth"
@@ -126,8 +127,12 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+	// It says nothing of the world, whatever machine the test runs on.
+	collector := collect.New()
+	collector.Metadata, collector.STUN = collect.ClosedMetadata, []string{}
 	cfg := agent.Config{
-		Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
+		Collector: collector,
+		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
 		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk,
 	}
 	if s.backups != nil {

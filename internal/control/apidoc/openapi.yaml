@@ -1407,9 +1407,10 @@ paths:
                 - ServerService
             description: |-
                 SetServerPublicAddress records a server's public address, as a person
-                 knows it, which no other way of knowing it overrides. An empty address
-                 goes back to what Dockwell finds out for itself. It's on record in the
-                 activity log. See docs/adr/0034-a-servers-public-address.md.
+                 knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
+                 address are kept apart. An empty address goes back to what Dockwell finds
+                 out for itself. It's on record in the activity log, with what it replaced.
+                 See docs/adr/0034-a-servers-public-address.md.
             operationId: ServerService_SetServerPublicAddress
             parameters:
                 - name: id
@@ -3894,21 +3895,29 @@ components:
                     items:
                         type: string
                     description: The addresses the server has, which it compared them with.
-                publicAddress:
-                    type: string
+                publicAddresses:
+                    type: array
+                    items:
+                        type: string
                     description: |-
-                        The server's public address, when one is known beyond its interfaces.
-                         It's the one to point a record at.
-                publicUnproven:
-                    type: boolean
+                        The server's public addresses known beyond its interfaces, which are the
+                         ones to point a record at.
+                unprovenAddresses:
+                    type: array
+                    items:
+                        type: string
                     description: |-
-                        Nothing has proved public_address is a way in, and the server isn't on a
-                         known cloud, so it may be a router's, which needs a forwarded port.
+                        Those of public_addresses nothing has shown to be a way in, so a record at
+                         one may not reach the server.
                 carrierNat:
                     type: boolean
                     description: |-
-                        The server is behind carrier-grade NAT, so no record can reach it, and
-                         no forwarded port either. Only a tunnel can.
+                        The server is behind carrier-grade NAT with no way in known, so no record
+                         can reach it, and no forwarded port either. Only a tunnel can.
+                readTime:
+                    type: string
+                    description: When DNS was read. Unset for a check from an agent from before this.
+                    format: date-time
             description: DomainCheck is what DNS says of a domain, as a server sees it.
         DomainRoute:
             type: object
@@ -4265,6 +4274,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/EventBackup'
                     description: What became of a backup, for a backup event. Its subject is the volume.
+                publicAddress:
+                    allOf:
+                        - $ref: '#/components/schemas/EventPublicAddress'
+                    description: What a person set of a server's public address, on such an event.
             description: Event is one thing that happened.
         EventBackup:
             type: object
@@ -4354,6 +4367,16 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventPublicAddress:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: What it is now. Empty when they cleared it.
+                previous:
+                    type: string
+                    description: What a person had set before, so it can be put back. Empty when they hadn't.
+            description: EventPublicAddress is a server's public address as a person changed it.
         EventSubject:
             type: object
             properties:
@@ -6353,6 +6376,45 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ProposeChangeResponse carries the planned change.
+        PublicAddress:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: The address the internet knows the server by.
+                source:
+                    enum:
+                        - PUBLIC_ADDRESS_SOURCE_UNSPECIFIED
+                        - PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON
+                        - PUBLIC_ADDRESS_SOURCE_ON_INTERFACE
+                        - PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN
+                        - PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE
+                        - PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA
+                        - PUBLIC_ADDRESS_SOURCE_LOOKED_UP
+                    type: string
+                    description: How that's known.
+                    format: enum
+                knownTime:
+                    type: string
+                    description: |-
+                        When Dockwell came to know it that way. For a domain's, that's when its DNS
+                         was last read.
+                    format: date-time
+                domain:
+                    type: string
+                    description: |-
+                        The domain whose certificate proved it, for
+                         PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN.
+                setBy:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who set it, for PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON.
+                unproven:
+                    type: boolean
+                    description: |-
+                        True when nothing shows the address is a way in, so it's named only with a
+                         caveat: a way out, or a metadata service the machine doesn't confirm.
+            description: PublicAddress is what's known of one public address of a server.
         ReadFileRequest:
             type: object
             properties:
@@ -7406,36 +7468,14 @@ components:
         ServerNetwork:
             type: object
             properties:
-                publicAddress:
-                    type: string
-                    description: The address the internet knows the server by. Empty when nothing says.
-                source:
-                    enum:
-                        - PUBLIC_ADDRESS_SOURCE_UNSPECIFIED
-                        - PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON
-                        - PUBLIC_ADDRESS_SOURCE_ON_INTERFACE
-                        - PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN
-                        - PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE
-                        - PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA
-                        - PUBLIC_ADDRESS_SOURCE_LOOKED_UP
-                    type: string
-                    description: How that's known.
-                    format: enum
-                knownTime:
-                    type: string
-                    description: |-
-                        When Dockwell came to know it that way. For anything but what a person
-                         set, that's since the control plane last started.
-                    format: date-time
-                domain:
-                    type: string
-                    description: |-
-                        The domain whose certificate proved it, for
-                         PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN.
-                setBy:
+                ipv4:
                     allOf:
-                        - $ref: '#/components/schemas/Actor'
-                    description: Who set it, for PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON.
+                        - $ref: '#/components/schemas/PublicAddress'
+                    description: Its public IPv4 address. Unset when nothing says.
+                ipv6:
+                    allOf:
+                        - $ref: '#/components/schemas/PublicAddress'
+                    description: Its public IPv6 address. Unset when nothing says.
                 reachable:
                     enum:
                         - REACHABLE_UNSPECIFIED
@@ -7443,11 +7483,15 @@ components:
                         - REACHABLE_YES
                         - REACHABLE_NO
                     type: string
-                    description: Whether the internet can reach the server there.
+                    description: Whether the internet can reach the server at either.
                     format: enum
                 reachableDomain:
                     type: string
                     description: The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
+                reachableTime:
+                    type: string
+                    description: When that domain's DNS was last read, so what's shown is as of then.
+                    format: date-time
                 provider:
                     enum:
                         - CLOUD_PROVIDER_UNSPECIFIED
@@ -7458,7 +7502,9 @@ components:
                         - CLOUD_PROVIDER_HETZNER
                         - CLOUD_PROVIDER_ORACLE
                     type: string
-                    description: The cloud provider it runs on, when its metadata service says so.
+                    description: |-
+                        The cloud provider the machine itself says it runs on, from its firmware's
+                         tables. A metadata service answering doesn't say so on its own.
                     format: enum
                 shape:
                     enum:
@@ -7473,7 +7519,8 @@ components:
             description: |-
                 ServerNetwork is what's known of a server beyond its own interfaces. Its
                  public address and whether the internet can reach it are separate facts: an
-                 address can be known and nothing proved of it. See
+                 address can be known and nothing proved of it. IPv4 and IPv6 are picked apart,
+                 as a server's A and AAAA records go to different places. See
                  docs/adr/0034-a-servers-public-address.md.
         ServerPlan:
             type: object
@@ -7863,6 +7910,11 @@ components:
                 address:
                     type: string
                     description: A public IP address, or empty to clear what a person set.
+                ipv6:
+                    type: boolean
+                    description: |-
+                        With an empty address, clears the IPv6 address a person set, not the IPv4
+                         one. A person's addresses are kept apart, as DNS records are.
             description: SetServerPublicAddressRequest says what a server's public address is.
         SetServerPublicAddressResponse:
             type: object

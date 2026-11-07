@@ -327,13 +327,13 @@ func TestDNSReadsAPublicAddressKnownBeyondTheInterfaces(t *testing.T) {
 			d := &DNS{
 				Lookup: func(context.Context, string) ([]netip.Addr, error) { return tc.found, nil },
 				Addrs:  func() ([]netip.Addr, error) { return addrs("10.0.0.25"), nil },
-				Public: public, WayIn: tc.wayIn,
+				Told:   []*agentv1.KnownAddress{{Address: public.String(), WayIn: tc.wayIn}},
 			}
 			got := d.Check(t.Context(), "app.example.com")
 			if got.State != tc.want {
 				t.Errorf("State = %d, want %d: %+v", got.State, tc.want, got)
 			}
-			if got.Public != public.String() || !slices.Contains(got.Here, public.String()) {
+			if !slices.Contains(got.Public, public.String()) || !slices.Contains(got.Here, public.String()) {
 				t.Errorf("it doesn't carry the address: %+v", got)
 			}
 		})
@@ -343,8 +343,8 @@ func TestDNSReadsAPublicAddressKnownBeyondTheInterfaces(t *testing.T) {
 // The words say what's known of the way in: none of a server behind NAT as it was,
 // and the plain record once something proved it.
 func TestTheWordsUseThePublicAddress(t *testing.T) {
-	proved := &resource.DomainCheck{State: resource.DomainNoRecord, Public: "203.0.113.50", Here: []string{"10.0.0.25", "203.0.113.50"}}
-	router := &resource.DomainCheck{State: resource.DomainNoRecord, Public: "203.0.113.7", Unproven: true, Here: []string{"192.168.1.20", "203.0.113.7"}}
+	proved := &resource.DomainCheck{State: resource.DomainNoRecord, Public: []string{"203.0.113.50"}, Here: []string{"10.0.0.25", "203.0.113.50"}}
+	router := &resource.DomainCheck{State: resource.DomainNoRecord, Public: []string{"203.0.113.7"}, Unproven: []string{"203.0.113.7"}, Here: []string{"192.168.1.20", "203.0.113.7"}}
 	carrier := &resource.DomainCheck{State: resource.DomainNoRecord, Carrier: true, Here: []string{"100.72.1.2"}}
 	pending := CertState{Phase: CertPending}
 	for _, tc := range []struct {
@@ -385,14 +385,14 @@ func TestAPublicAddressArrivingChangesWhatADomainSays(t *testing.T) {
 	if got := s.Domains()[0].GetDns().GetState(); got != dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL {
 		t.Fatalf("behind NAT with nothing known, it reads %v", got)
 	}
-	s.SetPublicAddress(&agentv1.PublicAddress{Address: "203.0.113.50", WayIn: true})
+	s.SetPublicAddress(&agentv1.PublicAddress{Addresses: []*agentv1.KnownAddress{{Address: "203.0.113.50", WayIn: true}}})
 	select {
 	case <-s.watchWakes():
 	default:
 		t.Error("nothing woke the watch")
 	}
 	s.watchOnce(t.Context())
-	if got := s.Domains()[0].GetDns(); got.GetState() != dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_POINTS_HERE || got.GetPublicAddress() != "203.0.113.50" {
+	if got := s.Domains()[0].GetDns(); got.GetState() != dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_POINTS_HERE || !slices.Contains(got.GetPublicAddresses(), "203.0.113.50") {
 		t.Errorf("once known, it reads %v", got)
 	}
 	if s.proxy.retries != 1 {
@@ -543,5 +543,99 @@ func TestARenewalThatFailsStartsItsSentence(t *testing.T) {
 	msg := certMessage("app.example.com", CertState{Phase: CertIssued, Problem: ProblemConnection, NotAfter: time.Date(2027, 2, 3, 0, 0, 0, 0, time.UTC)}, nil)
 	if !strings.Contains(msg, "until 3 February 2027. The certificate authority couldn't reach") {
 		t.Errorf("it reads %q", msg)
+	}
+}
+
+// Rule 5 of ADR 0034: a record can only be wrong against a way in of its own family, so
+// an AAAA on an interface says nothing of an A record.
+func TestARecordIsReadAgainstItsOwnFamily(t *testing.T) {
+	addrs := func(list ...string) []netip.Addr {
+		out := make([]netip.Addr, len(list))
+		for i, s := range list {
+			out[i] = netip.MustParseAddr(s)
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		name  string
+		found []netip.Addr
+		want  resource.DomainState
+	}{
+		{"an A at the way out", addrs("203.0.113.7"), resource.DomainHere},
+		{"an A at something else, with no way in for IPv4", addrs("198.51.100.1"), resource.DomainCantTell},
+		{"an AAAA at something else, with a way in for IPv6", addrs("2001:db8::9"), resource.DomainElsewhere},
+		{"an AAAA at the interface's", addrs("2001:db8::5"), resource.DomainHere},
+		{"a private A", addrs("10.9.9.9"), resource.DomainElsewhere},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &DNS{
+				Lookup: func(context.Context, string) ([]netip.Addr, error) { return tc.found, nil },
+				Addrs:  func() ([]netip.Addr, error) { return addrs("10.0.0.5", "2001:db8::5"), nil },
+				Told:   []*agentv1.KnownAddress{{Address: "203.0.113.7"}},
+			}
+			if got := d.Check(t.Context(), "app.example.com"); got.State != tc.want {
+				t.Errorf("State = %d, want %d: %+v", got.State, tc.want, got)
+			}
+		})
+	}
+}
+
+// An agent never takes a private address for its own public one, whatever it's told.
+func TestAPrivateAddressToldIsDropped(t *testing.T) {
+	d := &DNS{
+		Lookup: func(context.Context, string) ([]netip.Addr, error) { return nil, nil },
+		Addrs:  func() ([]netip.Addr, error) { return []netip.Addr{netip.MustParseAddr("10.0.0.25")}, nil },
+		Told:   []*agentv1.KnownAddress{{Address: "10.0.0.9", WayIn: true}, {Address: "not an address"}},
+	}
+	got := d.Check(t.Context(), "app.example.com")
+	if len(got.Public) != 0 || slices.Contains(got.Here, "10.0.0.9") {
+		t.Errorf("it kept it: %+v", got)
+	}
+}
+
+// Rule 4 of ADR 0034: a certificate proves where a server answered, so a record that
+// moves after one comes has to be noticed, and what proves it has to say how old it is.
+func TestAnIssuedDomainIsReadAgainWhenItsDue(t *testing.T) {
+	s := newSetup(t)
+	reads := 0
+	found := "203.0.113.50"
+	s.DNS = &DNS{
+		Lookup: func(context.Context, string) ([]netip.Addr, error) {
+			reads++
+			return []netip.Addr{netip.MustParseAddr(found)}, nil
+		},
+		Addrs: func() ([]netip.Addr, error) { return []netip.Addr{netip.MustParseAddr("10.0.0.25")}, nil },
+	}
+	const domain = "app.example.com"
+	issued := CertState{Phase: CertIssued}
+	due := func() { s.status.checked[domain] = time.Now().Add(-IssuedDNSEvery) }
+
+	rereads := 2
+	first, _ := s.domainCheck(t.Context(), domain, issued, &rereads)
+	if reads != 1 || rereads != 2 {
+		t.Fatalf("a first read made %d, leaving %d", reads, rereads)
+	}
+	if first.ReadAt.IsZero() {
+		t.Error("it doesn't say when it read")
+	}
+	if got, _ := s.domainCheck(t.Context(), domain, issued, &rereads); got != first || reads != 1 {
+		t.Errorf("it read again with nothing due: %d", reads)
+	}
+
+	due()
+	found = "198.51.100.1"
+	moved, _ := s.domainCheck(t.Context(), domain, issued, &rereads)
+	if reads != 2 || !slices.Equal(moved.Found, []string{found}) || rereads != 1 {
+		t.Errorf("with a read due, it made %d and found %v, leaving %d", reads, moved.Found, rereads)
+	}
+	if moved.ReadAt.Before(first.ReadAt) {
+		t.Errorf("the new read says %v, after %v", moved.ReadAt, first.ReadAt)
+	}
+
+	// They run one after another, so a pass makes a few, and the rest come next.
+	due()
+	rereads = 0
+	if got, _ := s.domainCheck(t.Context(), domain, issued, &rereads); got != moved || reads != 2 {
+		t.Errorf("with this pass's reads spent, it made %d", reads)
 	}
 }

@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"sync/atomic"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -45,6 +47,7 @@ func metadataStandIn(t *testing.T, routes map[string]answer) string {
 
 func privateServer(metadata string) *Collector {
 	return &Collector{
+		Root:     fstest.MapFS{},
 		Metadata: metadata,
 		Addresses: func() ([]net.Addr, error) {
 			return []net.Addr{&net.IPNet{IP: net.ParseIP("10.0.0.25"), Mask: net.CIDRMask(24, 32)}}, nil
@@ -183,5 +186,87 @@ func TestALookupIsOnlyMadeWhenItsWantedAndNeeded(t *testing.T) {
 	case <-asked:
 		t.Error("it asked when it had no need to")
 	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// A test that reached a real STUN server or metadata service would pass or fail by
+// where it ran, so one that hasn't said where they are stops right there.
+func TestATestCantReachARealServiceByLeavingItUnset(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		c      *Collector
+		lookup bool
+		stops  bool
+	}{
+		{"no metadata", &Collector{STUN: []string{}}, false, true},
+		{"no STUN, for a lookup", &Collector{Metadata: ClosedMetadata}, true, true},
+		{"no STUN, with no lookup", &Collector{Metadata: ClosedMetadata}, false, false},
+		{"both", &Collector{Metadata: ClosedMetadata, STUN: []string{}}, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if stopped := recover() != nil; stopped != tc.stops {
+					t.Errorf("stopped: %t", stopped)
+				}
+			}()
+			tc.c.Addresses = func() ([]net.Addr, error) { return nil, nil }
+			tc.c.Root = fstest.MapFS{}
+			tc.c.Network(t.Context(), tc.lookup)
+		})
+	}
+}
+
+// Rule 2 of ADR 0034: anything on a local network can answer at the metadata address,
+// but it can't write what the machine's firmware says.
+func TestTheMachineSaysWhatItRunsOn(t *testing.T) {
+	dmi := func(files map[string]string) fstest.MapFS {
+		root := fstest.MapFS{}
+		for name, body := range files {
+			root["sys/class/dmi/id/"+name] = &fstest.MapFile{Data: []byte(body + "\n")}
+		}
+		return root
+	}
+	for _, tc := range []struct {
+		name  string
+		files map[string]string
+		want  dockwellv1.CloudProvider
+	}{
+		{"AWS", map[string]string{"sys_vendor": "Amazon EC2"}, dockwellv1.CloudProvider_CLOUD_PROVIDER_AWS},
+		{"AWS's older machines", map[string]string{"sys_vendor": "Xen", "bios_version": "4.11.amazon"}, dockwellv1.CloudProvider_CLOUD_PROVIDER_AWS},
+		{"GCP", map[string]string{"sys_vendor": "Google", "product_name": "Google Compute Engine"}, dockwellv1.CloudProvider_CLOUD_PROVIDER_GCP},
+		{"Azure", map[string]string{"sys_vendor": "Microsoft Corporation", "chassis_asset_tag": "7783-7084-3265-9085-8269-3286-77"}, dockwellv1.CloudProvider_CLOUD_PROVIDER_AZURE},
+		{"Hyper-V on someone's desk", map[string]string{"sys_vendor": "Microsoft Corporation", "chassis_asset_tag": "1234"}, dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED},
+		{"DigitalOcean", map[string]string{"sys_vendor": "DigitalOcean"}, dockwellv1.CloudProvider_CLOUD_PROVIDER_DIGITALOCEAN},
+		{"Hetzner", map[string]string{"sys_vendor": "Hetzner"}, dockwellv1.CloudProvider_CLOUD_PROVIDER_HETZNER},
+		{"Oracle", map[string]string{"chassis_asset_tag": "OracleCloud.com"}, dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE},
+		{"a machine at home", map[string]string{"sys_vendor": "ASUSTeK COMPUTER INC."}, dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED},
+		{"no tables at all, as in a container", nil, dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := privateServer(ClosedMetadata)
+			c.Root = dmi(tc.files)
+			if got := c.Network(t.Context(), false).GetMachineProvider(); got != tc.want {
+				t.Errorf("it says %v", got)
+			}
+		})
+	}
+}
+
+// A redirect is no service's answer: what stands in for one on a local network could
+// send the request wherever it liked.
+func TestAMetadataRedirectIsntFollowed(t *testing.T) {
+	var followed atomic.Bool
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { followed.Store(true) }))
+	defer elsewhere.Close()
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL, http.StatusFound)
+	}))
+	defer redirect.Close()
+	c := privateServer(redirect.URL)
+	if got := c.Network(t.Context(), false).GetProvider(); got != dockwellv1.CloudProvider_CLOUD_PROVIDER_UNSPECIFIED {
+		t.Errorf("it says %v", got)
+	}
+	if followed.Load() {
+		t.Error("it followed the redirect")
 	}
 }

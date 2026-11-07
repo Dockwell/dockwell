@@ -132,7 +132,8 @@ func (h *Handler) Join(ctx context.Context, req *connect.Request[agentv1.JoinReq
 // stream opens and whenever that changes, until the stream ends. An agent from
 // before this ignores it, and goes on reading only its own interfaces.
 func (h *Handler) tellPublicAddress(ctx context.Context, server string, session *Session) {
-	changed := h.fleet.PublicAddressChanged(server)
+	changed, stop := h.fleet.WatchPublicAddress(server)
+	defer stop()
 	for {
 		msg := &agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_PublicAddress{PublicAddress: h.fleet.PublicAddress(server)}}
 		if err := session.write(msg); err != nil {

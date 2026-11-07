@@ -59,9 +59,10 @@ type ServerServiceClient interface {
 	// the agent reporting it. It has no REST path, as streams have none.
 	WatchServers(context.Context, *connect.Request[v1.WatchServersRequest]) (*connect.ServerStreamForClient[v1.WatchServersResponse], error)
 	// SetServerPublicAddress records a server's public address, as a person
-	// knows it, which no other way of knowing it overrides. An empty address
-	// goes back to what Dockwell finds out for itself. It's on record in the
-	// activity log. See docs/adr/0034-a-servers-public-address.md.
+	// knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
+	// address are kept apart. An empty address goes back to what Dockwell finds
+	// out for itself. It's on record in the activity log, with what it replaced.
+	// See docs/adr/0034-a-servers-public-address.md.
 	SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error)
 }
 
@@ -144,9 +145,10 @@ type ServerServiceHandler interface {
 	// the agent reporting it. It has no REST path, as streams have none.
 	WatchServers(context.Context, *connect.Request[v1.WatchServersRequest], *connect.ServerStream[v1.WatchServersResponse]) error
 	// SetServerPublicAddress records a server's public address, as a person
-	// knows it, which no other way of knowing it overrides. An empty address
-	// goes back to what Dockwell finds out for itself. It's on record in the
-	// activity log. See docs/adr/0034-a-servers-public-address.md.
+	// knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
+	// address are kept apart. An empty address goes back to what Dockwell finds
+	// out for itself. It's on record in the activity log, with what it replaced.
+	// See docs/adr/0034-a-servers-public-address.md.
 	SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error)
 }
 

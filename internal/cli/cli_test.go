@@ -23,15 +23,9 @@ func run(t *testing.T, env map[string]string, args ...string) result {
 	t.Helper()
 	var out, errOut bytes.Buffer
 	code := Execute(t.Context(), args, IO{
-		Out: &out,
-		Err: &errOut,
-		Getenv: func(k string) string {
-			// A test asks no public STUN server, whatever it runs.
-			if k == envNoStun && env[k] == "" {
-				return "1"
-			}
-			return env[k]
-		},
+		Out:    &out,
+		Err:    &errOut,
+		Getenv: quiet(func(k string) string { return env[k] }),
 	})
 	return result{code: code, out: out.String(), err: errOut.String()}
 }

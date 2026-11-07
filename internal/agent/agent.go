@@ -86,6 +86,8 @@ type Config struct {
 	CallGrace time.Duration
 	// unfinished is what outlives its call, across this agent's streams.
 	unfinished *unfinished
+	// outlook keeps what the server found out from one stream to the next.
+	outlook *outlook
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
@@ -166,6 +168,29 @@ type BackupTaker interface {
 type Desired interface {
 	// Applied records a resource's desired spec; nil means it was deleted.
 	Applied(ctx context.Context, ref resource.Ref, spec proto.Message) error
+}
+
+// outlook is what this server last found out of how the internet sees it. It belongs
+// to the server, not a stream: a link that flaps opens a stream every 30 s, and each
+// says what's known, where only the schedule asks a third party again.
+type outlook struct {
+	mu   sync.Mutex
+	last *agentv1.Network
+	at   time.Time
+}
+
+// current is what's known, looking again if that's due, and how long until the next look.
+func (o *outlook) current(ctx context.Context, cfg Config) (*agentv1.Network, time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.last == nil || time.Since(o.at) >= networkEvery {
+		network := cfg.Collector.Network(ctx, !cfg.NoLookup)
+		if ctx.Err() != nil {
+			return network, 0
+		}
+		o.last, o.at = network, time.Now()
+	}
+	return o.last, networkEvery - time.Since(o.at)
 }
 
 // networkEvery is how often a server looks again at how the internet sees it, as a
@@ -276,6 +301,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.Collector == nil {
 		cfg.Collector = collect.New()
 	}
+	cfg.outlook = &outlook{}
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}
@@ -499,14 +525,14 @@ func session(ctx context.Context, cfg Config) (err error) {
 	// and takes its whole timeout to say so, and nothing waits for this.
 	go func() {
 		for {
-			network := cfg.Collector.Network(ctx, !cfg.NoLookup)
+			network, next := cfg.outlook.current(ctx, cfg)
 			if ctx.Err() != nil || send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Network{Network: network}}) != nil {
 				return
 			}
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(networkEvery):
+			case <-time.After(next):
 			}
 		}
 	}()

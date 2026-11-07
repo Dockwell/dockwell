@@ -38,6 +38,9 @@ const (
 	// again, samples from before a gap this long are dropped, so the
 	// history never draws an outage as part of a trend.
 	HistoryWindow = HistoryLength * StatsInterval
+	// refreshEvery is how often what's known of a server's network is worked out
+	// again with nothing new heard, as what's known of it can run out.
+	refreshEvery = time.Minute
 	// watcherBuffer is how far a watcher may fall behind before it is
 	// dropped; it reconnects and gets a fresh snapshot.
 	watcherBuffer = 256
@@ -72,24 +75,28 @@ type live struct {
 	// dockerUnreadableSince is since when its agent hasn't been able to read
 	// Docker, as it last said, on the server's clock. Each stream says it anew.
 	dockerUnreadableSince *timestamppb.Timestamp
-	// person is what a person set of its public address, with who and when: only
+	// person is what a person set of its public addresses, with who and when: only
 	// that, of what's known of its network, is kept in the store.
 	person *dockwellv1.ServerNetwork
-	// seen is the public address its agent last connected from.
-	seen string
+	// seen is the public address its agent last connected from, and seenAt when. It
+	// goes with its stream, as do outside and domains, which its next stream says anew.
+	seen   string
+	seenAt time.Time
 	// outside is what it last found out for itself beyond its interfaces. Nil
 	// until it has said, which an agent from before this never does.
 	outside *agentv1.Network
 	// domains is what it last said of its routes' domains.
 	domains []*dockwellv1.DomainStatus
-	// network is what all of that comes to.
-	network *dockwellv1.ServerNetwork
-	// told signals that its agent's public address changed.
-	told chan struct{}
+	// network is what all of that comes to, and refreshed when that was worked out.
+	network   *dockwellv1.ServerNetwork
+	refreshed time.Time
+	// told are who watches for its agent's public addresses changing, one for
+	// each stream.
+	told map[chan struct{}]struct{}
 }
 
 func newLive(s store.Server) *live {
-	return &live{srv: s, told: make(chan struct{}, 1)}
+	return &live{srv: s, told: map[chan struct{}]struct{}{}}
 }
 
 // Hub is the fleet's live state.
@@ -125,7 +132,7 @@ func New(ctx context.Context, db *store.DB, logger *slog.Logger) (*Hub, error) {
 			if r, ok := reports[s.ID]; ok {
 				l.inventory, l.build = decodeReport(r, logger, s.ID)
 			}
-			if l.person, err = loadPublicAddress(ctx, tx, s.ID); err != nil {
+			if l.person, err = loadPublicAddress(ctx, tx, logger, s.ID); err != nil {
 				return err
 			}
 			h.refreshNetworkLocked(s.ID, l)
@@ -267,6 +274,10 @@ func (h *Hub) detachLocked(id string, l *live) {
 	if l.streams == 0 {
 		l.connectedAt = time.Time{}
 		h.logger.Info("server disconnected", slog.String("server", id), slog.String("name", l.srv.Name))
+		// What it said of itself was so while it was connected, and nothing says it
+		// still is. Its next stream says it anew.
+		l.seen, l.seenAt, l.outside, l.domains = "", time.Time{}, nil, nil
+		h.refreshNetworkLocked(id, l)
 	}
 	h.notifyLocked(id, false)
 	// Best effort: the stream is gone, and last_seen only refines the UI.
@@ -321,6 +332,10 @@ func (h *Hub) Record(id string, stats *dockwellv1.ServerStats) {
 		l.history = slices.DeleteFunc(l.history, func(s *dockwellv1.ServerStats) bool {
 			return s.GetTime() != nil && !s.GetTime().AsTime().After(cutoff)
 		})
+	}
+	// Nothing else may arrive while a domain's proof runs out.
+	if l.lastSeen.Sub(l.refreshed) >= refreshEvery {
+		h.refreshNetworkLocked(id, l)
 	}
 	l.history = append(l.history, stats)
 	if over := len(l.history) - HistoryLength; over > 0 {

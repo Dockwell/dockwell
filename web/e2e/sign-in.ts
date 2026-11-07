@@ -149,7 +149,14 @@ async function start(): Promise<string> {
     ],
     {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ...engine, USER: "mira", DOCKWELL_CATALOG_DIR: catalogDir, DOCKWELL_NO_STUN: "1" },
+      env: {
+        ...process.env,
+        ...engine,
+        USER: "mira",
+        DOCKWELL_CATALOG_DIR: catalogDir,
+        DOCKWELL_NO_STUN: "1",
+        DOCKWELL_METADATA_URL: "http://127.0.0.1:1",
+      },
     },
   );
   let out = "";

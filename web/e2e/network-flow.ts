@@ -22,7 +22,10 @@ export async function networkFlow(page: Page, { origin, step, shoot }: NetworkFl
   await network.getByText("Not checked", { exact: true }).waitFor();
   await shoot(page, "network-before");
 
-  await network.getByRole("button", { name: /^(Set|Change)$/ }).click();
+  await network
+    .getByRole("button", { name: /^(Set|Change)$/ })
+    .first()
+    .click();
   const sheet = page.getByRole("dialog");
   const field = sheet.getByLabel("Public address");
   await field.fill("10.0.0.25");
@@ -43,8 +46,12 @@ export async function networkFlow(page: Page, { origin, step, shoot }: NetworkFl
   await page.getByText("Set the public address of", { exact: false }).first().waitFor();
 
   await page.goBack();
-  await network.getByRole("button", { name: "Change" }).click();
+  await network.getByRole("button", { name: "Change" }).first().click();
   await page.getByRole("dialog").getByRole("button", { name: "Clear" }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   await network.getByText("198.51.100.7", { exact: true }).waitFor({ state: "hidden" });
+
+  await page.goto(`${origin}/activity`);
+  await page.getByText("Cleared the public address of", { exact: false }).first().waitFor();
+  await page.getByText("which was 198.51.100.7", { exact: false }).first().waitFor();
 }

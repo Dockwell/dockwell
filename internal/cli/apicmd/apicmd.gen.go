@@ -849,11 +849,12 @@ func Methods() []*apicli.Method {
 			Noun:      "servers",
 			Verb:      "set-public-address",
 			Short:     "Record a server's public address",
-			Long:      "Record a server's public address, as a person knows it, which no other way of\nknowing it overrides. An empty address goes back to what Dockwell finds out for\nitself. It's on record in the activity log. See\ndocs/adr/0034-a-servers-public-address.md.",
+			Long:      "Record a server's public address, as a person knows it, which no other way of\nknowing it overrides. An IPv4 and an IPv6 address are kept apart. An empty\naddress goes back to what Dockwell finds out for itself. It's on record in the\nactivity log, with what it replaced. See\ndocs/adr/0034-a-servers-public-address.md.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The server's ID.", Arg: true},
 				{Path: "address", Help: "A public IP address, or empty to clear what a person set."},
+				{Path: "ipv6", Help: "With an empty address, clears the IPv6 address a person set, not the IPv4 one. A person's addresses are kept apart, as DNS records are."},
 			},
 			Call: apicli.Unary[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse](dockwellv1connect.ServerServiceSetServerPublicAddressProcedure),
 		},

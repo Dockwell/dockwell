@@ -5264,15 +5264,17 @@ type DomainCheck struct {
 	Found []string `protobuf:"bytes,3,rep,name=found,proto3" json:"found,omitempty"`
 	// The addresses the server has, which it compared them with.
 	Here []string `protobuf:"bytes,4,rep,name=here,proto3" json:"here,omitempty"`
-	// The server's public address, when one is known beyond its interfaces.
-	// It's the one to point a record at.
-	PublicAddress string `protobuf:"bytes,5,opt,name=public_address,json=publicAddress,proto3" json:"public_address,omitempty"`
-	// Nothing has proved public_address is a way in, and the server isn't on a
-	// known cloud, so it may be a router's, which needs a forwarded port.
-	PublicUnproven bool `protobuf:"varint,6,opt,name=public_unproven,json=publicUnproven,proto3" json:"public_unproven,omitempty"`
-	// The server is behind carrier-grade NAT, so no record can reach it, and
-	// no forwarded port either. Only a tunnel can.
-	CarrierNat    bool `protobuf:"varint,7,opt,name=carrier_nat,json=carrierNat,proto3" json:"carrier_nat,omitempty"`
+	// The server's public addresses known beyond its interfaces, which are the
+	// ones to point a record at.
+	PublicAddresses []string `protobuf:"bytes,5,rep,name=public_addresses,json=publicAddresses,proto3" json:"public_addresses,omitempty"`
+	// Those of public_addresses nothing has shown to be a way in, so a record at
+	// one may not reach the server.
+	UnprovenAddresses []string `protobuf:"bytes,6,rep,name=unproven_addresses,json=unprovenAddresses,proto3" json:"unproven_addresses,omitempty"`
+	// The server is behind carrier-grade NAT with no way in known, so no record
+	// can reach it, and no forwarded port either. Only a tunnel can.
+	CarrierNat bool `protobuf:"varint,7,opt,name=carrier_nat,json=carrierNat,proto3" json:"carrier_nat,omitempty"`
+	// When DNS was read. Unset for a check from an agent from before this.
+	ReadTime      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=read_time,json=readTime,proto3" json:"read_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5335,18 +5337,18 @@ func (x *DomainCheck) GetHere() []string {
 	return nil
 }
 
-func (x *DomainCheck) GetPublicAddress() string {
+func (x *DomainCheck) GetPublicAddresses() []string {
 	if x != nil {
-		return x.PublicAddress
+		return x.PublicAddresses
 	}
-	return ""
+	return nil
 }
 
-func (x *DomainCheck) GetPublicUnproven() bool {
+func (x *DomainCheck) GetUnprovenAddresses() []string {
 	if x != nil {
-		return x.PublicUnproven
+		return x.UnprovenAddresses
 	}
-	return false
+	return nil
 }
 
 func (x *DomainCheck) GetCarrierNat() bool {
@@ -5354,6 +5356,13 @@ func (x *DomainCheck) GetCarrierNat() bool {
 		return x.CarrierNat
 	}
 	return false
+}
+
+func (x *DomainCheck) GetReadTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ReadTime
+	}
+	return nil
 }
 
 // FieldChange is one field that differs between two specs.
@@ -5929,16 +5938,17 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06change\x18\x01 \x01(\x0e2\x1a.dockwell.v1.IngressChangeR\x06change\x12\x14\n" +
 	"\x05proxy\x18\x02 \x01(\tR\x05proxy\x12\x14\n" +
 	"\x05ports\x18\x03 \x03(\tR\x05ports\x12!\n" +
-	"\fpanel_domain\x18\x04 \x01(\tR\vpanelDomain\"\xf5\x01\n" +
+	"\fpanel_domain\x18\x04 \x01(\tR\vpanelDomain\"\xb8\x02\n" +
 	"\vDomainCheck\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x123\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1d.dockwell.v1.DomainCheckStateR\x05state\x12\x14\n" +
 	"\x05found\x18\x03 \x03(\tR\x05found\x12\x12\n" +
-	"\x04here\x18\x04 \x03(\tR\x04here\x12%\n" +
-	"\x0epublic_address\x18\x05 \x01(\tR\rpublicAddress\x12'\n" +
-	"\x0fpublic_unproven\x18\x06 \x01(\bR\x0epublicUnproven\x12\x1f\n" +
+	"\x04here\x18\x04 \x03(\tR\x04here\x12)\n" +
+	"\x10public_addresses\x18\x05 \x03(\tR\x0fpublicAddresses\x12-\n" +
+	"\x12unproven_addresses\x18\x06 \x03(\tR\x11unprovenAddresses\x12\x1f\n" +
 	"\vcarrier_nat\x18\a \x01(\bR\n" +
-	"carrierNat\"\x89\x01\n" +
+	"carrierNat\x127\n" +
+	"\tread_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\breadTime\"\x89\x01\n" +
 	"\vFieldChange\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12$\n" +
 	"\x02op\x18\x02 \x01(\x0e2\x14.dockwell.v1.FieldOpR\x02op\x12\x12\n" +
@@ -6270,40 +6280,41 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	69, // 76: dockwell.v1.RolloutPlan.route_ports:type_name -> dockwell.v1.RolloutPlan.RoutePortsEntry
 	9,  // 77: dockwell.v1.IngressEffect.change:type_name -> dockwell.v1.IngressChange
 	10, // 78: dockwell.v1.DomainCheck.state:type_name -> dockwell.v1.DomainCheckState
-	14, // 79: dockwell.v1.FieldChange.op:type_name -> dockwell.v1.FieldOp
-	18, // 80: dockwell.v1.StepProgress.resource:type_name -> dockwell.v1.ResourceRef
-	11, // 81: dockwell.v1.StepProgress.action:type_name -> dockwell.v1.PlanAction
-	15, // 82: dockwell.v1.StepProgress.state:type_name -> dockwell.v1.StepState
-	71, // 83: dockwell.v1.StepProgress.start_time:type_name -> google.protobuf.Timestamp
-	71, // 84: dockwell.v1.StepProgress.finish_time:type_name -> google.protobuf.Timestamp
-	11, // 85: dockwell.v1.StepProgress.did:type_name -> dockwell.v1.PlanAction
-	16, // 86: dockwell.v1.ChangeService.ProposeChange:input_type -> dockwell.v1.ProposeChangeRequest
-	21, // 87: dockwell.v1.ChangeService.GetChange:input_type -> dockwell.v1.GetChangeRequest
-	23, // 88: dockwell.v1.ChangeService.ListChanges:input_type -> dockwell.v1.ListChangesRequest
-	25, // 89: dockwell.v1.ChangeService.ApplyChange:input_type -> dockwell.v1.ApplyChangeRequest
-	27, // 90: dockwell.v1.ChangeService.WatchChange:input_type -> dockwell.v1.WatchChangeRequest
-	30, // 91: dockwell.v1.ChangeService.UndoChange:input_type -> dockwell.v1.UndoChangeRequest
-	32, // 92: dockwell.v1.ChangeService.DiscardChange:input_type -> dockwell.v1.DiscardChangeRequest
-	34, // 93: dockwell.v1.ChangeService.RestartService:input_type -> dockwell.v1.RestartServiceRequest
-	36, // 94: dockwell.v1.ChangeService.ListDrift:input_type -> dockwell.v1.ListDriftRequest
-	40, // 95: dockwell.v1.ChangeService.RevertDrift:input_type -> dockwell.v1.RevertDriftRequest
-	42, // 96: dockwell.v1.ChangeService.AdoptDrift:input_type -> dockwell.v1.AdoptDriftRequest
-	20, // 97: dockwell.v1.ChangeService.ProposeChange:output_type -> dockwell.v1.ProposeChangeResponse
-	22, // 98: dockwell.v1.ChangeService.GetChange:output_type -> dockwell.v1.GetChangeResponse
-	24, // 99: dockwell.v1.ChangeService.ListChanges:output_type -> dockwell.v1.ListChangesResponse
-	26, // 100: dockwell.v1.ChangeService.ApplyChange:output_type -> dockwell.v1.ApplyChangeResponse
-	28, // 101: dockwell.v1.ChangeService.WatchChange:output_type -> dockwell.v1.WatchChangeResponse
-	31, // 102: dockwell.v1.ChangeService.UndoChange:output_type -> dockwell.v1.UndoChangeResponse
-	33, // 103: dockwell.v1.ChangeService.DiscardChange:output_type -> dockwell.v1.DiscardChangeResponse
-	35, // 104: dockwell.v1.ChangeService.RestartService:output_type -> dockwell.v1.RestartServiceResponse
-	37, // 105: dockwell.v1.ChangeService.ListDrift:output_type -> dockwell.v1.ListDriftResponse
-	41, // 106: dockwell.v1.ChangeService.RevertDrift:output_type -> dockwell.v1.RevertDriftResponse
-	43, // 107: dockwell.v1.ChangeService.AdoptDrift:output_type -> dockwell.v1.AdoptDriftResponse
-	97, // [97:108] is the sub-list for method output_type
-	86, // [86:97] is the sub-list for method input_type
-	86, // [86:86] is the sub-list for extension type_name
-	86, // [86:86] is the sub-list for extension extendee
-	0,  // [0:86] is the sub-list for field type_name
+	71, // 79: dockwell.v1.DomainCheck.read_time:type_name -> google.protobuf.Timestamp
+	14, // 80: dockwell.v1.FieldChange.op:type_name -> dockwell.v1.FieldOp
+	18, // 81: dockwell.v1.StepProgress.resource:type_name -> dockwell.v1.ResourceRef
+	11, // 82: dockwell.v1.StepProgress.action:type_name -> dockwell.v1.PlanAction
+	15, // 83: dockwell.v1.StepProgress.state:type_name -> dockwell.v1.StepState
+	71, // 84: dockwell.v1.StepProgress.start_time:type_name -> google.protobuf.Timestamp
+	71, // 85: dockwell.v1.StepProgress.finish_time:type_name -> google.protobuf.Timestamp
+	11, // 86: dockwell.v1.StepProgress.did:type_name -> dockwell.v1.PlanAction
+	16, // 87: dockwell.v1.ChangeService.ProposeChange:input_type -> dockwell.v1.ProposeChangeRequest
+	21, // 88: dockwell.v1.ChangeService.GetChange:input_type -> dockwell.v1.GetChangeRequest
+	23, // 89: dockwell.v1.ChangeService.ListChanges:input_type -> dockwell.v1.ListChangesRequest
+	25, // 90: dockwell.v1.ChangeService.ApplyChange:input_type -> dockwell.v1.ApplyChangeRequest
+	27, // 91: dockwell.v1.ChangeService.WatchChange:input_type -> dockwell.v1.WatchChangeRequest
+	30, // 92: dockwell.v1.ChangeService.UndoChange:input_type -> dockwell.v1.UndoChangeRequest
+	32, // 93: dockwell.v1.ChangeService.DiscardChange:input_type -> dockwell.v1.DiscardChangeRequest
+	34, // 94: dockwell.v1.ChangeService.RestartService:input_type -> dockwell.v1.RestartServiceRequest
+	36, // 95: dockwell.v1.ChangeService.ListDrift:input_type -> dockwell.v1.ListDriftRequest
+	40, // 96: dockwell.v1.ChangeService.RevertDrift:input_type -> dockwell.v1.RevertDriftRequest
+	42, // 97: dockwell.v1.ChangeService.AdoptDrift:input_type -> dockwell.v1.AdoptDriftRequest
+	20, // 98: dockwell.v1.ChangeService.ProposeChange:output_type -> dockwell.v1.ProposeChangeResponse
+	22, // 99: dockwell.v1.ChangeService.GetChange:output_type -> dockwell.v1.GetChangeResponse
+	24, // 100: dockwell.v1.ChangeService.ListChanges:output_type -> dockwell.v1.ListChangesResponse
+	26, // 101: dockwell.v1.ChangeService.ApplyChange:output_type -> dockwell.v1.ApplyChangeResponse
+	28, // 102: dockwell.v1.ChangeService.WatchChange:output_type -> dockwell.v1.WatchChangeResponse
+	31, // 103: dockwell.v1.ChangeService.UndoChange:output_type -> dockwell.v1.UndoChangeResponse
+	33, // 104: dockwell.v1.ChangeService.DiscardChange:output_type -> dockwell.v1.DiscardChangeResponse
+	35, // 105: dockwell.v1.ChangeService.RestartService:output_type -> dockwell.v1.RestartServiceResponse
+	37, // 106: dockwell.v1.ChangeService.ListDrift:output_type -> dockwell.v1.ListDriftResponse
+	41, // 107: dockwell.v1.ChangeService.RevertDrift:output_type -> dockwell.v1.RevertDriftResponse
+	43, // 108: dockwell.v1.ChangeService.AdoptDrift:output_type -> dockwell.v1.AdoptDriftResponse
+	98, // [98:109] is the sub-list for method output_type
+	87, // [87:98] is the sub-list for method input_type
+	87, // [87:87] is the sub-list for extension type_name
+	87, // [87:87] is the sub-list for extension extendee
+	0,  // [0:87] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_change_proto_init() }

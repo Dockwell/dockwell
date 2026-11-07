@@ -427,33 +427,55 @@ export function useChangeWords(): ChangeWords {
         const { domain } = check;
         const found = listWords(i18n.locale, check.found);
         const here = listWords(i18n.locale, check.here);
-        // A record pointed at a private address can't work, so none is named as where to point one.
-        const known = check.publicAddress;
-        const own = known ? [known] : check.here.filter((ip) => !isPrivateAddress(ip));
-        const publics = listWords(i18n.locale, own);
-        const either = listWords(i18n.locale, own, "disjunction");
-        const point = check.carrierNat
-          ? t`This server is behind carrier NAT (${here}), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither`
-          : check.publicUnproven
-            ? t`Point an A record at ${either}, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither`
-            : here === ""
-              ? t`Point an A or AAAA record at this server's public address`
-              : check.here.length === 1
-                ? t`Point an A record at this server's public address. Dockwell only sees ${here} here, which is private, so the internet can't reach it`
-                : t`Point an A record at this server's public address. Dockwell only sees ${here} here, which are private, so the internet can't reach it`;
-        const plainly = own.length > 0 && !check.publicUnproven && !check.carrierNat;
+        // A record pointed at a private address can't work, so none is named as where to
+        // point one, whatever an agent said. What's known goes first for its family, as
+        // resource.PointHere has it, and a way out is only named with what it may not be.
+        const told = check.publicAddresses.filter((ip) => !isPrivateAddress(ip));
+        const family = (ip: string) => ip.includes(":");
+        const own = check.here.filter(
+          (ip) => !isPrivateAddress(ip) && !told.includes(ip) && !told.some((known) => family(known) === family(ip)),
+        );
+        const addresses = [...told, ...own];
+        const proved = addresses.filter((ip) => !check.unprovenAddresses.includes(ip));
+        const unproven = addresses.filter((ip) => check.unprovenAddresses.includes(ip));
+        const kinds = (list: string[]) =>
+          listWords(
+            i18n.locale,
+            [...new Set(list.map((ip) => (family(ip) ? "AAAA" : "A")))].sort((x, y) => x.length - y.length),
+            "disjunction",
+          );
+        const publics = listWords(i18n.locale, proved);
+        const either = listWords(i18n.locale, proved, "disjunction");
+        const record = kinds(proved);
+        const goesOut = listWords(i18n.locale, unproven, "disjunction");
+        const goesOutRecord = kinds(unproven);
+        const provedWords = t`Point an ${record} record at this server, ${either}`;
+        const unprovenWords = t`Point an ${goesOutRecord} record at ${goesOut}, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither`;
+        const point =
+          proved.length > 0 && unproven.length > 0
+            ? `${provedWords}. ${unprovenWords}`
+            : unproven.length > 0
+              ? unprovenWords
+              : check.carrierNat
+                ? t`This server is behind carrier NAT (${here}), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither`
+                : here === ""
+                  ? t`Point an A or AAAA record at this server's public address`
+                  : check.here.length === 1
+                    ? t`Point an A record at this server's public address. Dockwell only sees ${here} here, which is private, so the internet can't reach it`
+                    : t`Point an A record at this server's public address. Dockwell only sees ${here} here, which are private, so the internet can't reach it`;
+        const plainly = proved.length > 0 && unproven.length === 0;
         switch (check.state) {
           case DomainCheckState.NO_RECORD:
             return plainly
-              ? t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${either}; it comes once you do`
+              ? t`${domain} has no DNS record yet, so its certificate can't come. Point an ${record} record at ${either}; it comes once you do`
               : t`${domain} has no DNS record yet, so its certificate can't come until it has one. ${point}`;
           case DomainCheckState.ELSEWHERE:
             return plainly
               ? t`DNS for ${domain} points at ${found}, not this server (${publics}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`
               : t`DNS for ${domain} points at ${found}, not this server, so its certificate can't come yet. ${point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
           case DomainCheckState.CANT_TELL:
-            if (known) {
-              return t`DNS for ${domain} points at ${found}. This server goes out from ${known}, which may not be its way in, so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
+            if (unproven.length > 0) {
+              return t`DNS for ${domain} points at ${found}. This server goes out from ${goesOut}, which may not be its way in, so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
             }
             return t`DNS for ${domain} points at ${found}. This server's own addresses are private (${here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
         }
