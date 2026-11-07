@@ -375,7 +375,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -422,6 +422,8 @@ type Session struct {
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
 	readsUpdates bool
+	// managesFiles says the agent makes, moves, deletes and puts back files (ADR 0045).
+	managesFiles bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -769,6 +771,10 @@ func (s *Session) lost(c *agentv1.Call) error {
 	if c.GetSaveFile() != nil {
 		return fault.New(ErrLost, "%s's agent disconnected before it answered, so the file may or may not have saved. "+
 			"Open it again once the agent reconnects, to see what's there", s.name)
+	}
+	if c.GetMakeFile() != nil || c.GetMoveFile() != nil || c.GetDeleteFile() != nil || c.GetRestoreFile() != nil || c.GetPurgeDeleted() != nil {
+		return fault.New(ErrLost, "%s's agent disconnected before it answered, so this may or may not have happened. "+
+			"Look at the folder again once the agent reconnects", s.name)
 	}
 	return fault.New(ErrLost, "%s's agent disconnected before it answered. Try again once it reconnects", s.name)
 }

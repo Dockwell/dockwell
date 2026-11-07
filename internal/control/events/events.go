@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	controlfiles "github.com/dockwell/dockwell/internal/control/files"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
@@ -71,12 +72,22 @@ const (
 	changeApplyUnconfirmed = "change.apply_unconfirmed"
 )
 
+// fileWrites are what a person makes, moves, deletes and puts back on a server, and
+// what stopped them (ADR 0045). Each is on the timeline, as a save is.
+var fileWrites = []string{
+	"file.make", "file.make_failed", "file.make_unconfirmed",
+	"file.move", "file.move_failed", "file.move_unconfirmed",
+	"file.delete", "file.delete_failed", "file.delete_unconfirmed",
+	"file.restore", "file.restore_failed", "file.restore_unconfirmed",
+	"file.change_unknown",
+}
+
 // The audit log's actions that belong on the timeline, by kind. What the
 // timeline leaves out stays in the audit log: refusals, such as wrong codes
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
-	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear}
+	serverActions = slices.Concat([]string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear}, fileWrites)
 	healthActions = []string{health.Action}
 	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).
 	settingsActions = settings.Actions
@@ -497,7 +508,8 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Id: a.ID, Kind: dockwellv1.EventKind_EVENT_KIND_ACCESS, Action: a.Action, Time: timestamppb.New(a.At),
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
-	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed {
+	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed ||
+		slices.Contains(fileWrites, a.Action) {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if a.Action == health.Action {
@@ -541,6 +553,10 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {
 		e.Subject.Path = a.Subject // only ever a path, cleaned by internal/control/files
+		// A write's detail leaves the store too: where it went, and what it took.
+		if told, ok := controlfiles.ReadTold(a.Detail); ok && slices.Contains(fileWrites, a.Action) {
+			e.Subject.ToPath, e.Subject.WayBackIn, e.Subject.ForGood = told.To, told.WayBackIn, told.ForGood
+		}
 	}
 	return e
 }

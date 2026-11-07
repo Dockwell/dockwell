@@ -41,6 +41,20 @@ const (
 	FileServiceReadFileProcedure = "/dockwell.v1.FileService/ReadFile"
 	// FileServiceSaveFileProcedure is the fully-qualified name of the FileService's SaveFile RPC.
 	FileServiceSaveFileProcedure = "/dockwell.v1.FileService/SaveFile"
+	// FileServiceMakeFileProcedure is the fully-qualified name of the FileService's MakeFile RPC.
+	FileServiceMakeFileProcedure = "/dockwell.v1.FileService/MakeFile"
+	// FileServiceMoveFileProcedure is the fully-qualified name of the FileService's MoveFile RPC.
+	FileServiceMoveFileProcedure = "/dockwell.v1.FileService/MoveFile"
+	// FileServiceDeleteFileProcedure is the fully-qualified name of the FileService's DeleteFile RPC.
+	FileServiceDeleteFileProcedure = "/dockwell.v1.FileService/DeleteFile"
+	// FileServiceListDeletedFilesProcedure is the fully-qualified name of the FileService's
+	// ListDeletedFiles RPC.
+	FileServiceListDeletedFilesProcedure = "/dockwell.v1.FileService/ListDeletedFiles"
+	// FileServiceRestoreFileProcedure is the fully-qualified name of the FileService's RestoreFile RPC.
+	FileServiceRestoreFileProcedure = "/dockwell.v1.FileService/RestoreFile"
+	// FileServicePurgeDeletedFileProcedure is the fully-qualified name of the FileService's
+	// PurgeDeletedFile RPC.
+	FileServicePurgeDeletedFileProcedure = "/dockwell.v1.FileService/PurgeDeletedFile"
 )
 
 // FileServiceClient is a client for the dockwell.v1.FileService service.
@@ -58,6 +72,33 @@ type FileServiceClient interface {
 	// written. It can't be undone. No API token can call it. Every save is in the
 	// audit log, and on the timeline.
 	SaveFile(context.Context, *connect.Request[v1.SaveFileRequest]) (*connect.Response[v1.SaveFileResponse], error)
+	// MakeFile makes an empty file, or a folder with nothing in it, never over
+	// what's there, which fails with the reason "file_exists". It takes its
+	// folder's owner and group. No API token can call it. Each one is on the
+	// timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
+	MakeFile(context.Context, *connect.Request[v1.MakeFileRequest]) (*connect.Response[v1.MakeFileResponse], error)
+	// MoveFile moves or renames a file or a folder, within one filesystem,
+	// never over what's there. A symlink moves as itself. A move to another
+	// disk fails with the reason "other_disk". No API token can call it. Each
+	// one is on the timeline.
+	MoveFile(context.Context, *connect.Request[v1.MoveFileRequest]) (*connect.Response[v1.MoveFileResponse], error)
+	// DeleteFile deletes a file or a folder. It goes to Recently deleted for 7
+	// days, from where RestoreFile puts it back, when it's on the same
+	// filesystem as Dockwell's data. Elsewhere it fails with the reason
+	// "delete_for_good" unless for_good is set. A symlink goes as itself. No
+	// API token can call it. Each one is on the timeline.
+	DeleteFile(context.Context, *connect.Request[v1.DeleteFileRequest]) (*connect.Response[v1.DeleteFileResponse], error)
+	// ListDeletedFiles returns what's in a server's Recently deleted, newest
+	// first. No API token can call it.
+	ListDeletedFiles(context.Context, *connect.Request[v1.ListDeletedFilesRequest]) (*connect.Response[v1.ListDeletedFilesResponse], error)
+	// RestoreFile puts back what was deleted, at the path it was deleted from,
+	// never over what's there now. No API token can call it. Each one is on
+	// the timeline.
+	RestoreFile(context.Context, *connect.Request[v1.RestoreFileRequest]) (*connect.Response[v1.RestoreFileResponse], error)
+	// PurgeDeletedFile deletes for good what's in Recently deleted, which
+	// frees its space at once. No API token can call it. Each one is on the
+	// timeline.
+	PurgeDeletedFile(context.Context, *connect.Request[v1.PurgeDeletedFileRequest]) (*connect.Response[v1.PurgeDeletedFileResponse], error)
 }
 
 // NewFileServiceClient constructs a client for the dockwell.v1.FileService service. By default, it
@@ -90,14 +131,57 @@ func NewFileServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(fileServiceMethods.ByName("SaveFile")),
 			connect.WithClientOptions(opts...),
 		),
+		makeFile: connect.NewClient[v1.MakeFileRequest, v1.MakeFileResponse](
+			httpClient,
+			baseURL+FileServiceMakeFileProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("MakeFile")),
+			connect.WithClientOptions(opts...),
+		),
+		moveFile: connect.NewClient[v1.MoveFileRequest, v1.MoveFileResponse](
+			httpClient,
+			baseURL+FileServiceMoveFileProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("MoveFile")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteFile: connect.NewClient[v1.DeleteFileRequest, v1.DeleteFileResponse](
+			httpClient,
+			baseURL+FileServiceDeleteFileProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("DeleteFile")),
+			connect.WithClientOptions(opts...),
+		),
+		listDeletedFiles: connect.NewClient[v1.ListDeletedFilesRequest, v1.ListDeletedFilesResponse](
+			httpClient,
+			baseURL+FileServiceListDeletedFilesProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("ListDeletedFiles")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		restoreFile: connect.NewClient[v1.RestoreFileRequest, v1.RestoreFileResponse](
+			httpClient,
+			baseURL+FileServiceRestoreFileProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("RestoreFile")),
+			connect.WithClientOptions(opts...),
+		),
+		purgeDeletedFile: connect.NewClient[v1.PurgeDeletedFileRequest, v1.PurgeDeletedFileResponse](
+			httpClient,
+			baseURL+FileServicePurgeDeletedFileProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("PurgeDeletedFile")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // fileServiceClient implements FileServiceClient.
 type fileServiceClient struct {
-	listFiles *connect.Client[v1.ListFilesRequest, v1.ListFilesResponse]
-	readFile  *connect.Client[v1.ReadFileRequest, v1.ReadFileResponse]
-	saveFile  *connect.Client[v1.SaveFileRequest, v1.SaveFileResponse]
+	listFiles        *connect.Client[v1.ListFilesRequest, v1.ListFilesResponse]
+	readFile         *connect.Client[v1.ReadFileRequest, v1.ReadFileResponse]
+	saveFile         *connect.Client[v1.SaveFileRequest, v1.SaveFileResponse]
+	makeFile         *connect.Client[v1.MakeFileRequest, v1.MakeFileResponse]
+	moveFile         *connect.Client[v1.MoveFileRequest, v1.MoveFileResponse]
+	deleteFile       *connect.Client[v1.DeleteFileRequest, v1.DeleteFileResponse]
+	listDeletedFiles *connect.Client[v1.ListDeletedFilesRequest, v1.ListDeletedFilesResponse]
+	restoreFile      *connect.Client[v1.RestoreFileRequest, v1.RestoreFileResponse]
+	purgeDeletedFile *connect.Client[v1.PurgeDeletedFileRequest, v1.PurgeDeletedFileResponse]
 }
 
 // ListFiles calls dockwell.v1.FileService.ListFiles.
@@ -115,6 +199,36 @@ func (c *fileServiceClient) SaveFile(ctx context.Context, req *connect.Request[v
 	return c.saveFile.CallUnary(ctx, req)
 }
 
+// MakeFile calls dockwell.v1.FileService.MakeFile.
+func (c *fileServiceClient) MakeFile(ctx context.Context, req *connect.Request[v1.MakeFileRequest]) (*connect.Response[v1.MakeFileResponse], error) {
+	return c.makeFile.CallUnary(ctx, req)
+}
+
+// MoveFile calls dockwell.v1.FileService.MoveFile.
+func (c *fileServiceClient) MoveFile(ctx context.Context, req *connect.Request[v1.MoveFileRequest]) (*connect.Response[v1.MoveFileResponse], error) {
+	return c.moveFile.CallUnary(ctx, req)
+}
+
+// DeleteFile calls dockwell.v1.FileService.DeleteFile.
+func (c *fileServiceClient) DeleteFile(ctx context.Context, req *connect.Request[v1.DeleteFileRequest]) (*connect.Response[v1.DeleteFileResponse], error) {
+	return c.deleteFile.CallUnary(ctx, req)
+}
+
+// ListDeletedFiles calls dockwell.v1.FileService.ListDeletedFiles.
+func (c *fileServiceClient) ListDeletedFiles(ctx context.Context, req *connect.Request[v1.ListDeletedFilesRequest]) (*connect.Response[v1.ListDeletedFilesResponse], error) {
+	return c.listDeletedFiles.CallUnary(ctx, req)
+}
+
+// RestoreFile calls dockwell.v1.FileService.RestoreFile.
+func (c *fileServiceClient) RestoreFile(ctx context.Context, req *connect.Request[v1.RestoreFileRequest]) (*connect.Response[v1.RestoreFileResponse], error) {
+	return c.restoreFile.CallUnary(ctx, req)
+}
+
+// PurgeDeletedFile calls dockwell.v1.FileService.PurgeDeletedFile.
+func (c *fileServiceClient) PurgeDeletedFile(ctx context.Context, req *connect.Request[v1.PurgeDeletedFileRequest]) (*connect.Response[v1.PurgeDeletedFileResponse], error) {
+	return c.purgeDeletedFile.CallUnary(ctx, req)
+}
+
 // FileServiceHandler is an implementation of the dockwell.v1.FileService service.
 type FileServiceHandler interface {
 	// ListFiles returns what a directory on a server holds, by name. It follows
@@ -130,6 +244,33 @@ type FileServiceHandler interface {
 	// written. It can't be undone. No API token can call it. Every save is in the
 	// audit log, and on the timeline.
 	SaveFile(context.Context, *connect.Request[v1.SaveFileRequest]) (*connect.Response[v1.SaveFileResponse], error)
+	// MakeFile makes an empty file, or a folder with nothing in it, never over
+	// what's there, which fails with the reason "file_exists". It takes its
+	// folder's owner and group. No API token can call it. Each one is on the
+	// timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
+	MakeFile(context.Context, *connect.Request[v1.MakeFileRequest]) (*connect.Response[v1.MakeFileResponse], error)
+	// MoveFile moves or renames a file or a folder, within one filesystem,
+	// never over what's there. A symlink moves as itself. A move to another
+	// disk fails with the reason "other_disk". No API token can call it. Each
+	// one is on the timeline.
+	MoveFile(context.Context, *connect.Request[v1.MoveFileRequest]) (*connect.Response[v1.MoveFileResponse], error)
+	// DeleteFile deletes a file or a folder. It goes to Recently deleted for 7
+	// days, from where RestoreFile puts it back, when it's on the same
+	// filesystem as Dockwell's data. Elsewhere it fails with the reason
+	// "delete_for_good" unless for_good is set. A symlink goes as itself. No
+	// API token can call it. Each one is on the timeline.
+	DeleteFile(context.Context, *connect.Request[v1.DeleteFileRequest]) (*connect.Response[v1.DeleteFileResponse], error)
+	// ListDeletedFiles returns what's in a server's Recently deleted, newest
+	// first. No API token can call it.
+	ListDeletedFiles(context.Context, *connect.Request[v1.ListDeletedFilesRequest]) (*connect.Response[v1.ListDeletedFilesResponse], error)
+	// RestoreFile puts back what was deleted, at the path it was deleted from,
+	// never over what's there now. No API token can call it. Each one is on
+	// the timeline.
+	RestoreFile(context.Context, *connect.Request[v1.RestoreFileRequest]) (*connect.Response[v1.RestoreFileResponse], error)
+	// PurgeDeletedFile deletes for good what's in Recently deleted, which
+	// frees its space at once. No API token can call it. Each one is on the
+	// timeline.
+	PurgeDeletedFile(context.Context, *connect.Request[v1.PurgeDeletedFileRequest]) (*connect.Response[v1.PurgeDeletedFileResponse], error)
 }
 
 // NewFileServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -158,6 +299,43 @@ func NewFileServiceHandler(svc FileServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(fileServiceMethods.ByName("SaveFile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	fileServiceMakeFileHandler := connect.NewUnaryHandler(
+		FileServiceMakeFileProcedure,
+		svc.MakeFile,
+		connect.WithSchema(fileServiceMethods.ByName("MakeFile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceMoveFileHandler := connect.NewUnaryHandler(
+		FileServiceMoveFileProcedure,
+		svc.MoveFile,
+		connect.WithSchema(fileServiceMethods.ByName("MoveFile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceDeleteFileHandler := connect.NewUnaryHandler(
+		FileServiceDeleteFileProcedure,
+		svc.DeleteFile,
+		connect.WithSchema(fileServiceMethods.ByName("DeleteFile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceListDeletedFilesHandler := connect.NewUnaryHandler(
+		FileServiceListDeletedFilesProcedure,
+		svc.ListDeletedFiles,
+		connect.WithSchema(fileServiceMethods.ByName("ListDeletedFiles")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceRestoreFileHandler := connect.NewUnaryHandler(
+		FileServiceRestoreFileProcedure,
+		svc.RestoreFile,
+		connect.WithSchema(fileServiceMethods.ByName("RestoreFile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServicePurgeDeletedFileHandler := connect.NewUnaryHandler(
+		FileServicePurgeDeletedFileProcedure,
+		svc.PurgeDeletedFile,
+		connect.WithSchema(fileServiceMethods.ByName("PurgeDeletedFile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.FileService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case FileServiceListFilesProcedure:
@@ -166,6 +344,18 @@ func NewFileServiceHandler(svc FileServiceHandler, opts ...connect.HandlerOption
 			fileServiceReadFileHandler.ServeHTTP(w, r)
 		case FileServiceSaveFileProcedure:
 			fileServiceSaveFileHandler.ServeHTTP(w, r)
+		case FileServiceMakeFileProcedure:
+			fileServiceMakeFileHandler.ServeHTTP(w, r)
+		case FileServiceMoveFileProcedure:
+			fileServiceMoveFileHandler.ServeHTTP(w, r)
+		case FileServiceDeleteFileProcedure:
+			fileServiceDeleteFileHandler.ServeHTTP(w, r)
+		case FileServiceListDeletedFilesProcedure:
+			fileServiceListDeletedFilesHandler.ServeHTTP(w, r)
+		case FileServiceRestoreFileProcedure:
+			fileServiceRestoreFileHandler.ServeHTTP(w, r)
+		case FileServicePurgeDeletedFileProcedure:
+			fileServicePurgeDeletedFileHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -185,4 +375,28 @@ func (UnimplementedFileServiceHandler) ReadFile(context.Context, *connect.Reques
 
 func (UnimplementedFileServiceHandler) SaveFile(context.Context, *connect.Request[v1.SaveFileRequest]) (*connect.Response[v1.SaveFileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.SaveFile is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) MakeFile(context.Context, *connect.Request[v1.MakeFileRequest]) (*connect.Response[v1.MakeFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.MakeFile is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) MoveFile(context.Context, *connect.Request[v1.MoveFileRequest]) (*connect.Response[v1.MoveFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.MoveFile is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) DeleteFile(context.Context, *connect.Request[v1.DeleteFileRequest]) (*connect.Response[v1.DeleteFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.DeleteFile is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) ListDeletedFiles(context.Context, *connect.Request[v1.ListDeletedFilesRequest]) (*connect.Response[v1.ListDeletedFilesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.ListDeletedFiles is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) RestoreFile(context.Context, *connect.Request[v1.RestoreFileRequest]) (*connect.Response[v1.RestoreFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.RestoreFile is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) PurgeDeletedFile(context.Context, *connect.Request[v1.PurgeDeletedFileRequest]) (*connect.Response[v1.PurgeDeletedFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.PurgeDeletedFile is not implemented"))
 }

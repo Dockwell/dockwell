@@ -84,6 +84,12 @@ type Server struct {
 	accounts     func() (passwd, group string)
 	// saving keeps saves of roots to one at a time.
 	saving sync.Mutex
+	// claimed holds the entries of Recently deleted a call has. It's mu that guards it.
+	claimed map[string]bool
+	// pruneNow asks for what's deleted for good to go now (KeepDeleted).
+	pruneNow chan struct{}
+	// now is the time, which a test can move on.
+	now func() time.Time
 }
 
 // New returns a Server. dataDir is Dockwell's data directory, and dockerRoot says
@@ -96,6 +102,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
 		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts,
+		claimed: map[string]bool{}, pruneNow: make(chan struct{}, 1), now: time.Now,
 	}
 	s.roots = s.loadRoots()
 	return s

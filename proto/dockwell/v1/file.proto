@@ -8,10 +8,12 @@ import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// FileService browses, reads and saves the files on a server, through its
-// agent. Files on a server aren't managed state, so nothing here is a revision
-// or has a plan, and a save can't be undone. See
-// docs/adr/0032-files-on-a-server.md.
+// FileService browses, reads, saves, makes, moves and deletes the files on a
+// server, through its agent. Files on a server aren't managed state, so
+// nothing here is a revision or has a plan. A save can't be undone, and a
+// delete can for 7 days where it's on the same filesystem as Dockwell's data.
+// See docs/adr/0032-files-on-a-server.md and
+// docs/adr/0045-a-file-manager-on-a-server.md.
 //
 // Every method needs a signed-in session: no API token can call them, whatever
 // its scope. The agent refuses what holds Dockwell's keys, secrets' values and
@@ -63,6 +65,100 @@ service FileService {
       post: "/v1/servers/{server_id}/files:save"
       body: "*"
     };
+  }
+
+  // MakeFile makes an empty file, or a folder with nothing in it, never over
+  // what's there, which fails with the reason "file_exists". It takes its
+  // folder's owner and group. No API token can call it. Each one is on the
+  // timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
+  rpc MakeFile(MakeFileRequest) returns (MakeFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "make"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:make"
+      body: "*"
+    };
+  }
+
+  // MoveFile moves or renames a file or a folder, within one filesystem,
+  // never over what's there. A symlink moves as itself. A move to another
+  // disk fails with the reason "other_disk". No API token can call it. Each
+  // one is on the timeline.
+  rpc MoveFile(MoveFileRequest) returns (MoveFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "move"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:move"
+      body: "*"
+    };
+  }
+
+  // DeleteFile deletes a file or a folder. It goes to Recently deleted for 7
+  // days, from where RestoreFile puts it back, when it's on the same
+  // filesystem as Dockwell's data. Elsewhere it fails with the reason
+  // "delete_for_good" unless for_good is set. A symlink goes as itself. No
+  // API token can call it. Each one is on the timeline.
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "delete"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:delete"
+      body: "*"
+    };
+  }
+
+  // ListDeletedFiles returns what's in a server's Recently deleted, newest
+  // first. No API token can call it.
+  rpc ListDeletedFiles(ListDeletedFilesRequest) returns (ListDeletedFilesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "list-deleted"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/deleted-files"};
+  }
+
+  // RestoreFile puts back what was deleted, at the path it was deleted from,
+  // never over what's there now. No API token can call it. Each one is on
+  // the timeline.
+  rpc RestoreFile(RestoreFileRequest) returns (RestoreFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "restore"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/deleted-files/{id}:restore"
+      body: "*"
+    };
+  }
+
+  // PurgeDeletedFile deletes for good what's in Recently deleted, which
+  // frees its space at once. No API token can call it. Each one is on the
+  // timeline.
+  rpc PurgeDeletedFile(PurgeDeletedFileRequest) returns (PurgeDeletedFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "purge"
+    };
+    option (google.api.http) = {delete: "/v1/servers/{server_id}/deleted-files/{id}"};
   }
 }
 
@@ -153,6 +249,149 @@ message SaveFileResponse {
   string version = 3;
   // True when the file is a way back onto the server, which took a passkey.
   bool way_back_in = 4;
+}
+
+// MakeFileRequest makes an empty file or a folder.
+message MakeFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The absolute path to make, without . or .. in it, such as
+  // "/srv/site/index.html". Its folder must exist.
+  string path = 2;
+  // FILE_TYPE_FILE or FILE_TYPE_DIRECTORY.
+  FileType type = 3;
+  // The proof from FinishStepUp, for making this path on this server, where
+  // it's a way back onto the server. Call without it first: it checks
+  // everything else, then refuses with the reason needs_step_up. With it,
+  // path has to be where the server resolves it, as ListFiles gives a
+  // folder.
+  string proof = 4;
+}
+
+// MakeFileResponse is what was made.
+message MakeFileResponse {
+  // Where it was made, with every symlink in its folder's path followed.
+  string path = 1;
+  // What was made.
+  FileEntry file = 2;
+  // True when it's a way back onto the server, which took a passkey.
+  bool way_back_in = 3;
+}
+
+// MoveFileRequest moves or renames a file or a folder.
+message MoveFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Where it is now, as an absolute path, without . or .. in it.
+  string from = 2;
+  // Where it goes, as the whole new path, such as "/srv/site/old.html" to
+  // rename index.html in the same folder. Nothing may be there.
+  string to = 3;
+  // The proof from FinishStepUp, for this move on this server, where either
+  // end is a way back onto the server. Both paths then have to be where the
+  // server resolves them.
+  string proof = 4;
+}
+
+// MoveFileResponse says where it went.
+message MoveFileResponse {
+  // Where it was, with every symlink in its folder's path followed.
+  string from = 1;
+  // Where it is now, the same way.
+  string to = 2;
+  // What moved.
+  FileEntry file = 3;
+  // True when either end is a way back onto the server, which took a
+  // passkey.
+  bool way_back_in = 4;
+}
+
+// DeleteFileRequest deletes a file or a folder.
+message DeleteFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The absolute path, without . or .. in it.
+  string path = 2;
+  // True to delete it for good, which frees its space at once and can't be
+  // undone. What's on another filesystem than Dockwell's data needs it.
+  bool for_good = 3;
+  // The proof from FinishStepUp, for deleting this path on this server,
+  // where it's a way back onto the server or holds one. path then has to be
+  // where the server resolves it.
+  string proof = 4;
+}
+
+// DeleteFileResponse says what was deleted.
+message DeleteFileResponse {
+  // Where it was, with every symlink in its folder's path followed.
+  string path = 1;
+  // It in Recently deleted. Unset when it was deleted for good.
+  DeletedFile deleted = 2;
+  // True when it was a way back onto the server, which took a passkey.
+  bool way_back_in = 3;
+}
+
+// ListDeletedFilesRequest names a server.
+message ListDeletedFilesRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+}
+
+// ListDeletedFilesResponse is what's in a server's Recently deleted.
+message ListDeletedFilesResponse {
+  // Newest first.
+  repeated DeletedFile deleted = 1;
+}
+
+// DeletedFile is one file or folder in Recently deleted.
+message DeletedFile {
+  // Its ID, which RestoreFile and PurgeDeletedFile take.
+  string id = 1;
+  // Where it was, with every symlink in its folder's path followed.
+  string path = 2;
+  // What it is.
+  FileType type = 3;
+  // Its size in bytes, for a file. Zero for a folder.
+  uint64 size_bytes = 4;
+  // When it was deleted.
+  google.protobuf.Timestamp delete_time = 5;
+  // When it goes for good, unless it's put back first.
+  google.protobuf.Timestamp purge_time = 6;
+}
+
+// RestoreFileRequest puts back what was deleted.
+message RestoreFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Its ID in Recently deleted.
+  string id = 2;
+  // The proof from FinishStepUp, for putting back its path on this server,
+  // where that's a way back onto the server.
+  string proof = 3;
+}
+
+// RestoreFileResponse says where it went back.
+message RestoreFileResponse {
+  // Where it is now, with every symlink in its folder's path followed.
+  string path = 1;
+  // What went back.
+  FileEntry file = 2;
+  // True when it's a way back onto the server, which took a passkey.
+  bool way_back_in = 3;
+}
+
+// PurgeDeletedFileRequest deletes for good what's in Recently deleted.
+message PurgeDeletedFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Its ID in Recently deleted.
+  string id = 2;
+}
+
+// PurgeDeletedFileResponse says what went.
+message PurgeDeletedFileResponse {
+  // What was deleted for good.
+  DeletedFile deleted = 1;
 }
 
 // FileType says what an entry in a directory is.

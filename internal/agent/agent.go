@@ -334,6 +334,9 @@ func Run(ctx context.Context, cfg Config) error {
 		slog.Time("certificate_expires", id.Cert().NotAfter))
 
 	var wg sync.WaitGroup
+	if cfg.Files != nil {
+		wg.Go(func() { cfg.Files.KeepDeleted(ctx) })
+	}
 	wg.Go(func() { keepRenewed(ctx, cfg) })
 	wg.Go(func() { keepConnected(ctx, cfg) })
 	wg.Wait()
@@ -435,7 +438,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, ManagesFiles: true}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Hello != nil {
 		cfg.Hello(hello)

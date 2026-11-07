@@ -364,8 +364,11 @@ func (h *Handler) note(ctx context.Context, record func(action, path, detail str
 		return
 	}
 	detail := fmt.Sprintf("couldn't %s %s on %s: %s", doing, path, srv.GetName(), why.Error())
-	if event == eventSaveUnknown {
+	switch event {
+	case eventSaveUnknown:
 		detail = fmt.Sprintf("may have saved %s on %s: %s", path, srv.GetName(), why.Error())
+	case eventMayHave:
+		detail = fmt.Sprintf("may have changed %s on %s, as it began to %s it: %s", path, srv.GetName(), doing, why.Error())
 	}
 	if _, err := record(event, path, detail); err != nil {
 		h.logger.WarnContext(ctx, "can't record a refused file", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
@@ -392,6 +395,12 @@ func refusal(r *agentv1.FileRefusal) error {
 		return authapi.ReasonError(connect.CodeDeadlineExceeded, err, "save_may_land")
 	case agentv1.FileRefusal_KIND_NEEDS_STEP_UP:
 		return authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+	case agentv1.FileRefusal_KIND_EXISTS:
+		return authapi.ReasonError(connect.CodeAlreadyExists, err, "file_exists")
+	case agentv1.FileRefusal_KIND_OTHER_DISK:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "other_disk")
+	case agentv1.FileRefusal_KIND_FOR_GOOD:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "delete_for_good")
 	case agentv1.FileRefusal_KIND_DENIED, agentv1.FileRefusal_KIND_UNSPECIFIED:
 	}
 	return authapi.ReasonError(connect.CodePermissionDenied, err, "file_denied")

@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/file.proto.
  */
 export const file_dockwell_v1_file: GenFile = /*@__PURE__*/
-  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSJDChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmxvb2t1cBg8IAEoCCKIAQoRTGlzdEZpbGVzUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIpCglkaXJlY3RvcnkYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSJwoHZW50cmllcxgDIAMoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIRCgl0cnVuY2F0ZWQYBCABKAgiMgoPUmVhZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIqABChBSZWFkRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIPCgdjb250ZW50GAMgASgJEg4KBmJpbmFyeRgEIAEoCBIRCgl0cnVuY2F0ZWQYBSABKAgSDwoHdmVyc2lvbhgGIAEoCRITCgt3YXlfYmFja19pbhgHIAEoCCJ7Cg9TYXZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDwoHY29udGVudBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhYKDmNvbmZpcm1lZF9wYXRoGAUgASgJEg0KBXByb29mGAYgASgJImwKEFNhdmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5Eg8KB3ZlcnNpb24YAyABKAkSEwoLd2F5X2JhY2tfaW4YBCABKAgisgIKCUZpbGVFbnRyeRIMCgRuYW1lGAEgASgJEiMKBHR5cGUYAiABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRISCgpzaXplX2J5dGVzGAMgASgEEi8KC21vZGlmeV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIMCgRtb2RlGAUgASgJEg0KBW93bmVyGAYgASgJEg0KBWdyb3VwGAcgASgJEhMKC2xpbmtfdGFyZ2V0GAggASgJEigKCWxpbmtfdHlwZRgJIAEoDjIVLmRvY2t3ZWxsLnYxLkZpbGVUeXBlEg8KB3JlZnVzZWQYCiABKAgSFwoPdW5yZWFkYWJsZV9uYW1lGAsgASgIEgsKA3VpZBg8IAEoDRILCgNnaWQYPSABKA0qfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBDLBAwoLRmlsZVNlcnZpY2USjQEKCUxpc3RGaWxlcxIdLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1JlcXVlc3QaHi5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXNwb25zZSJBkAIBoLsYAaq7GA0KBWZpbGVzEgRsaXN0sLsYAYLT5JMCHxIdL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMSjwEKCFJlYWRGaWxlEhwuZG9ja3dlbGwudjEuUmVhZEZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuUmVhZEZpbGVSZXNwb25zZSJGoLsYAaq7GA0KBWZpbGVzEgRyZWFksLsYAYLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6cmVhZBKPAQoIU2F2ZUZpbGUSHC5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlc3BvbnNlIkaguxgEqrsYDQoFZmlsZXMSBHNhdmWwuxgBgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpzYXZlQqIBCg9jb20uZG9ja3dlbGwudjFCCUZpbGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSJDChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmxvb2t1cBg8IAEoCCKIAQoRTGlzdEZpbGVzUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIpCglkaXJlY3RvcnkYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSJwoHZW50cmllcxgDIAMoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIRCgl0cnVuY2F0ZWQYBCABKAgiMgoPUmVhZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIqABChBSZWFkRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIPCgdjb250ZW50GAMgASgJEg4KBmJpbmFyeRgEIAEoCBIRCgl0cnVuY2F0ZWQYBSABKAgSDwoHdmVyc2lvbhgGIAEoCRITCgt3YXlfYmFja19pbhgHIAEoCCJ7Cg9TYXZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDwoHY29udGVudBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhYKDmNvbmZpcm1lZF9wYXRoGAUgASgJEg0KBXByb29mGAYgASgJImwKEFNhdmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5Eg8KB3ZlcnNpb24YAyABKAkSEwoLd2F5X2JhY2tfaW4YBCABKAgiZgoPTWFrZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEiMKBHR5cGUYAyABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRINCgVwcm9vZhgEIAEoCSJbChBNYWtlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCCJNCg9Nb3ZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBGZyb20YAiABKAkSCgoCdG8YAyABKAkSDQoFcHJvb2YYBCABKAkiZwoQTW92ZUZpbGVSZXNwb25zZRIMCgRmcm9tGAEgASgJEgoKAnRvGAIgASgJEiQKBGZpbGUYAyABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEwoLd2F5X2JhY2tfaW4YBCABKAgiVQoRRGVsZXRlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEAoIZm9yX2dvb2QYAyABKAgSDQoFcHJvb2YYBCABKAkiYgoSRGVsZXRlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoHZGVsZXRlZBgCIAEoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlEhMKC3dheV9iYWNrX2luGAMgASgIIiwKF0xpc3REZWxldGVkRmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJFChhMaXN0RGVsZXRlZEZpbGVzUmVzcG9uc2USKQoHZGVsZXRlZBgBIAMoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlIsEBCgtEZWxldGVkRmlsZRIKCgJpZBgBIAEoCRIMCgRwYXRoGAIgASgJEiMKBHR5cGUYAyABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRISCgpzaXplX2J5dGVzGAQgASgEEi8KC2RlbGV0ZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpwdXJnZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJCChJSZXN0b3JlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgoKAmlkGAIgASgJEg0KBXByb29mGAMgASgJIl4KE1Jlc3RvcmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAMgASgIIjgKF1B1cmdlRGVsZXRlZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIKCgJpZBgCIAEoCSJFChhQdXJnZURlbGV0ZWRGaWxlUmVzcG9uc2USKQoHZGVsZXRlZBgBIAEoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlIrICCglGaWxlRW50cnkSDAoEbmFtZRgBIAEoCRIjCgR0eXBlGAIgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSEgoKc2l6ZV9ieXRlcxgDIAEoBBIvCgttb2RpZnlfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEbW9kZRgFIAEoCRINCgVvd25lchgGIAEoCRINCgVncm91cBgHIAEoCRITCgtsaW5rX3RhcmdldBgIIAEoCRIoCglsaW5rX3R5cGUYCSABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRIPCgdyZWZ1c2VkGAogASgIEhcKD3VucmVhZGFibGVfbmFtZRgLIAEoCBILCgN1aWQYPCABKA0SCwoDZ2lkGD0gASgNKn4KCEZpbGVUeXBlEhkKFUZJTEVfVFlQRV9VTlNQRUNJRklFRBAAEhIKDkZJTEVfVFlQRV9GSUxFEAESFwoTRklMRV9UWVBFX0RJUkVDVE9SWRACEhUKEUZJTEVfVFlQRV9TWU1MSU5LEAMSEwoPRklMRV9UWVBFX09USEVSEAQylAsKC0ZpbGVTZXJ2aWNlEo0BCglMaXN0RmlsZXMSHS5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXF1ZXN0Gh4uZG9ja3dlbGwudjEuTGlzdEZpbGVzUmVzcG9uc2UiQZACAaC7GAGquxgNCgVmaWxlcxIEbGlzdLC7GAGC0+STAh8SHS92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzEo8BCghSZWFkRmlsZRIcLmRvY2t3ZWxsLnYxLlJlYWRGaWxlUmVxdWVzdBodLmRvY2t3ZWxsLnYxLlJlYWRGaWxlUmVzcG9uc2UiRqC7GAGquxgNCgVmaWxlcxIEcmVhZLC7GAGC0+STAic6ASoiIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOnJlYWQSjwEKCFNhdmVGaWxlEhwuZG9ja3dlbGwudjEuU2F2ZUZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuU2F2ZUZpbGVSZXNwb25zZSJGoLsYBKq7GA0KBWZpbGVzEgRzYXZlsLsYAYLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6c2F2ZRKPAQoITWFrZUZpbGUSHC5kb2Nrd2VsbC52MS5NYWtlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5NYWtlRmlsZVJlc3BvbnNlIkaguxgDqrsYDQoFZmlsZXMSBG1ha2WwuxgBgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczptYWtlEo8BCghNb3ZlRmlsZRIcLmRvY2t3ZWxsLnYxLk1vdmVGaWxlUmVxdWVzdBodLmRvY2t3ZWxsLnYxLk1vdmVGaWxlUmVzcG9uc2UiRqC7GAOquxgNCgVmaWxlcxIEbW92ZbC7GAGC0+STAic6ASoiIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOm1vdmUSmQEKCkRlbGV0ZUZpbGUSHi5kb2Nrd2VsbC52MS5EZWxldGVGaWxlUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkRlbGV0ZUZpbGVSZXNwb25zZSJKoLsYBKq7GA8KBWZpbGVzEgZkZWxldGWwuxgBgtPkkwIpOgEqIiQvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpkZWxldGUSsgEKEExpc3REZWxldGVkRmlsZXMSJC5kb2Nrd2VsbC52MS5MaXN0RGVsZXRlZEZpbGVzUmVxdWVzdBolLmRvY2t3ZWxsLnYxLkxpc3REZWxldGVkRmlsZXNSZXNwb25zZSJRkAIBoLsYAaq7GBUKBWZpbGVzEgxsaXN0LWRlbGV0ZWSwuxgBgtPkkwInEiUvdjEvc2VydmVycy97c2VydmVyX2lkfS9kZWxldGVkLWZpbGVzEqsBCgtSZXN0b3JlRmlsZRIfLmRvY2t3ZWxsLnYxLlJlc3RvcmVGaWxlUmVxdWVzdBogLmRvY2t3ZWxsLnYxLlJlc3RvcmVGaWxlUmVzcG9uc2UiWaC7GAOquxgQCgVmaWxlcxIHcmVzdG9yZbC7GAGC0+STAjc6ASoiMi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMve2lkfTpyZXN0b3JlEq0BChBQdXJnZURlbGV0ZWRGaWxlEiQuZG9ja3dlbGwudjEuUHVyZ2VEZWxldGVkRmlsZVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5QdXJnZURlbGV0ZWRGaWxlUmVzcG9uc2UiTKC7GASquxgOCgVmaWxlcxIFcHVyZ2WwuxgBgtPkkwIsKiovdjEvc2VydmVycy97c2VydmVyX2lkfS9kZWxldGVkLWZpbGVzL3tpZH1CogEKD2NvbS5kb2Nrd2VsbC52MUIJRmlsZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListFilesRequest names a directory on a server.
@@ -298,6 +298,474 @@ export const SaveFileResponseSchema: GenMessage<SaveFileResponse> = /*@__PURE__*
   messageDesc(file_dockwell_v1_file, 5);
 
 /**
+ * MakeFileRequest makes an empty file or a folder.
+ *
+ * @generated from message dockwell.v1.MakeFileRequest
+ */
+export type MakeFileRequest = Message<"dockwell.v1.MakeFileRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The absolute path to make, without . or .. in it, such as
+   * "/srv/site/index.html". Its folder must exist.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * FILE_TYPE_FILE or FILE_TYPE_DIRECTORY.
+   *
+   * @generated from field: dockwell.v1.FileType type = 3;
+   */
+  type: FileType;
+
+  /**
+   * The proof from FinishStepUp, for making this path on this server, where
+   * it's a way back onto the server. Call without it first: it checks
+   * everything else, then refuses with the reason needs_step_up. With it,
+   * path has to be where the server resolves it, as ListFiles gives a
+   * folder.
+   *
+   * @generated from field: string proof = 4;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.MakeFileRequest.
+ * Use `create(MakeFileRequestSchema)` to create a new message.
+ */
+export const MakeFileRequestSchema: GenMessage<MakeFileRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 6);
+
+/**
+ * MakeFileResponse is what was made.
+ *
+ * @generated from message dockwell.v1.MakeFileResponse
+ */
+export type MakeFileResponse = Message<"dockwell.v1.MakeFileResponse"> & {
+  /**
+   * Where it was made, with every symlink in its folder's path followed.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * What was made.
+   *
+   * @generated from field: dockwell.v1.FileEntry file = 2;
+   */
+  file?: FileEntry | undefined;
+
+  /**
+   * True when it's a way back onto the server, which took a passkey.
+   *
+   * @generated from field: bool way_back_in = 3;
+   */
+  wayBackIn: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.MakeFileResponse.
+ * Use `create(MakeFileResponseSchema)` to create a new message.
+ */
+export const MakeFileResponseSchema: GenMessage<MakeFileResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 7);
+
+/**
+ * MoveFileRequest moves or renames a file or a folder.
+ *
+ * @generated from message dockwell.v1.MoveFileRequest
+ */
+export type MoveFileRequest = Message<"dockwell.v1.MoveFileRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * Where it is now, as an absolute path, without . or .. in it.
+   *
+   * @generated from field: string from = 2;
+   */
+  from: string;
+
+  /**
+   * Where it goes, as the whole new path, such as "/srv/site/old.html" to
+   * rename index.html in the same folder. Nothing may be there.
+   *
+   * @generated from field: string to = 3;
+   */
+  to: string;
+
+  /**
+   * The proof from FinishStepUp, for this move on this server, where either
+   * end is a way back onto the server. Both paths then have to be where the
+   * server resolves them.
+   *
+   * @generated from field: string proof = 4;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.MoveFileRequest.
+ * Use `create(MoveFileRequestSchema)` to create a new message.
+ */
+export const MoveFileRequestSchema: GenMessage<MoveFileRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 8);
+
+/**
+ * MoveFileResponse says where it went.
+ *
+ * @generated from message dockwell.v1.MoveFileResponse
+ */
+export type MoveFileResponse = Message<"dockwell.v1.MoveFileResponse"> & {
+  /**
+   * Where it was, with every symlink in its folder's path followed.
+   *
+   * @generated from field: string from = 1;
+   */
+  from: string;
+
+  /**
+   * Where it is now, the same way.
+   *
+   * @generated from field: string to = 2;
+   */
+  to: string;
+
+  /**
+   * What moved.
+   *
+   * @generated from field: dockwell.v1.FileEntry file = 3;
+   */
+  file?: FileEntry | undefined;
+
+  /**
+   * True when either end is a way back onto the server, which took a
+   * passkey.
+   *
+   * @generated from field: bool way_back_in = 4;
+   */
+  wayBackIn: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.MoveFileResponse.
+ * Use `create(MoveFileResponseSchema)` to create a new message.
+ */
+export const MoveFileResponseSchema: GenMessage<MoveFileResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 9);
+
+/**
+ * DeleteFileRequest deletes a file or a folder.
+ *
+ * @generated from message dockwell.v1.DeleteFileRequest
+ */
+export type DeleteFileRequest = Message<"dockwell.v1.DeleteFileRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The absolute path, without . or .. in it.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * True to delete it for good, which frees its space at once and can't be
+   * undone. What's on another filesystem than Dockwell's data needs it.
+   *
+   * @generated from field: bool for_good = 3;
+   */
+  forGood: boolean;
+
+  /**
+   * The proof from FinishStepUp, for deleting this path on this server,
+   * where it's a way back onto the server or holds one. path then has to be
+   * where the server resolves it.
+   *
+   * @generated from field: string proof = 4;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DeleteFileRequest.
+ * Use `create(DeleteFileRequestSchema)` to create a new message.
+ */
+export const DeleteFileRequestSchema: GenMessage<DeleteFileRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 10);
+
+/**
+ * DeleteFileResponse says what was deleted.
+ *
+ * @generated from message dockwell.v1.DeleteFileResponse
+ */
+export type DeleteFileResponse = Message<"dockwell.v1.DeleteFileResponse"> & {
+  /**
+   * Where it was, with every symlink in its folder's path followed.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * It in Recently deleted. Unset when it was deleted for good.
+   *
+   * @generated from field: dockwell.v1.DeletedFile deleted = 2;
+   */
+  deleted?: DeletedFile | undefined;
+
+  /**
+   * True when it was a way back onto the server, which took a passkey.
+   *
+   * @generated from field: bool way_back_in = 3;
+   */
+  wayBackIn: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.DeleteFileResponse.
+ * Use `create(DeleteFileResponseSchema)` to create a new message.
+ */
+export const DeleteFileResponseSchema: GenMessage<DeleteFileResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 11);
+
+/**
+ * ListDeletedFilesRequest names a server.
+ *
+ * @generated from message dockwell.v1.ListDeletedFilesRequest
+ */
+export type ListDeletedFilesRequest = Message<"dockwell.v1.ListDeletedFilesRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListDeletedFilesRequest.
+ * Use `create(ListDeletedFilesRequestSchema)` to create a new message.
+ */
+export const ListDeletedFilesRequestSchema: GenMessage<ListDeletedFilesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 12);
+
+/**
+ * ListDeletedFilesResponse is what's in a server's Recently deleted.
+ *
+ * @generated from message dockwell.v1.ListDeletedFilesResponse
+ */
+export type ListDeletedFilesResponse = Message<"dockwell.v1.ListDeletedFilesResponse"> & {
+  /**
+   * Newest first.
+   *
+   * @generated from field: repeated dockwell.v1.DeletedFile deleted = 1;
+   */
+  deleted: DeletedFile[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListDeletedFilesResponse.
+ * Use `create(ListDeletedFilesResponseSchema)` to create a new message.
+ */
+export const ListDeletedFilesResponseSchema: GenMessage<ListDeletedFilesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 13);
+
+/**
+ * DeletedFile is one file or folder in Recently deleted.
+ *
+ * @generated from message dockwell.v1.DeletedFile
+ */
+export type DeletedFile = Message<"dockwell.v1.DeletedFile"> & {
+  /**
+   * Its ID, which RestoreFile and PurgeDeletedFile take.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Where it was, with every symlink in its folder's path followed.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * What it is.
+   *
+   * @generated from field: dockwell.v1.FileType type = 3;
+   */
+  type: FileType;
+
+  /**
+   * Its size in bytes, for a file. Zero for a folder.
+   *
+   * @generated from field: uint64 size_bytes = 4;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * When it was deleted.
+   *
+   * @generated from field: google.protobuf.Timestamp delete_time = 5;
+   */
+  deleteTime?: Timestamp | undefined;
+
+  /**
+   * When it goes for good, unless it's put back first.
+   *
+   * @generated from field: google.protobuf.Timestamp purge_time = 6;
+   */
+  purgeTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DeletedFile.
+ * Use `create(DeletedFileSchema)` to create a new message.
+ */
+export const DeletedFileSchema: GenMessage<DeletedFile> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 14);
+
+/**
+ * RestoreFileRequest puts back what was deleted.
+ *
+ * @generated from message dockwell.v1.RestoreFileRequest
+ */
+export type RestoreFileRequest = Message<"dockwell.v1.RestoreFileRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * Its ID in Recently deleted.
+   *
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * The proof from FinishStepUp, for putting back its path on this server,
+   * where that's a way back onto the server.
+   *
+   * @generated from field: string proof = 3;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RestoreFileRequest.
+ * Use `create(RestoreFileRequestSchema)` to create a new message.
+ */
+export const RestoreFileRequestSchema: GenMessage<RestoreFileRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 15);
+
+/**
+ * RestoreFileResponse says where it went back.
+ *
+ * @generated from message dockwell.v1.RestoreFileResponse
+ */
+export type RestoreFileResponse = Message<"dockwell.v1.RestoreFileResponse"> & {
+  /**
+   * Where it is now, with every symlink in its folder's path followed.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * What went back.
+   *
+   * @generated from field: dockwell.v1.FileEntry file = 2;
+   */
+  file?: FileEntry | undefined;
+
+  /**
+   * True when it's a way back onto the server, which took a passkey.
+   *
+   * @generated from field: bool way_back_in = 3;
+   */
+  wayBackIn: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.RestoreFileResponse.
+ * Use `create(RestoreFileResponseSchema)` to create a new message.
+ */
+export const RestoreFileResponseSchema: GenMessage<RestoreFileResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 16);
+
+/**
+ * PurgeDeletedFileRequest deletes for good what's in Recently deleted.
+ *
+ * @generated from message dockwell.v1.PurgeDeletedFileRequest
+ */
+export type PurgeDeletedFileRequest = Message<"dockwell.v1.PurgeDeletedFileRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * Its ID in Recently deleted.
+   *
+   * @generated from field: string id = 2;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PurgeDeletedFileRequest.
+ * Use `create(PurgeDeletedFileRequestSchema)` to create a new message.
+ */
+export const PurgeDeletedFileRequestSchema: GenMessage<PurgeDeletedFileRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 17);
+
+/**
+ * PurgeDeletedFileResponse says what went.
+ *
+ * @generated from message dockwell.v1.PurgeDeletedFileResponse
+ */
+export type PurgeDeletedFileResponse = Message<"dockwell.v1.PurgeDeletedFileResponse"> & {
+  /**
+   * What was deleted for good.
+   *
+   * @generated from field: dockwell.v1.DeletedFile deleted = 1;
+   */
+  deleted?: DeletedFile | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.PurgeDeletedFileResponse.
+ * Use `create(PurgeDeletedFileResponseSchema)` to create a new message.
+ */
+export const PurgeDeletedFileResponseSchema: GenMessage<PurgeDeletedFileResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 18);
+
+/**
  * FileEntry is one file or directory on a server.
  *
  * @generated from message dockwell.v1.FileEntry
@@ -403,7 +871,7 @@ export type FileEntry = Message<"dockwell.v1.FileEntry"> & {
  * Use `create(FileEntrySchema)` to create a new message.
  */
 export const FileEntrySchema: GenMessage<FileEntry> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_file, 6);
+  messageDesc(file_dockwell_v1_file, 19);
 
 /**
  * FileType says what an entry in a directory is.
@@ -452,10 +920,12 @@ export const FileTypeSchema: GenEnum<FileType> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_file, 0);
 
 /**
- * FileService browses, reads and saves the files on a server, through its
- * agent. Files on a server aren't managed state, so nothing here is a revision
- * or has a plan, and a save can't be undone. See
- * docs/adr/0032-files-on-a-server.md.
+ * FileService browses, reads, saves, makes, moves and deletes the files on a
+ * server, through its agent. Files on a server aren't managed state, so
+ * nothing here is a revision or has a plan. A save can't be undone, and a
+ * delete can for 7 days where it's on the same filesystem as Dockwell's data.
+ * See docs/adr/0032-files-on-a-server.md and
+ * docs/adr/0045-a-file-manager-on-a-server.md.
  *
  * Every method needs a signed-in session: no API token can call them, whatever
  * its scope. The agent refuses what holds Dockwell's keys, secrets' values and
@@ -501,6 +971,81 @@ export const FileService: GenService<{
     methodKind: "unary";
     input: typeof SaveFileRequestSchema;
     output: typeof SaveFileResponseSchema;
+  },
+  /**
+   * MakeFile makes an empty file, or a folder with nothing in it, never over
+   * what's there, which fails with the reason "file_exists". It takes its
+   * folder's owner and group. No API token can call it. Each one is on the
+   * timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
+   *
+   * @generated from rpc dockwell.v1.FileService.MakeFile
+   */
+  makeFile: {
+    methodKind: "unary";
+    input: typeof MakeFileRequestSchema;
+    output: typeof MakeFileResponseSchema;
+  },
+  /**
+   * MoveFile moves or renames a file or a folder, within one filesystem,
+   * never over what's there. A symlink moves as itself. A move to another
+   * disk fails with the reason "other_disk". No API token can call it. Each
+   * one is on the timeline.
+   *
+   * @generated from rpc dockwell.v1.FileService.MoveFile
+   */
+  moveFile: {
+    methodKind: "unary";
+    input: typeof MoveFileRequestSchema;
+    output: typeof MoveFileResponseSchema;
+  },
+  /**
+   * DeleteFile deletes a file or a folder. It goes to Recently deleted for 7
+   * days, from where RestoreFile puts it back, when it's on the same
+   * filesystem as Dockwell's data. Elsewhere it fails with the reason
+   * "delete_for_good" unless for_good is set. A symlink goes as itself. No
+   * API token can call it. Each one is on the timeline.
+   *
+   * @generated from rpc dockwell.v1.FileService.DeleteFile
+   */
+  deleteFile: {
+    methodKind: "unary";
+    input: typeof DeleteFileRequestSchema;
+    output: typeof DeleteFileResponseSchema;
+  },
+  /**
+   * ListDeletedFiles returns what's in a server's Recently deleted, newest
+   * first. No API token can call it.
+   *
+   * @generated from rpc dockwell.v1.FileService.ListDeletedFiles
+   */
+  listDeletedFiles: {
+    methodKind: "unary";
+    input: typeof ListDeletedFilesRequestSchema;
+    output: typeof ListDeletedFilesResponseSchema;
+  },
+  /**
+   * RestoreFile puts back what was deleted, at the path it was deleted from,
+   * never over what's there now. No API token can call it. Each one is on
+   * the timeline.
+   *
+   * @generated from rpc dockwell.v1.FileService.RestoreFile
+   */
+  restoreFile: {
+    methodKind: "unary";
+    input: typeof RestoreFileRequestSchema;
+    output: typeof RestoreFileResponseSchema;
+  },
+  /**
+   * PurgeDeletedFile deletes for good what's in Recently deleted, which
+   * frees its space at once. No API token can call it. Each one is on the
+   * timeline.
+   *
+   * @generated from rpc dockwell.v1.FileService.PurgeDeletedFile
+   */
+  purgeDeletedFile: {
+    methodKind: "unary";
+    input: typeof PurgeDeletedFileRequestSchema;
+    output: typeof PurgeDeletedFileResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_file, 0);

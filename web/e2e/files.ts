@@ -16,7 +16,16 @@
 // Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
 
 import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -325,6 +334,34 @@ async function main() {
   await page.getByRole("link", { name: "Go up to" }).click();
   await page.getByText("nginx.conf").waitFor();
 
+  step("make a folder, rename it, delete it, and put it back");
+  await page.goto(at({ path: site }));
+  await page.getByRole("button", { name: "New folder" }).click();
+  const naming = page.getByRole("dialog", { name: /^New folder in/ });
+  await naming.getByRole("textbox", { name: "Name" }).fill("uploads");
+  await naming.getByRole("button", { name: "Make folder" }).click();
+  await naming.waitFor({ state: "detached" });
+  await page.getByText("uploads", { exact: true }).waitFor();
+  if (!statSync(join(site, "uploads")).isDirectory()) fail("the new folder isn't on the disk");
+  await page.getByText("uploads", { exact: true }).hover();
+  await page.getByRole("button", { name: "Rename uploads" }).click();
+  const renaming = page.getByRole("dialog", { name: "Rename uploads" });
+  await renaming.getByRole("textbox", { name: "Name" }).fill("media");
+  await renaming.getByRole("button", { name: "Rename" }).click();
+  await page.getByText("media", { exact: true }).waitFor();
+  if (existsSync(join(site, "uploads")) || !existsSync(join(site, "media"))) fail("the rename isn't on the disk");
+  await page.getByText("media", { exact: true }).hover();
+  await page.getByRole("button", { name: "Delete media" }).click();
+  const deleting = page.getByRole("dialog", { name: "Delete media" });
+  await deleting.getByText("and everything in it go to Recently deleted", { exact: false }).waitFor();
+  await deleting.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByText("Deleted media").waitFor();
+  if (existsSync(join(site, "media"))) fail("the deleted folder is still on the disk");
+  await shoot(page, "deleted");
+  await page.getByRole("button", { name: "Put back" }).click();
+  await page.getByText("media", { exact: true }).waitFor();
+  if (!existsSync(join(site, "media"))) fail("what was put back isn't on the disk");
+
   step("a file on a phone takes the screen, and its header goes back");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(at({ path: site }));
@@ -356,6 +393,22 @@ async function main() {
     .first()
     .waitFor();
   await page.getByText("Couldn't open /proc on").first().waitFor();
+  await page
+    .getByText(`Made ${join(site, "uploads")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Moved ${join(site, "uploads")} to ${join(site, "media")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Deleted ${join(site, "media")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Put back ${join(site, "media")} on`)
+    .first()
+    .waitFor();
   await shoot(page, "activity");
   await page.getByText(`Saved ${conf} on`).first().click();
   await page.getByRole("link", { name: "Open the file" }).click();

@@ -3,8 +3,9 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useQuery } from "@connectrpc/connect-query";
-import { type FileEntry, FileService, FileType, type Server } from "@dockwell/api";
+import { type DeletedFile, type FileEntry, FileService, FileType, type Server } from "@dockwell/api";
 import {
+  Button,
   Callout,
   Icon,
   type IconName,
@@ -30,6 +31,17 @@ import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { FileViewer } from "./FileViewer";
+import {
+  ActionsSheet,
+  DeletedSheet,
+  DeleteSheet,
+  MoveSheet,
+  NameSheet,
+  type Naming,
+  RowActions,
+  useRestore,
+  useRestoreProblem,
+} from "./manage";
 import { crumbs, join, nameOf, parentOf } from "./paths";
 import "./FilesPage.css";
 
@@ -177,6 +189,25 @@ function rowsOf(entries: readonly FileEntry[]): Row[] {
     .sort((a, b) => Number(b.folder) - Number(a.folder) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
+/** What's open over the listing, if anything. */
+type Open =
+  | { kind: "actions"; entry: FileEntry }
+  | { kind: "name"; naming: Naming }
+  | { kind: "move"; entry: FileEntry }
+  | { kind: "delete"; entry: FileEntry }
+  | { kind: "deleted" };
+
+/** What a delete left to say, with a way to put it back. */
+interface Deleted {
+  path: string;
+  kept?: DeletedFile;
+}
+
+/** Whether a row can be renamed, moved or deleted: not what's refused, nor a name that isn't text. */
+function changeable(row: Row): boolean {
+  return !row.entry.refused && !row.entry.unreadableName;
+}
+
 function iconOf(row: Row): IconName {
   if (row.entry.type === FileType.SYMLINK) return "link";
   return row.folder ? "folder" : "file";
@@ -199,7 +230,13 @@ function Files({ server, folder, file, reading }: FilesProps) {
   const places = usePlaces();
   const current = placeOf(folder, [...places.common, ...places.server]);
   const [filter, setFilter] = useState("");
+  const [sheet, setSheet] = useState<Open>();
+  const [deleted, setDeleted] = useState<Deleted>();
+  const [restoring, setRestoring] = useState(false);
+  const [restoreFailure, setRestoreFailure] = useState<string>();
   const serverId = server.id;
+  const putBack = useRestore(serverId);
+  const restoreProblem = useRestoreProblem(serverId);
   // A refused listing is on record, so it isn't asked again each time the window takes focus.
   const query = useQuery(
     FileService.method.listFiles,
@@ -259,7 +296,34 @@ function Files({ server, folder, file, reading }: FilesProps) {
       render: (row) =>
         row.folder || row.entry.type === FileType.SYMLINK ? "—" : formatBytes(row.entry.sizeBytes, i18n.locale),
     };
-    if (phone) return [name, size];
+    const actions: TableColumn<Row> = {
+      key: "actions",
+      header: (
+        <span className="dw-sr">
+          <Trans>Actions</Trans>
+        </span>
+      ),
+      width: phone ? 44 : 108,
+      align: "right",
+      render: (row) =>
+        !changeable(row) ? null : phone ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="more"
+            aria-label={t`Actions for ${row.name}`}
+            onClick={() => setSheet({ kind: "actions", entry: row.entry })}
+          />
+        ) : (
+          <RowActions
+            entry={row.entry}
+            onRename={() => setSheet({ kind: "name", naming: { kind: "rename", entry: row.entry } })}
+            onMove={() => setSheet({ kind: "move", entry: row.entry })}
+            onDelete={() => setSheet({ kind: "delete", entry: row.entry })}
+          />
+        ),
+    };
+    if (phone) return [name, size, actions];
     return [
       name,
       size,
@@ -279,8 +343,29 @@ function Files({ server, folder, file, reading }: FilesProps) {
         render: (row) => row.entry.mode,
       },
       { key: "owner", header: t`Owner`, width: 96, mono: true, muted: true, render: (row) => row.entry.owner },
+      actions,
     ];
   }, [phone, t, i18n.locale, words, now]);
+
+  const go = (search: FilesSearch) => void navigate({ to: "/servers/$serverId/files", params: { serverId }, search });
+  /** Where an open file went, as a move or a delete took it. */
+  const away = (from: string, to?: string) => {
+    if (file !== from) return;
+    go(to ? { path: parentOf(to), file: to } : { path: shown });
+  };
+  const restore = async (d: Deleted) => {
+    if (!d.kept) return;
+    setRestoring(true);
+    setRestoreFailure(undefined);
+    try {
+      await putBack(d.kept);
+      setDeleted(undefined);
+    } catch (err) {
+      setRestoreFailure(restoreProblem(err, d.path));
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const count = listing?.entries.length ?? 0;
   const owner = listing?.directory?.owner;
@@ -326,18 +411,71 @@ function Files({ server, folder, file, reading }: FilesProps) {
               </span>
             ) : null}
           </div>
-          <div className="files-filter">
-            <TextField
+          <div className="files-tools">
+            <div className="files-filter">
+              <TextField
+                size="sm"
+                icon="search"
+                placeholder={t`Search in ${nameOf(shown)}`}
+                aria-label={t`Search in ${nameOf(shown)}`}
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+              />
+            </div>
+            <Button
               size="sm"
-              icon="search"
-              placeholder={t`Search in ${nameOf(shown)}`}
-              aria-label={t`Search in ${nameOf(shown)}`}
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-            />
+              icon="folder"
+              disabled={!listing}
+              onClick={() => setSheet({ kind: "name", naming: { kind: "folder" } })}
+            >
+              <Trans>New folder</Trans>
+            </Button>
+            <Button
+              size="sm"
+              icon="file"
+              disabled={!listing}
+              onClick={() => setSheet({ kind: "name", naming: { kind: "file" } })}
+            >
+              <Trans>New file</Trans>
+            </Button>
+            <Button size="sm" variant="ghost" icon="trash" onClick={() => setSheet({ kind: "deleted" })}>
+              <Trans>Recently deleted</Trans>
+            </Button>
           </div>
         </div>
       )}
+      {!reading && deleted ? (
+        <Callout
+          tone={restoreFailure ? "critical" : "info"}
+          title={deleted.kept ? t`Deleted ${nameOf(deleted.path)}` : t`Deleted ${nameOf(deleted.path)} for good`}
+          actions={
+            <>
+              {deleted.kept ? (
+                <Button size="sm" icon="undo" loading={restoring} onClick={() => void restore(deleted)}>
+                  <Trans context="what was deleted">Put back</Trans>
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setDeleted(undefined);
+                  setRestoreFailure(undefined);
+                }}
+              >
+                <Trans>Dismiss</Trans>
+              </Button>
+            </>
+          }
+        >
+          {restoreFailure ??
+            (deleted.kept ? (
+              <Trans>It's in Recently deleted for 7 days, where you can put it back.</Trans>
+            ) : (
+              <Trans>Nothing brings it back.</Trans>
+            ))}
+        </Callout>
+      ) : null}
       <div className="files-panes">
         {reading ? null : (
           <Panel flush className="files-places">
@@ -400,6 +538,66 @@ function Files({ server, folder, file, reading }: FilesProps) {
           </div>
         )}
       </div>
+      {sheet?.kind === "actions" ? (
+        <ActionsSheet
+          folder={shown}
+          entry={sheet.entry}
+          onClose={() => setSheet(undefined)}
+          onRename={() => setSheet({ kind: "name", naming: { kind: "rename", entry: sheet.entry } })}
+          onMove={() => setSheet({ kind: "move", entry: sheet.entry })}
+          onDelete={() => setSheet({ kind: "delete", entry: sheet.entry })}
+        />
+      ) : null}
+      {sheet?.kind === "name" ? (
+        <NameSheet
+          serverId={serverId}
+          folder={shown}
+          naming={sheet.naming}
+          onClose={() => setSheet(undefined)}
+          onDone={(path, kind) => {
+            setSheet(undefined);
+            if (sheet.naming.kind === "rename") away(join(shown, sheet.naming.entry.name), path);
+            else if (kind === FileType.FILE) go({ path: shown, file: path });
+          }}
+        />
+      ) : null}
+      {sheet?.kind === "move" ? (
+        <MoveSheet
+          serverId={serverId}
+          folder={shown}
+          entry={sheet.entry}
+          onClose={() => setSheet(undefined)}
+          onDone={(to) => {
+            setSheet(undefined);
+            away(join(shown, sheet.entry.name), to);
+          }}
+        />
+      ) : null}
+      {sheet?.kind === "delete" ? (
+        <DeleteSheet
+          serverId={serverId}
+          folder={shown}
+          entry={sheet.entry}
+          onClose={() => setSheet(undefined)}
+          onDone={(path, kept) => {
+            setSheet(undefined);
+            setRestoreFailure(undefined);
+            setDeleted({ path, kept });
+            away(join(shown, sheet.entry.name));
+          }}
+        />
+      ) : null}
+      {sheet?.kind === "deleted" ? (
+        <DeletedSheet
+          serverId={serverId}
+          onClose={() => setSheet(undefined)}
+          onRestored={(path) => {
+            setSheet(undefined);
+            setDeleted(undefined);
+            go({ path: parentOf(path) });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

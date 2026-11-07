@@ -45,6 +45,9 @@ var (
 type waysIn struct {
 	dirs, files map[identity]bool
 	homes       []string // of root and those who can become it
+	// everyone's are every account's home, which a folder made, moved or deleted
+	// counts for as a whole, as a home holds its owner's way in.
+	everyone []string
 }
 
 // waysIn reads what's listed, by device and inode, as the refused list does, so a
@@ -67,6 +70,7 @@ func (s *Server) waysIn() *waysIn {
 	for _, p := range s.listedFiles {
 		mark(ways.files, p)
 	}
+	ways.everyone = s.everyonesHomes()
 	info := s.mounts()
 	for _, home := range s.adminHomes() {
 		ways.homes = append(ways.homes, home)
@@ -107,6 +111,27 @@ func (s *Server) adminHomes() []string {
 		}
 		if uid, err := strconv.Atoi(f[2]); (err == nil && uid == 0 || gids[f[3]] || members[f[0]]) && !slices.Contains(homes, f[5]) {
 			homes = append(homes, f[5])
+		}
+	}
+	return homes
+}
+
+// everyonesHomes are the homes of every account on the server, but those that are
+// no home at all.
+func (s *Server) everyonesHomes() []string {
+	passwd, _ := s.accounts()
+	var homes []string
+	for line := range strings.Lines(passwd) {
+		f := strings.Split(strings.TrimSpace(line), ":")
+		if len(f) < 6 || !strings.HasPrefix(f[5], "/") {
+			continue
+		}
+		switch home := path.Clean(f[5]); home {
+		case "/", "/nonexistent", "/dev/null":
+		default:
+			if !slices.Contains(homes, home) {
+				homes = append(homes, home)
+			}
 		}
 	}
 	return homes

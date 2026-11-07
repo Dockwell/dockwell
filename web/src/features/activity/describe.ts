@@ -139,6 +139,96 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             ? { title: t`Set the time zone for new schedules to ${value}, which was ${previous}`, icon: "settings" }
             : { title: t`Set the time zone for new schedules to ${value}`, icon: "settings" };
         }
+        // What a person makes, moves, deletes and puts back (ADR 0045). What can let
+        // someone back in reads as a warning, passkey or not, as a stolen session would do it.
+        case "file.make": {
+          const path = event.subject?.path ?? "";
+          return event.subject?.wayBackIn
+            ? { title: t`Made ${path} on ${server}, which can let someone back in`, icon: "file", tone: "warning" }
+            : { title: t`Made ${path} on ${server}`, icon: "file" };
+        }
+        case "file.move": {
+          const path = event.subject?.path ?? "";
+          const to = event.subject?.toPath ?? "";
+          return event.subject?.wayBackIn
+            ? {
+                title: t`Moved ${path} to ${to} on ${server}, which can let someone back in`,
+                icon: "file",
+                tone: "warning",
+              }
+            : { title: t`Moved ${path} to ${to} on ${server}`, icon: "file" };
+        }
+        case "file.delete": {
+          const path = event.subject?.path ?? "";
+          if (event.subject?.wayBackIn) {
+            return {
+              title: t`Deleted ${path} on ${server}, which can let someone back in`,
+              icon: "trash",
+              tone: "warning",
+            };
+          }
+          return event.subject?.forGood
+            ? { title: t`Deleted ${path} on ${server} for good`, icon: "trash" }
+            : { title: t`Deleted ${path} on ${server}`, icon: "trash" };
+        }
+        case "file.restore": {
+          const path = event.subject?.path ?? "";
+          return event.subject?.wayBackIn
+            ? { title: t`Put back ${path} on ${server}, which can let someone back in`, icon: "undo", tone: "warning" }
+            : { title: t`Put back ${path} on ${server}`, icon: "undo" };
+        }
+        case "file.make_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't make ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
+        case "file.move_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't move ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
+        case "file.delete_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't delete ${path} on ${server}`, icon: "trash", tone: "warning" };
+        }
+        case "file.restore_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't put back ${path} on ${server}`, icon: "undo", tone: "warning" };
+        }
+        case "file.make_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to make ${path} on ${server}, and none came`,
+            icon: "file",
+            tone: "warning",
+          };
+        }
+        case "file.move_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to move ${path} on ${server}, and none came`,
+            icon: "file",
+            tone: "warning",
+          };
+        }
+        case "file.delete_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to delete ${path} on ${server}, and none came`,
+            icon: "trash",
+            tone: "warning",
+          };
+        }
+        case "file.restore_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to put back ${path} on ${server}, and none came`,
+            icon: "undo",
+            tone: "warning",
+          };
+        }
+        case "file.change_unknown": {
+          const path = event.subject?.path ?? "";
+          return { title: t`May have changed ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
         case "change.apply_unconfirmed": {
           const change = event.subject?.id ?? "";
           return { title: t`Asked for a passkey to apply ${change}, and none came`, icon: "key", tone: "warning" };

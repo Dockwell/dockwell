@@ -238,6 +238,14 @@ message EventSubject {
   // Which file on it, for a file read, saved or refused on a server. Empty
   // otherwise.
   string path = 4;
+  // Where it went, for a file or folder moved or renamed. Empty otherwise.
+  // Numbered apart, as open work adds to this message.
+  string to_path = 100;
+  // True for a file or folder made, moved, deleted or put back where it's a
+  // way back onto the server, which took a passkey.
+  bool way_back_in = 101;
+  // True for a file or folder deleted for good, which can't be put back.
+  bool for_good = 102;
 }
 
 // EventKind sorts events, for filtering.

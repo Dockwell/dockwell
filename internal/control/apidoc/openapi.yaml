@@ -1670,6 +1670,110 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files:
+        get:
+            tags:
+                - FileService
+            description: |-
+                ListDeletedFiles returns what's in a server's Recently deleted, newest
+                 first. No API token can call it.
+            operationId: FileService_ListDeletedFiles
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDeletedFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files/{id}:
+        delete:
+            tags:
+                - FileService
+            description: |-
+                PurgeDeletedFile deletes for good what's in Recently deleted, which
+                 frees its space at once. No API token can call it. Each one is on the
+                 timeline.
+            operationId: FileService_PurgeDeletedFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Its ID in Recently deleted.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PurgeDeletedFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files/{id}:restore:
+        post:
+            tags:
+                - FileService
+            description: |-
+                RestoreFile puts back what was deleted, at the path it was deleted from,
+                 never over what's there now. No API token can call it. Each one is on
+                 the timeline.
+            operationId: FileService_RestoreFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Its ID in Recently deleted.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RestoreFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RestoreFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:
         get:
             tags:
@@ -1707,6 +1811,115 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:delete:
+        post:
+            tags:
+                - FileService
+            description: |-
+                DeleteFile deletes a file or a folder. It goes to Recently deleted for 7
+                 days, from where RestoreFile puts it back, when it's on the same
+                 filesystem as Dockwell's data. Elsewhere it fails with the reason
+                 "delete_for_good" unless for_good is set. A symlink goes as itself. No
+                 API token can call it. Each one is on the timeline.
+            operationId: FileService_DeleteFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:make:
+        post:
+            tags:
+                - FileService
+            description: |-
+                MakeFile makes an empty file, or a folder with nothing in it, never over
+                 what's there, which fails with the reason "file_exists". It takes its
+                 folder's owner and group. No API token can call it. Each one is on the
+                 timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
+            operationId: FileService_MakeFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MakeFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MakeFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:move:
+        post:
+            tags:
+                - FileService
+            description: |-
+                MoveFile moves or renames a file or a folder, within one filesystem,
+                 never over what's there. A symlink moves as itself. A move to another
+                 disk fails with the reason "other_disk". No API token can call it. Each
+                 one is on the timeline.
+            operationId: FileService_MoveFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MoveFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MoveFileResponse'
                 default:
                     description: Default error response
                     content:
@@ -3626,6 +3839,10 @@ components:
                         - STEP_UP_ACTION_CREATE_TOKEN
                         - STEP_UP_ACTION_APPLY_ROOT_CHANGE
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_MAKE_WAY_BACK_IN
+                        - STEP_UP_ACTION_MOVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_DELETE_WAY_BACK_IN
+                        - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                     type: string
                     description: The action.
                     format: enum
@@ -4725,6 +4942,41 @@ components:
             type: object
             properties: {}
             description: DeleteBackupResponse says it's gone.
+        DeleteFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: The absolute path, without . or .. in it.
+                forGood:
+                    type: boolean
+                    description: |-
+                        True to delete it for good, which frees its space at once and can't be
+                         undone. What's on another filesystem than Dockwell's data needs it.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for deleting this path on this server,
+                         where it's a way back onto the server or holds one. path then has to be
+                         where the server resolves it.
+            description: DeleteFileRequest deletes a file or a folder.
+        DeleteFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                deleted:
+                    allOf:
+                        - $ref: '#/components/schemas/DeletedFile'
+                    description: It in Recently deleted. Unset when it was deleted for good.
+                wayBackIn:
+                    type: boolean
+                    description: True when it was a way back onto the server, which took a passkey.
+            description: DeleteFileResponse says what was deleted.
         DeleteWebsiteRequest:
             type: object
             properties:
@@ -4743,6 +4995,37 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: DeleteWebsiteResponse carries the planned change.
+        DeletedFile:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, which RestoreFile and PurgeDeletedFile take.
+                path:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                type:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    description: What it is.
+                    format: enum
+                sizeBytes:
+                    type: string
+                    description: Its size in bytes, for a file. Zero for a folder.
+                deleteTime:
+                    type: string
+                    description: When it was deleted.
+                    format: date-time
+                purgeTime:
+                    type: string
+                    description: When it goes for good, unless it's put back first.
+                    format: date-time
+            description: DeletedFile is one file or folder in Recently deleted.
         DeployServiceRequest:
             type: object
             properties:
@@ -5448,6 +5731,19 @@ components:
                     description: |-
                         Which file on it, for a file read, saved or refused on a server. Empty
                          otherwise.
+                toPath:
+                    type: string
+                    description: |-
+                        Where it went, for a file or folder moved or renamed. Empty otherwise.
+                         Numbered apart, as open work adds to this message.
+                wayBackIn:
+                    type: boolean
+                    description: |-
+                        True for a file or folder made, moved, deleted or put back where it's a
+                         way back onto the server, which took a passkey.
+                forGood:
+                    type: boolean
+                    description: True for a file or folder deleted for good, which can't be put back.
             description: EventSubject names what an event is about.
         ExportComposeResponse:
             type: object
@@ -6543,6 +6839,15 @@ components:
                         $ref: '#/components/schemas/Database'
                     description: The databases, by name.
             description: ListDatabasesResponse lists them.
+        ListDeletedFilesResponse:
+            type: object
+            properties:
+                deleted:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DeletedFile'
+                    description: Newest first.
+            description: ListDeletedFilesResponse is what's in a server's Recently deleted.
         ListDomainsResponse:
             type: object
             properties:
@@ -6936,6 +7241,50 @@ components:
             description: |-
                 LoggedService says which service logs are from, or which container, for one
                  Dockwell didn't make.
+        MakeFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: |-
+                        The absolute path to make, without . or .. in it, such as
+                         "/srv/site/index.html". Its folder must exist.
+                type:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    description: FILE_TYPE_FILE or FILE_TYPE_DIRECTORY.
+                    format: enum
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for making this path on this server, where
+                         it's a way back onto the server. Call without it first: it checks
+                         everything else, then refuses with the reason needs_step_up. With it,
+                         path has to be where the server resolves it, as ListFiles gives a
+                         folder.
+            description: MakeFileRequest makes an empty file or a folder.
+        MakeFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it was made, with every symlink in its folder's path followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What was made.
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+            description: MakeFileResponse is what was made.
         ManagedElsewhere:
             type: object
             properties:
@@ -6998,6 +7347,46 @@ components:
                          as "82:82", with mode 0755. Docker would make it root's. A folder that's there
                          keeps its owner. Numbered apart, as open work adds to this message.
             description: Mount puts a volume, or a directory on the server, into a container.
+        MoveFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                from:
+                    type: string
+                    description: Where it is now, as an absolute path, without . or .. in it.
+                to:
+                    type: string
+                    description: |-
+                        Where it goes, as the whole new path, such as "/srv/site/old.html" to
+                         rename index.html in the same folder. Nothing may be there.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for this move on this server, where either
+                         end is a way back onto the server. Both paths then have to be where the
+                         server resolves them.
+            description: MoveFileRequest moves or renames a file or a folder.
+        MoveFileResponse:
+            type: object
+            properties:
+                from:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                to:
+                    type: string
+                    description: Where it is now, the same way.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What moved.
+                wayBackIn:
+                    type: boolean
+                    description: |-
+                        True when either end is a way back onto the server, which took a
+                         passkey.
+            description: MoveFileResponse says where it went.
         Network:
             type: object
             properties:
@@ -7747,6 +8136,14 @@ components:
                         True when nothing shows the address is a way in, so it's named only with a
                          caveat: a way out, or a metadata service the machine doesn't confirm.
             description: PublicAddress is what's known of one public address of a server.
+        PurgeDeletedFileResponse:
+            type: object
+            properties:
+                deleted:
+                    allOf:
+                        - $ref: '#/components/schemas/DeletedFile'
+                    description: What was deleted for good.
+            description: PurgeDeletedFileResponse says what went.
         ReadFileRequest:
             type: object
             properties:
@@ -7976,6 +8373,35 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: RestoreBackupResponse is the change that restores it.
+        RestoreFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                id:
+                    type: string
+                    description: Its ID in Recently deleted.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for putting back its path on this server,
+                         where that's a way back onto the server.
+            description: RestoreFileRequest puts back what was deleted.
+        RestoreFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it is now, with every symlink in its folder's path followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What went back.
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+            description: RestoreFileResponse says where it went back.
         RestorePlan:
             type: object
             properties:
@@ -10258,10 +10684,12 @@ tags:
          same credentials.
     - name: FileService
       description: |-
-        FileService browses, reads and saves the files on a server, through its
-         agent. Files on a server aren't managed state, so nothing here is a revision
-         or has a plan, and a save can't be undone. See
-         docs/adr/0032-files-on-a-server.md.
+        FileService browses, reads, saves, makes, moves and deletes the files on a
+         server, through its agent. Files on a server aren't managed state, so
+         nothing here is a revision or has a plan. A save can't be undone, and a
+         delete can for 7 days where it's on the same filesystem as Dockwell's data.
+         See docs/adr/0032-files-on-a-server.md and
+         docs/adr/0045-a-file-manager-on-a-server.md.
 
          Every method needs a signed-in session: no API token can call them, whatever
          its scope. The agent refuses what holds Dockwell's keys, secrets' values and

@@ -610,6 +610,21 @@ enum StepUpAction {
   // Saving a file that's a way back onto a server, with FileService.SaveFile.
   // The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
   STEP_UP_ACTION_SAVE_WAY_BACK_IN = 9;
+  // Making a file or a folder that's a way back onto a server, with
+  // FileService.MakeFile. The target is the server's ID and the path, as
+  // "srv_…:/path". Numbered apart, as open work adds to this enum.
+  STEP_UP_ACTION_MAKE_WAY_BACK_IN = 90;
+  // Moving or renaming a file or a folder where either end is a way back
+  // onto a server, with FileService.MoveFile. The target is the server's ID
+  // and both paths, on two lines, as "srv_…:/from\n/to".
+  STEP_UP_ACTION_MOVE_WAY_BACK_IN = 91;
+  // Deleting a file or a folder that's a way back onto a server, or holds
+  // one, with FileService.DeleteFile. The target is "srv_…:/path".
+  STEP_UP_ACTION_DELETE_WAY_BACK_IN = 92;
+  // Putting back a file or a folder where it's a way back onto a server,
+  // with FileService.RestoreFile. The target is "srv_…:/path", the path it
+  // goes back to.
+  STEP_UP_ACTION_RESTORE_WAY_BACK_IN = 93;
 }
 
 // BeginStepUpRequest says what the passkey confirms.

@@ -18,6 +18,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -157,7 +158,7 @@ func (c *calls) start(call *agentv1.Call) {
 		defer c.done(call.GetId())
 		// A file call keeps its place until its result has gone, so what waits
 		// for a slow stream is bounded, and a call whose caller left drops out.
-		if c.cfg.Files != nil && (call.GetListFiles() != nil || call.GetReadFile() != nil || call.GetSaveFile() != nil) {
+		if c.cfg.Files != nil && isFileCall(call) {
 			release, err := c.cfg.Files.Take(ctx)
 			if err != nil {
 				c.reply(call.GetId(), &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}})
@@ -642,6 +643,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Probe{Probe: found}}
 	}
+	if isFileCall(call) {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		result, err := manageFiles(ctx, c.cfg.Files, call)
+		if err != nil {
+			return fail(err)
+		}
+		return result
+	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",
 	}}}
@@ -804,4 +815,41 @@ func (c *calls) decode(d *agentv1.DesiredResource) (resource.Ref, proto.Message,
 	}
 	spec, err := c.cfg.Drivers.Decode(ref.Kind, d.GetSpec())
 	return ref, spec, err
+}
+
+// isFileCall reports a call about the server's files, which takes one of their places.
+func isFileCall(call *agentv1.Call) bool {
+	return call.GetListFiles() != nil || call.GetReadFile() != nil || call.GetSaveFile() != nil || call.GetMakeFile() != nil ||
+		call.GetMoveFile() != nil || call.GetDeleteFile() != nil || call.GetListDeleted() != nil || call.GetRestoreFile() != nil ||
+		call.GetPurgeDeleted() != nil
+}
+
+// manageFiles makes, moves, deletes and puts back files, and says what's in Recently
+// deleted (ADR 0045).
+func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*agentv1.CallResult, error) {
+	switch {
+	case call.GetMakeFile() != nil:
+		m := call.GetMakeFile()
+		out, err := f.Make(ctx, m.GetPath(), m.GetType(), m.GetConfirmedPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_MakeFile{MakeFile: out}}, err
+	case call.GetMoveFile() != nil:
+		m := call.GetMoveFile()
+		out, err := f.Move(ctx, m.GetFrom(), m.GetTo(), m.GetConfirmedFrom(), m.GetConfirmedTo())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_MoveFile{MoveFile: out}}, err
+	case call.GetDeleteFile() != nil:
+		d := call.GetDeleteFile()
+		out, err := f.Delete(ctx, d.GetPath(), d.GetForGood(), d.GetConfirmedPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteFile{DeleteFile: out}}, err
+	case call.GetListDeleted() != nil:
+		out, err := f.ListDeleted()
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListDeleted{ListDeleted: out}}, err
+	case call.GetRestoreFile() != nil:
+		r := call.GetRestoreFile()
+		out, err := f.Restore(ctx, r.GetId(), r.GetConfirmedPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_RestoreFile{RestoreFile: out}}, err
+	case call.GetPurgeDeleted() != nil:
+		out, err := f.Purge(call.GetPurgeDeleted().GetId())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_PurgeDeleted{PurgeDeleted: out}}, err
+	}
+	return nil, errors.New("this isn't a call about files")
 }

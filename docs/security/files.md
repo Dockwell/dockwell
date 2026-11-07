@@ -1,6 +1,6 @@
 # Files: threat model
 
-Files hands a browser a server's disk, to read and to write, through an agent that runs as root. This says what that protects, from whom, what's refused, and what it doesn't protect. The design is in [ADR 0032](../adr/0032-files-on-a-server.md), beside the threat models for [secrets](secrets.md) and [sign-in](sign-in.md). The code is in `internal/agent/files` and `internal/control/files`.
+Files hands a browser a server's disk, to read and to write, through an agent that runs as root. This says what that protects, from whom, what's refused, and what it doesn't protect. The design is in [ADR 0032](../adr/0032-files-on-a-server.md) and, for making, moving and deleting, [ADR 0045](../adr/0045-a-file-manager-on-a-server.md), beside the threat models for [secrets](secrets.md) and [sign-in](sign-in.md). The code is in `internal/agent/files` and `internal/control/files`.
 
 ## What there is to protect
 
@@ -47,6 +47,7 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | It tries to | What happens |
 | --- | --- |
 | List a directory, read a file or save one, with any scope | Refused with `needs_session`, by the interceptor and again by the handler. Tested over Connect and REST, read-only and read-write |
+| Make, move or delete a file, or list, put back or delete what's in Recently deleted | Refused the same way. Tested over REST, read-only and read-write |
 | Use a person's session beside it | The token alone counts, and is refused ([ADR 0016](../adr/0016-scoped-api-tokens.md)) |
 
 ### A stolen session
@@ -68,6 +69,9 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | Read what a volume held by restoring its backup into an ordinary one of its name | A backup says what its volume reached, and a restore asks for that, whatever the volume it comes back into reaches. Tested |
 | Turn a folder into a link, for what mounts it to follow when it next starts | The agent checks where a path leads right before every start it asks for, keeps what a moved path stopped from starting by itself, and checks a restore before it writes. Docker's own restarts ask nobody, so a read-write mount that holds another's source counts as root at plan time, however either path is written, and a token can't change what runs in it. Tested |
 | Save a file without leaving a record | It can't. `file.saving` is written before the agent is asked, and if it can't be written nothing is. Tested |
+| Make, move, delete or put back a way in, such as moving its own key over `authorized_keys`, or a folder into a home | It can't without the person's passkey, for those paths on that server, by the rule a save goes by, on each end of a move. A folder counts for every account's home it is or holds. Each one is on the timeline, in a warning tone where it took a passkey. Tested |
+| Delete what the server runs on, or move it aside to put its own in place | The same: a delete under a system path asks for a passkey, and a folder that holds what's refused, or a mount, isn't moved or deleted at all. Tested |
+| Delete for good, so nothing can be put back | It can, with a session, as a person can. It's on the timeline as deleted for good. What's in Recently deleted already is out of Files' reach until it's put back |
 | Write over the install's key, or a secret's value in Docker's state | Refused: a save takes the same walk as a read |
 | Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |
 
@@ -88,6 +92,8 @@ It can't reach past its container on its own. What it can do is leave things for
 | Plant a symlink where a person will open a file, to have them save through it | The save follows the link and writes where it leads, as a read does, unless that's refused. The panel shows a link's target in the folder and over the file, and the audit log and the timeline name where the save landed. Tested |
 | Swap a file a person has open for a link to `authorized_keys`, even with the same text, for their save to land there | The version covers where the walk ended and which file that was, so the save reads as changed, and writes nothing. "Save over it" reads the path again, sees it leads elsewhere, stops, and names where, so a person only saves there with it in front of them. Tested |
 | Swap a file for a link or another file as a save goes on | The save writes only to the file it read: the agent opens it from the directory it checked, with `O_NOFOLLOW`, and compares its identity. Anything else reads as changed, and nothing is written. Tested |
+| Plant a link where a person will delete or move something, to have the delete reach where it leads | A delete, a move and a rename act on the last part as itself, so a link goes as a link, and what it leads to stays. Removing a folder for good goes through descriptors and stays on its filesystem, so a link in it is removed, not followed. Tested |
+| Swap what a person is deleting for something else as it goes | What was checked is what's moved: the agent compares what it moved with what it checked, by device and inode, and puts back anything else. What's removed in the background is checked the same way first. Tested |
 | Change a file a person is editing, to have their save undo it, or to slip something in | A save names the version it was edited from, and a file that differs isn't written over. The person sees that it changed, and chooses. Tested |
 | Have a person's session overwrite a binary it knows the digest of, such as `/usr/bin/sudo` | A save goes only over what reads as text, and the version counts for nothing on anything else. Tested |
 | Fill the disk, so a save leaves a file cut short | A copy of the old text goes beside the file first. A disk that can't hold that stops the save with the file untouched. One that holds the copy can still fail the write, as the file grows: the old text goes back, and failing that the copy stays, and the error names it, with the file cut short. Tested, with a real write that fails partway |
@@ -116,6 +122,7 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **Stop a stolen session reaching what's refused.** The refused list stops Files. ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach everything here.
 - **Keep a stolen session out of a server with no Docker by any other way.** With no plan to run, Files is new reach there, and Activity is what shows it.
 - **Undo a save.** A file isn't managed state, so there's no revision to go back to. The panel says so beside the Save button.
+- **Undo a delete on another disk.** Recently deleted is a rename into Dockwell's data, so it only holds what's on the same filesystem. Elsewhere the panel says a delete can't be put back before it happens.
 - **Know what a file does.** A save to a cron job, a unit file or `sudoers` is root, and takes a passkey, but Dockwell doesn't read what's in it or check its syntax. What runs that isn't on the list, such as a script a cron job calls, takes none.
 - **Keep what's typed in a tab that closes.** What's typed stays in memory through a session that ends, and leaving the page asks first, but it never goes in the browser's storage, so a tab the browser discards loses it.
 - **Tell a config with a password in it from one without.** `.env`, `wp-config.php` and the like are readable with a session.
@@ -133,4 +140,5 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **A hard link to a refused file,** made by root, reads as what it is: a file somewhere else.
 - **Activity shows paths.** Anyone who can read events, a read-only token included, sees which files were read, saved and refused, not what's in them.
 - **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding `containers` and at least two more of Docker's own directories. A backup of `overlay2` alone, or of `containers` alone, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.
+- **Root inside a deleted folder.** Removing a folder for good, as root, removes what's in it whoever owns it. Someone who can write the folder can move a folder of root's into it as it's removed, as with any `rm -r` run by root in a folder others can write.
 - **A save has a moment in the open.** The file is read and written moments apart, so a writer that lands between them is lost. A reader can catch a file half written, as a save writes in place to keep what a container mounts. A power cut in that moment can leave it half written, and the copy of what was saved beside it, as `.dockwell-save-…`.

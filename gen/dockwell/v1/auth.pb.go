@@ -166,21 +166,40 @@ const (
 	// Saving a file that's a way back onto a server, with FileService.SaveFile.
 	// The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
 	StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN StepUpAction = 9
+	// Making a file or a folder that's a way back onto a server, with
+	// FileService.MakeFile. The target is the server's ID and the path, as
+	// "srv_…:/path". Numbered apart, as open work adds to this enum.
+	StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN StepUpAction = 90
+	// Moving or renaming a file or a folder where either end is a way back
+	// onto a server, with FileService.MoveFile. The target is the server's ID
+	// and both paths, on two lines, as "srv_…:/from\n/to".
+	StepUpAction_STEP_UP_ACTION_MOVE_WAY_BACK_IN StepUpAction = 91
+	// Deleting a file or a folder that's a way back onto a server, or holds
+	// one, with FileService.DeleteFile. The target is "srv_…:/path".
+	StepUpAction_STEP_UP_ACTION_DELETE_WAY_BACK_IN StepUpAction = 92
+	// Putting back a file or a folder where it's a way back onto a server,
+	// with FileService.RestoreFile. The target is "srv_…:/path", the path it
+	// goes back to.
+	StepUpAction_STEP_UP_ACTION_RESTORE_WAY_BACK_IN StepUpAction = 93
 )
 
 // Enum value maps for StepUpAction.
 var (
 	StepUpAction_name = map[int32]string{
-		0: "STEP_UP_ACTION_UNSPECIFIED",
-		1: "STEP_UP_ACTION_REVEAL_SECRET",
-		2: "STEP_UP_ACTION_ADD_PASSKEY",
-		3: "STEP_UP_ACTION_REMOVE_PASSKEY",
-		4: "STEP_UP_ACTION_SET_UP_CODES",
-		5: "STEP_UP_ACTION_DISABLE_CODES",
-		6: "STEP_UP_ACTION_REGENERATE_RECOVERY_CODES",
-		7: "STEP_UP_ACTION_CREATE_TOKEN",
-		8: "STEP_UP_ACTION_APPLY_ROOT_CHANGE",
-		9: "STEP_UP_ACTION_SAVE_WAY_BACK_IN",
+		0:  "STEP_UP_ACTION_UNSPECIFIED",
+		1:  "STEP_UP_ACTION_REVEAL_SECRET",
+		2:  "STEP_UP_ACTION_ADD_PASSKEY",
+		3:  "STEP_UP_ACTION_REMOVE_PASSKEY",
+		4:  "STEP_UP_ACTION_SET_UP_CODES",
+		5:  "STEP_UP_ACTION_DISABLE_CODES",
+		6:  "STEP_UP_ACTION_REGENERATE_RECOVERY_CODES",
+		7:  "STEP_UP_ACTION_CREATE_TOKEN",
+		8:  "STEP_UP_ACTION_APPLY_ROOT_CHANGE",
+		9:  "STEP_UP_ACTION_SAVE_WAY_BACK_IN",
+		90: "STEP_UP_ACTION_MAKE_WAY_BACK_IN",
+		91: "STEP_UP_ACTION_MOVE_WAY_BACK_IN",
+		92: "STEP_UP_ACTION_DELETE_WAY_BACK_IN",
+		93: "STEP_UP_ACTION_RESTORE_WAY_BACK_IN",
 	}
 	StepUpAction_value = map[string]int32{
 		"STEP_UP_ACTION_UNSPECIFIED":               0,
@@ -193,6 +212,10 @@ var (
 		"STEP_UP_ACTION_CREATE_TOKEN":              7,
 		"STEP_UP_ACTION_APPLY_ROOT_CHANGE":         8,
 		"STEP_UP_ACTION_SAVE_WAY_BACK_IN":          9,
+		"STEP_UP_ACTION_MAKE_WAY_BACK_IN":          90,
+		"STEP_UP_ACTION_MOVE_WAY_BACK_IN":          91,
+		"STEP_UP_ACTION_DELETE_WAY_BACK_IN":        92,
+		"STEP_UP_ACTION_RESTORE_WAY_BACK_IN":       93,
 	}
 )
 
@@ -3232,7 +3255,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x16SIGN_IN_METHOD_PASSKEY\x10\x02\x12%\n" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
-	"\x13SIGN_IN_METHOD_LINK\x10\x05*\xf0\x02\n" +
+	"\x13SIGN_IN_METHOD_LINK\x10\x05*\x89\x04\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -3243,7 +3266,11 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"(STEP_UP_ACTION_REGENERATE_RECOVERY_CODES\x10\x06\x12\x1f\n" +
 	"\x1bSTEP_UP_ACTION_CREATE_TOKEN\x10\a\x12$\n" +
 	" STEP_UP_ACTION_APPLY_ROOT_CHANGE\x10\b\x12#\n" +
-	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t2\x96%\n" +
+	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t\x12#\n" +
+	"\x1fSTEP_UP_ACTION_MAKE_WAY_BACK_IN\x10Z\x12#\n" +
+	"\x1fSTEP_UP_ACTION_MOVE_WAY_BACK_IN\x10[\x12%\n" +
+	"!STEP_UP_ACTION_DELETE_WAY_BACK_IN\x10\\\x12&\n" +
+	"\"STEP_UP_ACTION_RESTORE_WAY_BACK_IN\x10]2\x96%\n" +
 	"\vAuthService\x12q\n" +
 	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12}\n" +
 	"\n" +

@@ -825,7 +825,7 @@ describe("FilesPage on a phone", () => {
     onPhone();
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     await screen.findByText("wp-admin");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Size"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Size", "Actions"]);
     expect(screen.getByRole("navigation", { name: "Places" })).toBeVisible();
   });
 

@@ -554,6 +554,851 @@ func (x *SaveFileResponse) GetWayBackIn() bool {
 	return false
 }
 
+// MakeFileRequest makes an empty file or a folder.
+type MakeFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// The absolute path to make, without . or .. in it, such as
+	// "/srv/site/index.html". Its folder must exist.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// FILE_TYPE_FILE or FILE_TYPE_DIRECTORY.
+	Type FileType `protobuf:"varint,3,opt,name=type,proto3,enum=dockwell.v1.FileType" json:"type,omitempty"`
+	// The proof from FinishStepUp, for making this path on this server, where
+	// it's a way back onto the server. Call without it first: it checks
+	// everything else, then refuses with the reason needs_step_up. With it,
+	// path has to be where the server resolves it, as ListFiles gives a
+	// folder.
+	Proof         string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeFileRequest) Reset() {
+	*x = MakeFileRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeFileRequest) ProtoMessage() {}
+
+func (x *MakeFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeFileRequest.ProtoReflect.Descriptor instead.
+func (*MakeFileRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *MakeFileRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *MakeFileRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *MakeFileRequest) GetType() FileType {
+	if x != nil {
+		return x.Type
+	}
+	return FileType_FILE_TYPE_UNSPECIFIED
+}
+
+func (x *MakeFileRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// MakeFileResponse is what was made.
+type MakeFileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where it was made, with every symlink in its folder's path followed.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// What was made.
+	File *FileEntry `protobuf:"bytes,2,opt,name=file,proto3" json:"file,omitempty"`
+	// True when it's a way back onto the server, which took a passkey.
+	WayBackIn     bool `protobuf:"varint,3,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeFileResponse) Reset() {
+	*x = MakeFileResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeFileResponse) ProtoMessage() {}
+
+func (x *MakeFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeFileResponse.ProtoReflect.Descriptor instead.
+func (*MakeFileResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *MakeFileResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *MakeFileResponse) GetFile() *FileEntry {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
+func (x *MakeFileResponse) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
+}
+
+// MoveFileRequest moves or renames a file or a folder.
+type MoveFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Where it is now, as an absolute path, without . or .. in it.
+	From string `protobuf:"bytes,2,opt,name=from,proto3" json:"from,omitempty"`
+	// Where it goes, as the whole new path, such as "/srv/site/old.html" to
+	// rename index.html in the same folder. Nothing may be there.
+	To string `protobuf:"bytes,3,opt,name=to,proto3" json:"to,omitempty"`
+	// The proof from FinishStepUp, for this move on this server, where either
+	// end is a way back onto the server. Both paths then have to be where the
+	// server resolves them.
+	Proof         string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveFileRequest) Reset() {
+	*x = MoveFileRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveFileRequest) ProtoMessage() {}
+
+func (x *MoveFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveFileRequest.ProtoReflect.Descriptor instead.
+func (*MoveFileRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MoveFileRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *MoveFileRequest) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
+}
+
+func (x *MoveFileRequest) GetTo() string {
+	if x != nil {
+		return x.To
+	}
+	return ""
+}
+
+func (x *MoveFileRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// MoveFileResponse says where it went.
+type MoveFileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where it was, with every symlink in its folder's path followed.
+	From string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+	// Where it is now, the same way.
+	To string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	// What moved.
+	File *FileEntry `protobuf:"bytes,3,opt,name=file,proto3" json:"file,omitempty"`
+	// True when either end is a way back onto the server, which took a
+	// passkey.
+	WayBackIn     bool `protobuf:"varint,4,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveFileResponse) Reset() {
+	*x = MoveFileResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveFileResponse) ProtoMessage() {}
+
+func (x *MoveFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveFileResponse.ProtoReflect.Descriptor instead.
+func (*MoveFileResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *MoveFileResponse) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
+}
+
+func (x *MoveFileResponse) GetTo() string {
+	if x != nil {
+		return x.To
+	}
+	return ""
+}
+
+func (x *MoveFileResponse) GetFile() *FileEntry {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
+func (x *MoveFileResponse) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
+}
+
+// DeleteFileRequest deletes a file or a folder.
+type DeleteFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// The absolute path, without . or .. in it.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// True to delete it for good, which frees its space at once and can't be
+	// undone. What's on another filesystem than Dockwell's data needs it.
+	ForGood bool `protobuf:"varint,3,opt,name=for_good,json=forGood,proto3" json:"for_good,omitempty"`
+	// The proof from FinishStepUp, for deleting this path on this server,
+	// where it's a way back onto the server or holds one. path then has to be
+	// where the server resolves it.
+	Proof         string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteFileRequest) Reset() {
+	*x = DeleteFileRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteFileRequest) ProtoMessage() {}
+
+func (x *DeleteFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteFileRequest.ProtoReflect.Descriptor instead.
+func (*DeleteFileRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *DeleteFileRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *DeleteFileRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *DeleteFileRequest) GetForGood() bool {
+	if x != nil {
+		return x.ForGood
+	}
+	return false
+}
+
+func (x *DeleteFileRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// DeleteFileResponse says what was deleted.
+type DeleteFileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where it was, with every symlink in its folder's path followed.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// It in Recently deleted. Unset when it was deleted for good.
+	Deleted *DeletedFile `protobuf:"bytes,2,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	// True when it was a way back onto the server, which took a passkey.
+	WayBackIn     bool `protobuf:"varint,3,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteFileResponse) Reset() {
+	*x = DeleteFileResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteFileResponse) ProtoMessage() {}
+
+func (x *DeleteFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteFileResponse.ProtoReflect.Descriptor instead.
+func (*DeleteFileResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *DeleteFileResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *DeleteFileResponse) GetDeleted() *DeletedFile {
+	if x != nil {
+		return x.Deleted
+	}
+	return nil
+}
+
+func (x *DeleteFileResponse) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
+}
+
+// ListDeletedFilesRequest names a server.
+type ListDeletedFilesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDeletedFilesRequest) Reset() {
+	*x = ListDeletedFilesRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDeletedFilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDeletedFilesRequest) ProtoMessage() {}
+
+func (x *ListDeletedFilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDeletedFilesRequest.ProtoReflect.Descriptor instead.
+func (*ListDeletedFilesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListDeletedFilesRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+// ListDeletedFilesResponse is what's in a server's Recently deleted.
+type ListDeletedFilesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Newest first.
+	Deleted       []*DeletedFile `protobuf:"bytes,1,rep,name=deleted,proto3" json:"deleted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDeletedFilesResponse) Reset() {
+	*x = ListDeletedFilesResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDeletedFilesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDeletedFilesResponse) ProtoMessage() {}
+
+func (x *ListDeletedFilesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDeletedFilesResponse.ProtoReflect.Descriptor instead.
+func (*ListDeletedFilesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListDeletedFilesResponse) GetDeleted() []*DeletedFile {
+	if x != nil {
+		return x.Deleted
+	}
+	return nil
+}
+
+// DeletedFile is one file or folder in Recently deleted.
+type DeletedFile struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its ID, which RestoreFile and PurgeDeletedFile take.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Where it was, with every symlink in its folder's path followed.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// What it is.
+	Type FileType `protobuf:"varint,3,opt,name=type,proto3,enum=dockwell.v1.FileType" json:"type,omitempty"`
+	// Its size in bytes, for a file. Zero for a folder.
+	SizeBytes uint64 `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// When it was deleted.
+	DeleteTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=delete_time,json=deleteTime,proto3" json:"delete_time,omitempty"`
+	// When it goes for good, unless it's put back first.
+	PurgeTime     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=purge_time,json=purgeTime,proto3" json:"purge_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeletedFile) Reset() {
+	*x = DeletedFile{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeletedFile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeletedFile) ProtoMessage() {}
+
+func (x *DeletedFile) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeletedFile.ProtoReflect.Descriptor instead.
+func (*DeletedFile) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *DeletedFile) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DeletedFile) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *DeletedFile) GetType() FileType {
+	if x != nil {
+		return x.Type
+	}
+	return FileType_FILE_TYPE_UNSPECIFIED
+}
+
+func (x *DeletedFile) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *DeletedFile) GetDeleteTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DeleteTime
+	}
+	return nil
+}
+
+func (x *DeletedFile) GetPurgeTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.PurgeTime
+	}
+	return nil
+}
+
+// RestoreFileRequest puts back what was deleted.
+type RestoreFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Its ID in Recently deleted.
+	Id string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// The proof from FinishStepUp, for putting back its path on this server,
+	// where that's a way back onto the server.
+	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreFileRequest) Reset() {
+	*x = RestoreFileRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreFileRequest) ProtoMessage() {}
+
+func (x *RestoreFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreFileRequest.ProtoReflect.Descriptor instead.
+func (*RestoreFileRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RestoreFileRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *RestoreFileRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RestoreFileRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// RestoreFileResponse says where it went back.
+type RestoreFileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where it is now, with every symlink in its folder's path followed.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// What went back.
+	File *FileEntry `protobuf:"bytes,2,opt,name=file,proto3" json:"file,omitempty"`
+	// True when it's a way back onto the server, which took a passkey.
+	WayBackIn     bool `protobuf:"varint,3,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreFileResponse) Reset() {
+	*x = RestoreFileResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreFileResponse) ProtoMessage() {}
+
+func (x *RestoreFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreFileResponse.ProtoReflect.Descriptor instead.
+func (*RestoreFileResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RestoreFileResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *RestoreFileResponse) GetFile() *FileEntry {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
+func (x *RestoreFileResponse) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
+}
+
+// PurgeDeletedFileRequest deletes for good what's in Recently deleted.
+type PurgeDeletedFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Its ID in Recently deleted.
+	Id            string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PurgeDeletedFileRequest) Reset() {
+	*x = PurgeDeletedFileRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PurgeDeletedFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PurgeDeletedFileRequest) ProtoMessage() {}
+
+func (x *PurgeDeletedFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PurgeDeletedFileRequest.ProtoReflect.Descriptor instead.
+func (*PurgeDeletedFileRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *PurgeDeletedFileRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *PurgeDeletedFileRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// PurgeDeletedFileResponse says what went.
+type PurgeDeletedFileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What was deleted for good.
+	Deleted       *DeletedFile `protobuf:"bytes,1,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PurgeDeletedFileResponse) Reset() {
+	*x = PurgeDeletedFileResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PurgeDeletedFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PurgeDeletedFileResponse) ProtoMessage() {}
+
+func (x *PurgeDeletedFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PurgeDeletedFileResponse.ProtoReflect.Descriptor instead.
+func (*PurgeDeletedFileResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *PurgeDeletedFileResponse) GetDeleted() *DeletedFile {
+	if x != nil {
+		return x.Deleted
+	}
+	return nil
+}
+
 // FileEntry is one file or directory on a server.
 type FileEntry struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -593,7 +1438,7 @@ type FileEntry struct {
 
 func (x *FileEntry) Reset() {
 	*x = FileEntry{}
-	mi := &file_dockwell_v1_file_proto_msgTypes[6]
+	mi := &file_dockwell_v1_file_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -605,7 +1450,7 @@ func (x *FileEntry) String() string {
 func (*FileEntry) ProtoMessage() {}
 
 func (x *FileEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_file_proto_msgTypes[6]
+	mi := &file_dockwell_v1_file_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -618,7 +1463,7 @@ func (x *FileEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileEntry.ProtoReflect.Descriptor instead.
 func (*FileEntry) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *FileEntry) GetName() string {
@@ -748,7 +1593,62 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
 	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1e\n" +
-	"\vway_back_in\x18\x04 \x01(\bR\twayBackIn\"\xa2\x03\n" +
+	"\vway_back_in\x18\x04 \x01(\bR\twayBackIn\"\x83\x01\n" +
+	"\x0fMakeFileRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12)\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x14\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\"r\n" +
+	"\x10MakeFileResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
+	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x1e\n" +
+	"\vway_back_in\x18\x03 \x01(\bR\twayBackIn\"h\n" +
+	"\x0fMoveFileRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04from\x18\x02 \x01(\tR\x04from\x12\x0e\n" +
+	"\x02to\x18\x03 \x01(\tR\x02to\x12\x14\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\"\x82\x01\n" +
+	"\x10MoveFileResponse\x12\x12\n" +
+	"\x04from\x18\x01 \x01(\tR\x04from\x12\x0e\n" +
+	"\x02to\x18\x02 \x01(\tR\x02to\x12*\n" +
+	"\x04file\x18\x03 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x1e\n" +
+	"\vway_back_in\x18\x04 \x01(\bR\twayBackIn\"u\n" +
+	"\x11DeleteFileRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x19\n" +
+	"\bfor_good\x18\x03 \x01(\bR\aforGood\x12\x14\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\"|\n" +
+	"\x12DeleteFileResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x122\n" +
+	"\adeleted\x18\x02 \x01(\v2\x18.dockwell.v1.DeletedFileR\adeleted\x12\x1e\n" +
+	"\vway_back_in\x18\x03 \x01(\bR\twayBackIn\"6\n" +
+	"\x17ListDeletedFilesRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"N\n" +
+	"\x18ListDeletedFilesResponse\x122\n" +
+	"\adeleted\x18\x01 \x03(\v2\x18.dockwell.v1.DeletedFileR\adeleted\"\xf3\x01\n" +
+	"\vDeletedFile\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12)\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x04 \x01(\x04R\tsizeBytes\x12;\n" +
+	"\vdelete_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"deleteTime\x129\n" +
+	"\n" +
+	"purge_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tpurgeTime\"W\n" +
+	"\x12RestoreFileRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\"u\n" +
+	"\x13RestoreFileResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
+	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x1e\n" +
+	"\vway_back_in\x18\x03 \x01(\bR\twayBackIn\"F\n" +
+	"\x17PurgeDeletedFileRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"N\n" +
+	"\x18PurgeDeletedFileResponse\x122\n" +
+	"\adeleted\x18\x01 \x01(\v2\x18.dockwell.v1.DeletedFileR\adeleted\"\xa2\x03\n" +
 	"\tFileEntry\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x1d\n" +
@@ -772,14 +1672,27 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x0eFILE_TYPE_FILE\x10\x01\x12\x17\n" +
 	"\x13FILE_TYPE_DIRECTORY\x10\x02\x12\x15\n" +
 	"\x11FILE_TYPE_SYMLINK\x10\x03\x12\x13\n" +
-	"\x0fFILE_TYPE_OTHER\x10\x042\xc1\x03\n" +
+	"\x0fFILE_TYPE_OTHER\x10\x042\x94\v\n" +
 	"\vFileService\x12\x8d\x01\n" +
 	"\tListFiles\x12\x1d.dockwell.v1.ListFilesRequest\x1a\x1e.dockwell.v1.ListFilesResponse\"A\xa0\xbb\x18\x01\xaa\xbb\x18\r\n" +
 	"\x05files\x12\x04list\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/servers/{server_id}/files\x90\x02\x01\x12\x8f\x01\n" +
 	"\bReadFile\x12\x1c.dockwell.v1.ReadFileRequest\x1a\x1d.dockwell.v1.ReadFileResponse\"F\xa0\xbb\x18\x01\xaa\xbb\x18\r\n" +
 	"\x05files\x12\x04read\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/servers/{server_id}/files:read\x12\x8f\x01\n" +
 	"\bSaveFile\x12\x1c.dockwell.v1.SaveFileRequest\x1a\x1d.dockwell.v1.SaveFileResponse\"F\xa0\xbb\x18\x04\xaa\xbb\x18\r\n" +
-	"\x05files\x12\x04save\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/servers/{server_id}/files:saveB\xa2\x01\n" +
+	"\x05files\x12\x04save\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/servers/{server_id}/files:save\x12\x8f\x01\n" +
+	"\bMakeFile\x12\x1c.dockwell.v1.MakeFileRequest\x1a\x1d.dockwell.v1.MakeFileResponse\"F\xa0\xbb\x18\x03\xaa\xbb\x18\r\n" +
+	"\x05files\x12\x04make\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/servers/{server_id}/files:make\x12\x8f\x01\n" +
+	"\bMoveFile\x12\x1c.dockwell.v1.MoveFileRequest\x1a\x1d.dockwell.v1.MoveFileResponse\"F\xa0\xbb\x18\x03\xaa\xbb\x18\r\n" +
+	"\x05files\x12\x04move\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/servers/{server_id}/files:move\x12\x99\x01\n" +
+	"\n" +
+	"DeleteFile\x12\x1e.dockwell.v1.DeleteFileRequest\x1a\x1f.dockwell.v1.DeleteFileResponse\"J\xa0\xbb\x18\x04\xaa\xbb\x18\x0f\n" +
+	"\x05files\x12\x06delete\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02):\x01*\"$/v1/servers/{server_id}/files:delete\x12\xb2\x01\n" +
+	"\x10ListDeletedFiles\x12$.dockwell.v1.ListDeletedFilesRequest\x1a%.dockwell.v1.ListDeletedFilesResponse\"Q\xa0\xbb\x18\x01\xaa\xbb\x18\x15\n" +
+	"\x05files\x12\flist-deleted\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02'\x12%/v1/servers/{server_id}/deleted-files\x90\x02\x01\x12\xab\x01\n" +
+	"\vRestoreFile\x12\x1f.dockwell.v1.RestoreFileRequest\x1a .dockwell.v1.RestoreFileResponse\"Y\xa0\xbb\x18\x03\xaa\xbb\x18\x10\n" +
+	"\x05files\x12\arestore\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x027:\x01*\"2/v1/servers/{server_id}/deleted-files/{id}:restore\x12\xad\x01\n" +
+	"\x10PurgeDeletedFile\x12$.dockwell.v1.PurgeDeletedFileRequest\x1a%.dockwell.v1.PurgeDeletedFileResponse\"L\xa0\xbb\x18\x04\xaa\xbb\x18\x0e\n" +
+	"\x05files\x12\x05purge\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02,**/v1/servers/{server_id}/deleted-files/{id}B\xa2\x01\n" +
 	"\x0fcom.dockwell.v1B\tFileProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -795,37 +1708,72 @@ func file_dockwell_v1_file_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_file_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_file_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_dockwell_v1_file_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_dockwell_v1_file_proto_goTypes = []any{
-	(FileType)(0),                 // 0: dockwell.v1.FileType
-	(*ListFilesRequest)(nil),      // 1: dockwell.v1.ListFilesRequest
-	(*ListFilesResponse)(nil),     // 2: dockwell.v1.ListFilesResponse
-	(*ReadFileRequest)(nil),       // 3: dockwell.v1.ReadFileRequest
-	(*ReadFileResponse)(nil),      // 4: dockwell.v1.ReadFileResponse
-	(*SaveFileRequest)(nil),       // 5: dockwell.v1.SaveFileRequest
-	(*SaveFileResponse)(nil),      // 6: dockwell.v1.SaveFileResponse
-	(*FileEntry)(nil),             // 7: dockwell.v1.FileEntry
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
+	(FileType)(0),                    // 0: dockwell.v1.FileType
+	(*ListFilesRequest)(nil),         // 1: dockwell.v1.ListFilesRequest
+	(*ListFilesResponse)(nil),        // 2: dockwell.v1.ListFilesResponse
+	(*ReadFileRequest)(nil),          // 3: dockwell.v1.ReadFileRequest
+	(*ReadFileResponse)(nil),         // 4: dockwell.v1.ReadFileResponse
+	(*SaveFileRequest)(nil),          // 5: dockwell.v1.SaveFileRequest
+	(*SaveFileResponse)(nil),         // 6: dockwell.v1.SaveFileResponse
+	(*MakeFileRequest)(nil),          // 7: dockwell.v1.MakeFileRequest
+	(*MakeFileResponse)(nil),         // 8: dockwell.v1.MakeFileResponse
+	(*MoveFileRequest)(nil),          // 9: dockwell.v1.MoveFileRequest
+	(*MoveFileResponse)(nil),         // 10: dockwell.v1.MoveFileResponse
+	(*DeleteFileRequest)(nil),        // 11: dockwell.v1.DeleteFileRequest
+	(*DeleteFileResponse)(nil),       // 12: dockwell.v1.DeleteFileResponse
+	(*ListDeletedFilesRequest)(nil),  // 13: dockwell.v1.ListDeletedFilesRequest
+	(*ListDeletedFilesResponse)(nil), // 14: dockwell.v1.ListDeletedFilesResponse
+	(*DeletedFile)(nil),              // 15: dockwell.v1.DeletedFile
+	(*RestoreFileRequest)(nil),       // 16: dockwell.v1.RestoreFileRequest
+	(*RestoreFileResponse)(nil),      // 17: dockwell.v1.RestoreFileResponse
+	(*PurgeDeletedFileRequest)(nil),  // 18: dockwell.v1.PurgeDeletedFileRequest
+	(*PurgeDeletedFileResponse)(nil), // 19: dockwell.v1.PurgeDeletedFileResponse
+	(*FileEntry)(nil),                // 20: dockwell.v1.FileEntry
+	(*timestamppb.Timestamp)(nil),    // 21: google.protobuf.Timestamp
 }
 var file_dockwell_v1_file_proto_depIdxs = []int32{
-	7,  // 0: dockwell.v1.ListFilesResponse.directory:type_name -> dockwell.v1.FileEntry
-	7,  // 1: dockwell.v1.ListFilesResponse.entries:type_name -> dockwell.v1.FileEntry
-	7,  // 2: dockwell.v1.ReadFileResponse.file:type_name -> dockwell.v1.FileEntry
-	7,  // 3: dockwell.v1.SaveFileResponse.file:type_name -> dockwell.v1.FileEntry
-	0,  // 4: dockwell.v1.FileEntry.type:type_name -> dockwell.v1.FileType
-	8,  // 5: dockwell.v1.FileEntry.modify_time:type_name -> google.protobuf.Timestamp
-	0,  // 6: dockwell.v1.FileEntry.link_type:type_name -> dockwell.v1.FileType
-	1,  // 7: dockwell.v1.FileService.ListFiles:input_type -> dockwell.v1.ListFilesRequest
-	3,  // 8: dockwell.v1.FileService.ReadFile:input_type -> dockwell.v1.ReadFileRequest
-	5,  // 9: dockwell.v1.FileService.SaveFile:input_type -> dockwell.v1.SaveFileRequest
-	2,  // 10: dockwell.v1.FileService.ListFiles:output_type -> dockwell.v1.ListFilesResponse
-	4,  // 11: dockwell.v1.FileService.ReadFile:output_type -> dockwell.v1.ReadFileResponse
-	6,  // 12: dockwell.v1.FileService.SaveFile:output_type -> dockwell.v1.SaveFileResponse
-	10, // [10:13] is the sub-list for method output_type
-	7,  // [7:10] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	20, // 0: dockwell.v1.ListFilesResponse.directory:type_name -> dockwell.v1.FileEntry
+	20, // 1: dockwell.v1.ListFilesResponse.entries:type_name -> dockwell.v1.FileEntry
+	20, // 2: dockwell.v1.ReadFileResponse.file:type_name -> dockwell.v1.FileEntry
+	20, // 3: dockwell.v1.SaveFileResponse.file:type_name -> dockwell.v1.FileEntry
+	0,  // 4: dockwell.v1.MakeFileRequest.type:type_name -> dockwell.v1.FileType
+	20, // 5: dockwell.v1.MakeFileResponse.file:type_name -> dockwell.v1.FileEntry
+	20, // 6: dockwell.v1.MoveFileResponse.file:type_name -> dockwell.v1.FileEntry
+	15, // 7: dockwell.v1.DeleteFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	15, // 8: dockwell.v1.ListDeletedFilesResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	0,  // 9: dockwell.v1.DeletedFile.type:type_name -> dockwell.v1.FileType
+	21, // 10: dockwell.v1.DeletedFile.delete_time:type_name -> google.protobuf.Timestamp
+	21, // 11: dockwell.v1.DeletedFile.purge_time:type_name -> google.protobuf.Timestamp
+	20, // 12: dockwell.v1.RestoreFileResponse.file:type_name -> dockwell.v1.FileEntry
+	15, // 13: dockwell.v1.PurgeDeletedFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	0,  // 14: dockwell.v1.FileEntry.type:type_name -> dockwell.v1.FileType
+	21, // 15: dockwell.v1.FileEntry.modify_time:type_name -> google.protobuf.Timestamp
+	0,  // 16: dockwell.v1.FileEntry.link_type:type_name -> dockwell.v1.FileType
+	1,  // 17: dockwell.v1.FileService.ListFiles:input_type -> dockwell.v1.ListFilesRequest
+	3,  // 18: dockwell.v1.FileService.ReadFile:input_type -> dockwell.v1.ReadFileRequest
+	5,  // 19: dockwell.v1.FileService.SaveFile:input_type -> dockwell.v1.SaveFileRequest
+	7,  // 20: dockwell.v1.FileService.MakeFile:input_type -> dockwell.v1.MakeFileRequest
+	9,  // 21: dockwell.v1.FileService.MoveFile:input_type -> dockwell.v1.MoveFileRequest
+	11, // 22: dockwell.v1.FileService.DeleteFile:input_type -> dockwell.v1.DeleteFileRequest
+	13, // 23: dockwell.v1.FileService.ListDeletedFiles:input_type -> dockwell.v1.ListDeletedFilesRequest
+	16, // 24: dockwell.v1.FileService.RestoreFile:input_type -> dockwell.v1.RestoreFileRequest
+	18, // 25: dockwell.v1.FileService.PurgeDeletedFile:input_type -> dockwell.v1.PurgeDeletedFileRequest
+	2,  // 26: dockwell.v1.FileService.ListFiles:output_type -> dockwell.v1.ListFilesResponse
+	4,  // 27: dockwell.v1.FileService.ReadFile:output_type -> dockwell.v1.ReadFileResponse
+	6,  // 28: dockwell.v1.FileService.SaveFile:output_type -> dockwell.v1.SaveFileResponse
+	8,  // 29: dockwell.v1.FileService.MakeFile:output_type -> dockwell.v1.MakeFileResponse
+	10, // 30: dockwell.v1.FileService.MoveFile:output_type -> dockwell.v1.MoveFileResponse
+	12, // 31: dockwell.v1.FileService.DeleteFile:output_type -> dockwell.v1.DeleteFileResponse
+	14, // 32: dockwell.v1.FileService.ListDeletedFiles:output_type -> dockwell.v1.ListDeletedFilesResponse
+	17, // 33: dockwell.v1.FileService.RestoreFile:output_type -> dockwell.v1.RestoreFileResponse
+	19, // 34: dockwell.v1.FileService.PurgeDeletedFile:output_type -> dockwell.v1.PurgeDeletedFileResponse
+	26, // [26:35] is the sub-list for method output_type
+	17, // [17:26] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_file_proto_init() }
@@ -840,7 +1788,7 @@ func file_dockwell_v1_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_file_proto_rawDesc), len(file_dockwell_v1_file_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   7,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
