@@ -12,6 +12,7 @@ import "dockwell/v1/file.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
+import "dockwell/v1/process.proto";
 import "dockwell/v1/server.proto";
 import "dockwell/v1/system.proto";
 import "dockwell/v1/update.proto";
@@ -445,6 +446,10 @@ message Call {
     // Say what takes the room on the disk that holds Docker's data. Numbered
     // apart, as open work adds to this message.
     DiskUseCall disk_use = 40;
+    // List what runs on the server, process by process.
+    ProcessesCall processes = 41;
+    // End a process.
+    EndProcessCall end_process = 42;
   }
 }
 
@@ -459,6 +464,36 @@ message ProbeCall {
     // An http or https URL, asked with a GET that follows no redirect.
     string url = 2;
   }
+}
+
+// ProcessesCall asks what runs on the server. CPU covers the time since the last
+// such call, which the agent forgets 30 s after it, so nothing is read or held
+// while nobody watches.
+message ProcessesCall {}
+
+// ProcessesResult is what runs on the server.
+message ProcessesResult {
+  // What runs.
+  dockwell.v1.ProcessList list = 1;
+}
+
+// EndProcessCall ends a process: SIGTERM, then SIGKILL 10 s later if it's still
+// there. The agent refuses a process that isn't the one named, as its PID went to
+// another, and what Dockwell needs.
+message EndProcessCall {
+  // The process ID.
+  uint32 pid = 1;
+  // When it started, in clock ticks after boot.
+  uint64 start_ticks = 2;
+}
+
+// EndProcessResult says how it went.
+message EndProcessResult {
+  // True when it took SIGKILL.
+  bool killed = 1;
+  // The process as it was before it ended, for the record: its PID, name,
+  // command, user and container. Its numbers are unset.
+  dockwell.v1.Process process = 2;
 }
 
 // DiskUseCall asks what takes the room on the disk that holds Docker's data.
@@ -955,6 +990,10 @@ message CallResult {
     // What a disk use call added up. Numbered apart, as open work adds to this
     // message.
     dockwell.v1.ServerDiskUse disk_use = 40;
+    // What a processes call read.
+    ProcessesResult processes = 41;
+    // How an end process call went.
+    EndProcessResult end_process = 42;
   }
 }
 

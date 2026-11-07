@@ -97,6 +97,8 @@ type Config struct {
 	outlook *outlook
 	// disks adds up what takes the disk Docker's data is on, when asked.
 	disks *diskUse
+	// procs lists and ends processes, when asked.
+	procs *processes
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
@@ -329,6 +331,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	cfg.outlook = &outlook{}
 	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
+	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}

@@ -610,6 +610,9 @@ enum StepUpAction {
   // Saving a file that's a way back onto a server, with FileService.SaveFile.
   // The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
   STEP_UP_ACTION_SAVE_WAY_BACK_IN = 9;
+  // End a process on a server (ProcessService.EndProcess), whose target is
+  // "<server ID>:<PID>". Numbered apart, as open work adds to this enum.
+  STEP_UP_ACTION_END_PROCESS = 20;
 }
 
 // BeginStepUpRequest says what the passkey confirms.

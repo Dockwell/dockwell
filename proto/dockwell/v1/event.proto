@@ -155,9 +155,30 @@ message Event {
   EventBackup backup = 10;
   // What a person set of a server's public address, on such an event.
   EventPublicAddress public_address = 11;
+  // The process someone ended on a server, for "process.end". Its subject is
+  // the server. Numbered apart, as open work adds to this message.
+  EventProcess process = 30;
   // A setting of the install someone changed, for a settings event. Numbered
   // apart, as open work adds to this message.
   EventSetting setting = 31;
+}
+
+// EventProcess is a process someone ended on a server.
+message EventProcess {
+  // Its process ID.
+  uint32 pid = 1;
+  // What the kernel called it, such as "postgres".
+  string name = 2;
+  // Its command line, at most 512 characters.
+  string command = 3;
+  // Who it ran as.
+  string user = 4;
+  // The container it ran in, by name. Empty for one that didn't.
+  string container = 5;
+  // True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
+  bool killed = 6;
+  // Why it couldn't be ended, for "process.end_failed".
+  string error = 7;
 }
 
 // EventSetting is a setting of the install as someone changed it.
@@ -247,7 +268,7 @@ enum EventKind {
   // applying, applied or failed, rollbacks and undos included.
   EVENT_KIND_CHANGE = 1;
   // A server joined the fleet, renewed its certificate, or was removed, or
-  // someone saved a file on it.
+  // someone saved a file on it or ended a process on it.
   EVENT_KIND_SERVER = 2;
   // Someone gained or gave up a way in: claiming the install, signing in,
   // signing other sessions out, passkeys, authenticator codes, API tokens,

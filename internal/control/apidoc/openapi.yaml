@@ -1816,6 +1816,52 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/processes/{pid}:end:
+        post:
+            tags:
+                - ProcessService
+            description: |-
+                EndProcess ends a process on a server, as kill does: SIGTERM, and SIGKILL
+                 if it's still there 10 s later. It's as much as root on the server, so it
+                 takes a passkey just now: call it without a proof first, and it refuses with
+                 the reason needs_step_up, then again with the proof from FinishStepUp for
+                 STEP_UP_ACTION_END_PROCESS, whose target is "<server ID>:<PID>". It can't be
+                 undone. What Dockwell needs on the server, its agent and the process it runs
+                 in, and PID 1, is refused. It's on the activity log.
+            operationId: ProcessService_EndProcess
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: pid
+                  in: path
+                  description: The process ID.
+                  required: true
+                  schema:
+                    type: integer
+                    format: uint32
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/EndProcessRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/EndProcessResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services:
         get:
             tags:
@@ -3658,6 +3704,7 @@ components:
                         - STEP_UP_ACTION_CREATE_TOKEN
                         - STEP_UP_ACTION_APPLY_ROOT_CHANGE
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_END_PROCESS
                     type: string
                     description: The action.
                     format: enum
@@ -5127,6 +5174,34 @@ components:
                          without its project is an error that names the projects. Other kinds
                          name their project, if they live in one, in resource.scope.
             description: Edit sets one resource's desired spec, or deletes it.
+        EndProcessRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                pid:
+                    type: integer
+                    description: The process ID.
+                    format: uint32
+                startTicks:
+                    type: string
+                    description: |-
+                        When it started, as Process.start_ticks has it, so a process that ended
+                         and gave its PID to another isn't ended in its place.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for STEP_UP_ACTION_END_PROCESS on
+                         "<server ID>:<PID>".
+            description: EndProcessRequest names a process.
+        EndProcessResponse:
+            type: object
+            properties:
+                killed:
+                    type: boolean
+                    description: True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
+            description: EndProcessResponse says how it went.
         Entry:
             type: object
             properties:
@@ -5336,6 +5411,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/EventPublicAddress'
                     description: What a person set of a server's public address, on such an event.
+                process:
+                    allOf:
+                        - $ref: '#/components/schemas/EventProcess'
+                    description: |-
+                        The process someone ended on a server, for "process.end". Its subject is
+                         the server. Numbered apart, as open work adds to this message.
                 setting:
                     allOf:
                         - $ref: '#/components/schemas/EventSetting'
@@ -5434,6 +5515,32 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventProcess:
+            type: object
+            properties:
+                pid:
+                    type: integer
+                    description: Its process ID.
+                    format: uint32
+                name:
+                    type: string
+                    description: What the kernel called it, such as "postgres".
+                command:
+                    type: string
+                    description: Its command line, at most 512 characters.
+                user:
+                    type: string
+                    description: Who it ran as.
+                container:
+                    type: string
+                    description: The container it ran in, by name. Empty for one that didn't.
+                killed:
+                    type: boolean
+                    description: True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
+                error:
+                    type: string
+                    description: Why it couldn't be ended, for "process.end_failed".
+            description: EventProcess is a process someone ended on a server.
         EventPublicAddress:
             type: object
             properties:
@@ -10420,6 +10527,15 @@ tags:
          WatchLogs streams, so it has no REST path. A REST client pages through
          ReadLogs, or opens the stream with Connect, gRPC or gRPC-Web, with the
          same credentials.
+    - name: ProcessService
+      description: |-
+        ProcessService shows what runs on a server, process by process, and ends one.
+         A server's agent reads its processes only while someone watches them. See
+         docs/adr/0041-processes-on-a-server.md.
+
+         Every method needs a signed-in session: no API token can call them, whatever
+         its scope, as a process's command line can hold what was typed with it, a
+         password included, and ending one is as much as root on the server.
     - name: ResourceService
       description: |-
         ResourceService reads the resources Dockwell manages: projects,

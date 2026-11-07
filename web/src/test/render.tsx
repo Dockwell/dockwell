@@ -16,6 +16,7 @@ import {
   GetVersionResponseSchema,
   HealthService,
   LogService,
+  ProcessService,
   ResourceService,
   ServerService,
   ServiceService,
@@ -58,6 +59,7 @@ export type Api = {
   containers?: Partial<ServiceImpl<typeof ContainerService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
+  processes?: Partial<ServiceImpl<typeof ProcessService>>;
   settings?: Partial<ServiceImpl<typeof SettingsService>>;
   updates?: Partial<ServiceImpl<typeof UpdateService>>;
   databases?: Partial<ServiceImpl<typeof DatabaseService>>;
@@ -108,6 +110,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
       service(FileService, api.files ?? {});
+      service(ProcessService, { watchProcesses: quietWatch, ...api.processes });
       service(SettingsService, { getSettings: () => ({ settings: { timeZone: "UTC" } }), ...api.settings });
       service(UpdateService, api.updates ?? {});
       service(BackupService, {

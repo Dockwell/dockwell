@@ -653,6 +653,36 @@ func (s *Session) DiskUse(ctx context.Context) (*dockwellv1.ServerDiskUse, error
 	return r.GetDiskUse(), nil
 }
 
+// Processes asks the agent what runs on its server.
+func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Processes{Processes: &agentv1.ProcessesCall{}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetProcesses() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetProcesses().GetList(), nil
+}
+
+// EndProcessTimeout bounds ending a process: SIGTERM's 10 s, SIGKILL's 5, and room
+// for the answer to come back.
+const EndProcessTimeout = 20 * time.Second
+
+// EndProcess asks the agent to end a process, and says what it was and whether it
+// took SIGKILL.
+func (s *Session) EndProcess(ctx context.Context, pid uint32, start uint64) (*agentv1.EndProcessResult, error) {
+	call := &agentv1.EndProcessCall{Pid: pid, StartTicks: start}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_EndProcess{EndProcess: call}}, EndProcessTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetEndProcess() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetEndProcess(), nil
+}
+
 // ErrOlderAgent is an agent that doesn't know a call, as one from before it.
 var ErrOlderAgent = errors.New("its agent is older than the control plane, and doesn't know how. Upgrade it by running the install script on the server again")
 
