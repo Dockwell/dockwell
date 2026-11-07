@@ -195,6 +195,18 @@ func TestWhatsLeftBehindIsBounded(t *testing.T) {
 	}
 }
 
+// reach waits for the step a test holds. If the call was left behind before it got
+// there, it never comes, so this fails in a few seconds rather than hang the package
+// until go test's own timeout.
+func reach(t *testing.T, reached <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-reached:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the save never reached the step this test holds, so it was left behind before it")
+	}
+}
+
 // eventually reports whether ok holds within 5 s, trying it again until then.
 func eventually(ok func() bool) bool {
 	deadline := time.Now().Add(5 * time.Second)
@@ -363,7 +375,7 @@ func TestASaveLeftBehindWritesNothingWhenItComesBack(t *testing.T) {
 	if got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING || !strings.Contains(got.GetMessage(), "Nothing was saved") {
 		t.Fatalf("got %v", got)
 	}
-	<-reached
+	reach(t, reached)
 	answer()
 	waitFor(t, "the call to come back", func() bool { return d.server.stuckCount() == 0 })
 	if content, _ := os.ReadFile(p); string(content) != "before" {
@@ -403,7 +415,7 @@ func TestASaveLeftBehindAsItReadsAgainWritesNothing(t *testing.T) {
 	if got := d.save(t, p, "after", v).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING {
 		t.Fatalf("got %v", got)
 	}
-	<-reached
+	reach(t, reached)
 	close(gone)
 	waitFor(t, "the call to come back", func() bool { return d.server.stuckCount() == 0 })
 	if content, _ := os.ReadFile(p); string(content) != "before" {
@@ -423,7 +435,7 @@ func TestASaveLeftBehindOnALinkWritesNothingWhenItComesBack(t *testing.T) {
 	if got := d.save(t, via, "after", v).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING {
 		t.Fatalf("got %v", got)
 	}
-	<-reached
+	reach(t, reached)
 	answer()
 	waitFor(t, "the call to come back", func() bool { return d.server.stuckCount() == 0 })
 	if content, _ := os.ReadFile(target); string(content) != "before" {
@@ -501,7 +513,7 @@ func TestASaveLeftBehindAsItWritesSaysItMayLandAndHowItEnded(t *testing.T) {
 			if got.GetKind() != agentv1.FileRefusal_KIND_MAY_LAND || !strings.Contains(got.GetMessage(), "may still land") || got.GetPath() != p {
 				t.Fatalf("got %v", got)
 			}
-			<-reached
+			reach(t, reached)
 			answer()
 			select {
 			case ended := <-d.server.SavesEnded():
