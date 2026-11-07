@@ -51,6 +51,12 @@ func (w *dockerWrites) intercept(r *http.Request) error {
 	if strings.HasSuffix(r.URL.Path, "/stop") {
 		w.stops.Add(1)
 		<-w.exit
+		// Every stop waiting here waits for the same exit, so once it comes, one whose
+		// caller has gone has nothing left to do. Letting it reach the engine would
+		// stop the container again, after the cleanup had started it.
+		if err := r.Context().Err(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
