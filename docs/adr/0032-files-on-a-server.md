@@ -49,32 +49,48 @@ Not knowing where Docker's data is must never mean serving it. The engine says w
 
 The control plane can't see the server, and a path's text proves nothing: an app can plant a symlink in its volume, pointing at the install's key, and swap it after a check. So the agent walks a path from `/` one part at a time, with `openat` and `O_NOFOLLOW`, follows links itself, and checks each directory's device and inode against the refused ones, which it reads again for each call. What it checked is the descriptor it reads. A symlink, a `..` in a link's target, or a bind mount of a refused directory leads nowhere new. A request's own path has no `.` or `..`, as in [ADR 0021](0021-the-docker-driver.md#host-access).
 
-### No step-up
+### A step-up for a way back in, and for nothing else
 
-A step-up here would stop less than it seems to, and cost more.
+This record first said Files takes no step-up at all. That holds for reading, and for saving most files:
 
-- A session already controls every server. It can apply a plan that mounts `/etc` into a container, which takes a person's session and no passkey (ADR 0021), so a stolen cookie reaches what `FileService` serves anyway. The sign-in threat model says the same of stolen sessions.
 - This is the most used screen. A passkey prompt on it, even one that lasts some minutes, teaches people to tap through the prompt that does guard something, `RevealSecret`. It would also shut Files to anyone on a tunnel or with codes and no passkey for that address.
+- A session already reaches what `FileService` reads, by a plan that mounts `/etc` into a container, which takes a person's session and no passkey (ADR 0021). The sign-in threat model says the same of stolen sessions.
 - What a step-up guards today, a secret's value, is refused here outright.
-- This rests on what a stolen session does being seen. Each read and refusal is on Activity, with the path and who it was, as `secret.reveal` is, so a person can find out without reaching for the database.
+- Each read and refusal is on Activity, with the path and who it was, as `secret.reveal` is, so a person can find out without reaching for the database.
 
-If plans with host access or the terminal come to take a step-up, this takes the same one, in the same record.
+Those reasons are wrong for a write to a place that lets someone back in, as they weigh seeing it against stopping it, and a plan against a save:
 
-Two limits on that reasoning. A server without Docker can't run that plan, so there Files is new reach for a stolen session. And the refused list stops Files, not a stolen session: ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach what Files refuses.
+- A stolen session ends when it's revoked. A key in `authorized_keys`, a cron job or a unit file doesn't, so seeing it on Activity afterwards doesn't undo it, and a save has no revision to go back to.
+- That the same door is open by a plan is a reason to close that one too, not to leave this one open. A plan has a sheet, a typed fingerprint when it's as good as root, and an undo. A save is one request.
+- A server without Docker can't run that plan, so there a save is new reach for a stolen session.
+
+So this is decided, and it isn't built yet. It's the next pull request, and no release goes out without it:
+
+- A save to a short list of paths takes the existing one-minute step-up, targeted at the path the walk ended at, so a link can't stand in for it: `authorized_keys`, `passwd`, `shadow`, `sudoers*`, `/etc/ssh`, `/etc/pam.d`, cron, systemd units, `ld.so.preload`, and Dockwell's own unit and data.
+- Saves anywhere else don't need one.
+- With no passkey at that address, the panel points the person to SSH.
+- Those saves show in a warning tone on Activity.
+- A `same_as_root` plan takes the same step-up, in the same record, as this section always said it would.
+
+The refused list stops Files, not a stolen session: ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach everything on it. That stays so until the plan's step-up comes.
 
 ### How a save lands
 
-- **It says what it read.** `ReadFile` gives a version, a SHA-256 of the file, and `SaveFile` takes it back. The agent reads the file again and compares, and one that differs is left as it is, with the reason `file_changed`. A time and a size can't tell: two saves can share both. There's no way to force a save: to go ahead, a client reads the file again, which is on record, and saves over that version. The check and the write are moments apart, so a writer that lands between them is lost, as with any editor.
-- **It writes in place.** A container that mounts one file holds its inode, so a rename would leave it reading the old file, which is how a save to a file mounted beside a running app would seem to do nothing. Hard links would break too. A rename is atomic and this isn't, so a reader can catch a file half written for a moment, as with `nano` or VS Code.
-- **A copy goes beside it first,** mode 0600, named `.dockwell-save-…`. It proves the disk has room before the file is touched. If the write still fails, the agent puts the old text back and removes the copy. If that fails too, the copy stays, and the error names it.
+- **It says what it read.** `ReadFile` gives a version, a SHA-256 of where the walk ended, which file that was by device and inode, and its text, and `SaveFile` takes it back. The agent reads the file and compares, and one that differs is left as it is, with the reason `file_changed`. A time and a size can't tell: two saves can share both. Text alone can't either: a link swapped in to a file with the same text would read as unchanged, and the save would follow it to a file nobody opened. "Save over it" reads the path again, and if it leads somewhere else now it stops and names where, with the server's version to load.
+- **It writes in place.** A container that mounts one file holds its inode, so a rename would leave it reading the old file, which is how a save to a file mounted beside a running app would seem to do nothing. Hard links would break too. A rename is atomic and this isn't, so a reader can see the file half written for a moment, as with any editor that writes in place.
+- **A copy of the old text goes beside it first,** mode 0600, named `.dockwell-save-…`, as that's what can't be had again if a write fails partway. The browser has what was typed. If the write fails, the agent puts the old text back and removes the copy. If that fails too, the copy stays, and the error names it. It doesn't prove the disk has room: a disk can hold the copy, and not what the file grows by.
+- **The check comes after the flush.** Flushing that copy is where a struggling disk stalls, so the agent reads and compares the file again after it, then checks that its caller is still there, and only then writes. A save that outlived its caller writes nothing, and what wrote the file meanwhile isn't undone.
+- **Past that, it may land.** A save left behind as it writes can't be stopped, so the person hears it may still land, and when it comes back the agent says how it came out, on whichever stream is up (`SaveEnded`).
+- **It changes no byte nobody touched.** A browser's field turns every line ending into LF, so the panel puts them back, which works for a file that uses one kind. One with a mix, or a lone CR, opens read-only, and says why. A byte order mark is lost to protobuf-es's decoder on the way in, in production's binary format and not in development's JSON, so the agent keeps the mark the old text had, and returns the version of what it wrote.
+- **What's typed outlasts a session.** A session that ends takes the page with it, with nothing to ask first, so the panel holds what's typed in memory, by server and path with the version it was typed over, and offers it back to the same person after they sign in. It never goes in the browser's storage, so a tab that's closed takes it along, and leaving the page asks first.
 - **It makes no file, directory or change of mode.** Those come with the rest of the mock's toolbar, and each will need the same care.
 
 ### On record
 
 - `file.read` for each `ReadFile`, naming the person, the server and the path, written before the contents go out. If it can't be written, nothing goes out, as with `secret.reveal`.
 - `file.refuse` for each read or listing that came to nothing, however it failed. Someone looking for credentials mostly misses, so a miss leaves a mark as a hit does.
-- `file.saving` before each save, and `file.save` after one lands, or `file.save_failed`, however it failed. If the first can't be written, nothing is saved. The first stays in the audit log, as a save may yet fail, so a save always leaves a line, and Activity says only what happened.
-- All but `file.saving` are on Activity, by person, server and path, where ADR 0020 leaves other refusals in the audit log, as the case for no step-up rests on them being seen.
+- `file.saving` before each save, and `file.save` after one lands, or `file.save_failed`, however it failed, under where the walk ended. If the first can't be written, nothing is saved. A save that may have landed, as its stream dropped or it was left behind as it wrote, is `file.save_unknown`, and when the agent can say how it ended, that's `file.save` or `file.save_failed`, as whoever saved it. The first stays in the audit log, as a save may yet fail, so a save always leaves a line, and Activity says only what happened.
+- All but `file.saving` are on Activity, by person, server and path, where ADR 0020 leaves other refusals in the audit log, as the case for no step-up on reads rests on them being seen.
 - A listing that works isn't recorded: it returns names, and it runs on every click. Nor is a listing that can't reach its server, as the panel asks again by itself.
 - A file's contents are never recorded or logged. A path is cleaned before it's stored or shown, as a name can hold a newline or a terminal's escape codes, and a link can lead through one.
 
