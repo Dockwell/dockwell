@@ -27,7 +27,7 @@ func swapAt(t *testing.T, d *fakeDisk, at, dir, elsewhere string) *atomic.Bool {
 	var swapped atomic.Bool
 	d.server.Touching = func(p string) {
 		if p == at && swapped.CompareAndSwap(false, true) {
-			if err := os.Rename(dir, dir+"-real"); err != nil {
+			if err := os.Rename(dir, dir+"-checked"); err != nil {
 				t.Errorf("rename: %v", err)
 			}
 			if err := os.Symlink(elsewhere, dir); err != nil {
@@ -53,7 +53,7 @@ func TestReviewLinkSwappedMidMake(t *testing.T) {
 	if there(filepath.Join(outside, "new")) {
 		t.Errorf("made through the link swapped in: %v", got)
 	}
-	if !there(filepath.Join(dir+"-real", "new")) {
+	if !there(filepath.Join(dir+"-checked", "new")) {
 		t.Error("not made in the folder that was checked")
 	}
 }
@@ -98,11 +98,12 @@ func TestReviewLinkSwappedMidDelete(t *testing.T) {
 
 // adminAccounts gives one account in sudo, with home, and others as plain.
 func (d *fakeDisk) adminAccounts(admin string, others ...string) {
-	passwd := "deploy:x:1500:27::" + admin + ":/bin/sh\n"
+	var passwd strings.Builder
+	passwd.WriteString("deploy:x:1500:27::" + admin + ":/bin/sh\n")
 	for i, h := range others {
-		passwd += "user" + itoa(i) + ":x:" + itoa(2000+i) + ":" + itoa(2000+i) + "::" + h + ":/bin/sh\n"
+		passwd.WriteString("user" + itoa(i) + ":x:" + itoa(2000+i) + ":" + itoa(2000+i) + "::" + h + ":/bin/sh\n")
 	}
-	d.server.accounts = func() (string, string) { return passwd, "sudo:x:27:\n" }
+	d.server.accounts = func() (string, string) { return passwd.String(), "sudo:x:27:\n" }
 }
 
 // An admin's home outside /home: a folder that becomes or holds their systemd user dir.
@@ -141,10 +142,10 @@ func TestReviewFolderBecomesAnAdminsUserUnits(t *testing.T) {
 // A home reached through a link, as /home -> /var/home on an ostree server.
 func TestReviewAHomeBehindALink(t *testing.T) {
 	d := newDisk(t)
-	real := filepath.Join(d.root, "var", "home")
-	write(t, filepath.Join(real, "alice", "notes.txt"), "n")
-	write(t, filepath.Join(real, "deploy", ".bashrc"), "# rc")
-	link(t, real, filepath.Join(d.root, "home"))
+	resolved := filepath.Join(d.root, "var", "home")
+	write(t, filepath.Join(resolved, "alice", "notes.txt"), "n")
+	write(t, filepath.Join(resolved, "deploy", ".bashrc"), "# rc")
+	link(t, resolved, filepath.Join(d.root, "home"))
 	alice := filepath.Join(d.root, "home", "alice")
 	d.adminAccounts(filepath.Join(d.root, "home", "deploy"), alice)
 
@@ -256,14 +257,14 @@ func TestReviewSourceSwappedMidMove(t *testing.T) {
 func TestReviewTheHomeRootBehindALink(t *testing.T) {
 	d := newDisk(t)
 	d.noAccounts()
-	real := filepath.Join(d.root, "var", "home")
-	write(t, filepath.Join(real, "bob", "site", "index.html"), "hi")
-	link(t, real, filepath.Join(d.root, "home"))
+	resolved := filepath.Join(d.root, "var", "home")
+	write(t, filepath.Join(resolved, "bob", "site", "index.html"), "hi")
+	link(t, resolved, filepath.Join(d.root, "home"))
 	d.server.homeRoot = filepath.Join(d.root, "home")
-	if got := d.delete(t, filepath.Join(real, "bob"), false, ""); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
+	if got := d.delete(t, filepath.Join(resolved, "bob"), false, ""); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
 		t.Errorf("deleted a home under where the home root leads, with no passkey: %v", got)
 	}
-	if got := d.delete(t, filepath.Join(real, "bob", "site", "index.html"), false, ""); got.GetDeleted() == nil {
+	if got := d.delete(t, filepath.Join(resolved, "bob", "site", "index.html"), false, ""); got.GetDeleted() == nil {
 		t.Errorf("a file in a home asks: %v", got)
 	}
 }
