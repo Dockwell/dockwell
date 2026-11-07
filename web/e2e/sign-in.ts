@@ -44,6 +44,7 @@ import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
 import { domainsFlow } from "./domains-flow.ts";
 import { healthFlow } from "./health-flow.ts";
+import { networkFlow } from "./network-flow.ts";
 import { planFlow } from "./plan-flow.ts";
 
 const { values, positionals } = parseArgs({
@@ -148,7 +149,7 @@ async function start(): Promise<string> {
     ],
     {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ...engine, USER: "mira", DOCKWELL_CATALOG_DIR: catalogDir },
+      env: { ...process.env, ...engine, USER: "mira", DOCKWELL_CATALOG_DIR: catalogDir, DOCKWELL_NO_STUN: "1" },
     },
   );
   let out = "";
@@ -852,6 +853,7 @@ async function main() {
       docker: dockerProbe(fakeSocket),
       image: "acme/legacy:prints",
     });
+    await networkFlow(page, { origin, step, shoot });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
     const made = await dockerMade(fakeSocket);

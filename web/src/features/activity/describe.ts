@@ -47,6 +47,8 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`${server} renewed its certificate`, icon: "server" };
         case "server.revoke":
           return { title: t`Removed ${server} from the fleet`, icon: "server", tone: "warning" };
+        case "server.public_address":
+          return { title: t`Set the public address of ${server}`, icon: "server" };
         case "file.read": {
           const path = event.subject?.path ?? "";
           return { title: t`Read ${path} on ${server}`, icon: "file" };

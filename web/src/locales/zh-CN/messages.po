@@ -771,6 +771,10 @@ msgstr "{plain, plural, other {# 个变量}}"
 msgid "{project} already runs {names}"
 msgstr "{project} 已在运行 {names}"
 
+#: src/features/servers/network.ts
+msgid "{provider}'s metadata says so, {when}"
+msgstr "{provider} 的元数据服务给出此地址，{when}"
+
 #: src/features/changes/words.ts
 msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
 msgstr "{proxy} 未在 {server} 上运行，因此此路由将启动它，并由它占用端口 {ports}"
@@ -1173,6 +1177,10 @@ msgstr "一个 {type} 挂载（{reads}）"
 #: src/features/backups/BackupsPage.tsx
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "备份的对象是卷。请为应用添加卷，或从应用目录安装数据库。"
+
+#: src/features/servers/network.ts
+msgid "A certificate came for {domain} on port 80 or 443"
+msgstr "{domain} 的证书已通过 80 或 443 端口签发"
 
 #: src/features/catalog/InstalledPanel.tsx
 msgid "A change to how {version} runs is out."
@@ -1786,9 +1794,21 @@ msgstr "保留的备份数"
 msgid "Backups, newest first"
 msgstr "备份，最新的在前"
 
+#: src/features/servers/network.ts
+msgid "Behind {provider}'s NAT"
+msgstr "位于 {provider} 的 NAT 之后"
+
+#: src/features/servers/network.ts
+msgid "Behind a cloud's NAT"
+msgstr "位于云服务商的 NAT 之后"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Behind a tunnel or a proxy"
 msgstr "位于隧道或代理之后"
+
+#: src/features/servers/network.ts
+msgid "Behind carrier NAT"
+msgstr "位于运营商级 NAT 之后"
 
 #: src/features/servers/containers.ts
 msgid "Being removed"
@@ -1922,6 +1942,7 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/servers/SetPublicAddressSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Cancel"
 msgstr "取消"
@@ -1935,6 +1956,10 @@ msgstr "应用目录"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Categories"
 msgstr "分类"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Change"
+msgstr "更改"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Change {name}"
@@ -2079,6 +2104,10 @@ msgstr "认领这台服务器"
 msgid "Claimed this install"
 msgstr "认领了这个安装"
 
+#: src/features/servers/SetPublicAddressSheet.tsx
+msgid "Clear"
+msgstr "清除"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Clear filters"
 msgstr "清除筛选"
@@ -2212,6 +2241,10 @@ msgstr "正在连接"
 msgid "Connecting to the control plane"
 msgstr "正在连接控制平面"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Connection"
+msgstr "连接方式"
+
 #: src/features/shell/sections.ts
 msgid "Connections"
 msgstr "连接"
@@ -2283,6 +2316,10 @@ msgstr "复制 {at}"
 #: src/features/servers/ServerPanels.tsx
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Copy {known}"
+msgstr "复制 {known}"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Copy {name}"
@@ -2771,6 +2808,10 @@ msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{publics}）�
 #: src/features/changes/words.ts
 msgid "DNS for {domain} points at {found}, not this server, so its certificate can't come yet. {point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
 msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器，因此暂时无法获取证书。{point}。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
+
+#: src/features/changes/words.ts
+msgid "DNS for {domain} points at {found}. This server goes out from {known}, which may not be its way in, so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}。此服务器从 {known} 出站，这不一定是入站地址，因此 Agent 无法判断那是否就是此服务器。如果不是，在指向此服务器之前无法获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/changes/words.ts
 msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
@@ -4089,6 +4130,10 @@ msgstr "级别根据每行文本判断。未标明级别的行算作信息。双
 msgid "Light"
 msgstr "浅色"
 
+#: src/features/servers/network.ts
+msgid "Likely a home or office network"
+msgstr "可能是家庭或办公网络"
+
 #. placeholder {0}: onFileField.line
 #. placeholder {1}: onFileField.text
 #: src/features/apps/NewAppSheet.tsx
@@ -4196,6 +4241,18 @@ msgstr "日志中常含有应用打印的密钥，因此令牌只有在此处勾
 #: src/features/logs/LogsPage.tsx
 msgid "Logs often hold secrets that apps print, so reading them takes permission. Ask the owner of this install for it."
 msgstr "日志中常含有应用打印的密钥，因此读取需要权限。请向此实例的所有者申请。"
+
+#: src/features/servers/network.ts
+msgid "Looked up, {when}. That's its way out, and may not be a way in"
+msgstr "查询所得，{when}。这是它的出站地址，不一定能从这里入站"
+
+#: src/features/servers/network.ts
+msgid "Looked up, {when}. That's its way out, and on a cloud usually its way in"
+msgstr "查询所得，{when}。这是它的出站地址，在云上通常也是入站地址"
+
+#: src/features/servers/network.ts
+msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
+msgstr "查询所得，{when}。这可能是你路由器的地址，只能出站，不能入站"
 
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
@@ -4336,6 +4393,10 @@ msgstr "填写名称后即可查看计划"
 msgid "Name it, such as DATABASE_URL."
 msgstr "请为它命名，例如 DATABASE_URL。"
 
+#: src/features/servers/SetPublicAddressSheet.tsx
+msgid "Name the address, such as 203.0.113.7."
+msgstr "请填写地址，例如 203.0.113.7。"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Name the domain, such as app.example.com."
 msgstr "请填写域名，例如 app.example.com。"
@@ -4458,6 +4519,10 @@ msgstr "接下来，在 Cloudflare 中将此区域的 SSL/TLS 模式设为 Flexi
 
 #: src/features/changes/fields.tsx
 msgid "no"
+msgstr "否"
+
+#: src/features/servers/network.ts
+msgid "No"
 msgstr "否"
 
 #: src/features/apps/AppsPage.tsx
@@ -4617,6 +4682,10 @@ msgstr "自 {ago}起没有响应，因此无法确定这里运行着什么。请
 msgid "Not backed up yet"
 msgstr "尚未备份"
 
+#: src/features/servers/network.ts
+msgid "Not checked"
+msgstr "未检查"
+
 #: src/features/apps/DomainNote.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ServerPanels.tsx
@@ -4634,6 +4703,10 @@ msgstr "此版本尚未提供"
 #: src/features/servers/ServerPanels.tsx
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Not known"
+msgstr "未知"
 
 #: src/features/catalog/CatalogPage.tsx
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
@@ -4850,6 +4923,10 @@ msgstr "位于 <0>{held}</0>"
 msgid "On each server's own disk, unencrypted, so they go if the server does"
 msgstr "保存在各服务器自己的磁盘上，未加密，服务器没了它们也就没了"
 
+#: src/features/servers/network.ts
+msgid "On one of this server's interfaces"
+msgstr "在此服务器的某个网络接口上"
+
 #. placeholder {0}: check.http.port
 #: src/features/apps/AppOverview.tsx
 msgid "on port {0}"
@@ -4858,6 +4935,10 @@ msgstr "端口 {0}"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "On schedule"
 msgstr "按计划运行"
+
+#: src/features/servers/network.ts
+msgid "On the internet"
+msgstr "直接连接互联网"
 
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -4900,6 +4981,10 @@ msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
 #: src/features/changes/ChangeSheet.tsx
 msgid "only on the server"
 msgstr "仅限服务器本机"
+
+#: src/features/servers/network.ts
+msgid "Only something outside connecting proves a way in, such as a certificate for a domain here"
+msgstr "只有来自外部的连接才能证明可以入站，例如此处某个域名的证书"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
@@ -5205,6 +5290,10 @@ msgid "Point an A or AAAA record at this server's public address"
 msgstr "请添加指向此服务器公网地址的 A 或 AAAA 记录"
 
 #: src/features/changes/words.ts
+msgid "Point an A record at {either}, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither"
+msgstr ""
+
+#: src/features/changes/words.ts
 msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which are private, so the internet can't reach it"
 msgstr "请添加指向此服务器公网地址的 A 记录。Dockwell 在这里只能看到 {here}，这些都是私有地址，互联网无法访问"
 
@@ -5346,6 +5435,15 @@ msgstr "协议"
 msgid "Protocol"
 msgstr "协议"
 
+#: src/features/servers/network.ts
+msgid "Proved by the certificate for {domain}"
+msgstr "由 {domain} 的证书证明"
+
+#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/SetPublicAddressSheet.tsx
+msgid "Public address"
+msgstr "公网地址"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Public IP"
 msgstr "公网 IP"
@@ -5461,6 +5559,10 @@ msgstr "身份验证器应用的二维码"
 #: src/features/changes/words.ts
 msgid "Queued"
 msgstr "排队中"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Reachable"
+msgstr "可访问"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Reaches {path}"
@@ -6166,6 +6268,14 @@ msgstr "请在服务器上用 <0>docker ps -a</0> 查看全部。"
 msgid "See why"
 msgstr "查看原因"
 
+#: src/features/servers/network.ts
+msgid "Seen as its agent connected, {when}. That's its way out, and may not be a way in"
+msgstr "在其 Agent 连接时看到，{when}。这是它的出站地址，不一定能从这里入站"
+
+#: src/features/servers/network.ts
+msgid "Seen as its agent connected, {when}. That's its way out, and on a cloud usually its way in"
+msgstr "在其 Agent 连接时看到，{when}。这是它的出站地址，在云上通常也是入站地址"
+
 #: src/features/changes/fields.tsx
 msgid "SELinux label"
 msgstr "SELinux 标签"
@@ -6238,6 +6348,22 @@ msgstr "正在提供服务"
 msgid "Sessions"
 msgstr "会话"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Set"
+msgstr "设置"
+
+#: src/features/servers/SetPublicAddressSheet.tsx
+msgid "Set address"
+msgstr "设置地址"
+
+#: src/features/servers/network.ts
+msgid "Set by {by}, {when}"
+msgstr "由 {by} 设置，{when}"
+
+#: src/features/servers/network.ts
+msgid "Set by a person, {when}"
+msgstr "由人工设置，{when}"
+
 #: src/features/apps/ExportSheet.tsx
 msgid "Set each variable in the shell, or in an <0>.env</0> file beside the Compose file, before you run <1>docker compose up</1>."
 msgstr "运行 <1>docker compose up</1> 之前，请在 shell 中或 Compose 文件旁的 <0>.env</0> 文件中设置这些变量。"
@@ -6249,6 +6375,14 @@ msgstr "在此应用上设置"
 #: src/app/Providers.tsx
 msgid "Set out"
 msgstr "展开"
+
+#: src/features/servers/SetPublicAddressSheet.tsx
+msgid "Set the public address of {name}"
+msgstr "设置 {name} 的公网地址"
+
+#: src/features/activity/describe.ts
+msgid "Set the public address of {server}"
+msgstr "设置了 {server} 的公网地址"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
@@ -6719,6 +6853,10 @@ msgstr "{leadsTo} 网络 {path}，它可绕过服务器的防火墙，已在服�
 msgid "the {type} mount {at} ({reads})"
 msgstr "{type} 挂载 {at}（{reads}）"
 
+#: src/features/servers/SetPublicAddressSheet.tsx
+msgid "The address your provider's console shows. Every word about DNS uses it from now on."
+msgstr "即服务商控制台显示的地址。之后所有关于 DNS 的提示都会使用它。"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "The agent hasn't said what this server is yet."
 msgstr "代理尚未上报这台服务器的信息。"
@@ -6775,6 +6913,10 @@ msgstr "{volume} 的备份失败了"
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备。"
 
+#: src/features/servers/network.ts
+msgid "The certificate authority couldn't connect for {domain} on port 80 or 443"
+msgstr "证书颁发机构无法通过 80 或 443 端口连接 {domain}"
+
 #: src/features/apps/DomainNote.tsx
 msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
 msgstr "<0>{server}</0> 上的证书已于{when}过期，因此浏览器会拒绝访问这个域名。Dockwell 会自动续期。如果一直是这样，请<1>查看它的页面</1>。"
@@ -6794,6 +6936,10 @@ msgstr "CLI"
 #: src/features/apps/revision.ts
 msgid "the CLI on {local}"
 msgstr "{local} 上的命令行"
+
+#: src/features/servers/network.ts
+msgid "The cloud provider"
+msgstr "云服务商"
 
 #: src/features/changes/words.ts
 msgid "the container {path}, which Dockwell didn't make, and its environment, which comes in with it"
@@ -7241,6 +7387,10 @@ msgstr "这个文件夹的内容超出了列表能显示的数量"
 msgid "This folder is empty."
 msgstr "这个文件夹是空的。"
 
+#: src/features/servers/SetPublicAddressSheet.tsx
+msgid "This goes in the activity log"
+msgstr "此操作会记入活动日志"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "This install already has an owner"
 msgstr "这个安装已经有所有者"
@@ -7334,6 +7484,10 @@ msgstr "这次保存可能仍会写入"
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
 msgstr "这台服务器"
+
+#: src/features/changes/words.ts
+msgid "This server is behind carrier NAT ({here}), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither"
+msgstr "此服务器位于运营商级 NAT 之后（{here}），DNS 记录和端口转发都无法到达它。请使用隧道，两者都不需要"
 
 #: src/features/logs/LogFoot.tsx
 msgid "this server shares what it carries live between everyone reading it."
@@ -8017,6 +8171,10 @@ msgstr "应用监听的端口，例如 80。"
 msgid "What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the key file from the same backup."
 msgstr "控制平面为它存储的内容已被改动，或是用此安装没有的密钥加密的，所以 Dockwell 不会使用它，也无法更改 {name}。它的容器会继续照常运行。请从同一份备份恢复数据库和密钥文件。"
 
+#: src/features/servers/SetPublicAddressSheet.tsx
+msgid "What the internet knows this server by"
+msgstr "互联网识别此服务器所用的地址"
+
 #: src/features/logs/LogsPage.tsx
 msgid "What the servers keep goes back further than what is loaded here."
 msgstr "服务器保留的日志比这里加载的更久远。"
@@ -8148,6 +8306,10 @@ msgstr "自动换行"
 
 #: src/features/changes/fields.tsx
 msgid "yes"
+msgstr "是"
+
+#: src/features/servers/network.ts
+msgid "Yes"
 msgstr "是"
 
 #: src/features/activity/ActivityPage.tsx

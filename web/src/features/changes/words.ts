@@ -428,25 +428,33 @@ export function useChangeWords(): ChangeWords {
         const found = listWords(i18n.locale, check.found);
         const here = listWords(i18n.locale, check.here);
         // A record pointed at a private address can't work, so none is named as where to point one.
-        const own = check.here.filter((ip) => !isPrivateAddress(ip));
+        const known = check.publicAddress;
+        const own = known ? [known] : check.here.filter((ip) => !isPrivateAddress(ip));
         const publics = listWords(i18n.locale, own);
         const either = listWords(i18n.locale, own, "disjunction");
-        const point =
-          here === ""
-            ? t`Point an A or AAAA record at this server's public address`
-            : check.here.length === 1
-              ? t`Point an A record at this server's public address. Dockwell only sees ${here} here, which is private, so the internet can't reach it`
-              : t`Point an A record at this server's public address. Dockwell only sees ${here} here, which are private, so the internet can't reach it`;
+        const point = check.carrierNat
+          ? t`This server is behind carrier NAT (${here}), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither`
+          : check.publicUnproven
+            ? t`Point an A record at ${either}, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither`
+            : here === ""
+              ? t`Point an A or AAAA record at this server's public address`
+              : check.here.length === 1
+                ? t`Point an A record at this server's public address. Dockwell only sees ${here} here, which is private, so the internet can't reach it`
+                : t`Point an A record at this server's public address. Dockwell only sees ${here} here, which are private, so the internet can't reach it`;
+        const plainly = own.length > 0 && !check.publicUnproven && !check.carrierNat;
         switch (check.state) {
           case DomainCheckState.NO_RECORD:
-            return publics === ""
-              ? t`${domain} has no DNS record yet, so its certificate can't come until it has one. ${point}`
-              : t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${either}; it comes once you do`;
+            return plainly
+              ? t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${either}; it comes once you do`
+              : t`${domain} has no DNS record yet, so its certificate can't come until it has one. ${point}`;
           case DomainCheckState.ELSEWHERE:
-            return publics === ""
-              ? t`DNS for ${domain} points at ${found}, not this server, so its certificate can't come yet. ${point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`
-              : t`DNS for ${domain} points at ${found}, not this server (${publics}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
+            return plainly
+              ? t`DNS for ${domain} points at ${found}, not this server (${publics}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`
+              : t`DNS for ${domain} points at ${found}, not this server, so its certificate can't come yet. ${point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
           case DomainCheckState.CANT_TELL:
+            if (known) {
+              return t`DNS for ${domain} points at ${found}. This server goes out from ${known}, which may not be its way in, so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
+            }
             return t`DNS for ${domain} points at ${found}. This server's own addresses are private (${here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
         }
         return "";

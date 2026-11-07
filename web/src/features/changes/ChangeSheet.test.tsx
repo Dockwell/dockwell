@@ -2109,6 +2109,26 @@ describe("the plan sheet, once it runs", () => {
       expect(done).toHaveTextContent("Dockwell only sees 10.0.0.5, 10.0.0.6 and 10.0.0.7 here, which are private");
     });
 
+    it("says a looked-up address is unproven", async () => {
+      const change = applied(aServicePlan());
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) {
+        step.domainCheck = create(DomainCheckSchema, {
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          publicAddress: "203.0.113.7",
+          publicUnproven: true,
+          here: ["192.168.1.20", "203.0.113.7"],
+        });
+      }
+      arrivedWith([aDomain("app.example.com", CertificateState.PENDING, "Asking")], [], change);
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
+      await within(done).findByText("Asking");
+      expect(done).toHaveTextContent(
+        "Point an A record at 203.0.113.7, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither",
+      );
+    });
+
     it("keeps saying what DNS said while it hasn't served", async () => {
       const change = applied(aServicePlan());
       const step = change.plan?.servers[0]?.steps[0];
