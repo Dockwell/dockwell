@@ -11,6 +11,7 @@ import {
   EventSchema,
   HealthCheckKind,
   HealthState,
+  InstanceHealthSchema,
   type ListEventsRequest,
   PlanAction,
   RestartPolicy,
@@ -1053,7 +1054,7 @@ describe("a health check on the overview", () => {
     );
     const panel = await screen.findByRole("region", { name: "Health check" });
     expect(await within(panel).findByText("Passing")).toBeVisible();
-    expect(within(panel).getByText("GET /healthz answered 200 OK")).toBeVisible();
+    expect(within(panel).getByText("GET /healthz answered 200 OK.")).toBeVisible();
     // Configuration says how it's set up; the check is here alone.
     const configuration = screen.getByRole("region", { name: "Configuration" });
     expect(within(configuration).queryByText("Health check")).toBeNull();
@@ -1069,7 +1070,125 @@ describe("a health check on the overview", () => {
     );
     const panel = await screen.findByRole("region", { name: "Health check" });
     expect(await within(panel).findByText("Failing")).toBeVisible();
-    expect(within(panel).getByText("no response")).toBeVisible();
+    expect(within(panel).getByText("No response.")).toBeVisible();
+  });
+
+  /** The panel's badge, if it has one, by what it says. */
+  const badgeOf = async (
+    app: Parameters<typeof anApp>[2],
+    health: Api["health"],
+    more: Partial<Parameters<typeof anApp>[3]> = {},
+    ...servers: ReturnType<typeof aServer>[]
+  ) => {
+    renderAt("/apps/svc_web", api([anApp("web", "nginx", app, more)], health, {}, ...servers));
+    const panel = await screen.findByRole("region", { name: "Health check" });
+    await within(panel).findByText("Checks");
+    // Give the health read its moment.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return panel;
+  };
+  const http = { healthcheck: { http: { port: 8080, path: "/healthz" } } };
+
+  it.each([
+    ["nothing checks it", {}, HealthState.NO_CHECK],
+    ["it isn't running", http, HealthState.NOT_RUNNING],
+    ["it's paused", http, HealthState.PAUSED],
+  ] as const)("shows no badge when %s, whatever its last result said", async (_, app, state) => {
+    const panel = await badgeOf(app, reading({ state, said: "the container isn't running", passed: false }));
+    await waitFor(() => expect(panel.querySelector(".dw-panel-head .dw-status")).toBeNull());
+    expect(panel).not.toHaveTextContent("Failing");
+    expect(panel).not.toHaveTextContent("Passing");
+  });
+
+  it("says why it isn't checked when it's paused, as the server's words have it", async () => {
+    const panel = await badgeOf(http, reading({ state: HealthState.PAUSED }));
+    expect(await within(panel).findByText(/Someone paused it, so it serves nothing and no check runs/)).toBeVisible();
+  });
+
+  it("goes by how the server reads: a check failing below its retries still reads Passing", async () => {
+    const panel = await badgeOf(
+      http,
+      reading({ state: HealthState.HEALTHY, said: "timed out", passed: false, failing: 1 }),
+    );
+    expect(await within(panel).findByText("Passing")).toBeVisible();
+    expect(panel).not.toHaveTextContent("Failing");
+  });
+
+  it("shows no badge while it starts, and waits for its first result", async () => {
+    const panel = await badgeOf(http, reading({ state: HealthState.STARTING }));
+    expect(await within(panel).findByText("Waiting for its first result.")).toBeVisible();
+    expect(panel.querySelector(".dw-panel-head .dw-status")).toBeNull();
+  });
+
+  it("never reads as passing where its agent can't be heard from", async () => {
+    const panel = await badgeOf(http, reading({ state: HealthState.HEALTHY, stale: true, said: "ok", passed: true }));
+    expect(await within(panel).findByText("Unknown")).toBeVisible();
+    expect(panel).not.toHaveTextContent("Passing");
+  });
+
+  it("counts every server it's placed on, and says the failing one's words", async () => {
+    const at = timestampFromDate(new Date(Date.now() - 3_600_000));
+    const two = {
+      deployments: [
+        { serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE, updateTime: at },
+        { serverId: "srv_2", serverName: "hz-2", state: DeploymentState.LIVE, updateTime: at },
+      ],
+    };
+    const panel = await badgeOf(
+      http,
+      reading(
+        { state: HealthState.HEALTHY, said: "GET /healthz answered 200", passed: true },
+        {
+          state: HealthState.UNHEALTHY,
+          server: "srv_2",
+          serverName: "hz-2",
+          said: "connection refused",
+          passed: false,
+          failing: 3,
+        },
+      ),
+      two,
+      hz1,
+      hz2,
+    );
+    expect(await within(panel).findByText("1 of 2 failing")).toBeVisible();
+    expect(within(panel).getByText("Connection refused.")).toBeVisible();
+    expect(panel).toHaveTextContent(/hz-2 ·/);
+  });
+
+  it("says what the latest revision's container said while a rollout has two", async () => {
+    const rolling = aHealth("svc_web", { state: HealthState.HEALTHY, said: "the old one answered", passed: true });
+    const [server] = rolling.servers;
+    const [old] = server?.instances ?? [];
+    if (!server || !old) throw new Error("no instance to roll over");
+    // Swapped in under the name of the one it replaces, as a replace does: the newer of the two.
+    server.instances.push(
+      create(InstanceHealthSchema, {
+        project: old.project,
+        service: old.service,
+        number: old.number,
+        container: `a1b2c3d4e5f6_${old.container}`,
+        state: HealthState.STARTING,
+        check: old.check,
+        last: { output: "the new one refused", passed: false, time: timestampFromDate(new Date()) },
+      }),
+    );
+    const panel = await badgeOf(http, { listHealth: () => ({ services: [rolling] }) });
+    await waitFor(() => expect(panel).toHaveTextContent("the new one refused"));
+    expect(panel).not.toHaveTextContent("the old one answered");
+  });
+
+  it("counts a server that hasn't answered as unknown, not as passing", async () => {
+    const at = timestampFromDate(new Date(Date.now() - 3_600_000));
+    const two = {
+      deployments: [
+        { serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE, updateTime: at },
+        { serverId: "srv_2", serverName: "hz-2", state: DeploymentState.LIVE, updateTime: at },
+      ],
+    };
+    const panel = await badgeOf(http, reading({ state: HealthState.HEALTHY, said: "ok", passed: true }), two, hz1, hz2);
+    expect(await within(panel).findByText("1 of 2 passing")).toBeVisible();
+    expect(panel.querySelector(".dw-panel-head .dw-status.dw-tone-unknown")).not.toBeNull();
   });
 
   it("says what an HTTP check asks", async () => {

@@ -34,7 +34,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
@@ -69,7 +69,7 @@ import {
 import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
 import { type DomainRead, lookOf, mayBeBehind, routeWhere, useAppDomains, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
-import { HealthBadge, RunsOnServers, useRunsNow } from "./Health";
+import { HealthBadge, RunsOnServers, useHealthWords, useRunsNow } from "./Health";
 import { type AppHealth, type RunsOnServer, runsAsFarAsAnyoneKnows, useHealth } from "./health";
 import { ImageName, WholeImage } from "./ImageName";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
@@ -926,36 +926,75 @@ function RecentDeployments() {
 function HealthCheckPanel() {
   const { t } = useLingui();
   const { service, health } = useApp();
+  const words = useHealthWords();
   const time = useTimeWords();
   const now = useControlPlaneNow(15_000);
   const app = appOf(service);
   const check = app?.healthcheck;
   const test = check?.test ?? [];
   const read = health.read === "read";
-  const checked = read ? health.servers.filter((s) => s.last !== undefined) : [];
-  const passing = checked.filter((s) => s.last?.passed).length;
-  const failing = checked.length - passing;
-  let newest: RunsOnServer | undefined;
-  for (const s of checked) {
-    if (!newest?.last?.at || (s.last?.at && s.last.at > newest.last.at)) newest = s;
+  // Whether anything checks it: what its spec sets, or what the servers say the image has.
+  const hasCheck =
+    test[0] !== "NONE" &&
+    (check?.http !== undefined ||
+      check?.tcp !== undefined ||
+      test.length > 0 ||
+      health.check === HealthCheckKind.COMMAND ||
+      health.check === HealthCheckKind.HTTP ||
+      health.check === HealthCheckKind.TCP);
+  // Every server it's placed on counts, whether or not it has answered.
+  const placed = [
+    ...new Set([...service.deployments.map((d) => d.serverId), ...health.servers.map((s) => s.serverId)]),
+  ];
+  const byId = new Map(health.servers.map((s) => [s.serverId, s] as const));
+  let passing = 0;
+  let failing = 0;
+  let unread = 0;
+  for (const id of placed) {
+    const server = byId.get(id);
+    // What can't be heard from passes nothing, however it last read.
+    if (!read || !server || server.stale || server.kind === "unknown") unread += 1;
+    else if (server.kind === "healthy") passing += 1;
+    else if (server.kind === "unhealthy") failing += 1;
   }
-  const several = checked.length > 1;
-  const badge =
-    checked.length === 0 ? null : failing === 0 ? (
-      <StatusBadge
-        status="healthy"
-        label={several ? t`${passing} of ${checked.length} passing` : t`Passing`}
-        labelIsState
-      />
-    ) : (
+  const total = placed.length;
+  const several = total > 1;
+  // The badge goes by how each server reads, as the head does, never by a single
+  // check's result: a check can fail below its retries and the app still read healthy.
+  let badge: ReactNode = null;
+  if (hasCheck && unread > 0) {
+    badge = (
+      <StatusBadge status="unknown" label={several ? t`${passing} of ${total} passing` : t`Unknown`} labelIsState />
+    );
+  } else if (hasCheck && failing > 0) {
+    badge = (
       <StatusBadge
         status="degraded"
-        label={
-          several ? t`${failing} of ${checked.length} failing` : t({ message: "Failing", context: "health check" })
-        }
+        label={several ? t`${failing} of ${total} failing` : t({ message: "Failing", context: "health check" })}
         labelIsState
       />
     );
+  } else if (hasCheck && passing > 0) {
+    badge = (
+      <StatusBadge
+        status={passing === total ? "healthy" : health.status}
+        label={several ? t`${passing} of ${total} passing` : t`Passing`}
+        labelIsState
+      />
+    );
+  }
+  // What to say it said: the newest failing server's, or else the newest of any,
+  // and during a rollout what the latest revision's container said.
+  const heard = read ? health.servers : [];
+  const at = (s: RunsOnServer) => (s.newest ?? s).last?.at?.getTime() ?? 0;
+  const failingFirst = heard.filter((s) => s.kind === "unhealthy").sort((a, b) => at(b) - at(a));
+  const chosen = failingFirst[0] ?? [...heard].sort((a, b) => at(b) - at(a))[0];
+  const about = chosen?.newest ? { ...chosen, kind: chosen.newest.kind, last: chosen.newest.last } : chosen;
+  const waiting =
+    hasCheck &&
+    heard.length > 0 &&
+    heard.every((s) => !(s.newest ?? s).last && (s.kind === "healthy" || s.kind === "starting"));
+  const said = !about || !hasCheck ? "" : waiting ? t`Waiting for its first result.` : words.says(about, now);
   return (
     <Panel title={t`Health check`} actions={badge}>
       <dl className="app-facts">
@@ -983,15 +1022,15 @@ function HealthCheckPanel() {
             <span className="app-muted">{t`None set here. The image may have one.`}</span>
           )}
         </dd>
-        {newest?.last ? (
+        {said ? (
           <>
             <dt>{t`It said`}</dt>
             <dd className="app-check-said">
-              <span>{newest.last.output || (newest.last.passed ? t`It passed` : t`It failed`)}</span>
-              {newest.last.at ? (
+              <span>{said}</span>
+              {about?.last?.at && !waiting ? (
                 <span className="app-muted">
-                  {several ? `${newest.serverName} · ` : ""}
-                  {time.ago(newest.last.at, now)}
+                  {several && about ? `${about.serverName} · ` : ""}
+                  {time.ago(about.last.at, now)}
                 </span>
               ) : null}
             </dd>

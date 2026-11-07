@@ -133,6 +133,8 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   else await dockerExec(socket, checked.id, ["touch", "/tmp/sick"]);
   await pageSays("Unhealthy");
   await page.locator(".dw-callout").getByText("checked fails its health check").waitFor();
+  // The check's own panel says so too, by how the server reads, as the head does.
+  await page.getByRole("region", { name: "Health check" }).getByText("Failing", { exact: true }).waitFor();
   await shoot(page, "health-unhealthy");
   await goToList();
   await listSays("checked", "Unhealthy");

@@ -417,10 +417,9 @@ msgstr "{errors, plural, one {{count} error} other {{count} errors}}"
 msgid "{failed, plural, one {# failed} other {# failed}}"
 msgstr "{failed, plural, one {# failed} other {# failed}}"
 
-#. placeholder {0}: checked.length
 #: src/features/apps/AppOverview.tsx
-msgid "{failing} of {0} failing"
-msgstr "{failing} of {0} failing"
+msgid "{failing} of {total} failing"
+msgstr "{failing} of {total} failing"
 
 #: src/features/logs/LogsPage.tsx
 msgid "{first} couldn't be searched"
@@ -803,10 +802,9 @@ msgstr "{out}, with {detail}"
 msgid "{own, plural, one {Dockwell runs # more container here, which isn't listed.} other {Dockwell runs # more containers here, which aren't listed.}}"
 msgstr "{own, plural, one {Dockwell runs # more container here, which isn't listed.} other {Dockwell runs # more containers here, which aren't listed.}}"
 
-#. placeholder {0}: checked.length
 #: src/features/apps/AppOverview.tsx
-msgid "{passing} of {0} passing"
-msgstr "{passing} of {0} passing"
+msgid "{passing} of {total} passing"
+msgstr "{passing} of {total} passing"
 
 #: src/features/changes/words.ts
 msgid "{path} as a proxy it believes on where a request came from"
@@ -4038,10 +4036,6 @@ msgstr "It couldn't be fetched: {0}"
 msgid "It didn't reach {0}: {1}"
 msgstr "It didn't reach {0}: {1}"
 
-#: src/features/apps/AppOverview.tsx
-msgid "It failed"
-msgstr "It failed"
-
 #: src/features/apps/Health.tsx
 msgid "It has no container on this server."
 msgstr "It has no container on this server."
@@ -4113,10 +4107,6 @@ msgstr "It mounts none."
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "It never stopped. Dockwell removed what this made after it failed."
-
-#: src/features/apps/AppOverview.tsx
-msgid "It passed"
-msgstr "It passed"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "It publishes none now."
@@ -8417,6 +8407,7 @@ msgid "Unhealthy"
 msgstr "Unhealthy"
 
 #: src/app/Providers.tsx
+#: src/features/apps/AppOverview.tsx
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
 #: src/features/backups/words.ts
@@ -8721,6 +8712,10 @@ msgstr "Waiting for DNS"
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Waiting for its first result."
+msgstr "Waiting for its first result."
 
 #: src/features/apps/words.ts
 msgid "Waiting for server"
