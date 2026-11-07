@@ -41,6 +41,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
@@ -134,7 +135,9 @@ type Server struct {
 	agents   http.Handler
 	agentTLS *tls.Config
 	// logs reads service logs, and tells servers what deletions put out of reach.
-	logs      *logapi.Handler
+	logs *logapi.Handler
+	// backups takes backups, and those under way end with the control plane.
+	backups   *backups.Handler
 	public    https.Source
 	changes   *revision.Engine
 	stepGrace time.Duration
@@ -160,11 +163,12 @@ func New(cfg Config) (*Server, error) {
 		return nil, errors.New("control: Config.Public needs Config.Auth for the same domain")
 	}
 	var logs *logapi.Handler
-	api, err := apiRoutes(cfg, ui, &logs)
+	var backupHandler *backups.Handler
+	api, err := apiRoutes(cfg, ui, &logs, &backupHandler)
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
 	s.ports = &PublicPorts{server: s, ready: make(chan struct{})}
 	if s.stepGrace <= 0 {
 		s.stepGrace = DefaultStepGrace
@@ -192,7 +196,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut **backups.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -247,6 +251,8 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler) (http.Hand
 		guardREST = logs.GuardREST
 		handle(dockwellv1connect.NewHealthServiceHandler(health.New(cfg.Store, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewContainerServiceHandler(containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger), opts...))
+		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
+		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {
@@ -458,6 +464,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if (ls.HTTPS != nil || ls.HTTP != nil || ls.Ingress != nil) && s.public == nil {
 		return errors.New("control: the HTTPS, HTTP and ingress listeners need Config.Public")
 	}
+	if s.backups != nil {
+		s.backups.Recover(ctx)
+	}
 	apiCtx, stopAPI := context.WithCancel(ctx)
 	defer stopAPI()
 	agentCtx, stopAgents := context.WithCancel(context.WithoutCancel(ctx))
@@ -503,6 +512,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	api.Wait()
 	s.ports.end()
+	if s.backups != nil {
+		s.backups.Stop()
+	}
 	if s.changes != nil {
 		grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.stepGrace)
 		if err := s.changes.Stop(grace); err != nil {

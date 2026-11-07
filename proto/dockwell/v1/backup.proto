@@ -1,0 +1,219 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// BackupService is an app's volumes and databases, backed up on the server that
+// has them. Taking a backup is an event: it changes no desired state, so it makes
+// no revision, and a failed one shows on the timeline. Restoring one is a change
+// with a plan, which says what it replaces and what stops, and which only a person
+// can apply. See docs/adr/0033-backups-of-volumes-and-databases.md.
+//
+// A backup holds what its app stored, secrets among them, so nothing here gives
+// anyone its bytes.
+service BackupService {
+  // ListBackups returns backups, newest first, a page at a time. It reads the
+  // control plane's records, so it answers with a server offline.
+  rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/backups"};
+  }
+
+  // GetBackup returns one backup, with how far one under way has got.
+  rpc GetBackup(GetBackupRequest) returns (GetBackupResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/backups/{id}"};
+  }
+
+  // PreviewBackup says what backing up a volume would do, asking its server, and
+  // changes nothing: the database's own dump, or a copy of its files, and what
+  // runs on it now. A copy of a running app's files can hold half a write, so
+  // when something runs on a volume that has no dump, ask CreateBackup to stop it.
+  rpc PreviewBackup(PreviewBackupRequest) returns (PreviewBackupResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/backups:preview"};
+  }
+
+  // CreateBackup starts a backup of a volume on its server, which has to be
+  // connected. It returns the backup running, and the backup ends whether or not
+  // the caller waits: follow it with GetBackup.
+  rpc CreateBackup(CreateBackupRequest) returns (CreateBackupResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/backups"
+      body: "*"
+    };
+  }
+
+  // DeleteBackup removes a backup from its server and from the record. Nothing
+  // brings it back, so it needs a person. A backup that failed has nothing on the
+  // server, and its record goes all the same.
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {delete: "/v1/backups/{id}"};
+  }
+
+  // RestoreBackup plans replacing what's in a backup's volume with what the
+  // backup holds, as a change. Its plan says what it replaces and what stops, and
+  // it destroys data, so only a person can apply it, with the plan's fingerprint.
+  // The server keeps a copy of what's replaced for 7 days, and undoing the change
+  // puts that back.
+  rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/backups/{id}:restore"
+      body: "*"
+    };
+  }
+}
+
+// BackupState says where a backup is.
+enum BackupState {
+  BACKUP_STATE_UNSPECIFIED = 0;
+  // It's being taken.
+  BACKUP_STATE_RUNNING = 1 [(dockwell.v1.word) = "Running"];
+  // It's on its server, and it read back whole.
+  BACKUP_STATE_DONE = 2 [(dockwell.v1.word) = "Done"];
+  // It failed, and left nothing on its server.
+  BACKUP_STATE_FAILED = 3 [(dockwell.v1.word) = "Failed"];
+}
+
+// Backup is one backup of one volume.
+message Backup {
+  // The backup's ID, such as "bkp_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // The environment its volume is in, by ID.
+  string environment_id = 2;
+  // The volume, by name. It stays after the volume is deleted.
+  string volume = 3;
+  // The volume's ID.
+  string volume_id = 4;
+  // The server that holds it, by ID.
+  string server_id = 5;
+  // The server's name, such as "hz-1".
+  string server_name = 6;
+  // Where it is.
+  BackupState state = 7;
+  // How it's taken. Unset until the server says.
+  BackupMethod method = 8;
+  // The database it's a dump of, such as "PostgreSQL". Empty for any other.
+  string database = 9;
+  // Its size on the server's disk, in bytes.
+  int64 size_bytes = 10;
+  // Its SHA-256, in hex.
+  string sha256 = 11;
+  // When it started.
+  google.protobuf.Timestamp started_at = 12;
+  // When it ended. Unset while it runs.
+  google.protobuf.Timestamp finished_at = 13;
+  // Who took it.
+  Actor actor = 14;
+  // Why it failed, for people.
+  string error = 15;
+  // How many files changed while they were read, for a copy of a running app.
+  int64 files_changed = 16;
+  // How one under way is going, for people, such as "Copying data: 1.2 GB so far".
+  string progress = 17;
+}
+
+// ListBackupsRequest asks for a page of backups.
+message ListBackupsRequest {
+  // How many to return: 50 when unset, and at most 200.
+  int32 page_size = 1;
+  // Where to start: the next_page_token of the page before. Pass the same filters
+  // with it.
+  string page_token = 2;
+  // Only the backups of one volume, by ID.
+  string volume_id = 3;
+  // Only the backups in one environment, by ID.
+  string environment_id = 4;
+}
+
+// ListBackupsResponse is a page of backups.
+message ListBackupsResponse {
+  // The backups, newest first.
+  repeated Backup backups = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// GetBackupRequest names a backup.
+message GetBackupRequest {
+  // The backup's ID.
+  string id = 1;
+}
+
+// GetBackupResponse is one backup.
+message GetBackupResponse {
+  // The backup.
+  Backup backup = 1;
+}
+
+// PreviewBackupRequest names a volume.
+message PreviewBackupRequest {
+  // The volume's ID, such as "vol_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string volume_id = 1;
+  // The server, by name or ID, when the volume is on several.
+  string server = 2;
+}
+
+// PreviewBackupResponse says what backing up a volume would do.
+message PreviewBackupResponse {
+  // What it would do with nothing else asked.
+  BackupMethod method = 1;
+  // The database whose dump it takes, such as "PostgreSQL".
+  string database = 2;
+  // What runs on the volume now: services by name, and anything else by its
+  // container's.
+  repeated string running = 3;
+}
+
+// CreateBackupRequest asks to back up a volume.
+message CreateBackupRequest {
+  // The volume's ID.
+  string volume_id = 1;
+  // The server, by name or ID, when the volume is on several.
+  string server = 2;
+  // Stop what runs on the volume for an exact copy of its files, and start it again
+  // after, whatever comes of the backup. A database's dump stops nothing.
+  bool stop = 3;
+}
+
+// CreateBackupResponse is the backup, running.
+message CreateBackupResponse {
+  // The backup.
+  Backup backup = 1;
+}
+
+// DeleteBackupRequest names a backup.
+message DeleteBackupRequest {
+  // The backup's ID.
+  string id = 1;
+}
+
+// DeleteBackupResponse says it's gone.
+message DeleteBackupResponse {}
+
+// RestoreBackupRequest asks to restore a backup.
+message RestoreBackupRequest {
+  // The backup's ID.
+  string id = 1;
+  // What it's for, for the timeline. Empty says what it restores.
+  string summary = 2;
+}
+
+// RestoreBackupResponse is the change that restores it.
+message RestoreBackupResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}

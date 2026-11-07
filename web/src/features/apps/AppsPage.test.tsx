@@ -155,6 +155,14 @@ describe("the apps list", () => {
     await expectAccessible(container);
   });
 
+  it("leaves room for an app's name beside the image on a fleet, where Runs on takes more of the row", async () => {
+    onScreen("(min-width: 1100px)");
+    renderAt("/apps", api([anApp("web", "ghcr.io/acme/web:1.4")], hz1, aServer({ id: "srv_2", name: "hz-2" })));
+    expect(await screen.findByRole("columnheader", { name: "Runs on" })).toBeVisible();
+    // A share of the row added to the fixed columns left the name 27 px at 1280.
+    expect(screen.getByRole("columnheader", { name: "Image" }).style.width).toBe("");
+  });
+
   it("keeps the end of a long image, which tells it from the others, and says the whole of it on hover", async () => {
     const long = "registry.internal.acme-corporation.example.com/platform/backend:1.4.2";
     const { container } = renderAt("/apps", api([anApp("web", long)]));

@@ -4,6 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
 import {
   AuthService,
+  BackupService,
   CatalogService,
   ChangeService,
   ComposeService,
@@ -51,6 +52,7 @@ export type Api = {
   health?: Partial<ServiceImpl<typeof HealthService>>;
   containers?: Partial<ServiceImpl<typeof ContainerService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
+  backups?: Partial<ServiceImpl<typeof BackupService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -97,6 +99,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
       service(FileService, api.files ?? {});
+      service(BackupService, { listBackups: () => ({}), ...api.backups });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

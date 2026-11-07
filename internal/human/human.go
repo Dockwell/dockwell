@@ -43,3 +43,18 @@ func Either(names []string) string {
 	}
 	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
 }
+
+// Size says how many bytes, in the largest unit that keeps it above 1, 1024-based,
+// with one decimal under 10, such as "12 MB" or "1.2 GB".
+func Size(bytes int64) string {
+	units := []string{"B", "KB", "MB", "GB", "TB"}
+	f, i := float64(bytes), 0
+	for f >= 1024 && i < len(units)-1 {
+		f /= 1024
+		i++
+	}
+	if i > 0 && f < 10 {
+		return strconv.FormatFloat(f, 'f', 1, 64) + " " + units[i]
+	}
+	return strconv.FormatFloat(f, 'f', 0, 64) + " " + units[i]
+}

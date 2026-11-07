@@ -805,6 +805,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		dr.Restart = d.Restart
 		dr.Rollback = d.Rollback
 		dr.Adopt = d.Adopt
+		if r := d.Restore; r != nil {
+			dr.Restore = &agentv1.RestoreSource{BackupId: r.Backup, Undoes: r.Undoes, ChangeId: r.Change}
+		}
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)
@@ -1184,6 +1187,35 @@ func (s *Session) Containers(ctx context.Context, container string) (*agentv1.Co
 		return nil, err
 	}
 	return r.GetContainers(), nil
+}
+
+// BackupPreview asks the agent what backing up a volume would do.
+func (s *Session) BackupPreview(ctx context.Context, volume resource.Ref) (*agentv1.BackupPreviewResult, error) {
+	call := &agentv1.BackupPreviewCall{Volume: resourcepb.Ref(volume)}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_BackupPreview{BackupPreview: call}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetBackupPreview(), nil
+}
+
+// BackupTimeout bounds one backup, which runs for as long as its volume takes.
+const BackupTimeout = 24 * time.Hour
+
+// Backup asks the agent to back up a volume, and waits until it has. Progress
+// comes through ctx (resource.WithProgress).
+func (s *Session) Backup(ctx context.Context, call *agentv1.BackupCall) (*agentv1.BackupResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Backup{Backup: call}}, BackupTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetBackup(), nil
+}
+
+// DeleteBackup asks the agent to remove a backup from the disk.
+func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCall) error {
+	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, ObserveTimeout, nil)
+	return err
 }
 
 // Forgotten tells a server which services' kept logs are out of reach.

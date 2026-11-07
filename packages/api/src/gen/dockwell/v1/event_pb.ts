@@ -6,7 +6,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Actor, ActorKind, Change, Surface } from "./change_pb";
+import type { Actor, ActorKind, BackupMethod, Change, Surface } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import type { HealthState } from "./health_pb";
 import { file_dockwell_v1_health } from "./health_pb";
@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/event.proto.
  */
 export const file_dockwell_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS9ldmVudC5wcm90bxILZG9ja3dlbGwudjEixwEKEUxpc3RFdmVudHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEiUKBWtpbmRzGAMgAygOMhYuZG9ja3dlbGwudjEuRXZlbnRLaW5kEhEKCXNlcnZlcl9pZBgEIAEoCRITCgtyZXNvdXJjZV9pZBgFIAEoCRIQCghhY3Rvcl9pZBgGIAEoCRIqCgphY3Rvcl9raW5kGAcgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kIlEKEkxpc3RFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkitAEKEldhdGNoRXZlbnRzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSJQoFa2luZHMYAiADKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSEQoJc2VydmVyX2lkGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhAKCGFjdG9yX2lkGAUgASgJEioKCmFjdG9yX2tpbmQYBiABKA4yFi5kb2Nrd2VsbC52MS5BY3RvcktpbmQidQoTV2F0Y2hFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIPCgdyZW1vdmVkGAIgAygJEhAKCHNuYXBzaG90GAMgASgIEhcKD25leHRfcGFnZV90b2tlbhgEIAEoCSK4AgoFRXZlbnQSCgoCaWQYASABKAkSJAoEa2luZBgCIAEoDjIWLmRvY2t3ZWxsLnYxLkV2ZW50S2luZBIOCgZhY3Rpb24YAyABKAkSKAoEdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIlCgdzdXJmYWNlGAYgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIjCgZjaGFuZ2UYByABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKgoHc3ViamVjdBgIIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50U3ViamVjdBIoCgZoZWFsdGgYCSABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEhlYWx0aCLUAQoLRXZlbnRIZWFsdGgSEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEicKBXN0YXRlGAMgASgOMhguZG9ja3dlbGwudjEuSGVhbHRoU3RhdGUSKgoIcHJldmlvdXMYBCABKA4yGC5kb2Nrd2VsbC52MS5IZWFsdGhTdGF0ZRIOCgZvdXRwdXQYBSABKAkSDQoFZmxpcHMYBiABKAUSKQoFc2luY2UYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkUKDEV2ZW50U3ViamVjdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg0KBXNjb3BlGAMgASgJEgwKBHBhdGgYBCABKAkqgwEKCUV2ZW50S2luZBIaChZFVkVOVF9LSU5EX1VOU1BFQ0lGSUVEEAASFQoRRVZFTlRfS0lORF9DSEFOR0UQARIVChFFVkVOVF9LSU5EX1NFUlZFUhACEhUKEUVWRU5UX0tJTkRfQUNDRVNTEAMSFQoRRVZFTlRfS0lORF9IRUFMVEgQBDLSAQoMRXZlbnRTZXJ2aWNlEmgKCkxpc3RFdmVudHMSHi5kb2Nrd2VsbC52MS5MaXN0RXZlbnRzUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkxpc3RFdmVudHNSZXNwb25zZSIZkAIBoLsYAYLT5JMCDBIKL3YxL2V2ZW50cxJYCgtXYXRjaEV2ZW50cxIfLmRvY2t3ZWxsLnYxLldhdGNoRXZlbnRzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLldhdGNoRXZlbnRzUmVzcG9uc2UiBKC7GAEwAUKjAQoPY29tLmRvY2t3ZWxsLnYxQgpFdmVudFByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_health, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS9ldmVudC5wcm90bxILZG9ja3dlbGwudjEixwEKEUxpc3RFdmVudHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEiUKBWtpbmRzGAMgAygOMhYuZG9ja3dlbGwudjEuRXZlbnRLaW5kEhEKCXNlcnZlcl9pZBgEIAEoCRITCgtyZXNvdXJjZV9pZBgFIAEoCRIQCghhY3Rvcl9pZBgGIAEoCRIqCgphY3Rvcl9raW5kGAcgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kIlEKEkxpc3RFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkitAEKEldhdGNoRXZlbnRzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSJQoFa2luZHMYAiADKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSEQoJc2VydmVyX2lkGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhAKCGFjdG9yX2lkGAUgASgJEioKCmFjdG9yX2tpbmQYBiABKA4yFi5kb2Nrd2VsbC52MS5BY3RvcktpbmQidQoTV2F0Y2hFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIPCgdyZW1vdmVkGAIgAygJEhAKCHNuYXBzaG90GAMgASgIEhcKD25leHRfcGFnZV90b2tlbhgEIAEoCSLiAgoFRXZlbnQSCgoCaWQYASABKAkSJAoEa2luZBgCIAEoDjIWLmRvY2t3ZWxsLnYxLkV2ZW50S2luZBIOCgZhY3Rpb24YAyABKAkSKAoEdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIlCgdzdXJmYWNlGAYgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIjCgZjaGFuZ2UYByABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKgoHc3ViamVjdBgIIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50U3ViamVjdBIoCgZoZWFsdGgYCSABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEhlYWx0aBIoCgZiYWNrdXAYCiABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEJhY2t1cCKMAQoLRXZlbnRCYWNrdXASCgoCaWQYASABKAkSDgoGdm9sdW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEikKBm1ldGhvZBgEIAEoDjIZLmRvY2t3ZWxsLnYxLkJhY2t1cE1ldGhvZBISCgpzaXplX2J5dGVzGAUgASgDEg0KBWVycm9yGAYgASgJItQBCgtFdmVudEhlYWx0aBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSJwoFc3RhdGUYAyABKA4yGC5kb2Nrd2VsbC52MS5IZWFsdGhTdGF0ZRIqCghwcmV2aW91cxgEIAEoDjIYLmRvY2t3ZWxsLnYxLkhlYWx0aFN0YXRlEg4KBm91dHB1dBgFIAEoCRINCgVmbGlwcxgGIAEoBRIpCgVzaW5jZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiRQoMRXZlbnRTdWJqZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFc2NvcGUYAyABKAkSDAoEcGF0aBgEIAEoCSqaAQoJRXZlbnRLaW5kEhoKFkVWRU5UX0tJTkRfVU5TUEVDSUZJRUQQABIVChFFVkVOVF9LSU5EX0NIQU5HRRABEhUKEUVWRU5UX0tJTkRfU0VSVkVSEAISFQoRRVZFTlRfS0lORF9BQ0NFU1MQAxIVChFFVkVOVF9LSU5EX0hFQUxUSBAEEhUKEUVWRU5UX0tJTkRfQkFDS1VQEAUy0gEKDEV2ZW50U2VydmljZRJoCgpMaXN0RXZlbnRzEh4uZG9ja3dlbGwudjEuTGlzdEV2ZW50c1JlcXVlc3QaHy5kb2Nrd2VsbC52MS5MaXN0RXZlbnRzUmVzcG9uc2UiGZACAaC7GAGC0+STAgwSCi92MS9ldmVudHMSWAoLV2F0Y2hFdmVudHMSHy5kb2Nrd2VsbC52MS5XYXRjaEV2ZW50c1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5XYXRjaEV2ZW50c1Jlc3BvbnNlIgSguxgBMAFCowEKD2NvbS5kb2Nrd2VsbC52MUIKRXZlbnRQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_health, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListEventsRequest asks for a page of events. The filters narrow it, and
@@ -254,8 +254,8 @@ export type Event = Message<"dockwell.v1.Event"> & {
 
   /**
    * What happened, as the audit log names it, such as "server.join",
-   * "auth.sign_in" or "token.create". A change's says where the change is:
-   * "change.planned", "change.applying", "change.applied" or
+   * "auth.sign_in", "token.create" or "backup.failed". A change's says where the
+   * change is: "change.planned", "change.applying", "change.applied" or
    * "change.failed".
    *
    * @generated from field: string action = 3;
@@ -311,6 +311,13 @@ export type Event = Message<"dockwell.v1.Event"> & {
    * @generated from field: dockwell.v1.EventHealth health = 9;
    */
   health?: EventHealth | undefined;
+
+  /**
+   * What became of a backup, for a backup event. Its subject is the volume.
+   *
+   * @generated from field: dockwell.v1.EventBackup backup = 10;
+   */
+  backup?: EventBackup | undefined;
 };
 
 /**
@@ -319,6 +326,62 @@ export type Event = Message<"dockwell.v1.Event"> & {
  */
 export const EventSchema: GenMessage<Event> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_event, 4);
+
+/**
+ * EventBackup is what became of one backup.
+ *
+ * @generated from message dockwell.v1.EventBackup
+ */
+export type EventBackup = Message<"dockwell.v1.EventBackup"> & {
+  /**
+   * The backup's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The volume, by name.
+   *
+   * @generated from field: string volume = 2;
+   */
+  volume: string;
+
+  /**
+   * The server, by name.
+   *
+   * @generated from field: string server_name = 3;
+   */
+  serverName: string;
+
+  /**
+   * How it was taken.
+   *
+   * @generated from field: dockwell.v1.BackupMethod method = 4;
+   */
+  method: BackupMethod;
+
+  /**
+   * Its size, in bytes.
+   *
+   * @generated from field: int64 size_bytes = 5;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * Why it failed, for people. Empty unless it did.
+   *
+   * @generated from field: string error = 6;
+   */
+  error: string;
+};
+
+/**
+ * Describes the message dockwell.v1.EventBackup.
+ * Use `create(EventBackupSchema)` to create a new message.
+ */
+export const EventBackupSchema: GenMessage<EventBackup> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_event, 5);
 
 /**
  * EventHealth is how a service's health changed on a server, as far as the
@@ -390,7 +453,7 @@ export type EventHealth = Message<"dockwell.v1.EventHealth"> & {
  * Use `create(EventHealthSchema)` to create a new message.
  */
 export const EventHealthSchema: GenMessage<EventHealth> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 5);
+  messageDesc(file_dockwell_v1_event, 6);
 
 /**
  * EventSubject names what an event is about.
@@ -437,7 +500,7 @@ export type EventSubject = Message<"dockwell.v1.EventSubject"> & {
  * Use `create(EventSubjectSchema)` to create a new message.
  */
 export const EventSubjectSchema: GenMessage<EventSubject> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 6);
+  messageDesc(file_dockwell_v1_event, 7);
 
 /**
  * EventKind sorts events, for filtering.
@@ -484,6 +547,13 @@ export enum EventKind {
    * @generated from enum value: EVENT_KIND_HEALTH = 4;
    */
   HEALTH = 4,
+
+  /**
+   * A backup was taken, failed or was deleted. Restoring one is a change.
+   *
+   * @generated from enum value: EVENT_KIND_BACKUP = 5;
+   */
+  BACKUP = 5,
 }
 
 /**

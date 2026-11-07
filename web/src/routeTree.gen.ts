@@ -17,6 +17,7 @@ import { Route as StatusRouteImport } from './routes/status'
 import { Route as ShellIndexRouteImport } from './routes/_shell/index'
 import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
 import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
+import { Route as ShellBackupsRouteImport } from './routes/_shell/backups'
 import { Route as ShellDomainsRouteImport } from './routes/_shell/domains'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellProfileRouteImport } from './routes/_shell/profile'
@@ -73,6 +74,11 @@ const ShellSectionRoute = ShellSectionRouteImport.update({
 const ShellActivityRoute = ShellActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellBackupsRoute = ShellBackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellDomainsRoute = ShellDomainsRouteImport.update({
@@ -179,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/activity': typeof ShellActivityRoute
+  '/backups': typeof ShellBackupsRoute
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByTo {
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/activity': typeof ShellActivityRoute
+  '/backups': typeof ShellBackupsRoute
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/status': typeof StatusRoute
   '/_shell/$section': typeof ShellSectionRoute
   '/_shell/activity': typeof ShellActivityRoute
+  '/_shell/backups': typeof ShellBackupsRoute
   '/_shell/domains': typeof ShellDomainsRoute
   '/_shell/more': typeof ShellMoreRoute
   '/_shell/profile': typeof ShellProfileRoute
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/$section'
     | '/activity'
+    | '/backups'
     | '/domains'
     | '/more'
     | '/profile'
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/$section'
     | '/activity'
+    | '/backups'
     | '/domains'
     | '/more'
     | '/profile'
@@ -316,6 +327,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/_shell/$section'
     | '/_shell/activity'
+    | '/_shell/backups'
     | '/_shell/domains'
     | '/_shell/more'
     | '/_shell/profile'
@@ -401,6 +413,13 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/activity'
       preLoaderRoute: typeof ShellActivityRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/backups': {
+      id: '/_shell/backups'
+      path: '/backups'
+      fullPath: '/backups'
+      preLoaderRoute: typeof ShellBackupsRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/domains': {
@@ -552,6 +571,7 @@ const ShellAppsServiceIdRouteWithChildren =
 interface ShellRouteChildren {
   ShellSectionRoute: typeof ShellSectionRoute
   ShellActivityRoute: typeof ShellActivityRoute
+  ShellBackupsRoute: typeof ShellBackupsRoute
   ShellDomainsRoute: typeof ShellDomainsRoute
   ShellMoreRoute: typeof ShellMoreRoute
   ShellProfileRoute: typeof ShellProfileRoute
@@ -572,6 +592,7 @@ interface ShellRouteChildren {
 const ShellRouteChildren: ShellRouteChildren = {
   ShellSectionRoute: ShellSectionRoute,
   ShellActivityRoute: ShellActivityRoute,
+  ShellBackupsRoute: ShellBackupsRoute,
   ShellDomainsRoute: ShellDomainsRoute,
   ShellMoreRoute: ShellMoreRoute,
   ShellProfileRoute: ShellProfileRoute,

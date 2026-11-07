@@ -704,6 +704,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if st.GetRestores() {
 				fmt.Fprintln(tw, "      Brings back the data the server kept. If the server no longer has it, applying fails, and nothing is made empty.")
 			}
+			for _, line := range restoreWords(st.GetRestore()) {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			if st.GetHidesLogs() {
 				fmt.Fprintln(tw, "      Its kept logs can't be read from then on, by any name, and go in 7 days. Undoing this brings them back.")
 			}
@@ -784,6 +787,34 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		}
 		fmt.Fprintf(w, "%s: %s.\n", label, message)
 	}
+}
+
+// restoreWords says what a step that restores a volume does: what it replaces, what
+// stops, and what stays.
+func restoreWords(r *dockwellv1.RestorePlan) []string {
+	if r == nil {
+		return nil
+	}
+	taken := r.GetTakenAt().AsTime().Local().Format("2 Jan 2006 15:04")
+	size := human.Size(r.GetSizeBytes())
+	var out []string
+	switch {
+	case r.GetUndoes() != "":
+		out = append(out, fmt.Sprintf("Replaces what's in the volume with what %s replaced on %s (%s).", r.GetUndoes(), taken, size))
+	case r.GetMethod() == dockwellv1.BackupMethod_BACKUP_METHOD_DUMP:
+		out = append(out, fmt.Sprintf("Replaces what's in the volume with a new %s holding the dump from %s (%s). What was made since goes.", r.GetDatabase(), taken, size))
+	case r.GetMethod() == dockwellv1.BackupMethod_BACKUP_METHOD_COPY_RUNNING:
+		out = append(out, fmt.Sprintf("Replaces what's in the volume with the copy from %s (%s). The app ran while it was copied, so it can hold half a write.", taken, size))
+	default:
+		out = append(out, fmt.Sprintf("Replaces what's in the volume with the copy from %s (%s).", taken, size))
+	}
+	if r.GetWrittenBy() != "" {
+		out = append(out, fmt.Sprintf("%s wrote these files, and %s runs on them now, so the database may not start. Deploy %s first and restore then, or restore a dump instead.", r.GetWrittenBy(), r.GetRunsOn(), r.GetWrittenBy()))
+	}
+	if stops := r.GetStops(); len(stops) > 0 {
+		out = append(out, "Stops "+human.List(stops)+" while it happens, and starts what it stopped again after.")
+	}
+	return append(out, "The server keeps what's there now for 7 days. Undoing this puts it back.")
 }
 
 // ingressWords says what a step does to its server's ingress.

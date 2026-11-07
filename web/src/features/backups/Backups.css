@@ -1,0 +1,118 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.backup-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.backup-sheet-line {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0;
+}
+
+.backup-sheet-line .dw-icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--ink-muted);
+}
+
+.backup-sheet-note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.backup-state {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.backup-why {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.backup-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.backup-phone-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.backup-phone {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.backup-phone li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.backup-phone li + li {
+  border-top: 1px solid var(--line);
+}
+
+.backup-phone-head {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-backups {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-backup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+}
+
+.app-backup + .app-backup {
+  border-top: 1px solid var(--line);
+}
+
+.app-backup-name {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--ink-muted);
+}
+
+.app-backup-name code {
+  color: var(--ink);
+}
+
+.app-backup-latest {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}

@@ -494,6 +494,18 @@ func message(state StepState, action resource.Action, ref resource.Ref, server s
 // stepMessage is message for a step, in its own words where it restarts a
 // resource, rather than replacing it for a new spec.
 func stepMessage(state StepState, st *resource.Step, server string) string {
+	if st.Restore != nil {
+		what := fmt.Sprintf("%s %s on %s", st.Ref.Kind, st.Ref.Name, server)
+		switch state {
+		case StepQueued:
+			return "Waiting to restore " + what
+		case StepRunning:
+			return "Restoring " + what
+		case StepDone:
+			return "Restored " + what
+		case StepFailed, StepSkipped, StepWaiting:
+		}
+	}
 	if st.Restart != "" {
 		what := fmt.Sprintf("%s %s on %s", st.Ref.Kind, st.Ref.Name, server)
 		switch state {
@@ -668,6 +680,7 @@ type Brief struct {
 	Intent      *Intent // what it is for, when the method that proposed it knows
 	Because     string
 	Restart     bool
+	Restore     bool // it puts a volume back from a backup
 }
 
 // Brief sums up the plan.
@@ -675,6 +688,7 @@ func (p *Plan) Brief() Brief {
 	return Brief{
 		Fingerprint: p.Fingerprint, Counts: p.Counts(), Destructive: p.Destructive(), HostAccess: p.HostAccess(), Intent: p.Intent, Because: p.Because,
 		Restart: slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Restart }),
+		Restore: slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.Restore != nil }),
 	}
 }
 
@@ -689,6 +703,7 @@ func brief(b []byte) (Brief, error) {
 			Action     resource.Action
 			HostAccess []resource.Access
 			Restart    bool
+			Restore    *resource.RestoreSource
 		}
 		Servers []struct {
 			Steps []struct {
@@ -704,6 +719,7 @@ func brief(b []byte) (Brief, error) {
 	p := Plan{Fingerprint: stored.Fingerprint, Intent: stored.Intent, Because: stored.Because, Resources: make([]ResourcePlan, len(stored.Resources)), Servers: make([]ServerPlan, len(stored.Servers))}
 	for i := range stored.Resources {
 		p.Resources[i].Action, p.Resources[i].HostAccess, p.Resources[i].Restart = stored.Resources[i].Action, stored.Resources[i].HostAccess, stored.Resources[i].Restart
+		p.Resources[i].Restore = stored.Resources[i].Restore
 	}
 	for i := range stored.Servers {
 		for _, st := range stored.Servers[i].Steps {
@@ -734,8 +750,9 @@ func (r *Record) EndedAt() time.Time {
 // one that isn't applied.
 func (r *Record) UndoDeadline() time.Time {
 	// A change that made no revision, as a pull that found nothing newer, has
-	// nothing to undo, and offering to would only be refused.
-	if r.State != store.ChangeApplied || r.AppliedAt.IsZero() || !r.MadeRevisions {
+	// nothing to undo, and offering to would only be refused. A restore makes none
+	// either, but what it replaced is there to put back.
+	if r.State != store.ChangeApplied || r.AppliedAt.IsZero() || !r.MadeRevisions && !r.Brief.Restore {
 		return time.Time{}
 	}
 	return r.AppliedAt.Add(UndoWindow)

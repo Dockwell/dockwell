@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -159,7 +160,29 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if m := s.Moves; m != nil {
 		p.Moves = &dockwellv1.RouteMove{Where: m.Where, From: m.From, To: m.To, ToPort: m.ToPort}
 	}
+	if r := s.Restore; r != nil {
+		p.Restore = &dockwellv1.RestorePlan{
+			BackupId: r.Backup, Undoes: r.Undoes, Method: BackupMethod(r.Method), Database: r.Database,
+			TakenAt: timestamppb.New(r.Taken), SizeBytes: r.Size, Stops: r.Stops, WrittenBy: r.WrittenBy, RunsOn: r.RunsOn,
+		}
+	}
 	return p
+}
+
+// backupMethods are how backups are taken, as the API has them.
+var backupMethods = map[string]dockwellv1.BackupMethod{
+	resource.BackupDump:        dockwellv1.BackupMethod_BACKUP_METHOD_DUMP,
+	resource.BackupCopy:        dockwellv1.BackupMethod_BACKUP_METHOD_COPY,
+	resource.BackupCopyRunning: dockwellv1.BackupMethod_BACKUP_METHOD_COPY_RUNNING,
+}
+
+// BackupMethod says how a backup was taken, as the API has it.
+func BackupMethod(m string) dockwellv1.BackupMethod { return backupMethods[m] }
+
+// BackupMethodFrom reads how a backup was taken from the API's word for it.
+func BackupMethodFrom(m dockwellv1.BackupMethod) string {
+	method, _ := from(backupMethods, m)
+	return method
 }
 
 var visitorsFind = map[resource.VisitorsFind]dockwellv1.VisitorsFind{
@@ -373,6 +396,12 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s.Rollout, s.Restart = fromRollout(p.GetRollout()), p.GetRestart()
 	if m := p.GetMoves(); m != nil {
 		s.Moves = &resource.RouteMove{Where: m.GetWhere(), From: m.GetFrom(), To: m.GetTo(), ToPort: m.GetToPort()}
+	}
+	if r := p.GetRestore(); r != nil {
+		s.Restore = &resource.RestorePlan{
+			Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Method: BackupMethodFrom(r.GetMethod()), Database: r.GetDatabase(),
+			Taken: r.GetTakenAt().AsTime(), Size: r.GetSizeBytes(), Stops: r.GetStops(), WrittenBy: r.GetWrittenBy(), RunsOn: r.GetRunsOn(),
+		}
 	}
 	return s, nil
 }

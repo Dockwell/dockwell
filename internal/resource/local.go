@@ -36,6 +36,9 @@ type Desired struct {
 	// Adopt takes on this container, by its full ID, as what the resource runs, in
 	// place of making one. Its kind is an Adopter.
 	Adopt string
+	// Restore brings the resource's data back from a backup, with its spec as it
+	// is. Its kind is a Restorer.
+	Restore *RestoreSource
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -246,7 +249,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore}, d
 	}
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
@@ -283,6 +286,22 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		}
 		if err != nil {
 			return nil, err
+		}
+		if want.Restore != nil {
+			r, ok := d.(Restorer)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't restore a %s from a backup", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := r.JudgeRestore(ctx, want.Ref, *want.Restore)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			step = Step{Ref: want.Ref}
+			if left {
+				step.Decision = dec
+			}
+			steps = append(steps, step)
+			continue
 		}
 		// An in-place update doesn't restart anything, so a restart replaces it.
 		settling := false
@@ -409,6 +428,17 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return fmt.Errorf("can't get the values %s uses: %w", step.Ref, err)
 		}
 		ctx = WithValues(ctx, values)
+	}
+	if step.Restore != nil {
+		r, ok := d.(Restorer)
+		if !ok {
+			return cantApply(step, fmt.Errorf("this agent can't restore a %s from a backup", step.Ref.Kind))
+		}
+		source := RestoreSource{Backup: step.Restore.Backup, Undoes: step.Restore.Undoes, Change: DeployOf(ctx).Change}
+		if err := r.ApplyRestore(ctx, step, source); err != nil {
+			return Plainly(fmt.Sprintf("Dockwell can't restore %s: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't restore %s: %w", step.Ref, err))
+		}
+		return nil
 	}
 	if !step.Finishing {
 		if err := d.Apply(ctx, step, desired); errors.Is(err, ErrAlreadySo) {

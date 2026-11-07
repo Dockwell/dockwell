@@ -49,6 +49,16 @@ msgstr "{0, plural, one {{lines} line from {source} not shown: this server share
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 
+#. placeholder {0}: running.length
+#: src/features/backups/BackUpSheet.tsx
+msgid "{0, plural, one {{list} runs on this volume} other {{list} run on this volume}}"
+msgstr "{0, plural, one {{list} runs on this volume} other {{list} run on this volume}}"
+
+#. placeholder {0}: restore.stops.length
+#: src/features/changes/notices.tsx
+msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
+msgstr "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
+
 #. placeholder {0}: state.servers.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {{servers} isn't connected} other {{servers} aren't connected}}"
@@ -73,6 +83,11 @@ msgstr "{0, plural, one {# app stops, and you can undo this until {deadline}.} o
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, one {# app stops.} other {# apps stop.}}"
+
+#. placeholder {0}: Number(b.filesChanged)
+#: src/features/backups/BackupsPage.tsx
+msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
+msgstr "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 
 #. placeholder {0}: lineCount(draft)
 #: src/features/files/FileViewer.tsx
@@ -328,6 +343,14 @@ msgstr "{count} unknown"
 #: src/features/servers/ServerPanels.tsx
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
+
+#: src/features/backups/words.ts
+msgid "{database} dump"
+msgstr "{database} dump"
+
+#: src/features/changes/notices.tsx
+msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 
 #: src/features/apps/DomainNote.tsx
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
@@ -949,6 +972,10 @@ msgstr "{where} leaves {from}, and goes to {to}."
 msgid "{where} leaves {from}, and goes to port {toPort} on the server."
 msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 
+#: src/features/changes/notices.tsx
+msgid "{writtenBy} wrote these files, and {runsOn} runs on them now"
+msgstr "{writtenBy} wrote these files, and {runsOn} runs on them now"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "+{left}"
 msgstr "+{left}"
@@ -1130,6 +1157,10 @@ msgstr "a {driver} network on {path}"
 msgid "a {type} mount ({reads})"
 msgstr "a {type} mount ({reads})"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
+msgstr "A backup is of a volume. Add one to an app, or install a database from the catalog."
+
 #: src/features/catalog/InstalledPanel.tsx
 msgid "A change to how {version} runs is out."
 msgstr "A change to how {version} runs is out."
@@ -1151,6 +1182,10 @@ msgstr "A container on the server's own network listens on the server's ports it
 msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 msgstr "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "A copy of a running app's files can hold half a write, and the app may not start from it."
+msgstr "A copy of a running app's files can hold half a write, and the app may not start from it."
+
 #: src/features/domains/DomainsPage.tsx
 msgid "A domain sends people to an app, so run one first."
 msgstr "A domain sends people to an app, so run one first."
@@ -1158,6 +1193,10 @@ msgstr "A domain sends people to an app, so run one first."
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "A MyISAM table written to during the dump may not come out consistent."
+msgstr "A MyISAM table written to during the dump may not come out consistent."
 
 #: src/features/changes/words.ts
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
@@ -1259,6 +1298,7 @@ msgstr "Across {cpus} vCPU"
 msgid "action"
 msgstr "action"
 
+#: src/features/backups/BackupsPage.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Actions"
@@ -1412,6 +1452,10 @@ msgstr "All"
 #: src/features/activity/ActivityPage.tsx
 msgid "All actors"
 msgstr "All actors"
+
+#: src/features/backups/AppBackups.tsx
+msgid "All backups"
+msgstr "All backups"
 
 #: src/features/logs/LogsPage.tsx
 msgid "All containers"
@@ -1634,6 +1678,10 @@ msgstr "Apps you run with Dockwell are under <0>Apps</0>."
 msgid "as {0}"
 msgstr "as {0}"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "Asking the server what this takes"
+msgstr "Asking the server what this takes"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
 msgstr "Authenticator app"
@@ -1659,13 +1707,41 @@ msgstr "Back to {folder}"
 msgid "Back to the server"
 msgstr "Back to the server"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "Back up"
+msgstr "Back up"
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "Back up {name}"
+msgstr "Back up {name}"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Back up a volume before you change what's in it. A database's backup stops nothing."
+msgstr "Back up a volume before you change what's in it. A database's backup stops nothing."
+
+#: src/features/backups/AppBackups.tsx
+#: src/features/backups/BackupsPage.tsx
+msgid "Back up now"
+msgstr "Back up now"
+
+#: src/features/activity/describe.ts
+msgid "Backed up {volume}"
+msgstr "Backed up {volume}"
+
 #: src/app/Providers.tsx
 msgid "backup"
 msgstr "backup"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/backups/AppBackups.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Backups, newest first"
+msgstr "Backups, newest first"
 
 #: src/features/domains/DomainsPage.tsx
 msgid "Behind a tunnel or a proxy"
@@ -1798,6 +1874,8 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -2178,6 +2256,10 @@ msgstr "Copy codes"
 msgid "Copy command"
 msgstr "Copy command"
 
+#: src/features/backups/words.ts
+msgid "Copy of a running app"
+msgstr "Copy of a running app"
+
 #: src/features/files/FilesPage.tsx
 msgid "Copy path {shown}"
 msgstr "Copy path {shown}"
@@ -2438,9 +2520,22 @@ msgstr "Delete {name}"
 msgid "Delete {subject}"
 msgstr "Delete {subject}"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "Delete it"
+msgstr "Delete it"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Delete this app"
 msgstr "Delete this app"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Delete this backup"
+msgstr "Delete this backup"
+
+#. placeholder {0}: backup.volume
+#: src/features/backups/BackupsPage.tsx
+msgid "Delete this backup of {0}"
+msgstr "Delete this backup of {0}"
 
 #: src/app/Providers.tsx
 msgid "deleted"
@@ -2452,6 +2547,10 @@ msgstr "deleted"
 #: src/features/changes/words.ts
 msgid "Deleted"
 msgstr "Deleted"
+
+#: src/features/activity/describe.ts
+msgid "Deleted a backup of {volume}"
+msgstr "Deleted a backup of {volume}"
 
 #: src/features/changes/words.ts
 msgid "Deleting"
@@ -2662,6 +2761,14 @@ msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and 
 msgid "Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
 msgstr "Dockwell can't make one yet. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "Dockwell can't reach what this would back up"
+msgstr "Dockwell can't reach what this would back up"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Dockwell can't read its backups"
+msgstr "Dockwell can't read its backups"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell can't read what {name} runs"
@@ -2841,6 +2948,7 @@ msgid "Domains"
 msgstr "Domains"
 
 #: src/features/auth/TokensPanel.tsx
+#: src/features/backups/words.ts
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
 msgid "Done"
@@ -2997,8 +3105,20 @@ msgid "Events: {caption}"
 msgstr "Events: {caption}"
 
 #: src/features/activity/ActivityPage.tsx
-msgid "Every change, server event, access grant and change of health, newest first"
-msgstr "Every change, server event, access grant and change of health, newest first"
+msgid "Every change, server event, access grant, change of health and backup, newest first"
+msgstr "Every change, server event, access grant, change of health and backup, newest first"
+
+#: src/features/changes/notices.tsx
+msgid "Everything in {name} on {server} goes back to what was there before the restore"
+msgstr "Everything in {name} on {server} goes back to what was there before the restore"
+
+#: src/features/changes/notices.tsx
+msgid "Everything in {name} on {server} is replaced with the copy from {taken}"
+msgstr "Everything in {name} on {server} is replaced with the copy from {taken}"
+
+#: src/features/changes/notices.tsx
+msgid "Everything in {name} on {server} is replaced with the dump from {taken}"
+msgstr "Everything in {name} on {server} is replaced with the dump from {taken}"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Everything is back as it was"
@@ -3015,6 +3135,10 @@ msgstr "Everything stays as it was"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "Everything this plan asks for is already as it says, so there is nothing to apply."
+
+#: src/features/backups/words.ts
+msgid "Exact copy"
+msgstr "Exact copy"
 
 #: src/features/apps/DomainNote.tsx
 #: src/features/auth/ClaimPage.tsx
@@ -3049,6 +3173,7 @@ msgstr "failed"
 #: src/features/apps/DomainNote.tsx
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 msgid "Failed"
 msgstr "Failed"
@@ -3060,6 +3185,10 @@ msgstr "Failing"
 #: src/features/servers/ServerFrame.tsx
 msgid "Files"
 msgstr "Files"
+
+#: src/features/changes/notices.tsx
+msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
+msgstr "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 
 #: src/features/files/FilesPage.tsx
 msgid "Files in {shown}"
@@ -3306,6 +3435,10 @@ msgstr "Hostname"
 #: src/app/Providers.tsx
 msgid "Hover or focus a server to inspect it."
 msgstr "Hover or focus a server to inspect it."
+
+#: src/features/backups/BackupsPage.tsx
+msgid "How"
+msgstr "How"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
@@ -3595,6 +3728,10 @@ msgstr "It runs through the Compose project {project}. Until Dockwell changes it
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
 msgstr "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does."
+msgstr "It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does."
+
 #: src/features/apps/AppOverview.tsx
 msgid "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
 msgstr "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
@@ -3618,6 +3755,10 @@ msgstr "It was made without rotation, so its log can fill the disk. Dockwell did
 #: src/features/logs/LogNote.tsx
 msgid "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
 msgstr "It was made without rotation, so its log can fill the disk. Dockwell sets rotation on the containers it makes, so the next deploy of this app fixes it."
+
+#: src/features/backups/BackupsPage.tsx
+msgid "It wasn't deleted"
+msgstr "It wasn't deleted"
 
 #: src/features/logs/LogNote.tsx
 msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
@@ -4216,6 +4357,10 @@ msgstr "No backup is taken first"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "No backup was taken, and the data stays as it is now"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "No backups yet"
+msgstr "No backups yet"
+
 #: src/features/servers/ContainersPanel.tsx
 msgid "No container matches this filter."
 msgstr "No container matches this filter."
@@ -4336,6 +4481,10 @@ msgstr "None. Without one, Running only means it started."
 #: src/features/servers/ServerPanels.tsx
 msgid "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
 msgstr "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
+
+#: src/features/backups/AppBackups.tsx
+msgid "Not backed up yet"
+msgstr "Not backed up yet"
 
 #: src/features/apps/DomainNote.tsx
 #: src/features/domains/DomainsPage.tsx
@@ -4498,6 +4647,10 @@ msgstr "Nothing outside the server reaches it yet. Other apps on its network do.
 msgid "Nothing outside the server reaches these yet."
 msgstr "Nothing outside the server reaches these yet."
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "Nothing runs on this volume, so the copy is exact."
+msgstr "Nothing runs on this volume, so the copy is exact."
+
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -4507,6 +4660,10 @@ msgstr "Nothing runs until you apply the plan"
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing starts it again on its own. Restart it, or deploy."
 msgstr "Nothing starts it again on its own. Restart it, or deploy."
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Nothing to back up yet"
+msgstr "Nothing to back up yet"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing to change"
@@ -4556,6 +4713,10 @@ msgstr "On {networks}, other services can reach the new container by its service
 #: src/features/apps/DomainNote.tsx
 msgid "On <0>{held}</0>"
 msgstr "On <0>{held}</0>"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "On each server's own disk, unencrypted, so they go if the server does"
+msgstr "On each server's own disk, unencrypted, so they go if the server does"
 
 #. placeholder {0}: check.http.port
 #: src/features/apps/AppOverview.tsx
@@ -5390,6 +5551,10 @@ msgstr "replaced"
 msgid "Replaced"
 msgstr "Replaced"
 
+#: src/features/changes/fields.tsx
+msgid "replaced, and undoing this puts it back"
+msgstr "replaced, and undoing this puts it back"
+
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "Replacing"
@@ -5436,6 +5601,10 @@ msgstr "Restarting"
 #: src/features/changes/words.ts
 msgid "Restarts"
 msgstr "Restarts"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Restore"
+msgstr "Restore"
 
 #: src/app/Providers.tsx
 msgid "Results"
@@ -5682,6 +5851,7 @@ msgstr "Run this on the server over SSH. It prints a sign-in link that works onc
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/servers/containers.ts
 msgid "Running"
@@ -6106,7 +6276,9 @@ msgstr "Signing out everywhere else keeps this browser signed in. A session ends
 msgid "Signing you in with a one-time link"
 msgstr "Signing you in with a one-time link"
 
+#: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
 msgid "Size"
 msgstr "Size"
@@ -6176,6 +6348,10 @@ msgstr "Start of the log"
 msgid "Start with read only, and allow writes only when the job needs them."
 msgstr "Start with read only, and allow writes only when the job needs them."
 
+#: src/features/backups/BackupsPage.tsx
+msgid "Started"
+msgstr "Started"
+
 #: src/features/apps/Health.tsx
 msgid "Starting"
 msgstr "Starting"
@@ -6188,6 +6364,7 @@ msgstr "State"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
@@ -6204,6 +6381,10 @@ msgstr "Steps by server"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Steps run one at a time on each server, servers side by side."
 msgstr "Steps run one at a time on each server, servers side by side."
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "Stop {list} while it copies"
+msgstr "Stop {list} while it copies"
 
 #: src/features/apps/DeploySheet.tsx
 msgid "Stop what uses it on this server, then deploy again."
@@ -6292,6 +6473,10 @@ msgstr "That code doesn't match. Check that your phone's clock is right, then en
 msgid "That code was already used. Wait for the next one in your authenticator app."
 msgstr "That code was already used. Wait for the next one in your authenticator app."
 
+#: src/features/changes/notices.tsx
+msgid "That copy is {size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+msgstr "That copy is {size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "That didn't apply"
 msgstr "That didn't apply"
@@ -6347,6 +6532,10 @@ msgstr "That was the last try. 5 wrong codes ended this setup, and its key no lo
 #: src/features/auth/messages.ts
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "That would leave you no way to sign in. Add another passkey or an authenticator app first."
+
+#: src/features/changes/notices.tsx
+msgid "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
+msgstr "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
 
 #: src/features/changes/notices.tsx
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
@@ -6412,6 +6601,10 @@ msgstr "The API"
 msgid "The authenticator app isn't set up yet"
 msgstr "The authenticator app isn't set up yet"
 
+#: src/features/activity/describe.ts
+msgid "The backup of {volume} failed"
+msgstr "The backup of {volume} failed"
+
 #: src/features/auth/messages.ts
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "The browser couldn't finish with the passkey. Try again, or use another device."
@@ -6459,6 +6652,10 @@ msgstr "The control plane refused this because it didn't come from the panel's o
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
 msgstr "the control plane runs {controlPlane}"
+
+#: src/features/changes/notices.tsx
+msgid "The database may not start on files from another release. Deploy {writtenBy} first and restore then, or restore a dump instead."
+msgstr "The database may not start on files from another release. Deploy {writtenBy} first and restore then, or restore a dump instead."
 
 #: src/features/apps/AppOverview.tsx
 msgid "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
@@ -6749,6 +6946,10 @@ msgstr "This app runs with only what its image sets."
 msgid "this app wrote faster than a live view can carry."
 msgstr "this app wrote faster than a live view can carry."
 
+#: src/features/backups/BackupsPage.tsx
+msgid "This backup failed, so nothing is on the server. This removes the record of it."
+msgstr "This backup failed, so nothing is on the server. This removes the record of it."
+
 #: src/features/auth/SessionsPanel.tsx
 msgid "This browser"
 msgstr "This browser"
@@ -6814,6 +7015,10 @@ msgstr "This container's log has no limit on {0}"
 msgid "This control plane"
 msgstr "This control plane"
 
+#: src/features/changes/notices.tsx
+msgid "This copy was taken with the app running"
+msgstr "This copy was taken with the app running"
+
 #: src/features/logs/LogsPage.tsx
 msgid "This deploy's logs are gone"
 msgstr "This deploy's logs are gone"
@@ -6821,6 +7026,10 @@ msgstr "This deploy's logs are gone"
 #: src/features/auth/messages.ts
 msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
 msgstr "This device already has a passkey for your account here. Use it, or pick another device or security key."
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "This didn't start"
+msgstr "This didn't start"
 
 #: src/features/files/FileViewer.tsx
 msgid "This file can't be edited here"
@@ -6928,6 +7137,10 @@ msgstr "This reaches <0>{source}</0> on the server. You approve this in the plan
 msgid "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 msgstr "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "This removes it from the server's disk. Nothing brings it back."
+msgstr "This removes it from the server's disk. Nothing brings it back."
+
 #: src/features/files/FileViewer.tsx
 msgid "This save may still land"
 msgstr "This save may still land"
@@ -6967,6 +7180,11 @@ msgstr "This stopped before it changed anything on the server."
 #: src/features/changes/RollbackLine.tsx
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "This stopped before it reached that, and Dockwell put back the rest."
+
+#. placeholder {0}: said.database
+#: src/features/backups/BackUpSheet.tsx
+msgid "This uses {0}'s own dump, with the database running, so nothing stops. A dump restores on a newer version too."
+msgstr "This uses {0}'s own dump, with the database running, so nothing stops. A dump restores on a newer version too."
 
 #: src/features/logs/LogsPage.tsx
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
@@ -7058,6 +7276,7 @@ msgid "Too many wrong codes. Wait a moment, then try again."
 msgstr "Too many wrong codes. Wait a moment, then try again."
 
 #: src/features/apps/AppDeployments.tsx
+#: src/features/backups/BackupsPage.tsx
 msgid "Took"
 msgstr "Took"
 
@@ -7201,6 +7420,7 @@ msgstr "Unhealthy"
 #: src/app/Providers.tsx
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
+#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/overview/Overview.tsx
 #: src/features/servers/containers.ts
@@ -7459,6 +7679,12 @@ msgstr "visitors lose {lost}"
 msgid "volume"
 msgstr "volume"
 
+#: src/features/activity/ActivityPage.tsx
+#: src/features/backups/BackUpSheet.tsx
+#: src/features/backups/BackupsPage.tsx
+msgid "Volume"
+msgstr "Volume"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Volume or server path"
 msgstr "Volume or server path"
@@ -7551,6 +7777,10 @@ msgstr "What ran before this failed may have changed the data, such as with a mi
 msgid "What runs"
 msgstr "What runs"
 
+#: src/features/backups/BackUpSheet.tsx
+msgid "What runs keeps running, and the backup says it was copied running."
+msgstr "What runs keeps running, and the backup says it was copied running."
+
 #: src/features/changes/words.ts
 msgid "what runs on {server} itself"
 msgstr "what runs on {server} itself"
@@ -7558,6 +7788,14 @@ msgstr "what runs on {server} itself"
 #: src/features/apps/AppsPage.tsx
 msgid "What runs on your servers isn't affected."
 msgstr "What runs on your servers isn't affected."
+
+#: src/features/backups/BackUpSheet.tsx
+msgid "What stops starts again once the copy ends, however that goes. The copy is exact."
+msgstr "What stops starts again once the copy ends, however that goes. The copy is exact."
+
+#: src/features/changes/notices.tsx
+msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
+msgstr "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
@@ -7667,6 +7905,10 @@ msgstr "Who"
 #: src/features/changes/words.ts
 msgid "whoever comes through {list}"
 msgstr "whoever comes through {list}"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Why it failed"
+msgstr "Why it failed"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Without a volume, what it writes is lost when its container is replaced."

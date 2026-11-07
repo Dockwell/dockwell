@@ -30,6 +30,10 @@ type Config struct {
 	Healthcheck  *Healthcheck        `json:"Healthcheck,omitempty"`
 	// Tty is whether it has a terminal, which makes its log plain lines.
 	Tty bool `json:"Tty,omitempty"`
+	// OpenStdin keeps its stdin open for what attaches, and StdinOnce closes it
+	// when that hangs up, which is how it hears the end of what it's given.
+	OpenStdin bool `json:"OpenStdin,omitempty"`
+	StdinOnce bool `json:"StdinOnce,omitempty"`
 	// Volumes are the paths its image declares with VOLUME, as an image's reads.
 	// Docker makes an empty volume at each that nothing else is mounted at.
 	Volumes map[string]struct{} `json:"Volumes,omitempty"`

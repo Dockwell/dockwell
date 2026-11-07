@@ -428,7 +428,11 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if err != nil {
 				return fail(err)
 			}
-			desired = append(desired, resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()})
+			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()}
+			if r := d.GetRestore(); r != nil {
+				want.Restore = &resource.RestoreSource{Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Change: r.GetChangeId()}
+			}
+			desired = append(desired, want)
 		}
 		steps, err := c.local.Plan(ctx, desired)
 		if err != nil {
@@ -530,6 +534,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Adoption{Adoption: found}}
+	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil:
+		if c.cfg.Backups == nil {
+			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))
+		}
+		result, err := c.runBackup(ctx, call)
+		if err != nil {
+			return fail(err)
+		}
+		return result
 	}
 	if f := call.GetForgotten(); f != nil {
 		if c.cfg.Logs != nil {
@@ -570,6 +583,30 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",
 	}}}
+}
+
+// runBackup carries out a call about backups.
+func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.CallResult, error) {
+	switch {
+	case call.GetBackupPreview() != nil:
+		out, err := c.cfg.Backups.Preview(ctx, call.GetBackupPreview())
+		if err != nil {
+			return nil, err
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_BackupPreview{BackupPreview: out}}, nil
+	case call.GetBackup() != nil:
+		progress := c.progress(call.GetId())
+		defer progress.stop()
+		out, err := c.cfg.Backups.Take(resource.WithProgress(ctx, progress.say), call.GetBackup())
+		if err != nil {
+			return nil, err
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Backup{Backup: out}}, nil
+	}
+	if err := c.cfg.Backups.Delete(ctx, call.GetDeleteBackup()); err != nil {
+		return nil, err
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteBackup{DeleteBackup: &agentv1.DeleteBackupResult{}}}, nil
 }
 
 // progressEvery is how often a call says how it is going, at most.

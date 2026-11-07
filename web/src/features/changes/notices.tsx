@@ -1,10 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type HostAccess, HostAccessKind, IntentKind, type Plan, PlanWarning } from "@dockwell/api";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
+import {
+  BackupMethod,
+  type HostAccess,
+  HostAccessKind,
+  IntentKind,
+  type Plan,
+  PlanWarning,
+  type RestorePlan,
+} from "@dockwell/api";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
+import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { asGoodAsRoot, changing, factAndRest, onlyIfNewer, reloadsProxy, shownName, startsStopped } from "./plan";
 import { namesARange, plain, type RolloutLine, useChangeWords } from "./words";
@@ -20,6 +30,8 @@ export interface Notice {
   trust?: boolean;
   /** Something to know that someone may well have chosen, so it stands out, and isn't an alarm. */
   notice?: boolean;
+  /** A risk of how this goes, not of what it does, so it's amber beside what's red. */
+  amber?: boolean;
 }
 
 /** Everything a plan says it reaches, on its resources and its steps. */
@@ -320,8 +332,67 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
  * for its fingerprint. They come from the plan as it is, so a plan undoing or
  * rolling back reads the same as a first deploy.
  */
+/** What a restore replaces, and what stops for it, plainly: it's why the plan needs a person. */
+function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, server: string) => Notice[] {
+  const { t, i18n } = useLingui();
+  return (restore, name, key, server) => {
+    const taken = restore.takenAt ? formatDateTime(timestampDate(restore.takenAt), i18n.locale) : "";
+    const size = formatBytes(restore.sizeBytes, i18n.locale);
+    const database = restore.database;
+    const list = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(restore.stops);
+    const out: Notice[] = [];
+    if (restore.undoes !== "") {
+      out.push({
+        key: `restore-${key}`,
+        title: t`Everything in ${name} on ${server} goes back to what was there before the restore`,
+        detail: t`That's what the server kept on ${taken}, ${size}. What's in the volume now goes to a copy the server keeps for 7 days.`,
+      });
+    } else if (restore.method === BackupMethod.DUMP) {
+      out.push({
+        key: `restore-${key}`,
+        title: t`Everything in ${name} on ${server} is replaced with the dump from ${taken}`,
+        detail: t`${database} starts anew on an empty volume and loads the dump, ${size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back.`,
+      });
+    } else {
+      out.push({
+        key: `restore-${key}`,
+        title: t`Everything in ${name} on ${server} is replaced with the copy from ${taken}`,
+        detail: t`That copy is ${size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back.`,
+      });
+    }
+    if (restore.method === BackupMethod.COPY_RUNNING) {
+      out.push({
+        key: `restore-running-${key}`,
+        title: t`This copy was taken with the app running`,
+        detail: t`Files changed as they were read, so it can hold half a write, and the app may not start from it.`,
+      });
+    }
+    if (restore.stops.length > 0) {
+      out.push({
+        key: `restore-stops-${key}`,
+        title: plural(restore.stops.length, {
+          one: `${list} stops while this happens`,
+          other: `${list} stop while this happens`,
+        }),
+        detail: t`What stops starts again once the volume is restored. If the restore fails, what's there now goes back first.`,
+      });
+    }
+    if (restore.writtenBy !== "") {
+      const { writtenBy, runsOn } = restore;
+      out.push({
+        key: `restore-release-${key}`,
+        amber: true,
+        title: t`${writtenBy} wrote these files, and ${runsOn} runs on them now`,
+        detail: t`The database may not start on files from another release. Deploy ${writtenBy} first and restore then, or restore a dump instead.`,
+      });
+    }
+    return out;
+  };
+}
+
 export function useRisks(plan: Plan | undefined): Notice[] {
   const { t } = useLingui();
+  const restoreNotices = useRestoreNotices();
   const { root } = useReaches(plan);
   if (!plan) return [];
   const out: Notice[] = [...root];
@@ -330,7 +401,9 @@ export function useRisks(plan: Plan | undefined): Notice[] {
     for (const step of server.steps) {
       const name = step.resource?.name ?? step.resourceId;
       const key = `${server.serverId}/${step.resourceId}`;
-      if (step.keptPaths.length > 0) {
+      if (step.restore) {
+        out.push(...restoreNotices(step.restore, name, key, server.serverName));
+      } else if (step.keptPaths.length > 0) {
         const paths = step.keptPaths.join(", ");
         out.push({
           key: `data-${key}`,

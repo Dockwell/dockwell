@@ -16,6 +16,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/logging"
+	"github.com/dockwell/dockwell/internal/volumetool"
 )
 
 // Exit codes.
@@ -244,6 +245,18 @@ func agentCommands(stdio IO, g *globalFlags) []*cobra.Command {
 		newRunCmd(stdio, g),
 		newJoinCmd(stdio, g),
 		newRoleCmd(stdio, g),
+		{
+			// What the agent runs in a throwaway container to read or write a
+			// volume's bytes (ADR 0033).
+			Use:                volumetool.Command,
+			Hidden:             true,
+			DisableFlagParsing: true,
+			Run: func(_ *cobra.Command, args []string) {
+				if code := volumetool.Main(args, stdio.In, stdio.Out, stdio.Err); code != 0 {
+					os.Exit(code)
+				}
+			},
+		},
 	}
 }
 

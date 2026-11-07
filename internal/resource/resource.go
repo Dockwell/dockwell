@@ -197,6 +197,9 @@ type Decision struct {
 	// never stops a plan, and a fingerprint leaves it out, as people often
 	// set DNS after.
 	Domain *DomainCheck `json:",omitempty"`
+	// Restore says what a step that brings a volume's data back from a backup
+	// does. Its fingerprint covers it, so what stops can't change unreviewed.
+	Restore *RestorePlan `json:",omitempty"`
 	// Returning names stopped containers Docker starts again when it next
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
@@ -380,11 +383,58 @@ func (r *RolloutPlan) TwoWriters() bool {
 // long it may wait on a health check, on what is in flight, and on old
 // containers to stop. An agent's call for the step gets this much more time.
 func (d Decision) Budget() time.Duration {
+	if d.Restore != nil {
+		return restoreBudget(d.Restore.Size)
+	}
 	b := max(d.Downtime, d.UntilHealthy)
 	if r := d.Rollout; r != nil {
 		b += r.HealthyWithin + r.Soak + r.Drain + r.StopGrace
 	}
 	return b
+}
+
+// How a backup was taken.
+const (
+	// BackupDump is the database's own dump.
+	BackupDump = "dump"
+	// BackupCopy is a copy of a volume's files with nothing running on them.
+	BackupCopy = "copy"
+	// BackupCopyRunning is a copy of a volume's files with its app running.
+	BackupCopyRunning = "copy_running"
+)
+
+// RestoreSource is what a restore brings back: a backup, or what a change
+// replaced, which its server keeps for 7 days. Change names the change that
+// restores, which it does once (ADR 0033).
+type RestoreSource struct {
+	Backup string `json:",omitempty"`
+	// Undoes is a change that restored, for undoing it.
+	Undoes string `json:",omitempty"`
+	Change string `json:",omitempty"`
+	// Server is the server that holds it, by ID, the one place it can happen.
+	Server string `json:",omitempty"`
+}
+
+// RestorePlan is what a step that restores a volume does, for people to read.
+type RestorePlan struct {
+	// Backup is the backup it brings back, and Undoes the change it undoes
+	// when it puts back what that replaced.
+	Backup string `json:",omitempty"`
+	Undoes string `json:",omitempty"`
+	// Method is how what it brings back was taken: BackupDump and so on.
+	Method string
+	// Database names the database of a dump, such as PostgreSQL.
+	Database string `json:",omitempty"`
+	// Taken is when it was taken, and Size how large it is, in bytes.
+	Taken time.Time
+	Size  int64
+	// Stops names what stops while it happens, sorted: services by their names,
+	// and anything else by its container's.
+	Stops []string `json:",omitempty"`
+	// WrittenBy is the image that wrote a copy of a database's files, and RunsOn the
+	// one that would read them, set when those are different releases.
+	WrittenBy string `json:",omitempty"`
+	RunsOn    string `json:",omitempty"`
 }
 
 // IngressChange is what happens to the proxy that holds a server's public
@@ -771,6 +821,24 @@ type Keeper interface {
 // Empty means nothing.
 type Kept struct {
 	Reason, Words, Stays string
+}
+
+// restoreBudget is how long a restore may take, past what any step gets: stopping
+// and starting aside, it copies what's there, then unpacks or loads what it brings
+// back, each at no worse than a megabyte a second.
+func restoreBudget(size int64) time.Duration {
+	return time.Hour + 3*time.Duration(size/(1<<20))*time.Second
+}
+
+// Restorer is a driver that can bring a resource's data back from a backup. A
+// restore changes no spec, so it makes no revision, as a restart doesn't, and it
+// runs once for a change (ADR 0033).
+type Restorer interface {
+	// JudgeRestore judges a step that restores source, and reports false when the
+	// change has done that already.
+	JudgeRestore(ctx context.Context, ref Ref, source RestoreSource) (Decision, bool, error)
+	// ApplyRestore carries out the step.
+	ApplyRestore(ctx context.Context, step Step, source RestoreSource) error
 }
 
 // HostAccesser is a kind whose specs can reach their server beyond what
