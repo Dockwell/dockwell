@@ -185,8 +185,8 @@ func Check(e *catalogv1.Entry) error {
 			return fmt.Errorf("the input %q needs a name a Compose file can use, in capitals, such as ADMIN_PORT", name)
 		case seen[name]:
 			return fmt.Errorf("two inputs are named %s. Rename one", name)
-		case !strings.Contains(e.GetCompose(), "${"+name+"}"):
-			return fmt.Errorf("its Compose file doesn't use the input %s. Use it as ${%s}, or remove it", name, name)
+		case !strings.Contains(e.GetCompose(), "${"+name+"}") && !strings.Contains(e.GetCompose(), "${"+name+":-"):
+			return fmt.Errorf("its Compose file doesn't use the input %s. Use it as ${%s}, or as ${%s:-default}, or remove it", name, name, name)
 		case in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET && in.GetDefaultValue() != "":
 			return fmt.Errorf("the secret %s has a default, which everyone who installs it would share. Set generate, or leave it to a person", name)
 		case in.GetGenerate() > 0 && in.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET:
