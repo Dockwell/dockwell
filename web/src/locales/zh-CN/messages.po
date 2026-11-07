@@ -69,6 +69,11 @@ msgstr "{0, plural, other {{servers} 未连接}}"
 msgid "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
 msgstr "{0, plural, other {已加载的 {total} 行中有 {shown} 行匹配。}}"
 
+#. placeholder {0}: list.length
+#: src/features/settings/TokensPointer.tsx
+msgid "{0, plural, one {# acts for you} other {# act for you}}"
+msgstr "{0, plural, other {# 个令牌代表你行事}}"
+
 #. placeholder {0}: live.length
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0, plural, one {# app is deployed} other {# apps are deployed}}"
@@ -237,6 +242,11 @@ msgstr "{0} 项待重启"
 msgid "{0} to update"
 msgstr "{0} 项待更新"
 
+#. placeholder {0}: list.length
+#: src/features/settings/TokensPage.tsx
+msgid "{0} tokens"
+msgstr "{0} 个令牌"
+
 #. placeholder {0}: inv.cpuCount
 #: src/features/auth/ClaimPage.tsx
 msgid "{0} vCPU"
@@ -263,6 +273,14 @@ msgstr "{0}，自 {1} 起"
 #: src/features/apps/AppOverview.tsx
 msgid "{0}. It was proposed with an API token, and its plan is one only a signed-in person may apply. Nothing changes until someone does."
 msgstr "{0}。它是用 API 令牌提出的，它的计划只有已登录的人才能应用。在有人应用之前，什么都不会改变。"
+
+#: src/features/settings/TokensPointer.tsx
+msgid "{acting}, and {expiring}."
+msgstr "{acting}，其中 {expiring}。"
+
+#: src/features/settings/TokensPointer.tsx
+msgid "{acting}."
+msgstr "{acting}。"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "{address}, private"
@@ -348,6 +366,14 @@ msgstr "{count, plural, other {自上一条记录以来又变化了 # 次。}}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, other {显示}}"
+
+#: src/features/settings/TokensPage.tsx
+msgid "{count} · {soon} expire soon"
+msgstr "{count} · {soon} 个即将过期"
+
+#: src/features/settings/TokensPage.tsx
+msgid "{count} · 1 expires soon"
+msgstr "{count} · 1 个即将过期"
 
 #: src/app/Providers.tsx
 msgid "{count} degraded"
@@ -973,6 +999,10 @@ msgstr "最新的 {shown} 个"
 msgid "{size} more not kept"
 msgstr "另有 {size} 未保留"
 
+#: src/features/settings/TokensPointer.tsx
+msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
+msgstr "{soon, plural, other {# 个将在两周内过期}}"
+
 #: src/features/logs/draw.ts
 msgid "{source} started {revision}"
 msgstr "{source} 启动了 {revision}"
@@ -1224,6 +1254,10 @@ msgstr "<0>{source}</0>，只读"
 msgid "1 h"
 msgstr "1 小时"
 
+#: src/features/settings/TokensPage.tsx
+msgid "1 token"
+msgstr "1 个令牌"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
 msgstr "1、5 和 15 分钟"
@@ -1446,10 +1480,15 @@ msgid "action"
 msgstr "动作"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/settings/TokensPage.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Actions"
 msgstr "操作"
+
+#: src/features/settings/TokensPage.tsx
+msgid "Active tokens"
+msgstr "有效的令牌"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/shell/Rail.tsx
@@ -1705,10 +1744,6 @@ msgstr "还会创建{list}"
 msgid "Also on {0}"
 msgstr "同时保存在 {0}"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
-msgstr "还能规划并应用可撤销的更改。绝不会删除数据或切断访问。"
-
 #: src/features/apps/words.ts
 msgid "Always"
 msgstr "始终"
@@ -1814,7 +1849,9 @@ msgstr "能读取此应用的任何人都能看到它。只有变量的值会被
 msgid "API token"
 msgstr "API 令牌"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/SettingsLayout.tsx
+#: src/features/settings/TokensPage.tsx
+#: src/features/settings/TokensPointer.tsx
 msgid "API tokens"
 msgstr "API 令牌"
 
@@ -2071,10 +2108,6 @@ msgstr "目前需手动"
 msgid "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
 msgstr "Caddy，即服务器的入口，在服务器有路由期间占用 80 和 443 端口"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Can read logs"
-msgstr "可以读取日志"
-
 #: src/features/apps/words.ts
 msgid "Can't be read"
 msgstr "无法读取"
@@ -2170,7 +2203,6 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
-#: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
@@ -2615,11 +2647,11 @@ msgstr "复制这些日志"
 msgid "Copy this line"
 msgstr "复制这一行"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Copy this token now. It won't be shown again."
 msgstr "请立即复制这个令牌。它不会再次显示。"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Copy token"
 msgstr "复制令牌"
 
@@ -2742,9 +2774,9 @@ msgstr "创建"
 msgid "Create a project"
 msgstr "创建项目"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Create an API token"
-msgstr "创建 API 令牌"
+#: src/features/settings/TokensPage.tsx
+msgid "Create a token"
+msgstr "创建令牌"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Create an environment"
@@ -2766,7 +2798,7 @@ msgstr "在 {projectName} 中创建环境 {name}"
 msgid "Create the project {name}"
 msgstr "创建项目 {name}"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Create token"
 msgstr "创建令牌"
 
@@ -2776,16 +2808,17 @@ msgstr "已创建"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
+#: src/features/settings/TokensPage.tsx
 msgid "Created"
 msgstr "已创建"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
-msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer</1> 加上令牌。它不会过期。"
+#: src/features/settings/TokensPage.tsx
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It doesn't expire."
+msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer</1> 加令牌的形式发送。它不会过期。"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
-msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer</1> 加上令牌。它将于 {expires} 过期。"
+#: src/features/settings/TokensPage.tsx
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer</1> 加令牌的形式发送。它将于 {expires} 过期。"
 
 #: src/features/activity/describe.ts
 msgid "Created an API token"
@@ -3144,6 +3177,10 @@ msgstr "Dockwell {short}：控制平面状态"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
+#: src/features/settings/TokensPage.tsx
+msgid "Dockwell can't list your tokens"
+msgstr "Dockwell 无法列出你的令牌"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "Dockwell can't reach what this would back up"
 msgstr "Dockwell 无法访问要备份的内容"
@@ -3350,10 +3387,6 @@ msgstr "此后 Dockwell 会把它作为服务运行，因此更换镜像是一�
 msgid "doesn't come back"
 msgstr "不再恢复"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "doesn't expire"
-msgstr "不会过期"
-
 #: src/app/Providers.tsx
 #: src/features/changes/fields.tsx
 msgid "domain"
@@ -3370,10 +3403,10 @@ msgstr "域名"
 msgid "Domains"
 msgstr "域名"
 
-#: src/features/auth/TokensPanel.tsx
 #: src/features/backups/words.ts
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
+#: src/features/settings/TokensPage.tsx
 msgid "Done"
 msgstr "完成"
 
@@ -3410,6 +3443,10 @@ msgstr "每份备份在离开服务器之前都会用它加密，因此存储服
 #: src/features/auth/TotpPanel.tsx
 msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
 msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的邮箱登录一次。它们只在此时显示。请把它们保存在安全的地方，不要和手机放在一起。"
+
+#: src/features/settings/TokensPage.tsx
+msgid "Each new address it's used from goes in the audit log"
+msgstr "每次从新地址使用都会记入审计日志"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
@@ -3584,17 +3621,9 @@ msgstr "精确副本"
 msgid "Expired"
 msgstr "已过期"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Expires"
 msgstr "过期时间"
-
-#: src/features/auth/TokensPanel.tsx
-msgid "expires {day}"
-msgstr "{day}过期"
-
-#: src/features/auth/TokensPanel.tsx
-msgid "Expires in {remaining}"
-msgstr "{remaining}后过期"
 
 #: src/features/apps/AppsPage.tsx
 msgid "Export"
@@ -3738,10 +3767,6 @@ msgstr "已持续 {span}"
 msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
 msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "For a script, the CLI or an integration"
-msgstr "用于脚本、CLI 或集成"
-
 #: src/features/apps/NewAppSheet.tsx
 msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
 msgstr "用于文件使用的变量。它只用于读取文件和生成计划，不会保存在此浏览器中，值只有在文件写入的地方才会留下记录。"
@@ -3759,6 +3784,11 @@ msgstr "从"
 #: src/features/apps/AppEnvironment.tsx
 msgid "From"
 msgstr "来源"
+
+#. placeholder {0}: token.lastAddress
+#: src/features/settings/TokensPage.tsx
+msgid "from <0>{0}</0>"
+msgstr "来自 <0>{0}</0>"
 
 #: src/features/settings/ControlPlanePage.tsx
 msgid "From elsewhere"
@@ -3897,6 +3927,10 @@ msgstr "隐藏"
 msgid "Hide {name}"
 msgstr "隐藏 {name}"
 
+#: src/features/settings/TokensPage.tsx
+msgid "Hide the token"
+msgstr "隐藏令牌"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Hide the value"
 msgstr "隐藏值"
@@ -3992,6 +4026,11 @@ msgstr "镜像"
 msgid "Image"
 msgstr "镜像"
 
+#. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
+#: src/features/settings/TokensPage.tsx
+msgid "in {0}"
+msgstr "{0}后"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "in {hours} h"
 msgstr "{hours} 小时后"
@@ -4012,15 +4051,15 @@ msgstr "时区 {zone}"
 msgid "In <0>{scope}</0>"
 msgstr "范围：<0>{scope}</0>"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "In 1 year"
 msgstr "1 年后"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "In 30 days"
 msgstr "30 天后"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "In 90 days"
 msgstr "90 天后"
 
@@ -4450,7 +4489,7 @@ msgid "Joined"
 msgstr "加入时间"
 
 #: src/features/auth/PasskeysPanel.tsx
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Keep"
 msgstr "保留"
 
@@ -4545,6 +4584,10 @@ msgstr "上次运行失败"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Last upload {0}"
 msgstr "上次上传 {0}"
+
+#: src/features/settings/TokensPage.tsx
+msgid "Last used"
+msgstr "上次使用"
 
 #. placeholder {0}: base.where
 #: src/features/files/FileViewer.tsx
@@ -4674,7 +4717,7 @@ msgstr "正在加载应用"
 msgid "Loading the plan"
 msgstr "正在加载计划"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Loading tokens"
 msgstr "正在加载令牌"
 
@@ -4695,10 +4738,6 @@ msgstr "日志筛选"
 #: src/features/logs/LogsPage.tsx
 msgid "Logs"
 msgstr "日志"
-
-#: src/features/auth/TokensPanel.tsx
-msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
-msgstr "日志中常含有应用打印的密钥，因此令牌只有在此处勾选后才能读取。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Logs often hold secrets that apps print, so reading them takes permission. Ask the owner of this install for it."
@@ -4781,6 +4820,10 @@ msgstr "请在 DNS 服务商处添加这些记录。"
 msgid "Make this record at your DNS provider."
 msgstr "请在 DNS 服务商处添加这条记录。"
 
+#: src/features/settings/TokensPointer.tsx
+msgid "Manage"
+msgstr "管理"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
 msgstr "跟随系统主题"
@@ -4845,12 +4888,12 @@ msgstr "换到另一个应用"
 #: src/features/apps/AppEnvironment.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/ClaimPage.tsx
-#: src/features/auth/TokensPanel.tsx
 #: src/features/backups/DestinationsPanel.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 #: src/features/settings/GeneralPage.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Name"
 msgstr "名称"
 
@@ -4894,7 +4937,7 @@ msgstr "为新环境命名，例如 staging"
 msgid "Name the new project, such as shop"
 msgstr "为新项目命名，例如 shop"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
 
@@ -4946,22 +4989,23 @@ msgstr "网络"
 
 #: src/features/apps/words.ts
 #: src/features/servers/ServerPanels.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Never"
 msgstr "从不"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgctxt "token expiry"
 msgid "Never"
 msgstr "从不"
 
 #: src/features/auth/PasskeysPanel.tsx
-#: src/features/auth/TokensPanel.tsx
 msgid "never used"
 msgstr "从未使用"
 
+#: src/features/settings/TokensPage.tsx
 #: src/features/shell/Topbar.tsx
 msgid "New"
-msgstr "新建"
+msgstr "新"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -5127,9 +5171,9 @@ msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token creat
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
-msgstr "还没有令牌。为每个脚本或集成各创建一个，这样就能单独撤销其中一个。"
+#: src/features/settings/TokensPage.tsx
+msgid "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
+msgstr "还没有令牌。请在下方为每个脚本或集成各创建一个，这样撤销其中一个时不会影响其他。"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "No undo"
@@ -5158,6 +5202,10 @@ msgstr "未设置"
 #: src/features/apps/AppOverview.tsx
 msgid "None set here. The image may have one."
 msgstr "这里没有设置。镜像可能自带检查。"
+
+#: src/features/settings/TokensPointer.tsx
+msgid "None yet. Make one for each script or integration that calls the API."
+msgstr "还没有。请为每个调用 API 的脚本或集成各创建一个。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "None. Without one, Running only means it started."
@@ -5865,6 +5913,10 @@ msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它
 msgid "Plan"
 msgstr "计划"
 
+#: src/features/settings/TokensPage.tsx
+msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
+msgstr "规划并应用可撤销的变更。绝不会删除数据或切断访问。"
+
 #: src/features/servers/ContainerPage.tsx
 msgid "Plan taking it on"
 msgstr "计划接管"
@@ -6202,17 +6254,17 @@ msgstr "阅读此次部署中 {name} 的日志"
 msgid "Read {path} on {server}"
 msgstr "已读取 {server} 上的 {path}"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Read and write"
-msgstr "读写"
+#: src/features/settings/TokensPage.tsx
+msgid "Read apps' logs, which often hold what apps shouldn't print."
+msgstr "读取应用日志，其中常含有应用不该打印的内容。"
 
 #: src/features/changes/notices.tsx
 msgid "Read it for the rest before you pass one a secret."
 msgstr "在向其中传入密钥之前，请先阅读文件中的其余部分。"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Read only"
-msgstr "只读"
+#: src/features/settings/TokensPage.tsx
+msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
+msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且不做任何更改。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Read the failed deploy's logs"
@@ -6280,14 +6332,6 @@ msgstr "正在读取这个文件夹"
 #: src/features/servers/ContainersPanel.tsx
 msgid "Reading what Docker runs here"
 msgstr "正在读取 Docker 在这里运行的内容"
-
-#: src/features/auth/TokensPanel.tsx
-msgid "Reads logs"
-msgstr "可读取日志"
-
-#: src/features/auth/TokensPanel.tsx
-msgid "Reads servers and their state. Changes nothing."
-msgstr "读取服务器及其状态，不做任何更改。"
 
 #: src/features/settings/ControlPlanePage.tsx
 msgid "Ready for more than one control plane"
@@ -6571,13 +6615,14 @@ msgstr "修订版本"
 msgid "Revisions of {appName}"
 msgstr "{appName} 的修订版本"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Revoke"
 msgstr "撤销"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Revoke {name}"
-msgstr "撤销 {name}"
+#. placeholder {0}: token.name
+#: src/features/settings/TokensPage.tsx
+msgid "Revoke {0}"
+msgstr "撤销 {0}"
 
 #: src/features/activity/describe.ts
 msgid "Revoked an API token"
@@ -6879,8 +6924,11 @@ msgid "Schedules"
 msgstr "备份计划"
 
 #: src/app/Providers.tsx
-#: src/features/auth/TokensPanel.tsx
 msgid "Scope"
+msgstr "范围"
+
+#: src/features/settings/TokensPage.tsx
+msgid "Scopes"
 msgstr "范围"
 
 #: src/features/backups/BackupsPage.tsx
@@ -7186,6 +7234,10 @@ msgstr "面板显示语言"
 msgid "Show the value"
 msgstr "显示值"
 
+#: src/features/settings/TokensPage.tsx
+msgid "Show the whole token"
+msgstr "显示完整令牌"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "Show them first"
@@ -7365,9 +7417,9 @@ msgstr "SQLite，在这台服务器上"
 msgid "Start of the log"
 msgstr "日志开头"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Start with read only, and allow writes only when the job needs them."
-msgstr "先从只读开始，只在任务需要时才允许写入。"
+#: src/features/settings/TokensPage.tsx
+msgid "Start with read access, and add only what the job needs."
+msgstr "从只读权限开始，只添加任务需要的权限。"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "Started"
@@ -7496,12 +7548,12 @@ msgid "Ten new codes replace the {left} you have now, and the old ones stop work
 msgstr "10 个新恢复码将替换你现有的 {left} 个，旧的会立即失效。新的恢复码只显示一次。"
 
 #: src/features/auth/messages.ts
-msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
-msgstr "这个 API 令牌是只读的，所以不能进行更改。请在“个人资料和安全”中创建读写令牌。"
+msgid "That API token is read-only, so it can't make changes. Create a read-write token in Settings, under API tokens."
+msgstr "这个 API 令牌是只读的，无法做出更改。请在设置的 API 令牌中创建一个可读写的令牌。"
 
 #: src/features/auth/messages.ts
-msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
-msgstr "这个 API 令牌无法识别、已撤销或已过期。请检查是否完整复制了它，或在“个人资料和安全”中创建新令牌。"
+msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one in Settings, under API tokens."
+msgstr "这个 API 令牌无法识别、已被撤销或已过期。请检查是否完整复制，或在设置的 API 令牌中创建一个新的。"
 
 #: src/features/auth/messages.ts
 msgid "That code didn't work. Check the email and the code, then try again."
@@ -7811,6 +7863,10 @@ msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称�
 msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
 
+#: src/features/settings/TokensPage.tsx
+msgid "The new token, partly hidden:"
+msgstr "新令牌，部分已隐藏："
+
 #. placeholder {0}: first.summary
 #: src/features/apps/AppOverview.tsx
 msgid "The newest is {0}. They were proposed with API tokens, and their plans are ones only a signed-in person may apply. Nothing changes until someone does; Activity lists them all."
@@ -7996,7 +8052,7 @@ msgstr "服务器上没有这个应用的日志。"
 msgid "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
 msgstr "登录页和浏览器标签页会显示它。留空时显示 Dockwell。"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "The token wasn't created"
 msgstr "令牌未创建"
 
@@ -8056,6 +8112,10 @@ msgstr "现在无法读取这些日志"
 #: src/features/servers/ContainersPanel.tsx
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "这些容器在 Dockwell 之前就已存在，或以其他方式运行。Dockwell 只读取它们，因此在这里查看不会改变任何内容，它们会照常运行。"
+
+#: src/features/settings/TokensPointer.tsx
+msgid "They're listed, made and revoked in <0>Settings, under API tokens</0>."
+msgstr "令牌的列出、创建和撤销都在<0>设置的 API 令牌</0>中。"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "This app"
@@ -8468,13 +8528,17 @@ msgstr "要升级，请以 root 身份在这台服务器上再次运行安装脚
 msgid "Today"
 msgstr "今天"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
+msgid "Token"
+msgstr "令牌"
+
+#: src/features/settings/TokensPage.tsx
 msgid "Token copied"
 msgstr "令牌已复制"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
-msgstr "令牌在脚本、CLI 和集成中代表你操作。任何令牌都不能删除数据、切断访问或更改你的登录方式。"
+#: src/features/settings/TokensPage.tsx
+msgid "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
+msgstr "令牌在 CI、脚本和 CLI 中代表你行事，权限仅限于你授予的范围"
 
 #: src/features/auth/messages.ts
 msgid "Too many requests from your address. Wait a minute, then try again."
@@ -8526,6 +8590,7 @@ msgstr "趋势"
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
 #: src/features/settings/ControlPlanePage.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "Try again"
 msgstr "重试"
 
@@ -8819,10 +8884,6 @@ msgstr "已用"
 msgid "used {0}"
 msgstr "{0}使用过"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "used {ago} from <0>{lastAddress}</0>"
-msgstr "{ago}从 <0>{lastAddress}</0> 使用过"
-
 #: src/features/variables/VariablesPage.tsx
 msgid "Used by"
 msgstr "使用者"
@@ -9113,7 +9174,7 @@ msgstr "搜索范围"
 msgid "What to show"
 msgstr "显示内容"
 
-#: src/features/auth/TokensPanel.tsx
+#: src/features/settings/TokensPage.tsx
 msgid "What will use this token?"
 msgstr "什么将使用这个令牌？"
 
@@ -9254,10 +9315,6 @@ msgstr "{name} 有未保存的更改"
 msgid "You name what connects to this server."
 msgstr "由你写明连接此服务器的来源。"
 
-#: src/features/auth/TokensPanel.tsx
-msgid "You see the token once, right after you create it."
-msgstr "令牌只在创建后立即显示一次。"
-
 #: src/features/auth/ClaimPage.tsx
 msgid "You sign in with it when you use a code."
 msgstr "使用验证码登录时需要它。"
@@ -9290,6 +9347,10 @@ msgstr "你尚未登录。请登录后重试。"
 msgid "You're offline"
 msgstr "你已离线"
 
+#: src/features/settings/TokensPage.tsx
+msgid "Your API tokens"
+msgstr "你的 API 令牌"
+
 #: src/features/apps/DomainRecord.tsx
 msgid "your domain"
 msgstr "你的域名"
@@ -9301,6 +9362,10 @@ msgstr "你的域名会自动获得证书。"
 #: src/features/auth/ClaimPage.tsx
 msgid "Your name"
 msgstr "你的姓名"
+
+#: src/features/settings/TokensPage.tsx
+msgid "Your passkey confirms it. You see the token once, right after you create it."
+msgstr "需要你的通行密钥确认。令牌只在创建后立即显示一次。"
 
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."

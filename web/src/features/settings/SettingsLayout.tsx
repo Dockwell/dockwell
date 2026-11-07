@@ -10,7 +10,7 @@ import "./Settings.css";
 
 /** A section of Settings, where it is, and the group it's in. */
 interface Section {
-  to: "/settings/general" | "/settings/control-plane" | "/profile";
+  to: "/settings/general" | "/settings/api-tokens" | "/settings/control-plane" | "/profile";
   label: string;
   icon: IconName;
 }
@@ -19,7 +19,13 @@ interface Section {
 function useSections(): { label: string; sections: Section[] }[] {
   const { t } = useLingui();
   return [
-    { label: t`Install`, sections: [{ to: "/settings/general", label: t`General`, icon: "settings" }] },
+    {
+      label: t`Install`,
+      sections: [
+        { to: "/settings/general", label: t`General`, icon: "settings" },
+        { to: "/settings/api-tokens", label: t`API tokens`, icon: "key" },
+      ],
+    },
     { label: t`Platform`, sections: [{ to: "/settings/control-plane", label: t`Control plane`, icon: "server" }] },
     { label: t`Account`, sections: [{ to: "/profile", label: t`Profile and security`, icon: "user" }] },
   ];
@@ -32,10 +38,11 @@ function useSections(): { label: string; sections: Section[] }[] {
  */
 export function SettingsLayout() {
   const phone = useMediaQuery(PHONE_QUERY);
-  if (phone) return <Outlet />;
+  // The page keeps its place in the tree at every width, so turning a phone or narrowing a window doesn't make it
+  // anew and lose what it holds, such as a token shown once.
   return (
-    <div className="settings">
-      <SettingsNav />
+    <div className={phone ? "settings is-phone" : "settings"}>
+      {phone ? null : <SettingsNav />}
       <div className="settings-page">
         <Outlet />
       </div>
