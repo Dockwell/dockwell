@@ -109,18 +109,19 @@ func onInterface(v looking) (sighting, bool) {
 	return sighting{}, false
 }
 
-// provedByDomain finds a certificate for a name whose record points at one public
-// address. That the certificate came is only as good as the last read of the record,
-// so a read must be fresh, and on a home or office network, where an address can change
-// under a record, a newer way out that disagrees overtakes it.
+// provedByDomain finds a certificate that showed a server answering at an address,
+// as far as the domain's record still reads as it did then, and the read is fresh. A
+// record of both families says nothing of either: a certificate authority falls back
+// from one to the other, so what came may have come over the other, whatever else is
+// known of it.
 func provedByDomain(v looking) (sighting, bool) {
 	for _, status := range v.l.domains {
-		cert, dns := status.GetCertificate(), status.GetDns()
-		if !served(cert) || !pointsHere(dns) || !fresh(dns, v.now) {
+		dns := status.GetDns()
+		if v.l.proofOf(status) == nil || !fresh(dns, v.now) || !oneFamily(dns) {
 			continue
 		}
 		address, ok := recordAddress(dns, v.four)
-		if !ok || overtaken(v.l, dns, address) {
+		if !ok {
 			continue
 		}
 		return sighting{
@@ -129,6 +130,12 @@ func provedByDomain(v looking) (sighting, bool) {
 		}, true
 	}
 	return sighting{}, false
+}
+
+// oneFamily reports a record of IPv4 alone or IPv6 alone.
+func oneFamily(dns *dockwellv1.DomainCheck) bool {
+	found := dns.GetFound()
+	return !slices.ContainsFunc(found, isFour) || !slices.ContainsFunc(found, func(s string) bool { return !isFour(s) })
 }
 
 // fresh reports DNS read recently enough to go by.
@@ -157,20 +164,6 @@ func recordAddress(dns *dockwellv1.DomainCheck, four bool) (string, bool) {
 		return "", false
 	}
 	return family[0], true
-}
-
-// overtaken reports a record a newer way out disagrees with, on a home or office
-// network. On a cloud they're allowed to differ, as a NAT gateway's way out does, and
-// the address behind a home router is the router's, in and out.
-func overtaken(l *live, dns *dockwellv1.DomainCheck, address string) bool {
-	if shapeOf(l) != dockwellv1.NetworkShape_NETWORK_SHAPE_LOCAL_NAT {
-		return false
-	}
-	read := dns.GetReadTime().AsTime()
-	newer := func(out string, at time.Time) bool {
-		return out != "" && out != address && isFour(out) == isFour(address) && at.After(read)
-	}
-	return newer(l.outside.GetLookedUpAddress(), l.outside.GetLookedUpTime().AsTime()) || newer(l.seen, l.seenAt)
 }
 
 // confirmed reports metadata from the provider the machine itself says it runs on.
@@ -261,7 +254,7 @@ func reachable(v looking, addresses ...string) (dockwellv1.Reachable, string, *t
 		if !fresh(dns, v.now) || !recordIsOneOf(dns, addresses) {
 			continue
 		}
-		if served(cert) {
+		if v.l.proofOf(status) != nil {
 			return dockwellv1.Reachable_REACHABLE_YES, status.GetDomain(), dns.GetReadTime()
 		}
 		if failed == nil && cert.GetProblem() == dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_CONNECTION {
@@ -393,13 +386,18 @@ func (h *Hub) RecordNetwork(server string, n *agentv1.Network) {
 
 func (h *Hub) update(server string, change func(*live)) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	l, ok := h.servers[server]
 	if !ok {
+		h.mu.Unlock()
 		return
 	}
 	change(l)
+	weighed := l.weighProofs(h.now())
 	h.refreshNetworkLocked(server, l)
+	h.mu.Unlock()
+	if weighed {
+		h.saveProofs(server)
+	}
 }
 
 // PublicAddress is what a server's agent should go by.

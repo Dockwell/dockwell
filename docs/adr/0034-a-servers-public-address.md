@@ -22,7 +22,7 @@ Five rules decide which address Dockwell may tell someone to point DNS at, and t
 1. **A way out never names a DNS target without the caveat,** unless a way-in source agrees with it. What STUN or the control plane sees is where packets leave from, wherever the server is: an Azure NAT gateway, an AWS private subnet and a proxy routing everything out of an Oracle server all leave somewhere the internet can't come back in. Being on a cloud doesn't change that, and a route out through a TUN device is the same case.
 2. **Metadata counts as a way in only where the machine says it runs on that provider.** Anything on a local network can answer at `169.254.169.254`, and it can't write the machine's firmware tables, which the agent reads the way cloud-init does. Without them agreeing, what answered is unproven.
 3. **On a cloud, metadata outranks a way out.** What the provider says the server is reached by beats how it happens to go out.
-4. **A domain's proof must be fresh.** A certificate shows where a server answered, and a record moves. The agent reads a domain's DNS every 6 hours once its certificate has come, and a read older than two of those, and an hour, proves nothing. On a home or office network, a newer way out that disagrees drops the proof too, as dynamic DNS moving an address is what that looks like.
+4. **A domain's proof belongs to its certificate, and must be fresh.** A certificate shows where a server answered, and a record moves. So a proof keeps the record as it read when the certificate came, and holds only while the current read matches it. A later read can drop a proof, and never bring one back or move it, so a domain that moves away while its route and certificate stay proves nothing about where it went. The next certificate makes a new proof, as getting it took the server answering at the record again, and that's read at once as it comes. The agent reads a domain's DNS every 6 hours, and a read older than two of those, and an hour, proves nothing until a newer one comes. On a home or office network, a way out whose address has changed since the certificate came, to one the record doesn't have, drops the proof too, as an address moving under a record is what that looks like. It goes by the address changing, not by when it was last seen, as a way out that always differed says nothing new. A record of both families proves neither, whatever else is known: a certificate authority falls back from one to the other, so the certificate may have come over the other family, and a stale AAAA beside a working A record would read as a way in.
 5. **IPv4 and IPv6 are picked and told separately.** A public IPv6 address on an interface says nothing of how IPv4 reaches the server, and a record is only ever read against a way in of its own family.
 
 ### One definition of a public address
@@ -37,9 +37,9 @@ A TUN or TAP device is also told by kind, from the `tun_flags` file the kernel g
 
 | Source | What it means | A way in? |
 | --- | --- | --- |
-| Set by a person | They know, from their provider's console or their router. It's in the store and the audit log, and it's the only source that's kept | Taken at their word |
+| Set by a person | They know, from their provider's console or their router. It's in the store and the audit log | Taken at their word |
 | On an interface | The internet routes to that address | Yes, as far as an address goes |
-| Proved by a domain | A certificate came over HTTP-01 or TLS-ALPN for a name whose one record points there, as last read within rule 4's limit, so the server answered there | Yes |
+| Proved by a domain | A certificate came over HTTP-01 or TLS-ALPN for a name whose one record, of one family, points there, and the record reads as it did then, within rule 4's limit, so the server answered there | Yes |
 | Metadata the machine confirms | The provider says so, on AWS, GCP, Azure, DigitalOcean or Hetzner, and the machine's firmware names the same provider | Yes, as the provider's 1:1 NAT |
 | Seen by the control plane | A joined agent connected from it | No: its way out |
 | Metadata the machine doesn't confirm | Something answered at the metadata address, and the machine names no such provider | Unproven |
@@ -49,13 +49,13 @@ Each family walks this list by itself.
 
 The control plane works this out from what it hears, in one list, `publicSources` in `internal/control/fleet/network.go`. Another source is another line there. The addresses reach the server's agent over its stream, each marked as a way in or not, so what the agent says of a domain, and how it reads DNS, go by them. A family with no way in known never makes a record of that family read as pointing elsewhere: the agent can't tell, and says so.
 
-A setting isn't a revision: it changes nothing on a server, only what's said of it, so it goes through `SetServerPublicAddress` and the audit log, which keeps the address it replaced so it can be put back. The PRD lists this among the exceptions to principle 2. What's heard from agents is held in memory, goes with an agent's last stream, and comes back as it says it again.
+A setting isn't a revision: it changes nothing on a server, only what's said of it, so it goes through `SetServerPublicAddress` and the audit log, which keeps the address it replaced so it can be put back. The PRD lists this among the exceptions to principle 2. What's heard from agents is held in memory, goes with an agent's last stream, and comes back as it says it again. What each certificate proved is the exception, kept in the store, as an upgrade restarts the control plane, and it would otherwise take a moved record for new.
 
 ### What "reachable" may claim
 
 Yes, no or not checked, and never a guess. Only something outside connecting proves a way in.
 
-- **Yes** is a certificate that came for a domain whose record points at the public address. The agent reads a domain's DNS while it waits for a certificate, and every 6 hours after, so this is as old as that read, and the panel says as of when.
+- **Yes** is a certificate that came for a domain whose record points at the public address, with its proof still standing (rule 4). The agent reads a domain's DNS while it waits for a certificate, as one comes, and every 6 hours after, so this is as old as that read, and the panel says as of when.
 - **No** is the certificate authority failing to connect for such a domain. A certificate for another domain wins over it, as a failure can have other causes.
 - **Not checked** is everything else, whatever else is known. Nothing looked up, seen or read from metadata changes it, and a person setting the address doesn't either.
 
@@ -99,8 +99,9 @@ The owner decided this, and nothing else asks one: another lookup needs the same
 ## Consequences
 
 - Every word about DNS has one source of truth, on the agent, so a change to what's known changes what a domain says within seconds.
-- A server with a certificate from before this reads as proved by it as soon as its agent reads the domain's DNS at start. A record that moved after the certificate came, with the route left behind and no way in known to read it against, can read as proved at the new address until a way in or a newer way out says otherwise. The certificate is real, and the claim is as old as that read. A person's setting wins over it.
+- A certificate from before this has no record kept, so the first read of it stands in for one. A record that moved before that read, with the route left behind, can read as proved at the new address until its certificate next renews, or fails to. The claim is as old as that read, and a person's setting wins over it.
+- A proof that's dropped stays dropped until the next certificate, about 60 days at most. So a home server whose address moved reads as unproven until then, even with its record put right, and a person can set the address sooner.
 - A proxy in front that passes HTTP-01 through, other than Cloudflare, whose ranges are known, proves its own address. That's true as far as it goes: the server does answer there.
 - A server that sends its UDP through a proxy, as mihomo does when it routes everything, looks up the proxy's address, not its own. It's the lowest source and says it's unproven, so anything else known wins over it.
 - Only the providers in the table are recognised. Aliyun has a metadata service at its own address, which isn't asked, so a server there behind 1:1 NAT reads as a home or office network until someone sets its address.
-- Docker's end-to-end can't show NAT, so the sources and shapes are tested with fakes, and a test binary refuses to ask a real STUN server or metadata service. Real STUN servers answered the code by hand, once. No real cloud's metadata service has been read: the paths are from each provider's documentation, and Oracle's is the only one the owner's server can confirm.
+- Docker's end-to-end can't show NAT, so the sources and shapes are tested with fakes. A test binary refuses to ask a real STUN server or metadata service, and `DOCKWELL_TEST`, which the Makefile and CI set for all they start, has a real binary ask neither. Real STUN servers answered the code by hand, once. No real cloud's metadata service has been read: the paths are from each provider's documentation, and Oracle's is the only one the owner's server can confirm.

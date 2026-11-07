@@ -150,7 +150,7 @@ func TestADomainProvesAnAddressOnlyWhereItCan(t *testing.T) {
 		want   string
 	}{
 		{"behind NAT, with a certificate", issued("a.example.com", cantTell, "203.0.113.50"), "203.0.113.50"},
-		{"an A beside an AAAA", issued("a.example.com", cantTell, "203.0.113.50", "2001:db8::9"), "203.0.113.50"},
+		{"an A beside an AAAA, which says nothing of either", issued("a.example.com", cantTell, "203.0.113.50", "2001:db8::9"), ""},
 		{"Cloudflare's range, which is shared", issued("a.example.com", cantTell, "104.16.0.1"), ""},
 		{"two A records, which could be anyone's", issued("a.example.com", cantTell, "198.51.100.1", "198.51.100.2"), ""},
 		{"a record that points elsewhere", issued("a.example.com", dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, "198.51.100.1"), ""},
@@ -326,6 +326,252 @@ func TestAProofGoesStale(t *testing.T) {
 			t.Errorf("it still reads %v", got)
 		}
 	})
+}
+
+// issuedUntil is issued, for a certificate that expires at a given time, as a renewal
+// shows by expiring later.
+func issuedUntil(until time.Time, state dockwellv1.DomainCheckState, found ...string) *dockwellv1.DomainStatus {
+	status := issued("app.example.com", state, found...)
+	status.Certificate.ExpireTime = timestamppb.New(until)
+	return status
+}
+
+// Rule 4: the agent is told the way out that dropped a proof, and reads the domain
+// again. Still at the old record, that read is newer than the way out, and it proves
+// nothing: a later read can drop a proof, and never bring one back.
+func TestADroppedProofStaysDropped(t *testing.T) {
+	const proved, moved = "198.51.100.4", "203.0.113.7"
+	h, _ := newHub(t, "home-1")
+	attached(t, h, "192.168.1.20")
+	h.RecordNetwork("srv_A", &agentv1.Network{})
+	old := issued("app.example.com", cantTell, proved)
+	old.Dns.ReadTime = timestamppb.New(time.Now().Add(-time.Hour))
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{old})
+	if got := network(t, h).GetIpv4(); got.GetAddress() != proved {
+		t.Fatalf("setup: %v", got)
+	}
+	h.SeenConnecting("srv_A", moved+":5000")
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, proved)})
+	n := network(t, h)
+	if n.GetIpv4().GetAddress() != moved || !n.GetIpv4().GetUnproven() || n.GetReachable() != dockwellv1.Reachable_REACHABLE_NOT_CHECKED {
+		t.Errorf("it reads %v, reachable %v", n.GetIpv4(), n.GetReachable())
+	}
+}
+
+// Rule 4: on Oracle, with no address in metadata, a domain moves to another host while
+// its route and certificate stay here. No read of it can make that address this
+// server's, as the certificate never showed it.
+func TestAMovedRecordIsNeverAdopted(t *testing.T) {
+	const was, elsewhere = "198.51.100.4", "203.0.113.99"
+	h, _ := newHub(t, "oci-1")
+	attached(t, h, "10.0.0.25")
+	h.RecordNetwork("srv_A", &agentv1.Network{Provider: oracle, MachineProvider: oracle})
+	h.SeenConnecting("srv_A", was+":5000")
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", here, was)})
+	if got := network(t, h).GetIpv4(); got.GetSource() != sourceDomain {
+		t.Fatalf("setup: %v", got)
+	}
+	for _, state := range []dockwellv1.DomainCheckState{dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, cantTell, here} {
+		h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", state, elsewhere)})
+		if n := network(t, h); n.GetIpv4().GetAddress() != was || !n.GetIpv4().GetUnproven() {
+			t.Errorf("read as %v, it reads %v", state, n.GetIpv4())
+		}
+	}
+	// Going back to where it was doesn't undo that, as a dropped proof stays dropped,
+	// and it says no more of reaching the server than of its address.
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", here, was)})
+	n := network(t, h)
+	if n.GetIpv4().GetSource() == sourceDomain {
+		t.Errorf("it's back: %v", n.GetIpv4())
+	}
+	if n.GetReachable() != dockwellv1.Reachable_REACHABLE_NOT_CHECKED {
+		t.Errorf("reachable %v", n.GetReachable())
+	}
+}
+
+// A read too old to prove anything is too old to go by when a certificate came.
+func TestAStaleReadSetsNoRecord(t *testing.T) {
+	const old, now = "198.51.100.4", "203.0.113.50"
+	h, _ := newHub(t, "oci-1")
+	attached(t, h, "10.0.0.25")
+	stale := issued("app.example.com", cantTell, old)
+	stale.Dns.ReadTime = timestamppb.New(time.Now().Add(-proofFresh - time.Hour))
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{stale})
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, now)})
+	if got := network(t, h).GetIpv4(); got.GetAddress() != now || got.GetSource() != sourceDomain {
+		t.Errorf("it reads %v", got)
+	}
+}
+
+// A certificate that came while the record pointed elsewhere proves nothing either,
+// however the record reads later.
+func TestACertificateFirstReadElsewhereProvesNothing(t *testing.T) {
+	h, _ := newHub(t, "oci-1")
+	attached(t, h, "10.0.0.25")
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, "198.51.100.4")})
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, "198.51.100.4")})
+	if got := network(t, h).GetIpv4(); got != nil {
+		t.Errorf("it reads %v", got)
+	}
+}
+
+// A read that failed says nothing of the record, so it can't drop what a read could.
+func TestAFailedReadDropsNothing(t *testing.T) {
+	const proved = "198.51.100.4"
+	h, _ := newHub(t, "oci-1")
+	attached(t, h, "10.0.0.25")
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, proved)})
+	failed := issued("app.example.com", dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_UNSPECIFIED)
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{failed})
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, proved)})
+	if got := network(t, h).GetIpv4(); got.GetAddress() != proved || got.GetSource() != sourceDomain {
+		t.Errorf("it reads %v", got)
+	}
+}
+
+// A renewal took the server answering at the record again, so it's what makes a new
+// proof, and only that does.
+func TestOnlyTheNextCertificateProvesARecordAnew(t *testing.T) {
+	const was, now = "198.51.100.4", "203.0.113.50"
+	first, second := time.Now().Add(30*24*time.Hour), time.Now().Add(90*24*time.Hour)
+	h, _ := newHub(t, "home-1")
+	attached(t, h, "192.168.1.20")
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issuedUntil(first, cantTell, was)})
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issuedUntil(first, cantTell, now)})
+	if got := network(t, h).GetIpv4(); got != nil {
+		t.Fatalf("the same certificate proves %v", got)
+	}
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issuedUntil(second, cantTell, now)})
+	if got := network(t, h).GetIpv4(); got.GetAddress() != now || got.GetSource() != sourceDomain {
+		t.Errorf("the next one reads %v", got)
+	}
+
+	// The proof of one certificate says nothing of the next, until a read of it does.
+	third := second.Add(60 * 24 * time.Hour)
+	unread := issuedUntil(third, dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_UNSPECIFIED, was)
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{unread})
+	if got := network(t, h).GetIpv4(); got != nil {
+		t.Errorf("a renewal nothing read proves %v", got)
+	}
+}
+
+// Rule 4: a way out goes by its address changing, not by when it was last seen. One
+// that always differed from the record says nothing new however lately it's seen, as
+// with a second line out of an office.
+func TestAWayOutThatHasntChangedSaysNothing(t *testing.T) {
+	const proved, out = "198.51.100.4", "203.0.113.7"
+	h, _ := newHub(t, "office-1")
+	attached(t, h, "192.168.1.20")
+	h.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: out, LookedUpTime: timestamppb.New(time.Now().Add(-time.Hour))})
+	h.SeenConnecting("srv_A", out+":5000")
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, proved)})
+	h.SeenConnecting("srv_A", out+":5001")
+	h.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: out, LookedUpTime: timestamppb.Now()})
+	if got := network(t, h).GetIpv4(); got.GetAddress() != proved || got.GetSource() != sourceDomain {
+		t.Errorf("seen again, it reads %v", got)
+	}
+	h.SeenConnecting("srv_A", "203.0.113.8:5000")
+	if got := network(t, h).GetIpv4(); got.GetSource() == sourceDomain {
+		t.Errorf("once it changed, it reads %v", got)
+	}
+}
+
+// A way out of one family says nothing of a record of the other.
+func TestAWayOutOfAnotherFamilyOvertakesNothing(t *testing.T) {
+	const proved = "198.51.100.4"
+	h, _ := newHub(t, "home-1")
+	attached(t, h, "192.168.1.20")
+	h.RecordNetwork("srv_A", &agentv1.Network{})
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, proved)})
+	h.SeenConnecting("srv_A", "[2001:db8::7]:5000")
+	if got := network(t, h).GetIpv4(); got.GetAddress() != proved || got.GetSource() != sourceDomain {
+		t.Errorf("it reads %v", got)
+	}
+}
+
+// Rule 4: a certificate shows the server answered on one family, and a certificate
+// authority falls back to the other, so a record of both proves neither. That holds
+// with one family already a way in: there, the other is the stale AAAA on a server
+// whose certificate came over its A record.
+func TestARecordOfBothFamiliesProvesNeither(t *testing.T) {
+	const four, stale = "198.51.100.4", "2001:db8::bad"
+	both := []*dockwellv1.DomainStatus{issued("app.example.com", here, four, stale)}
+
+	h, _ := newHub(t, "home-1")
+	attached(t, h, "192.168.1.20")
+	h.RecordNetwork("srv_A", &agentv1.Network{})
+	h.SeenConnecting("srv_A", four+":5000")
+	h.RecordDomains("srv_A", both)
+	if n := network(t, h); n.GetIpv4().GetSource() == sourceDomain || n.GetIpv6() != nil {
+		t.Errorf("behind NAT, it reads %v", n)
+	}
+
+	vps, _ := newHub(t, "vps-1")
+	attached(t, vps, "10.0.0.2", four)
+	vps.RecordNetwork("srv_A", &agentv1.Network{})
+	vps.RecordDomains("srv_A", both)
+	n := network(t, vps)
+	if n.GetIpv4().GetSource() != sourceInterface || n.GetIpv6() != nil {
+		t.Errorf("with a way in for IPv4, it reads %v", n)
+	}
+	// The certificate still shows the internet reached the server.
+	if n.GetReachable() != dockwellv1.Reachable_REACHABLE_YES {
+		t.Errorf("reachable %v", n.GetReachable())
+	}
+}
+
+// Upgrading restarts the control plane, and a proof has to outlive that, or the first
+// read after it would take a moved record for what the certificate showed.
+func TestAProofOutlivesARestart(t *testing.T) {
+	const was, elsewhere = "198.51.100.4", "203.0.113.99"
+	h, db := newHub(t, "oci-1")
+	attached(t, h, "10.0.0.25")
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, was)})
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, elsewhere)})
+
+	again, err := New(t.Context(), db, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attached(t, again, "10.0.0.25")
+	again.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, elsewhere)})
+	if got := network(t, again).GetIpv4(); got != nil {
+		t.Errorf("after a restart, a dropped proof reads %v", got)
+	}
+
+	// And one that's standing stands, with the way out it knew.
+	kept, db2 := newHub(t, "home-1")
+	attached(t, kept, "192.168.1.20")
+	kept.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: "203.0.113.7"})
+	kept.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, was)})
+	restarted, err := New(t.Context(), db2, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attached(t, restarted, "192.168.1.20")
+	restarted.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: "203.0.113.7"})
+	restarted.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, was)})
+	if got := network(t, restarted).GetIpv4(); got.GetAddress() != was || got.GetSource() != sourceDomain {
+		t.Errorf("after a restart, a standing proof reads %v", got)
+	}
+}
+
+func TestAnUnreadableProofRowIsLeftOut(t *testing.T) {
+	_, db := newHub(t, "hz-1", "hz-2")
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.PutSetting(t.Context(), store.SettingDomainProofs("srv_A"), []byte("not json"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h, err := New(t.Context(), db, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("the control plane didn't start: %v", err)
+	}
+	attached(t, h, "10.0.0.25")
+	h.RecordDomains("srv_A", []*dockwellv1.DomainStatus{issued("app.example.com", cantTell, "198.51.100.4")})
+	if got := network(t, h).GetIpv4(); got.GetSource() != sourceDomain {
+		t.Errorf("it reads %v", got)
+	}
 }
 
 // Rule 5 and M1: an AAAA on an interface says nothing of an A record.

@@ -608,7 +608,7 @@ func TestAnIssuedDomainIsReadAgainWhenItsDue(t *testing.T) {
 	}
 	const domain = "app.example.com"
 	issued := CertState{Phase: CertIssued}
-	due := func() { s.status.checked[domain] = time.Now().Add(-IssuedDNSEvery) }
+	due := func() { s.status.checks[domain].ReadAt = time.Now().Add(-IssuedDNSEvery) }
 
 	rereads := 2
 	first, _ := s.domainCheck(t.Context(), domain, issued, &rereads)
@@ -628,8 +628,8 @@ func TestAnIssuedDomainIsReadAgainWhenItsDue(t *testing.T) {
 	if reads != 2 || !slices.Equal(moved.Found, []string{found}) || rereads != 1 {
 		t.Errorf("with a read due, it made %d and found %v, leaving %d", reads, moved.Found, rereads)
 	}
-	if moved.ReadAt.Before(first.ReadAt) {
-		t.Errorf("the new read says %v, after %v", moved.ReadAt, first.ReadAt)
+	if !moved.ReadAt.After(time.Now().Add(-time.Minute)) {
+		t.Errorf("the new read says %v", moved.ReadAt)
 	}
 
 	// They run one after another, so a pass makes a few, and the rest come next.
@@ -637,5 +637,54 @@ func TestAnIssuedDomainIsReadAgainWhenItsDue(t *testing.T) {
 	rereads = 0
 	if got, _ := s.domainCheck(t.Context(), domain, issued, &rereads); got != moved || reads != 2 {
 		t.Errorf("with this pass's reads spent, it made %d", reads)
+	}
+}
+
+// Rule 4 of ADR 0034: being told something new has a domain with no certificate read
+// again, as its record may now read as here. One with a certificate waits its turn.
+func TestBeingToldAnAddressLeavesAnIssuedDomainToItsSchedule(t *testing.T) {
+	s := newSetup(t)
+	s.DNS = &DNS{
+		Lookup: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("198.51.100.4")}, nil
+		},
+		Addrs: func() ([]netip.Addr, error) { return []netip.Addr{netip.MustParseAddr("192.168.1.20")}, nil },
+	}
+	s.apply(t, "www", spec("app.example.com", "", "web", 80))
+	s.proxy.certs = map[string]CertState{"app.example.com": {Phase: CertIssued}}
+	s.SetPublicAddress(&agentv1.PublicAddress{Addresses: []*agentv1.KnownAddress{{Address: "198.51.100.4", WayIn: true}}})
+	s.watchOnce(t.Context())
+	first := s.Domains()[0].GetDns()
+	time.Sleep(20 * time.Millisecond)
+	s.SetPublicAddress(&agentv1.PublicAddress{Addresses: []*agentv1.KnownAddress{{Address: "203.0.113.7"}}})
+	s.watchOnce(t.Context())
+	if second := s.Domains()[0].GetDns(); second.GetReadTime().AsTime().After(first.GetReadTime().AsTime()) {
+		t.Errorf("it was read again at once, at %v after %v", second.GetReadTime().AsTime(), first.GetReadTime().AsTime())
+	}
+}
+
+// What a proof goes by is the record as a new certificate came, so that's read then,
+// with no regard for the last read's age.
+func TestANewCertificateHasItsDomainReadAtOnce(t *testing.T) {
+	s := newSetup(t)
+	reads := 0
+	s.DNS = &DNS{
+		Lookup: func(context.Context, string) ([]netip.Addr, error) {
+			reads++
+			return []netip.Addr{netip.MustParseAddr("203.0.113.50")}, nil
+		},
+		Addrs: func() ([]netip.Addr, error) { return []netip.Addr{netip.MustParseAddr("10.0.0.25")}, nil },
+	}
+	const domain = "app.example.com"
+	until := time.Now().Add(30 * 24 * time.Hour)
+	rereads := 0
+	s.domainCheck(t.Context(), domain, CertState{Phase: CertIssued, NotAfter: until}, &rereads)
+	s.domainCheck(t.Context(), domain, CertState{Phase: CertIssued, NotAfter: until}, &rereads)
+	if reads != 1 {
+		t.Fatalf("the same certificate read %d times", reads)
+	}
+	s.domainCheck(t.Context(), domain, CertState{Phase: CertIssued, NotAfter: until.Add(60 * 24 * time.Hour)}, &rereads)
+	if reads != 2 {
+		t.Errorf("a renewal read %d times in all", reads)
 	}
 }

@@ -87,6 +87,9 @@ type live struct {
 	outside *agentv1.Network
 	// domains is what it last said of its routes' domains.
 	domains []*dockwellv1.DomainStatus
+	// proofs are what each domain's certificate showed. Unlike what's above, they stay
+	// when its stream goes, and through a restart.
+	proofs map[string]*proof
 	// network is what all of that comes to, and refreshed when that was worked out.
 	network   *dockwellv1.ServerNetwork
 	refreshed time.Time
@@ -96,7 +99,7 @@ type live struct {
 }
 
 func newLive(s store.Server) *live {
-	return &live{srv: s, told: map[chan struct{}]struct{}{}}
+	return &live{srv: s, proofs: map[string]*proof{}, told: map[chan struct{}]struct{}{}}
 }
 
 // Hub is the fleet's live state.
@@ -104,6 +107,10 @@ type Hub struct {
 	db     *store.DB
 	logger *slog.Logger
 	now    func() time.Time
+
+	// saving keeps a server's proofs landing in the order they were weighed. It's
+	// taken before mu, and held across a write to the store, which mu never is.
+	saving sync.Mutex
 
 	mu       sync.Mutex
 	servers  map[string]*live
@@ -133,6 +140,9 @@ func New(ctx context.Context, db *store.DB, logger *slog.Logger) (*Hub, error) {
 				l.inventory, l.build = decodeReport(r, logger, s.ID)
 			}
 			if l.person, err = loadPublicAddress(ctx, tx, logger, s.ID); err != nil {
+				return err
+			}
+			if l.proofs, err = loadProofs(ctx, tx, logger, s.ID); err != nil {
 				return err
 			}
 			h.refreshNetworkLocked(s.ID, l)

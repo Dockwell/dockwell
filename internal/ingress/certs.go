@@ -285,6 +285,9 @@ type statusBoard struct {
 	list    []*dockwellv1.DomainStatus
 	checks  map[string]*resource.DomainCheck
 	checked map[string]time.Time
+	// expires is when each domain's certificate last read as expiring, which shows
+	// a new one.
+	expires map[string]time.Time
 	signal  chan struct{}
 	// panel is what was last logged of the panel's own certificate.
 	panel string
@@ -441,8 +444,10 @@ func (m *Manager) watchWakes() chan struct{} {
 }
 
 // SetPublicAddress keeps what the control plane knows of this server's public
-// addresses, and has what's said of its domains read again by it, as a domain's record
-// may now read as pointing here.
+// addresses, and has what's said of a domain with no certificate read again by it, as
+// its record may now read as pointing here. One with a certificate waits for its next
+// read: what it says doesn't hang on what's known, and it proves nothing new by being
+// read sooner.
 func (m *Manager) SetPublicAddress(known *agentv1.PublicAddress) {
 	b := &m.status
 	b.mu.Lock()
@@ -570,16 +575,23 @@ func (m *Manager) domainCheck(ctx context.Context, name string, st CertState, re
 	b := &m.status
 	b.mu.Lock()
 	if b.checks == nil {
-		b.checks, b.checked = map[string]*resource.DomainCheck{}, map[string]time.Time{}
+		b.checks, b.checked, b.expires = map[string]*resource.DomainCheck{}, map[string]time.Time{}, map[string]time.Time{}
 	}
 	last, read := b.checks[name], b.checked[name]
+	// A certificate that's new is read at once, as what it shows is the record now.
+	renewed := st.Phase == CertIssued && !b.expires[name].Equal(st.NotAfter)
+	if st.Phase == CertIssued {
+		b.expires[name] = st.NotAfter
+	}
 	b.mu.Unlock()
-	if st.Phase == CertIssued && last != nil {
-		if time.Since(read) < IssuedDNSEvery || *rereads == 0 {
+	switch {
+	case last == nil || renewed:
+	case st.Phase == CertIssued:
+		if time.Since(last.ReadAt) < IssuedDNSEvery || *rereads == 0 {
 			return last, false
 		}
 		*rereads--
-	} else if last != nil && time.Since(read) < dnsEvery {
+	case time.Since(read) < dnsEvery:
 		return last, false
 	}
 	check = m.check(ctx, name)

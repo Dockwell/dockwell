@@ -25,6 +25,6 @@ Nothing that's looked up, seen or read from metadata can say a server is reachab
 ## What it doesn't protect
 
 - A proxy that passes HTTP-01 through, other than Cloudflare, proves its own address, not the server's.
-- A record that moved after its certificate came, with the route left on the server and no way in known to read it against, can read as proved at the new address until a way in or a newer way out says otherwise. A read goes stale in 13 hours.
+- A certificate from before Dockwell kept what each one proved has no record to go by, so the first read stands in for it. A record that moved before that read can read as proved at the new address until the certificate next renews. Any later move drops the proof, and a read goes stale in 13 hours.
 - Something that controls a machine's firmware tables, as a hypervisor does, can say what it runs on. That's its own machine to describe.
 - Anyone who can call `SetServerPublicAddress` with a read-write token or a session can set the address. It's on Activity, and it changes only what's said.

@@ -290,9 +290,14 @@ func testRevokingAServerDropsItsPublicAddress(t *testing.T, backend store.Backen
 	if err != nil {
 		t.Fatal(err)
 	}
-	key := store.SettingPublicAddress(joined.Server.ID)
+	keys := []string{store.SettingPublicAddress(joined.Server.ID), store.SettingDomainProofs(joined.Server.ID)}
 	if err := f.db.Update(t.Context(), func(tx *store.Tx) error {
-		return tx.PutSetting(t.Context(), key, []byte(`{"address":"203.0.113.50"}`))
+		for _, key := range keys {
+			if err := tx.PutSetting(t.Context(), key, []byte(`{}`)); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -300,8 +305,10 @@ func testRevokingAServerDropsItsPublicAddress(t *testing.T, backend store.Backen
 		t.Fatal(err)
 	}
 	if err := f.db.View(t.Context(), func(tx *store.Tx) error {
-		if got, err := tx.GetSetting(t.Context(), key); !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("it's still there: %q, %v", got, err)
+		for _, key := range keys {
+			if got, err := tx.GetSetting(t.Context(), key); !errors.Is(err, store.ErrNotFound) {
+				t.Errorf("%s is still there: %q, %v", key, got, err)
+			}
 		}
 		return nil
 	}); err != nil {
