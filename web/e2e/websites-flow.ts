@@ -144,7 +144,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   const plan = page.getByRole("dialog", { name: "Review plan" });
   await plan.waitFor({ timeout: 30_000 });
-  await plan.getByText("/var/www/blog.example.net").first().waitFor();
+  await plan.getByText("/var/www/blog.example.net").filter({ visible: true }).first().waitFor();
   await shoot(page, "website-plan-folder");
   await plan.getByRole("button", { name: /Cancel/ }).click();
   await sheet.waitFor();
@@ -155,8 +155,8 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await shoot(page, "website-new-url");
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
-  await plan.getByText("blog.example.net").first().waitFor();
-  await plan.getByText("web", { exact: true }).first().waitFor();
+  await plan.getByText("blog.example.net").filter({ visible: true }).first().waitFor();
+  await plan.getByText("web", { exact: true }).filter({ visible: true }).first().waitFor();
   if ((await plan.getByText(/approve|a person/i).count()) > 0 && (await plan.getByText("127.0.0.1").count()) > 0) {
     fail("a website to a URL asks a person to approve a port on the server");
   }
