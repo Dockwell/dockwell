@@ -1,5 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
+# A change for testing which CI jobs run. Not for merging.
 #
 # Installs Dockwell on a Linux server. On the first server it runs the control
 # plane and an agent, with the full build of dockwell:
