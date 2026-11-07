@@ -658,6 +658,39 @@ describe("what was read stands by its age, however reads go", () => {
     expect(row.querySelector(".dw-tone-healthy")).toBeNull();
   });
 
+  it("says Checking, back on the list after a while away, and doesn't say something failed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let hold = false;
+    const page = renderAt("/apps", api([web], { listHealth: () => (hold ? new Promise(() => {}) : fine()) }));
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    page.router.history.push("/activity");
+    await screen.findByRole("heading", { level: 1, name: "Activity" });
+    await vi.advanceTimersByTimeAsync(35_000);
+    hold = true;
+    page.router.history.push("/apps");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(await screen.findByRole("row", { name: /web/ })).toHaveTextContent("Checking");
+    expect(screen.queryByText(/can't reach the control plane/)).toBeNull();
+  });
+
+  it("doesn't count a read called off by leaving as one that failed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let hold = false;
+    const page = renderAt("/apps", api([web], { listHealth: () => (hold ? new Promise(() => {}) : fine()) }));
+    const row = await screen.findByRole("row", { name: /web/ });
+    await waitFor(() => expect(row).toHaveTextContent("Healthy"));
+    hold = true;
+    await vi.advanceTimersByTimeAsync(11_000);
+    page.router.history.push("/activity");
+    await screen.findByRole("heading", { level: 1, name: "Activity" });
+    await vi.advanceTimersByTimeAsync(35_000);
+    page.router.history.push("/apps");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(await screen.findByRole("row", { name: /web/ })).toHaveTextContent("Checking");
+    expect(screen.queryByText(/can't reach the control plane/)).toBeNull();
+  });
+
   it("gives a hung read back one time, not one for each screen moved to", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     let hang = false;

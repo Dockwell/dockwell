@@ -17,6 +17,7 @@ import { Route as StatusRouteImport } from './routes/status'
 import { Route as ShellIndexRouteImport } from './routes/_shell/index'
 import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
 import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
+import { Route as ShellDomainsRouteImport } from './routes/_shell/domains'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellProfileRouteImport } from './routes/_shell/profile'
 import { Route as ShellVariablesRouteImport } from './routes/_shell/variables'
@@ -72,6 +73,11 @@ const ShellSectionRoute = ShellSectionRouteImport.update({
 const ShellActivityRoute = ShellActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellDomainsRoute = ShellDomainsRouteImport.update({
+  id: '/domains',
+  path: '/domains',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellMoreRoute = ShellMoreRouteImport.update({
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/activity': typeof ShellActivityRoute
+  '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
   '/variables': typeof ShellVariablesRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/activity': typeof ShellActivityRoute
+  '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
   '/profile': typeof ShellProfileRoute
   '/variables': typeof ShellVariablesRoute
@@ -225,6 +233,7 @@ export interface FileRoutesById {
   '/status': typeof StatusRoute
   '/_shell/$section': typeof ShellSectionRoute
   '/_shell/activity': typeof ShellActivityRoute
+  '/_shell/domains': typeof ShellDomainsRoute
   '/_shell/more': typeof ShellMoreRoute
   '/_shell/profile': typeof ShellProfileRoute
   '/_shell/variables': typeof ShellVariablesRoute
@@ -254,6 +263,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/$section'
     | '/activity'
+    | '/domains'
     | '/more'
     | '/profile'
     | '/variables'
@@ -279,6 +289,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/$section'
     | '/activity'
+    | '/domains'
     | '/more'
     | '/profile'
     | '/variables'
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/_shell/$section'
     | '/_shell/activity'
+    | '/_shell/domains'
     | '/_shell/more'
     | '/_shell/profile'
     | '/_shell/variables'
@@ -389,6 +401,13 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/activity'
       preLoaderRoute: typeof ShellActivityRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/domains': {
+      id: '/_shell/domains'
+      path: '/domains'
+      fullPath: '/domains'
+      preLoaderRoute: typeof ShellDomainsRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/more': {
@@ -533,6 +552,7 @@ const ShellAppsServiceIdRouteWithChildren =
 interface ShellRouteChildren {
   ShellSectionRoute: typeof ShellSectionRoute
   ShellActivityRoute: typeof ShellActivityRoute
+  ShellDomainsRoute: typeof ShellDomainsRoute
   ShellMoreRoute: typeof ShellMoreRoute
   ShellProfileRoute: typeof ShellProfileRoute
   ShellVariablesRoute: typeof ShellVariablesRoute
@@ -552,6 +572,7 @@ interface ShellRouteChildren {
 const ShellRouteChildren: ShellRouteChildren = {
   ShellSectionRoute: ShellSectionRoute,
   ShellActivityRoute: ShellActivityRoute,
+  ShellDomainsRoute: ShellDomainsRoute,
   ShellMoreRoute: ShellMoreRoute,
   ShellProfileRoute: ShellProfileRoute,
   ShellVariablesRoute: ShellVariablesRoute,

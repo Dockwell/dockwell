@@ -5,12 +5,21 @@ import { type Status, StatusBadge } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useRef } from "react";
 
 import { useTimeWords } from "../../lib/time";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 
-import { asksNoCertificate, type DomainLook, panelWords, plainForAnyone, SILENT_AFTER_MS } from "./domains";
+import {
+  asksNoCertificate,
+  type DomainLook,
+  type DomainRead,
+  panelWords,
+  plainForAnyone,
+  SILENT_AFTER_MS,
+  useRouteTimes,
+} from "./domains";
+import { useHealthWords } from "./Health";
 
 import "./DomainNote.css";
 
@@ -20,32 +29,52 @@ export function useTunnelSwitchName(): string {
   return t`A tunnel or a proxy in front handles HTTPS`;
 }
 
-/** True once active has held for ms without a break. */
-function useLongWhile(active: boolean, ms: number): boolean {
-  const [long, setLong] = useState(false);
-  useEffect(() => {
-    if (!active) {
-      setLong(false);
-      return;
-    }
-    const timer = setTimeout(() => setLong(true), ms);
-    return () => clearTimeout(timer);
-  }, [active, ms]);
-  return active && long;
-}
+/** How often whether a server has gone quiet is looked at again. */
+const SILENCE_TICK_MS = 5_000;
 
 /**
- * True once a server has said nothing of a domain for about a minute. It's a server to
- * go and look at then, rather than something about to change.
+ * Whether a server has said nothing of a domain for about a minute, so that it's one to
+ * go and look at, rather than something about to change. An agent says where a domain
+ * stands within seconds of connecting, and of a route changing, and a report has no time
+ * of its own, so its silence is counted from the later of those, and doesn't start over
+ * on each visit. Where one of them can't be read, it's counted from when this screen
+ * first found it.
  */
-export function useSilent(look: DomainLook): boolean {
-  return useLongWhile(look.unreported !== undefined, SILENT_AFTER_MS);
+export function useSilence(now: number): (domain: Domain, look: DomainLook) => boolean {
+  const { servers } = useFleetView();
+  const routes = useRouteTimes();
+  const found = useRef(new Map<string, number>());
+  return (domain, look) => {
+    if (!look.unreported) {
+      found.current.delete(domain.name);
+      return false;
+    }
+    const { id } = look.unreported;
+    const connected = servers?.find((server) => server.id === id)?.connectedAt;
+    const applied = domain.routes.map((route) => routes?.get(route.id));
+    const known = connected !== undefined && applied.every((at) => at !== undefined);
+    const since = known ? Math.max(connected, ...(applied as number[])) : (found.current.get(domain.name) ?? now);
+    if (!known) found.current.set(domain.name, since);
+    return now - since >= SILENT_AFTER_MS;
+  };
+}
+
+/** useSilence, for one domain. */
+export function useSilent(domain: Domain, look: DomainLook): boolean {
+  return useSilence(useControlPlaneNow(SILENCE_TICK_MS))(domain, look);
+}
+
+/** Whom a route sends to: its app, or a port on the server that's no app's. */
+export function useRouteTarget(): (route: { service: string; hostPort: number }) => string {
+  const { t } = useLingui();
+  return ({ service, hostPort }) => service || t`port ${hostPort} on the server`;
 }
 
 /** A state's shape and word, as every state has in the brand book. */
-function useDomainWord(domain: Domain, look: DomainLook, silent: boolean): [Status, string] {
+export function useDomainWord(domain: Domain, look: DomainLook, silent: boolean): [Status, string] {
   const { t } = useLingui();
   if (look.stale) return ["stopped", t`Not connected`];
+  if (look.expired) return ["down", t`Expired`];
   if (look.state === "failed") return ["down", t`Failed`];
   if (look.orphaned) return ["stopped", t`No server`];
   if (silent) return ["stopped", t`No report`];
@@ -54,11 +83,18 @@ function useDomainWord(domain: Domain, look: DomainLook, silent: boolean): [Stat
   }
   if (look.warning) return ["degraded", t`Renewal failing`];
   if (look.state === "serving") {
-    if (look.expires === undefined) return ["healthy", t`Valid`];
-    const days = Math.max(0, Math.ceil((look.expires - Date.now()) / 86_400_000));
+    const { days } = look;
+    if (days === undefined) return ["healthy", t`Valid`];
     return ["healthy", plural(days, { one: "Valid for # day", other: "Valid for # days" })];
   }
   return ["deploying", asksNoCertificate(domain) ? t`Waiting for the server` : t`Issuing`];
+}
+
+/** A domain's shape and word, or that nobody here can say, as what's read past its time says nothing. */
+export function useDomainState(domain: Domain, look: DomainLook, silent: boolean, read: DomainRead): [Status, string] {
+  const [status, word] = useDomainWord(domain, look, silent);
+  const words = useHealthWords();
+  return read === "read" ? [status, word] : ["unknown", words.word({ kind: "unknown", read })];
 }
 
 /** A state's shape, word and colour, as every state has in the brand book, and the port behind it. */
@@ -67,13 +103,15 @@ export function DomainFacts({
   route,
   look,
   silent,
+  read = "read",
 }: {
   domain: Domain;
   route: DomainRoute | undefined;
   look: DomainLook;
   silent: boolean;
+  read?: DomainRead;
 }) {
-  const [status, word] = useDomainWord(domain, look, silent);
+  const [status, word] = useDomainState(domain, look, silent, read);
   const port = route?.hostPort || route?.port;
   const { servers } = useFleetView();
   // With one server, there's only one it can be.
@@ -118,6 +156,30 @@ function ServerPage({
     >
       {children}
     </Link>
+  );
+}
+
+/** A certificate that has run out: where, when, what follows, and what to do. */
+function ExpiredNote({
+  expired,
+  onLeave,
+}: {
+  expired: NonNullable<DomainLook["expired"]>;
+  onLeave: (() => void) | undefined;
+}) {
+  const time = useTimeWords();
+  const now = useControlPlaneNow(30_000);
+  const server = expired.name;
+  const when = time.ago(new Date(expired.at), now);
+  return (
+    <Trans>
+      The certificate on <code>{server}</code> ran out {when}, so browsers refuse this domain. Dockwell renews it by
+      itself. If it stays like this,{" "}
+      <ServerPage server={expired} onLeave={onLeave}>
+        check its page
+      </ServerPage>
+      .
+    </Trans>
   );
 }
 
@@ -188,6 +250,14 @@ export function DomainNote({
   const switchName = useTunnelSwitchName();
   if (look.stale && look.said) {
     return <StaleNote domain={domain} stale={look.stale} said={look.said} onLeave={onLeave} />;
+  }
+  if (look.expired) {
+    return (
+      <>
+        <ExpiredNote expired={look.expired} onLeave={onLeave} />
+        {look.message ? ` ${panelWords(look.message, switchName)}` : null}
+      </>
+    );
   }
   if (look.orphaned) {
     return <Trans>No server runs this any more, so nothing answers for it. Remove it, or place it on a server.</Trans>;

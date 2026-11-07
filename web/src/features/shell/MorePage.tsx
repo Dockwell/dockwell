@@ -12,7 +12,7 @@ import { useSignOut } from "../auth/useSignOut";
 import { useUpgrades } from "../catalog/useCatalog";
 import { useFleetView } from "../servers/useFleet";
 import { Page } from "./Page";
-import { RESOURCES, UPCOMING, type UpcomingSection } from "./sections";
+import { AFTER_DOMAINS, BEFORE_DOMAINS, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
 import "./MorePage.css";
 
@@ -51,7 +51,11 @@ export function MorePage() {
         <Link to="/variables" className="more-row">
           <RowBody icon="key" label={t`Variables and secrets`} />
         </Link>
-        {RESOURCES.filter((id) => UPCOMING[id].inMore).map(section)}
+        {BEFORE_DOMAINS.map(section)}
+        <Link to="/domains" className="more-row">
+          <RowBody icon="link" label={t`Domains`} />
+        </Link>
+        {AFTER_DOMAINS.map(section)}
         <Link to="/catalog" className="more-row">
           <RowBody icon="grid" label={t`Catalog`} value={upgrades > 0 ? String(upgrades) : undefined} />
         </Link>

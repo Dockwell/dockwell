@@ -1507,7 +1507,59 @@ describe("an app's overview", () => {
       }
     });
 
-    it("stops reading once each domain serves", async () => {
+    it("reads a certificate past its end as expired, in red, with what to do", async () => {
+      const running = await atPage(() => ({
+        domains: [
+          aDomain({
+            certificate: certificate(CertificateState.ISSUED, "", new Date(Date.now() - 2 * 86_400_000)),
+          }),
+        ],
+      }));
+      const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
+      expect(row).toHaveTextContent("Expired");
+      expect(row).not.toHaveTextContent("Valid");
+      expect(row).toHaveClass("is-failed");
+      expect(row).toHaveTextContent(/ran out .* so browsers refuse this domain\. Dockwell renews it by itself\./);
+      expect(within(row).getByRole("link", { name: "check its page" })).toHaveAttribute("href", "/servers/srv_1");
+      expect(within(row).queryByRole("link", { name: "Open app.example.com" })).toBeNull();
+    });
+
+    it("stops saying where a domain stands once it can't be read, and says it again when it can", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        let answers = true;
+        const said = "Renewing it is failing.";
+        const running = await atPage(() => {
+          if (!answers) throw new ConnectError("the control plane is down", Code.Unavailable);
+          return {
+            domains: [
+              aDomain({
+                certificate: certificate(CertificateState.ISSUED, said, new Date(Date.now() + 47 * 86_400_000)),
+              }),
+            ],
+          };
+        });
+        const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
+        expect(row).toHaveTextContent("Renewal failing");
+        answers = false;
+        await act(() => vi.advanceTimersByTimeAsync(61_000));
+        await waitFor(() => expect(row).toHaveTextContent("Unknown"));
+        expect(row).not.toHaveTextContent("Renewal failing");
+        expect(row).not.toHaveTextContent(said);
+        expect(row).not.toHaveClass("is-warning");
+        expect(within(row).queryByRole("link", { name: "Open app.example.com" })).toBeNull();
+        expect(within(running).getByText("Couldn't read this app's domains")).toBeVisible();
+
+        answers = true;
+        await act(() => vi.advanceTimersByTimeAsync(11_000));
+        await waitFor(() => expect(row).toHaveTextContent("Renewal failing"));
+        expect(within(running).queryByText("Couldn't read this app's domains")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("goes on reading once each domain serves, on the pace of any reading, so what it says can age", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       try {
         let reads = 0;
@@ -1517,8 +1569,8 @@ describe("an app's overview", () => {
         });
         await within(running).findByText("Valid");
         const before = reads;
-        await act(() => vi.advanceTimersByTimeAsync(20_000));
-        expect(reads).toBe(before);
+        await act(() => vi.advanceTimersByTimeAsync(21_000));
+        expect(reads - before).toBe(2);
       } finally {
         vi.useRealTimers();
       }
@@ -1539,7 +1591,8 @@ describe("an app's overview", () => {
         await act(() => vi.advanceTimersByTimeAsync(61_000));
         const settled = reads;
         await act(() => vi.advanceTimersByTimeAsync(60_000));
-        expect(reads - settled).toBeLessThanOrEqual(3);
+        // As often as any reading, as one read less often would run out between reads.
+        expect(reads - settled).toBeLessThanOrEqual(7);
       } finally {
         vi.useRealTimers();
       }
@@ -2127,7 +2180,7 @@ describe("an app's overview", () => {
         await act(() => vi.advanceTimersByTimeAsync(65_000));
         const settled = reads;
         await act(() => vi.advanceTimersByTimeAsync(60_000));
-        expect(reads - settled).toBeLessThanOrEqual(3);
+        expect(reads - settled).toBeLessThanOrEqual(7);
         domains = [
           {
             ...away(issued(CertificateState.ISSUED)),
@@ -2248,12 +2301,13 @@ describe("an app's overview", () => {
         expect(within(running).getByRole("link", { name: "Check its page" })).toHaveAttribute("href", "/servers/srv_1");
         // It doesn't read as a failure, as nothing has failed that anyone can say.
         expect(running.querySelector(".app-reach-domain.is-failed")).toBeNull();
-        // Still reading, and it has said what it can: every 30 s now, once it has noticed.
+        // Still reading, and it has said what it can: every 10 s now, once it has noticed,
+        // as one read less often would run out between reads.
         await passes(5_000);
         const settled = reads;
         await passes(60_000);
-        expect(reads - settled).toBeGreaterThanOrEqual(2);
-        expect(reads - settled).toBeLessThanOrEqual(3);
+        expect(reads - settled).toBeGreaterThanOrEqual(5);
+        expect(reads - settled).toBeLessThanOrEqual(7);
       } finally {
         vi.useRealTimers();
       }

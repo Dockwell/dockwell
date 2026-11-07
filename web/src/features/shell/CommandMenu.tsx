@@ -183,6 +183,13 @@ function Commands({ onClose }: { onClose: () => void }) {
       run: () => navigate({ to: "/variables" }),
     });
     list.push({
+      id: "domains",
+      group: pages,
+      icon: "link",
+      label: t`Open the domains`,
+      run: () => navigate({ to: "/domains" }),
+    });
+    list.push({
       id: "status",
       group: pages,
       icon: "gauge",

@@ -156,6 +156,32 @@ describe("Table", () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
+  it("leaves a row with nothing to open out of clicks and the tab order", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(
+      <Table
+        caption="Apps"
+        columns={columns}
+        rows={rows}
+        onRowClick={onRowClick}
+        rowClickable={(row) => row !== rows[1]}
+      />,
+    );
+    const [, opens, leadsNowhere] = screen.getAllByRole("row");
+    expect(opens).toHaveClass("is-clickable");
+    expect(opens).toHaveAttribute("tabindex", "0");
+    expect(leadsNowhere).not.toHaveClass("is-clickable");
+    expect(leadsNowhere).not.toHaveAttribute("tabindex");
+    expect(leadsNowhere).not.toHaveAttribute("aria-selected");
+    await user.click(leadsNowhere as HTMLElement);
+    (leadsNowhere as HTMLElement).focus();
+    await user.keyboard("{Enter}");
+    expect(onRowClick).not.toHaveBeenCalled();
+    await user.click(opens as HTMLElement);
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+  });
+
   it("keys rows by another field, and scrolls past a maximum height in a focusable region", async () => {
     const { container } = render(
       <Table caption="Apps by name" columns={columns} rows={rows} rowKey="name" selectedKey="worker" maxHeight={200} />,

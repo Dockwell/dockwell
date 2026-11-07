@@ -507,7 +507,7 @@ function useLead(
  * needs a look than when they last heard. The first read isn't news, as the page
  * says that as it loads, and nothing is said again until there's more to say.
  */
-function useLaterTrouble(needing: number, trouble: string, settled: boolean): string {
+export function useLaterTrouble(needing: number, trouble: string, settled: boolean): string {
   const [told, setTold] = useState("");
   const known = useRef<number | undefined>(undefined);
   useEffect(() => {

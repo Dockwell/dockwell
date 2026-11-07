@@ -46,6 +46,8 @@ export interface TableProps<Row extends object = Record<string, unknown>> {
   density?: "comfortable" | "compact";
   /** Makes rows clickable and reachable by keyboard, for rows that open details. */
   onRowClick?: (row: Row) => void;
+  /** Which rows onRowClick is for, where some have nothing to open. The rest are neither clickable nor a keyboard stop. */
+  rowClickable?: (row: Row) => boolean;
   /** The key of the row whose details are open. */
   selectedKey?: string | number | null;
   /** A class for a row, for rows that differ, such as a group's head above its members. */
@@ -80,6 +82,7 @@ export function Table<Row extends object = Record<string, unknown>>({
   rowKey,
   density = "comfortable",
   onRowClick,
+  rowClickable,
   selectedKey,
   rowClassName,
   empty,
@@ -127,22 +130,23 @@ export function Table<Row extends object = Record<string, unknown>>({
               const id = row[keyField] as unknown;
               const key = typeof id === "string" || typeof id === "number" ? id : index;
               const selected = selectedKey != null && selectedKey === id;
+              const opens = clickable && (rowClickable?.(row) ?? true);
               return (
                 <tr
                   key={key}
-                  className={cx(clickable && "is-clickable", selected && "is-selected", rowClassName?.(row))}
+                  className={cx(opens && "is-clickable", selected && "is-selected", rowClassName?.(row))}
                   aria-current={selected ? "true" : undefined}
-                  aria-selected={clickable ? selected : undefined}
-                  tabIndex={clickable ? 0 : undefined}
+                  aria-selected={opens ? selected : undefined}
+                  tabIndex={opens ? 0 : undefined}
                   onClick={
-                    clickable
+                    opens
                       ? (event) => {
                           if (!fromControl(event)) onRowClick(row);
                         }
                       : undefined
                   }
                   onKeyDown={
-                    clickable
+                    opens
                       ? (event) => {
                           if (event.target !== event.currentTarget) return;
                           if (event.key === "Enter" || event.key === " ") {

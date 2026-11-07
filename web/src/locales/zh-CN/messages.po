@@ -227,6 +227,10 @@ msgstr "{count, plural, other {# 个容器，{running} 个正在运行}}"
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, other {# 天}}"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "{count, plural, one {# domain} other {# domains}}"
+msgstr "{count, plural, other {# 个域名}}"
+
 #: src/lib/time.ts
 msgid "{count, plural, one {# hour} other {# hours}}"
 msgstr "{count, plural, other {# 小时}}"
@@ -358,6 +362,7 @@ msgid "{free} free"
 msgstr "可用 {free}"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
 msgstr "{later}。“优先显示”会把它们移到列表顶部。"
 
@@ -673,6 +678,7 @@ msgid "{name}'s tmpfs at {target} has no size"
 msgstr "{name} 的 tmpfs({target})没有设置大小"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "{needing, plural, one {# needs a look} other {# need a look}}"
 msgstr "{needing, plural, other {# 个需要查看}}"
 
@@ -1121,6 +1127,10 @@ msgstr "服务器自身网络上的容器直接监听服务器的端口，因此
 msgid "A container's log goes when it is removed. Each server keeps the logs of the last failed and the last replaced container of each app, for 30 days, within 256 MB in all, and those of a deleted app for 7."
 msgstr "容器被移除时，它的日志也会一并移除。每台服务器为每个应用保留最近一个失败和最近一个被替换的容器的日志，保留 30 天，总量不超过 256 MB；已删除应用的日志保留 7 天。"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "A domain sends people to an app, so run one first."
+msgstr "域名把访问者带到应用，所以请先运行一个应用。"
+
 #: src/features/apps/ExportSheet.tsx
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
@@ -1244,8 +1254,10 @@ msgstr "执行者"
 msgid "Add"
 msgstr "添加"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Add a domain"
 msgstr "添加域名"
 
@@ -1402,8 +1414,13 @@ msgid "All of it"
 msgstr "查看全部"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "All servers"
 msgstr "所有服务器"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "All states"
+msgstr "所有状态"
 
 #: src/features/logs/LogsPage.tsx
 msgid "All the servers keep"
@@ -1540,6 +1557,7 @@ msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服�
 msgid "app"
 msgstr "应用"
 
+#: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppsPage.tsx
 msgid "App"
@@ -1625,6 +1643,10 @@ msgstr "备份"
 msgid "Backups"
 msgstr "备份"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Behind a tunnel or a proxy"
+msgstr "位于隧道或代理之后"
+
 #: src/features/servers/containers.ts
 msgid "Being removed"
 msgstr "正在移除"
@@ -1684,6 +1706,10 @@ msgstr "无法加载应用"
 msgid "Can't load the deployments"
 msgstr "无法加载部署"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Can't load the domains"
+msgstr "无法加载域名"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Can't load this app"
 msgstr "无法加载此应用"
@@ -1727,6 +1753,10 @@ msgstr "无法读取这个文件"
 #: src/features/files/FilesPage.tsx
 msgid "Can't read this folder"
 msgstr "无法读取这个文件夹"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Can't read your apps"
+msgstr "无法读取你的应用"
 
 #: src/features/files/FileViewer.tsx
 msgid "Can't save this file"
@@ -1870,6 +1900,14 @@ msgstr "选择文件"
 msgid "Choose a longer range, or follow what it writes next."
 msgstr "请选择更长的时间范围，或跟随它接下来写入的内容。"
 
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Choose an app"
+msgstr "选择应用"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Choose the app this domain reaches."
+msgstr "请选择这个域名要到达的应用。"
+
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 msgid "Choose where it runs."
@@ -1897,6 +1935,10 @@ msgstr "认领了这个安装"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Clear filters"
+msgstr "清除筛选"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Clear the filters"
 msgstr "清除筛选"
 
 #: src/features/logs/LogsPage.tsx
@@ -2740,10 +2782,13 @@ msgid "domain"
 msgstr "域名"
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Domain"
 msgstr "域名"
 
-#: src/features/shell/sections.ts
+#: src/features/domains/DomainsPage.tsx
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
 msgid "Domains"
 msgstr "域名"
 
@@ -2922,6 +2967,7 @@ msgstr "一切保持原样"
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
 
+#: src/features/apps/DomainNote.tsx
 #: src/features/auth/ClaimPage.tsx
 msgid "Expired"
 msgstr "已过期"
@@ -2958,6 +3004,10 @@ msgstr "失败"
 msgid "Failed"
 msgstr "失败"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Failing"
+msgstr "出现故障"
+
 #: src/features/servers/ServerFrame.tsx
 msgid "Files"
 msgstr "文件"
@@ -2981,6 +3031,10 @@ msgstr "按名称、镜像或项目筛选"
 #: src/features/servers/ContainersPanel.tsx
 msgid "Filter containers"
 msgstr "筛选容器"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Filter domains"
+msgstr "筛选域名"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Filter log lines"
@@ -3513,6 +3567,7 @@ msgid "It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Co
 msgstr "它的大小是 {size}，且不是 UTF-8 文本，所以这里无法显示。请通过 SSH 连接服务器来处理它。"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "It's behind a tunnel or a proxy"
 msgstr "它位于隧道或代理之后"
 
@@ -3758,6 +3813,10 @@ msgstr "正在加载应用"
 #: src/features/apps/AppOverview.tsx
 msgid "Loading deployments"
 msgstr "正在加载部署"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Loading domains"
+msgstr "正在加载域名"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Loading passkeys"
@@ -4015,6 +4074,7 @@ msgstr "从未使用"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "New app"
 msgstr "新建应用"
@@ -4083,6 +4143,14 @@ msgstr "没有做过备份,数据保持现状"
 msgid "No container matches this filter."
 msgstr "没有符合此筛选条件的容器。"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "No domain here matches what you've chosen. Try part of a name, or another state."
+msgstr "这里没有符合所选条件的域名。请试试名称的一部分，或换一种状态。"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "No domains yet"
+msgstr "还没有域名"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "No downtime"
 msgstr "不会停机"
@@ -4116,6 +4184,7 @@ msgid "No passkey works at {rpId} yet"
 msgstr "{rpId} 上还没有可用的通行密钥"
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "No report"
 msgstr "无上报"
 
@@ -4192,6 +4261,7 @@ msgid "Not answering, since {ago}, so nobody can say what runs here. Check that 
 msgstr "自 {ago}起没有响应，因此无法确定这里运行着什么。请用 <0>systemctl status docker</0> 检查它是否在运行。"
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Not connected"
 msgstr "未连接"
@@ -4319,6 +4389,7 @@ msgid "Nothing listens on port {number} yet, so this answers 502 until something
 msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Nothing matches"
 msgstr "没有匹配项"
 
@@ -4482,6 +4553,7 @@ msgid "Open {name}"
 msgstr "打开 {name}"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Open {where}"
 msgstr "打开 {where}"
 
@@ -4504,6 +4576,10 @@ msgstr "打开应用"
 #: src/features/auth/ClaimPage.tsx
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开认领链接，或通过 HTTPS 在面板的域名上打开。"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Open the domains"
+msgstr "打开域名"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Open the file"
@@ -4758,9 +4834,9 @@ msgstr "将它的 DNS 指向你的隧道或代理。"
 msgid "port"
 msgstr "端口"
 
-#: src/features/apps/AddDomainSheet.tsx
-msgid "port {leavesPort} on the server"
-msgstr "服务器上的 {leavesPort} 端口"
+#: src/features/apps/DomainNote.tsx
+msgid "port {hostPort} on the server"
+msgstr "服务器上的端口 {hostPort}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "port {target}"
@@ -5465,6 +5541,10 @@ msgstr "轮换了加密所有密钥的密钥"
 msgid "route"
 msgstr "路由"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Routes to"
+msgstr "路由到"
+
 #: src/features/changes/fields.tsx
 msgid "rule"
 msgstr "规则"
@@ -5672,6 +5752,10 @@ msgstr "SELinux 标签"
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
 
+#: src/features/domains/DomainsPage.tsx
+msgid "Send a domain to one of your apps. You review a plan before anything changes."
+msgstr "把域名指向你的某个应用。任何改动生效前，你都会先审阅计划。"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
 msgstr "发送"
@@ -5685,6 +5769,7 @@ msgstr "服务器"
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
@@ -5722,6 +5807,10 @@ msgstr "服务器"
 #: src/app/Providers.tsx
 msgid "service"
 msgstr "服务"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Serving"
+msgstr "正在提供服务"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "Sessions"
@@ -5818,6 +5907,7 @@ msgid "Show the value"
 msgstr "显示值"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Show them first"
 msgstr "优先显示"
 
@@ -5989,12 +6079,14 @@ msgid "Starting"
 msgstr "正在启动"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "State"
 msgstr "状态"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
 msgstr "状态"
@@ -6210,6 +6302,10 @@ msgstr "身份验证器应用尚未设置"
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备。"
 
+#: src/features/apps/DomainNote.tsx
+msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
+msgstr "<0>{server}</0> 上的证书已于{when}过期，因此浏览器会拒绝访问这个域名。Dockwell 会自动续期。如果一直是这样，请<1>查看它的页面</1>。"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "The change failed"
 msgstr "变更失败"
@@ -6357,6 +6453,14 @@ msgstr "面板无法连接控制平面，因此无法确定你的应用的运行
 #: src/features/servers/FleetNotes.tsx
 msgid "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
 msgstr "面板无法连接控制平面，因此无法确定你的服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定你的域名的状态，它们显示为未知。面板会继续尝试。"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It last heard {ago}, and keeps trying."
+msgstr "面板无法连接控制平面，因此无法确定你的域名的状态，它们显示为未知。上次收到消息是在{ago}，面板会继续尝试。"
 
 #: src/features/system/Unreachable.tsx
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
@@ -6550,6 +6654,14 @@ msgstr "此浏览器已离线，因此面板无法确定你的应用的运行情
 #: src/features/servers/FleetNotes.tsx
 msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
 msgstr "此浏览器已离线，因此面板无法确定你的服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定你的域名的状态，它们显示为未知。请检查你的网络连接。"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. It last heard {ago}. Check your connection."
+msgstr "此浏览器已离线，因此面板无法确定你的域名的状态，它们显示为未知。上次收到消息是在{ago}。请检查你的网络连接。"
 
 #: src/features/changes/notices.tsx
 msgid "This changes what runs: a service of the same name in the file replaces it, and {deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own."
@@ -6848,6 +6960,7 @@ msgstr "趋势"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Try again"
 msgstr "重试"
@@ -7006,6 +7119,10 @@ msgstr "解锁了身份验证器应用验证码"
 #: src/features/system/Unreachable.tsx
 msgid "Unreachable"
 msgstr "无法访问"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "Until then, a domain doesn't lead to its app, and you can't add one here."
+msgstr "在此之前，域名无法跳转到它的应用，你也无法在这里添加域名。"
 
 #: src/features/servers/ServersPanel.tsx
 msgid "Up"
@@ -7224,6 +7341,7 @@ msgid "Volumes"
 msgstr "卷"
 
 #: src/features/changes/words.ts
+#: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Waiting"
 msgstr "等待中"
@@ -7369,6 +7487,10 @@ msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell ru
 #: src/features/files/FileViewer.tsx
 msgid "What you typed is still here."
 msgstr "你输入的内容还在这里。"
+
+#: src/features/domains/DomainsPage.tsx
+msgid "What your domains serve isn't affected."
+msgstr "你的域名所提供的服务不受影响。"
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What's in front"

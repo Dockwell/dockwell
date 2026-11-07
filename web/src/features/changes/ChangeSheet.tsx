@@ -1805,7 +1805,7 @@ function DomainReach({
 }) {
   const { t } = useLingui();
   const look = lookOf(domain);
-  const silent = useSilent(look);
+  const silent = useSilent(domain, look);
   const where = routeWhere(domain, route);
   const serving = look.state === "serving";
   const url = visitorUrl(domain, route);
