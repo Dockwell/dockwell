@@ -555,6 +555,14 @@ func (it item) noRevision() bool {
 	return it.restart != "" || it.restore != nil || len(it.backups) > 0 && !it.changes()
 }
 
+// backupOn is the backup the item takes on a server first, if any.
+func (it item) backupOn(server string) *resource.BackupAsked {
+	if backup := it.backups[server]; backup != "" {
+		return &resource.BackupAsked{ID: backup}
+	}
+	return nil
+}
+
 // restoreOn is what the item restores on a server, if anything.
 func (it item) restoreOn(server string) *resource.RestoreSource {
 	if it.restore == nil || it.restore.Server != server {
@@ -655,7 +663,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))
+	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -832,6 +840,27 @@ func keptNotes(items []item, notes []Note) []Note {
 	for i := range items {
 		if k := items[i].kept; k.Reason != "" {
 			out = append(out, Note{Reason: k.Reason, Ref: items[i].ref, Message: items[i].ref.Name + " " + k.Words})
+		}
+	}
+	return out
+}
+
+// unmeasuredNotes are a plan's notes, saying which volumes nothing could measure in
+// time, with no backup before to go by, so the time a backup of each gets is a guess.
+func unmeasuredNotes(plan *Plan, notes []Note) []Note {
+	out := slices.Clone(notes)
+	said := map[resource.Ref]bool{}
+	for i := range plan.Servers {
+		for j := range plan.Servers[i].Steps {
+			s := &plan.Servers[i].Steps[j]
+			if s.BackupFirst == nil || !s.BackupFirst.Unmeasured || said[s.Ref] {
+				continue
+			}
+			said[s.Ref] = true
+			out = append(out, Note{
+				Reason: "backup_unmeasured", Ref: s.Ref,
+				Message: s.Ref.Name + " took too long to measure, so the hour its backup gets is a guess. If that's too short, this stops there, with nothing else done. Back it up once from Backups, and the next plan goes by how large that was",
+			})
 		}
 	}
 	return out
@@ -2148,7 +2177,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backups[server]}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server)}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -2861,6 +2890,15 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	slices.SortStableFunc(deletes, func(a, b queued) int {
 		return slices.Index(serversOf(plan), b.server) - slices.Index(serversOf(plan), a.server)
 	})
+	// A backup goes before anything else on any server, so one that fails leaves them
+	// all as they were. Otherwise a server's steps keep their order.
+	backupFirst := func(q queued) int {
+		if q.step.BackupFirst != nil {
+			return 0
+		}
+		return 1
+	}
+	slices.SortStableFunc(builds, func(a, b queued) int { return backupFirst(a) - backupFirst(b) })
 	queue := slices.Concat(builds, deletes)
 	digests := map[at]string{}
 
@@ -4076,21 +4114,25 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	if err != nil {
 		return nil, err
 	}
-	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits, Notes: undoNotes(plan)}, changeID, true)
+	notes, err := e.undoNotes(ctx, plan)
+	if err != nil {
+		return nil, err
+	}
+	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits, Notes: notes}, changeID, true)
 }
 
 // undoNotes says what an undo can't put back, from what the undone plan said
 // when it ran. The plan that took no backup is the only one to know it took none.
-func undoNotes(undone *Plan) []Note {
+func (e *Engine) undoNotes(ctx context.Context, undone *Plan) ([]Note, error) {
 	var notes []Note
 	for i := range undone.Notes {
 		n := &undone.Notes[i]
 		if n.Reason == "backup_first" {
-			notes = append(notes, Note{
-				Reason:  "undo_backup_first",
-				Message: "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup taken before the upgrade holds it as it was: restore that from Backups after this",
-				Ref:     n.Ref,
-			})
+			taken, err := e.backupsTaken(ctx, undone)
+			if err != nil {
+				return nil, err
+			}
+			notes = append(notes, undoBackupNote(n.Ref, taken))
 		}
 		if n.Reason == "no_backup" {
 			notes = append(notes, Note{
@@ -4100,7 +4142,49 @@ func undoNotes(undone *Plan) []Note {
 			})
 		}
 	}
-	return notes
+	return notes, nil
+}
+
+// backupsTaken reads the backups a plan took that are still on record, oldest first.
+func (e *Engine) backupsTaken(ctx context.Context, plan *Plan) ([]store.Backup, error) {
+	var taken []store.Backup
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		for i := range plan.Resources {
+			for _, id := range plan.Resources[i].Backups {
+				b, err := tx.GetBackup(ctx, id)
+				if errors.Is(err, store.ErrNotFound) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				if b.State == store.BackupDone {
+					taken = append(taken, b)
+				}
+			}
+		}
+		return nil
+	})
+	slices.SortFunc(taken, func(a, b store.Backup) int { return a.StartedAt.Compare(b.StartedAt) })
+	return taken, err
+}
+
+// undoBackupNote says which backups hold the data an undo leaves behind, by ID and when.
+// Names has when first, then the IDs, for a surface with words of its own.
+func undoBackupNote(ref resource.Ref, taken []store.Backup) Note {
+	const leaves = "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. "
+	if len(taken) == 0 {
+		return Note{Reason: "undo_backup_first", Ref: ref, Message: leaves + "The backup the upgrade took first is gone, so back up what you can't lose before this"}
+	}
+	ids := make([]string, len(taken))
+	for i := range taken {
+		ids[i] = taken[i].ID
+	}
+	when := taken[0].StartedAt.UTC()
+	return Note{
+		Reason: "undo_backup_first", Ref: ref, Names: append([]string{when.Format(time.RFC3339)}, ids...),
+		Message: leaves + "The upgrade backed it up first, in " + human.List(ids) + ", on " + when.Format("2006-01-02 15:04") + " UTC: restore that from Backups after this",
+	}
 }
 
 // Drift is a resource that doesn't match its latest revision.

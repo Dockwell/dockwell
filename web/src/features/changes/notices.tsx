@@ -10,6 +10,7 @@ import {
   type PlanNote,
   PlanWarning,
   type RestorePlan,
+  type StepProgress,
 } from "@dockwell/api";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -493,9 +494,19 @@ export function useRisks(plan: Plan | undefined): Notice[] {
  * What a failed plan left in the data, when it took no backup: a rollback puts back
  * what runs, and whatever ran meanwhile may have changed what that runs on.
  */
-export function useDataLeft(plan: Plan | undefined): Omit<Notice, "key"> | undefined {
+export function useDataLeft(
+  plan: Plan | undefined,
+  progress: readonly StepProgress[],
+): Omit<Notice, "key"> | undefined {
   const { t } = useLingui();
-  if (plan?.notes.some((note) => note.reason === "backup_first" || note.reason === "undo_backup_first")) {
+  // A backup changes no data, and one that failed stopped everything after it.
+  const backups = (plan?.servers ?? []).flatMap((server) =>
+    server.steps.filter((step) => step.backupFirst).map((step) => `${server.serverId}/${step.resourceId}`),
+  );
+  const ranPast = progress.some((step) => step.startTime && !backups.includes(`${step.serverId}/${step.resourceId}`));
+  const backedUp = plan?.notes.some((note) => note.reason === "backup_first");
+  if (backedUp && !ranPast) return undefined;
+  if (backedUp || plan?.notes.some((note) => note.reason === "undo_backup_first")) {
     return {
       title: t`The data stays as it is now`,
       detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore the backup taken first if it doesn't.`,
@@ -516,7 +527,7 @@ export function useDataLeft(plan: Plan | undefined): Omit<Notice, "key"> | undef
  * so they translate, and leads with the fact of any it doesn't.
  */
 export function useWarnings(plan: Plan | undefined, applied = false, serving: readonly string[] = []): Notice[] {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const managed = useManagedElsewhere();
   const words = useChangeWords();
   const { rest } = useReaches(plan);
@@ -560,14 +571,29 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`Its volumes are backed up first`,
           detail: t`If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that.`,
         };
-      case "undo_backup_first":
+      case "backup_unmeasured":
+        return {
+          key,
+          title: t`The hour ${name}'s backup gets is a guess`,
+          detail: t`It took too long to measure. If an hour is too short, this stops there, with nothing else done. Back it up once from Backups, and the next plan goes by how large that was.`,
+        };
+      case "undo_backup_first": {
+        const [taken = "", ...ids] = note.names;
+        const which = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(ids);
+        const when = taken ? formatDateTime(new Date(taken), i18n.locale) : "";
+        const gone = ids.length === 0;
         return {
           key,
           title: t`The old version may not read its data`,
           detail: applied
-            ? t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and restore the backup taken before the upgrade if it doesn't.`
-            : t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup taken before the upgrade holds it as it was: restore that from Backups after this.`,
+            ? gone
+              ? t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data. The backup the upgrade took first is gone.`
+              : t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and if it doesn't, restore what the upgrade backed up first: ${which}, on ${when}.`
+            : gone
+              ? t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone, so back up what you can't lose before this.`
+              : t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first, in ${which}, on ${when}: restore that from Backups after this.`,
         };
+      }
       case "no_backup":
         return {
           key,

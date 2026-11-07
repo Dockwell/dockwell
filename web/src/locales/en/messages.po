@@ -1813,6 +1813,15 @@ msgstr "Back up {name}"
 msgid "Back up <0>{name}</0>"
 msgstr "Back up <0>{name}</0>"
 
+#. placeholder {0}: first.database
+#: src/features/changes/PlanSteps.tsx
+msgid "Back up <0>{name}</0> with {0}'s own dump, with nothing stopped"
+msgstr "Back up <0>{name}</0> with {0}'s own dump, with nothing stopped"
+
+#: src/features/changes/PlanSteps.tsx
+msgid "Back up <0>{name}</0>, with {stops} stopped for an exact copy and started again after"
+msgstr "Back up <0>{name}</0>, with {stops} stopped for an exact copy and started again after"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "Back up a volume before you change what's in it. A database's backup stops nothing."
 msgstr "Back up a volume before you change what's in it. A database's backup stops nothing."
@@ -4002,6 +4011,10 @@ msgstr "It takes that proxy's word for where a request came from."
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself."
 msgstr "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself."
+
+#: src/features/changes/notices.tsx
+msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done. Back it up once from Backups, and the next plan goes by how large that was."
+msgstr "It took too long to measure. If an hour is too short, this stops there, with nothing else done. Back it up once from Backups, and the next plan goes by how large that was."
 
 #: src/features/variables/VariablesPage.tsx
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
@@ -7234,6 +7247,10 @@ msgstr "the group {path}, which is the same as root if it is the group that owns
 msgid "The health of {name} changed on {server}"
 msgstr "The health of {name} changed on {server}"
 
+#: src/features/changes/notices.tsx
+msgid "The hour {name}'s backup gets is a guess"
+msgstr "The hour {name}'s backup gets is a guess"
+
 #: src/features/apps/AppOverview.tsx
 msgid "The image's own"
 msgstr "The image's own"
@@ -7700,16 +7717,24 @@ msgid "This put the old version back, not its data. If the new version changed t
 msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't."
 
 #: src/features/changes/notices.tsx
-msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and restore the backup taken before the upgrade if it doesn't."
-msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and restore the backup taken before the upgrade if it doesn't."
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and if it doesn't, restore what the upgrade backed up first: {which}, on {when}."
+msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and if it doesn't, restore what the upgrade backed up first: {which}, on {when}."
+
+#: src/features/changes/notices.tsx
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data. The backup the upgrade took first is gone."
+msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data. The backup the upgrade took first is gone."
 
 #: src/features/changes/notices.tsx
 msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
 msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
 
 #: src/features/changes/notices.tsx
-msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup taken before the upgrade holds it as it was: restore that from Backups after this."
-msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup taken before the upgrade holds it as it was: restore that from Backups after this."
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone, so back up what you can't lose before this."
+msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone, so back up what you can't lose before this."
+
+#: src/features/changes/notices.tsx
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first, in {which}, on {when}: restore that from Backups after this."
+msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first, in {which}, on {when}: restore that from Backups after this."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."

@@ -430,7 +430,10 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if err != nil {
 				return fail(err)
 			}
-			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback(), Adopt: d.GetAdopt(), Backup: d.GetBackupId()}
+			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()}
+			if id := d.GetBackupId(); id != "" {
+				want.Backup = &resource.BackupAsked{ID: id}
+			}
 			if r := d.GetRestore(); r != nil {
 				want.Restore = &resource.RestoreSource{Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Change: r.GetChangeId()}
 			}

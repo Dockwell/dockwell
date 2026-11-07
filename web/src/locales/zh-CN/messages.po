@@ -1813,6 +1813,15 @@ msgstr "备份 {name}"
 msgid "Back up <0>{name}</0>"
 msgstr "备份 <0>{name}</0>"
 
+#. placeholder {0}: first.database
+#: src/features/changes/PlanSteps.tsx
+msgid "Back up <0>{name}</0> with {0}'s own dump, with nothing stopped"
+msgstr "使用 {0} 自带的转储备份 <0>{name}</0>，不停止任何服务"
+
+#: src/features/changes/PlanSteps.tsx
+msgid "Back up <0>{name}</0>, with {stops} stopped for an exact copy and started again after"
+msgstr "备份 <0>{name}</0>：停止 {stops} 以获得精确副本，之后重新启动"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "Back up a volume before you change what's in it. A database's backup stops nothing."
 msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何服务。"
@@ -4002,6 +4011,10 @@ msgstr "它会相信该代理所说的请求来源。"
 #: src/features/changes/notices.tsx
 msgid "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself."
 msgstr "它会相信该代理所说的请求来源。该范围内的其他任何东西都能访问这条路由，并声称其客户端是谁，所以请指定一个由该代理独占的网络。"
+
+#: src/features/changes/notices.tsx
+msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done. Back it up once from Backups, and the next plan goes by how large that was."
+msgstr "测量耗时过长。如果一小时不够，操作会在此停止，其他内容都不会改动。先在“备份”中备份一次，下次计划就会按那次的大小计算。"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
@@ -7234,6 +7247,10 @@ msgstr "用户组 {path}，如果它是服务器上拥有 Docker 套接字的用
 msgid "The health of {name} changed on {server}"
 msgstr "{name} 在 {server} 上的健康状态发生了变化"
 
+#: src/features/changes/notices.tsx
+msgid "The hour {name}'s backup gets is a guess"
+msgstr "{name} 备份的一小时时限只是估计"
+
 #: src/features/apps/AppOverview.tsx
 msgid "The image's own"
 msgstr "镜像自带"
@@ -7700,16 +7717,24 @@ msgid "This put the old version back, not its data. If the new version changed t
 msgstr "这只恢复了旧版本,没有恢复它的数据。如果新版本改动过这些数据(例如做过迁移),旧版本可能拒绝读取或读错,而且没有做过备份。请检查应用能否读取数据,如果不能,请恢复你自己的备份。"
 
 #: src/features/changes/notices.tsx
-msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and restore the backup taken before the upgrade if it doesn't."
-msgstr "此操作恢复了旧版本，但没有恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。请检查应用能否读取数据，如不能，请恢复升级前创建的备份。"
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and if it doesn't, restore what the upgrade backed up first: {which}, on {when}."
+msgstr "此操作恢复了旧版本，但没有恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。请检查应用能否读取数据，如不能，请恢复升级前创建的备份：{which}，创建于 {when}。"
+
+#: src/features/changes/notices.tsx
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data. The backup the upgrade took first is gone."
+msgstr "此操作恢复了旧版本，但没有恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。请检查应用能否读取数据。升级前创建的备份已不存在。"
 
 #: src/features/changes/notices.tsx
 msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
 msgstr "这只会恢复旧版本,不会恢复它的数据。如果新版本改动过这些数据(例如做过迁移),旧版本可能拒绝读取或读错,而且没有做过备份。请先备份不能丢失的内容,或者继续使用新版本。"
 
 #: src/features/changes/notices.tsx
-msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup taken before the upgrade holds it as it was: restore that from Backups after this."
-msgstr "此操作恢复旧版本，但不恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。升级前创建的备份保存了原来的数据：完成后可在“备份”中恢复。"
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone, so back up what you can't lose before this."
+msgstr "此操作恢复旧版本，但不恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。升级前创建的备份已不存在，请先备份不能丢失的内容。"
+
+#: src/features/changes/notices.tsx
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first, in {which}, on {when}: restore that from Backups after this."
+msgstr "此操作恢复旧版本，但不恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。升级前的数据保存在 {which} 中，创建于 {when}：完成后可在“备份”中恢复。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."

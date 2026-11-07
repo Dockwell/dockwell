@@ -5,6 +5,7 @@ import { DurationSchema, type Timestamp, timestampFromDate } from "@bufbuild/pro
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
+  BackupMethod,
   CertificateState,
   type Change,
   ChangeState,
@@ -2582,6 +2583,128 @@ describe("the plan sheet, once it runs", () => {
     expect(done).toHaveTextContent("1 deleted");
     expect(done).toHaveTextContent("Deleted");
     expect(done).not.toHaveTextContent(/destroy/i);
+  });
+
+  describe("an upgrade that backs up first", () => {
+    const upgrade = (reason: string, names: string[] = []) => {
+      const change = moved(aServicePlan(), { state: ChangeState.FAILED, error: "It stopped." });
+      if (change.plan) {
+        const server = change.plan.servers[0];
+        server?.steps.unshift(
+          create(PlanStepSchema, {
+            resourceId: "res_data",
+            resource: { kind: "volume", name: "data" },
+            action: PlanAction.UPDATE,
+            backupFirst: { method: BackupMethod.COPY, stops: ["web", "worker"] },
+          }),
+        );
+        change.plan.notes = [
+          create(PlanNoteSchema, {
+            reason,
+            names,
+            message: "The server's words",
+            resource: { kind: "project", name: "thing" },
+          }),
+        ];
+      }
+      return change;
+    };
+    const ran = (resourceId: string, state: StepState) =>
+      create(StepProgressSchema, {
+        serverId: "srv_1",
+        resourceId,
+        state,
+        startTime: timestampFromDate(new Date("2026-11-07T03:00:00Z")),
+      });
+    const show = (change: Change) =>
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+
+    it("says nothing of restoring a backup that never came to be", async () => {
+      show({ ...upgrade("backup_first"), steps: [ran("res_data", StepState.FAILED)] });
+      const sheet = await screen.findByRole("dialog");
+      await within(sheet).findByText(/It stopped/);
+      expect(sheet).not.toHaveTextContent("restore the backup taken first");
+      expect(within(sheet).queryByText("The data stays as it is now")).toBeNull();
+    });
+
+    it("says to restore it once something after it has run", async () => {
+      show({ ...upgrade("backup_first"), steps: [ran("res_data", StepState.DONE), ran("res_web", StepState.FAILED)] });
+      const sheet = await screen.findByRole("dialog");
+      await within(sheet).findByText("The data stays as it is now");
+      expect(sheet).toHaveTextContent("restore the backup taken first");
+    });
+
+    it("says how a backup is taken, and what stops for it", async () => {
+      show({ ...upgrade("backup_first"), steps: [ran("res_data", StepState.DONE), ran("res_web", StepState.FAILED)] });
+      const sheet = await screen.findByRole("dialog");
+      expect(await within(sheet).findByText(/with web and worker stopped for an exact copy/)).toBeVisible();
+    });
+
+    it("says how a dump is taken, with nothing stopped", async () => {
+      const change = upgrade("backup_first");
+      const first = change.plan?.servers[0]?.steps[0]?.backupFirst;
+      if (first) {
+        first.method = BackupMethod.DUMP;
+        first.database = "PostgreSQL";
+        first.stops = [];
+      }
+      show({ ...change, steps: [ran("res_data", StepState.DONE), ran("res_web", StepState.FAILED)] });
+      const sheet = await screen.findByRole("dialog");
+      expect(await within(sheet).findByText(/with PostgreSQL's own dump, with nothing stopped/)).toBeVisible();
+    });
+
+    it("names the backups an undo leaves you to restore, and when", async () => {
+      const undoing = webPlanned();
+      if (undoing.plan) {
+        undoing.reverts = "chg_upgrade";
+        undoing.plan.notes = [
+          create(PlanNoteSchema, {
+            reason: "undo_backup_first",
+            names: ["2026-11-06T03:00:00Z", "bkp_1", "bkp_2"],
+            resource: { kind: "project", name: "thing" },
+          }),
+        ];
+      }
+      renderSheet(proposeWeb, {
+        changes: { proposeChange: () => ({ change: undoing }), watchChange: feed<WatchChangeResponse>().stream },
+      });
+      const sheet = await screen.findByRole("dialog", { name: /plan/i });
+      const said = within(sheet).getByText(/The upgrade backed it up first/);
+      expect(said).toHaveTextContent("bkp_1 and bkp_2");
+      expect(said).toHaveTextContent("2026");
+    });
+
+    it("says when the backup an undo would point at is gone", async () => {
+      const undoing = webPlanned();
+      if (undoing.plan) {
+        undoing.reverts = "chg_upgrade";
+        undoing.plan.notes = [
+          create(PlanNoteSchema, { reason: "undo_backup_first", resource: { kind: "project", name: "thing" } }),
+        ];
+      }
+      renderSheet(proposeWeb, {
+        changes: { proposeChange: () => ({ change: undoing }), watchChange: feed<WatchChangeResponse>().stream },
+      });
+      const sheet = await screen.findByRole("dialog", { name: /plan/i });
+      expect(await within(sheet).findByText(/The backup the upgrade took first is gone/)).toBeVisible();
+    });
+
+    it("says when the time a backup gets is a guess", async () => {
+      const planned = webPlanned();
+      if (planned.plan) {
+        planned.plan.notes = [
+          create(PlanNoteSchema, { reason: "backup_unmeasured", resource: { kind: "volume", name: "data" } }),
+        ];
+      }
+      renderSheet(proposeWeb, {
+        changes: { proposeChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      });
+      const sheet = await screen.findByRole("dialog", { name: /plan/i });
+      expect(await within(sheet).findByText("The hour data's backup gets is a guess")).toBeVisible();
+    });
   });
 
   it("puts a failure in plain words, with what the server said only behind Details, and a way back", async () => {

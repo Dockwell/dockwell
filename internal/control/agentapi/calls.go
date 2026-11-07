@@ -830,7 +830,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			dr.Restore = &agentv1.RestoreSource{BackupId: r.Backup, Undoes: r.Undoes, ChangeId: r.Change}
 		}
 		dr.ScopeName = s.scopeName(ctx, d.Ref)
-		dr.BackupId = d.Backup
+		if b := d.Backup; b != nil {
+			dr.BackupId = b.ID
+		}
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)

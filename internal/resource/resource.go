@@ -466,6 +466,9 @@ type BackupFirst struct {
 	Stops []string `json:",omitempty"`
 	// Estimate is about how much it will take on the disk, in bytes.
 	Estimate int64 `json:",omitempty"`
+	// Unmeasured says nothing could tell how large it will be, so the time the step
+	// gets is a guess: there was no backup before, and measuring took too long.
+	Unmeasured bool `json:",omitempty"`
 }
 
 // BackupTaken is a backup a step took, whole on its server.

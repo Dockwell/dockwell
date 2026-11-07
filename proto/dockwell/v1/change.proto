@@ -684,8 +684,9 @@ message PlanNote {
   // password it was made with, whatever an edit gave, "kept_passphrase" for a backup
   // destination that keeps its passphrase the same way, and "kept_options" for one
   // that keeps its options, as an edit gave none, "first_steps" for what a catalog
-  // app needs a person to know and do, "backup_first" for one that backs up its volumes first, "no_backup" for a catalog upgrade that runs
-  // without a backup first, "upgrade_kept" for what a person changed that the upgrade
+  // app needs a person to know and do, "backup_first" for one that backs up its volumes first, "backup_unmeasured" for a
+  // volume whose backup gets a guess at the time it needs, "no_backup" for a catalog
+  // upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
   // changes too, which stays, "upgrade_dropped" for what they changed that it
   // drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
   // whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
@@ -1030,9 +1031,11 @@ message BackupFirst {
   // What stops while it's copied: services by name, and anything else by its
   // container's. A database's dump stops nothing.
   repeated string stops = 4;
-  // About how much it will take on the server's disk, in bytes. Zero when that took
-  // too long to find out.
+  // About how much it will take on the server's disk, in bytes.
   int64 estimate_bytes = 5;
+  // True when nothing could tell: there was no backup before, and measuring the
+  // volume took too long. The time the step gets is a guess, and the plan says so.
+  bool unmeasured = 6;
 }
 
 // SharedName is a name more than one container answers to on a network.

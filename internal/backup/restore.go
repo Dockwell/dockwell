@@ -185,7 +185,7 @@ func (r *Runner) JudgeBackup(ctx context.Context, ref resource.Ref, id string) (
 	if err != nil {
 		return resource.Decision{}, false, err
 	}
-	dec := resource.Decision{Action: resource.ActionUpdate, BackupFirst: &resource.BackupFirst{ID: id, Method: p.Method, Database: p.Database, Estimate: p.Estimate}}
+	dec := resource.Decision{Action: resource.ActionUpdate, BackupFirst: &resource.BackupFirst{ID: id, Method: p.Method, Database: p.Database, Estimate: p.Estimate, Unmeasured: p.Unmeasured}}
 	if p.Method == resource.BackupCopyRunning {
 		dec.Effect = resource.EffectRestart
 		dec.BackupFirst.Method = resource.BackupCopy

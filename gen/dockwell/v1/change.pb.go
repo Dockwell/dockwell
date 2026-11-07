@@ -3352,8 +3352,9 @@ type PlanNote struct {
 	// password it was made with, whatever an edit gave, "kept_passphrase" for a backup
 	// destination that keeps its passphrase the same way, and "kept_options" for one
 	// that keeps its options, as an edit gave none, "first_steps" for what a catalog
-	// app needs a person to know and do, "backup_first" for one that backs up its volumes first, "no_backup" for a catalog upgrade that runs
-	// without a backup first, "upgrade_kept" for what a person changed that the upgrade
+	// app needs a person to know and do, "backup_first" for one that backs up its volumes first, "backup_unmeasured" for a
+	// volume whose backup gets a guess at the time it needs, "no_backup" for a catalog
+	// upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
 	// changes too, which stays, "upgrade_dropped" for what they changed that it
 	// drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
 	// whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
@@ -4376,9 +4377,11 @@ type BackupFirst struct {
 	// What stops while it's copied: services by name, and anything else by its
 	// container's. A database's dump stops nothing.
 	Stops []string `protobuf:"bytes,4,rep,name=stops,proto3" json:"stops,omitempty"`
-	// About how much it will take on the server's disk, in bytes. Zero when that took
-	// too long to find out.
+	// About how much it will take on the server's disk, in bytes.
 	EstimateBytes int64 `protobuf:"varint,5,opt,name=estimate_bytes,json=estimateBytes,proto3" json:"estimate_bytes,omitempty"`
+	// True when nothing could tell: there was no backup before, and measuring the
+	// volume took too long. The time the step gets is a guess, and the plan says so.
+	Unmeasured    bool `protobuf:"varint,6,opt,name=unmeasured,proto3" json:"unmeasured,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4446,6 +4449,13 @@ func (x *BackupFirst) GetEstimateBytes() int64 {
 		return x.EstimateBytes
 	}
 	return 0
+}
+
+func (x *BackupFirst) GetUnmeasured() bool {
+	if x != nil {
+		return x.Unmeasured
+	}
+	return false
 }
 
 // SharedName is a name more than one container answers to on a network.
@@ -5959,13 +5969,16 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x11managed_elsewhere\x18# \x01(\v2\x1d.dockwell.v1.ManagedElsewhereR\x10managedElsewhere\x12:\n" +
 	"\fshared_names\x18$ \x03(\v2\x17.dockwell.v1.SharedNameR\vsharedNames\x122\n" +
 	"\arestore\x18( \x01(\v2\x18.dockwell.v1.RestorePlanR\arestore\x12;\n" +
-	"\fbackup_first\x18) \x01(\v2\x18.dockwell.v1.BackupFirstR\vbackupFirst\"\xb6\x01\n" +
+	"\fbackup_first\x18) \x01(\v2\x18.dockwell.v1.BackupFirstR\vbackupFirst\"\xd6\x01\n" +
 	"\vBackupFirst\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x121\n" +
 	"\x06method\x18\x02 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +
 	"\bdatabase\x18\x03 \x01(\tR\bdatabase\x12\x14\n" +
 	"\x05stops\x18\x04 \x03(\tR\x05stops\x12%\n" +
-	"\x0eestimate_bytes\x18\x05 \x01(\x03R\restimateBytes\"R\n" +
+	"\x0eestimate_bytes\x18\x05 \x01(\x03R\restimateBytes\x12\x1e\n" +
+	"\n" +
+	"unmeasured\x18\x06 \x01(\bR\n" +
+	"unmeasured\"R\n" +
 	"\n" +
 	"SharedName\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +

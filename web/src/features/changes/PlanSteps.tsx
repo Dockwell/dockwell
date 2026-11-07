@@ -2,6 +2,8 @@
 
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import {
+  type BackupFirst,
+  BackupMethod,
   HostAccessKind,
   type Intent,
   type Plan,
@@ -178,9 +180,7 @@ function StepRow({
           ) : intent ? (
             <MachineWords>{words.intent(intent, tenseOf(live?.state))}</MachineWords>
           ) : step.backupFirst ? (
-            <Trans>
-              Back up <code>{name}</code>
-            </Trans>
+            <BackupFirstLine first={step.backupFirst} name={name} />
           ) : (
             <>
               {step.adopts
@@ -241,6 +241,31 @@ function StepRow({
 }
 
 /** How long a step has taken, counting up in tabular figures while it runs. */
+/** What a step that backs up a volume does: its own dump, or a copy of what stops for it. */
+function BackupFirstLine({ first, name }: { first: BackupFirst; name: string }) {
+  const { i18n } = useLingui();
+  const stops = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(first.stops);
+  if (first.method === BackupMethod.DUMP) {
+    return (
+      <Trans>
+        Back up <code>{name}</code> with {first.database}'s own dump, with nothing stopped
+      </Trans>
+    );
+  }
+  if (first.stops.length > 0) {
+    return (
+      <Trans>
+        Back up <code>{name}</code>, with {stops} stopped for an exact copy and started again after
+      </Trans>
+    );
+  }
+  return (
+    <Trans>
+      Back up <code>{name}</code>
+    </Trans>
+  );
+}
+
 function StepTime({ live }: { live: StepProgress }) {
   if (!live.startTime) return null;
   const start = timestampMs(live.startTime);

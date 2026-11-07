@@ -3029,9 +3029,12 @@ components:
                          container's. A database's dump stops nothing.
                 estimateBytes:
                     type: string
+                    description: About how much it will take on the server's disk, in bytes.
+                unmeasured:
+                    type: boolean
                     description: |-
-                        About how much it will take on the server's disk, in bytes. Zero when that took
-                         too long to find out.
+                        True when nothing could tell: there was no backup before, and measuring the
+                         volume took too long. The time the step gets is a guess, and the plan says so.
             description: |-
                 BackupFirst is a backup a change takes before anything else it does, as a catalog
                  upgrade takes one of what the new version may change. If it fails, the change stops
@@ -6182,8 +6185,9 @@ components:
                          password it was made with, whatever an edit gave, "kept_passphrase" for a backup
                          destination that keeps its passphrase the same way, and "kept_options" for one
                          that keeps its options, as an edit gave none, "first_steps" for what a catalog
-                         app needs a person to know and do, "backup_first" for one that backs up its volumes first, "no_backup" for a catalog upgrade that runs
-                         without a backup first, "upgrade_kept" for what a person changed that the upgrade
+                         app needs a person to know and do, "backup_first" for one that backs up its volumes first, "backup_unmeasured" for a
+                         volume whose backup gets a guess at the time it needs, "no_backup" for a catalog
+                         upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
                          changes too, which stays, "upgrade_dropped" for what they changed that it
                          drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
                          whose data stays as the new version left it, and "tmpfs_no_size" for a Compose

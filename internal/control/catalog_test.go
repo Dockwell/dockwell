@@ -748,6 +748,7 @@ func TestUndoingAnUpgradeWarnsOfItsData(t *testing.T) {
 
 func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
 	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	var names []string
 	said := func(id string) string {
 		t.Helper()
 		undo, err := u.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: id}))
@@ -757,7 +758,7 @@ func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
 		var out string
 		for _, n := range undo.Msg.GetChange().GetPlan().GetNotes() {
 			if n.GetReason() == "undo_backup_first" {
-				out = n.GetMessage()
+				out, names = n.GetMessage(), n.GetNames()
 			}
 		}
 		if _, err := u.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: undo.Msg.GetChange().GetId()})); err != nil {
@@ -779,11 +780,31 @@ func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
 	u.release(testEntry(2, "2.0", secondRelease, ""))
 	up := u.upgrade()
 	u.applied(up)
+	bc := backupClient(u.b, u.b.origin)
+	taken := backupsOf(t, bc)
+	if len(taken) != 1 {
+		t.Fatalf("backups = %v", taken)
+	}
+	id := taken[0].GetId()
 	got := said(up.GetId())
-	for _, want := range []string{"may refuse it or misread it", "backup taken before the upgrade"} {
+	when := taken[0].GetStartedAt().AsTime().Format("2006-01-02 15:04") + " UTC"
+	for _, want := range []string{"may refuse it or misread it", "backed it up first, in " + id, when, "restore that from Backups"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("an undo of an upgrade says %q, with no %q", got, want)
 		}
+	}
+
+	// A surface with words of its own gets when, then which.
+	if at, err := time.Parse(time.RFC3339, names[0]); err != nil || !at.Equal(taken[0].GetStartedAt().AsTime().Truncate(time.Second)) || !slices.Equal(names[1:], []string{id}) {
+		t.Errorf("an undo of an upgrade names %v, %v", names, err)
+	}
+
+	// Once it's gone, the undo can't point at it.
+	if _, err := bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: id})); err != nil {
+		t.Fatal(err)
+	}
+	if got := said(up.GetId()); !strings.Contains(got, "took first is gone") || strings.Contains(got, id) {
+		t.Errorf("with its backup deleted, an undo says %q", got)
 	}
 }
 
