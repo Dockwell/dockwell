@@ -1441,8 +1441,15 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	var c *docker.Container
 	if len(all) > 0 {
 		c = all[0].Container
-		if dec.Action == resource.ActionReplace {
+		if dec.Action == resource.ActionReplace && c.Config.Labels[docker.LabelAdopted] != "" {
 			dec.Elsewhere = elsewhere(c)
+			leaning, err := d.leaningOn(ctx, c)
+			if err != nil {
+				return err
+			}
+			if len(leaning) > 0 {
+				return fmt.Errorf("%s can't be replaced while others depend on it: %s, so a new container would cut that off. It stays as it is. Make that again on its own, then try this again", t.Service, human.List(leaning))
+			}
 		}
 		if dec.Action == resource.ActionReplace && !all[0].temp && !all[0].stopping {
 			// A replace makes the new one under this name, and a try that

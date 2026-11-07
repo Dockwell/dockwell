@@ -150,6 +150,9 @@ func Refusal(name string, a resource.Adoption) string {
 	if len(a.Shows) > 0 {
 		why = append(why, fmt.Sprintf("%s holds %s, so a plan would show it to anyone who can read plans", name, human.List(a.Shows)))
 	}
+	if len(a.LeanedOn) > 0 {
+		why = append(why, fmt.Sprintf("%s can't be replaced while others depend on it: %s, so a new container would cut that off", name, human.List(a.LeanedOn)))
+	}
 	return strings.Join(why, ". ")
 }
 

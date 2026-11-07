@@ -4,6 +4,7 @@ package container
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -140,6 +141,65 @@ func noSpecHolds(c *docker.Container, o *docker.Options, imageSignal string, inf
 	// Two keys can come to one name, as blkio_config does.
 	slices.Sort(out)
 	return slices.Compact(out)
+}
+
+// leaningOn names what depends on c in a way a replace would cut off, each with how:
+// a container that shares its network has only loopback once it has gone. It reads
+// each container on the server, stopped ones too, as one starts on what it was made
+// with, so it's for a person's plan and not for a list.
+func (d *Docker) leaningOn(ctx context.Context, c *docker.Container) ([]string, error) {
+	list, err := d.Client.ListContainers(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("can't list what shares this container: %w", err)
+	}
+	var out []string
+	for i := range list {
+		if list[i].ID == c.ID {
+			continue
+		}
+		o, err := d.Client.InspectOptions(ctx, list[i].ID)
+		switch {
+		case docker.IsNotFound(err):
+			continue
+		case err != nil:
+			return nil, fmt.Errorf("can't read what shares this container: %w", err)
+		}
+		out = append(out, leans(o, c)...)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+// leans says how o depends on c, by its name.
+func leans(o *docker.Options, c *docker.Container) []string {
+	name, self := strings.TrimPrefix(o.Name, "/"), strings.TrimPrefix(c.Name, "/")
+	is := func(ref string) bool { return ref == self || len(ref) >= 12 && strings.HasPrefix(c.ID, ref) }
+	var out []string
+	for _, m := range []struct{ key, how string }{
+		{"NetworkMode", "shares its network"}, {"PidMode", "shares its processes"}, {"IpcMode", "shares its shared memory"},
+	} {
+		var mode string
+		_ = json.Unmarshal(o.HostConfig[m.key], &mode)
+		if ref, ok := strings.CutPrefix(mode, "container:"); ok && is(ref) {
+			out = append(out, name+" "+m.how)
+		}
+	}
+	// Each is a name or an ID, then what it's called here or how it's mounted.
+	sources := func(key string) bool {
+		var list []string
+		_ = json.Unmarshal(o.HostConfig[key], &list)
+		return slices.ContainsFunc(list, func(s string) bool {
+			source, _, _ := strings.Cut(s, ":")
+			return is(strings.TrimPrefix(source, "/"))
+		})
+	}
+	if sources("Links") {
+		out = append(out, name+" links to it")
+	}
+	if sources("VolumesFrom") {
+		out = append(out, name+" mounts its volumes")
+	}
+	return out
 }
 
 func readKeys(section string, keys map[string]json.RawMessage, rules map[string]rule, r *reading) []string {

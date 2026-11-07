@@ -85,7 +85,7 @@ func (c *calls) adoption(ctx context.Context, call *agentv1.AdoptionCall) (*agen
 	if err != nil {
 		return nil, err
 	}
-	return &agentv1.AdoptionResult{Spec: b, Refused: read.Refused, Shows: read.Shows, Manager: read.Manager, Folder: read.Folder}, nil
+	return &agentv1.AdoptionResult{Spec: b, Refused: read.Refused, Shows: read.Shows, Manager: read.Manager, Folder: read.Folder, LeanedOn: read.LeanedOn}, nil
 }
 
 // containerFilter asks Docker for one container, exactly: a name goes through its

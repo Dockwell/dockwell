@@ -571,6 +571,60 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 	}
 }
 
+// A container others lean on can't be replaced: a sidecar's app has only loopback once
+// the container that held its network has gone. So it's refused, by the name of what
+// leans on it, and how, when it's taken on and when a plan would replace it.
+func TestWhatOthersLeanOnStaysAsItIs(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	c := changeClient(b, b.origin)
+	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	plain := func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil }
+	ts := runByHand(t, e, "ts", plain)
+	refuses := func(id, says string) {
+		t.Helper()
+		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: id}))
+		if err == nil || !strings.Contains(err.Error(), says) || !strings.Contains(err.Error(), "It stays as it is") {
+			t.Errorf("taking on %s: %v, want it to say %q", id, err, says)
+		}
+	}
+	for name, c := range map[string]struct {
+		keys map[string]any
+		says string
+	}{
+		"by-network": {map[string]any{"NetworkMode": "container:" + ts}, "by-network shares its network"},
+		"by-pid":     {map[string]any{"PidMode": "container:" + ts}, "by-pid shares its processes"},
+		"by-ipc":     {map[string]any{"IpcMode": "container:" + ts}, "by-ipc shares its shared memory"},
+		"by-link":    {map[string]any{"Links": []any{"/ts:/by-link/ts"}}, "by-link links to it"},
+		"by-volumes": {map[string]any{"VolumesFrom": []any{"ts:ro"}}, "by-volumes mounts its volumes"},
+	} {
+		runByHand(t, e, name, plain)
+		e.Reports(name, "HostConfig", c.keys)
+		refuses("ts", c.says)
+		e.Remove(name)
+	}
+
+	// Something that came to lean on it since keeps it from being replaced.
+	applyConfirmed(t, c, adopt(t, cc, "ts", "held"))
+	runByHand(t, e, "app", plain)
+	e.Reports("app", "HostConfig", map[string]any{"NetworkMode": "container:" + ts})
+	deploy := func() (*connect.Response[dockwellv1.DeployServiceResponse], error) {
+		return services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "held", Image: "nginx:1.27"}))
+	}
+	if _, err := deploy(); err == nil || !strings.Contains(err.Error(), "app shares its network") {
+		t.Errorf("replacing what app shares the network of: %v", err)
+	}
+	if e.Container("ts") == nil {
+		t.Fatal("a refused plan took ts away")
+	}
+	e.Remove("app")
+	if _, err := deploy(); err != nil {
+		t.Errorf("with nothing leaning on it: %v", err)
+	}
+}
+
 // A token may run a new image on what was taken on, as on any service: that's what a
 // deploy from CI is. Not on what's as good as root, where a new image is any code
 // with root's reach, so a person approves that, whichever way it got there.

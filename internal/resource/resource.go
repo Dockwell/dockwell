@@ -819,6 +819,9 @@ type Adoption struct {
 	// Shows says where Spec would show a value of its environment, by the variable's
 	// name and never the value.
 	Shows []string
+	// LeanedOn is what depends on it in a way a replace would cut off, each with how,
+	// such as "app shares its network".
+	LeanedOn []string
 	// Manager is the tool that runs its Compose project, where its labels show one.
 	Manager string
 	// Folder is where its Compose project runs from.

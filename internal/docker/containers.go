@@ -243,6 +243,7 @@ func TakenView(c *Container, t Taken) *Container {
 // container that wasn't made from a spec. Fields would leave out whatever they don't
 // name, and what Dockwell doesn't know of is what such a reader is looking for.
 type Options struct {
+	Name            string                     `json:"Name"` // with a leading slash
 	Config          map[string]json.RawMessage `json:"Config"`
 	HostConfig      map[string]json.RawMessage `json:"HostConfig"`
 	NetworkSettings struct {

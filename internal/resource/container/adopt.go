@@ -81,8 +81,12 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 	if err != nil {
 		return resource.Adoption{}, fmt.Errorf("can't ask Docker how it runs containers, so what this one needs can't be read: %w", err)
 	}
+	leaning, err := d.leaningOn(ctx, c)
+	if err != nil {
+		return resource.Adoption{}, err
+	}
 	return resource.Adoption{
-		Spec: spec, Refused: noSpecHolds(c, options, imageSignal, info), Shows: valuesShown(spec),
+		Spec: spec, Refused: noSpecHolds(c, options, imageSignal, info), Shows: valuesShown(spec), LeanedOn: leaning,
 		Manager: docker.ManagedBy(c.Config.Labels), Folder: c.Config.Labels[docker.LabelWorkingDir],
 	}, nil
 }
