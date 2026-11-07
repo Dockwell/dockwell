@@ -305,6 +305,12 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			step = Step{Ref: want.Ref}
 			if left {
 				step.Decision = dec
+				// A restore writes wherever a path leads now.
+				if f, ok := d.(PathFollower); ok && spec != nil {
+					if step.Leads, err = f.Leads(ctx, want.Ref, spec); err != nil {
+						return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+					}
+				}
 			}
 			steps = append(steps, step)
 			continue

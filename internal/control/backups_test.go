@@ -199,6 +199,62 @@ func testABackupRestoresThroughAPlan(t *testing.T, backend store.Backend) {
 	}
 }
 
+// A restore into a volume that binds the system takes what any plan as good as root
+// takes: a person, the plan's fingerprint and a passkey, for that change. It can bring
+// back whoever could log in when the backup was taken. Its undo asks the same.
+func TestARestoreIntoTheSystemTakesAPasskey(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	f.addDockerServer(t)
+	c, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+	token := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
+
+	made := proposeEdit(t, c, &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(volume.Kind), Name: "system"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": "/etc"}}}},
+	})
+	applyAsRoot(t, b, made)
+	taken, err := bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: made.GetPlan().GetResources()[0].GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup := waitBackup(t, bc, taken.Msg.GetBackup().GetId())
+	if backup.GetState() != dockwellv1.BackupState_BACKUP_STATE_DONE {
+		t.Fatalf("backup = %v", backup)
+	}
+	planned, err := bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: backup.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	asks := func(ch *dockwellv1.Change) {
+		t.Helper()
+		fingerprint := ch.GetPlan().GetFingerprint()
+		if err := askedBy(t, token, ch, fingerprint); reasonOf(err) != "needs_session" {
+			t.Errorf("a token applying it = %v", err)
+		}
+		if err := askedBy(t, c, ch, ""); reasonOf(err) != "needs_confirmation" {
+			t.Errorf("with no fingerprint = %v", err)
+		}
+		if err := askedBy(t, c, ch, fingerprint); reasonOf(err) != "needs_step_up" {
+			t.Errorf("with no passkey = %v", err)
+		}
+		if !slices.ContainsFunc(ch.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+			return n.GetReason() == "new_code_as_root" && strings.Contains(n.GetMessage(), "what a backup brings back")
+		}) {
+			t.Errorf("the plan doesn't say why it asks: %v", ch.GetPlan().GetNotes())
+		}
+	}
+	ch := planned.Msg.GetChange()
+	asks(ch)
+	applyAsRoot(t, b, ch)
+
+	undo, err := c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: ch.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	asks(undo.Msg.GetChange())
+}
+
 // Who may do what, as ADR 0033 has it.
 func TestWhoMayBackUpAndDelete(t *testing.T) { storetest.Each(t, testWhoMayBackUpAndDelete) }
 

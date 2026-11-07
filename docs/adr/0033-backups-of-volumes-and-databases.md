@@ -82,7 +82,7 @@ What was settled already:
 | Delete a backup | No | No | Yes |
 | Download a backup | No | No | With a passkey, once downloads exist |
 
-- **A restore needs a person** because it replaces data, as ADR 0016 has it for every plan that destroys data.
+- **A restore needs a person** because it replaces data, as ADR 0016 has it for every plan that destroys data. Where the volume reaches what's as good as root, such as a bind of `/etc`, it takes a passkey too ([ADR 0032](0032-files-on-a-server.md)). An ordinary volume doesn't.
 - **Deleting a backup needs a person** too, as nothing brings one back, and it is what a person relies on after something goes wrong.
 - **A download will need what revealing a secret needs.** A backup holds an app's secrets in its data, with a database's password hashes and whatever the app stored. So a download will need a session and a passkey step-up for that backup, as `RevealSecret` does, no token will be able to make one, and each will be in the audit log. This slice has no download at all. You can fetch a file from the server as root.
 

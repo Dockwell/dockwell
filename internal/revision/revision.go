@@ -2132,8 +2132,12 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 // tag or digest of the same image repository, which is how CI deploys. That one is the
 // same code by the same hand, and everything else can be any code at all, with
 // whatever the resource reaches: a command, an entrypoint, a health check, a user or
-// an environment.
+// an environment. A restore counts too, spec or no spec: it writes over all that's
+// there, so a backup of /etc brings back whoever could get in when it was taken.
 func (e *Engine) runsSomethingElse(it *item, server string) bool {
+	if it.restoreOn(server) != nil {
+		return true
+	}
 	n, ok := e.imageNamer(it.ref.Kind)
 	current, desired := it.currentOn(server), it.desiredOn(server)
 	if !ok || current == nil || desired == nil {
@@ -2168,8 +2172,12 @@ func (e *Engine) keptRootNotes(plan *Plan, items []item, notes []Note) []Note {
 				continue
 			}
 			if slices.ContainsFunc(it.servers, func(s string) bool { return e.runsSomethingElse(it, s) }) {
+				then := "whatever else runs in it has that reach too"
+				if it.restore != nil {
+					then = "what a backup brings back has that reach too"
+				}
 				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: it.ref.Name +
-					" reaches what's as good as root on its server, so whatever else runs in it has that reach too. Applying this takes a person and their passkey"})
+					" reaches what's as good as root on its server, so " + then + ". Applying this takes a person and their passkey"})
 			}
 		}
 	}

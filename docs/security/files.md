@@ -64,6 +64,7 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | Save through an old agent, which doesn't ask | The agent says in its hello that it guards these, and the control plane saves through no agent that doesn't. Tested |
 | Keep at it, unseen, until something gives | A passkey asked for that doesn't come within a minute is on the timeline in a warning tone, for a save or an apply. Tested |
 | Put new code in a service that already has root, by a plan | Anything that changes what runs in it asks for a person, the typed fingerprint and a passkey, whichever way it came. Only another tag or digest of the same image repository goes on as it did, and a limit, which runs nothing. Tested |
+| Bring a way in back from an old backup | A restore into a volume that reaches what's as good as root, and its undo, asks for a person, the typed fingerprint and a passkey, as a save there does. An ordinary volume asks no passkey. Tested |
 | Save a file without leaving a record | It can't. `file.saving` is written before the agent is asked, and if it can't be written nothing is. Tested |
 | Write over the install's key, or a secret's value in Docker's state | Refused: a save takes the same walk as a read |
 | Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |
