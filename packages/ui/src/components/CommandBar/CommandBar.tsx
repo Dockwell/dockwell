@@ -20,7 +20,7 @@ import { PHONE_QUERY, useMediaQuery } from "../../lib/useMediaQuery";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
 import { Kbd } from "../Kbd/Kbd";
-import { fuzzyMatch, splitMatches } from "./fuzzy";
+import { foldText, fuzzyMatch, splitMatches } from "./fuzzy";
 import "./CommandBar.css";
 
 export interface CommandItem {
@@ -126,15 +126,17 @@ function CommandPanel({
   const [active, setActive] = useState(0);
   const searching = query.trim() !== "";
 
+  // Each label as the matcher reads it, worked out once rather than on every keystroke.
+  const labels = useMemo(() => items.map((item) => foldText(item.label)), [items]);
   const results = useMemo<Result[]>(() => {
     if (!searching) return items.map((item) => ({ item, indexes: [], score: 0 }));
     return items
-      .flatMap((item) => {
-        const match = fuzzyMatch(query, item.label);
+      .flatMap((item, i) => {
+        const match = fuzzyMatch(query, labels[i] ?? item.label);
         return match ? [{ item, ...match }] : [];
       })
       .sort((a, b) => b.score - a.score);
-  }, [items, query, searching]);
+  }, [items, labels, query, searching]);
 
   const activeIndex = results.length === 0 ? -1 : Math.min(Math.max(active, 0), results.length - 1);
   const optionId = (index: number) => `${listId}-option-${index}`;
