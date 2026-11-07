@@ -13,8 +13,9 @@ import (
 )
 
 // UpdatesTimeout is what a read of a server's package updates gets: a refresh of
-// its lists, then the read, each within the agent's own deadline (ADR 0043).
-const UpdatesTimeout = updates.RefreshTimeout + updates.ReadTimeout + 2*updates.KillGrace + time.Minute
+// its lists, then as many as four reads, as dnf's takes, each within the agent's
+// own deadline and its grace, and a minute more (ADR 0043).
+const UpdatesTimeout = updates.RefreshTimeout + 4*updates.ReadTimeout + 5*updates.KillGrace + time.Minute
 
 // ReadsUpdates reports an agent that reads its server's package updates.
 func (s *Session) ReadsUpdates() bool { return s.readsUpdates }

@@ -338,7 +338,7 @@ type ServerUpdates struct {
 	// The package manager that read them. Unspecified when none could.
 	Manager PackageManager `protobuf:"varint,2,opt,name=manager,proto3,enum=dockwell.v1.PackageManager" json:"manager,omitempty"`
 	// Set when Dockwell can't read updates on this server, saying why, such as
-	// that it has none of apt, dnf and apk. Nothing else is then set.
+	// that it has none of apt, dnf and apk. Nothing else is then set, but reason.
 	Unavailable string `protobuf:"bytes,3,opt,name=unavailable,proto3" json:"unavailable,omitempty"`
 	// The updates that wait, security fixes first, then by name.
 	Packages []*PackageUpdate `protobuf:"bytes,4,rep,name=packages,proto3" json:"packages,omitempty"`
@@ -372,8 +372,14 @@ type ServerUpdates struct {
 	// True when Docker keeps containers running while it restarts (live-restore),
 	// so updating Docker's engine stops none.
 	DockerLiveRestore bool `protobuf:"varint,16,opt,name=docker_live_restore,json=dockerLiveRestore,proto3" json:"docker_live_restore,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Why what's here isn't a read that's current, for a client to word: one of
+	// "unsupported" (no package manager Dockwell reads, with unavailable saying
+	// which), "agent_outdated" (the server's agent reads no updates; update it),
+	// "server_offline" (its agent isn't connected; what's here is from before), and
+	// "read_failed" (the last read failed, with error saying why). Empty otherwise.
+	Reason        string `protobuf:"bytes,17,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ServerUpdates) Reset() {
@@ -516,6 +522,13 @@ func (x *ServerUpdates) GetDockerLiveRestore() bool {
 		return x.DockerLiveRestore
 	}
 	return false
+}
+
+func (x *ServerUpdates) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
 }
 
 // PackageUpdate is one package with a newer version waiting.
@@ -803,7 +816,7 @@ const file_dockwell_v1_update_proto_rawDesc = "" +
 	"\x19CheckServerUpdatesRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"R\n" +
 	"\x1aCheckServerUpdatesResponse\x124\n" +
-	"\aupdates\x18\x01 \x01(\v2\x1a.dockwell.v1.ServerUpdatesR\aupdates\"\xa2\x05\n" +
+	"\aupdates\x18\x01 \x01(\v2\x1a.dockwell.v1.ServerUpdatesR\aupdates\"\xba\x05\n" +
 	"\rServerUpdates\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x125\n" +
 	"\amanager\x18\x02 \x01(\x0e2\x1b.dockwell.v1.PackageManagerR\amanager\x12 \n" +
@@ -824,7 +837,8 @@ const file_dockwell_v1_update_proto_rawDesc = "" +
 	"\x05error\x18\r \x01(\tR\x05error\x12#\n" +
 	"\rrefresh_error\x18\x0e \x01(\tR\frefreshError\x12;\n" +
 	"\tautomatic\x18\x0f \x01(\v2\x1d.dockwell.v1.AutomaticUpdatesR\tautomatic\x12.\n" +
-	"\x13docker_live_restore\x18\x10 \x01(\bR\x11dockerLiveRestore\"\xbd\x02\n" +
+	"\x13docker_live_restore\x18\x10 \x01(\bR\x11dockerLiveRestore\x12\x16\n" +
+	"\x06reason\x18\x11 \x01(\tR\x06reason\"\xbd\x02\n" +
 	"\rPackageUpdate\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\"\n" +
 	"\farchitecture\x18\x02 \x01(\tR\farchitecture\x12\x18\n" +
@@ -855,12 +869,12 @@ const file_dockwell_v1_update_proto_rawDesc = "" +
 	"\rPackageEffect\x12\x1e\n" +
 	"\x1aPACKAGE_EFFECT_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15PACKAGE_EFFECT_REBOOT\x10\x01\x12!\n" +
-	"\x1dPACKAGE_EFFECT_DOCKER_RESTART\x10\x022\xd7\x02\n" +
+	"\x1dPACKAGE_EFFECT_DOCKER_RESTART\x10\x022\xdb\x02\n" +
 	"\rUpdateService\x12\x9a\x01\n" +
 	"\x10GetServerUpdates\x12$.dockwell.v1.GetServerUpdatesRequest\x1a%.dockwell.v1.GetServerUpdatesResponse\"9\xa0\xbb\x18\x01\xaa\xbb\x18\x0e\n" +
-	"\aupdates\x12\x03get\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/servers/{id}/updates\x90\x02\x01\x12\xa8\x01\n" +
-	"\x12CheckServerUpdates\x12&.dockwell.v1.CheckServerUpdatesRequest\x1a'.dockwell.v1.CheckServerUpdatesResponse\"A\xa0\xbb\x18\x01\xaa\xbb\x18\x10\n" +
-	"\aupdates\x12\x05check\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/servers/{id}/updates:checkB\xa4\x01\n" +
+	"\aupdates\x12\x03get\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/servers/{id}/updates\x90\x02\x01\x12\xac\x01\n" +
+	"\x12CheckServerUpdates\x12&.dockwell.v1.CheckServerUpdatesRequest\x1a'.dockwell.v1.CheckServerUpdatesResponse\"E\xa0\xbb\x18\x01\xaa\xbb\x18\x10\n" +
+	"\aupdates\x12\x05check\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/servers/{id}/updates:checkB\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vUpdateProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

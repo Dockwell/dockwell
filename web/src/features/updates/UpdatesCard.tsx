@@ -10,7 +10,8 @@ import { Link } from "@tanstack/react-router";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useControlPlaneNow } from "../servers/useFleet";
-import { distributionOf, plainVersion, releaseStanding, summarize, useServerUpdates } from "./updates";
+import { distributionOf, managerName, plainVersion, releaseStanding, summarize, useServerUpdates } from "./updates";
+import { useWhyNot } from "./why";
 import "./Updates.css";
 
 interface Line {
@@ -25,6 +26,7 @@ function useLines(server: Server): { updates: Line; dockwell: Line | undefined; 
   const { t } = useLingui();
   const words = useTimeWords();
   const now = useControlPlaneNow();
+  const whyNot = useWhyNot();
   const query = useServerUpdates(server.id);
   const u = query.data?.updates;
   if (!u) return undefined;
@@ -46,15 +48,16 @@ function useLines(server: Server): { updates: Line; dockwell: Line | undefined; 
             shape: "triangle",
             tone: "warning",
             title: t`Dockwell ${plainVersion(release?.newest ?? "")} is out`,
-            sub: t`This runs ${version}. Update with the install script`,
+            sub: t`This runs ${version}. Its Updates tab says how to update`,
           }
         : undefined;
-  if (u.unavailable) {
-    return {
-      updates: { shape: "dashed-ring", tone: "unknown", title: t`Updates can't be read here`, sub: u.unavailable },
-      dockwell,
-      checked,
-    };
+  const why = whyNot(server, u, release);
+  // Nothing read yet, or nothing to read here: said as it is, never as up to date.
+  if (u.unavailable || !u.readTime) {
+    const updates: Line = why
+      ? { shape: why.shape, tone: why.tone === "warning" ? "warning" : "unknown", title: why.title, sub: why.short }
+      : { shape: "dashed-ring", tone: "unknown", title: t`Checking for updates`, sub: t`Asking ${server.name}` };
+    return { updates, dockwell, checked };
   }
   const s = summarize(u);
   const distro = distributionOf(server.inventory?.osName);
@@ -81,6 +84,16 @@ function useLines(server: Server): { updates: Line; dockwell: Line | undefined; 
       title: t`${server.name} needs a reboot`,
       sub: t`For what was installed to take effect`,
     };
+  } else if (s.total > 0 && !u.marksSecurity) {
+    // Where the distribution doesn't mark security fixes, as Alpine doesn't, none is
+    // known to be one, and none known not to be.
+    const manager = managerName(u.manager);
+    updates = {
+      shape: "circle",
+      tone: "unknown",
+      title: plural(s.total, { one: "# update", other: "# updates" }),
+      sub: t`${manager} doesn't mark security fixes. ${names([...s.other, ...(s.docker ? [s.docker] : [])])}.`,
+    };
   } else if (s.total > 0) {
     updates = {
       shape: "circle",
@@ -88,8 +101,6 @@ function useLines(server: Server): { updates: Line; dockwell: Line | undefined; 
       title: plural(s.total, { one: "# update, not for security", other: "# updates, none for security" }),
       sub: `${names([...s.other, ...(s.docker ? [s.docker] : [])])}.`,
     };
-  } else if (u.checking && !u.readTime) {
-    updates = { shape: "dashed-ring", tone: "unknown", title: t`Checking for updates`, sub: t`Asking ${server.name}` };
   } else {
     updates = { shape: "circle", tone: "healthy", title: t`Up to date`, sub: t`Nothing waits in its package lists` };
   }

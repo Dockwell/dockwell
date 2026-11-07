@@ -279,7 +279,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Fleet != nil {
 			var releases *updates.Releases
 			if cfg.Releases != "" {
-				releases = updates.NewReleases(cfg.Releases, cfg.Logger)
+				releases = updates.NewReleases(cfg.Releases, cfg.Build.Version, cfg.Logger)
 			}
 			handle(dockwellv1connect.NewUpdateServiceHandler(updates.New(cfg.Fleet, cfg.Agents, releases, cfg.Build, cfg.Logger), opts...))
 		}

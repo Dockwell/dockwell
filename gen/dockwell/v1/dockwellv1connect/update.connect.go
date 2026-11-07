@@ -57,7 +57,8 @@ type UpdateServiceClient interface {
 	// age, and reads what waits again. It answers at once, with checking set, and
 	// GetServerUpdates has the result. A server is refreshed this way at most once
 	// a minute: asking again sooner answers with the refresh under way, or the
-	// last one.
+	// last one. It has the server reach its mirrors, so it takes a person: no API
+	// token can call it.
 	CheckServerUpdates(context.Context, *connect.Request[v1.CheckServerUpdatesRequest]) (*connect.Response[v1.CheckServerUpdatesResponse], error)
 }
 
@@ -118,7 +119,8 @@ type UpdateServiceHandler interface {
 	// age, and reads what waits again. It answers at once, with checking set, and
 	// GetServerUpdates has the result. A server is refreshed this way at most once
 	// a minute: asking again sooner answers with the refresh under way, or the
-	// last one.
+	// last one. It has the server reach its mirrors, so it takes a person: no API
+	// token can call it.
 	CheckServerUpdates(context.Context, *connect.Request[v1.CheckServerUpdatesRequest]) (*connect.Response[v1.CheckServerUpdatesResponse], error)
 }
 

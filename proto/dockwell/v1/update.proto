@@ -34,9 +34,11 @@ service UpdateService {
   // age, and reads what waits again. It answers at once, with checking set, and
   // GetServerUpdates has the result. A server is refreshed this way at most once
   // a minute: asking again sooner answers with the refresh under way, or the
-  // last one.
+  // last one. It has the server reach its mirrors, so it takes a person: no API
+  // token can call it.
   rpc CheckServerUpdates(CheckServerUpdatesRequest) returns (CheckServerUpdatesResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "updates"
       verb: "check"
@@ -82,7 +84,7 @@ message ServerUpdates {
   // The package manager that read them. Unspecified when none could.
   PackageManager manager = 2;
   // Set when Dockwell can't read updates on this server, saying why, such as
-  // that it has none of apt, dnf and apk. Nothing else is then set.
+  // that it has none of apt, dnf and apk. Nothing else is then set, but reason.
   string unavailable = 3;
   // The updates that wait, security fixes first, then by name.
   repeated PackageUpdate packages = 4;
@@ -116,6 +118,12 @@ message ServerUpdates {
   // True when Docker keeps containers running while it restarts (live-restore),
   // so updating Docker's engine stops none.
   bool docker_live_restore = 16;
+  // Why what's here isn't a read that's current, for a client to word: one of
+  // "unsupported" (no package manager Dockwell reads, with unavailable saying
+  // which), "agent_outdated" (the server's agent reads no updates; update it),
+  // "server_offline" (its agent isn't connected; what's here is from before), and
+  // "read_failed" (the last read failed, with error saying why). Empty otherwise.
+  string reason = 17;
 }
 
 // PackageManager is the tool a server installs packages with.

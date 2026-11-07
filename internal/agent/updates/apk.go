@@ -30,25 +30,24 @@ func (apk) listsTime(r *Reader) time.Time {
 
 func (apk) refresh(ctx context.Context, r *Reader) error {
 	args := []string{"-q", "update"}
-	res, err := r.run(ctx, apkPath, RefreshTimeout, args...)
+	res, err := r.run(ctx, "Refreshing apk's indexes", apkPath, RefreshTimeout, args...)
 	if err != nil {
 		return err
 	}
 	if res.code != 0 {
-		return fail(apkPath, res, args...)
+		return fail("Refreshing apk's indexes", res)
 	}
-	r.refreshed = r.now()
 	return nil
 }
 
 func (apk) list(ctx context.Context, r *Reader) ([]*dockwellv1.PackageUpdate, []string, bool, error) {
 	args := []string{"version", "-l", "<"}
-	res, err := r.run(ctx, apkPath, ReadTimeout, args...)
+	res, err := r.run(ctx, "Reading what apk would upgrade", apkPath, ReadTimeout, args...)
 	if err != nil {
 		return nil, nil, false, err
 	}
 	if res.code != 0 {
-		return nil, nil, false, fail(apkPath, res, args...)
+		return nil, nil, false, fail("Reading what apk would upgrade", res)
 	}
 	waiting := parseApkVersion(res.out)
 	if len(waiting) == 0 {
@@ -58,12 +57,12 @@ func (apk) list(ctx context.Context, r *Reader) ([]*dockwellv1.PackageUpdate, []
 	for _, p := range waiting {
 		args = append(args, p.GetName())
 	}
-	res, err = r.run(ctx, apkPath, ReadTimeout, args...)
+	res, err = r.run(ctx, "Reading packages' descriptions", apkPath, ReadTimeout, args...)
 	if err != nil {
 		return nil, nil, false, err
 	}
 	if res.code != 0 {
-		return nil, nil, false, fail(apkPath, res, args...)
+		return nil, nil, false, fail("Reading packages' descriptions", res)
 	}
 	summaries := parseApkInfo(res.out)
 	for _, p := range waiting {

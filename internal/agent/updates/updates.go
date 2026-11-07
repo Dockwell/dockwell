@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -37,6 +38,19 @@ const ListsStale = 24 * time.Hour
 // reads them as they are.
 const ForceEvery = time.Minute
 
+// Why a server's updates aren't a current read, as ServerUpdates.reason says.
+const (
+	ReasonUnsupported   = "unsupported"
+	ReasonAgentOutdated = "agent_outdated"
+	ReasonServerOffline = "server_offline"
+	ReasonReadFailed    = "read_failed"
+)
+
+// RetryAfter is how long a refresh that failed holds off the next one a read
+// would make, as a mirror that's down is down for a while. A person's Check now
+// doesn't wait for it.
+const RetryAfter = time.Hour
+
 // Refreshing is the progress a read says as it refreshes the lists first, which
 // the control plane passes on.
 const Refreshing = "Refreshing the package lists"
@@ -52,7 +66,11 @@ type Options struct {
 	// LiveRestore says whether Docker keeps containers running while it
 	// restarts. Nil means there's no Docker.
 	LiveRestore func(context.Context) bool
-	Logger      *slog.Logger
+	// StateDir is where the reader keeps when it last refreshed the lists, and last
+	// tried to, so a restart doesn't forget: the agent's data folder. Empty keeps
+	// them in memory only.
+	StateDir string
+	Logger   *slog.Logger
 	// Now is the clock. Nil means time.Now.
 	Now func() time.Time
 }
@@ -65,19 +83,61 @@ type Reader struct {
 	logger      *slog.Logger
 	now         func() time.Time
 	grace       time.Duration
+	stateDir    string
 	// turn is held by the one run on the server at a time.
 	turn chan struct{}
-	// forced is when a person last had the lists refreshed, and refreshed when
-	// the agent last did, held with turn.
-	forced, refreshed time.Time
+	// forced is when a person last had the lists refreshed, refreshed when the
+	// agent last did, attempted when it last tried, and failed why that attempt
+	// failed, if it did, all held with turn.
+	forced    time.Time
+	refreshed time.Time
+	attempted time.Time
+	failed    string
+}
+
+// state is what the reader keeps in its data folder.
+type state struct {
+	Refreshed time.Time `json:"refreshed,omitzero"`
+	Attempted time.Time `json:"attempted,omitzero"`
+}
+
+// stateFile is where the reader keeps its state, under the agent's data folder.
+const stateFile = "package-lists.json"
+
+// load reads what the reader kept, where it kept anything.
+func (r *Reader) load() {
+	if r.stateDir == "" {
+		return
+	}
+	b, err := os.ReadFile(filepath.Join(r.stateDir, stateFile))
+	if err != nil {
+		return
+	}
+	var s state
+	if json.Unmarshal(b, &s) == nil {
+		r.refreshed, r.attempted = s.Refreshed, s.Attempted
+	}
+}
+
+// save keeps when the lists were refreshed and last tried, for after a restart.
+// It's a hint, so one that can't be written is said and passed over.
+func (r *Reader) save() {
+	if r.stateDir == "" {
+		return
+	}
+	b, _ := json.Marshal(state{Refreshed: r.refreshed, Attempted: r.attempted})
+	if err := os.WriteFile(filepath.Join(r.stateDir, stateFile), b, 0o600); err != nil {
+		r.logger.Warn("can't keep when the package lists were refreshed; a restart refreshes them again", slog.Any("error", err))
+	}
 }
 
 // New returns a Reader.
 func New(o Options) *Reader {
 	r := &Reader{
 		root: cmp.Or(o.Root, "/"), unavailable: o.Unavailable, liveRestore: o.LiveRestore,
-		logger: o.Logger, now: o.Now, grace: KillGrace, turn: make(chan struct{}, 1),
+		logger: o.Logger, now: o.Now, grace: KillGrace, turn: make(chan struct{}, 1), stateDir: o.StateDir,
 	}
+	r.load()
 	if r.logger == nil {
 		r.logger = slog.New(slog.DiscardHandler)
 	}
@@ -112,11 +172,11 @@ type manager interface {
 // as they were, which it reads, and says why. It waits for a run under way.
 func (r *Reader) Read(ctx context.Context, refresh, force bool) (*dockwellv1.ServerUpdates, error) {
 	if r.unavailable != "" {
-		return &dockwellv1.ServerUpdates{Unavailable: r.unavailable}, nil
+		return &dockwellv1.ServerUpdates{Unavailable: r.unavailable, Reason: ReasonUnsupported}, nil
 	}
 	m, why := r.manager()
 	if m == nil {
-		return &dockwellv1.ServerUpdates{Unavailable: why}, nil
+		return &dockwellv1.ServerUpdates{Unavailable: why, Reason: ReasonUnsupported}, nil
 	}
 	select {
 	case r.turn <- struct{}{}:
@@ -130,36 +190,51 @@ func (r *Reader) Read(ctx context.Context, refresh, force bool) (*dockwellv1.Ser
 	if force && now.Sub(r.forced) < ForceEvery {
 		force = false
 	}
-	if force || refresh && (lists.IsZero() || now.Sub(lists) > ListsStale) {
+	stale := lists.IsZero() || now.Sub(lists) > ListsStale
+	// A refresh that failed holds off the next a read would make for a while, so
+	// a mirror that's down isn't asked on every look.
+	waiting := r.attempted.After(r.refreshed) && now.Sub(r.attempted) < RetryAfter
+	switch {
+	case force || refresh && stale && !waiting:
 		if force {
 			r.forced = now
 		}
 		resource.Progress(ctx, Refreshing)
-		if err := m.refresh(ctx, r); err != nil {
-			if ctx.Err() != nil {
-				return nil, err
-			}
+		r.attempted = now
+		err := m.refresh(ctx, r)
+		switch {
+		case err != nil && ctx.Err() != nil:
+			return nil, err
+		case err != nil:
 			r.logger.Warn("couldn't refresh the package lists", slog.Any("error", err))
-			out.RefreshError = err.Error()
+			r.failed = err.Error()
+		default:
+			r.refreshed, r.failed = r.now(), ""
 		}
+		r.save()
 		lists = m.listsTime(r)
+	case waiting && r.failed == "":
+		r.failed = "the last refresh didn't finish"
+	}
+	if r.attempted.After(r.refreshed) {
+		out.RefreshError = r.failed
 	}
 	if !lists.IsZero() {
 		out.ListsTime = timestamppb.New(lists)
 	}
-	waiting, held, marks, err := m.list(ctx, r)
+	found, held, marks, err := m.list(ctx, r)
 	if err != nil {
 		r.logger.Warn("couldn't read the package updates", slog.Any("error", err))
 		return nil, err
 	}
-	for _, p := range waiting {
+	for _, p := range found {
 		p.Effect = effectOf(m.kind(), p.GetName())
 		if p.GetEffect() == dockwellv1.PackageEffect_PACKAGE_EFFECT_DOCKER_RESTART && r.liveRestore != nil {
 			out.DockerLiveRestore = r.liveRestore(ctx)
 		}
 	}
-	sortUpdates(waiting)
-	out.Packages, out.Held, out.MarksSecurity = waiting, held, marks
+	sortUpdates(found)
+	out.Packages, out.Held, out.MarksSecurity = found, held, marks
 	needed, packages, known := m.reboot(ctx, r)
 	if !known {
 		needed = r.newerKernel()
@@ -197,7 +272,10 @@ func (r *Reader) manager() (manager, string) {
 	}
 	name := cmp.Or(release["PRETTY_NAME"], release["NAME"], release["ID"], "this system")
 	if m == nil {
-		return nil, fmt.Sprintf("Dockwell reads updates with apt, dnf or apk, and %s uses none of them", name)
+		return nil, fmt.Sprintf("Dockwell reads updates with apt, dnf 4 or apk, and %s uses none of them", name)
+	}
+	if m.kind() == dockwellv1.PackageManager_PACKAGE_MANAGER_DNF && r.dnf5() {
+		return nil, fmt.Sprintf("Dockwell reads updates with dnf 4, and %s has dnf 5, which it doesn't read yet", name)
 	}
 	if tool := toolOf(m); !r.executable(tool) {
 		return nil, fmt.Sprintf("Dockwell reads updates on %s with %s, and %s isn't there", name, filepath.Base(tool), tool)
@@ -210,7 +288,8 @@ func byID(id string) manager {
 	switch id {
 	case "debian", "ubuntu":
 		return apt{}
-	case "rhel", "fedora", "centos", "almalinux", "rocky":
+	case "rhel", "centos", "almalinux", "rocky":
+		// Fedora has dnf 5, whose output differs, so it isn't one of these yet.
 		return dnf{}
 	case "alpine":
 		return apk{}
@@ -228,6 +307,12 @@ func toolOf(m manager) string {
 	default:
 		return apkPath
 	}
+}
+
+// dnf5 says the server's dnf is dnf 5, as Fedora's is, which /usr/bin/dnf leads to.
+func (r *Reader) dnf5() bool {
+	to, err := filepath.EvalSymlinks(r.path(dnfPath))
+	return err == nil && strings.HasPrefix(filepath.Base(to), "dnf5")
 }
 
 // osRelease reads the server's os-release.
@@ -371,11 +456,12 @@ func comparePart(a, b string) int {
 }
 
 // rebootFor is what takes effect only after a reboot, by package manager: a
-// kernel, libc, systemd and D-Bus, the core set dnf's needs-restarting goes by,
-// and the CPU's microcode.
+// kernel, libc and D-Bus, the core set dnf's needs-restarting goes by, with
+// systemd where it can't re-execute itself, and the CPU's microcode.
 var rebootFor = map[dockwellv1.PackageManager][]string{
+	// Debian and Ubuntu re-execute systemd as it's upgraded, so it isn't one.
 	dockwellv1.PackageManager_PACKAGE_MANAGER_APT: {
-		"libc6", "systemd", "dbus", "dbus-daemon", "dbus-broker", "linux-firmware", "intel-microcode", "amd64-microcode",
+		"libc6", "dbus", "dbus-daemon", "dbus-broker", "linux-firmware", "intel-microcode", "amd64-microcode",
 	},
 	dockwellv1.PackageManager_PACKAGE_MANAGER_DNF: {
 		"kernel", "kernel-core", "kernel-modules", "kernel-modules-core", "kernel-modules-extra", "kernel-rt", "kernel-rt-core",

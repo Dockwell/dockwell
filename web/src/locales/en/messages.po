@@ -124,6 +124,11 @@ msgstr "{0, plural, one {# server} other {# servers}}"
 msgid "{0, plural, one {# update, not for security} other {# updates, none for security}}"
 msgstr "{0, plural, one {# update, not for security} other {# updates, none for security}}"
 
+#. placeholder {0}: s.total
+#: src/features/updates/UpdatesCard.tsx
+msgid "{0, plural, one {# update} other {# updates}}"
+msgstr "{0, plural, one {# update} other {# updates}}"
+
 #. placeholder {0}: optional.length
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {# with a default} other {# with a default}}"
@@ -486,6 +491,11 @@ msgstr "{left} of 10 are left, and each works once. If you lost your authenticat
 msgid "{made} is deployed"
 msgstr "{made} is deployed"
 
+#. placeholder {0}: names([...s.other, ...(s.docker ? [s.docker] : [])])
+#: src/features/updates/UpdatesCard.tsx
+msgid "{manager} doesn't mark security fixes. {0}."
+msgstr "{manager} doesn't mark security fixes. {0}."
+
 #: src/features/logs/LogFoot.tsx
 msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
 msgstr "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
@@ -821,6 +831,14 @@ msgstr "{name}'s {where} holds the value of {variable}"
 msgid "{name}'s {where} holds the value of {variable} from your .env"
 msgstr "{name}'s {where} holds the value of {variable} from your .env"
 
+#: src/features/updates/why.tsx
+msgid "{name}'s agent doesn't read updates yet"
+msgstr "{name}'s agent doesn't read updates yet"
+
+#: src/features/updates/why.tsx
+msgid "{name}'s agent isn't connected"
+msgstr "{name}'s agent isn't connected"
+
 #: src/features/changes/notices.tsx
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
@@ -910,6 +928,10 @@ msgstr "{reads}, relabelled for SELinux as shared"
 #: src/features/updates/UpdatesPage.tsx
 msgid "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
 msgstr "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{reboots, plural, one {One of them needs a reboot to take effect, and apps and websites go offline while {name} restarts.} other {# of them need a reboot to take effect, and apps and websites go offline while {name} restarts.}}"
+msgstr "{reboots, plural, one {One of them needs a reboot to take effect, and apps and websites go offline while {name} restarts.} other {# of them need a reboot to take effect, and apps and websites go offline while {name} restarts.}}"
 
 #: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
@@ -1271,6 +1293,10 @@ msgstr "<0>{source}</0>, read-only"
 #: src/features/updates/UpdatesPage.tsx
 msgid "<0>{tool}</0> installs updates"
 msgstr "<0>{tool}</0> installs updates"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "<0>{tool}</0> on {name} installs updates by itself, so these go in within about a day. To install them now, run {command} there, which installs every update waiting, not only these."
+msgstr "<0>{tool}</0> on {name} installs updates by itself, so these go in within about a day. To install them now, run {command} there, which installs every update waiting, not only these."
 
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
@@ -2572,6 +2598,14 @@ msgstr "Containers keep running"
 msgid "Containers keep running while it restarts"
 msgstr "Containers keep running while it restarts"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Containers stop with it, and only those set to restart start again"
+msgstr "Containers stop with it, and only those set to restart start again"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Containers stop; those set to restart start again"
+msgstr "Containers stop; those set to restart start again"
+
 #: src/features/files/FileViewer.tsx
 msgid "Contents of {name}"
 msgstr "Contents of {name}"
@@ -2659,6 +2693,10 @@ msgstr "Copy of a running app"
 #: src/features/files/FilesPage.tsx
 msgid "Copy path {shown}"
 msgstr "Copy path {shown}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Copy the command"
+msgstr "Copy the command"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
@@ -3224,10 +3262,9 @@ msgstr "Dockwell {version} is current"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 
-#. placeholder {0}: server.name
 #: src/features/updates/UpdatesPage.tsx
-msgid "Dockwell can't install updates yet, so run {command} on {0}."
-msgstr "Dockwell can't install updates yet, so run {command} on {0}."
+msgid "Dockwell can't install updates yet, so run {command} on {name}, which installs every update waiting, not only these."
+msgstr "Dockwell can't install updates yet, so run {command} on {name}, which installs every update waiting, not only these."
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "Dockwell can't reach what this would back up"
@@ -3238,10 +3275,13 @@ msgstr "Dockwell can't reach what this would back up"
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell can't read its backups"
 
-#. placeholder {0}: server.name
-#: src/features/updates/UpdatesPage.tsx
-msgid "Dockwell can't read updates on {0}"
-msgstr "Dockwell can't read updates on {0}"
+#: src/features/updates/why.tsx
+msgid "Dockwell can't read its updates until it's back."
+msgstr "Dockwell can't read its updates until it's back."
+
+#: src/features/updates/why.tsx
+msgid "Dockwell can't read updates on {name}"
+msgstr "Dockwell can't read updates on {name}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
@@ -3280,10 +3320,9 @@ msgstr "Dockwell can't tell whether this ran"
 msgid "Dockwell couldn't ask {0} for its updates"
 msgstr "Dockwell couldn't ask {0} for its updates"
 
-#. placeholder {0}: server.name
-#: src/features/updates/UpdatesPage.tsx
-msgid "Dockwell couldn't read {0}'s updates just now"
-msgstr "Dockwell couldn't read {0}'s updates just now"
+#: src/features/updates/why.tsx
+msgid "Dockwell couldn't read {name}'s updates"
+msgstr "Dockwell couldn't read {name}'s updates"
 
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
@@ -3632,14 +3671,6 @@ msgstr "Events: {caption}"
 #: src/features/activity/ActivityPage.tsx
 msgid "Every change, server event, access grant, change of health and backup, newest first"
 msgstr "Every change, server event, access grant, change of health and backup, newest first"
-
-#: src/features/updates/UpdatesPage.tsx
-msgid "Every container restarts"
-msgstr "Every container restarts"
-
-#: src/features/updates/UpdatesPage.tsx
-msgid "Every container restarts with it"
-msgstr "Every container restarts with it"
 
 #: src/features/changes/notices.tsx
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
@@ -4324,6 +4355,10 @@ msgstr "It may well be running. Check that <0>dockwell run</0> is still running 
 msgid "It mounts none."
 msgstr "It mounts none."
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "It needs a reboot to take effect, and apps and websites go offline while {name} restarts."
+msgstr "It needs a reboot to take effect, and apps and websites go offline while {name} restarts."
+
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "It never stopped. Dockwell removed what this made after it failed."
@@ -4344,9 +4379,17 @@ msgstr "It reaches past its containers"
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "It reaches what the server reaches, past Docker's network and the firewall."
 
+#: src/features/updates/why.tsx
+msgid "It reads apt, dnf and apk"
+msgstr "It reads apt, dnf and apk"
+
 #: src/features/logs/LogsPage.tsx
 msgid "It reads each container's log, at most for 30 s."
 msgstr "It reads each container's log, at most for 30 s."
+
+#: src/features/updates/why.tsx
+msgid "It reads them with apt on Debian and Ubuntu, dnf on AlmaLinux, Rocky Linux and RHEL, and apk on Alpine."
+msgstr "It reads them with apt on Debian and Ubuntu, dnf on AlmaLinux, Rocky Linux and RHEL, and apk on Alpine."
 
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs <0>{current}</0> now."
@@ -4431,6 +4474,14 @@ msgstr "It's behind a tunnel or a proxy"
 msgid "It's live with HTTPS"
 msgstr "It's live with HTTPS"
 
+#: src/features/updates/why.tsx
+msgid "It's older than the control plane. Update it by running the install script on {name} again, which keeps what runs:"
+msgstr "It's older than the control plane. Update it by running the install script on {name} again, which keeps what runs:"
+
+#: src/features/updates/why.tsx
+msgid "It's older than the control plane. Update it to the control plane's version by running the install script on {name} again, which keeps what runs."
+msgstr "It's older than the control plane. Update it to the control plane's version by running the install script on {name} again, which keeps what runs."
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
 msgstr "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
@@ -4438,6 +4489,10 @@ msgstr "It's on the server's own network, so what it listens on there, such as 8
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
 msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
+
+#: src/features/updates/why.tsx
+msgid "Its agent isn't connected"
+msgstr "Its agent isn't connected"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
@@ -5088,7 +5143,11 @@ msgid "never used"
 msgstr "never used"
 
 #: src/features/shell/Topbar.tsx
+msgid "New"
+msgstr "New"
+
 #: src/features/updates/UpdatesPage.tsx
+msgctxt "a package not installed yet"
 msgid "New"
 msgstr "New"
 
@@ -5680,12 +5739,6 @@ msgstr "Once <0>{servers}</0> reconnects, Dockwell puts things back as they were
 #: src/features/apps/AppOverview.tsx
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
-
-#. placeholder {0}: server.name
-#. placeholder {1}: server.name
-#: src/features/updates/UpdatesPage.tsx
-msgid "One of them needs a reboot to take effect, and apps and websites go offline while {0} restarts. Dockwell can't install updates yet, so run {command} on {1}."
-msgstr "One of them needs a reboot to take effect, and apps and websites go offline while {0} restarts. Dockwell can't install updates yet, so run {command} on {1}."
 
 #: src/features/files/FilesPage.tsx
 msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
@@ -6525,6 +6578,11 @@ msgstr "Recreates its container"
 #: src/features/updates/UpdatesPage.tsx
 msgid "Refreshed {0}"
 msgstr "Refreshed {0}"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Refreshing {0}'s package lists, then reading which updates wait…"
+msgstr "Refreshing {0}'s package lists, then reading which updates wait…"
 
 #: src/features/updates/UpdatesPage.tsx
 msgid "Refreshing lists"
@@ -7976,6 +8034,10 @@ msgstr "The last deploy failed, so Dockwell rolled it back"
 msgid "The last deploy of {name} failed"
 msgstr "The last deploy of {name} failed"
 
+#: src/features/updates/why.tsx
+msgid "The last read failed"
+msgstr "The last read failed"
+
 #: src/features/logs/LogNote.tsx
 msgid "The lines written meanwhile arrive once it answers, with none twice."
 msgstr "The lines written meanwhile arrive once it answers, with none twice."
@@ -8508,8 +8570,8 @@ msgid "This removes it from the server's disk. Nothing brings it back."
 msgstr "This removes it from the server's disk. Nothing brings it back."
 
 #: src/features/updates/UpdatesCard.tsx
-msgid "This runs {version}. Update with the install script"
-msgstr "This runs {version}. Update with the install script"
+msgid "This runs {version}. Its Updates tab says how to update"
+msgstr "This runs {version}. Its Updates tab says how to update"
 
 #: src/features/files/FileViewer.tsx
 msgid "This save may still land"
@@ -8891,6 +8953,14 @@ msgstr "Update"
 msgid "Update in place"
 msgstr "Update in place"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Update it on the control server, as root, which keeps what runs:"
+msgstr "Update it on the control server, as root, which keeps what runs:"
+
+#: src/features/updates/why.tsx
+msgid "Update its agent to read them"
+msgstr "Update its agent to read them"
+
 #: src/features/catalog/CatalogPage.tsx
 msgid "Update out"
 msgstr "Update out"
@@ -8898,10 +8968,6 @@ msgstr "Update out"
 #: src/features/files/FileViewer.tsx
 msgid "Update the agent on this server to edit {name} here. You can still read it."
 msgstr "Update the agent on this server to edit {name} here. You can still read it."
-
-#: src/features/updates/UpdatesPage.tsx
-msgid "Update with the install script: <0>curl -fsSL https://get.dockwell.dev | sh</0>"
-msgstr "Update with the install script: <0>curl -fsSL https://get.dockwell.dev | sh</0>"
 
 #: src/app/Providers.tsx
 msgid "updated"
@@ -8921,10 +8987,6 @@ msgstr "Updated in place"
 #: src/features/updates/UpdatesPage.tsx
 msgid "Updates"
 msgstr "Updates"
-
-#: src/features/updates/UpdatesCard.tsx
-msgid "Updates can't be read here"
-msgstr "Updates can't be read here"
 
 #. placeholder {0}: server.name
 #: src/features/updates/UpdatesPage.tsx
@@ -9340,7 +9402,7 @@ msgstr "What you typed is still here."
 msgid "What your domains serve isn't affected."
 msgstr "What your domains serve isn't affected."
 
-#: src/features/updates/UpdatesPage.tsx
+#: src/features/updates/why.tsx
 msgid "What's here was read {read}."
 msgstr "What's here was read {read}."
 

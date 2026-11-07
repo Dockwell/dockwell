@@ -145,11 +145,11 @@ func (h *Handler) look(srv *dockwellv1.Server, force bool) (*dockwellv1.ServerUp
 	switch {
 	case !connected:
 		out := h.snapshot(id, s)
-		out.Error = srv.GetName() + "'s agent isn't connected, so Dockwell can't read its updates. What's here is from when it last could"
+		out.Error, out.Reason = srv.GetName()+"'s agent isn't connected, so Dockwell can't read its updates. What's here is from when it last could", agentupdates.ReasonServerOffline
 		return out, nil
 	case !session.ReadsUpdates():
-		return &dockwellv1.ServerUpdates{ServerId: id, Unavailable: srv.GetName() +
-			"'s agent is older than the control plane, and doesn't read package updates. Update it to the control plane's version"}, nil
+		return &dockwellv1.ServerUpdates{ServerId: id, Reason: agentupdates.ReasonAgentOutdated, Unavailable: srv.GetName() +
+			"'s agent is older than the control plane, and doesn't read package updates. Run the install script on it again, with the control plane's version"}, nil
 	case s.running:
 		if force && !s.again && now.Sub(s.forced) >= agentupdates.ForceEvery {
 			s.again = true
@@ -222,6 +222,9 @@ func (h *Handler) snapshot(id string, s *server) *dockwellv1.ServerUpdates {
 		out = proto.CloneOf(s.last)
 	}
 	out.ServerId, out.Checking, out.Refreshing, out.Error = id, s.running, s.refreshing, s.err
+	if s.err != "" {
+		out.Reason = agentupdates.ReasonReadFailed
+	}
 	return out
 }
 

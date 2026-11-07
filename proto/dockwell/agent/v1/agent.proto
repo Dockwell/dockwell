@@ -244,7 +244,8 @@ message Hello {
   bool guards_ways_in = 7;
   // True when the agent reads the server's package updates (ListUpdatesCall).
   // The terminal and updates take 50 to 59 in agent messages, as other work adds
-  // to them at once.
+  // to them at once: the terminal 50 to 52, and updates 53, so the next of either
+  // takes 54.
   bool updates = 53;
 }
 
@@ -412,7 +413,8 @@ message Call {
     // Send a backup that's on the server to its destination.
     SendBackupCall send_backup = 24;
     // Say which package updates wait on the server. The terminal and updates take
-    // 50 to 59 in agent messages.
+    // 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
+    // next of either takes 54.
     ListUpdatesCall list_updates = 53;
   }
 }

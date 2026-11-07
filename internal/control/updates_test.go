@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -170,7 +171,7 @@ func testAServersUpdates(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if u := res.Msg.GetUpdates(); len(u.GetPackages()) != 8 || !strings.Contains(u.GetError(), "hz-1's agent isn't connected") {
+	if u := res.Msg.GetUpdates(); len(u.GetPackages()) != 8 || u.GetReason() != "server_offline" || !strings.Contains(u.GetError(), "hz-1's agent isn't connected") {
 		t.Errorf("with the agent gone: %v", u)
 	}
 
@@ -222,10 +223,31 @@ func TestNoUpdatesThroughAnOlderAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if u := res.Msg.GetUpdates(); u.GetUnavailable() != "hz-1's agent is older than the control plane, and doesn't read package updates. Update it to the control plane's version" {
+	if u := res.Msg.GetUpdates(); u.GetReason() != "agent_outdated" || !strings.Contains(u.GetUnavailable(), "hz-1's agent is older than the control plane") {
 		t.Errorf("through an older agent: %v", u)
 	}
 	if n := standCalls(t, root, ""); n != 0 {
 		t.Errorf("ran apt %d times through an agent that doesn't say it reads updates", n)
+	}
+}
+
+// A token reads a server's updates, as it reads the rest of what a server is, but
+// can't have it reach its mirrors: Check now takes a person.
+func TestATokenCantCheckNow(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	root := aptStand(t, 0)
+	server := f.addReadingServer(t, root, nil)
+	secret, _ := logToken(t, b)
+	c := dockwellv1connect.NewUpdateServiceClient(bearer{token: secret, rt: h2cTransport(t, f.api)}, "http://"+f.api, connect.WithProtoJSON())
+	if _, err := c.GetServerUpdates(t.Context(), connect.NewRequest(&dockwellv1.GetServerUpdatesRequest{Id: server.id.ServerID})); err != nil {
+		t.Errorf("a token reading updates: %v", err)
+	}
+	_, err := c.CheckServerUpdates(t.Context(), connect.NewRequest(&dockwellv1.CheckServerUpdatesRequest{Id: server.id.ServerID}))
+	if connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != authapi.ReasonNeedsSession {
+		t.Errorf("a token checking now: %v", err)
+	}
+	if n := standCalls(t, root, "apt-get -q -o DPkg"); n != 0 {
+		t.Errorf("a token refreshed the lists %d times", n)
 	}
 }

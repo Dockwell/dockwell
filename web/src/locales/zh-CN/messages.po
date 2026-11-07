@@ -124,6 +124,11 @@ msgstr "{0, plural, other {# 台服务器}}"
 msgid "{0, plural, one {# update, not for security} other {# updates, none for security}}"
 msgstr "{0, plural, other {# 个更新，均非安全更新}}"
 
+#. placeholder {0}: s.total
+#: src/features/updates/UpdatesCard.tsx
+msgid "{0, plural, one {# update} other {# updates}}"
+msgstr "{0, plural, other {# 个更新}}"
+
 #. placeholder {0}: optional.length
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {# with a default} other {# with a default}}"
@@ -486,6 +491,11 @@ msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢
 msgid "{made} is deployed"
 msgstr "{made} 已部署"
 
+#. placeholder {0}: names([...s.other, ...(s.docker ? [s.docker] : [])])
+#: src/features/updates/UpdatesCard.tsx
+msgid "{manager} doesn't mark security fixes. {0}."
+msgstr "{manager} 不标明安全修复。{0}。"
+
 #: src/features/logs/LogFoot.tsx
 msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
 msgstr "{matches, plural, other {在 {lines} 行中找到 {count} 处匹配，最早到 {at}。}}"
@@ -821,6 +831,14 @@ msgstr "{name} 的 {where} 中含有 {variable} 的值"
 msgid "{name}'s {where} holds the value of {variable} from your .env"
 msgstr "{name} 的 {where} 中含有你的 .env 里 {variable} 的值"
 
+#: src/features/updates/why.tsx
+msgid "{name}'s agent doesn't read updates yet"
+msgstr "{name} 的代理还不读取更新"
+
+#: src/features/updates/why.tsx
+msgid "{name}'s agent isn't connected"
+msgstr "{name} 的代理未连接"
+
 #: src/features/changes/notices.tsx
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
@@ -910,6 +928,10 @@ msgstr "{reads}，按 SELinux 重新标记为共享"
 #: src/features/updates/UpdatesPage.tsx
 msgid "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
 msgstr "{reboots, plural, other {# 个需要重启}}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{reboots, plural, one {One of them needs a reboot to take effect, and apps and websites go offline while {name} restarts.} other {# of them need a reboot to take effect, and apps and websites go offline while {name} restarts.}}"
+msgstr "{reboots, plural, other {其中 # 个需要重启才能生效，{name} 重启期间应用和网站会离线。}}"
 
 #: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
@@ -1271,6 +1293,10 @@ msgstr "<0>{source}</0>，只读"
 #: src/features/updates/UpdatesPage.tsx
 msgid "<0>{tool}</0> installs updates"
 msgstr "<0>{tool}</0> 自动安装更新"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "<0>{tool}</0> on {name} installs updates by itself, so these go in within about a day. To install them now, run {command} there, which installs every update waiting, not only these."
+msgstr "{name} 上的 <0>{tool}</0> 会自动安装更新，所以这些会在大约一天内装上。要现在安装，请在那里运行 {command}，它会安装所有待装更新，不只是这些。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
@@ -2572,6 +2598,14 @@ msgstr "容器保持运行"
 msgid "Containers keep running while it restarts"
 msgstr "重启期间容器保持运行"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Containers stop with it, and only those set to restart start again"
+msgstr "容器会随之停止，只有设置了重启策略的会再次启动"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Containers stop; those set to restart start again"
+msgstr "容器会停止；设置了重启策略的会再次启动"
+
 #: src/features/files/FileViewer.tsx
 msgid "Contents of {name}"
 msgstr "{name} 的内容"
@@ -2659,6 +2693,10 @@ msgstr "运行中应用的副本"
 #: src/features/files/FilesPage.tsx
 msgid "Copy path {shown}"
 msgstr "复制路径 {shown}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Copy the command"
+msgstr "复制命令"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
@@ -3224,10 +3262,9 @@ msgstr "Dockwell {version} 是最新版本"
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
 
-#. placeholder {0}: server.name
 #: src/features/updates/UpdatesPage.tsx
-msgid "Dockwell can't install updates yet, so run {command} on {0}."
-msgstr "Dockwell 暂不能安装更新，请在 {0} 上运行 {command}。"
+msgid "Dockwell can't install updates yet, so run {command} on {name}, which installs every update waiting, not only these."
+msgstr "Dockwell 暂不能安装更新，请在 {name} 上运行 {command}，它会安装所有待装更新，不只是这些。"
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "Dockwell can't reach what this would back up"
@@ -3238,10 +3275,13 @@ msgstr "Dockwell 无法访问要备份的内容"
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell 无法读取备份"
 
-#. placeholder {0}: server.name
-#: src/features/updates/UpdatesPage.tsx
-msgid "Dockwell can't read updates on {0}"
-msgstr "Dockwell 无法读取 {0} 的更新"
+#: src/features/updates/why.tsx
+msgid "Dockwell can't read its updates until it's back."
+msgstr "它恢复连接前，Dockwell 无法读取它的更新。"
+
+#: src/features/updates/why.tsx
+msgid "Dockwell can't read updates on {name}"
+msgstr "Dockwell 无法读取 {name} 的更新"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
@@ -3280,10 +3320,9 @@ msgstr "Dockwell 无法确定此步骤是否已运行"
 msgid "Dockwell couldn't ask {0} for its updates"
 msgstr "Dockwell 无法向 {0} 询问更新"
 
-#. placeholder {0}: server.name
-#: src/features/updates/UpdatesPage.tsx
-msgid "Dockwell couldn't read {0}'s updates just now"
-msgstr "Dockwell 刚才未能读取 {0} 的更新"
+#: src/features/updates/why.tsx
+msgid "Dockwell couldn't read {name}'s updates"
+msgstr "Dockwell 未能读取 {name} 的更新"
 
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
@@ -3632,14 +3671,6 @@ msgstr "事件：{caption}"
 #: src/features/activity/ActivityPage.tsx
 msgid "Every change, server event, access grant, change of health and backup, newest first"
 msgstr "所有变更、服务器事件、访问授权、健康变化和备份，最新的在前"
-
-#: src/features/updates/UpdatesPage.tsx
-msgid "Every container restarts"
-msgstr "所有容器都会重启"
-
-#: src/features/updates/UpdatesPage.tsx
-msgid "Every container restarts with it"
-msgstr "所有容器会随之重启"
 
 #: src/features/changes/notices.tsx
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
@@ -4324,6 +4355,10 @@ msgstr "它很可能仍在运行。请检查 {server} 上的 <0>dockwell run</0>
 msgid "It mounts none."
 msgstr "它没有挂载任何内容。"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "It needs a reboot to take effect, and apps and websites go offline while {name} restarts."
+msgstr "它需要重启才能生效，{name} 重启期间应用和网站会离线。"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "It never stopped. Dockwell removed what this made after it failed."
 msgstr "它从未停止。这次变更失败后,Dockwell 移除了它创建的内容。"
@@ -4344,9 +4379,17 @@ msgstr "它的访问范围超出自身容器"
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火墙。"
 
+#: src/features/updates/why.tsx
+msgid "It reads apt, dnf and apk"
+msgstr "它读取 apt、dnf 和 apk"
+
 #: src/features/logs/LogsPage.tsx
 msgid "It reads each container's log, at most for 30 s."
 msgstr "它会读取每个容器的日志，最长 30 秒。"
+
+#: src/features/updates/why.tsx
+msgid "It reads them with apt on Debian and Ubuntu, dnf on AlmaLinux, Rocky Linux and RHEL, and apk on Alpine."
+msgstr "它在 Debian 和 Ubuntu 上用 apt、在 AlmaLinux、Rocky Linux 和 RHEL 上用 dnf、在 Alpine 上用 apk 读取更新。"
 
 #: src/features/apps/DeploySheet.tsx
 msgid "It runs <0>{current}</0> now."
@@ -4431,6 +4474,14 @@ msgstr "它位于隧道或代理之后"
 msgid "It's live with HTTPS"
 msgstr "通过 HTTPS 上线"
 
+#: src/features/updates/why.tsx
+msgid "It's older than the control plane. Update it by running the install script on {name} again, which keeps what runs:"
+msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本即可更新它，正在运行的内容不受影响："
+
+#: src/features/updates/why.tsx
+msgid "It's older than the control plane. Update it to the control plane's version by running the install script on {name} again, which keeps what runs."
+msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本，把它更新到控制平面的版本，正在运行的内容不受影响。"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
 msgstr "它在服务器自身的网络上，因此填写它在那里监听的端口，例如 8080。80 端口由代理占用。"
@@ -4438,6 +4489,10 @@ msgstr "它在服务器自身的网络上，因此填写它在那里监听的端
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
 msgstr "它的代理已断开连接。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
+
+#: src/features/updates/why.tsx
+msgid "Its agent isn't connected"
+msgstr "它的代理未连接"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
@@ -5088,9 +5143,13 @@ msgid "never used"
 msgstr "从未使用"
 
 #: src/features/shell/Topbar.tsx
-#: src/features/updates/UpdatesPage.tsx
 msgid "New"
 msgstr "新建"
+
+#: src/features/updates/UpdatesPage.tsx
+msgctxt "a package not installed yet"
+msgid "New"
+msgstr "新装"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
@@ -5680,12 +5739,6 @@ msgstr "<0>{servers}</0> 重新连接后，Dockwell 会恢复原样"
 #: src/features/apps/AppOverview.tsx
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "部署失败后，服务器重新连接时，Dockwell 会恢复 <0>{image}</0>。在此之前，无法确定那里正在运行什么。"
-
-#. placeholder {0}: server.name
-#. placeholder {1}: server.name
-#: src/features/updates/UpdatesPage.tsx
-msgid "One of them needs a reboot to take effect, and apps and websites go offline while {0} restarts. Dockwell can't install updates yet, so run {command} on {1}."
-msgstr "其中一个需要重启才能生效，{0} 重启期间应用和网站会离线。Dockwell 暂不能安装更新，请在 {1} 上运行 {command}。"
 
 #: src/features/files/FilesPage.tsx
 msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
@@ -6525,6 +6578,11 @@ msgstr "重建它的容器"
 #: src/features/updates/UpdatesPage.tsx
 msgid "Refreshed {0}"
 msgstr "{0}刷新"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Refreshing {0}'s package lists, then reading which updates wait…"
+msgstr "正在刷新 {0} 的软件包列表，然后读取待装更新…"
 
 #: src/features/updates/UpdatesPage.tsx
 msgid "Refreshing lists"
@@ -7976,6 +8034,10 @@ msgstr "上次部署失败，Dockwell 已将其回滚"
 msgid "The last deploy of {name} failed"
 msgstr "{name} 的上次部署失败"
 
+#: src/features/updates/why.tsx
+msgid "The last read failed"
+msgstr "上次读取失败"
+
 #: src/features/logs/LogNote.tsx
 msgid "The lines written meanwhile arrive once it answers, with none twice."
 msgstr "恢复响应后，期间写入的日志会到达，不会重复。"
@@ -8508,8 +8570,8 @@ msgid "This removes it from the server's disk. Nothing brings it back."
 msgstr "此操作会将它从服务器磁盘上移除，且无法恢复。"
 
 #: src/features/updates/UpdatesCard.tsx
-msgid "This runs {version}. Update with the install script"
-msgstr "当前运行 {version}。用安装脚本更新"
+msgid "This runs {version}. Its Updates tab says how to update"
+msgstr "当前运行 {version}。它的“更新”页说明了如何更新"
 
 #: src/features/files/FileViewer.tsx
 msgid "This save may still land"
@@ -8891,6 +8953,14 @@ msgstr "更新"
 msgid "Update in place"
 msgstr "原地更新"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Update it on the control server, as root, which keeps what runs:"
+msgstr "在控制服务器上以 root 身份更新，正在运行的内容不受影响："
+
+#: src/features/updates/why.tsx
+msgid "Update its agent to read them"
+msgstr "更新它的代理即可读取"
+
 #: src/features/catalog/CatalogPage.tsx
 msgid "Update out"
 msgstr "有更新"
@@ -8898,10 +8968,6 @@ msgstr "有更新"
 #: src/features/files/FileViewer.tsx
 msgid "Update the agent on this server to edit {name} here. You can still read it."
 msgstr "更新这台服务器上的 agent，才能在这里编辑 {name}。你仍然可以查看它。"
-
-#: src/features/updates/UpdatesPage.tsx
-msgid "Update with the install script: <0>curl -fsSL https://get.dockwell.dev | sh</0>"
-msgstr "用安装脚本更新：<0>curl -fsSL https://get.dockwell.dev | sh</0>"
 
 #: src/app/Providers.tsx
 msgid "updated"
@@ -8921,10 +8987,6 @@ msgstr "已原地更新"
 #: src/features/updates/UpdatesPage.tsx
 msgid "Updates"
 msgstr "更新"
-
-#: src/features/updates/UpdatesCard.tsx
-msgid "Updates can't be read here"
-msgstr "无法在此读取更新"
 
 #. placeholder {0}: server.name
 #: src/features/updates/UpdatesPage.tsx
@@ -9340,7 +9402,7 @@ msgstr "你输入的内容还在这里。"
 msgid "What your domains serve isn't affected."
 msgstr "你的域名所提供的服务不受影响。"
 
-#: src/features/updates/UpdatesPage.tsx
+#: src/features/updates/why.tsx
 msgid "What's here was read {read}."
 msgstr "这里的内容读取于{read}。"
 

@@ -367,51 +367,136 @@ named_container() { service_container "$project" "$1"; }
 
 step "Package updates read with each distribution's own tool: apt on Ubuntu and Debian, dnf on AlmaLinux, apk on Alpine"
 # The agent's reader, built on its own, runs as root in a container of each, and
-# refreshes the lists itself (ADR 0043). On Ubuntu, a package put back to its release
-# version has to be listed, and what it lists, and marks a security fix, has to be
-# what apt-get --simulate says, line by line.
+# refreshes the lists itself (ADR 0043). On Ubuntu, Debian and AlmaLinux a package is
+# put back to an older version first, and the step fails where none can be, as one
+# that put nothing back would prove nothing. Then what the reader lists, and marks a
+# security fix, has to be what the tool itself says, in the same container.
 updates_bin="$rollout_dir/updates"
 (cd "$(dirname "$0")/.." && CGO_ENABLED=0 go build -o "$updates_bin" ./scripts/updates) || fail "can't build scripts/updates"
-# read_updates IMAGE PREPARE runs PREPARE, then the reader, in a container of IMAGE,
-# with what PREPARE says on standard error in $rollout_dir/said. It runs in a
-# command substitution, so its caller fails for it.
+# Each distribution has two scripts. prepare-* puts a package back to an older
+# version its repositories still have, where it can, and says which. after-* runs once the reader
+# has read, which refreshed the metadata first, so what the tool itself lists is
+# from the metadata the reader read. Lines that start "raw " are what the tool
+# printed as it was, for a failure to show.
+cat >"$rollout_dir/prepare-apt.sh" <<'SH'
+set -e
+export DEBIAN_FRONTEND=noninteractive
+apt-get -qq update >/dev/null
+for p in less tzdata tar gzip bash libssl3 libgnutls30 libsystemd0 libudev1 gpgv libsqlite3-0; do
+  count=$(apt-cache madison "$p" | awk -F'|' '{ gsub(/ /, "", $2); print $2 }' | sort -u | wc -l)
+  [ "$count" -ge 2 ] || continue
+  old=$(apt-cache madison "$p" | awk -F'|' '{ gsub(/ /, "", $2); v = $2 } END { print v }')
+  apt-get -qq install -y --allow-downgrades "$p=$old" >/dev/null 2>&1 || continue
+  [ "$(dpkg-query -W -f '${Version}' "$p" 2>/dev/null)" = "$old" ] || continue
+  echo "put-back $p $old" >&2
+  break
+done
+SH
+cat >"$rollout_dir/after-apt.sh" <<'SH'
+apt-get -s --with-new-pkgs upgrade | awk '/^Inst / { print "name " $2 } /^Inst .*-security/ { print "security " $2 }'
+SH
+cat >"$rollout_dir/prepare-dnf.sh" <<'SH'
+set -e
+arch=$(uname -m)
+for p in less tar which file zip unzip tzdata; do
+  # Every version the repositories have, the installed one included, oldest first.
+  vers=$(dnf -q repoquery --arch "$arch,noarch" --qf '%{evr}' "$p" 2>/dev/null | sort -uV)
+  [ "$(printf '%s\n' "$vers" | grep -c . || true)" -ge 2 ] || continue
+  old=$(printf '%s\n' "$vers" | head -n 1)
+  dnf -q -y install "$p-${old#*:}" >/dev/null 2>&1 || dnf -q -y downgrade "$p-${old#*:}" >/dev/null 2>&1 || continue
+  now=$(rpm -q --qf '%|EPOCH?{%{EPOCH}:}:{}|%{VERSION}-%{RELEASE}\n' "$p" 2>/dev/null | tail -n 1)
+  [ "${now#*:}" = "${old#*:}" ] || continue
+  echo "put-back $p $now" >&2
+  echo "raw $p put back to $now at $(date -u '+%F %T'), of: $(printf '%s ' $vers)" >&2
+  echo "$p" >/tmp/put-back
+  break
+done
+code=0
+dnf -q --cacheonly check-update >/tmp/before 2>&1 || code=$?
+echo "raw Before the reader, dnf -q --cacheonly check-update exited $code and printed:" >&2
+sed 's/^/raw   /' /tmp/before >&2
+SH
+cat >"$rollout_dir/after-dnf.sh" <<'SH'
+raw() { sed 's/^/raw   /'; }
+code=0
+dnf -q --cacheonly check-update >/tmp/listed 2>/tmp/listed-err || code=$?
+echo "raw After the reader, dnf -q --cacheonly check-update exited $code and printed:"
+cat /tmp/listed /tmp/listed-err | raw
+awk '/^Obsoleting/ { exit } NF == 1 && /\./ { n = $1; next } NF == 2 && n != "" { print "name " n; n = ""; next } NF == 3 { print "name " $1 }' /tmp/listed
+dnf -q --cacheonly updateinfo list --security 2>/dev/null | awk 'NF >= 3 { print "advisory " $3 }'
+p=$(cat /tmp/put-back 2>/dev/null || true)
+if [ -n "$p" ]; then
+  echo "raw rpm -q $p: $(rpm -q "$p" 2>&1)"
+  echo "raw dnf -q --cacheonly --showduplicates list $p:"
+  dnf -q --cacheonly --showduplicates list "$p" 2>&1 | raw
+fi
+echo "raw The metadata the reader read, at $(date -u '+%F %T'):"
+stat -c '%y %n' /var/cache/dnf/*/repodata/repomd.xml 2>&1 | raw
+SH
+cat >"$rollout_dir/prepare-apk.sh" <<'SH'
+apk -q update
+SH
+cat >"$rollout_dir/after-apk.sh" <<'SH'
+apk version -l '<' | awk 'NF == 3 && $2 == "<" { print "name " $1 }'
+SH
+# read_updates IMAGE KIND runs prepare-KIND, the reader, then after-KIND, in a
+# container of IMAGE, with what the scripts say in $rollout_dir/said and the reader's
+# JSON on standard output. It runs in a command substitution, so its caller fails
+# for it, by the reader's exit.
 read_updates() {
-  docker run --rm -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" "$1" sh -c "$2 dockwell-updates" 2>"$rollout_dir/said"
+  docker run --rm -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" \
+    -v "$rollout_dir/prepare-$2.sh:/prepare.sh:ro" -v "$rollout_dir/after-$2.sh:/after.sh:ro" "$1" \
+    sh -c 'sh /prepare.sh || exit; dockwell-updates; code=$?; sh /after.sh >&2; exit $code' 2>"$rollout_dir/said"
 }
 said() { cat "$rollout_dir/said"; }
-# shellcheck disable=SC2016 # it's for the container's shell to expand
-ubuntu=$(read_updates ubuntu:24.04 '
-  set -e
-  apt-get -qq update >/dev/null
-  v=$(apt-cache madison less | awk -F"|" "\$3 ~ / noble\/main/ { gsub(/ /, \"\", \$2); print \$2; exit }")
-  apt-get -qq install -y --allow-downgrades "less=$v" >/dev/null 2>&1
-  echo "less=$v" >&2
-  apt-get -s --with-new-pkgs upgrade | awk "/^Inst / { print \"name:\" \$2 } /^Inst .*-security/ { print \"security:\" \$2 }" >&2
-  ') || fail "the agent's reader failed on Ubuntu: $(said)"
-echo "$ubuntu" | jq -e '.manager == "PACKAGE_MANAGER_APT" and .marksSecurity and (.unavailable // "") == "" and (.refreshError // "") == "" and .listsTime != null' >/dev/null ||
-  fail "on Ubuntu, the reader said: $ubuntu"
-installed=$(sed -n 's/^less=//p' "$rollout_dir/said")
-[[ -n "$installed" ]] || fail "less has no release version in noble/main: $(said)"
-echo "$ubuntu" | jq -e --arg v "$installed" '.packages | any(.name == "less" and .installed == $v and .available != $v and (.summary // "") != "")' >/dev/null ||
-  fail "on Ubuntu, less at $installed isn't listed as an update: $ubuntu"
-diff <(echo "$ubuntu" | jq -r '.packages[]?.name' | sort) <(sed -n 's/^name://p' "$rollout_dir/said" | sort) ||
-  fail "on Ubuntu, the reader listed other packages than apt-get --simulate does"
-diff <(echo "$ubuntu" | jq -r '.packages[]? | select(.security) | .name' | sort) <(sed -n 's/^security://p' "$rollout_dir/said" | sort) ||
-  fail "on Ubuntu, the reader marked other security fixes than apt-get --simulate does"
-debian=$(read_updates debian:12 '') || fail "the agent's reader failed on Debian: $(said)"
-echo "$debian" | jq -e '.manager == "PACKAGE_MANAGER_APT" and .marksSecurity and (.refreshError // "") == "" and .listsTime != null' >/dev/null ||
-  fail "on Debian, the reader said: $debian"
-alma=$(read_updates almalinux:9 'dnf -q -y downgrade less >/dev/null 2>&1 && echo downgraded >&2;') ||
-  fail "the agent's reader failed on AlmaLinux: $(said)"
-echo "$alma" | jq -e '.manager == "PACKAGE_MANAGER_DNF" and (.refreshError // "") == "" and .listsTime != null' >/dev/null ||
-  fail "on AlmaLinux, the reader said: $alma"
-if grep -qx downgraded "$rollout_dir/said"; then
-  echo "$alma" | jq -e '.packages | any(.name == "less" and (.installed // "") != "" and (.origin // "") != "" and (.summary // "") != "")' >/dev/null ||
-    fail "on AlmaLinux, less put back a version isn't listed: $alma"
-fi
-alpine=$(read_updates alpine:3.20 '') || fail "the agent's reader failed on Alpine: $(said)"
-echo "$alpine" | jq -e '.manager == "PACKAGE_MANAGER_APK" and (.marksSecurity // false) == false and (.refreshError // "") == "" and .listsTime != null' >/dev/null ||
+# raw prints what the tool printed as it was, after a blank line, or nothing.
+raw() {
+  local printed
+  printed=$(sed -n 's/^raw //p' "$rollout_dir/said")
+  [[ -z "$printed" ]] || printf '\n%s' "$printed"
+}
+# the_tool_says KIND prints what the scripts said of KIND, one a line, sorted.
+the_tool_says() { sed -n "s/^$1 //p" "$rollout_dir/said" | sort -u; }
+# the_reader_says JSON JQ prints the names the reader gave, by JQ, sorted.
+the_reader_says() { jq -r "$2" <<<"$1" | sort -u; }
+# put_back DISTRO JSON checks the package the script put back is listed, at the
+# version it was put back to, with a newer one available.
+put_back() {
+  local put pkg version
+  put=$(sed -n 's/^put-back //p' "$rollout_dir/said")
+  [[ -n "$put" ]] || fail "on $1, nothing could be put back to an older version, so the step proves nothing: $(said)"
+  pkg=${put%% *}
+  version=${put#* }
+  jq -e --arg p "$pkg" --arg v "$version" '.packages | any(.name == $p and .installed == $v and .available != $v)' >/dev/null <<<"$2" ||
+    fail "on $1, $pkg put back to $version isn't listed as an update: $2$(raw)"
+}
+for distro in "Ubuntu ubuntu:24.04" "Debian debian:12"; do
+  name=${distro%% *}
+  out=$(read_updates "${distro#* }" apt) || fail "the agent's reader failed on $name: $(said)"
+  jq -e '.manager == "PACKAGE_MANAGER_APT" and .marksSecurity and (.unavailable // "") == "" and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$out" ||
+    fail "on $name, the reader said: $out"
+  put_back "$name" "$out"
+  diff <(the_reader_says "$out" '.packages[]?.name') <(the_tool_says name) ||
+    fail "on $name, the reader listed other packages than apt-get --simulate does"
+  diff <(the_reader_says "$out" '.packages[]? | select(.security) | .name') <(the_tool_says security) ||
+    fail "on $name, the reader marked other security fixes than apt-get --simulate does"
+done
+alma=$(read_updates almalinux:9 dnf) || fail "the agent's reader failed on AlmaLinux: $(said)"
+jq -e '.manager == "PACKAGE_MANAGER_DNF" and .marksSecurity and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$alma" ||
+  fail "on AlmaLinux, the reader said: $alma$(raw)"
+put_back AlmaLinux "$alma"
+diff <(the_reader_says "$alma" '.packages[]? | .name + "." + .architecture') <(the_tool_says name) ||
+  fail "on AlmaLinux, the reader listed other packages than dnf check-update does:$(raw)"
+# A security fix is a package dnf lists that an advisory names, by its name.
+advised=$(the_tool_says advisory | sed -E 's/-[^-]+-[^-]+$//' | sort -u)
+listed=$(the_tool_says name | sed -E 's/\.[^.]+$//' | sort -u)
+diff <(the_reader_says "$alma" '.packages[]? | select(.security) | .name') <(comm -12 <(echo "$advised") <(echo "$listed")) ||
+  fail "on AlmaLinux, the reader marked other security fixes than dnf updateinfo names:$(raw)"
+alpine=$(read_updates alpine:3.20 apk) || fail "the agent's reader failed on Alpine: $(said)"
+jq -e '.manager == "PACKAGE_MANAGER_APK" and (.marksSecurity // false) == false and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$alpine" ||
   fail "on Alpine, the reader said: $alpine"
+diff <(the_reader_says "$alpine" '.packages[]? | .name + "-" + .installed') <(the_tool_says name) ||
+  fail "on Alpine, the reader listed other packages than apk version does"
 
 step "A service from an image runs"
 dw services create web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hello --yes ||

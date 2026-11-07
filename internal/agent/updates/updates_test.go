@@ -151,6 +151,8 @@ func TestEffects(t *testing.T) {
 		{apt, "linux-image-6.8.0-49-generic", reboot},
 		{apt, "linux-image-virtual", reboot},
 		{apt, "libc6", reboot},
+		{apt, "systemd", none}, // Debian and Ubuntu re-execute it
+		{dnf, "systemd", reboot},
 		{apt, "linux-libc-dev", none},
 		{apt, "openssl", none},
 		{apt, "docker-ce", docker},
@@ -462,7 +464,7 @@ esac`)
 func TestWhatCantBeRead(t *testing.T) {
 	arch := newStand(t, "NAME=\"Arch Linux\"\nID=arch\nPRETTY_NAME=\"Arch Linux\"\n")
 	got, err := New(Options{Root: arch.root}).Read(t.Context(), true, false)
-	if err != nil || got.GetUnavailable() != "Dockwell reads updates with apt, dnf or apk, and Arch Linux uses none of them" {
+	if err != nil || got.GetUnavailable() != "Dockwell reads updates with apt, dnf 4 or apk, and Arch Linux uses none of them" {
 		t.Errorf("on Arch: %v, %v", got, err)
 	}
 	bare := newStand(t, ubuntu)
@@ -477,7 +479,7 @@ func TestWhatCantBeRead(t *testing.T) {
 	broken := ubuntuStand(t, time.Now())
 	broken.tool(aptGet, `echo "E: The package lists or status file could not be parsed or opened." >&2; exit 100`)
 	if _, err := New(Options{Root: broken.root}).Read(t.Context(), true, false); err == nil ||
-		err.Error() != "apt-get -q -o Debug::NoLocking=true -o APT::Get::Show-User-Simulation-Note=false --simulate --with-new-pkgs upgrade ended with status 100: E: The package lists or status file could not be parsed or opened." {
+		err.Error() != "Reading what apt would upgrade ended with status 100: E: The package lists or status file could not be parsed or opened." {
 		t.Errorf("a read that fails: %v", err)
 	}
 }
@@ -511,8 +513,8 @@ func TestARunOutOfTimeStopsWithWhatItStarted(t *testing.T) {
 	r := New(Options{Root: s.root})
 	r.grace = 200 * time.Millisecond
 	start := time.Now()
-	_, err := r.run(t.Context(), aptGet, 300*time.Millisecond, "-q", "update")
-	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "apt-get -q update didn't finish within") ||
+	_, err := r.run(t.Context(), "Refreshing apt's package lists", aptGet, 300*time.Millisecond, "-q", "update")
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "Refreshing apt's package lists didn't finish within") ||
 		!strings.Contains(err.Error(), "after saying: W: Waiting for cache lock") {
 		t.Errorf("err = %v", err)
 	}
@@ -540,7 +542,7 @@ func TestARunThatPrintsTooMuchFails(t *testing.T) {
 	s := newStand(t, ubuntu)
 	s.tool(aptGet, `head -c 5000000 /dev/zero`)
 	r := New(Options{Root: s.root})
-	if _, err := r.run(t.Context(), aptGet, 10*time.Second, "-q", "--simulate", "upgrade"); !errors.Is(err, errTooMuch) {
+	if _, err := r.run(t.Context(), "Reading what apt would upgrade", aptGet, 10*time.Second, "-q", "--simulate", "upgrade"); !errors.Is(err, errTooMuch) {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -549,12 +551,146 @@ func TestARunGetsNothingOfTheAgentsEnvironment(t *testing.T) {
 	t.Setenv("DOCKWELL_SECRET_TEST", "leaked")
 	s := newStand(t, ubuntu)
 	s.tool(aptGet, `env | sort`)
-	res, err := New(Options{Root: s.root}).run(t.Context(), aptGet, 10*time.Second, "x")
+	res, err := New(Options{Root: s.root}).run(t.Context(), "Printing the environment", aptGet, 10*time.Second, "x")
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := string(res.out)
 	if strings.Contains(got, "leaked") || !strings.Contains(got, "LC_ALL=C") || !strings.Contains(got, "DEBIAN_FRONTEND=noninteractive") {
 		t.Errorf("environment:\n%s", got)
+	}
+}
+
+// A refresh that failed holds off the next one a read would make for an hour, as a
+// mirror that's down is down for a while, and says why meanwhile. Check now
+// doesn't wait.
+func TestAFailedRefreshHoldsOff(t *testing.T) {
+	listed := time.Now().Add(-30 * time.Hour)
+	s := ubuntuStand(t, listed)
+	// It fails, and leaves the lists as they were, as apt does.
+	s.tool(aptGet, `case "$*" in
+*" update") echo "E: Failed to fetch http://archive.ubuntu.com/ubuntu/dists/noble/InRelease" >&2; exit 100 ;;
+*" upgrade") cat "$FIX/apt-simulate-ubuntu.txt" ;;
+esac`)
+	now := time.Now()
+	r := New(Options{Root: s.root, Now: func() time.Time { return now }})
+	refreshes := func() int { return s.called("apt-get_-q_-o_DPkg::Lock::Timeout=120_update") }
+	got, err := r.Read(t.Context(), true, false)
+	if err != nil || refreshes() != 1 || !strings.Contains(got.GetRefreshError(), "Refreshing apt's package lists ended with status 100") {
+		t.Fatalf("first read: %v, %d refreshes, refresh error %q", err, refreshes(), got.GetRefreshError())
+	}
+	now = now.Add(10 * time.Minute)
+	got, err = r.Read(t.Context(), true, false)
+	if err != nil || refreshes() != 1 || got.GetRefreshError() == "" {
+		t.Errorf("10 min later: %v, %d refreshes, want still 1 and the error said: %q", err, refreshes(), got.GetRefreshError())
+	}
+	if _, err := r.Read(t.Context(), true, true); err != nil || refreshes() != 2 {
+		t.Errorf("Check now within the hour: %v, %d refreshes, want 2", err, refreshes())
+	}
+	now = now.Add(RetryAfter + time.Minute)
+	if _, err := r.Read(t.Context(), true, false); err != nil || refreshes() != 3 {
+		t.Errorf("past the hour: %v, %d refreshes, want 3", err, refreshes())
+	}
+}
+
+// When the agent last refreshed, and last tried to, outlives a restart, as apt
+// gives a list the repository's own time, which can be well before it was fetched.
+// Debian's daily stamp counts as a refresh too.
+func TestRefreshesOutliveARestart(t *testing.T) {
+	listed := time.Now().Add(-30 * time.Hour)
+	s := ubuntuStand(t, listed)
+	// It refreshes, and the list keeps the repository's time.
+	s.tool(aptGet, `case "$*" in
+*" update") exit 0 ;;
+*" upgrade") cat "$FIX/apt-simulate-ubuntu.txt" ;;
+esac`)
+	dir := t.TempDir()
+	refreshes := func() int { return s.called("apt-get_-q_-o_DPkg::Lock::Timeout=120_update") }
+	got, err := New(Options{Root: s.root, StateDir: dir}).Read(t.Context(), true, false)
+	if err != nil || refreshes() != 1 || time.Since(got.GetListsTime().AsTime()) > time.Minute {
+		t.Fatalf("first read: %v, %d refreshes, lists at %v", err, refreshes(), got.GetListsTime().AsTime())
+	}
+	if _, err := New(Options{Root: s.root, StateDir: dir}).Read(t.Context(), true, false); err != nil || refreshes() != 1 {
+		t.Errorf("after a restart: %v, %d refreshes, want still 1", err, refreshes())
+	}
+
+	debian := ubuntuStand(t, listed)
+	write(t, debian.root, "var/lib/apt/periodic/update-stamp", "", 0o644)
+	if _, err := New(Options{Root: debian.root}).Read(t.Context(), true, false); err != nil || debian.called("apt-get_-q_-o_DPkg") != 0 {
+		t.Errorf("with Debian's stamp fresh: %v, calls %v", err, debian.calls())
+	}
+}
+
+// Fedora's dnf is dnf 5, whose output isn't dnf 4's, so neither it nor any server
+// whose dnf leads to dnf 5 is read, rather than read wrong.
+func TestNoUpdatesReadWithDnf5(t *testing.T) {
+	fedora := newStand(t, "NAME=\"Fedora Linux\"\nID=fedora\nPRETTY_NAME=\"Fedora Linux 41 (Server Edition)\"\n")
+	fedora.tool(dnfPath, `exit 0`)
+	got, err := New(Options{Root: fedora.root}).Read(t.Context(), true, false)
+	if err != nil || got.GetUnavailable() != "Dockwell reads updates with apt, dnf 4 or apk, and Fedora Linux 41 (Server Edition) uses none of them" {
+		t.Errorf("on Fedora: %v, %v", got, err)
+	}
+	alma := newStand(t, "NAME=\"AlmaLinux\"\nID=\"almalinux\"\nPRETTY_NAME=\"AlmaLinux 10.0\"\n")
+	alma.tool("/usr/bin/dnf5", `exit 0`)
+	if err := os.Symlink("dnf5", filepath.Join(alma.root, "usr", "bin", "dnf")); err != nil {
+		t.Fatal(err)
+	}
+	got, err = New(Options{Root: alma.root}).Read(t.Context(), true, false)
+	if err != nil || got.GetUnavailable() != "Dockwell reads updates with dnf 4, and AlmaLinux 10.0 has dnf 5, which it doesn't read yet" {
+		t.Errorf("with dnf 5: %v, %v", got, err)
+	}
+	if alma.called("") != 0 {
+		t.Errorf("ran %v", alma.calls())
+	}
+}
+
+// check-update is read a line at a time: a long name's line joins the next, and a
+// line of anything else is passed over without moving what follows.
+func TestDnfCheckUpdateLineByLine(t *testing.T) {
+	out := []byte(`
+less.x86_64                          590-6.el9                          baseos
+Security: kernel-core-5.14.0-503.15.1.el9_5.x86_64 is an installed security update
+a-very-long-package-name-that-wraps-in-dnf.noarch
+                                     1.2-3.el9                          appstream
+stray
+tzdata.noarch                        2026f-1.el9_8                      baseos
+`)
+	var names []string
+	for _, p := range parseDnfCheckUpdate(out) {
+		names = append(names, p.GetName()+"="+p.GetAvailable()+"@"+p.GetOrigin())
+	}
+	if want := "[less=590-6.el9@baseos a-very-long-package-name-that-wraps-in-dnf=1.2-3.el9@appstream tzdata=2026f-1.el9_8@baseos]"; fmt.Sprint(names) != want {
+		t.Errorf("got  %v\nwant %s", names, want)
+	}
+}
+
+// A tool that exits leaving a child with its output open doesn't hold the read,
+// and the child goes with the run.
+func TestARunEndsWhatItsToolLeft(t *testing.T) {
+	s := newStand(t, ubuntu)
+	s.tool(aptGet, `sleep 30 & echo $! > "$ROOT/child"; exit 0`)
+	r := New(Options{Root: s.root})
+	r.grace = 200 * time.Millisecond
+	start := time.Now()
+	if _, err := r.run(t.Context(), "Reading what apt would upgrade", aptGet, 10*time.Second, "x"); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Errorf("took %v", took)
+	}
+	b, err := os.ReadFile(filepath.Join(s.root, "child"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pid int
+	if _, err := fmt.Sscan(string(b), &pid); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for syscall.Kill(pid, 0) == nil {
+		if time.Now().After(deadline) {
+			t.Fatalf("the child %d it left still runs", pid)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

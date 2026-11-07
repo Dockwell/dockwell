@@ -31,7 +31,7 @@ func TestTheNewestRelease(t *testing.T) {
 	}))
 	defer srv.Close()
 	now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
-	r := NewReleases(srv.URL+"/releases/", slog.New(slog.DiscardHandler))
+	r := NewReleases(srv.URL+"/releases/", "0.9.4", slog.New(slog.DiscardHandler))
 	r.Now = func() time.Time { return now }
 
 	if v, _ := r.Newest(); v != "" {
@@ -71,8 +71,57 @@ func TestReleasesThatNameNoArchive(t *testing.T) {
 		_, _ = w.Write([]byte("nothing to see\n"))
 	}))
 	defer srv.Close()
-	r := NewReleases(srv.URL, slog.New(slog.DiscardHandler))
+	r := NewReleases(srv.URL, "0.9.4", slog.New(slog.DiscardHandler))
 	if _, err := r.read(t.Context()); err == nil || err.Error() != srv.URL+"/latest/download/checksums.txt names no archive of Dockwell" {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// With no mirror, the newest release is read from GitHub's list of releases, as
+// each milestone's release is a pre-release, which latest/download skips: the
+// newest by version, pre-releases included and drafts not.
+func TestTheNewestReleaseFromGitHub(t *testing.T) {
+	var agent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		agent = r.Header.Get("User-Agent")
+		_, _ = w.Write([]byte(`[
+			{"tag_name": "v0.10.0", "draft": true, "prerelease": true},
+			{"tag_name": "v0.2.0", "prerelease": true},
+			{"tag_name": "v0.9.0", "prerelease": false},
+			{"tag_name": "v0.9.1-rc.2", "prerelease": true},
+			{"tag_name": "v0.9.1-rc.10", "prerelease": true},
+			{"tag_name": "nightly", "prerelease": true}
+		]`))
+	}))
+	defer srv.Close()
+	r := NewReleases(GitHubReleases, "0.9.0", slog.New(slog.DiscardHandler))
+	if r.API != GitHubAPI {
+		t.Fatalf("GitHub's releases read from %q", r.API)
+	}
+	r.API = srv.URL + "/repos/Dockwell/dockwell/releases?per_page=10"
+	<-r.Look()
+	if v, _ := r.Newest(); v != "0.9.1-rc.10" || agent != "dockwell/0.9.0" {
+		t.Errorf("newest = %q, asked as %q", v, agent)
+	}
+	if NewReleases("https://mirror.example/dockwell", "", slog.New(slog.DiscardHandler)).API != "" {
+		t.Error("a mirror's releases are read from GitHub's list")
+	}
+}
+
+func TestCompareVersions(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want int
+	}{
+		{"0.9.4", "0.9.5", -1},
+		{"v0.10.0", "0.9.9", 1},
+		{"0.9.5-rc.1", "0.9.5", -1},
+		{"0.9.5-rc.2", "0.9.5-rc.10", -1},
+		{"0.9.5-rc.1", "0.9.5-beta", 1}, // words in order, as semver has them
+		{"1.0.0", "v1.0.0", 0},
+	} {
+		if got := CompareVersions(c.a, c.b); got != c.want {
+			t.Errorf("CompareVersions(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
+		}
 	}
 }

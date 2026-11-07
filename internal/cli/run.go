@@ -85,7 +85,7 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
-	cfg.Updates = serverUpdates(stdio, logger)
+	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	lookups(&cfg, stdio, g)
 	return agent.Run(ctx, cfg)
 }
@@ -133,8 +133,8 @@ func serverFiles(stdio IO, logger *slog.Logger, dir datadir.Dir) *files.Server {
 // serverUpdates reads which package updates wait on this server (ADR 0043). A
 // test reads nothing of the machine it runs on: with DOCKWELL_TEST set, only the
 // stand-ins under DOCKWELL_TEST_PACKAGES, and none without it.
-func serverUpdates(stdio IO, logger *slog.Logger) *updates.Reader {
-	o := updates.Options{Root: "/", Logger: logger}
+func serverUpdates(stdio IO, logger *slog.Logger, stateDir string) *updates.Reader {
+	o := updates.Options{Root: "/", Logger: logger, StateDir: stateDir}
 	if isSet(stdio.Getenv(envTest)) {
 		o.Root = stdio.Getenv(envTestPackages)
 		if o.Root == "" {

@@ -37,26 +37,25 @@ func (dnf) listsTime(r *Reader) time.Time {
 
 func (dnf) refresh(ctx context.Context, r *Reader) error {
 	args := []string{"-q", "-y", "--refresh", "makecache"}
-	res, err := r.run(ctx, dnfPath, RefreshTimeout, args...)
+	res, err := r.run(ctx, "Refreshing dnf's metadata", dnfPath, RefreshTimeout, args...)
 	if err != nil {
 		return err
 	}
 	if res.code != 0 {
-		return fail(dnfPath, res, args...)
+		return fail("Refreshing dnf's metadata", res)
 	}
-	r.refreshed = r.now()
 	return nil
 }
 
 func (dnf) list(ctx context.Context, r *Reader) ([]*dockwellv1.PackageUpdate, []string, bool, error) {
 	args := []string{"-q", "--cacheonly", "check-update"}
-	res, err := r.run(ctx, dnfPath, ReadTimeout, args...)
+	res, err := r.run(ctx, "Reading what dnf would upgrade", dnfPath, ReadTimeout, args...)
 	if err != nil {
 		return nil, nil, false, err
 	}
 	// 100 says there are updates, and 0 that there are none.
 	if res.code != 100 && res.code != 0 {
-		return nil, nil, false, fail(dnfPath, res, args...)
+		return nil, nil, false, fail("Reading what dnf would upgrade", res)
 	}
 	waiting := parseDnfCheckUpdate(res.out)
 	if len(waiting) == 0 {
@@ -64,13 +63,13 @@ func (dnf) list(ctx context.Context, r *Reader) ([]*dockwellv1.PackageUpdate, []
 	}
 	marks := true
 	args = []string{"-q", "--cacheonly", "updateinfo", "list", "--security"}
-	res, err = r.run(ctx, dnfPath, ReadTimeout, args...)
+	res, err = r.run(ctx, "Reading dnf's security advisories", dnfPath, ReadTimeout, args...)
 	switch {
 	case err != nil:
 		return nil, nil, false, err
 	case res.code != 0:
 		// A repository with no advisories leaves what's a security fix unknown.
-		r.logger.Warn("couldn't read which updates are security fixes", slog.Any("error", fail(dnfPath, res, args...)))
+		r.logger.Warn("couldn't read which updates are security fixes", slog.Any("error", fail("Reading dnf's security advisories", res)))
 		marks = false
 	default:
 		advisories := parseDnfUpdateinfo(res.out)
@@ -86,11 +85,14 @@ func (dnf) list(ctx context.Context, r *Reader) ([]*dockwellv1.PackageUpdate, []
 	return waiting, nil, marks, nil
 }
 
-// parseDnfCheckUpdate reads dnf check-update: a package, its new version and its
-// repository, which dnf wraps onto a second line when the name is long. What it
-// lists after "Obsoleting Packages" are the packages those replace.
+// parseDnfCheckUpdate reads dnf check-update, a line at a time: a package, its new
+// version and its repository. dnf puts what follows a long name on the next line,
+// so a line of the name alone is joined to the next of two. Any other line, such as
+// a note, is passed over without moving what follows. What it lists after
+// "Obsoleting Packages" are the packages those replace.
 func parseDnfCheckUpdate(out []byte) []*dockwellv1.PackageUpdate {
-	var words []string
+	var found []*dockwellv1.PackageUpdate
+	var name string // a long name, waiting for its version and repository
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	sc.Buffer(make([]byte, 64<<10), maxOutput)
 	for sc.Scan() {
@@ -98,20 +100,24 @@ func parseDnfCheckUpdate(out []byte) []*dockwellv1.PackageUpdate {
 		if strings.HasPrefix(line, "Obsoleting Packages") {
 			break
 		}
-		if strings.HasPrefix(line, "Last metadata expiration check") || strings.HasPrefix(line, "Security:") {
+		f := strings.Fields(line)
+		switch {
+		case len(f) == 1 && strings.Contains(f[0], ".") && !strings.HasSuffix(f[0], ":"):
+			name = f[0]
+			continue
+		case len(f) == 2 && name != "":
+			f = []string{name, f[0], f[1]}
+		case len(f) != 3:
+			name = ""
 			continue
 		}
-		words = append(words, strings.Fields(line)...)
-	}
-	var found []*dockwellv1.PackageUpdate
-	for i := 0; i+2 < len(words); i += 3 {
-		nameArch, version, repo := words[i], words[i+1], words[i+2]
-		dot := strings.LastIndexByte(nameArch, '.')
-		if dot <= 0 {
+		name = ""
+		dot := strings.LastIndexByte(f[0], '.')
+		if dot <= 0 || !strings.ContainsAny(f[1], "0123456789") {
 			continue
 		}
 		found = append(found, &dockwellv1.PackageUpdate{
-			Name: nameArch[:dot], Architecture: nameArch[dot+1:], Available: version, Origin: repo,
+			Name: f[0][:dot], Architecture: f[0][dot+1:], Available: f[1], Origin: f[2],
 		})
 	}
 	return found
@@ -186,13 +192,13 @@ func rpmInstalled(ctx context.Context, r *Reader, ps []*dockwellv1.PackageUpdate
 	for _, p := range ps {
 		args = append(args, p.GetName()+"."+p.GetArchitecture())
 	}
-	res, err := r.run(ctx, rpmPath, ReadTimeout, args...)
+	res, err := r.run(ctx, "Reading installed versions", rpmPath, ReadTimeout, args...)
 	if err != nil {
 		return err
 	}
 	// 1 is a package that isn't installed, as one an update brings in new.
 	if res.code != 0 && res.code != 1 {
-		return fail(rpmPath, res, args...)
+		return fail("Reading installed versions", res)
 	}
 	type found struct{ version, summary string }
 	have := map[string]found{}
@@ -216,7 +222,7 @@ func rpmInstalled(ctx context.Context, r *Reader, ps []*dockwellv1.PackageUpdate
 // reboot asks dnf's needs-restarting, where dnf-plugins-core has it, which says
 // whether a core package was updated since the server started, and which.
 func (dnf) reboot(ctx context.Context, r *Reader) (bool, []string, bool) {
-	res, err := r.run(ctx, dnfPath, ReadTimeout, "-q", "--cacheonly", "needs-restarting", "-r")
+	res, err := r.run(ctx, "Asking dnf whether a reboot is needed", dnfPath, ReadTimeout, "-q", "--cacheonly", "needs-restarting", "-r")
 	if err != nil {
 		return false, nil, false
 	}

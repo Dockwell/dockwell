@@ -598,7 +598,8 @@ export type Hello = Message<"dockwell.agent.v1.Hello"> & {
   /**
    * True when the agent reads the server's package updates (ListUpdatesCall).
    * The terminal and updates take 50 to 59 in agent messages, as other work adds
-   * to them at once.
+   * to them at once: the terminal 50 to 52, and updates 53, so the next of either
+   * takes 54.
    *
    * @generated from field: bool updates = 53;
    */
@@ -1142,7 +1143,8 @@ export type Call = Message<"dockwell.agent.v1.Call"> & {
   } | {
     /**
      * Say which package updates wait on the server. The terminal and updates take
-     * 50 to 59 in agent messages.
+     * 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
+     * next of either takes 54.
      *
      * @generated from field: dockwell.agent.v1.ListUpdatesCall list_updates = 53;
      */

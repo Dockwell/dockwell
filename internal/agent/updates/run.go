@@ -61,10 +61,9 @@ type result struct {
 // here: tools such as dnf say what they found with theirs, so each caller
 // decides. A run out of time gets SIGTERM, with everything it started, and
 // SIGKILL a grace later, if it hasn't ended by then.
-func (r *Reader) run(ctx context.Context, path string, timeout time.Duration, args ...string) (result, error) {
+func (r *Reader) run(ctx context.Context, what, path string, timeout time.Duration, args ...string) (result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	name := filepath.Base(path)
 	cmd := exec.CommandContext(ctx, r.path(path), args...) //nolint:gosec // a fixed path under the root, with arguments the tool listed itself
 	cmd.Env = env
 	cmd.Dir = "/"
@@ -81,7 +80,9 @@ func (r *Reader) run(ctx context.Context, path string, timeout time.Duration, ar
 	}
 	cmd.WaitDelay = r.grace
 	err := cmd.Run()
-	if killed.Load() {
+	// What the tool started and left holding its output, past the grace, goes too,
+	// as it would go on with nothing waiting for it.
+	if killed.Load() || errors.Is(err, exec.ErrWaitDelay) {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	res := result{out: out.buf.Bytes(), errs: errs.String(), code: -1}
@@ -90,28 +91,29 @@ func (r *Reader) run(ctx context.Context, path string, timeout time.Duration, ar
 	}
 	switch {
 	case out.over:
-		return res, fmt.Errorf("%s %s %w", name, firstWords(args), errTooMuch)
+		return res, fmt.Errorf("%s: %s %w", what, filepath.Base(path), errTooMuch)
 	case killed.Load() && errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return res, fmt.Errorf("%s %s didn't finish within %s, so it was stopped%s: %w",
-			name, firstWords(args), human.Duration(timeout), said(res.errs), context.DeadlineExceeded)
+		return res, fmt.Errorf("%s didn't finish within %s, so it was stopped%s: %w",
+			what, human.Duration(timeout), said(res.errs), context.DeadlineExceeded)
 	case killed.Load():
-		return res, fmt.Errorf("%s was stopped, as its caller left: %w", name, context.Cause(ctx))
-	case err != nil && res.code < 0:
-		return res, fmt.Errorf("can't run %s: %w", r.path(path), err)
+		return res, fmt.Errorf("%s was stopped, as its caller left: %w", what, context.Cause(ctx))
+	case err != nil && res.code < 0 && !errors.Is(err, exec.ErrWaitDelay):
+		return res, fmt.Errorf("%s: can't run %s: %w", what, r.path(path), err)
 	}
 	return res, nil
 }
 
-// fail is the error of a run that exited with a status its caller doesn't take.
-func fail(path string, res result, args ...string) error {
-	what := lastLines(res.errs, 3)
-	if what == "" {
-		what = lastLines(string(res.out), 3)
+// fail is the error of a run, the step what, that exited with a status its
+// caller doesn't take.
+func fail(what string, res result) error {
+	said := lastLines(res.errs, 3)
+	if said == "" {
+		said = lastLines(string(res.out), 3)
 	}
-	if what == "" {
-		what = "it said nothing"
+	if said == "" {
+		said = "it said nothing"
 	}
-	return fmt.Errorf("%s %s ended with status %d: %s", filepath.Base(path), firstWords(args), res.code, what)
+	return fmt.Errorf("%s ended with status %d: %s", what, res.code, said)
 }
 
 // said is a run's last error lines, as a clause, for a message.
@@ -134,18 +136,6 @@ func lastLines(s string, n int) string {
 		lines = lines[len(lines)-n:]
 	}
 	return strings.Join(lines, "; ")
-}
-
-// firstWords is a command's arguments up to its first package name, for a message.
-func firstWords(args []string) string {
-	var words []string
-	for _, a := range args {
-		if a == "--" {
-			break
-		}
-		words = append(words, a)
-	}
-	return strings.Join(words, " ")
 }
 
 // capped keeps what's written up to max, and notes that more came.

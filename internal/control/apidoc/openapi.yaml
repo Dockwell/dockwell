@@ -1540,7 +1540,8 @@ paths:
                  age, and reads what waits again. It answers at once, with checking set, and
                  GetServerUpdates has the result. A server is refreshed this way at most once
                  a minute: asking again sooner answers with the refresh under way, or the
-                 last one.
+                 last one. It has the server reach its mirrors, so it takes a person: no API
+                 token can call it.
             operationId: UpdateService_CheckServerUpdates
             parameters:
                 - name: id
@@ -8310,7 +8311,7 @@ components:
                     type: string
                     description: |-
                         Set when Dockwell can't read updates on this server, saying why, such as
-                         that it has none of apt, dnf and apk. Nothing else is then set.
+                         that it has none of apt, dnf and apk. Nothing else is then set, but reason.
                 packages:
                     type: array
                     items:
@@ -8371,6 +8372,14 @@ components:
                     description: |-
                         True when Docker keeps containers running while it restarts (live-restore),
                          so updating Docker's engine stops none.
+                reason:
+                    type: string
+                    description: |-
+                        Why what's here isn't a read that's current, for a client to word: one of
+                         "unsupported" (no package manager Dockwell reads, with unavailable saying
+                         which), "agent_outdated" (the server's agent reads no updates; update it),
+                         "server_offline" (its agent isn't connected; what's here is from before), and
+                         "read_failed" (the last read failed, with error saying why). Empty otherwise.
             description: ServerUpdates is what a server's package manager says waits.
         Service:
             type: object

@@ -28,12 +28,16 @@ type apt struct{}
 
 func (apt) kind() dockwellv1.PackageManager { return dockwellv1.PackageManager_PACKAGE_MANAGER_APT }
 
-// listsTime is when the lists were last fetched: the newest Release file, or
-// the stamp Ubuntu's daily update leaves, or the agent's own last refresh.
+// listsTime is when the lists were last fetched: the stamp the server's daily
+// update leaves (Ubuntu's update-success-stamp, Debian's update-stamp), or the
+// agent's own last refresh. A Release file is a floor, as apt gives it the
+// repository's own time, which can be well before it was fetched.
 func (apt) listsTime(r *Reader) time.Time {
 	t := r.newestModTime("var/lib/apt/lists/*Release")
-	if s := r.newestModTime("var/lib/apt/periodic/update-success-stamp"); s.After(t) {
-		t = s
+	for _, stamp := range []string{"var/lib/apt/periodic/update-success-stamp", "var/lib/apt/periodic/update-stamp"} {
+		if s := r.newestModTime(stamp); s.After(t) {
+			t = s
+		}
 	}
 	if r.refreshed.After(t) {
 		t = r.refreshed
@@ -43,14 +47,13 @@ func (apt) listsTime(r *Reader) time.Time {
 
 func (apt) refresh(ctx context.Context, r *Reader) error {
 	args := []string{"-q", "-o", "DPkg::Lock::Timeout=120", "update"}
-	res, err := r.run(ctx, aptGet, RefreshTimeout, args...)
+	res, err := r.run(ctx, "Refreshing apt's package lists", aptGet, RefreshTimeout, args...)
 	if err != nil {
 		return err
 	}
 	if res.code != 0 {
-		return fail(aptGet, res, args...)
+		return fail("Refreshing apt's package lists", res)
 	}
-	r.refreshed = r.now()
 	return nil
 }
 
@@ -59,12 +62,12 @@ func (apt) list(ctx context.Context, r *Reader) ([]*dockwellv1.PackageUpdate, []
 		"-q", "-o", "Debug::NoLocking=true", "-o", "APT::Get::Show-User-Simulation-Note=false",
 		"--simulate", "--with-new-pkgs", "upgrade",
 	}
-	res, err := r.run(ctx, aptGet, ReadTimeout, args...)
+	res, err := r.run(ctx, "Reading what apt would upgrade", aptGet, ReadTimeout, args...)
 	if err != nil {
 		return nil, nil, false, err
 	}
 	if res.code != 0 {
-		return nil, nil, false, fail(aptGet, res, args...)
+		return nil, nil, false, fail("Reading what apt would upgrade", res)
 	}
 	waiting, held := parseAptSimulation(res.out)
 	if err := aptSummaries(ctx, r, waiting); err != nil {
@@ -87,14 +90,14 @@ func aptSummaries(ctx context.Context, r *Reader, ps []*dockwellv1.PackageUpdate
 	summaries := map[string]string{}
 	if len(installed) > 0 {
 		args := append([]string{"-W", "-f=${Package}\t${Architecture}\t${binary:Summary}\n", "--"}, installed...)
-		res, err := r.run(ctx, dpkgQuery, ReadTimeout, args...)
+		res, err := r.run(ctx, "Reading installed packages' descriptions", dpkgQuery, ReadTimeout, args...)
 		if err != nil {
 			return err
 		}
 		// 1 is a name it doesn't know, such as one with another architecture's
 		// suffix, which is then left without a description.
 		if res.code != 0 && res.code != 1 {
-			return fail(dpkgQuery, res, args...)
+			return fail("Reading installed packages' descriptions", res)
 		}
 		for line := range strings.Lines(string(res.out)) {
 			parts := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 3)
@@ -105,12 +108,12 @@ func aptSummaries(ctx context.Context, r *Reader, ps []*dockwellv1.PackageUpdate
 	}
 	if len(fresh) > 0 {
 		args := append([]string{"show", "--no-all-versions", "--"}, fresh...)
-		res, err := r.run(ctx, aptCache, ReadTimeout, args...)
+		res, err := r.run(ctx, "Reading new packages' descriptions", aptCache, ReadTimeout, args...)
 		if err != nil {
 			return err
 		}
 		if res.code != 0 && res.code != 100 {
-			return fail(aptCache, res, args...)
+			return fail("Reading new packages' descriptions", res)
 		}
 		for k, v := range parseAptCacheShow(res.out) {
 			summaries[k] = v

@@ -382,3 +382,38 @@
 .updates-tone-unknown {
   color: var(--ink-faint);
 }
+
+/* A reason's detail, as the server said it. */
+.updates-detail {
+  overflow-wrap: anywhere;
+}
+
+/* A command to run, on one line, which scrolls rather than wraps mid-flag. */
+.updates-update {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.updates-command-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.updates-command {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font: 400 12px / 18px var(--font-mono);
+  white-space: nowrap;
+}
+
+.dw-callout .updates-command {
+  margin-top: var(--space-1);
+}

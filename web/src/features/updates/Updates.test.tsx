@@ -92,7 +92,12 @@ function answer(updates: MessageInitShape<typeof ServerUpdatesSchema> = {}, newe
       automatic: create(AutomaticUpdatesSchema, { tool: "unattended-upgrades", on: true }),
       ...updates,
     }),
-    dockwell: create(DockwellReleaseSchema, { agent: "v0.9.4", controlPlane: "v0.9.4", newest }),
+    dockwell: create(DockwellReleaseSchema, {
+      agent: "v0.9.4",
+      controlPlane: "v0.9.4",
+      newest,
+      releases: "https://github.com/Dockwell/dockwell/releases",
+    }),
   });
 }
 
@@ -156,7 +161,9 @@ describe("UpdatesPage", () => {
     const lead = await callout("3 security updates are ready to install");
     expect(lead).toHaveAttribute("role", "status");
     expect(lead).toHaveTextContent("One of them needs a reboot to take effect");
-    expect(lead).toHaveTextContent("run sudo apt-get upgrade on hz-1");
+    expect(lead).toHaveTextContent(
+      "unattended-upgrades on hz-1 installs updates by itself, so these go in within about a day. To install them now, run sudo apt-get upgrade --with-new-pkgs there, which installs every update waiting, not only these.",
+    );
     expect(screen.getByText("3 from noble-security · checked 20 min ago")).toBeVisible();
     const table = screen.getByRole("table", { name: "Security updates for hz-1" });
     const rows = within(table).getAllByRole("row").slice(1);
@@ -196,10 +203,122 @@ describe("UpdatesPage", () => {
     expect(auto).toHaveTextContent("Refreshed 20 min ago");
     const versions = screen.getByRole("region", { name: "Docker and Dockwell" });
     expect(versions).toHaveTextContent("27.3.1 → 27.4.0 available");
-    expect(versions).toHaveTextContent("Every container restarts with it");
+    expect(versions).toHaveTextContent("Containers stop with it, and only those set to restart start again");
     expect(versions).toHaveTextContent("0.9.4 · agent and control plane");
     expect(within(versions).getByText("0.9.5 available")).toBeVisible();
-    expect(versions).toHaveTextContent("Update with the install script");
+    expect(versions).toHaveTextContent("Update it on the control server, as root, which keeps what runs:");
+    expect(within(versions).getByText(/^curl /)).toHaveTextContent(
+      /^curl -fsSL https:\/\/github\.com\/Dockwell\/dockwell\/releases\/download\/v0\.9\.5\/install\.sh \| sudo sh -s -- --version 0\.9\.5$/,
+    );
+    expect(within(versions).getByRole("button", { name: "Copy the command" })).toBeVisible();
+  });
+
+  it("names a mirror in the command that updates Dockwell", async () => {
+    await renderUpdates(() => {
+      const a = answer({}, "0.9.5-rc.2");
+      if (a.dockwell) a.dockwell.releases = "https://mirror.example/dockwell/";
+      return a;
+    });
+    const versions = await screen.findByRole("region", { name: "Docker and Dockwell" });
+    expect(await within(versions).findByText(/^curl /)).toHaveTextContent(
+      "curl -fsSL https://mirror.example/dockwell/download/v0.9.5-rc.2/install.sh | sudo sh -s -- --version 0.9.5-rc.2 --mirror https://mirror.example/dockwell",
+    );
+  });
+
+  it("says nothing's read yet while the first read runs, and never that it's up to date", async () => {
+    await renderUpdates(() =>
+      answer({ checking: true, packages: [], readTime: undefined, listsTime: undefined, automatic: undefined }),
+    );
+    expect(await screen.findByText("Asking hz-1 which updates wait…")).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Checking" })).toHaveAttribute("aria-disabled", "true");
+    for (const words of [/up to date/i, "None waiting", "Never refreshed", "Not needed", "Security updates"]) {
+      expect(screen.queryByText(words)).toBeNull();
+    }
+    expect(screen.queryByRole("region", { name: "Automatic updates" })).toBeNull();
+  });
+
+  it("says a first read failed, with Check now, and nothing it would have found", async () => {
+    await renderUpdates(() =>
+      answer({
+        packages: [],
+        readTime: undefined,
+        listsTime: undefined,
+        reason: "read_failed",
+        error:
+          "Reading what apt would upgrade ended with status 100: E: The package lists or status file could not be parsed or opened.",
+      }),
+    );
+    const why = await callout("Dockwell couldn't read hz-1's updates");
+    expect(why).toHaveTextContent("Reading what apt would upgrade ended with status 100");
+    expect(within(why).getByRole("button", { name: "Check now" })).toBeVisible();
+    expect(screen.queryByText(/up to date/i)).toBeNull();
+    expect(screen.queryByRole("region", { name: "Automatic updates" })).toBeNull();
+  });
+
+  it("says a server's agent is away, before it was ever read", async () => {
+    await renderUpdates(() =>
+      answer({
+        packages: [],
+        readTime: undefined,
+        listsTime: undefined,
+        reason: "server_offline",
+        error: "hz-1's agent isn't connected",
+      }),
+    );
+    expect(await callout("hz-1's agent isn't connected")).toHaveTextContent(
+      "Dockwell can't read its updates until it's back.",
+    );
+    expect(screen.queryByRole("button", { name: "Check now" })).toBeNull();
+    expect(screen.queryByText(/up to date/i)).toBeNull();
+  });
+
+  it("says how to update an agent too old to read updates", async () => {
+    await renderUpdates(() =>
+      answer({
+        packages: [],
+        readTime: undefined,
+        reason: "agent_outdated",
+        unavailable: "hz-1's agent is older than the control plane",
+      }),
+    );
+    const why = await callout("hz-1's agent doesn't read updates yet");
+    expect(why).toHaveTextContent("Update it by running the install script on hz-1 again, which keeps what runs:");
+    expect(why).toHaveTextContent(
+      "curl -fsSL https://github.com/Dockwell/dockwell/releases/download/v0.9.4/install.sh | sudo sh -s -- --version 0.9.4",
+    );
+  });
+
+  it("counts Docker's engine among the security fixes when it's one, and says how many need a reboot", async () => {
+    await renderUpdates(() =>
+      answer({
+        automatic: undefined,
+        packages: [
+          ...waiting.filter((p) => p.name !== "docker-ce"),
+          pkg({
+            name: "docker.io",
+            installed: "24.0.7-0ubuntu4",
+            available: "24.0.7-0ubuntu4.1",
+            origin: "noble-security",
+            security: true,
+            effect: PackageEffect.DOCKER_RESTART,
+          }),
+          pkg({
+            name: "libc6",
+            installed: "2.39-0ubuntu8.3",
+            available: "2.39-0ubuntu8.4",
+            origin: "noble-security",
+            security: true,
+            effect: PackageEffect.REBOOT,
+          }),
+        ],
+      }),
+    );
+    expect(await screen.findByRole("link", { name: "Updates 5" })).toBeVisible();
+    const lead = await callout("5 security updates are ready to install");
+    expect(lead).toHaveTextContent("2 of them need a reboot to take effect");
+    expect(lead).toHaveTextContent(
+      "Dockwell can't install updates yet, so run sudo apt-get upgrade --with-new-pkgs on hz-1",
+    );
   });
 
   it("refreshes the lists when asked, and asks again while it checks", async () => {
@@ -302,6 +421,45 @@ describe("the overview's Updates card", () => {
     const link = await screen.findByRole("link", { name: /3 security updates for Ubuntu/ });
     expect(link).toHaveAttribute("href", "/servers/srv_1/updates");
     expect(link).toHaveTextContent("Review");
+  });
+
+  it("says checking, or why not, rather than up to date, when nothing's read", async () => {
+    await renderUpdates(() => answer({ checking: true, packages: [], readTime: undefined }), "/");
+    const card = await screen.findByRole("region", { name: "Updates" });
+    expect(await within(card).findByText("Checking for updates")).toBeVisible();
+    expect(within(card).queryByText(/up to date/i)).toBeNull();
+  });
+
+  it("warns, and never says up to date, after a first read that failed", async () => {
+    await renderUpdates(
+      () => answer({ packages: [], readTime: undefined, reason: "read_failed", error: "status 100" }),
+      "/",
+    );
+    const card = await screen.findByRole("region", { name: "Updates" });
+    expect(await within(card).findByText("Dockwell couldn't read hz-1's updates")).toBeVisible();
+    expect(within(card).getByText("The last read failed")).toBeVisible();
+    expect(within(card).queryByText(/up to date/i)).toBeNull();
+  });
+
+  it("counts Alpine's updates in a neutral tone, as none is marked a security fix", async () => {
+    await renderUpdates(
+      () =>
+        answer({
+          manager: PackageManager.APK,
+          marksSecurity: false,
+          packages: [
+            pkg({ name: "busybox", installed: "1.36.1-r29", available: "1.36.1-r30" }),
+            pkg({ name: "musl", installed: "1.2.5-r0", available: "1.2.5-r1" }),
+          ],
+        }),
+      "/",
+    );
+    const card = await screen.findByRole("region", { name: "Updates" });
+    expect(await within(card).findByText("2 updates")).toBeVisible();
+    expect(card).toHaveTextContent("apk doesn't mark security fixes. busybox, musl.");
+    const row = within(card).getByText("2 updates").closest(".updates-card-row");
+    expect(row?.querySelector(".updates-tone-unknown")).not.toBeNull();
+    expect(row?.querySelector(".updates-tone-healthy")).toBeNull();
   });
 
   it("stays away while a server can't be asked", async () => {

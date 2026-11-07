@@ -1299,7 +1299,7 @@ func Methods() []*apicli.Method {
 			Noun:      "updates",
 			Verb:      "check",
 			Short:     "Refresh a server's package lists now",
-			Long:      "Refresh a server's package lists now, whatever their age, and reads what waits\nagain. It answers at once, with checking set, and dockwell updates get has the\nresult. A server is refreshed this way at most once a minute: asking again\nsooner answers with the refresh under way, or the last one.",
+			Long:      "Refresh a server's package lists now, whatever their age, and reads what waits\nagain. It answers at once, with checking set, and dockwell updates get has the\nresult. A server is refreshed this way at most once a minute: asking again\nsooner answers with the refresh under way, or the last one. It has the server\nreach its mirrors, so it takes a person: no API token can call it.",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The server's ID.", Arg: true},

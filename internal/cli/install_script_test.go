@@ -470,3 +470,30 @@ func TestTheInstallScriptKeepsDowngradeForSudo(t *testing.T) {
 		}
 	}
 }
+
+// An install from a mirror keeps it in the service's environment, so the control
+// plane reads Dockwell's newest release where the install came from, and none
+// without one. systemd reads % as a specifier, so it's doubled there.
+func TestTheServiceKeepsTheMirror(t *testing.T) {
+	steps := installSteps(t)
+	for _, c := range []struct{ init, mirror, want, not string }{
+		{"systemd", "https://mirror.example/dockwell%2Freleases", `Environment="DOCKWELL_MIRROR=https://mirror.example/dockwell%%2Freleases"`, ""},
+		{"systemd", "", "", "DOCKWELL_MIRROR"},
+		{"openrc", "https://mirror.example/dockwell", ": \"${DOCKWELL_MIRROR:=https://mirror.example/dockwell}\"\nexport DOCKWELL_MIRROR\n", ""},
+		{"openrc", "", "", "DOCKWELL_MIRROR"},
+	} {
+		dir := t.TempDir()
+		cmd := exec.CommandContext(t.Context(), "sh", "-c", `. "$1"; tmp=$2; UNIT=$2/service; INITD=$2/service; BIN=/usr/local/bin/dockwell; MEMORY_LIMIT=200MiB; REPO_URL=https://github.com/Dockwell/dockwell; OPENRC_LOG=/var/log/dockwell.log; init=$3; mirror=$4; write_service`,
+			"sh", steps, dir, c.init, c.mirror)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("write_service: %v\n%s", err, out)
+		}
+		b, err := os.ReadFile(filepath.Join(dir, "service"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(b); c.want != "" && !strings.Contains(got, c.want) || c.not != "" && strings.Contains(got, c.not) {
+			t.Errorf("%s with mirror %q wrote:\n%s", c.init, c.mirror, got)
+		}
+	}
+}

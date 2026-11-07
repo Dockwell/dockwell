@@ -51,9 +51,9 @@ export interface UpdatesSummary {
 export function summarize(updates: ServerUpdates | undefined): UpdatesSummary {
   const packages = updates?.packages ?? [];
   const docker = packages.find((p) => p.effect === PackageEffect.DOCKER_RESTART);
-  const rest = packages.filter((p) => p !== docker);
-  const security = rest.filter((p) => p.security);
-  const other = rest.filter((p) => !p.security);
+  // Docker's engine has a panel of its own, and a security fix in it counts as one.
+  const security = packages.filter((p) => p.security);
+  const other = packages.filter((p) => !p.security && p !== docker);
   return {
     security,
     other,
@@ -82,11 +82,14 @@ export function managerName(m: PackageManager | undefined): string {
   return "";
 }
 
-/** The command that installs what waits by hand, on a server with this package manager. */
+/**
+ * The command that installs what waits by hand, on a server with this package
+ * manager: every update, as an upgrade takes, with what a new kernel brings in too.
+ */
 export function upgradeCommand(m: PackageManager | undefined): string {
   switch (m) {
     case PackageManager.APT:
-      return "sudo apt-get upgrade";
+      return "sudo apt-get upgrade --with-new-pkgs";
     case PackageManager.DNF:
       return "sudo dnf upgrade";
     case PackageManager.APK:
@@ -112,21 +115,61 @@ export function splitVersion(installed: string, available: string): [same: strin
 export type ReleaseStanding = "current" | "behind" | "unknown";
 
 export function releaseStanding(release: DockwellRelease | undefined): ReleaseStanding {
-  const running = parseVersion(release?.controlPlane ?? "");
-  const newest = parseVersion(release?.newest ?? "");
-  if (!running || !newest) return "unknown";
-  for (let i = 0; i < 3; i++) {
-    const a = running[i] ?? 0;
-    const b = newest[i] ?? 0;
-    if (a !== b) return a > b ? "current" : "behind";
-  }
-  return "current";
+  const running = release?.controlPlane ?? "";
+  const newest = release?.newest ?? "";
+  if (!isRelease(running) || !isRelease(newest)) return "unknown";
+  return compareVersions(running, newest) < 0 ? "behind" : "current";
 }
 
-/** A release's version, as its three numbers, or undefined for a build that isn't one. */
-function parseVersion(v: string): number[] | undefined {
-  const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(v.trim());
-  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : undefined;
+const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
+
+/** Whether v is a release's version, as semver has them, and not a development build's. */
+export function isRelease(v: string): boolean {
+  return SEMVER.test(v.trim());
+}
+
+/** Orders two release versions as semver does, a release after its pre-releases. */
+export function compareVersions(a: string, b: string): number {
+  const ma = SEMVER.exec(a.trim());
+  const mb = SEMVER.exec(b.trim());
+  if (!ma || !mb) return a.localeCompare(b);
+  for (let i = 1; i <= 3; i++) {
+    const d = Number(ma[i]) - Number(mb[i]);
+    if (d !== 0) return Math.sign(d);
+  }
+  const pa = ma[4] ?? "";
+  const pb = mb[4] ?? "";
+  if (pa === pb) return 0;
+  if (!pa) return 1;
+  if (!pb) return -1;
+  const xa = pa.split(".");
+  const xb = pb.split(".");
+  for (let i = 0; i < Math.min(xa.length, xb.length); i++) {
+    const x = xa[i] ?? "";
+    const y = xb[i] ?? "";
+    const nx = /^\d+$/.test(x);
+    const ny = /^\d+$/.test(y);
+    if (nx && ny && Number(x) !== Number(y)) return Math.sign(Number(x) - Number(y));
+    if (nx !== ny) return nx ? -1 : 1;
+    if (!nx && x !== y) return x < y ? -1 : 1;
+  }
+  return Math.sign(xa.length - xb.length);
+}
+
+/** Where Dockwell's releases are, unless a mirror says otherwise. */
+export const GITHUB_RELEASES = "https://github.com/Dockwell/dockwell/releases";
+
+/**
+ * The command that installs Dockwell's release version on a server, or upgrades it
+ * in place, from that release's own install script, as root, from releases, with
+ * the mirror named where it isn't GitHub's. Undefined where either isn't known.
+ */
+export function installCommand(releases: string, version: string): string | undefined {
+  const v = plainVersion(version);
+  const base = releases.replace(/\/+$/, "");
+  if (!base || !isRelease(v)) return undefined;
+  const mirror = base === GITHUB_RELEASES ? "" : ` --mirror ${base}`;
+  return `curl -fsSL ${base}/download/v${v}/install.sh | sudo sh -s -- --version ${v}${mirror}`;
 }
 
 /** A version for people, without the "v" a build may carry. */

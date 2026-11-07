@@ -1055,7 +1055,8 @@ type Hello struct {
 	GuardsWaysIn bool `protobuf:"varint,7,opt,name=guards_ways_in,json=guardsWaysIn,proto3" json:"guards_ways_in,omitempty"`
 	// True when the agent reads the server's package updates (ListUpdatesCall).
 	// The terminal and updates take 50 to 59 in agent messages, as other work adds
-	// to them at once.
+	// to them at once: the terminal 50 to 52, and updates 53, so the next of either
+	// takes 54.
 	Updates       bool `protobuf:"varint,53,opt,name=updates,proto3" json:"updates,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2173,7 +2174,8 @@ type Call_SendBackup struct {
 
 type Call_ListUpdates struct {
 	// Say which package updates wait on the server. The terminal and updates take
-	// 50 to 59 in agent messages.
+	// 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
+	// next of either takes 54.
 	ListUpdates *ListUpdatesCall `protobuf:"bytes,53,opt,name=list_updates,json=listUpdates,proto3,oneof"`
 }
 

@@ -224,7 +224,11 @@ async function main() {
 
   step("it leads with the security fixes, then the rest, as Server-Updates has them");
   await page.getByText("6 security updates are ready to install").waitFor();
-  await page.getByText("sudo apt-get upgrade", { exact: true }).first().waitFor();
+  await page.getByText("sudo apt-get upgrade --with-new-pkgs", { exact: true }).first().waitFor();
+  await page
+    .getByText("installs updates by itself, so these go in within about a day", { exact: false })
+    .first()
+    .waitFor();
   await page.getByText("6 from noble-security", { exact: false }).waitFor();
   const table = page.getByRole("table", { name: /^Security updates for / });
   await table.waitFor();
@@ -248,7 +252,7 @@ async function main() {
   await page.getByText("3 more are held back", { exact: false }).waitFor();
   const versions = page.getByRole("region", { name: "Docker and Dockwell" });
   await versions.getByText("27.4.0").waitFor();
-  await versions.getByText("Every container restarts with it").waitFor();
+  await versions.getByText("Containers stop with it, and only those set to restart start again").waitFor();
   const automatic = page.getByRole("region", { name: "Automatic updates" });
   await automatic.getByText("unattended-upgrades").waitFor();
   await shoot(page, "updates");

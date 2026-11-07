@@ -28,9 +28,11 @@ import { type ReactNode, useId, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
+import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
 import {
+  installCommand,
   managerName,
   plainVersion,
   releaseStanding,
@@ -40,6 +42,7 @@ import {
   upgradeCommand,
   useServerUpdates,
 } from "./updates";
+import { useWhyNot, type WhyNot } from "./why";
 import "../servers/ServerPanels.css";
 import "./Updates.css";
 
@@ -53,6 +56,7 @@ function Updates({ server }: { server: Server }) {
   const query = useServerUpdates(server.id);
   const transport = useTransport();
   const client = useMemo(() => createClient(UpdateService, transport), [transport]);
+  const whyNot = useWhyNot();
   const [asked, setAsked] = useState<unknown>();
   // From the press until the control plane answers, as it may answer only once it has read.
   const [pressed, setPressed] = useState(false);
@@ -88,23 +92,42 @@ function Updates({ server }: { server: Server }) {
       </Callout>
     );
   }
-  if (!updates || updates.unavailable) {
-    return (
-      <Callout tone="info" shape="dashed-ring" title={t`Dockwell can't read updates on ${server.name}`}>
-        {updates?.unavailable}
-      </Callout>
-    );
-  }
+  if (!updates) return null;
+  const release = query.data?.dockwell;
   const checking = updates.checking || pressed;
   const checkButton = (
     <Button variant="ghost" size="sm" icon="refresh" loading={checking} onClick={() => void check()}>
       {checking ? (updates.refreshing ? t`Refreshing lists` : t`Checking`) : t`Check now`}
     </Button>
   );
+  const why = whyNot(server, updates, release);
+  if (updates.unavailable) {
+    return why ? <WhyNotCallout why={why} /> : null;
+  }
+  // Nothing read yet: a first read under way, one that failed, or an agent away.
+  // That's said as it is, and never as a read that found nothing.
+  if (!updates.readTime) {
+    if (checking && !why) {
+      return (
+        <section className="updates-section" aria-labelledby="updates-asking">
+          <div className="updates-section-head">
+            <p className="updates-waiting" id="updates-asking">
+              {updates.refreshing
+                ? t`Refreshing ${server.name}'s package lists, then reading which updates wait…`
+                : t`Asking ${server.name} which updates wait…`}
+            </p>
+            <span className="updates-grow" />
+            {checkButton}
+          </div>
+        </section>
+      );
+    }
+    return why ? <WhyNotCallout why={why} action={why.retry ? checkButton : undefined} /> : null;
+  }
   return (
     <div className="updates-layout">
       <div className="updates-main">
-        <Lead server={server} updates={updates} summary={summary} />
+        {why ? <WhyNotCallout why={why} /> : <Lead server={server} updates={updates} summary={summary} />}
         {asked ? <p className="updates-note updates-note-warning">{sentence(asked)}</p> : null}
         {updates.marksSecurity ? (
           <>
@@ -118,7 +141,7 @@ function Updates({ server }: { server: Server }) {
       </div>
       <div className="updates-side">
         <HowItUpdates updates={updates} />
-        <DockerAndDockwell server={server} updates={updates} summary={summary} release={query.data?.dockwell} />
+        <DockerAndDockwell server={server} updates={updates} summary={summary} release={release} />
       </div>
     </div>
   );
@@ -127,18 +150,9 @@ function Updates({ server }: { server: Server }) {
 /** The one callout the tab leads with: what's most worth doing, or why what's here can't stand. */
 function Lead({ server, updates, summary }: { server: Server; updates: ServerUpdates; summary: UpdatesSummary }) {
   const { t } = useLingui();
-  const words = useTimeWords();
-  const now = useControlPlaneNow();
   const command = <code>{upgradeCommand(updates.manager)}</code>;
-  if (updates.error) {
-    const read = updates.readTime ? words.ago(timestampDate(updates.readTime), now) : "";
-    return (
-      <Callout tone="warning" title={t`Dockwell couldn't read ${server.name}'s updates just now`}>
-        {updates.error}
-        {read ? ` ${t`What's here was read ${read}.`}` : null}
-      </Callout>
-    );
-  }
+  const auto = updates.automatic;
+  const tool = auto?.on ? auto.tool : "";
   if (updates.rebootRequired) {
     const what = updates.rebootPackages.join(", ");
     return (
@@ -163,23 +177,49 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
       one: "# security update is ready to install",
       other: "# security updates are ready to install",
     });
-    const reboots = summary.security.some((p) => p.effect === PackageEffect.REBOOT);
+    const reboots = summary.security.filter((p) => p.effect === PackageEffect.REBOOT).length;
+    const name = server.name;
+    const rebooting =
+      reboots === 0
+        ? ""
+        : n === 1
+          ? t`It needs a reboot to take effect, and apps and websites go offline while ${name} restarts.`
+          : plural(reboots, {
+              one: `One of them needs a reboot to take effect, and apps and websites go offline while ${name} restarts.`,
+              other: `# of them need a reboot to take effect, and apps and websites go offline while ${name} restarts.`,
+            });
     return (
       <Callout tone="warning" title={title}>
-        {reboots ? (
+        {rebooting ? `${rebooting} ` : null}
+        {tool ? (
           <Trans>
-            One of them needs a reboot to take effect, and apps and websites go offline while {server.name} restarts.
-            Dockwell can't install updates yet, so run {command} on {server.name}.
+            <code>{tool}</code> on {name} installs updates by itself, so these go in within about a day. To install them
+            now, run {command} there, which installs every update waiting, not only these.
           </Trans>
         ) : (
           <Trans>
-            Dockwell can't install updates yet, so run {command} on {server.name}.
+            Dockwell can't install updates yet, so run {command} on {name}, which installs every update waiting, not
+            only these.
           </Trans>
         )}
       </Callout>
     );
   }
   return null;
+}
+
+/** Why what's shown isn't a current read, as a callout, with Check now where it could help. */
+function WhyNotCallout({ why, action }: { why: WhyNot; action?: ReactNode }) {
+  return (
+    <Callout
+      tone={why.tone}
+      shape={why.shape === "dashed-ring" ? "dashed-ring" : undefined}
+      title={why.title}
+      actions={action}
+    >
+      {why.body}
+    </Callout>
+  );
 }
 
 /** When the lists were last refreshed, for a section's heading. */
@@ -368,7 +408,7 @@ function useEffectWords(updates: ServerUpdates) {
       case PackageEffect.DOCKER_RESTART:
         return updates.dockerLiveRestore
           ? { effect: t`Restarts Docker`, sub: t`Containers keep running`, strong: false }
-          : { effect: t`Restarts Docker`, sub: t`Every container restarts`, strong: true };
+          : { effect: t`Restarts Docker`, sub: t`Containers stop; those set to restart start again`, strong: true };
     }
     return { effect: t`No reboot`, sub: "", strong: false };
   };
@@ -419,7 +459,9 @@ function UpdatesTable({
             <li key={key} className="updates-list-row">
               <Name p={p} />
               <span className="updates-list-versions">
-                <span className="updates-installed">{p.installed || t`New`}</span>
+                <span className="updates-installed">
+                  {p.installed || t({ message: "New", context: "a package not installed yet" })}
+                </span>
                 <span className="updates-arrow" aria-hidden="true">
                   →
                 </span>
@@ -441,7 +483,11 @@ function UpdatesTable({
       key: "installed",
       header: t({ message: "Installed", context: "a package's version" }),
       width: 168,
-      render: (r) => <span className="updates-installed">{r.p.installed || t`New`}</span>,
+      render: (r) => (
+        <span className="updates-installed">
+          {r.p.installed || t({ message: "New", context: "a package not installed yet" })}
+        </span>
+      ),
     },
     { key: "available", header: t`Available`, width: 184, render: (r) => <Available p={r.p} /> },
     {
@@ -543,7 +589,7 @@ function DockerAndDockwell({
                 <span className="updates-summary">
                   {updates.dockerLiveRestore
                     ? t`Containers keep running while it restarts`
-                    : t`Every container restarts with it`}
+                    : t`Containers stop with it, and only those set to restart start again`}
                 </span>
               </>
             ) : (
@@ -568,13 +614,7 @@ function DockerAndDockwell({
                 </Trans>
               )}
             </span>
-            {standing === "behind" ? (
-              <span className="updates-summary">
-                <Trans>
-                  Update with the install script: <code>curl -fsSL https://get.dockwell.dev | sh</code>
-                </Trans>
-              </span>
-            ) : null}
+            {standing === "behind" ? <UpdateDockwell release={release} /> : null}
             {standing === "unknown" ? (
               <span className="updates-summary">{t`Its newest release isn't known`}</span>
             ) : null}
@@ -584,6 +624,26 @@ function DockerAndDockwell({
         </li>
       </ul>
     </Panel>
+  );
+}
+
+/**
+ * How to update Dockwell to its newest release: that release's own install script,
+ * from where this install's releases are, a mirror included, run as root on the
+ * control server, which updates it in place. On one line, as a command.
+ */
+function UpdateDockwell({ release }: { release: DockwellRelease | undefined }) {
+  const { t } = useLingui();
+  const command = installCommand(release?.releases ?? "", release?.newest ?? "");
+  if (!command) return null;
+  return (
+    <span className="updates-summary updates-update">
+      <Trans>Update it on the control server, as root, which keeps what runs:</Trans>
+      <span className="updates-command-row">
+        <code className="updates-command">{command}</code>
+        <CopyButton text={command} label={t`Copy the command`} />
+      </span>
+    </span>
   );
 }
 
