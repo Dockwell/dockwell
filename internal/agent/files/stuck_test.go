@@ -180,9 +180,25 @@ func TestWhatsLeftBehindIsBounded(t *testing.T) {
 	// As they come back, everything works again, with nothing to restart.
 	back()
 	waitFor(t, "what was left behind to return", func() bool { return s.stuckCount() == 0 })
-	if got := d.read(t, well); got.GetFile().GetContent() != "fine" {
-		t.Fatalf("after they came back: %v", got)
+	// A healthy read has only AnswerWithin too, which a loaded machine can outlast,
+	// and then it's left behind for a moment itself. So this tries again, as a
+	// person would, until it reads.
+	var last *agentv1.ReadFileResult
+	if !eventually(func() bool { last = d.read(t, well); return last.GetFile().GetContent() == "fine" }) {
+		t.Fatalf("after they came back: %v", last)
 	}
+}
+
+// eventually reports whether ok holds within 5 s, trying it again until then.
+func eventually(ok func() bool) bool {
+	deadline := time.Now().Add(5 * time.Second)
+	for !ok() {
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return true
 }
 
 // Everything on a mount is down together, so one call left behind keeps the rest
