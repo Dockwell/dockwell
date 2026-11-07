@@ -14,7 +14,6 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
-	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
@@ -161,28 +160,15 @@ func TestARunFailsOnceItsServerIsPastTheGrace(t *testing.T) {
 	}
 }
 
-// day moves a handler's clock to n days on, and lets what's due there run.
-func day(t *testing.T, h *backups.Handler, bc dockwellv1connect.BackupServiceClient, from time.Time, n int) {
+// day moves a handler's clock to n days on, lets what's due there run, and waits for
+// that to end, with what a run sends out and takes away after it.
+func day(t *testing.T, h *backups.Handler, from time.Time, n int) {
 	t.Helper()
 	h.Now = func() time.Time { return from.Add(time.Duration(n) * 25 * time.Hour) }
 	if err := h.RunDue(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	waitIdle(t, bc)
-}
-
-// waitIdle waits for what's running to end, and for what a run pushes out to go.
-func waitIdle(t *testing.T, bc dockwellv1connect.BackupServiceClient) {
-	t.Helper()
-	eventually(t, "the run to end", func() bool {
-		for _, one := range backupsOf(t, bc) {
-			if one.GetState() == dockwellv1.BackupState_BACKUP_STATE_RUNNING {
-				return false
-			}
-		}
-		return true
-	})
-	time.Sleep(50 * time.Millisecond) // retention runs just after a run ends
+	h.Wait()
 }
 
 func doneOf(all []*dockwellv1.Backup) (done []*dockwellv1.Backup) {
@@ -206,14 +192,14 @@ func TestASmallerScheduleComesDownBeforeARunIsRefusedForRoom(t *testing.T) {
 	apply(t, c, propose(t, c, "Back up data each night", policyEdit(3)))
 	h, now := f.server.backups, time.Now()
 	for n := 1; n <= 3; n++ {
-		day(t, h, bc, now, n)
+		day(t, h, now, n)
 	}
 	if got := doneOf(backupsOf(t, bc)); len(got) != 3 {
 		t.Fatalf("after 3 runs: %v", got)
 	}
 	apply(t, c, propose(t, c, "Keep fewer", policyEdit(1)))
 	f.lastDocker.backups.Disk = backup.NoRoom
-	day(t, h, bc, now, 4)
+	day(t, h, now, 4)
 	all := backupsOf(t, bc)
 	if got := doneOf(all); len(got) != 1 {
 		t.Errorf("a schedule that keeps 1 holds %d: %v", len(got), got)
@@ -234,14 +220,14 @@ func TestRetentionLeavesWhatARestoreNames(t *testing.T) {
 	writeData(t, dir, "orders.db", "the orders")
 	apply(t, c, propose(t, c, "Back up data each night", policyEdit(1)))
 	h, now := f.server.backups, time.Now()
-	day(t, h, bc, now, 1)
+	day(t, h, now, 1)
 	oldest := backupsOf(t, bc)[0].GetId()
 	planned, err := bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: oldest}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	day(t, h, bc, now, 2)
-	day(t, h, bc, now, 3)
+	day(t, h, now, 2)
+	day(t, h, now, 3)
 	has := func() bool {
 		for _, one := range backupsOf(t, bc) {
 			if one.GetId() == oldest {
@@ -256,7 +242,7 @@ func TestRetentionLeavesWhatARestoreNames(t *testing.T) {
 	if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: planned.Msg.GetChange().GetId()})); err != nil {
 		t.Fatal(err)
 	}
-	day(t, h, bc, now, 4)
+	day(t, h, now, 4)
 	if has() {
 		t.Error("it stayed once nothing named it")
 	}
@@ -276,7 +262,7 @@ func TestRunsDueTogetherOnAServerTakeTurns(t *testing.T) {
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_BackupPolicy{BackupPolicy: &resourcev1.BackupPolicy{Volume: "data", Keep: 7, Stop: true}}},
 	}
 	apply(t, c, propose(t, c, "Back up data twice", policyEdit(7), second))
-	day(t, f.server.backups, bc, time.Now(), 1)
+	day(t, f.server.backups, time.Now(), 1)
 	all := backupsOf(t, bc)
 	if len(all) != 2 || len(doneOf(all)) != 2 {
 		t.Errorf("backups = %v", all)

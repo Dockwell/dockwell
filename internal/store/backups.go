@@ -47,15 +47,19 @@ type Backup struct {
 	// OffServer says its server no longer has it, as retention or a person removed
 	// it there, or the server went.
 	OffServer bool
+	// SealedWith is a keyed hash of the passphrase its copy was sealed with, which says
+	// whether a destination of that name still has it, and nothing of what it is.
+	SealedWith string
+	FetchError string
 }
 
-const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id, destination, copy_key, copy_bytes, copy_error, off_server`
+const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id, destination, copy_key, copy_bytes, copy_error, off_server, sealed_with, fetch_error`
 
 func scanBackup(row interface{ Scan(...any) error }) (Backup, error) {
 	var b Backup
 	var started int64
 	var finished sql.NullInt64
-	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID, &b.Destination, &b.CopyKey, &b.CopyBytes, &b.CopyError, &b.OffServer)
+	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID, &b.Destination, &b.CopyKey, &b.CopyBytes, &b.CopyError, &b.OffServer, &b.SealedWith, &b.FetchError)
 	if err != nil {
 		return Backup{}, err
 	}
@@ -88,6 +92,31 @@ func (t *Tx) FinishBackup(ctx context.Context, b Backup) error {
 func (t *Tx) MoveBackup(ctx context.Context, id, serverID string) error {
 	if _, err := t.exec(ctx, `UPDATE backups SET server_id = ?, off_server = ? WHERE id = ?`, serverID, false, id); err != nil {
 		return fmt.Errorf("can't record where backup %s is: %w", id, err)
+	}
+	return nil
+}
+
+// SetBackupCopy records what became of a backup's copy on its destination.
+func (t *Tx) SetBackupCopy(ctx context.Context, b Backup) error {
+	if _, err := t.exec(ctx, `UPDATE backups SET copy_key = ?, copy_bytes = ?, copy_error = ?, sealed_with = ? WHERE id = ?`,
+		b.CopyKey, b.CopyBytes, b.CopyError, b.SealedWith, b.ID); err != nil {
+		return fmt.Errorf("can't record where backup %s went: %w", b.ID, err)
+	}
+	return nil
+}
+
+// SetBackupOffServer says a backup's server no longer has it.
+func (t *Tx) SetBackupOffServer(ctx context.Context, id string) error {
+	if _, err := t.exec(ctx, `UPDATE backups SET off_server = ? WHERE id = ?`, true, id); err != nil {
+		return fmt.Errorf("can't record that backup %s left its server: %w", id, err)
+	}
+	return nil
+}
+
+// SetBackupFetchError records why a backup couldn't be fetched back. Empty clears it.
+func (t *Tx) SetBackupFetchError(ctx context.Context, id, why string) error {
+	if _, err := t.exec(ctx, `UPDATE backups SET fetch_error = ? WHERE id = ?`, why, id); err != nil {
+		return fmt.Errorf("can't record why backup %s wasn't fetched: %w", id, err)
 	}
 	return nil
 }

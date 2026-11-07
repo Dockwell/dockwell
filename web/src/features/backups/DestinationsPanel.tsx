@@ -3,12 +3,13 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type BackupDestinationInfo, BackupService } from "@dockwell/api";
-import { Button, Callout, Panel, Sheet, TextField } from "@dockwell/ui";
+import { Button, Callout, Panel, Sheet, Switch, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { CopyButton } from "../system/CopyCommand";
 import "./Backups.css";
 
 /** The storage backups can go to. */
@@ -98,9 +99,18 @@ function DestinationSheet({ onClose }: { onClose: () => void }) {
   const [region, setRegion] = useState("");
   const [accessKey, setAccessKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
-  const [passphrase] = useState(makePassphrase);
+  const [made] = useState(makePassphrase);
+  const [own, setOwn] = useState(false);
+  const [typed, setTyped] = useState("");
   const [saved, setSaved] = useState(false);
-  const ready = name !== "" && endpoint !== "" && bucket !== "" && accessKey !== "" && secretKey !== "" && saved;
+  const passphrase = own ? typed : made;
+  const ready =
+    name !== "" &&
+    endpoint !== "" &&
+    bucket !== "" &&
+    accessKey !== "" &&
+    secretKey !== "" &&
+    (own ? typed.length >= 16 : saved);
   const review = () =>
     sheet.open({
       kind: "propose",
@@ -167,20 +177,50 @@ function DestinationSheet({ onClose }: { onClose: () => void }) {
           hint={t`Dockwell keeps it encrypted, and sends it only to a server sending a backup.`}
           onChange={(e) => setSecretKey(e.target.value)}
         />
-        <Callout tone="warning" title={t`Keep this passphrase somewhere else`}>
-          <p className="backup-sheet-line">
-            <Trans>
-              Each backup is encrypted with this before it leaves its server, so your storage provider can't read it.
-              Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open
-              what's in the bucket.
-            </Trans>
-          </p>
-          <code className="backup-passphrase">{passphrase}</code>
-        </Callout>
-        <label className="backup-saved">
-          <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-          <Trans>I've kept a copy of the passphrase</Trans>
-        </label>
+        <Switch
+          checked={own}
+          onChange={setOwn}
+          label={t`Use a passphrase I already have`}
+          description={t`Copies an earlier destination sealed open only with the passphrase it had.`}
+        />
+        {own ? (
+          <TextField
+            label={t`Passphrase`}
+            mono
+            type="password"
+            autoComplete="off"
+            value={typed}
+            hint={t`At least 16 characters.`}
+            onChange={(e) => setTyped(e.target.value)}
+          />
+        ) : (
+          <>
+            <Callout tone="warning" title={t`Keep this passphrase somewhere else`}>
+              <p className="backup-sheet-line">
+                <Trans>
+                  Each backup is encrypted with this before it leaves its server, so your storage provider can't read
+                  it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to
+                  open what's in the bucket.
+                </Trans>
+              </p>
+              <code className="backup-passphrase">
+                {made.match(/.{1,6}/g)?.map((group, i) => (
+                  <span key={`${i}-${group}`}>{group}</span>
+                ))}
+              </code>
+              <CopyButton
+                text={made}
+                label={t`Copy the passphrase`}
+                copiedLabel={t`Passphrase copied`}
+                variant="secondary"
+              />
+            </Callout>
+            <label className="backup-saved">
+              <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
+              <Trans>I've kept a copy of the passphrase</Trans>
+            </label>
+          </>
+        )}
       </div>
     </Sheet>
   );

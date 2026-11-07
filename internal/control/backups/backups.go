@@ -54,10 +54,16 @@ const (
 	ActionDeleted    = "backup.deleted"
 	ActionCopyFailed = "backup.copy_failed"
 	ActionFetched    = "backup.fetched"
+	// ActionFetchFailed is a backup that couldn't be brought back from its destination.
+	ActionFetchFailed = "backup.fetch_failed"
+	// ActionServerCopyRemoved is a backup gone from its server, and kept on its destination.
+	ActionServerCopyRemoved = "backup.server_copy_removed"
+	// ActionCopyKept is a backup its destination wouldn't let go of.
+	ActionCopyKept = "backup.copy_kept"
 )
 
 // Actions are all of them.
-var Actions = []string{ActionTaken, ActionFailed, ActionDeleted, ActionCopyFailed, ActionFetched}
+var Actions = []string{ActionTaken, ActionFailed, ActionDeleted, ActionCopyFailed, ActionFetched, ActionFetchFailed, ActionServerCopyRemoved, ActionCopyKept}
 
 // Told is what an audit event says of a backup, in its detail, which the timeline
 // reads. It holds no path and nothing of what's in the backup.
@@ -138,11 +144,23 @@ func (h *Handler) Recover(ctx context.Context) {
 		return
 	}
 	for i := range running {
-		if b := running[i]; b.State == store.BackupRunning {
+		b := running[i]
+		switch {
+		case b.State == store.BackupRunning:
 			h.finish(ctx, b, nil, errors.New("the control plane stopped while this ran, so it isn't known to be whole, and it doesn't count. Take another"), store.SurfaceAutomatic)
+		case sending(&b):
+			// It's whole, and it was on its way when the control plane stopped.
+			b.CopyError = copyCutShort(b.Destination)
+			told := Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination, Error: b.CopyError}
+			if err := h.say(ctx, &b, ActionCopyFailed, told, b.Actor, store.SurfaceAutomatic, func(tx *store.Tx) error { return tx.SetBackupCopy(ctx, b) }); err != nil {
+				h.logger.ErrorContext(ctx, "can't record what became of a backup's copy", slog.String("backup", b.ID), slog.String("error", err.Error()))
+			}
 		}
 	}
 }
+
+// Wait waits for what's under way to end: runs, what they send, and fetches.
+func (h *Handler) Wait() { h.wg.Wait() }
 
 func (h *Handler) now() time.Time {
 	if h.Now != nil {
@@ -291,12 +309,54 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 	if b.PolicyID != "" {
 		h.prune(ctx, s, b, keep)
 	}
-	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop}, destination)
+	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop})
 	h.finish(context.WithoutCancel(ctx), b, got, err, surface)
+	// It's on record and the volume is free before this starts, however long it takes.
+	if err == nil && destination != nil {
+		h.send(ctx, s, b, ref, destination, surface)
+	}
 	// Only once it's whole: a run that fails takes nothing away.
 	if err == nil && b.PolicyID != "" {
 		h.prune(context.WithoutCancel(ctx), s, b, keep)
 	}
+}
+
+// send sends a whole backup to its destination, and records what came of that. The
+// backup is done whatever happens here: what's on its server is what counts.
+func (h *Handler) send(ctx context.Context, s *agentapi.Session, b store.Backup, ref resource.Ref, destination map[string]string, surface string) {
+	got, err := s.SendBackup(ctx, &agentv1.SendBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}, destination)
+	record := context.WithoutCancel(ctx)
+	action, told := "", Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination}
+	if err != nil {
+		action = ActionCopyFailed
+		told.Error, _ = resource.Explain(err)
+		if errors.Is(err, context.Canceled) {
+			told.Error = copyCutShort(b.Destination)
+		}
+		b.CopyError = told.Error
+	} else {
+		b.CopyKey, b.CopyBytes, b.SealedWith = got.GetKey(), got.GetStoredBytes(), h.sealedWith(destination)
+	}
+	save := func(tx *store.Tx) error { return tx.SetBackupCopy(record, b) }
+	if action != "" {
+		err = h.say(record, &b, action, told, b.Actor, surface, save)
+	} else {
+		err = h.db.Update(record, save)
+	}
+	if err != nil {
+		h.logger.ErrorContext(record, "can't record what became of a backup's copy", slog.String("backup", b.ID), slog.String("error", err.Error()))
+	}
+}
+
+// sending says a whole backup is on its way to its destination: nothing has said how
+// that ended.
+func sending(b *store.Backup) bool {
+	return b.State == store.BackupDone && b.Destination != "" && b.CopyKey == "" && b.CopyError == ""
+}
+
+// copyCutShort says a copy didn't get there, as the control plane stopped first.
+func copyCutShort(destination string) string {
+	return "The control plane stopped while this was sent, so it isn't on " + destination + ". It's safe on its server. Take another to send one"
 }
 
 // finish records how a backup ended, and says so on the timeline.
@@ -315,7 +375,6 @@ func (h *Handler) finish(ctx context.Context, b store.Backup, got *agentv1.Backu
 		b.State = store.BackupDone
 		b.Method, b.Database = resourcepb.BackupMethodFrom(got.GetMethod()), got.GetDatabase()
 		b.SizeBytes, b.SHA256, b.FilesChanged = got.GetSizeBytes(), got.GetSha256(), got.GetFilesChanged()
-		b.CopyKey, b.CopyBytes, b.CopyError = got.GetKey(), got.GetStoredBytes(), got.GetCopyError()
 	}
 	detail, err := json.Marshal(Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes, Error: b.Error})
 	if err != nil {
@@ -429,15 +488,48 @@ func (h *Handler) DeleteBackup(ctx context.Context, req *connect.Request[dockwel
 	if b.State == store.BackupRunning {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is still running. Wait for it to end, then delete it", b.ID), "running")
 	}
-	if b.State == store.BackupDone {
-		if err := h.removeFromServer(ctx, b); err != nil {
-			return nil, err
+	if sending(&b) {
+		// What's on its way would land with no record of it, for nobody to delete.
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is on its way to %s. Wait for that to end, then delete it", b.ID, b.Destination), "sending")
+	}
+	actor, surface := p.Actor(), client.Surface(p)
+	serverOnly := req.Msg.GetServerOnly()
+	if serverOnly {
+		switch {
+		case b.State != store.BackupDone || b.OffServer:
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't on its server, so there's nothing to remove there", b.ID), "not_on_server")
+		case b.CopyKey == "":
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is only on its server, so removing it from there would lose it. Delete it instead", b.ID), "not_stored")
 		}
 	}
-	if err := h.forget(ctx, &b, p.Actor(), client.Surface(p)); err != nil {
+	if b.State == store.BackupDone {
+		kept, err := h.removeFromServer(ctx, b, serverOnly)
+		if err != nil {
+			return nil, err
+		}
+		if kept != "" {
+			if err := h.keptOnDestination(ctx, &b, ActionCopyKept, kept, actor, surface); err != nil {
+				return nil, h.fail(ctx, err)
+			}
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("it's gone from its server, and %s kept it: %s. Delete it again to try again", b.Destination, kept), "copy_kept")
+		}
+		if serverOnly {
+			if err := h.keptOnDestination(ctx, &b, ActionServerCopyRemoved, "", actor, surface); err != nil {
+				return nil, h.fail(ctx, err)
+			}
+			return connect.NewResponse(&dockwellv1.DeleteBackupResponse{}), nil
+		}
+	}
+	if err := h.forget(ctx, &b, actor, surface); err != nil {
 		return nil, h.fail(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.DeleteBackupResponse{}), nil
+}
+
+// keptOnDestination records a backup gone from its server that stays on its destination.
+func (h *Handler) keptOnDestination(ctx context.Context, b *store.Backup, action, why, actor, surface string) error {
+	told := Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination, Error: why}
+	return h.say(ctx, b, action, told, actor, surface, func(tx *store.Tx) error { return tx.SetBackupOffServer(ctx, b.ID) })
 }
 
 // forget takes a backup off the record, and says so on the timeline.
@@ -464,38 +556,40 @@ func (h *Handler) say(ctx context.Context, b *store.Backup, action string, told 
 
 // removeFromServer removes a backup's bytes. A server that's been removed from
 // the fleet took them with it, as far as Dockwell can reach.
-func (h *Handler) removeFromServer(ctx context.Context, b store.Backup) error {
+func (h *Handler) removeFromServer(ctx context.Context, b store.Backup, serverOnly bool) (kept string, err error) {
 	var server store.Server
-	err := h.db.View(ctx, func(tx *store.Tx) error {
+	err = h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
 		server, err = tx.GetServer(ctx, b.ServerID)
 		return err
 	})
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		return nil
+		return "", nil
 	case err != nil:
-		return h.fail(ctx, err)
+		return "", h.fail(ctx, err)
 	case server.RevokedAt != nil:
-		return nil
+		return "", nil
 	}
 	s, err := h.session(server)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if err := h.deleteOn(ctx, s, &b); err != nil {
-		return h.agentError(server, err)
+	kept, err = h.deleteOn(ctx, s, &b, serverOnly)
+	if err != nil {
+		return "", h.agentError(server, err)
 	}
-	return nil
+	return kept, nil
 }
 
-// deleteOn removes a backup from a server's disk, and from its destination if it
-// went to one that's still there.
-func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Backup) error {
+// deleteOn removes a backup from a server's disk, and unless serverOnly, from its
+// destination if it went to one that's still there. It says why the destination kept
+// it, if it did.
+func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Backup, serverOnly bool) (string, error) {
 	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
 	call := &agentv1.DeleteBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}
 	var destination map[string]string
-	if b.CopyKey != "" {
+	if b.CopyKey != "" && !serverOnly {
 		var err error
 		destination, err = h.destination(ctx, b.Destination)
 		var cerr *connect.Error
@@ -503,13 +597,17 @@ func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Ba
 		case errors.As(err, &cerr) && cerr.Code() == connect.CodeNotFound:
 			// The destination was deleted, so what's there is the bucket's now.
 		case err != nil:
-			return err
+			return "", err
 		default:
 			call.Key = b.CopyKey
 			defer clear(destination)
 		}
 	}
-	return s.DeleteBackup(ctx, call, destination)
+	got, err := s.DeleteBackup(ctx, call, destination)
+	if err != nil {
+		return "", err
+	}
+	return got.GetCopyError(), nil
 }
 
 // RestoreBackup plans restoring a backup, as a change.
@@ -560,18 +658,17 @@ func (h *Handler) protoIn(look actors.Lookup, b *store.Backup) *dockwellv1.Backu
 	}
 	out := &dockwellv1.Backup{
 		Destination: b.Destination, Copy: copied, CopyError: b.CopyError, OnServer: b.State == store.BackupDone && !b.OffServer,
-		Id: b.ID, EnvironmentId: b.EnvironmentID, Volume: b.Volume, VolumeId: b.VolumeID, ServerId: b.ServerID, ServerName: look.Name(b.ServerID),
+		FetchError: b.FetchError,
+		Id:         b.ID, EnvironmentId: b.EnvironmentID, Volume: b.Volume, VolumeId: b.VolumeID, ServerId: b.ServerID, ServerName: look.Name(b.ServerID),
 		State: states[b.State], Method: resourcepb.BackupMethod(b.Method), Database: b.Database, SizeBytes: b.SizeBytes, Sha256: b.SHA256,
 		StartedAt: timestamppb.New(b.StartedAt), Actor: look.Actor(b.Actor), Error: b.Error, FilesChanged: b.FilesChanged, PolicyId: b.PolicyID,
 	}
 	if b.FinishedAt != nil {
 		out.FinishedAt = timestamppb.New(*b.FinishedAt)
 	}
-	if b.State == store.BackupRunning {
-		h.mu.Lock()
-		out.Progress = h.progress[b.ID]
-		h.mu.Unlock()
-	}
+	h.mu.Lock()
+	out.Progress = h.progress[b.ID] // a run's, and a send's or a fetch's after one
+	h.mu.Unlock()
 	return out
 }
 

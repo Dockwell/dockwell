@@ -543,7 +543,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Adoption{Adoption: found}}
-	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil:
+	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))
 		}
@@ -604,19 +604,27 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_BackupPreview{BackupPreview: out}}, nil
 	case call.GetBackup() != nil:
-		b := call.GetBackup()
-		destination, err := c.openDestination(b.GetVolume(), b.GetDestination())
+		progress := c.progress(call.GetId())
+		defer progress.stop()
+		out, err := c.cfg.Backups.Take(resource.WithProgress(ctx, progress.say), call.GetBackup())
+		if err != nil {
+			return nil, err
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Backup{Backup: out}}, nil
+	case call.GetSendBackup() != nil:
+		send := call.GetSendBackup()
+		destination, err := c.openDestination(send.GetVolume(), send.GetDestination())
 		if err != nil {
 			return nil, err
 		}
 		defer clear(destination)
 		progress := c.progress(call.GetId())
 		defer progress.stop()
-		out, err := c.cfg.Backups.Take(resource.WithProgress(ctx, progress.say), b, destination)
+		out, err := c.cfg.Backups.Send(resource.WithProgress(ctx, progress.say), send, destination)
 		if err != nil {
 			return nil, err
 		}
-		return &agentv1.CallResult{Result: &agentv1.CallResult_Backup{Backup: out}}, nil
+		return &agentv1.CallResult{Result: &agentv1.CallResult_SendBackup{SendBackup: out}}, nil
 	case call.GetFetchBackup() != nil:
 		f := call.GetFetchBackup()
 		destination, err := c.openDestination(f.GetVolume(), f.GetDestination())
@@ -638,10 +646,11 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 		return nil, err
 	}
 	defer clear(destination)
-	if err := c.cfg.Backups.Delete(ctx, d, destination); err != nil {
+	out, err := c.cfg.Backups.Delete(ctx, d, destination)
+	if err != nil {
 		return nil, err
 	}
-	return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteBackup{DeleteBackup: &agentv1.DeleteBackupResult{}}}, nil
+	return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteBackup{DeleteBackup: out}}, nil
 }
 
 // openDestination opens where a backup goes, sealed to this stream for this volume,

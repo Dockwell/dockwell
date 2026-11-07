@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -156,5 +157,72 @@ func TestKeysEscapeAsSignaturesExpect(t *testing.T) {
 	}
 	if got := canonicalQuery(url.Values{"uploads": {""}, "b": {"x y"}}); got != "b=x%20y&uploads=" {
 		t.Errorf("canonicalQuery = %q", got)
+	}
+}
+
+// Storage that stops answering is given up on, whether it holds a request or stops
+// partway through an answer, and says what to check.
+func TestStorageThatStopsAnsweringIsGivenUpOn(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Length", "10")
+			_, _ = w.Write([]byte("half"))
+			w.(http.Flusher).Flush()
+		}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	b := &Bucket{Endpoint: srv.URL, Name: "acme", AccessKey: "key", SecretKey: "secret", Stall: 100 * time.Millisecond}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	err := b.Put(ctx, "k", []byte("x"))
+	if err == nil || !strings.Contains(err.Error(), "stopped answering") || ctx.Err() != nil {
+		t.Errorf("a request nothing answered = %v", err)
+	}
+	body, err := b.Get(ctx, "k")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer body.Close()
+	if _, err := io.ReadAll(body); err == nil || !strings.Contains(err.Error(), "stopped answering") || ctx.Err() != nil {
+		t.Errorf("an answer that stopped = %v", err)
+	}
+}
+
+// slowly reads a byte at a time, which keeps a request alive however long it takes.
+type slowly struct {
+	left int
+	wait time.Duration
+}
+
+func (s *slowly) Read(p []byte) (int, error) {
+	if s.left == 0 {
+		return 0, io.EOF
+	}
+	time.Sleep(s.wait)
+	s.left--
+	p[0] = 'x'
+	return 1, nil
+}
+
+// The deadline counts from the last byte: an upload that's slow and moving goes on.
+func TestASlowRequestThatMovesIsLeftAlone(t *testing.T) {
+	b, f := bench(t)
+	b.Stall = 300 * time.Millisecond
+	const each = 100 * time.Millisecond
+	up := Upload{
+		Key: "slow", Count: 1, Length: func(int) int64 { return 6 },
+		Part: func(int) Part { return func() (io.Reader, error) { return &slowly{left: 6, wait: each}, nil } },
+	}
+	if err := b.Store(t.Context(), up); err != nil {
+		t.Fatalf("a slow upload that took %s, with %s to stall = %v", 6*each, b.Stall, err)
+	}
+	if got := len(f.Objects()); got != 1 {
+		t.Errorf("stored %d", got)
 	}
 }

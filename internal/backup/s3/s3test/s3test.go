@@ -29,13 +29,19 @@ type Server struct {
 	Aborted int
 	// FailParts fails this many parts, as a network does.
 	FailParts int
-	// Refuse answers everything with this code.
-	Refuse string
+	// Refuse answers everything with this code, or with RefuseOnly, requests of that
+	// method: POST is how every upload starts.
+	Refuse     string
+	RefuseOnly string
 	// FinishFails has an upload's last step answer 200 and say it failed, as S3 can.
 	FinishFails bool
 	// Authorizations are the Authorization headers it was sent.
 	Authorizations []string
-	srv            *httptest.Server
+	// Hold keeps every request waiting until it closes, or with HoldOnly, those whose
+	// path ends with that. Nil holds none.
+	Hold     chan struct{}
+	HoldOnly string
+	srv      *httptest.Server
 }
 
 // New starts a fake that stops when the test ends.
@@ -60,8 +66,18 @@ func (s *Server) Objects() map[string][]byte {
 	return maps.Clone(s.objects)
 }
 
+// Set stores an object as it is, as whoever can write to a bucket can.
+func (s *Server) Set(path string, body []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.objects[path] = body
+}
+
 // ServeHTTP answers as S3 does.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if s.Hold != nil && strings.HasSuffix(r.URL.Path, s.HoldOnly) {
+		<-s.Hold
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	auth := r.Header.Get("Authorization")
@@ -69,7 +85,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(auth, "AWS4-HMAC-SHA256 Credential=") {
 		s.t.Errorf("%s %s isn't signed: %q", r.Method, r.URL, auth)
 	}
-	if s.Refuse != "" {
+	if s.Refuse != "" && (s.RefuseOnly == "" || s.RefuseOnly == r.Method) {
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprintf(w, "<Error><Code>%s</Code><Message>no</Message></Error>", s.Refuse)
 		return

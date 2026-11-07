@@ -3186,6 +3186,17 @@ backup_take() {
   [[ -z "$left" ]] || fail "a backup left its helper behind: $left"
   echo "$id"
 }
+# backup_copy waits for what became of a backup's copy, which goes once it's whole, and
+# says it.
+backup_copy() {
+  local copy=""
+  for _ in $(seq 240); do
+    copy=$(backup_field "$1" copy) || copy=""
+    [[ "$copy" != BACKUP_COPY_PENDING ]] && break
+    sleep 0.5
+  done
+  echo "$copy"
+}
 # backup_plan plans restoring a backup, and says its change. A token can plan it and
 # not apply it, and it says it destroys data and what stops.
 backup_plan() {
@@ -3291,7 +3302,7 @@ dw changes apply "$(jq -r .change.id <<<"$planned")" --yes >/dev/null || fail "a
 docker exec "$backup_files" sh -c 'mkdir -p /srv/data/owned && echo the original >/srv/data/owned/file' || fail "can't write to the volume"
 tree_before=$(backup_tree) || fail "can't read the volume"
 backup=$(backup_take "$backup_volume" --stop --destination e2e-s3)
-[[ "$(backup_field "$backup" copy)" == BACKUP_COPY_STORED ]] || fail "the copy says: $(dw backups get "$backup" --json)"
+[[ "$(backup_copy "$backup")" == BACKUP_COPY_STORED ]] || fail "the copy says: $(dw backups get "$backup" --json)"
 object_key=$(curl -fsS --max-time 10 --aws-sigv4 aws:amz:us-east-1:s3 --user "$s3_key:$s3_secret" "http://127.0.0.1:$s3_port/e2e-backups?list-type=2") ||
   fail "can't list the bucket"
 [[ "$object_key" == *"$backup.tar.gz.sealed"* ]] || fail "the bucket holds: $object_key"
@@ -3299,6 +3310,11 @@ object=$(mktemp)
 curl -fsS --max-time 30 --aws-sigv4 aws:amz:us-east-1:s3 --user "$s3_key:$s3_secret" -o "$object" \
   "http://127.0.0.1:$s3_port/e2e-backups/$(jq -r .backup.environmentId <<<"$(dw backups get "$backup" --json)")/data/$backup.tar.gz.sealed" || fail "can't read the object"
 if tar -tzf "$object" >/dev/null 2>&1; then fail "what's in the bucket opens with no passphrase"; fi
+beside=$(mktemp)
+curl -fsS --max-time 30 --aws-sigv4 aws:amz:us-east-1:s3 --user "$s3_key:$s3_secret" -o "$beside" \
+  "http://127.0.0.1:$s3_port/e2e-backups/$(jq -r .backup.environmentId <<<"$(dw backups get "$backup" --json)")/data/$backup.tar.gz.sealed.json" || fail "can't read what's beside the object"
+if grep -aqe '"volume"' -e '"sha256"' "$beside"; then fail "what's beside the object can be read with no passphrase"; fi
+rm -f "$beside"
 # With nothing of Dockwell's but the command: the passphrase opens it, and plain tar reads it.
 opened=$(mktemp)
 rm -f "$opened"
@@ -3320,8 +3336,8 @@ person_apply "$change"
 tree_after=$(backup_tree) || fail "can't read the volume"
 [[ "$tree_after" == "$tree_before" ]] || fail "what came back from the S3 server isn't what went:
 $(diff <(printf '%s\n' "$tree_before") <(printf '%s\n' "$tree_after"))"
-said=$(grep -c "$s3_secret" "$log" 2>/dev/null || true)
-[[ "$said" == 0 ]] || fail "the log holds the destination's secret"
+said=$(grep -c -e "$s3_secret" -e "$passphrase" "$log" 2>/dev/null || true)
+[[ "$said" == 0 ]] || fail "the log holds the destination's secret or its passphrase"
 docker rm --force e2e-s3 >/dev/null || true
 
 step "Catalog: PostgreSQL installs by digest with a password no one typed, and Adminer signs in with it"

@@ -184,6 +184,13 @@ paths:
                   required: true
                   schema:
                     type: string
+                - name: serverOnly
+                  in: query
+                  description: |-
+                    Remove it from its server's disk alone, and keep it on its destination, from
+                     where it can be fetched. Without this it goes from both.
+                  schema:
+                    type: boolean
             responses:
                 "200":
                     description: OK
@@ -2909,6 +2916,9 @@ components:
                     description: |-
                         True while its server has it, so it can be restored now. A backup on its
                          destination alone has to be fetched first.
+                fetchError:
+                    type: string
+                    description: Why it couldn't be fetched back, for people. Empty once it has been.
             description: Backup is one backup of one volume.
         BackupDestination:
             type: object
@@ -6119,7 +6129,8 @@ components:
                          one that can't as neither the server nor its registry has that image,
                          "digest_differs" for one that can't as its servers ran different images,
                          "kept_password" for a volume that keeps the
-                         password it was made with, whatever an edit gave, and "kept_options" for one
+                         password it was made with, whatever an edit gave, "kept_passphrase" for a backup
+                         destination that keeps its passphrase the same way, and "kept_options" for one
                          that keeps its options, as an edit gave none, "first_steps" for what a catalog
                          app needs a person to know and do, "no_backup" for a catalog upgrade that runs
                          without a backup first, "upgrade_kept" for what a person changed that the upgrade

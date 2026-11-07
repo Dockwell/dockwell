@@ -4,6 +4,7 @@ package backups
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -65,6 +66,14 @@ func (h *Handler) destination(ctx context.Context, name string) (map[string]stri
 		"endpoint": d.GetEndpoint(), "region": d.GetRegion(), "bucket": d.GetBucket(), "prefix": d.GetPrefix(),
 		"access_key": d.GetAccessKey(), "secret_key": d.GetSecretKey(), "passphrase": d.GetPassphrase(),
 	}, nil
+}
+
+// sealedWith says which passphrase a destination seals with, as a keyed hash that says
+// nothing of it without the install's key. A destination can go and come back under
+// its name with another passphrase, and this tells that from the one a copy needs. It
+// stays off the API, as a value anyone could compare would confirm a guess.
+func (h *Handler) sealedWith(destination map[string]string) string {
+	return hex.EncodeToString(h.keeper.Digest("backup passphrase", []byte(destination["passphrase"])))
 }
 
 // ListBackupDestinations returns the destinations, and never what signs in to one.
@@ -136,6 +145,13 @@ func (h *Handler) FetchBackup(ctx context.Context, req *connect.Request[dockwell
 	}
 	surface := client.Surface(p)
 	actor := p.Actor()
+	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.SetBackupFetchError(ctx, b.ID, "") }); err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	// From here, not from the server's first word, so a page can tell it's under way.
+	h.mu.Lock()
+	h.progress[b.ID] = "Fetching " + b.Volume
+	h.mu.Unlock()
 	h.wg.Go(func() { h.fetch(s, b, server.ID, destination, actor, surface) })
 	out, err := h.proto(ctx, b)
 	if err != nil {
@@ -158,16 +174,19 @@ func (h *Handler) fetch(s *agentapi.Session, b store.Backup, server string, dest
 		h.mu.Unlock()
 	}()
 	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
-	_, err := s.FetchBackup(ctx, &agentv1.FetchBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Key: b.CopyKey}, destination)
+	_, err := s.FetchBackup(ctx, &agentv1.FetchBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Key: b.CopyKey, Sha256: b.SHA256}, destination)
 	record := context.WithoutCancel(ctx)
 	action, told := ActionFetched, Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination}
 	if err != nil {
-		action = ActionCopyFailed
+		action = ActionFetchFailed
 		told.Error, _ = resource.Explain(err)
+		if b.SealedWith != "" && b.SealedWith != h.sealedWith(destination) {
+			told.Error += ". This copy was sealed with the passphrase " + b.Destination + " had before, so today's can't open it. Add " + b.Destination + " again with that passphrase, or open the file with dockwell open-backup"
+		}
 	}
 	if werr := h.say(record, &b, action, told, actor, surface, func(tx *store.Tx) error {
 		if err != nil {
-			return nil //nolint:nilerr // it stays where it was, and the event says why
+			return tx.SetBackupFetchError(record, b.ID, told.Error)
 		}
 		return tx.MoveBackup(record, b.ID, server)
 	}); werr != nil {

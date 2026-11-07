@@ -833,26 +833,42 @@ func (b *bench) destination(t *testing.T) (*Destination, *s3test.Server) {
 	return &Destination{Endpoint: store.URL(), Bucket: "acme", Prefix: "dockwell", AccessKey: "key", SecretKey: "a-secret", Passphrase: "a long passphrase"}, store
 }
 
+// sent takes a backup and sends it.
+func (b *bench) sent(t *testing.T, id string, d *Destination) (*Manifest, *Copied) {
+	t.Helper()
+	m, err := b.runner.Take(t.Context(), Take{ID: id, Ref: ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := b.runner.Send(t.Context(), ref, id, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m, c
+}
+
+// gone is the server losing a backup.
+func (b *bench) gone(t *testing.T, id string) {
+	t.Helper()
+	if _, err := b.runner.Delete(t.Context(), ref, id, "", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // A backup leaves sealed, and comes back whole on a server that's lost its copy.
 func TestABackupGoesToItsDestinationAndComesBack(t *testing.T) {
 	b := newBench(t)
 	b.write("orders.db", strings.Repeat("the orders ", 1<<18))
 	d, store := b.destination(t)
-	m, err := b.runner.Take(t.Context(), Take{ID: "bkp_1", Ref: ref, Destination: d})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m.Copied == nil || m.CopyError != "" {
-		t.Fatalf("copied = %+v, error %q", m.Copied, m.CopyError)
-	}
+	m, copied := b.sent(t, "bkp_1", d)
 	wantKey := "dockwell/" + env + "/data/bkp_1.tar.gz.sealed"
-	if m.Copied.Key != wantKey {
-		t.Errorf("key = %q, want %q", m.Copied.Key, wantKey)
+	if copied.Key != wantKey {
+		t.Errorf("key = %q, want %q", copied.Key, wantKey)
 	}
 	objects := store.Objects()
 	sealed := objects["/acme/"+wantKey]
-	if int64(len(sealed)) != m.Copied.Bytes || int64(len(sealed)) != seal.Size(m.Size) {
-		t.Errorf("stored %d bytes, says %d, sealing %d makes %d", len(sealed), m.Copied.Bytes, m.Size, seal.Size(m.Size))
+	if int64(len(sealed)) != copied.Bytes {
+		t.Errorf("stored %d bytes, says %d", len(sealed), copied.Bytes)
 	}
 	local, err := os.ReadFile(filepath.Join(b.runner.dir(ref), "bkp_1.tar.gz"))
 	if err != nil {
@@ -865,13 +881,16 @@ func TestABackupGoesToItsDestinationAndComesBack(t *testing.T) {
 		if bytes.Contains(object, []byte("a-secret")) || bytes.Contains(object, []byte("a long passphrase")) || strings.Contains(path, "secret") {
 			t.Errorf("%s holds what signs in", path)
 		}
+		for _, said := range []string{m.SHA256, m.Volume + `"`, `"volume"`} {
+			if bytes.Contains(object, []byte(said)) {
+				t.Errorf("%s says %q to anyone who can read the bucket", path, said)
+			}
+		}
 	}
 
 	// The server loses it, and someone asks for it back.
-	if err := b.runner.Delete(t.Context(), ref, "bkp_1", "", nil); err != nil {
-		t.Fatal(err)
-	}
-	got, err := b.runner.Fetch(t.Context(), ref, "bkp_1", m.Copied.Key, d)
+	b.gone(t, "bkp_1")
+	got, err := b.runner.Fetch(t.Context(), ref, "bkp_1", copied.Key, m.SHA256, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -887,32 +906,44 @@ func TestABackupGoesToItsDestinationAndComesBack(t *testing.T) {
 	}
 
 	// Deleted from both.
-	if err := b.runner.Delete(t.Context(), ref, "bkp_1", m.Copied.Key, d); err != nil {
-		t.Fatal(err)
+	if copyError, err := b.runner.Delete(t.Context(), ref, "bkp_1", copied.Key, d); err != nil || copyError != "" {
+		t.Fatal(err, copyError)
 	}
 	if got := store.Objects(); len(got) != 0 {
 		t.Errorf("left in the bucket: %d objects", len(got))
 	}
 }
 
-// Storage that says no fails the copy, not the backup, which is whole on the server.
+// Storage that says no fails the send, not the backup, which is whole on the server.
 func TestABackupStaysWhenItsCopyFails(t *testing.T) {
 	b := newBench(t)
 	b.write("orders.db", "the orders")
 	d, store := b.destination(t)
 	store.Refuse = "AccessDenied"
-	m, err := b.runner.Take(t.Context(), Take{ID: "bkp_1", Ref: ref, Destination: d})
-	if err != nil {
-		t.Fatalf("a copy that failed failed the backup: %v", err)
+	m := b.take(false)
+	_, err := b.runner.Send(t.Context(), ref, m.ID, d)
+	if err == nil || !strings.Contains(err.Error(), "AccessDenied") || !strings.Contains(err.Error(), "Check the destination's keys and bucket") {
+		t.Errorf("Send = %v", err)
 	}
-	if m.Copied != nil || !strings.Contains(m.CopyError, "AccessDenied") {
-		t.Errorf("copied = %+v, error %q", m.Copied, m.CopyError)
-	}
-	if strings.Contains(m.CopyError, "a-secret") || strings.Contains(m.CopyError, "a long passphrase") {
-		t.Errorf("the error holds what signs in: %q", m.CopyError)
+	if err != nil && (strings.Contains(err.Error(), "a-secret") || strings.Contains(err.Error(), "a long passphrase")) {
+		t.Errorf("the error holds what signs in: %q", err)
 	}
 	if got := b.files(); !slices.Contains(got, "bkp_1.tar.gz") {
 		t.Errorf("on disk: %v", got)
+	}
+}
+
+// Storage nobody can reach is said in the shape everything else is, with what to do.
+func TestStorageNobodyCanReachSaysWhatToCheck(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", "the orders")
+	d, _ := b.destination(t)
+	d.Endpoint = "http://127.0.0.1:1"
+	b.runner.HTTP = nil
+	m := b.take(false)
+	_, err := b.runner.Send(t.Context(), ref, m.ID, d)
+	if err == nil || !strings.HasSuffix(err.Error(), "Check the destination's endpoint, and that this server can reach it") {
+		t.Errorf("Send = %v", err)
 	}
 }
 
@@ -922,23 +953,146 @@ func TestAFetchThatDoesntMatchLeavesNothing(t *testing.T) {
 	b := newBench(t)
 	b.write("orders.db", "the orders")
 	d, _ := b.destination(t)
-	m, err := b.runner.Take(t.Context(), Take{ID: "bkp_1", Ref: ref, Destination: d})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := b.runner.Delete(t.Context(), ref, "bkp_1", "", nil); err != nil {
-		t.Fatal(err)
-	}
+	m, copied := b.sent(t, "bkp_1", d)
+	b.gone(t, "bkp_1")
 	wrong := *d
 	wrong.Passphrase = "another long passphrase"
-	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", m.Copied.Key, &wrong); err == nil || !strings.Contains(err.Error(), "passphrase is wrong") {
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", copied.Key, m.SHA256, &wrong); err == nil || !strings.Contains(err.Error(), "passphrase is wrong") {
 		t.Errorf("Fetch with the wrong passphrase = %v", err)
 	}
 	if got := b.files(); len(got) != 0 {
 		t.Errorf("it left %v", got)
 	}
-	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_other", m.Copied.Key, d); err == nil {
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_other", copied.Key, m.SHA256, d); err == nil {
 		t.Error("it took one backup for another")
+	}
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", copied.Key, strings.Repeat("0", 64), d); err == nil || !strings.Contains(err.Error(), "isn't the backup") {
+		t.Errorf("Fetch of something the record doesn't name = %v", err)
+	}
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", copied.Key, "", d); err == nil {
+		t.Error("a fetch with nothing to check against went ahead")
+	}
+	if got := b.files(); len(got) != 0 {
+		t.Errorf("it left %v", got)
+	}
+}
+
+// Whoever has the passphrase can seal anything under a backup's name, and say what they
+// like beside it. What comes back still has to hash to what's on record.
+func TestAFetchComesDownToTheHashOnRecord(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", "the orders")
+	d, store := b.destination(t)
+	m, copied := b.sent(t, "bkp_1", d)
+	b.gone(t, "bkp_1")
+	other, err := seal.Small([]byte("something else"), d.Passphrase, binding(ref, "bkp_1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.Set("/acme/"+copied.Key, other)
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", copied.Key, m.SHA256, d); err == nil || !strings.Contains(err.Error(), "what came back hashes to") {
+		t.Errorf("Fetch of something else with the right manifest = %v", err)
+	}
+	if got := b.files(); len(got) != 0 {
+		t.Errorf("it left %v", got)
+	}
+}
+
+// A fetch can't touch a backup the server has, whatever storage holds: what's on the
+// disk is what the record says, and that's the copy to keep.
+func TestAFetchLeavesTheServersOwnCopyAlone(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", "the orders")
+	d, _ := b.destination(t)
+	m, copied := b.sent(t, "bkp_1", d)
+	path := filepath.Join(b.runner.dir(ref), "bkp_1.tar.gz")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", copied.Key, m.SHA256, d); err == nil || !strings.Contains(err.Error(), "still has") {
+		t.Errorf("Fetch of a backup this server has = %v", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Error("the fetch changed the server's own copy")
+	}
+
+	// What's beside it says nothing of what's left: a server that lost the file can fetch.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", copied.Key, m.SHA256, d); err != nil {
+		t.Errorf("Fetch of a backup the server lost = %v", err)
+	}
+}
+
+// Someone who can write to the bucket can put an older backup under a newer name, and
+// it has the right passphrase. It doesn't open as what it isn't.
+func TestAnOlderObjectUnderANewerNameWontOpen(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", "the old orders")
+	d, store := b.destination(t)
+	_, older := b.sent(t, "bkp_1", d)
+	b.write("orders.db", "the new orders")
+	m2, newer := b.sent(t, "bkp_2", d)
+	objects := store.Objects()
+	store.Set("/acme/"+newer.Key, objects["/acme/"+older.Key])
+	b.gone(t, "bkp_2")
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_2", newer.Key, m2.SHA256, d); err == nil {
+		t.Error("the older backup opened as the newer one")
+	}
+	if got := b.files(); slices.Contains(got, "bkp_2.tar.gz") {
+		t.Errorf("it left %v", got)
+	}
+	store.Set("/acme/"+newer.Key, objects["/acme/"+newer.Key])
+	store.Set("/acme/"+newer.Key+".json", objects["/acme/"+older.Key+".json"])
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_2", newer.Key, m2.SHA256, d); err == nil {
+		t.Error("the older manifest opened as the newer one")
+	}
+	store.Set("/acme/"+newer.Key+".json", objects["/acme/"+newer.Key])
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_2", newer.Key, m2.SHA256, d); err == nil {
+		t.Error("the backup opened as its own manifest")
+	}
+}
+
+// A fetch waits its turn on the volume, as everything that writes to it does.
+func TestAFetchTakesTheVolumesLock(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", "the orders")
+	d, _ := b.destination(t)
+	m, copied := b.sent(t, "bkp_1", d)
+	b.gone(t, "bkp_1")
+	release, err := b.runner.hold(volume.TargetOf(ref))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	if _, err := b.runner.Fetch(t.Context(), ref, "bkp_1", copied.Key, m.SHA256, d); err == nil {
+		t.Error("a fetch went ahead with the volume held")
+	}
+}
+
+// A bucket that won't give up a copy doesn't keep the server's: that's what fills a
+// disk. What it said goes back to be put on Activity.
+func TestTheServersCopyGoesWhenTheBucketRefuses(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", "the orders")
+	d, store := b.destination(t)
+	_, copied := b.sent(t, "bkp_1", d)
+	store.Refuse = "AccessDenied"
+	copyError, err := b.runner.Delete(t.Context(), ref, "bkp_1", copied.Key, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(copyError, "AccessDenied") {
+		t.Errorf("what the bucket said = %q", copyError)
+	}
+	if got := b.files(); len(got) != 0 {
+		t.Errorf("on disk: %v", got)
 	}
 }
 
@@ -946,16 +1100,12 @@ func TestDeleteRemovesABackup(t *testing.T) {
 	b := newBench(t)
 	b.write("kept.txt", "x")
 	b.take(false)
-	if err := b.runner.Delete(t.Context(), ref, "bkp_1", "", nil); err != nil {
-		t.Fatal(err)
-	}
+	b.gone(t, "bkp_1")
 	if got := b.files(); len(got) != 0 {
 		t.Errorf("on disk: %v", got)
 	}
-	if err := b.runner.Delete(t.Context(), ref, "bkp_1", "", nil); err != nil {
-		t.Errorf("deleting one that's gone: %v", err)
-	}
-	if err := b.runner.Delete(t.Context(), ref, "../../other", "", nil); err == nil {
+	b.gone(t, "bkp_1")
+	if _, err := b.runner.Delete(t.Context(), ref, "../../other", "", nil); err == nil {
 		t.Error("it took a path for an ID")
 	}
 }

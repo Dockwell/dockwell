@@ -44,6 +44,22 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       if (event.action === "backup.fetched") {
         return { title: t`Fetched a backup of ${volume} from ${destination}`, icon: "archive" };
       }
+      if (event.action === "backup.fetch_failed") {
+        return {
+          title: t`A backup of ${volume} couldn't be fetched from ${destination}`,
+          icon: "archive",
+          tone: "critical",
+        };
+      }
+      if (event.action === "backup.server_copy_removed") {
+        return {
+          title: t`Removed a backup of ${volume} from its server, and kept it on ${destination}`,
+          icon: "archive",
+        };
+      }
+      if (event.action === "backup.copy_kept") {
+        return { title: t`${destination} kept a backup of ${volume} that was to go`, icon: "archive", tone: "warning" };
+      }
       const server = name || event.subject?.id || t`a server`;
       switch (event.action) {
         case "server.join":

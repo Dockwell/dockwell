@@ -584,6 +584,21 @@ func destinationEdit(bucket *s3test.Server, secret string) *dockwellv1.Edit {
 	}
 }
 
+// waitCopy waits for a backup, and for what became of its copy.
+func waitCopy(t *testing.T, bc dockwellv1connect.BackupServiceClient, id string) *dockwellv1.Backup {
+	t.Helper()
+	var last *dockwellv1.Backup
+	eventually(t, "a copy to land or fail", func() bool {
+		res, err := bc.GetBackup(t.Context(), connect.NewRequest(&dockwellv1.GetBackupRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		last = res.Msg.GetBackup()
+		return last.GetState() != dockwellv1.BackupState_BACKUP_STATE_RUNNING && last.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_PENDING
+	})
+	return last
+}
+
 // What signs in to a destination goes to a server for one call, sealed, and is in no
 // plan, no answer and no row. A backup survives its server through it, and a person
 // gets it back.
@@ -624,7 +639,7 @@ func testABackupOutlivesItsServerThroughADestination(t *testing.T, backend store
 	if err != nil {
 		t.Fatal(err)
 	}
-	backup := waitBackup(t, bc, made.Msg.GetBackup().GetId())
+	backup := waitCopy(t, bc, made.Msg.GetBackup().GetId())
 	if backup.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_STORED || backup.GetDestination() != "r2" || !backup.GetOnServer() {
 		t.Fatalf("backup = %v", backup)
 	}
@@ -646,7 +661,7 @@ func testABackupOutlivesItsServerThroughADestination(t *testing.T, backend store
 	}
 
 	// The server's copy goes, and it's fetched back, and restored.
-	if err := f.lastDocker.backups.Delete(t.Context(), resource.Ref{Kind: volume.Kind, Scope: backup.GetEnvironmentId(), Name: "data"}, backup.GetId(), "", nil); err != nil {
+	if _, err := f.lastDocker.backups.Delete(t.Context(), resource.Ref{Kind: volume.Kind, Scope: backup.GetEnvironmentId(), Name: "data"}, backup.GetId(), "", nil); err != nil {
 		t.Fatal(err)
 	}
 	writeData(t, dir, "orders.db", "a bad migration ate these")
@@ -714,7 +729,7 @@ func testACopyThatFailsShowsOnTheTimeline(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	backup := waitBackup(t, bc, made.Msg.GetBackup().GetId())
+	backup := waitCopy(t, bc, made.Msg.GetBackup().GetId())
 	if backup.GetState() != dockwellv1.BackupState_BACKUP_STATE_DONE || backup.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_FAILED || !strings.Contains(backup.GetCopyError(), "AccessDenied") {
 		t.Fatalf("backup = %v", backup)
 	}

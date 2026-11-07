@@ -24,7 +24,7 @@ func newOpenBackupCmd(stdio IO) *cobra.Command {
 		Use:   "open-backup <file>",
 		Short: "Open a backup that was sealed before it left its server",
 		Long: "Opens a backup you fetched from a destination yourself, with no control plane or anything else of Dockwell's.\n\n" +
-			"What comes out is a .tar.gz of a volume or a .sql.gz of a database, as its .json beside it says. " +
+			"What comes out is a .tar.gz of a volume or a .sql.gz of a database. The .json beside it opens the same way, and says which. " +
 			"The passphrase is the destination's: pass it in " + envBackupPassphrase + ", or a file with --passphrase-file, so it stays out of the process list. " +
 			"Nothing it writes can be trusted until it finishes without an error.",
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -60,7 +60,7 @@ func newOpenBackupCmd(stdio IO) *cobra.Command {
 				out = f
 			}
 			w := bufio.NewWriterSize(out, 1<<20)
-			if err := seal.Open(w, bufio.NewReaderSize(in, 1<<20), passphrase); err != nil {
+			if _, err := seal.Open(w, bufio.NewReaderSize(in, 1<<20), passphrase, ""); err != nil {
 				if output != "" {
 					_ = os.Remove(output)
 				}

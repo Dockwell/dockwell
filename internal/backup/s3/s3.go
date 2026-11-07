@@ -41,10 +41,70 @@ type Bucket struct {
 	Client *http.Client
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
+	// Stall is how long a request can go with no byte moving before it's given up on.
+	// Zero means StallWait.
+	Stall time.Duration
 }
 
-// unsignedPayload says the body isn't part of the signature: TLS and each part's
-// own checksum cover it, and hashing it twice would cost a read of the whole file.
+// StallWait is how long storage that has stopped answering gets. A large upload takes
+// as long as it takes, so this counts from the last byte, not from the start.
+const StallWait = 2 * time.Minute
+
+// errStalled ends a request nothing moved on for too long.
+var errStalled = errors.New("nothing moved for too long")
+
+func (b *Bucket) stall() time.Duration {
+	if b.Stall > 0 {
+		return b.Stall
+	}
+	return StallWait
+}
+
+// watched is a body that keeps its request alive while its bytes move.
+type watched struct {
+	r     io.Reader
+	timer *time.Timer
+	wait  time.Duration
+}
+
+func (w *watched) Read(p []byte) (int, error) {
+	n, err := w.r.Read(p)
+	if n > 0 {
+		w.timer.Reset(w.wait)
+	}
+	return n, err
+}
+
+// watchedBody is an answer's body, which keeps its request alive the same way, and
+// ends with it.
+type watchedBody struct {
+	watched
+	io.Closer
+	ctx  context.Context //nolint:containedctx // says why a read ended, for the length of a request
+	host string
+	done func()
+}
+
+func (w *watchedBody) Read(p []byte) (int, error) {
+	n, err := w.watched.Read(p)
+	if err != nil && errors.Is(context.Cause(w.ctx), errStalled) {
+		return n, stalledAt(w.host, w.wait)
+	}
+	return n, err
+}
+
+func (w *watchedBody) Close() error {
+	w.done()
+	return w.Closer.Close()
+}
+
+func stalledAt(host string, wait time.Duration) error {
+	return fmt.Errorf("the storage at %s stopped answering: nothing moved for %s. Check that it's up, and that this server can reach it", host, wait)
+}
+
+// unsignedPayload says the body isn't part of the signature: TLS covers it on the way,
+// a sealed file's chunks each authenticate themselves, and hashing a large part twice
+// would cost a read of it.
 const unsignedPayload = "UNSIGNED-PAYLOAD"
 
 // emptyHash is the SHA-256 of nothing, for a request with no body.
@@ -181,8 +241,19 @@ func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body 
 		return nil, err
 	}
 	u.RawQuery = canonicalQuery(q)
+	ctx, cancel := context.WithCancelCause(ctx)
+	wait := b.stall()
+	timer := time.AfterFunc(wait, func() { cancel(errStalled) })
+	ended := func() {
+		timer.Stop()
+		cancel(nil)
+	}
+	if body != nil {
+		body = &watched{r: body, timer: timer, wait: wait}
+	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
 	if err != nil {
+		ended()
 		return nil, err
 	}
 	if body != nil {
@@ -191,19 +262,27 @@ func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body 
 	b.sign(req, payload)
 	res, err := b.client().Do(req)
 	if err != nil {
+		stalled := errors.Is(context.Cause(ctx), errStalled)
+		ended()
+		if stalled {
+			return nil, stalledAt(u.Host, wait)
+		}
 		var ue *url.Error
 		if errors.As(err, &ue) {
 			// A URL error says the address, which is fine; a signature is in a
 			// header, and never in one.
-			return nil, fmt.Errorf("can't reach the storage at %s: %w", u.Host, ue.Err)
+			return nil, fmt.Errorf("can't reach the storage at %s: %w. Check the destination's endpoint, and that this server can reach it", u.Host, ue.Err)
 		}
 		return nil, err
 	}
+	timer.Reset(wait)
 	if res.StatusCode >= http.StatusBadRequest {
+		defer ended()
 		defer res.Body.Close()
 		raw, _ := io.ReadAll(io.LimitReader(res.Body, 16<<10))
 		return nil, &Error{Status: res.StatusCode, Code: tag(raw, "Code"), Message: tag(raw, "Message")}
 	}
+	res.Body = &watchedBody{watched: watched{r: res.Body, timer: timer, wait: wait}, Closer: res.Body, ctx: ctx, host: u.Host, done: ended}
 	return res, nil
 }
 

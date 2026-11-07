@@ -67,11 +67,6 @@ type Manifest struct {
 	// Unpacked is how large it is once it's out of its file, for a restore to know
 	// it fits.
 	Unpacked int64 `json:"unpacked,omitempty"`
-	// CopyError says why it didn't reach its destination. It isn't kept: it's for the
-	// call that took it.
-	CopyError string `json:"-"`
-	// Copied is what became of it there.
-	Copied *Copied `json:"-"`
 }
 
 // Runner takes and restores backups on this server.
@@ -195,8 +190,6 @@ type Take struct {
 	// Stop stops what runs on the volume for an exact copy, and starts it again
 	// after. A database's dump stops nothing.
 	Stop bool
-	// Destination is where it goes as well. Nil keeps it here.
-	Destination *Destination
 }
 
 // Take takes a backup, and says what it is once it's whole on the disk. Nothing
@@ -233,14 +226,6 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	}
 	if err != nil {
 		return nil, err
-	}
-	if take.Destination != nil {
-		// What's here is whole, and stays so whatever comes of this: the control
-		// plane says so on the timeline, and a failure here fails no backup.
-		file := filepath.Join(r.dir(take.Ref), m.ID+"."+m.Format)
-		if m.Copied, err = r.send(ctx, m, file, take.Destination); err != nil {
-			m.CopyError = err.Error()
-		}
 	}
 	return m, nil
 }
@@ -285,7 +270,12 @@ type verifier func(io.Reader) error
 
 // write takes a backup into a file beside where it belongs, reads it back, and
 // only then gives it its name. A backup that fails leaves nothing.
-func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int64, error), verify verifier) (err error) {
+func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int64, error), verify verifier) error {
+	return r.writeChecked(ref, m, take, verify, "")
+}
+
+// writeChecked is write, for what has to hash to want before it takes a name.
+func (r *Runner) writeChecked(ref resource.Ref, m *Manifest, take func(io.Writer) (int64, error), verify verifier, want string) (err error) {
 	dir := r.dir(ref)
 	partial := filepath.Join(dir, m.ID+".partial")
 	f, err := os.OpenFile(partial, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // under the agent's own directory, named by an ID
@@ -310,6 +300,9 @@ func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int6
 		return fmt.Errorf("can't write the backup to the disk: %w", err)
 	}
 	m.Size, m.SHA256 = counted.n, hex.EncodeToString(sum.Sum(nil))
+	if want != "" && m.SHA256 != want {
+		return fmt.Errorf("what came back hashes to %s, and %s was taken, so it isn't kept. Check what's in the storage", m.SHA256, want)
+	}
 	if err = check(partial, m, verify); err != nil {
 		return fmt.Errorf("the backup didn't read back whole, so it isn't kept: %w. Try again, and check the server's disk if it happens again", err)
 	}
@@ -398,24 +391,25 @@ func readManifest(path string) (*Manifest, error) {
 	return &m, nil
 }
 
-// Delete removes a backup from the disk, and from where it was sent if that's given.
-// One that's gone already is no error.
-func (r *Runner) Delete(ctx context.Context, ref resource.Ref, id, key string, d *Destination) error {
+// Delete removes a backup from the disk, and with a key and a destination, from where
+// it was sent. Going from one doesn't wait on the other: storage that refuses leaves
+// the disk's copy gone, and says why in what it returns.
+func (r *Runner) Delete(ctx context.Context, ref resource.Ref, id, key string, d *Destination) (copyError string, err error) {
 	if strings.ContainsAny(id, "/\\") || id == "" || strings.HasPrefix(id, ".") {
-		return fmt.Errorf("%q isn't a backup's ID", id)
-	}
-	if d != nil && key != "" {
-		if err := r.deleteRemote(ctx, key, d); err != nil {
-			return fmt.Errorf("can't remove the backup from where it was sent: %w", err)
-		}
+		return "", fmt.Errorf("%q isn't a backup's ID", id)
 	}
 	dir := r.dir(ref)
 	for _, name := range []string{id + "." + formatArchive, id + "." + formatDump, id + ".json", id + ".partial"} {
 		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("can't remove the backup: %w", err)
+			return "", fmt.Errorf("can't remove the backup: %w", err)
 		}
 	}
-	return nil
+	if d != nil && key != "" {
+		if err := r.deleteRemote(ctx, key, d); err != nil {
+			return err.Error(), nil //nolint:nilerr // the server's copy is gone, and what kept the other is said, not failed on
+		}
+	}
+	return "", nil
 }
 
 // stoppedFile is what's stopped for a backup or restore under way, written down

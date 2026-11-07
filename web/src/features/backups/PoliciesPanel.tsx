@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { type BackupPolicyInfo, BackupService, BackupState } from "@dockwell/api";
+import { BackupCopy, type BackupPolicyInfo, BackupService, BackupState } from "@dockwell/api";
 import { Button, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
@@ -53,6 +53,7 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
   const words = useScheduleWords();
   const volume = policy.spec?.volume ?? "";
   const failed = policy.last?.state === BackupState.FAILED;
+  const copyFailed = policy.last?.copy === BackupCopy.FAILED;
   // In the schedule's own zone, as its time is, and named, as that may not be yours.
   const zone = policy.spec?.timeZone || "UTC";
   const next = policy.nextRun ? formatDateTime(timestampDate(policy.nextRun), i18n.locale, zone) : "";
@@ -73,9 +74,23 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
       <div className="backup-state">
         {policy.last ? (
           <StatusBadge
-            status={failed ? "down" : policy.last.state === BackupState.RUNNING ? "deploying" : "healthy"}
+            status={
+              failed
+                ? "down"
+                : copyFailed
+                  ? "degraded"
+                  : policy.last.state === BackupState.RUNNING
+                    ? "deploying"
+                    : "healthy"
+            }
             label={
-              failed ? t`Last run failed` : policy.last.state === BackupState.RUNNING ? t`Running` : t`On schedule`
+              failed
+                ? t`Last run failed`
+                : copyFailed
+                  ? t`Last copy failed`
+                  : policy.last.state === BackupState.RUNNING
+                    ? t`Running`
+                    : t`On schedule`
             }
             labelIsState
           />
@@ -83,6 +98,7 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
           <StatusBadge status="unknown" label={t`Hasn't run yet`} labelIsState />
         )}
         {failed ? <span className="backup-why">{policy.last?.error}</span> : null}
+        {copyFailed ? <span className="backup-why">{policy.last?.copyError}</span> : null}
         <span className="backup-why">{t`Next run ${next}`}</span>
       </div>
       <Button size="sm" variant="ghost" icon="trash" aria-label={t`Stop this schedule`} onClick={remove} />

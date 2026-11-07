@@ -103,13 +103,14 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   const adding = page.getByRole("dialog", { name: "Add a destination" });
   const signsIn = "e2e-secret-that-signs-in";
   await adding.getByLabel("Name").fill("e2e-bucket");
-  await adding.getByLabel("Endpoint").fill("https://storage.example.com");
+  await adding.getByLabel("Endpoint").fill("http://127.0.0.1:1"); // nothing answers there
   await adding.getByLabel("Bucket").fill("backups");
   await adding.getByLabel("Access key").fill("e2e-access-key");
   await adding.getByLabel("Secret key").fill(signsIn);
   const review = adding.getByRole("button", { name: "Review plan" });
   if (!(await review.isDisabled())) fail("a destination goes ahead with no word that its passphrase is kept");
-  const passphrase = await adding.locator(".backup-passphrase").innerText();
+  const passphrase = (await adding.locator(".backup-passphrase span").allInnerTexts()).join("");
+  if (passphrase.length < 32) fail(`a destination's passphrase reads as ${passphrase.length} characters`);
   await adding.getByLabel("I've kept a copy of the passphrase").check();
   await shoot(page, "backups-destination");
   await review.click();
@@ -123,6 +124,23 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await sending.getByRole("button", { name: "Done" }).click();
   await destinations.getByText("e2e-bucket").waitFor({ timeout: 15_000 });
   await shoot(page, "backups-destinations");
+
+  step("backups: a copy that can't get there says why on its row, and the row keeps its buttons");
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto(`${origin}/backups`);
+  await page.getByRole("button", { name: "Back up now" }).click();
+  const toStorage = page.getByRole("dialog", { name: /^Back up / });
+  await pickTheDatabase(toStorage);
+  await toStorage.getByText(/uses PostgreSQL's own dump/).waitFor({ timeout: 20_000 });
+  await toStorage.getByLabel("Send a copy to").selectOption("e2e-bucket");
+  await toStorage.getByRole("button", { name: "Back up", exact: true }).click();
+  const noCopy = page.getByRole("row").filter({ hasText: "It didn't reach e2e-bucket" }).first();
+  await noCopy.waitFor({ timeout: 30_000 });
+  await noCopy.getByText(/Check the destination's endpoint/).waitFor();
+  const edge = await noCopy.getByRole("button", { name: "Delete this backup" }).boundingBox();
+  if (!edge || edge.x + edge.width > 1024) fail("a long copy error pushes a backup's buttons off the page");
+  await shoot(page, "backups-copy-failed");
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   step("backups: an app's page shows its newest, and takes another");
   // journal has a db too, so go by the app. A link that has no width can't be clicked,

@@ -385,6 +385,10 @@ msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
 msgstr "{days, plural, one {Valid for # day} other {Valid for # days}}"
 
+#: src/features/activity/describe.ts
+msgid "{destination} kept a backup of {volume} that was to go"
+msgstr "{destination} kept a backup of {volume} that was to go"
+
 #: src/features/shell/Topbar.tsx
 msgid "{docker} can't read Docker"
 msgstr "{docker} can't read Docker"
@@ -1199,6 +1203,10 @@ msgstr "a {type} mount ({reads})"
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "A backup is of a volume. Add one to an app, or install a database from the catalog."
 
+#: src/features/activity/describe.ts
+msgid "A backup of {volume} couldn't be fetched from {destination}"
+msgstr "A backup of {volume} couldn't be fetched from {destination}"
+
 #: src/features/servers/network.ts
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "A certificate came for {domain} on port 80 or 443, as of {when}"
@@ -1758,6 +1766,10 @@ msgstr "Asking the server what this takes"
 #: src/features/backups/PolicySheet.tsx
 msgid "At"
 msgstr "At"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "At least 16 characters."
+msgstr "At least 16 characters."
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
@@ -2356,6 +2368,10 @@ msgstr "Copied the lines shown"
 msgid "Copied this line"
 msgstr "Copied this line"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Copies an earlier destination sealed open only with the passphrase it had."
+msgstr "Copies an earlier destination sealed open only with the passphrase it had."
+
 #: src/features/apps/ExportSheet.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Copy"
@@ -2396,6 +2412,10 @@ msgstr "Copy path {shown}"
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "Copy the image"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Copy the passphrase"
+msgstr "Copy the passphrase"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Copy these lines"
@@ -2660,6 +2680,10 @@ msgstr "Delete {subject}"
 #: src/features/shell/CommandMenu.tsx
 msgid "Delete a project"
 msgstr "Delete a project"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Delete from both"
+msgstr "Delete from both"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "Delete it"
@@ -3821,6 +3845,11 @@ msgstr "It can't be read meanwhile, and it goes once the server is back and the 
 msgid "It can't tell what is running there until then. Check that the server and its agent are up."
 msgstr "It can't tell what is running there until then. Check that the server and its agent are up."
 
+#. placeholder {0}: b.fetchError
+#: src/features/backups/BackupsPage.tsx
+msgid "It couldn't be fetched: {0}"
+msgstr "It couldn't be fetched: {0}"
+
 #. placeholder {0}: b.destination
 #. placeholder {1}: b.copyError
 #: src/features/backups/BackupsPage.tsx
@@ -4173,6 +4202,10 @@ msgstr "Last 15 min"
 #: src/features/logs/LogsPage.tsx
 msgid "Last 24 h"
 msgstr "Last 24 h"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Last copy failed"
+msgstr "Last copy failed"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
@@ -5082,6 +5115,11 @@ msgstr "Only {count} of its items are here, so one you're after may be missing. 
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "Only a variable's value is hidden, so don't pass a secret there."
 
+#. placeholder {0}: b.destination
+#: src/features/backups/BackupsPage.tsx
+msgid "Only on {0}"
+msgstr "Only on {0}"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "only on the server"
@@ -5276,6 +5314,14 @@ msgstr "Passkeys don't work at this address"
 #: src/features/auth/messages.ts
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Passphrase"
+msgstr "Passphrase"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Passphrase copied"
+msgstr "Passphrase copied"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Paste a Compose file to review its plan"
@@ -5841,6 +5887,10 @@ msgstr "Remove {where}"
 msgid "Remove {where} from {name}"
 msgstr "Remove {where} from {name}"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "Remove from the server only"
+msgstr "Remove from the server only"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "Remove the secret {name}"
 msgstr "Remove the secret {name}"
@@ -5876,6 +5926,10 @@ msgstr "Removed"
 #: src/features/activity/describe.ts
 msgid "Removed {server} from the fleet"
 msgstr "Removed {server} from the fleet"
+
+#: src/features/activity/describe.ts
+msgid "Removed a backup of {volume} from its server, and kept it on {destination}"
+msgstr "Removed a backup of {volume} from its server, and kept it on {destination}"
 
 #: src/features/activity/describe.ts
 msgid "Removed a passkey"
@@ -7629,6 +7683,14 @@ msgid "This reloads the proxy on {server}, which can reset a connection on its w
 msgstr "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 
 #: src/features/backups/BackupsPage.tsx
+msgid "This removes it from {destination}, the last place that has it. Nothing brings it back."
+msgstr "This removes it from {destination}, the last place that has it. Nothing brings it back."
+
+#: src/features/backups/BackupsPage.tsx
+msgid "This removes it from the server's disk and from {destination}. Nothing brings it back. Remove it from the server alone to keep it on {destination}, from where you can fetch it."
+msgstr "This removes it from the server's disk and from {destination}. Nothing brings it back. Remove it from the server alone to keep it on {destination}, from where you can fetch it."
+
+#: src/features/backups/BackupsPage.tsx
 msgid "This removes it from the server's disk. Nothing brings it back."
 msgstr "This removes it from the server's disk. Nothing brings it back."
 
@@ -8037,6 +8099,10 @@ msgstr "Use a number from 1 to 1000."
 #: src/features/auth/SignInPage.tsx
 msgid "Use a passkey instead"
 msgstr "Use a passkey instead"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Use a passphrase I already have"
+msgstr "Use a passphrase I already have"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx

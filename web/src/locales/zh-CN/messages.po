@@ -385,6 +385,10 @@ msgstr "{database} 会在空卷上重新启动并载入转储（{size}），因�
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
 msgstr "{days, plural, other {有效期还有 # 天}}"
 
+#: src/features/activity/describe.ts
+msgid "{destination} kept a backup of {volume} that was to go"
+msgstr "{destination} 保留了本应删除的 {volume} 备份"
+
 #: src/features/shell/Topbar.tsx
 msgid "{docker} can't read Docker"
 msgstr "{docker} 台无法读取 Docker"
@@ -1199,6 +1203,10 @@ msgstr "一个 {type} 挂载（{reads}）"
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "备份的对象是卷。请为应用添加卷，或从应用目录安装数据库。"
 
+#: src/features/activity/describe.ts
+msgid "A backup of {volume} couldn't be fetched from {destination}"
+msgstr "无法从 {destination} 取回 {volume} 的备份"
+
 #: src/features/servers/network.ts
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "{domain} 的证书已通过 80 或 443 端口签发，截至{when}"
@@ -1758,6 +1766,10 @@ msgstr "正在询问服务器此操作的要求"
 #: src/features/backups/PolicySheet.tsx
 msgid "At"
 msgstr "时间"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "At least 16 characters."
+msgstr "至少 16 个字符。"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Authenticator app"
@@ -2356,6 +2368,10 @@ msgstr "已复制显示的日志"
 msgid "Copied this line"
 msgstr "已复制这一行"
 
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Copies an earlier destination sealed open only with the passphrase it had."
+msgstr "之前的目的地加密的副本，只能用它当时的密码短语打开。"
+
 #: src/features/apps/ExportSheet.tsx
 #: src/features/logs/LogsPage.tsx
 msgid "Copy"
@@ -2396,6 +2412,10 @@ msgstr "复制路径 {shown}"
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "复制镜像名称"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Copy the passphrase"
+msgstr "复制密码短语"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Copy these lines"
@@ -2660,6 +2680,10 @@ msgstr "删除 {subject}"
 #: src/features/shell/CommandMenu.tsx
 msgid "Delete a project"
 msgstr "删除项目"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Delete from both"
+msgstr "从两处都删除"
 
 #: src/features/backups/BackupsPage.tsx
 msgid "Delete it"
@@ -3821,6 +3845,11 @@ msgstr "在此期间无法读取；服务器恢复连接且满 7 天后，这些
 msgid "It can't tell what is running there until then. Check that the server and its agent are up."
 msgstr "在此之前，无法确定那里正在运行什么。请检查服务器及其代理是否正常运行。"
 
+#. placeholder {0}: b.fetchError
+#: src/features/backups/BackupsPage.tsx
+msgid "It couldn't be fetched: {0}"
+msgstr "无法取回：{0}"
+
 #. placeholder {0}: b.destination
 #. placeholder {1}: b.copyError
 #: src/features/backups/BackupsPage.tsx
@@ -4173,6 +4202,10 @@ msgstr "最近 15 分钟"
 #: src/features/logs/LogsPage.tsx
 msgid "Last 24 h"
 msgstr "最近 24 小时"
+
+#: src/features/backups/PoliciesPanel.tsx
+msgid "Last copy failed"
+msgstr "上次副本发送失败"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Last heartbeat"
@@ -5082,6 +5115,11 @@ msgstr "这里只显示了其中 {count} 项，你要找的可能不在其中。
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
 
+#. placeholder {0}: b.destination
+#: src/features/backups/BackupsPage.tsx
+msgid "Only on {0}"
+msgstr "仅在 {0} 上"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "only on the server"
@@ -5276,6 +5314,14 @@ msgstr "通行密钥在这个地址不可用"
 #: src/features/auth/messages.ts
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口上打开 http://localhost 访问面板。"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Passphrase"
+msgstr "密码短语"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Passphrase copied"
+msgstr "密码短语已复制"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Paste a Compose file to review its plan"
@@ -5841,6 +5887,10 @@ msgstr "移除 {where}"
 msgid "Remove {where} from {name}"
 msgstr "从 {name} 移除 {where}"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "Remove from the server only"
+msgstr "仅从服务器移除"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "Remove the secret {name}"
 msgstr "移除密钥 {name}"
@@ -5876,6 +5926,10 @@ msgstr "已移除"
 #: src/features/activity/describe.ts
 msgid "Removed {server} from the fleet"
 msgstr "从集群中移除了 {server}"
+
+#: src/features/activity/describe.ts
+msgid "Removed a backup of {volume} from its server, and kept it on {destination}"
+msgstr "已从服务器移除 {volume} 的备份，并保留在 {destination} 上"
 
 #: src/features/activity/describe.ts
 msgid "Removed a passkey"
@@ -7629,6 +7683,14 @@ msgid "This reloads the proxy on {server}, which can reset a connection on its w
 msgstr "这会重新加载 {server} 上的代理，可能重置正在进入该服务器上任何站点的连接，并可能丢失保持连接的 HTTP/1.1 上的 POST 请求。浏览器会再次发送此类请求，而应用自身的客户端可能不会"
 
 #: src/features/backups/BackupsPage.tsx
+msgid "This removes it from {destination}, the last place that has it. Nothing brings it back."
+msgstr "这会将它从 {destination} 删除，那里是它最后所在的位置，删除后无法恢复。"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "This removes it from the server's disk and from {destination}. Nothing brings it back. Remove it from the server alone to keep it on {destination}, from where you can fetch it."
+msgstr "这会将它从服务器磁盘和 {destination} 上删除，删除后无法恢复。如果只从服务器移除，它会保留在 {destination} 上，之后可以取回。"
+
+#: src/features/backups/BackupsPage.tsx
 msgid "This removes it from the server's disk. Nothing brings it back."
 msgstr "此操作会将它从服务器磁盘上移除，且无法恢复。"
 
@@ -8037,6 +8099,10 @@ msgstr "请填写 1 到 1000 之间的数字。"
 #: src/features/auth/SignInPage.tsx
 msgid "Use a passkey instead"
 msgstr "改用通行密钥"
+
+#: src/features/backups/DestinationsPanel.tsx
+msgid "Use a passphrase I already have"
+msgstr "使用我已有的密码短语"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx

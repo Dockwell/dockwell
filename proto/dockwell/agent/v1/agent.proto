@@ -395,6 +395,8 @@ message Call {
     DeleteBackupCall delete_backup = 22;
     // Bring a backup back from where it was sent.
     FetchBackupCall fetch_backup = 23;
+    // Send a backup that's on the server to its destination.
+    SendBackupCall send_backup = 24;
   }
 }
 
@@ -421,9 +423,18 @@ message BackupCall {
   dockwell.v1.ResourceRef volume = 2;
   // Stop what runs on the volume for an exact copy, and start it again after.
   bool stop = 3;
-  // Where it goes as well, sealed to this stream's delivery key as a backup
-  // destination's values are (ADR 0022). Unset keeps it on the server.
-  bytes destination = 4;
+}
+
+// SendBackupCall asks to send a backup that's on the server to its destination, as a
+// step of its own once it's whole, so an upload holds nothing up.
+message SendBackupCall {
+  // The backup's ID.
+  string id = 1;
+  // The volume it's of.
+  dockwell.v1.ResourceRef volume = 2;
+  // Where it goes, sealed to this stream's delivery key as a backup destination's
+  // values are (ADR 0022).
+  bytes destination = 3;
 }
 
 // FetchBackupCall asks to bring a backup back from where it was sent.
@@ -436,6 +447,9 @@ message FetchBackupCall {
   bytes destination = 3;
   // Its name there.
   string key = 4;
+  // What the control plane has on record that it hashes to, in hex. What came back
+  // is checked against this, and against nothing the storage says.
+  string sha256 = 5;
 }
 
 // DeleteBackupCall asks to remove a backup from the disk.
@@ -832,6 +846,8 @@ message CallResult {
     DeleteBackupResult delete_backup = 22;
     // What fetch_backup brought back.
     BackupResult fetch_backup = 23;
+    // What send_backup sent.
+    SendBackupResult send_backup = 24;
   }
 }
 
@@ -889,16 +905,21 @@ message BackupResult {
   string sha256 = 4;
   // How many files changed while they were read.
   int64 files_changed = 5;
-  // Its name where it was sent, once it's there.
-  string key = 6;
-  // How much it takes there, in bytes, sealed.
-  int64 stored_bytes = 7;
-  // Why it didn't get there. The backup is on the server all the same.
-  string copy_error = 8;
 }
 
-// DeleteBackupResult says the backup is gone.
-message DeleteBackupResult {}
+// SendBackupResult says a backup reached its destination.
+message SendBackupResult {
+  // Its name there.
+  string key = 1;
+  // How much it takes there, in bytes, sealed.
+  int64 stored_bytes = 2;
+}
+
+// DeleteBackupResult says the backup is gone from the disk.
+message DeleteBackupResult {
+  // Why it's still where it was sent, when the call asked for it to go from there too.
+  string copy_error = 1;
+}
 
 // ContainersResult lists the containers Docker has.
 message ContainersResult {

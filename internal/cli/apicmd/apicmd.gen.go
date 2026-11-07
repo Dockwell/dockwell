@@ -100,6 +100,7 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_DESTRUCTIVE,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The backup's ID.", Arg: true},
+				{Path: "server_only", Help: "Remove it from its server's disk alone, and keep it on its destination, from where it can be fetched. Without this it goes from both."},
 			},
 			Call: apicli.Unary[v1.DeleteBackupRequest, v1.DeleteBackupResponse](dockwellv1connect.BackupServiceDeleteBackupProcedure),
 		},

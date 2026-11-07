@@ -160,8 +160,11 @@ function BackupsList({
     <div className="backup-state">
       <StatusBadge status={backupStatus(b)} label={stateWord(b)} labelIsState />
       {b.state === BackupState.FAILED ? <span className="backup-why">{b.error}</span> : null}
-      {b.state === BackupState.RUNNING && b.progress ? <span className="backup-why">{b.progress}</span> : null}
-      {b.copy === BackupCopy.STORED ? <span className="backup-why">{t`Also on ${b.destination}`}</span> : null}
+      {b.progress ? <span className="backup-why">{b.progress}</span> : null}
+      {b.copy === BackupCopy.STORED ? (
+        <span className="backup-why">{b.onServer ? t`Also on ${b.destination}` : t`Only on ${b.destination}`}</span>
+      ) : null}
+      {b.fetchError ? <span className="backup-why">{t`It couldn't be fetched: ${b.fetchError}`}</span> : null}
       {b.copy === BackupCopy.PENDING ? <span className="backup-why">{t`Sending to ${b.destination}`}</span> : null}
       {b.copy === BackupCopy.FAILED ? (
         <span className="backup-why">{t`It didn't reach ${b.destination}: ${b.copyError}`}</span>
@@ -184,7 +187,7 @@ function BackupsList({
             <Trans>Restore</Trans>
           </Button>
         ) : null}
-        {b.copy === BackupCopy.STORED ? (
+        {b.copy === BackupCopy.STORED && !b.onServer ? (
           <Button size="sm" variant="ghost" onClick={() => onFetch(b)}>
             <Trans>Fetch</Trans>
           </Button>
@@ -265,11 +268,13 @@ function DeleteSheet({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const failed = backup.state === BackupState.FAILED;
-  const remove = async () => {
+  const stored = backup.copy === BackupCopy.STORED;
+  const destination = backup.destination;
+  const remove = async (serverOnly: boolean) => {
     setBusy(true);
     setFailure(undefined);
     try {
-      await client.deleteBackup({ id: backup.id });
+      await client.deleteBackup({ id: backup.id, serverOnly });
       await queries.invalidateQueries({
         queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
       });
@@ -289,8 +294,13 @@ function DeleteSheet({
           <Button variant="secondary" onClick={onClose}>
             <Trans>Cancel</Trans>
           </Button>
-          <Button variant="danger" icon="trash" loading={busy} onClick={() => void remove()}>
-            <Trans>Delete it</Trans>
+          {stored && backup.onServer ? (
+            <Button variant="secondary" loading={busy} onClick={() => void remove(true)}>
+              <Trans>Remove from the server only</Trans>
+            </Button>
+          ) : null}
+          <Button variant="danger" icon="trash" loading={busy} onClick={() => void remove(false)}>
+            {stored && backup.onServer ? <Trans>Delete from both</Trans> : <Trans>Delete it</Trans>}
           </Button>
         </>
       }
@@ -299,6 +309,13 @@ function DeleteSheet({
         <p className="backup-sheet-line">
           {failed ? (
             <Trans>This backup failed, so nothing is on the server. This removes the record of it.</Trans>
+          ) : stored && backup.onServer ? (
+            <Trans>
+              This removes it from the server's disk and from {destination}. Nothing brings it back. Remove it from the
+              server alone to keep it on {destination}, from where you can fetch it.
+            </Trans>
+          ) : stored ? (
+            <Trans>This removes it from {destination}, the last place that has it. Nothing brings it back.</Trans>
           ) : backup.method === BackupMethod.UNSPECIFIED ? null : (
             <Trans>This removes it from the server's disk. Nothing brings it back.</Trans>
           )}

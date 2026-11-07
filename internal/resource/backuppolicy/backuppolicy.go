@@ -152,6 +152,7 @@ type Destination struct{}
 var (
 	_ resource.Type    = Destination{}
 	_ resource.Rotates = Destination{}
+	_ resource.Keeper  = Destination{}
 )
 
 // Kind returns "backup.destination".
@@ -169,6 +170,20 @@ func (Destination) New() proto.Message { return &resourcev1.BackupDestination{} 
 // RotatesSensitive says setting what signs in always plans as a change, and is never
 // compared with what's there, so a plan can't confirm a guess at it (ADR 0022).
 func (Destination) RotatesSensitive() {}
+
+// Keep holds on to a destination's passphrase, as every copy there was sealed with it,
+// and a new one would leave them all unopenable. It says the same whatever the edit
+// gave, so a plan never says whether a guess at it is right, as refusing a change would
+// (ADR 0022).
+func (Destination) Keep(current, desired proto.Message) (resource.Kept, error) {
+	was, ok := current.(*resourcev1.BackupDestination)
+	is, same := desired.(*resourcev1.BackupDestination)
+	if !ok || !same {
+		return resource.Kept{}, nil
+	}
+	is.Passphrase = was.GetPassphrase()
+	return resource.Kept{Reason: "kept_passphrase", Words: "keeps the passphrase it was made with, as every copy there is sealed with it. To use another, add a destination under a new name"}, nil
+}
 
 // CheckName takes what fits in a URL.
 func (Destination) CheckName(name string) error {

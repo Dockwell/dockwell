@@ -38,6 +38,7 @@
   font-size: 12.5px;
   line-height: 16px;
   overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .backup-actions {
@@ -153,9 +154,10 @@
 }
 
 .backup-passphrase {
-  display: block;
-  margin-top: var(--space-2);
-  overflow-wrap: anywhere;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  margin: var(--space-2) 0;
   user-select: all;
 }
 

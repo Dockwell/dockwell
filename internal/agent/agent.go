@@ -145,12 +145,14 @@ type BackupTaker interface {
 	// Preview says what backing up a volume would do.
 	Preview(ctx context.Context, call *agentv1.BackupPreviewCall) (*agentv1.BackupPreviewResult, error)
 	// Take takes a backup, and says what it took once it's whole on the disk.
-	// destination is where it goes as well, opened in memory for this call alone.
-	Take(ctx context.Context, call *agentv1.BackupCall, destination map[string]string) (*agentv1.BackupResult, error)
+	Take(ctx context.Context, call *agentv1.BackupCall) (*agentv1.BackupResult, error)
+	// Send sends a backup that's on the disk to its destination, opened in memory for
+	// this call alone.
+	Send(ctx context.Context, call *agentv1.SendBackupCall, destination map[string]string) (*agentv1.SendBackupResult, error)
 	// Fetch brings a backup back from where it was sent.
 	Fetch(ctx context.Context, call *agentv1.FetchBackupCall, destination map[string]string) (*agentv1.BackupResult, error)
 	// Delete removes a backup from the disk, and from where it was sent.
-	Delete(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) error
+	Delete(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) (*agentv1.DeleteBackupResult, error)
 }
 
 // Desired keeps what the control plane told this agent to apply, so the

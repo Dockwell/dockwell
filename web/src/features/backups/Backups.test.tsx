@@ -13,6 +13,7 @@ import {
   ChangeSchema,
   ChangeState,
   type CreateBackupRequest,
+  type DeleteBackupRequest,
   PlanAction,
   PreviewBackupResponseSchema,
   type ProposeChangeRequest,
@@ -57,6 +58,19 @@ function api(backups: Backup[], more: Api = {}): Api {
     },
     ...more,
   };
+}
+
+/** The page with storage set up, and what a test adds to its calls. */
+function copies(backups: Backup[], calls: Api["backups"] = {}, changes: Api["changes"] = {}): Api {
+  return api(backups, {
+    backups: {
+      listBackups: () => ({ backups }),
+      listBackupPolicies: () => ({}),
+      listBackupDestinations: () => ({}),
+      ...calls,
+    },
+    changes,
+  });
 }
 
 describe("the backups page", () => {
@@ -499,7 +513,7 @@ describe("the backups page", () => {
     const panel = await screen.findByRole("region", { name: "Destinations" });
     await user.click(within(panel).getByRole("button", { name: "Add" }));
     await user.type(await screen.findByLabelText("Name"), "r2");
-    await user.type(screen.getByLabelText("Endpoint"), "https://acme.r2.cloudflarestorage.com");
+    await user.type(screen.getByLabelText("Endpoint"), "https://storage.example.com");
     await user.type(screen.getByLabelText("Bucket"), "acme-backups");
     await user.type(screen.getByLabelText("Access key"), "AKIA");
     await user.type(screen.getByLabelText("Secret key"), "the-secret");
@@ -532,6 +546,163 @@ describe("the backups page", () => {
     await user.click(await screen.findByRole("button", { name: "Fetch" }));
     await waitFor(() => expect(fetched).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    expect(screen.getByText("Only on r2")).toBeVisible();
+  });
+
+  it("offers a restore while its server has it, and no fetch", async () => {
+    renderAt("/backups", copies([aBackup({ destination: "r2", copy: BackupCopy.STORED })]));
+    expect(await screen.findByRole("button", { name: "Restore" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Fetch" })).toBeNull();
     expect(screen.getByText("Also on r2")).toBeVisible();
+  });
+
+  it("shows how a send is going, and why a fetch or a copy failed, on the backup's row", async () => {
+    renderAt(
+      "/backups",
+      copies([
+        aBackup({ destination: "r2", copy: BackupCopy.PENDING, progress: "Sending orders: 12 MB of 40 MB" }),
+        aBackup({
+          id: "bkp_2",
+          destination: "r2",
+          copy: BackupCopy.STORED,
+          onServer: false,
+          fetchError: "AccessDenied. Check the destination's keys and bucket",
+        }),
+        aBackup({
+          id: "bkp_3",
+          destination: "r2",
+          copy: BackupCopy.FAILED,
+          copyError: "the storage refused it. Check the destination's keys and bucket",
+        }),
+      ]),
+    );
+    expect(await screen.findByText("Sending orders: 12 MB of 40 MB")).toBeVisible();
+    expect(screen.getByText(/It couldn't be fetched: AccessDenied/)).toBeVisible();
+    expect(screen.getByText(/It didn't reach r2: the storage refused it/)).toBeVisible();
+  });
+
+  it("watches a backup until its copy lands, and a fetch until it's back", async () => {
+    const sending = aBackup({ destination: "r2", copy: BackupCopy.PENDING });
+    const stored = aBackup({ destination: "r2", copy: BackupCopy.STORED });
+    const fetching = aBackup({
+      destination: "r2",
+      copy: BackupCopy.STORED,
+      onServer: false,
+      progress: "Fetching orders",
+    });
+    const answers = [sending, fetching, stored];
+    renderAt("/backups", copies([], { listBackups: () => ({ backups: [answers.shift() ?? stored] }) }));
+    expect(await screen.findByText("Sending to r2")).toBeVisible();
+    expect(await screen.findByText("Fetching orders", undefined, { timeout: 8000 })).toBeVisible();
+    expect(await screen.findByText("Also on r2", undefined, { timeout: 8000 })).toBeVisible();
+  }, 20_000);
+
+  it("says deleting takes it from both places, and can take it from the server alone", async () => {
+    const user = userEvent.setup();
+    const deleted = vi.fn((_: DeleteBackupRequest) => ({}));
+    renderAt("/backups", copies([aBackup({ destination: "r2", copy: BackupCopy.STORED })], { deleteBackup: deleted }));
+    await user.click(await screen.findByRole("button", { name: "Delete this backup" }));
+    const sheet = await screen.findByRole("dialog", { name: /Delete this backup/ });
+    expect(within(sheet).getByText(/from the server's disk and from r2/)).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Remove from the server only" }));
+    await waitFor(() => expect(deleted).toHaveBeenCalledTimes(1));
+    expect(deleted.mock.calls[0]?.[0]).toMatchObject({ id: "bkp_1", serverOnly: true });
+    await waitFor(() => expect(sheet).not.toBeInTheDocument());
+
+    await user.click(await screen.findByRole("button", { name: "Delete this backup" }));
+    const again = await screen.findByRole("dialog", { name: /Delete this backup/ });
+    await user.click(within(again).getByRole("button", { name: "Delete from both" }));
+    await waitFor(() => expect(deleted).toHaveBeenCalledTimes(2));
+    expect(deleted.mock.calls[1]?.[0]).toMatchObject({ id: "bkp_1", serverOnly: false });
+  });
+
+  it("says the destination has the last of it, with nothing to keep it by", async () => {
+    const user = userEvent.setup();
+    renderAt("/backups", copies([aBackup({ destination: "r2", copy: BackupCopy.STORED, onServer: false })]));
+    await user.click(await screen.findByRole("button", { name: "Delete this backup" }));
+    const sheet = await screen.findByRole("dialog", { name: /Delete this backup/ });
+    expect(within(sheet).getByText(/from r2, the last place that has it/)).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: "Remove from the server only" })).toBeNull();
+  });
+
+  it("shows a failed copy on its schedule, though the run was good", async () => {
+    renderAt(
+      "/backups",
+      copies([aBackup()], {
+        listBackupPolicies: () => ({
+          policies: [
+            {
+              id: "bpl_1",
+              name: "orders-daily",
+              environmentId: "env_1",
+              spec: { volume: "orders", every: BackupPolicy_Every.DAY, at: "03:00", keep: 7, destination: "r2" },
+              last: aBackup({
+                destination: "r2",
+                copy: BackupCopy.FAILED,
+                copyError: "the storage refused it. Check the destination's keys and bucket",
+              }),
+              kept: 1,
+              nextRun: timestampFromDate(new Date("2026-11-07T03:00:00Z")),
+            },
+          ],
+        }),
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Schedules" });
+    expect(await within(panel).findByText("Last copy failed")).toBeVisible();
+    expect(within(panel).getByText(/the storage refused it/)).toBeVisible();
+  });
+
+  async function addDestination(user: ReturnType<typeof userEvent.setup>, add: string) {
+    const panel = await screen.findByRole("region", { name: /Destinations|目的地/ });
+    await user.click(within(panel).getByRole("button", { name: add }));
+  }
+
+  it("takes a passphrase you already have, and holds it to the length the API does", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_: ProposeChangeRequest) => ({
+      change: create(ChangeSchema, { id: "chg_d", state: ChangeState.PLANNED, plan: { fingerprint: "abc" } }),
+    }));
+    renderAt(
+      "/backups",
+      copies([aBackup()], {}, { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream }),
+    );
+    await addDestination(user, "Add");
+    await user.type(await screen.findByLabelText("Name"), "r2");
+    await user.type(screen.getByLabelText("Endpoint"), "https://storage.example.com");
+    await user.type(screen.getByLabelText("Bucket"), "acme-backups");
+    await user.type(screen.getByLabelText("Access key"), "AKIA");
+    await user.type(screen.getByLabelText("Secret key"), "the-secret");
+    await user.click(screen.getByRole("switch", { name: /Use a passphrase I already have/ }));
+    expect(screen.queryByText("Keep this passphrase somewhere else")).toBeNull();
+    const review = screen.getByRole("button", { name: "Review plan" });
+    await user.type(screen.getByLabelText("Passphrase"), "too short");
+    expect(review).toBeDisabled();
+    await user.type(screen.getByLabelText("Passphrase"), " but now it's long enough");
+    await user.click(review);
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const value = proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { passphrase: string };
+    expect(value.passphrase).toBe("too short but now it's long enough");
+  });
+
+  it("keeps the destination sheet on a phone's screen, with a passphrase you can copy", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    const { container } = renderAt("/backups", copies([aBackup()]));
+    await addDestination(user, "Add");
+    expect(await screen.findByRole("dialog", { name: "Add a destination" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Copy the passphrase" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeVisible();
+    await expectAccessible(container);
+  });
+
+  it("reads the destination sheet in Chinese", async () => {
+    await activateLocale("zh-CN");
+    const user = userEvent.setup();
+    renderAt("/backups", copies([aBackup()]));
+    await addDestination(user, "添加");
+    expect(await screen.findByRole("dialog", { name: "添加目的地" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "复制密码短语" })).toBeVisible();
+    await activateLocale("en");
   });
 });

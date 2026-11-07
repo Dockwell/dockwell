@@ -3,6 +3,7 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/backup/seal"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
 // Destination is S3-compatible storage a backup goes to. It lives in memory for one
@@ -47,25 +49,38 @@ func (d *Destination) key(m *Manifest) string {
 	return path.Join(d.Prefix, m.Environment, m.Volume, m.ID+"."+m.Format+".sealed")
 }
 
+// binding is what a sealed backup is bound to, so a file left under another's name
+// doesn't open as that one.
+func binding(ref resource.Ref, id string) string {
+	return ref.Scope + "/" + ref.Name + "/" + id
+}
+
 // Copied is what became of a backup's copy on its destination.
 type Copied struct {
 	Key   string
 	Bytes int64
 }
 
-// send seals a backup and sends it to its destination, with its manifest beside it,
-// so what's there can be read without this install.
-func (r *Runner) send(ctx context.Context, m *Manifest, file string, d *Destination) (*Copied, error) {
-	f, err := os.Open(file) //nolint:gosec // under the agent's own directory
+// Send seals a backup that's on this disk and sends it to its destination, with its
+// manifest beside it, sealed too, so what's there can be read without this install.
+// It's a step of its own, once the backup is whole and on record: an upload can take
+// as long as the network does, and holds nothing up.
+func (r *Runner) Send(ctx context.Context, ref resource.Ref, id string, d *Destination) (*Copied, error) {
+	m, err := readManifest(filepath.Join(r.dir(ref), id+".json"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't read the backup to send it: %w", err)
+	}
+	f, err := os.Open(filepath.Join(r.dir(ref), m.ID+"."+m.Format))
+	if err != nil {
+		return nil, fmt.Errorf("can't read the backup to send it: %w", err)
 	}
 	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
-	sealer, err := seal.New(d.Passphrase)
+	bound := binding(ref, m.ID)
+	sealer, err := seal.New(d.Passphrase, bound)
 	if err != nil {
 		return nil, err
 	}
@@ -75,30 +90,46 @@ func (r *Runner) send(ctx context.Context, m *Manifest, file string, d *Destinat
 		resource.Progress(ctx, "Sending "+m.Volume+": "+human.Size(sent)+" of "+human.Size(total))
 	}
 	if err := bucket.Store(ctx, up); err != nil {
-		return nil, err
+		return nil, refused(err)
 	}
 	stored, err := bucket.Size(ctx, up.Key)
 	if err != nil {
-		return nil, fmt.Errorf("can't read back what was sent: %w", err)
+		return nil, fmt.Errorf("can't read back what was sent: %w", refused(err))
 	}
 	if stored != total {
-		return nil, fmt.Errorf("the storage holds %s of the %s sent", human.Size(stored), human.Size(total))
+		return nil, fmt.Errorf("the storage holds %s of the %s sent. Take another backup, and check the storage if it happens again", human.Size(stored), human.Size(total))
 	}
 	said, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return nil, err
 	}
-	if err := bucket.Put(ctx, up.Key+".json", said); err != nil {
+	sealed, err := seal.Small(said, d.Passphrase, bound+manifestBinding)
+	if err != nil {
 		return nil, err
 	}
+	if err := bucket.Put(ctx, up.Key+".json", sealed); err != nil {
+		return nil, refused(err)
+	}
 	return &Copied{Key: up.Key, Bytes: stored}, nil
+}
+
+// manifestBinding tells what's beside a sealed backup from the backup.
+const manifestBinding = "/manifest"
+
+// refused says what to do about what storage said.
+func refused(err error) error {
+	var said *s3.Error
+	if errors.As(err, &said) {
+		return fmt.Errorf("the storage refused it: %w. Check the destination's keys and bucket", err)
+	}
+	return err
 }
 
 // upload is a sealed file in parts, each a whole number of chunks, so a part that
 // has to go again can be made again from its place in the file. It says how long the
 // sealed file is.
 func upload(key string, f io.ReaderAt, size int64, sealer *seal.Sealer) (s3.Upload, int64) {
-	total := seal.Size(size)
+	total := sealer.Size(size)
 	chunks := max((size+seal.ChunkSize-1)/seal.ChunkSize, 1)
 	perPart := s3.PartSize(total, seal.SealedChunk) / seal.SealedChunk
 	count := (chunks + perPart - 1) / perPart
@@ -113,7 +144,7 @@ func upload(key string, f io.ReaderAt, size int64, sealer *seal.Sealer) (s3.Uplo
 		Length: func(i int) int64 {
 			var length int64
 			if i == 0 {
-				length = int64(seal.HeaderSize)
+				length = int64(len(sealer.Header()))
 			}
 			first := int64(i) * perPart
 			for n := first; n < min(first+perPart, chunks); n++ {
@@ -162,21 +193,42 @@ func (p *sealedPart) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-// Fetch brings a backup back from where it was sent, onto this server's disk, and
-// reads it back whole before it counts.
-func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key string, d *Destination) (*Manifest, error) {
+// Fetch brings a backup back from where it was sent, onto this server's disk, once
+// what came back is what the control plane has on record as want: nothing that came
+// from the storage decides that, and nothing here takes the place of a backup this
+// server still has. It's kept under a name of its own until it's checked.
+func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key, want string, d *Destination) (*Manifest, error) {
+	t := volume.TargetOf(ref)
+	release, err := r.hold(t)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	if want == "" {
+		return nil, fmt.Errorf("nothing says what %s should hash to, so it can't be checked. Update the control plane", id)
+	}
+	for _, format := range []string{formatArchive, formatDump} {
+		if _, err := os.Stat(filepath.Join(r.dir(ref), id+"."+format)); err == nil {
+			return nil, fmt.Errorf("this server still has %s, so there's nothing to fetch. Restore it instead", id)
+		}
+	}
 	bucket := d.bucket(r)
+	bound := binding(ref, id)
 	said, err := bucket.Get(ctx, key+".json")
 	if err != nil {
-		return nil, fmt.Errorf("can't read what was kept beside the backup: %w", err)
+		return nil, fmt.Errorf("can't read what was kept beside the backup: %w", refused(err))
 	}
-	var m Manifest
-	err = json.NewDecoder(io.LimitReader(said, 1<<20)).Decode(&m)
+	var plain bytes.Buffer
+	_, err = seal.Open(&plain, io.LimitReader(said, 1<<20), d.Passphrase, bound+manifestBinding)
 	_ = said.Close()
 	if err != nil {
 		return nil, fmt.Errorf("can't read what was kept beside the backup: %w", err)
 	}
-	if m.ID != id || m.Volume != ref.Name || !slices.Contains([]string{formatArchive, formatDump}, m.Format) {
+	var m Manifest
+	if err := json.Unmarshal(plain.Bytes(), &m); err != nil {
+		return nil, fmt.Errorf("can't read what was kept beside the backup: %w", err)
+	}
+	if m.ID != id || m.Volume != ref.Name || m.SHA256 != want || !slices.Contains([]string{formatArchive, formatDump}, m.Format) {
 		return nil, fmt.Errorf("what's stored at %s isn't the backup %s", key, id)
 	}
 	m.Environment = ref.Scope
@@ -185,7 +237,7 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key string, d 
 	}
 	body, err := bucket.Get(ctx, key)
 	if err != nil {
-		return nil, fmt.Errorf("can't read the backup: %w", err)
+		return nil, fmt.Errorf("can't read the backup: %w", refused(err))
 	}
 	defer body.Close()
 	verify := verifyArchive
@@ -196,18 +248,14 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key string, d 
 		}
 		verify = verifyDump(k)
 	}
-	want := m
 	resource.Progress(ctx, "Fetching "+m.Volume)
-	err = r.write(ref, &m, func(w io.Writer) (int64, error) {
-		return m.Changed, seal.Open(w, body, d.Passphrase)
-	}, verify)
+	changed := m.Changed
+	err = r.writeChecked(ref, &m, func(w io.Writer) (int64, error) {
+		_, err := seal.Open(w, body, d.Passphrase, bound)
+		return changed, err
+	}, verify, want)
 	if err != nil {
 		return nil, err
-	}
-	if m.SHA256 != want.SHA256 {
-		_ = os.Remove(filepath.Join(r.dir(ref), m.ID+"."+m.Format))
-		_ = os.Remove(filepath.Join(r.dir(ref), m.ID+".json"))
-		return nil, errors.New("what came back isn't what was sent, so it isn't kept")
 	}
 	return &m, nil
 }

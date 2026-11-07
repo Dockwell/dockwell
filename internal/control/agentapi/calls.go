@@ -1236,16 +1236,26 @@ func (s *Session) BackupPreview(ctx context.Context, volume resource.Ref) (*agen
 // BackupTimeout bounds one backup, which runs for as long as its volume takes.
 const BackupTimeout = 24 * time.Hour
 
-// Backup asks the agent to back up a volume, and waits until it has. Progress
-// comes through ctx (resource.WithProgress). destination is where the backup goes as
-// well, sealed to whichever stream the call goes out on, so it opens on no other.
-func (s *Session) Backup(ctx context.Context, call *agentv1.BackupCall, destination map[string]string) (*agentv1.BackupResult, error) {
-	prepare := s.sealing(call.GetVolume(), destination, func(sealed []byte) { call.Destination = sealed })
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Backup{Backup: call}}, BackupTimeout, prepare)
+// Backup asks the agent to back up a volume, and waits until it has. Progress comes
+// through ctx (resource.WithProgress).
+func (s *Session) Backup(ctx context.Context, call *agentv1.BackupCall) (*agentv1.BackupResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Backup{Backup: call}}, BackupTimeout, nil)
 	if err != nil {
 		return nil, err
 	}
 	return r.GetBackup(), nil
+}
+
+// SendBackup asks the agent to send a backup that's on the disk to its destination,
+// sealed to whichever stream the call goes out on, so it opens on no other. Progress
+// comes through ctx.
+func (s *Session) SendBackup(ctx context.Context, call *agentv1.SendBackupCall, destination map[string]string) (*agentv1.SendBackupResult, error) {
+	prepare := s.sealing(call.GetVolume(), destination, func(sealed []byte) { call.Destination = sealed })
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_SendBackup{SendBackup: call}}, BackupTimeout, prepare)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetSendBackup(), nil
 }
 
 // FetchBackup asks the agent to bring a backup back from where it was sent.
@@ -1259,11 +1269,14 @@ func (s *Session) FetchBackup(ctx context.Context, call *agentv1.FetchBackupCall
 }
 
 // DeleteBackup asks the agent to remove a backup from the disk, and from where it
-// was sent, if destination says.
-func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) error {
+// was sent, if destination says. It says if the destination kept it.
+func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) (*agentv1.DeleteBackupResult, error) {
 	prepare := s.sealing(call.GetVolume(), destination, func(sealed []byte) { call.Destination = sealed })
-	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, ApplyTimeout, prepare)
-	return err
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, ApplyTimeout, prepare)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetDeleteBackup(), nil
 }
 
 // sealing readies a call that carries a destination, for each stream it goes out on.

@@ -9,3 +9,7 @@ ALTER TABLE backups ADD COLUMN copy_key TEXT NOT NULL DEFAULT '';
 ALTER TABLE backups ADD COLUMN copy_bytes BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE backups ADD COLUMN copy_error TEXT NOT NULL DEFAULT '';
 ALTER TABLE backups ADD COLUMN off_server BOOLEAN NOT NULL DEFAULT FALSE;
+-- The destination that sealed it, by ID, which says which passphrase opens it, and why
+-- it last couldn't be fetched back.
+ALTER TABLE backups ADD COLUMN sealed_with TEXT NOT NULL DEFAULT '';
+ALTER TABLE backups ADD COLUMN fetch_error TEXT NOT NULL DEFAULT '';

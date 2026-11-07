@@ -185,7 +185,9 @@ type Backup struct {
 	CopyError string `protobuf:"bytes,21,opt,name=copy_error,json=copyError,proto3" json:"copy_error,omitempty"`
 	// True while its server has it, so it can be restored now. A backup on its
 	// destination alone has to be fetched first.
-	OnServer      bool `protobuf:"varint,22,opt,name=on_server,json=onServer,proto3" json:"on_server,omitempty"`
+	OnServer bool `protobuf:"varint,22,opt,name=on_server,json=onServer,proto3" json:"on_server,omitempty"`
+	// Why it couldn't be fetched back, for people. Empty once it has been.
+	FetchError    string `protobuf:"bytes,23,opt,name=fetch_error,json=fetchError,proto3" json:"fetch_error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -372,6 +374,13 @@ func (x *Backup) GetOnServer() bool {
 		return x.OnServer
 	}
 	return false
+}
+
+func (x *Backup) GetFetchError() string {
+	if x != nil {
+		return x.FetchError
+	}
+	return ""
 }
 
 // BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
@@ -1354,7 +1363,10 @@ func (x *CreateBackupResponse) GetBackup() *Backup {
 type DeleteBackupRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The backup's ID.
-	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Remove it from its server's disk alone, and keep it on its destination, from
+	// where it can be fetched. Without this it goes from both.
+	ServerOnly    bool `protobuf:"varint,2,opt,name=server_only,json=serverOnly,proto3" json:"server_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1394,6 +1406,13 @@ func (x *DeleteBackupRequest) GetId() string {
 		return x.Id
 	}
 	return ""
+}
+
+func (x *DeleteBackupRequest) GetServerOnly() bool {
+	if x != nil {
+		return x.ServerOnly
+	}
+	return false
 }
 
 // DeleteBackupResponse says it's gone.
@@ -1538,7 +1557,7 @@ var File_dockwell_v1_backup_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/backup.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x89\x06\n" +
+	"\x18dockwell/v1/backup.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xaa\x06\n" +
 	"\x06Backup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x16\n" +
@@ -1567,7 +1586,9 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x04copy\x18\x14 \x01(\x0e2\x17.dockwell.v1.BackupCopyR\x04copy\x12\x1d\n" +
 	"\n" +
 	"copy_error\x18\x15 \x01(\tR\tcopyError\x12\x1b\n" +
-	"\ton_server\x18\x16 \x01(\bR\bonServer\"\xfd\x01\n" +
+	"\ton_server\x18\x16 \x01(\bR\bonServer\x12\x1f\n" +
+	"\vfetch_error\x18\x17 \x01(\tR\n" +
+	"fetchError\"\xfd\x01\n" +
 	"\x15BackupDestinationInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -1630,9 +1651,11 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x04stop\x18\x03 \x01(\bR\x04stop\x12 \n" +
 	"\vdestination\x18\x04 \x01(\tR\vdestination\"C\n" +
 	"\x14CreateBackupResponse\x12+\n" +
-	"\x06backup\x18\x01 \x01(\v2\x13.dockwell.v1.BackupR\x06backup\"%\n" +
+	"\x06backup\x18\x01 \x01(\v2\x13.dockwell.v1.BackupR\x06backup\"F\n" +
 	"\x13DeleteBackupRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x16\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
+	"\vserver_only\x18\x02 \x01(\bR\n" +
+	"serverOnly\"\x16\n" +
 	"\x14DeleteBackupResponse\"@\n" +
 	"\x14RestoreBackupRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
