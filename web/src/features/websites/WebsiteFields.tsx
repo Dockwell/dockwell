@@ -100,7 +100,14 @@ export function WebsiteFields({
           }
           onChange={(event) => onChange({ ...s, root: event.target.value })}
         />
-        <FolderNote server={server} root={s.root} index={indexOf(s.index)} />
+        <FolderNote
+          server={server}
+          root={s.root}
+          index={indexOf(s.index)}
+          onOwner={(owner) => {
+            if (owner !== s.owner) onChange({ ...s, owner });
+          }}
+        />
         <TextField
           label={t`Index files`}
           mono
@@ -196,13 +203,24 @@ function useSettled<T>(value: T, ms: number): T {
  * Activity, and a folder that isn't there yet is no one's business but the form's.
  * Reading the disk is a person's, as Files is, so this is too.
  */
-export function FolderNote({ server, root, index }: { server: string; root: string; index: readonly string[] }) {
+export function FolderNote({
+  server,
+  root,
+  index,
+  onOwner,
+}: {
+  server: string;
+  root: string;
+  index: readonly string[];
+  /** Hears who the folder is made for when it isn't there: the folder above's owner, or no one. */
+  onOwner?: (owner: string) => void;
+}) {
   const { t } = useLingui();
   const path = useSettled(root.trim().replace(/\/+$/, ""), READ_AFTER_MS);
   const asked = server !== "" && path.startsWith("/") && path.length > 1 && !/\/\.\.?(\/|$)/.test(path);
   const above = useQuery(
     FileService.method.listFiles,
-    { serverId: server, path: parentOf(path) },
+    { serverId: server, path: parentOf(path), lookup: true },
     { enabled: asked, retry: false, refetchOnWindowFocus: false },
   );
   const there = above.data?.entries.find((e) => e.name === nameOf(path));
@@ -211,12 +229,21 @@ export function FolderNote({ server, root, index }: { server: string; root: stri
     (there.type === FileType.DIRECTORY || (there.type === FileType.SYMLINK && there.linkType === FileType.DIRECTORY));
   const listed = useQuery(
     FileService.method.listFiles,
-    { serverId: server, path },
+    { serverId: server, path, lookup: true },
     { enabled: asked && folder, retry: false, refetchOnWindowFocus: false },
   );
   // The folder above not being there either means the same, as Docker makes both. What
   // else can't be read of it says nothing of this one, so this says nothing.
   const aboveMissing = above.error !== null && reasonOf(above.error) === "not_found";
+  // A folder that isn't there is made as the one above it is owned, so whoever puts
+  // files there now can put the site's there too.
+  const parent = above.data?.directory;
+  const owner = asked && !there && parent ? `${parent.uid}:${parent.gid}` : "";
+  // Only while it isn't there: a folder that's there keeps its owner, whatever's stored.
+  const missing = asked && !above.isPending && (aboveMissing || (above.data !== undefined && !there));
+  useEffect(() => {
+    if (missing) onOwner?.(owner);
+  }, [missing, owner, onOwner]);
   if (!asked || above.isPending || (above.error && !aboveMissing)) return null;
   const files = (
     <Link to="/servers/$serverId/files" params={{ serverId: server }} search={{ path }}>
@@ -224,12 +251,22 @@ export function FolderNote({ server, root, index }: { server: string; root: stri
     </Link>
   );
   if (aboveMissing || !there) {
+    const up = parentOf(path);
     return (
       <Callout tone="info" className="website-folder-note">
-        <Trans>
-          Nothing is at <code>{path}</code> yet. Docker makes the folder, empty and owned by root, as the plan applies.
-          Put the site's files in it with scp or rsync, as Files edits files that are there.
-        </Trans>
+        {owner ? (
+          <Trans>
+            Nothing is at <code>{path}</code> yet. Dockwell makes it as the plan applies, owned by{" "}
+            <code>{parent?.owner || owner}</code> as <code>{up}</code> is, so put the site's files in it as that user,
+            with scp or rsync.
+          </Trans>
+        ) : (
+          <Trans>
+            Nothing is at <code>{path}</code> or <code>{up}</code> yet, so the folder would be made root's, and no one
+            else could put the site's files in it. Make it first, as yours, with{" "}
+            <code>sudo install -d -o $(id -u) -g $(id -g) {path}</code>.
+          </Trans>
+        )}
       </Callout>
     );
   }
@@ -251,6 +288,17 @@ export function FolderNote({ server, root, index }: { server: string; root: stri
     );
   }
   const { entries, directory } = listed.data;
+  // Files in a folder run no script, and hide them, so a PHP site's folder answers 404 for them.
+  if (entries.some((e) => e.name === "index.php" && e.type === FileType.FILE)) {
+    return (
+      <Callout tone="warning" className="website-folder-note">
+        <Trans>
+          <code>{path}</code> holds <code>index.php</code>. Files in a folder run no script, and hide every one, as its
+          source can hold passwords, so those addresses answer 404.
+        </Trans>
+      </Callout>
+    );
+  }
   const names = index.length > 0 ? index : ["index.html", "index.htm"];
   const found = names.find((name) => entries.some((e) => e.name === name && e.type === FileType.FILE));
   const mode = directory?.mode ?? "";

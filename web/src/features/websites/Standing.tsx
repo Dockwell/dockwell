@@ -99,7 +99,8 @@ export function SiteStanding({
 }) {
   const { t } = useLingui();
   const unreachable = useUnreachable(row.site);
-  const checked = !!row.site.reach;
+  // A folder or PHP sends nowhere, so what its web server says is all there is to check.
+  const checked = !!row.site.reach || row.site.spec?.serves.case !== "proxy";
   if (row.service || row.site.serviceId) {
     return (
       <ServiceStanding

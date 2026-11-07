@@ -18,6 +18,11 @@ export interface Settings {
   /** Its index files, separated by spaces, as they're typed. */
   index: string;
   singlePageApp: boolean;
+  /**
+   * Who owns the folder Dockwell makes when it isn't there, as "uid:gid": the folder
+   * above's owner, as the form finds it. Empty leaves it to Docker, which makes it root's.
+   */
+  owner: string;
 }
 
 export const BLANK: Settings = {
@@ -28,6 +33,7 @@ export const BLANK: Settings = {
   root: "",
   index: "",
   singlePageApp: false,
+  owner: "",
 };
 
 /** The index files a form's words name, in order. */
@@ -49,8 +55,8 @@ export function settingsOf(spec: Website | undefined): Settings {
       };
     }
     case "folder": {
-      const { root, index, singlePageApp } = spec.serves.value;
-      return { ...BLANK, serves: "folder", root, index: index.join(" "), singlePageApp };
+      const { root, index, singlePageApp, owner } = spec.serves.value;
+      return { ...BLANK, serves: "folder", root, index: index.join(" "), singlePageApp, owner };
     }
     default:
       return BLANK;
@@ -64,7 +70,7 @@ export function specOf(s: Settings): MessageInitShape<typeof WebsiteSchema> {
       return {
         serves: {
           case: "folder",
-          value: { root: s.root.trim(), index: indexOf(s.index), singlePageApp: s.singlePageApp },
+          value: { root: s.root.trim(), index: indexOf(s.index), singlePageApp: s.singlePageApp, owner: s.owner },
         },
       };
     case "port":

@@ -90,7 +90,11 @@ function disk(folders: Record<string, { mode: string; entries: ReturnType<typeof
     if (children.length > 0 || req.path === "/srv") {
       return {
         path: req.path,
-        directory: { mode: "drwxr-xr-x", type: FileType.DIRECTORY },
+        // /srv is a person's, so a folder made in it is theirs.
+        directory:
+          req.path === "/srv"
+            ? { mode: "drwxr-xr-x", type: FileType.DIRECTORY, owner: "mira", uid: 1000, gid: 1000 }
+            : { mode: "drwxr-xr-x", type: FileType.DIRECTORY },
         entries: children.map(([path, f]) => entry(path.slice(path.lastIndexOf("/") + 1), f.mode, FileType.DIRECTORY)),
       };
     }
@@ -506,6 +510,54 @@ describe("A website that serves a folder", () => {
     expect(read).toContain("/srv/site");
     // A folder that isn't there is seen from the folder above, as asking for it would go on Activity as refused.
     expect(read).not.toContain("/var/www/shop.example.com");
+  });
+
+  it("makes a folder that isn't there as the folder above's owner, and says so", async () => {
+    const user = userEvent.setup();
+    let asked: CreateWebsiteRequest | undefined;
+    renderAt(
+      "/websites/new",
+      api([], {
+        websites: {
+          createWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        files: { listFiles: disk({ "/srv/site": { mode: "drwxr-xr-x", entries: [entry("index.html")] } }) },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByLabelText("Domain"), "docs.example.com");
+    // Nothing is above it either, so it'd be root's: the note says how to make it first.
+    expect(await within(sheet).findByText(/sudo install -d -o/, {}, { timeout: 3_000 })).toBeVisible();
+    await user.clear(within(sheet).getByLabelText("Folder"));
+    await user.type(within(sheet).getByLabelText("Folder"), "/srv/new");
+    expect(await within(sheet).findByText(/owned by/, {}, { timeout: 3_000 })).toHaveTextContent(
+      "Dockwell makes it as the plan applies, owned by mira as /srv is",
+    );
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.website?.serves).toEqual({
+      case: "folder",
+      value: expect.objectContaining({ root: "/srv/new", owner: "1000:1000" }),
+    });
+  });
+
+  it("says a PHP site's folder runs no script as files in a folder", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/websites/new",
+      api([], {
+        files: {
+          listFiles: disk({ "/srv/wp": { mode: "drwxr-xr-x", entries: [entry("index.php"), entry("wp-config.php")] } }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByLabelText("Folder"), "/srv/wp");
+    expect(await within(sheet).findByText(/Files in a folder run no script/, {}, { timeout: 3_000 })).toBeVisible();
   });
 
   it("says when the web server can't read the folder, or there's no index in it", async () => {
