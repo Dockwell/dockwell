@@ -423,6 +423,11 @@
   color: var(--tone);
 }
 
+/* Healthy stays quiet, as M-Apps has it: only what needs a look, or is moving, takes its colour. */
+.apps-phone-word.dw-tone-healthy {
+  color: var(--ink-muted);
+}
+
 .apps-phone-rev {
   flex: none;
   font-size: 12px;
