@@ -452,6 +452,9 @@ type RestorePlan struct {
 	// one that would read them, set when those are different releases.
 	WrittenBy string `json:",omitempty"`
 	RunsOn    string `json:",omitempty"`
+	// Reached is what the backup's volume reached when it was taken that's as good
+	// as root. Its agent says, and that can only make a plan louder.
+	Reached []string `json:",omitempty"`
 }
 
 // BackupFirst is a backup a change takes before anything else it does.
@@ -601,6 +604,16 @@ type Access struct {
 	// it, when that is somewhere else. For a network Dockwell didn't make, it is
 	// the driver the agent reads, when that isn't Docker's bridge.
 	LeadsTo string `json:",omitempty"`
+	// Holds is another mount's source inside Path, a read-write server path. What
+	// writes Path can turn it into a link to anywhere on the server, which what mounts
+	// it follows the next time it starts, so this is as good as root. HoldsFor names
+	// what mounts it, empty where that's the same resource.
+	Holds    string `json:",omitempty"`
+	HoldsFor string `json:",omitempty"`
+	// HeldIn is a read-write server path that holds Path, and HeldBy what can write
+	// it, which can make Path lead anywhere: the other side of Holds.
+	HeldIn string `json:",omitempty"`
+	HeldBy string `json:",omitempty"`
 }
 
 // Leading is a with where its path leads on the server, as an agent says. An
@@ -630,7 +643,7 @@ func (a Access) Leading(to string) Access {
 // needs a signed-in person; only this asks them for more than a click, as a
 // warning that comes with every folder is a warning nobody reads (ADR 0028).
 func (a Access) AsGoodAsRoot() bool {
-	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork ||
+	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf ||
 		a.Kind == AccessNetworkDriver && a.Driver == "host"
 }
 
@@ -697,6 +710,9 @@ const (
 	// environment comes in with it, and a token mustn't be able to bring in what it
 	// couldn't read (ADR 0031).
 	AccessTakesOn
+	// AccessBackupOf is a backup of a volume that reached Path, as good as root,
+	// coming back into one that doesn't. What it holds can be read from there.
+	AccessBackupOf
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -749,6 +765,18 @@ func AccessWords(a Access) string {
 		root := ""
 		if a.SameAsRoot {
 			root = ", which is as good as root"
+		}
+		if a.Holds != "" {
+			mounts := "which it mounts as well"
+			if a.HoldsFor != "" {
+				mounts = "which " + plain(a.HoldsFor) + " mounts"
+			}
+			return "the server path " + plain(a.Path) + ", which holds " + plain(a.Holds) + ", " + mounts +
+				", so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"
+		}
+		if a.HeldBy != "" {
+			return "the server path " + plain(a.Path) + ", inside " + plain(a.HeldIn) + ", which " + plain(a.HeldBy) +
+				" can write, so it can make that lead anywhere, as good as root. Any change to " + plain(a.HeldBy) + " but another tag asks for a passkey from now on"
 		}
 		if a.LeadsTo != "" {
 			return "the server path " + plain(a.Path) + ", which leads to " + plain(a.LeadsTo) + " (" + how + ")" + root
@@ -847,6 +875,8 @@ func AccessWords(a Access) string {
 		return "plain HTTP on " + plain(a.Path) + " for anyone who can reach this server, around whatever is in front of it"
 	case AccessHTTPSOff:
 		return "HTTPS on " + plain(a.Path) + ", which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
+	case AccessBackupOf:
+		return "a backup of a volume that reached " + plain(a.Path) + ", which can hold what's there, as good as root"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }

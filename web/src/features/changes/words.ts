@@ -302,6 +302,17 @@ export function useChangeWords(): ChangeWords {
         const reads = access.readOnly ? t`read-only` : t`read-write`;
         switch (access.kind) {
           case HostAccessKind.SERVER_PATH: {
+            const [held, holdsFor, heldIn, heldBy] = [access.holds, access.holdsFor, access.heldIn, access.heldBy].map(
+              plain,
+            );
+            if (held !== "") {
+              return holdsFor !== ""
+                ? t`the server path ${path}, which holds ${held}, which ${holdsFor} mounts, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on`
+                : t`the server path ${path}, which holds ${held}, which it mounts as well, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on`;
+            }
+            if (heldBy !== "") {
+              return t`the server path ${path}, inside ${heldIn}, which ${heldBy} can write, so it can make that lead anywhere, as good as root. Any change to ${heldBy} but another tag asks for a passkey from now on`;
+            }
             let how = reads;
             if (access.relabel === "z") how = t`${reads}, relabelled for SELinux as shared`;
             if (access.relabel === "Z") how = t`${reads}, relabelled for SELinux as private`;
@@ -344,6 +355,8 @@ export function useChangeWords(): ChangeWords {
               : t`the network ${path}, which is on the server already, where it answers to its name and to ${detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them`;
           case HostAccessKind.EXTERNAL_VOLUME:
             return t`the volume ${path}, which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds`;
+          case HostAccessKind.BACKUP_OF:
+            return t`a backup of a volume that reached ${path}, which can hold what's there, as good as root`;
           case HostAccessKind.TAKES_ON:
             return t`the container ${path}, which Dockwell didn't make, and its environment, which comes in with it`;
           case HostAccessKind.CAPABILITY:

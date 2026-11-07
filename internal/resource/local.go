@@ -149,6 +149,13 @@ type PathFollower interface {
 	Leads(ctx context.Context, ref Ref, desired proto.Message) (map[string]string, error)
 }
 
+// Surveyor is a driver that can say where every server path on its server leads, and
+// the folder each is in, as a plan works out what's inside what, and the same folder
+// can be written two ways.
+type Surveyor interface {
+	Survey(ctx context.Context, paths []string) (map[string]string, error)
+}
+
 // PathMover is a PathFollower that can say which of a resource's server paths
 // don't lead where they did when what runs now was made.
 type PathMover interface {
@@ -285,7 +292,11 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			if err != nil {
 				return nil, fmt.Errorf("can't take on %s: %w", want.Ref.Name, err)
 			}
-			steps = append(steps, Step{Ref: want.Ref, Decision: dec, Changes: Diff(nil, spec)})
+			step := Step{Ref: want.Ref, Decision: dec, Changes: Diff(nil, spec)}
+			if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
+				return nil, err
+			}
+			steps = append(steps, step)
 			continue
 		}
 		actual, err := Observe(ctx, d, want.Ref)
@@ -314,10 +325,8 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			if left {
 				step.Decision = dec
 				// A restore writes wherever a path leads now.
-				if f, ok := d.(PathFollower); ok && spec != nil {
-					if step.Leads, err = f.Leads(ctx, want.Ref, spec); err != nil {
-						return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
-					}
+				if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
+					return nil, err
 				}
 			}
 			steps = append(steps, step)
@@ -386,12 +395,12 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		}
 		// Nothing is mounted for a step with nothing to do, and a dead path on what's
 		// left as it is shouldn't refuse a plan for something else.
-		if f, ok := d.(PathFollower); ok && spec != nil && step.Action != ActionNone {
-			if step.Leads, err = f.Leads(ctx, want.Ref, spec); err != nil {
-				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+		if step.Action != ActionNone {
+			if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
+				return nil, err
 			}
 			step.PlannedLeads = step.Leads
-			if m, ok := d.(PathMover); ok {
+			if m, ok := d.(PathMover); ok && spec != nil {
 				if step.LeadsMoved, err = m.LeadsMoved(ctx, want.Ref, spec); err != nil {
 					return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 				}
@@ -409,7 +418,76 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		}
 		steps = append(steps, step)
 	}
+	if err := l.survey(ctx, desired, steps); err != nil {
+		return nil, err
+	}
 	return steps, nil
+}
+
+// survey adds where every server path on this server leads to each step that mounts
+// one, for the control plane to work out what's inside what. An agent's word on that
+// can only make a plan louder.
+func (l Local) survey(ctx context.Context, desired []Desired, steps []Step) error {
+	var s Surveyor
+	var paths []string
+	var mounting []int
+	for i := range desired {
+		d, err := l.Drivers.Driver(desired[i].Ref.Kind)
+		if err != nil || desired[i].Spec == nil {
+			continue
+		}
+		h, ok := d.(HostAccesser)
+		if !ok {
+			continue
+		}
+		mounts := false
+		access := h.HostAccess(desired[i].Spec)
+		for j := range access {
+			if access[j].Kind == AccessPath || access[j].Kind == AccessDocker {
+				paths, mounts = append(paths, access[j].Path), true
+			}
+		}
+		if !mounts {
+			continue
+		}
+		mounting = append(mounting, i)
+		if sv, ok := d.(Surveyor); ok && s == nil {
+			s = sv
+		}
+	}
+	if s == nil {
+		return nil
+	}
+	all, err := s.Survey(ctx, paths)
+	if err != nil {
+		return fmt.Errorf("can't read where this server's paths lead: %w", err)
+	}
+	for _, i := range mounting {
+		for p, to := range all {
+			if _, ok := steps[i].Leads[p]; ok {
+				continue
+			}
+			if steps[i].Leads == nil {
+				steps[i].Leads = map[string]string{}
+			}
+			steps[i].Leads[p] = to
+		}
+	}
+	return nil
+}
+
+// leadsOf says where the server paths a spec mounts lead, for a kind that follows
+// them. A plan answers for that, so every step that mounts or writes anything asks.
+func leadsOf(ctx context.Context, d Driver, ref Ref, spec proto.Message) (map[string]string, error) {
+	f, ok := d.(PathFollower)
+	if !ok || spec == nil {
+		return nil, nil
+	}
+	leads, err := f.Leads(ctx, ref, spec)
+	if err != nil {
+		return nil, fmt.Errorf("can't plan %s: %w", ref, err)
+	}
+	return leads, nil
 }
 
 // normalize checks a desired spec with its driver, and returns the

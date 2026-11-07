@@ -528,10 +528,12 @@ func TestEveryAccessKindHasWords(t *testing.T) {
 // of it: that it is, and where a symlink leads, as it does of an ordinary folder.
 func TestTheCLISaysWhatIsAsGoodAsRootAndWhereAPathLeads(t *testing.T) {
 	for want, a := range map[string]*dockwellv1.HostAccess{
-		"the server path /etc (read-write), which is as good as root":                                                                               {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/etc", SameAsRoot: true},
-		"the server path /srv/conf, which leads to /etc (read-only), which is as good as root":                                                      {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/conf", ReadOnly: true, LeadsTo: "/etc", SameAsRoot: true},
-		"the server path /srv/current, which leads to /srv/9 (read-write)":                                                                          {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/current", LeadsTo: "/srv/9"},
-		"the server path /srv/site (read-only)":                                                                                                     {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/site", ReadOnly: true},
+		"the server path /etc (read-write), which is as good as root":                          {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/etc", SameAsRoot: true},
+		"the server path /srv/conf, which leads to /etc (read-only), which is as good as root": {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/conf", ReadOnly: true, LeadsTo: "/etc", SameAsRoot: true},
+		"the server path /srv, which holds /srv/app/conf, which api mounts, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on": {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv", Holds: "/srv/app/conf", HoldsFor: "api", SameAsRoot: true},
+		"the server path /srv/app/conf, inside /srv, which files can write, so it can make that lead anywhere, as good as root. Any change to files but another tag asks for a passkey from now on":             {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/app/conf", HeldIn: "/srv", HeldBy: "files", SameAsRoot: true},
+		"the server path /srv/current, which leads to /srv/9 (read-write)": {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/current", LeadsTo: "/srv/9"},
+		"the server path /srv/site (read-only)":                            {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: "/srv/site", ReadOnly: true},
 		"the server path /srv/s, which leads to Docker's socket at /run/docker.sock, which gives control of Docker on the server, the same as root": {Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET, Path: "/srv/s", LeadsTo: "/run/docker.sock", SameAsRoot: true},
 	} {
 		if got := accessWords([]*dockwellv1.HostAccess{a})[0]; got != want {

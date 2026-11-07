@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -237,6 +238,198 @@ func TestANewImageOnWhatIsAsGoodAsRootNeedsAPerson(t *testing.T) {
 			t.Errorf("a change of the same image needs a person: %+v", p.Resources)
 		}
 	})
+}
+
+// A mount that can write the folder another's source is in can turn that source into a
+// link, and Docker follows it when what mounts it restarts by itself, where no agent is
+// asked. So the mount that can do that counts as root, however the two came to be on
+// one server, in either order, in one service or two, and a volume's path counts too.
+// What reads, or sits beside rather than inside, or is on another server, doesn't.
+func TestAMountThatCanMoveAnothersSourceIsAsGoodAsRoot(t *testing.T) {
+	bind := func(p string) *resourcev1.Mount {
+		return &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/m" + strings.ReplaceAll(p, "/", "-")}
+	}
+	readOnly := func(p string) *resourcev1.Mount {
+		m := bind(p)
+		m.ReadOnly = true
+		return m
+	}
+	for name, tt := range map[string]struct {
+		first, then []*resourcev1.Mount
+		root        bool
+	}{
+		"a folder, then what can write around it": {first: []*resourcev1.Mount{bind("/srv/app/conf")}, then: []*resourcev1.Mount{bind("/srv")}, root: true},
+		"what can write, then a folder inside it": {first: []*resourcev1.Mount{bind("/srv")}, then: []*resourcev1.Mount{bind("/srv/app/conf")}, root: true},
+		"a read-only source still moves":          {first: []*resourcev1.Mount{bind("/srv")}, then: []*resourcev1.Mount{readOnly("/srv/app/conf")}, root: true},
+		"a holder that only reads":                {first: []*resourcev1.Mount{readOnly("/srv")}, then: []*resourcev1.Mount{bind("/srv/app/conf")}},
+		"the same folder":                         {first: []*resourcev1.Mount{bind("/srv/app")}, then: []*resourcev1.Mount{bind("/srv/app")}},
+		"folders side by side":                    {first: []*resourcev1.Mount{bind("/srv/app")}, then: []*resourcev1.Mount{bind("/srv/application")}},
+		"a volume, which is nobody's path":        {first: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data"}}, then: []*resourcev1.Mount{bind("/srv")}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e, _, db := setupDocker(t, store.SQLite, "srv_A")
+			env := production(t, db)
+			edit := func(name string, mounts []*resourcev1.Mount) Edit {
+				return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: name}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27", Mounts: mounts}}}}
+			}
+			apply(t, e, propose(t, e, "The first", Edit{Ref: resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}, Spec: &resourcev1.Volume{}, Servers: []string{"srv_A"}}, edit("first", tt.first)))
+			plan := propose(t, e, "The other", edit("other", tt.then))
+			if got := plan.AsGoodAsRoot(); got != tt.root {
+				t.Fatalf("as good as root = %v, want %v: %+v", got, tt.root, plan.Resources)
+			}
+			if !tt.root {
+				return
+			}
+			// Each side names the other: the plan is for what was added, whichever side.
+			named := slices.ContainsFunc(plan.Resources[0].HostAccess, func(a resource.Access) bool {
+				return a.HoldsFor == "first" || a.HeldBy == "first"
+			})
+			if !named {
+				t.Errorf("the plan doesn't name the other side: %+v", plan.Resources)
+			}
+			// Once it's so, it stays so without asking again, for what it doesn't touch.
+			apply(t, e, plan)
+			again := propose(t, e, "A limit", Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "other"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27", Mounts: tt.then, Resources: &resourcev1.Resources{Memory: "512M"}}}}})
+			if again.AsGoodAsRoot() {
+				t.Errorf("a limit on it asks: %+v", again.Resources)
+			}
+		})
+	}
+}
+
+// Each side of a hold is told who can move what. What comes to mount a source inside
+// another's folder hears it's the other that can move it, and that the other asks from
+// now on; what comes to hold it hears what it holds, and for whom.
+func TestBothSidesOfAHoldNameTheOther(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A")
+	env := production(t, db)
+	serve := func(name, p string) Edit {
+		return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: name}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/m"}},
+		}}}}
+	}
+	apply(t, e, propose(t, e, "Files", serve("files", "/srv")))
+	held := propose(t, e, "API", serve("api", "/srv/app/conf"))
+	want := resource.Access{Kind: resource.AccessPath, Path: "/srv/app/conf", HeldIn: "/srv", HeldBy: "files", SameAsRoot: true}
+	if got := held.Resources[0].HostAccess; !slices.Contains(got, want) {
+		t.Errorf("what's held says %+v, want %+v", got, want)
+	}
+	if err := e.Discard(t.Context(), held.Change, By{Actor: "usr_test"}); err != nil {
+		t.Fatal(err)
+	}
+
+	e, _, db = setupDocker(t, store.SQLite, "srv_A")
+	env = production(t, db)
+	serve = func(name, p string) Edit {
+		return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: name}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/m"}},
+		}}}}
+	}
+	apply(t, e, propose(t, e, "API", serve("api", "/srv/app/conf")))
+	holder := propose(t, e, "Files", serve("files", "/srv"))
+	want = resource.Access{Kind: resource.AccessPath, Path: "/srv", Holds: "/srv/app/conf", HoldsFor: "api", SameAsRoot: true}
+	if got := holder.Resources[0].HostAccess; !slices.Contains(got, want) {
+		t.Errorf("what holds says %+v, want %+v", got, want)
+	}
+}
+
+// What's held that's as good as root already gains nothing by being moved, so a mount
+// that can move its source doesn't count as root for that. One with Docker's socket
+// asks for any change of code anyway.
+func TestWhatsRootAlreadyIsNoHold(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A")
+	env := production(t, db)
+	apply(t, e, propose(t, e, "Ops", Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "ops"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Mounts: []*resourcev1.Mount{
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/ops/conf"}, Target: "/conf"},
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/var/run/docker.sock"}, Target: "/var/run/docker.sock"},
+		},
+	}}}}))
+	p := propose(t, e, "Files", Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "files"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/srv"}, Target: "/srv"}},
+	}}}})
+	if p.AsGoodAsRoot() {
+		t.Errorf("holding what's root already counts: %+v", p.Resources)
+	}
+}
+
+// One service can do it to itself: a folder and a folder inside it, then a restart.
+func TestOneServiceCanMoveItsOwnSource(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A")
+	env := production(t, db)
+	plan := propose(t, e, "Both", Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "web"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Mounts: []*resourcev1.Mount{
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/site"}, Target: "/site"},
+			{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/site/app.conf"}, Target: "/etc/app.conf", ReadOnly: true},
+		},
+	}}}})
+	if !plan.AsGoodAsRoot() {
+		t.Errorf("it asks nothing more: %+v", plan.Resources)
+	}
+}
+
+// What can move another's source is what #190's token would need: new code in it now
+// asks for a person, as new code in anything as good as root does. Another tag doesn't,
+// and neither does new code in what it could move, which is out of the token's reach
+// while the other's code is.
+func TestWhatCanMoveAnothersSourceKeepsAskingForNewCode(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A")
+	env := production(t, db)
+	app := func(image string, command []string, p string) *resourcev1.Service {
+		return &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: image, Command: command, Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/m"}},
+		}}}
+	}
+	ref := func(name string) resource.Ref { return resource.Ref{Kind: service.Kind, Scope: env, Name: name} }
+	apply(t, e, propose(t, e, "Both", Edit{Ref: ref("holder"), Spec: app("nginx:1.27", nil, "/srv")}, Edit{Ref: ref("held"), Spec: app("nginx:1.27", nil, "/srv/app/conf")}))
+
+	if p := propose(t, e, "New code", Edit{Ref: ref("holder"), Spec: app("nginx:1.27", []string{"sh"}, "/srv")}); !p.AsGoodAsRoot() {
+		t.Errorf("new code in what can move a source asks nothing: %+v", p.Resources)
+	} else if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
+		t.Fatal(err)
+	}
+	if p := propose(t, e, "Another tag", Edit{Ref: ref("holder"), Spec: app("nginx:1.28", nil, "/srv")}); p.AsGoodAsRoot() {
+		t.Errorf("another tag asks: %+v", p.Resources)
+	} else if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
+		t.Fatal(err)
+	}
+	if p := propose(t, e, "New code in what's moved", Edit{Ref: ref("held"), Spec: app("nginx:1.27", []string{"sh"}, "/srv/app/conf")}); p.AsGoodAsRoot() {
+		t.Errorf("new code in what can be moved asks: %+v", p.Resources)
+	}
+}
+
+// Servers have paths of their own, so a mount on one holds nothing on another.
+func TestAMountOnAnotherServerHoldsNothing(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A", "srv_B")
+	env := production(t, db)
+	edit := func(name, server, p string) Edit {
+		return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: name}, Servers: []string{server}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/m"}},
+		}}}}
+	}
+	apply(t, e, propose(t, e, "On A", edit("held", "srv_A", "/srv/app/conf")))
+	if p := propose(t, e, "On B", edit("holder", "srv_B", "/srv")); p.AsGoodAsRoot() {
+		t.Errorf("a mount on another server holds it: %+v", p.Resources)
+	}
+}
+
+// A volume's server path counts as a mount's does, on either side.
+func TestAVolumeCanHoldAnothersSource(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A")
+	env := production(t, db)
+	nas := resource.Ref{Kind: volume.Kind, Scope: env, Name: "nas"}
+	serve := func(name string, mount *resourcev1.Mount) Edit {
+		return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: name}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "nginx:1.27", Mounts: []*resourcev1.Mount{mount},
+		}}}}
+	}
+	apply(t, e, propose(t, e, "Share",
+		Edit{Ref: nas, Spec: &resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": "/srv"}}, Servers: []string{"srv_A"}},
+		serve("reader", &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/app/conf"}, Target: "/conf"})))
+	p := propose(t, e, "Write the share", serve("writer", &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: "nas"}, Target: "/nas"}))
+	if !p.AsGoodAsRoot() {
+		t.Errorf("a volume that comes to hold a source asks nothing: %+v", p.Resources)
+	}
 }
 
 func TestAServiceReachesWhatItsVolumesAndNetworksDo(t *testing.T) {

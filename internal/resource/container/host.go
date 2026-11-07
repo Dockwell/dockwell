@@ -3,6 +3,7 @@
 package container
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -324,6 +325,9 @@ func (d *Docker) Leads(ctx context.Context, t Target, spec *resourcev1.Container
 	if err != nil {
 		return nil, err
 	}
+	if len(paths) == 0 {
+		paths = nil
+	}
 	drivers, err := d.networkDrivers(ctx, t, spec)
 	if err != nil {
 		return nil, err
@@ -367,8 +371,9 @@ func (d *Docker) networkDrivers(ctx context.Context, t Target, spec *resourcev1.
 }
 
 // LeadsMoved says which of the server paths a spec mounts don't lead where they did
-// when what runs now was made, as its label says. One with no label was made before
-// that was kept, so all that's known is that nobody approved where it leads now.
+// when what runs now was made, as its label says. One with no label is older than
+// labels, so all that can be said is whether a path gives more now than it reads as,
+// or what was taken on or made before would ask on every plan.
 func (d *Docker) LeadsMoved(ctx context.Context, t Target, spec *resourcev1.Container) ([]string, error) {
 	leads, err := d.pathLeads(ctx, t, spec)
 	if err != nil || len(leads) == 0 {
@@ -378,15 +383,16 @@ func (d *Docker) LeadsMoved(ctx context.Context, t Target, spec *resourcev1.Cont
 	if err != nil || len(all) == 0 {
 		return nil, err // nothing runs, so a plan counts all it reaches anyway
 	}
+	label, known := all[0].Config.Labels[LabelLeads]
 	var was map[string]string
-	if label := all[0].Config.Labels[LabelLeads]; label != "" {
+	if known {
 		if err := json.Unmarshal([]byte(label), &was); err != nil {
 			return nil, fmt.Errorf("can't read where %s's paths led: %w", all[0].name(), err)
 		}
 	}
 	var moved []string
 	for _, p := range slices.Sorted(maps.Keys(leads)) {
-		if was[p] != leads[p] {
+		if known && was[p] != leads[p] || !known && givesMore(p, leads[p], false) {
 			moved = append(moved, p)
 		}
 	}
@@ -395,15 +401,17 @@ func (d *Docker) LeadsMoved(ctx context.Context, t Target, spec *resourcev1.Cont
 
 // leadsAsPlanned checks the server paths a container is about to mount lead where
 // its plan said, as a link can change between the two and Docker follows what it
-// finds, and says what to keep on the container.
-func (d *Docker) leadsAsPlanned(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) (string, error) {
+// finds, and says what to keep on the container: nothing where it has no server
+// paths, and a record that none leads elsewhere where that's so, as no record at all
+// says only that it's older than records. stopped says what came of a refusal.
+func (d *Docker) leadsAsPlanned(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, stopped string) (string, error) {
 	leads, err := d.pathLeads(ctx, t, spec)
-	if err != nil || len(leads) == 0 {
+	if err != nil || leads == nil {
 		return "", err
 	}
 	for _, p := range slices.Sorted(maps.Keys(leads)) {
 		if dec.PlannedLeads[p] != leads[p] {
-			return "", fmt.Errorf("the server path %s leads to %s now, which isn't what this plan was approved for, so nothing was made. Plan the change again to see what it reaches", p, leads[p])
+			return "", &pathNotPlanned{path: p, to: leads[p], stopped: stopped}
 		}
 	}
 	label, err := json.Marshal(leads)
@@ -413,7 +421,15 @@ func (d *Docker) leadsAsPlanned(ctx context.Context, t Target, spec *resourcev1.
 	return string(label), nil
 }
 
-// pathLeads says where the server paths a container mounts lead on this server.
+// pathNotPlanned is a server path that leads somewhere its plan wasn't approved for.
+type pathNotPlanned struct{ path, to, stopped string }
+
+func (e *pathNotPlanned) Error() string {
+	return fmt.Sprintf("the server path %s leads to %s now, which isn't what this plan was approved for, so %s. Plan the change again to see what it reaches", e.path, e.to, e.stopped)
+}
+
+// pathLeads says where the server paths a container mounts lead on this server, for
+// those that lead elsewhere: empty where none does, and nil where it mounts none.
 func (d *Docker) pathLeads(ctx context.Context, t Target, spec *resourcev1.Container) (map[string]string, error) {
 	if d.Paths == nil || len(spec.GetMounts()) == 0 {
 		return nil, nil
@@ -438,6 +454,9 @@ func (d *Docker) pathLeads(ctx context.Context, t Target, spec *resourcev1.Conta
 		if dev, ok := BindDevice(v.Driver, v.Options); ok {
 			paths = append(paths, dev)
 		}
+	}
+	if len(paths) == 0 {
+		return nil, nil
 	}
 	return h.Leads(paths...)
 }
@@ -580,6 +599,205 @@ type Paths struct {
 	Client *docker.Client
 	// DataDir is the agent's data directory.
 	DataDir string
+}
+
+// LeadsAsMade checks where the server paths c mounts lead, before something starts
+// it: a rollback's way back, or what stopped it for a backup. Docker follows what it
+// finds, so a folder that became a link since would hand c what the link leads to,
+// and a token can have a backup stop and start it at will. It goes by c's record, and
+// by planned, where a person approved paths for the step at hand.
+//
+// Where one has moved, c is kept from starting by itself too, as a daemon restart or
+// a reboot would follow the link with nobody asked. A plan that remakes it puts its
+// restart policy back.
+func (p *Paths) LeadsAsMade(ctx context.Context, c *docker.Container, planned map[string]string) error {
+	moved, err := p.movedSince(ctx, c, planned)
+	if err != nil || moved == nil {
+		return err
+	}
+	return p.holdDown(ctx, c.ID, moved)
+}
+
+// holdDown keeps a container that a moved path stopped from starting by itself, and
+// returns why, which is what the caller says.
+func (p *Paths) holdDown(ctx context.Context, containerID string, why error) error {
+	if err := p.Client.UpdateContainer(ctx, containerID, docker.ContainerUpdate{RestartPolicy: docker.RestartPolicy{Name: "no"}}); err != nil && !docker.IsNotFound(err) {
+		return fmt.Errorf("%w. Docker wouldn't stop it starting by itself, after a restart of the server: %w", why, err)
+	}
+	return why
+}
+
+// movedSince is a server path c mounts that leads somewhere nobody approved for it:
+// not where its record says, nor where planned says. With no record c is older than
+// records, so all that can be said is whether a path gives more now than it reads
+// as: refusing any link would keep /var/run/docker.sock down wherever /var/run is one.
+func (p *Paths) movedSince(ctx context.Context, c *docker.Container, planned map[string]string) (*PathMovedError, error) {
+	if p == nil {
+		return nil, nil
+	}
+	var paths []string
+	readOnly := map[string]bool{}
+	for _, m := range c.Mounts {
+		source := m.Source
+		switch m.Type {
+		case "bind":
+		case "volume":
+			v, err := p.Client.InspectVolume(ctx, m.Name)
+			switch {
+			case docker.IsNotFound(err):
+				continue
+			case err != nil:
+				return nil, err
+			}
+			dev, ok := BindDevice(v.Driver, v.Options)
+			if !ok {
+				continue
+			}
+			source = dev
+		default:
+			continue
+		}
+		paths = append(paths, source)
+		readOnly[path.Clean(source)] = !m.RW
+	}
+	now, err := p.Follow(ctx, paths...)
+	if err != nil {
+		return nil, err
+	}
+	label, known := c.Config.Labels[LabelLeads]
+	var was map[string]string
+	if known {
+		if err := json.Unmarshal([]byte(label), &was); err != nil {
+			return nil, fmt.Errorf("can't read where %s's paths led: %w", strings.TrimPrefix(c.Name, "/"), err)
+		}
+	}
+	for _, at := range slices.Sorted(maps.Keys(now)) {
+		switch {
+		case planned[at] == now[at]:
+		case known && was[at] == now[at]:
+		case !known && !givesMore(at, now[at], readOnly[at]):
+		default:
+			return &PathMovedError{Path: at, To: now[at], Name: cmp.Or(c.Config.Labels[docker.LabelService], strings.TrimPrefix(c.Name, "/"))}, nil
+		}
+	}
+	return nil, nil
+}
+
+// givesMore says a path with no record of where it led gives more now than it reads
+// as, which is all that can be said of it.
+func givesMore(at, to string, readOnly bool) bool {
+	a := PathAccess(at, readOnly)
+	return !a.AsGoodAsRoot() && a.Leading(to).AsGoodAsRoot()
+}
+
+// Survey says where the server paths on this server lead, for those that lead
+// elsewhere: what every container here mounts, what the volumes they mount bind, and
+// paths, each with the folder it's in. A plan works out what's inside what, and one
+// folder can be written two ways, so it needs every path here and not only its own.
+// One that can't be followed counts as it's written, as a plan for something else
+// shouldn't fail on it.
+func (d *Docker) Survey(ctx context.Context, paths []string) (map[string]string, error) {
+	if d.Paths == nil {
+		return nil, nil
+	}
+	list, err := d.Client.ListContainers(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	volumes := map[string]bool{}
+	for i := range list {
+		for _, m := range list[i].Mounts {
+			switch {
+			case m.Type == "bind":
+				paths = append(paths, m.Source)
+			case m.Type == "volume" && m.Name != "" && !volumes[m.Name]:
+				volumes[m.Name] = true
+				v, err := d.Client.InspectVolume(ctx, m.Name)
+				switch {
+				case docker.IsNotFound(err):
+					continue
+				case err != nil:
+					return nil, err
+				}
+				if dev, ok := BindDevice(v.Driver, v.Options); ok {
+					paths = append(paths, dev)
+				}
+			}
+		}
+	}
+	h, err := d.Paths.Host(ctx)
+	if err != nil || h.Resolve == nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	seen := map[string]bool{}
+	for _, p := range paths {
+		for _, at := range []string{path.Clean(p), path.Dir(path.Clean(p))} {
+			if seen[at] || !path.IsAbs(at) {
+				continue
+			}
+			seen[at] = true
+			if to, err := h.Resolve(at); err == nil && to != at {
+				out[at] = to
+			}
+		}
+	}
+	return out, nil
+}
+
+// Survey says where every server path on the server leads (Docker.Survey).
+func (d *Driver) Survey(ctx context.Context, paths []string) (map[string]string, error) {
+	if s, ok := d.Runtime.(interface {
+		Survey(ctx context.Context, paths []string) (map[string]string, error)
+	}); ok {
+		return s.Survey(ctx, paths)
+	}
+	return nil, nil
+}
+
+// Follow says where server paths lead on this server, for those that lead elsewhere.
+func (p *Paths) Follow(ctx context.Context, paths ...string) (map[string]string, error) {
+	if p == nil || len(paths) == 0 {
+		return nil, nil
+	}
+	h, err := p.Host(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return h.Leads(paths...)
+}
+
+// VolumeAsPlanned checks the server path a volume binds leads where a plan said, as
+// a helper mounts the volume and Docker follows what it finds.
+// stopped says what came of a refusal.
+func (p *Paths) VolumeAsPlanned(ctx context.Context, v *docker.Volume, planned map[string]string, stopped string) error {
+	dev, ok := BindDevice(v.Driver, v.Options)
+	if !ok {
+		return nil
+	}
+	now, err := p.Follow(ctx, dev)
+	if err != nil {
+		return err
+	}
+	for _, at := range slices.Sorted(maps.Keys(now)) {
+		if planned[at] != now[at] {
+			return fmt.Errorf("the server path %s leads to %s now, which isn't what this plan was approved for, so %s. Plan it again to see what it reaches", at, now[at], stopped)
+		}
+	}
+	return nil
+}
+
+// PathMovedError is a container that wasn't started, as a server path it mounts leads
+// somewhere nobody approved. docker start would follow it, so its fix is its own.
+type PathMovedError struct {
+	Path, To string
+	// Name is the service, or the container where it's no service's.
+	Name string
+}
+
+func (e *PathMovedError) Error() string {
+	return fmt.Sprintf("the server path %s leads to %s now, which isn't where a person approved for %s, so it wasn't started, and won't start by itself, as Docker would follow it. Put the path back and plan a start of %s, or plan a restart of it, which asks a person to approve where the path leads now",
+		e.Path, e.To, e.Name, e.Name)
 }
 
 // Host is what the server keeps that no container may mount, with the

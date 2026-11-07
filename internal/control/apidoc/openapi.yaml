@@ -5150,6 +5150,7 @@ components:
                         - HOST_ACCESS_KIND_HTTPS_OFF
                         - HOST_ACCESS_KIND_EXTERNAL_VOLUME
                         - HOST_ACCESS_KIND_TAKES_ON
+                        - HOST_ACCESS_KIND_BACKUP_OF
                     type: string
                     description: What it is.
                     format: enum
@@ -5207,6 +5208,23 @@ components:
                         True when that isn't where the path led when what runs now was made, as its
                          server's agent reads it. An agent sets it, for the control plane to decide
                          what a plan gains by, and plans don't carry it.
+                holds:
+                    type: string
+                    description: |-
+                        Another mount's source inside path, a read-write server path. What writes path
+                         can turn it into a link to anywhere on the server, which what mounts it follows
+                         the next time it starts, so this is as good as root.
+                holdsFor:
+                    type: string
+                    description: What mounts holds, by name. Empty where that's this resource too.
+                heldIn:
+                    type: string
+                    description: |-
+                        The other side of holds: a read-write server path that holds path, and what can
+                         write it, by name, which can make path lead anywhere. A change to that asks for a
+                         passkey from now on.
+                heldBy:
+                    type: string
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.
@@ -6993,6 +7011,14 @@ components:
                          start on them.
                 runsOn:
                     type: string
+                reached:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What the backup's volume reached when it was taken that's as good as root. A
+                         backup is tied to a volume by name alone, so what it holds may be that, whatever
+                         the volume it comes back into reaches.
             description: |-
                 RestorePlan is what a step that restores a volume does: it says what comes
                  back, and what stops while it does. What's in the volume is replaced, and the

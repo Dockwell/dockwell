@@ -257,6 +257,66 @@ func TestARestoreIntoTheSystemTakesAPasskey(t *testing.T) {
 	asks(undo.Msg.GetChange())
 }
 
+// A backup is tied to a volume by name alone. So a backup of what bound the system,
+// restored into an ordinary volume made under its name once the first had gone, can
+// be read by anything that mounts it. It takes a passkey, as what it came from did.
+func TestABackupOfTheSystemAsksAgainInAnOrdinaryVolume(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+	edit := func(spec *resourcev1.Volume) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(volume.Kind), Name: "shared"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: spec}},
+		}
+	}
+	made := proposeEdit(t, c, edit(&resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": "/etc"}}))
+	applyAsRoot(t, b, made)
+	res := made.GetPlan().GetResources()[0]
+	taken, err := bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: res.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup := waitBackup(t, bc, taken.Msg.GetBackup().GetId())
+
+	gone := propose(t, c, "Delete it", &dockwellv1.Edit{Resource: res.GetResource(), Delete: true})
+	applyConfirmed(t, c, gone)
+	// The server keeps what was deleted for 7 days, and it can't come back as anything
+	// else in that time. This is that time passing.
+	kept := volume.TargetOf(resource.Ref{Kind: volume.Kind, Scope: res.GetResource().GetScope(), Name: "shared"}).Name
+	if err := e.Client().RemoveVolume(t.Context(), kept); err != nil {
+		t.Fatal(err)
+	}
+	again := proposeEdit(t, c, edit(&resourcev1.Volume{}))
+	if again.GetPlan().GetHostAccess() {
+		t.Fatalf("an ordinary volume needs a person: %v", again.GetPlan())
+	}
+	if got := apply(t, c, again); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("making it again: %s", got.GetError())
+	}
+
+	planned, err := bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: backup.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := planned.Msg.GetChange()
+	if err := askedBy(t, c, ch, ch.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
+		t.Errorf("with no passkey = %v", err)
+	}
+	if !slices.ContainsFunc(ch.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+		return n.GetReason() == "new_code_as_root" && strings.Contains(n.GetMessage(), "This backup was taken when shared reached")
+	}) {
+		t.Errorf("the plan doesn't say why it asks: %v", ch.GetPlan().GetNotes())
+	}
+	if !slices.ContainsFunc(ch.GetPlan().GetResources()[0].GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+		return a.GetKind() == dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF && a.GetPath() == "/etc" && a.GetSameAsRoot()
+	}) {
+		t.Errorf("the plan says it reaches %v", ch.GetPlan().GetResources()[0].GetHostAccess())
+	}
+	applyAsRoot(t, b, ch)
+}
+
 // Who may do what, as ADR 0033 has it.
 func TestWhoMayBackUpAndDelete(t *testing.T) { storetest.Each(t, testWhoMayBackUpAndDelete) }
 
