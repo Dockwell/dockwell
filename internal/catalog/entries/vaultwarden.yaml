@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: vaultwarden
+name: Vaultwarden
+summary: Passwords, Bitwarden-compatible
+category: developer tools
+version: "1.37.4"
+release: 1
+homepage: https://github.com/dani-garcia/vaultwarden
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/vaultwarden.yaml
+web:
+  service: vaultwarden
+firstSteps: >-
+  Its web vault works only over HTTPS, so add a domain over HTTPS first, and anyone
+  who reaches it can make an account until you stop that. Open it there and make your
+  account, then set SIGNUPS_ALLOWED to false on the vaultwarden service, so no one
+  else can. Bitwarden's apps sign in to the same address.
+inputs:
+  - name: PORT
+    label: Vaultwarden port
+    hint: Its web vault answers on this port of the server, and needs HTTPS to sign in.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8222"
+compose: |
+  services:
+    vaultwarden:
+      image: vaultwarden/server:1.37.4@sha256:efb3cde962015fcc036b2ea625242248611943b27212ebf4392841fb30fad055
+      restart: unless-stopped
+      ports:
+        - "${PORT}:80"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD", "/healthcheck.sh"]
+        interval: 10s
+        timeout: 5s
+        retries: 12
+        start_period: 10s
+  volumes:
+    data: {}

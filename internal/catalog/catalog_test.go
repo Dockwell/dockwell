@@ -68,26 +68,39 @@ func TestTheBuiltInEntries(t *testing.T) {
 	// The first set: a database with its admin tool, a reverse proxy's
 	// replacement, a tunnel, and something that runs AI agents. Then what the two
 	// real servers run beside those (#221).
-	for _, want := range []string{"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code", "pgadmin", "redis", "mariadb", "coder"} {
+	for _, want := range []string{
+		"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code",
+		"pgadmin", "redis", "mariadb", "coder",
+		"uptime-kuma", "n8n", "gitea", "vaultwarden", "nextcloud", "rustfs", "grafana", "umami",
+	} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the catalog has no %s: %v", want, ids)
 		}
 	}
 }
 
-// The catalog's page says its apps are open source, which each has to be. A licence
-// new to this list needs a look before it goes on it, and an app that isn't open
-// source needs the page's words changed.
-func TestEveryAppIsOpenSource(t *testing.T) {
+// Each app's licence is one that's had a look: open source, or one that lets you run
+// it yourself under its own terms, which an entry's page names. A licence new to these
+// lists needs a look before it goes on one. The catalog's page calls its apps
+// self-hosted, not open source, since n8n is source-available.
+func TestEveryAppsLicenceHasHadALook(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	open := []string{"AGPL-3.0-only", "Apache-2.0", "GPL-2.0-only", "MIT", "PostgreSQL"}
+	open := []string{"AGPL-3.0-only", "AGPL-3.0-or-later", "Apache-2.0", "GPL-2.0-only", "GPL-2.0-or-later", "MIT", "PostgreSQL"}
+	sourceAvailable := []string{"Sustainable Use"}
 	for _, e := range c.All() {
-		if !slices.Contains(open, e.GetAppLicense()) {
-			t.Errorf("%s is under %s, and the catalog's page says it's open source", e.GetId(), e.GetAppLicense())
+		if l := e.GetAppLicense(); !slices.Contains(open, l) && !slices.Contains(sourceAvailable, l) {
+			t.Errorf("%s is under %s, which hasn't had a look", e.GetId(), l)
 		}
+	}
+	page, err := os.ReadFile("../../web/src/features/catalog/CatalogPage.tsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(page), "Open-source apps") {
+		t.Error("the catalog's page says every app is open source, and some are source-available")
 	}
 }
 
@@ -99,7 +112,7 @@ func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"postgres", "mysql", "mariadb", "nginx-proxy-manager", "pgadmin", "coder"} {
+	for _, id := range []string{"postgres", "mysql", "mariadb", "nginx-proxy-manager", "pgadmin", "coder", "uptime-kuma", "gitea", "nextcloud", "rustfs", "grafana"} {
 		e, _ := c.Entry(id)
 		steps := e.GetFirstSteps()
 		at := strings.Index(steps, "plain HTTP")
@@ -126,6 +139,8 @@ func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 		"mariadb":             "ALTER USER",
 		"nginx-proxy-manager": "change the password in the console",
 		"pgadmin":             "choose Change password",
+		"nextcloud":           "under Security",
+		"grafana":             "choose Change password",
 	} {
 		e, _ := c.Entry(id)
 		if steps := e.GetFirstSteps(); !strings.Contains(steps, "on first start only") || !strings.Contains(steps, how) {
@@ -245,6 +260,33 @@ func TestHostAccessIsSaid(t *testing.T) {
 				t.Errorf("it says it reaches %q, and its Compose file reaches nothing", e.GetHostAccess())
 			}
 		})
+	}
+}
+
+// An entry that says it answers only on this server publishes every port on loopback,
+// as Redis, Umami and T3 Code do, so a person can trust those words before they apply.
+func TestOnlyOnThisServerMeansLoopback(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	said := 0
+	for _, e := range c.All() {
+		if !strings.Contains(e.GetFirstSteps(), "only on this server") {
+			continue
+		}
+		said++
+		stack, _ := read(t, e)
+		for _, s := range stack.Services {
+			for _, p := range s.Spec.GetApp().GetPorts() {
+				if p.GetHostIp() != "127.0.0.1" {
+					t.Errorf("%s says it answers only on this server, and %s publishes %d on %q", e.GetId(), s.Name, p.GetHostPort(), p.GetHostIp())
+				}
+			}
+		}
+	}
+	if said < 3 {
+		t.Errorf("%d entries say they answer only on this server, want Redis, Umami and T3 Code at least", said)
 	}
 }
 

@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: grafana
+name: Grafana
+summary: Dashboards for metrics and logs
+category: monitoring
+version: "13.2.4"
+release: 1
+homepage: https://grafana.com/oss/grafana/
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/grafana.yaml
+web:
+  service: grafana
+firstSteps: >-
+  Grafana answers over plain HTTP, so signing in from outside this server sends your
+  password in clear. Add a domain first, or reach it another way, such as a VPN or an
+  SSH tunnel. Then open Grafana and sign in as user admin, with the password in the
+  GRAFANA_PASSWORD secret. That secret sets the password on first start only, so
+  changing it doesn't change what signs in. To change the password, choose Change
+  password in your Grafana profile, then set the secret to match.
+inputs:
+  - name: PORT
+    label: Grafana port
+    hint: You open Grafana on this port of the server.
+    type: INPUT_TYPE_PORT
+    defaultValue: "3000"
+  - name: GRAFANA_PASSWORD
+    label: Admin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    grafana:
+      image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+      restart: unless-stopped
+      environment:
+        GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      ports:
+        - "${PORT}:3000"
+      volumes:
+        - data:/var/lib/grafana
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:3000/api/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 20s
+  volumes:
+    data: {}
