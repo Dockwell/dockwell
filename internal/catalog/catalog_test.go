@@ -130,34 +130,32 @@ func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
 	}
 }
 
-// Every other app a person opens answers only on this server until they add a domain:
-// an admin tool signs in over plain HTTP, and an app with a setup page makes its owner
-// of whoever opens it first, so neither may answer on every address, where Docker's
-// published ports pass a firewall such as ufw by. Its first steps say so first, then how
-// to reach it: a domain on its page, or an SSH tunnel, with the command.
+// Every other app answers only on this server until a person adds a domain: an admin
+// tool signs in over plain HTTP, an app with a setup page makes its owner of whoever
+// opens it first, and Docker's published ports pass a firewall such as ufw by. So every
+// port of every service it runs is on loopback alone. An app a person opens says so
+// first in its first steps, then how to reach it: a domain on its page, or an SSH
+// tunnel, with the command.
 func TestAnAppAnswersOnlyOnThisServerUntilItHasADomain(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, e := range c.All() {
-		if e.GetWeb().GetService() == "" || slices.Contains(publishedBefore, e.GetId()) {
+		if slices.Contains(publishedBefore, e.GetId()) {
 			continue
 		}
 		t.Run(e.GetId(), func(t *testing.T) {
 			stack, _ := read(t, e)
-			i := slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == e.GetWeb().GetService() })
-			if i < 0 {
-				t.Fatalf("it opens %s, which it doesn't run", e.GetWeb().GetService())
-			}
-			ports := stack.Services[i].Spec.GetApp().GetPorts()
-			if len(ports) == 0 {
-				t.Error("what a person opens publishes no port")
-			}
-			for _, p := range ports {
-				if p.GetHostIp() != "127.0.0.1" {
-					t.Errorf("it publishes %d on %q, where anyone who reaches the server could take it first", p.GetHostPort(), p.GetHostIp())
+			for _, s := range stack.Services {
+				for _, p := range s.Spec.GetApp().GetPorts() {
+					if p.GetHostIp() != "127.0.0.1" {
+						t.Errorf("%s publishes %d on %q, where anyone who reaches the server could take it first", s.Name, p.GetHostPort(), p.GetHostIp())
+					}
 				}
+			}
+			if e.GetWeb().GetService() == "" {
+				return
 			}
 			steps := e.GetFirstSteps()
 			if !strings.Contains(steps, "answers only on this server until you add a domain") || strings.Index(steps, "only on this server") > 80 {
@@ -168,6 +166,30 @@ func TestAnAppAnswersOnlyOnThisServerUntilItHasADomain(t *testing.T) {
 				t.Errorf("its first steps don't say how to reach it, by a domain or an SSH tunnel with the command: %q", steps)
 			}
 		})
+	}
+}
+
+// firstVisitor are the apps whose first visitor makes its owner or admin. A domain's
+// certificate shows in public logs within minutes, where scanners look for new ones,
+// so each one's first steps make the account through the SSH tunnel first, and add the
+// domain only after that.
+var firstVisitor = []string{"coder"}
+
+func TestAFirstVisitorAppMakesItsAccountBeforeItsDomain(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range firstVisitor {
+		e, ok := c.Entry(id)
+		if !ok {
+			t.Fatalf("the catalog has no %s", id)
+		}
+		steps := e.GetFirstSteps()
+		tunnel, domain := strings.Index(steps, "ssh -N -L "), strings.Index(steps, "Add a domain on its page")
+		if tunnel < 0 || domain < 0 || tunnel > domain {
+			t.Errorf("%s's first steps add a domain before its account is made through the tunnel: %q", id, steps)
+		}
 	}
 }
 

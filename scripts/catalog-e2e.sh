@@ -356,12 +356,17 @@ settled() {
     health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$c") || fail "docker inspect $c failed"
     [[ "$health" == healthy ]] || fail "$c reads $health once the change has applied, want healthy: its entry needs a health check that proves it answers"
   done
-  # What a person opens answers only on this server until it has a domain.
+  # Every port of every service answers only on this server until it has a domain, and
+  # what a person opens has one.
   local web bound
+  for c in $names; do
+    bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$c") || fail "docker inspect $c failed"
+    jq -e '[(. // {})[][] | .HostIp] | all(. == "127.0.0.1")' <<<"$bound" >/dev/null || fail "$c is published past this server: $bound"
+  done
   web=$(jq -r '.web.service // empty' <<<"$entry")
   if [[ -n "$web" ]]; then
     bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$(container "$web")") || fail "docker inspect $web failed"
-    jq -e '[.[][] | .HostIp] | length > 0 and all(. == "127.0.0.1")' <<<"$bound" >/dev/null || fail "$web is published past this server: $bound"
+    jq -e '[(. // {})[][] | .HostIp] | length > 0' <<<"$bound" >/dev/null || fail "$web publishes no port: $bound"
   fi
 }
 

@@ -23,16 +23,17 @@ hostAccess: >-
   Whoever owns Coder controls this server through it.
 firstSteps: >-
   Coder answers only on this server until you add a domain, as the first person to
-  open it makes its owner account, and whoever owns Coder controls this server through
-  Docker's socket. Add a domain on its page, over HTTPS or behind your tunnel, set
-  CODER_ACCESS_URL on the coder service to that address, then open it there and make
-  your account. To open it before that, use an SSH tunnel from your computer:
-  ssh -N -L 7080:127.0.0.1:7080 you@your-server, using the port you gave it, then open
-  http://localhost:7080. Your workspaces reach Coder at its access URL, so they connect
-  once it has a domain. Leave the POSTGRES_PASSWORD secret as it is: its database keeps
-  the password it started with, and Coder would then use one it doesn't take. Removing
-  Coder leaves the workspace containers it started, so delete your workspaces in Coder
-  first.
+  open it makes its owner account, and whoever owns Coder controls this server
+  through Docker's socket. So make your account first, through an SSH tunnel from
+  your computer: ssh -N -L 7080:127.0.0.1:7080 you@your-server, using the port you
+  gave it, then open http://localhost:7080. Add a domain on its page only after that,
+  over HTTPS or behind your tunnel, as a new domain's certificate shows in public
+  logs within minutes, and set CODER_ACCESS_URL on the coder service to that address.
+  Your workspaces reach Coder at its access URL, so they connect once it has a
+  domain. Leave the POSTGRES_PASSWORD secret as it is: its database keeps the
+  password it started with, and Coder would then use one it doesn't take. Removing
+  Coder leaves the workspace containers it started, so delete your workspaces in
+  Coder first.
 inputs:
   - name: PORT
     label: Port on this server
