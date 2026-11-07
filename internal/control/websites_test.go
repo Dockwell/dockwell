@@ -495,12 +495,20 @@ func testAFolderWebsite(t *testing.T, backend store.Backend) {
 
 	res, err := script.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{
 		Domain:  "docs.example.com",
-		Website: &resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: root + "/"}}},
+		Website: &resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: root + "/", Owner: "1000:0100"}}},
 	}))
 	if err != nil {
 		t.Fatalf("CreateWebsite: %v", err)
 	}
 	ch := res.Msg.GetChange()
+	// What makes the folder for its owner, where it isn't there, the plan says.
+	var says bool
+	for _, n := range ch.GetPlan().GetNotes() {
+		says = says || (n.GetReason() == "makes_folder" && strings.Contains(n.GetMessage(), root+" is made, owned by 1000:100, if it isn't there"))
+	}
+	if !says {
+		t.Errorf("the plan's notes are %v, want one saying the folder is made for 1000:100", ch.GetPlan().GetNotes())
+	}
 	if !ch.GetPlan().GetHostAccess() {
 		t.Fatalf("a folder plans no host access: %v", planned(ch))
 	}

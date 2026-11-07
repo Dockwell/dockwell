@@ -149,6 +149,9 @@ func TestAListingSaysWhatADirectoryHolds(t *testing.T) {
 	if file.GetOwner() == "" || file.GetGroup() == "" || file.GetModifyTime() == nil {
 		t.Errorf("index.php has no owner, group or time: %v", file)
 	}
+	if file.GetUid() != uint32(os.Getuid()) || file.GetGid() != uint32(os.Getgid()) {
+		t.Errorf("index.php is %d:%d by number, want %d:%d", file.GetUid(), file.GetGid(), os.Getuid(), os.Getgid())
+	}
 	if e := entryNamed(t, l, "home.php"); e.GetType() != dockwellv1.FileType_FILE_TYPE_SYMLINK ||
 		e.GetLinkTarget() != "index.php" || e.GetLinkType() != dockwellv1.FileType_FILE_TYPE_FILE {
 		t.Errorf("home.php reads as %v", e)

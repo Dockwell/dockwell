@@ -197,6 +197,19 @@ func TestAFolderOnRealCaddy(t *testing.T) {
 	write("style.css", "body{}")
 	write(".env", "SECRET=1")
 	write(".git/config", "[core]")
+	// A folder that held a PHP site, such as WordPress, and the copies tools leave.
+	write("wp-config.php", "<?php define('DB_PASSWORD', 'secret');")
+	write("old.phtml", "<?php echo 1;")
+	write("tool.phar", "phar")
+	write("wp-config.php~", "<?php define('DB_PASSWORD', 'secret');")
+	write("wp-config.php.bak", "<?php define('DB_PASSWORD', 'secret');")
+	write("wp-config.php.save", "<?php define('DB_PASSWORD', 'secret');")
+	write("settings.orig", "<?php")
+	write("notes.bak", "notes")
+	write(".well-known/security.txt", "Contact: mailto:security@example.com")
+	write(".well-known/.hidden", "no")
+	write(".well-known/deep/.git/config", "[core]")
+	write(".well-known/proof.php", "<?php")
 	// The container sees the folder at /srv, which the test can't make, so its root moves.
 	moved := func(w *resourcev1.Website) string {
 		return strings.Replace(Config(w), "root * "+FolderTarget, "root * "+root, 1)
@@ -215,6 +228,22 @@ func TestAFolderOnRealCaddy(t *testing.T) {
 		// What starts with a dot is never served, as a site's folder often holds one.
 		{"/.env", 404, ""},
 		{"/.git/config", 404, ""},
+		// Nor are scripts, whose source holds what they keep from visitors, nor the
+		// copies editors and tools leave of them.
+		{"/wp-config.php", 404, ""},
+		{"/old.phtml", 404, ""},
+		{"/tool.phar", 404, ""},
+		{"/wp-config.php~", 404, ""},
+		{"/wp-config.php.bak", 404, ""},
+		{"/wp-config.php.save", 404, ""},
+		{"/settings.orig", 404, ""},
+		{"/notes.bak", 404, ""},
+		// What looks for a site's own files in .well-known finds them, and nothing
+		// that starts with a dot below it.
+		{"/.well-known/security.txt", 200, "Contact: mailto:security@example.com"},
+		{"/.well-known/.hidden", 404, ""},
+		{"/.well-known/deep/.git/config", 404, ""},
+		{"/.well-known/proof.php", 404, ""},
 	} {
 		status, body := get(t, addr, tc.path)
 		if status != tc.status || (tc.body != "" && body != tc.body) {

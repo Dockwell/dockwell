@@ -15,7 +15,7 @@ Files hands a browser a server's disk, to read and to write, through an agent th
 
 ## What's refused
 
-The agent refuses to read or save these whoever asks, over every surface, and no step-up opens them. Each refusal says why, and points at SSH. Every refused or failed read or save, and every refused listing, is on Activity, whatever the reason, so a miss shows as a hit does. A listing that works isn't, as it returns names and runs on every click, and neither is one that can't reach its server, as the panel asks again by itself.
+The agent refuses to read or save these whoever asks, over every surface, and no step-up opens them. Each refusal says why, and points at SSH. Every refused or failed read or save, and every refused listing, is on Activity, whatever the reason, so a miss shows as a hit does. The one exception is a form's lookup (`ListFilesRequest.lookup`), such as a website's, which looks whether a folder is there as a person types it: what it can't list goes on no Activity, as it's a guess at a path, and it asks only a person's session, as every listing does. A listing that works isn't, as it returns names and runs on every click, and neither is one that can't reach its server, as the panel asks again by itself.
 
 | Refused | Why |
 | --- | --- |

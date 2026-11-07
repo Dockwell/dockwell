@@ -187,6 +187,11 @@ message Mount {
   // shares what it holds, so mounting one is host access, which a person approves.
   // A container on its own names Docker's volumes already, so it takes none.
   bool external = 6;
+  // For a server path: when it isn't there, the folder Dockwell makes for it
+  // before the container starts, owned by this user and group, as "uid:gid", such
+  // as "82:82", with mode 0755. Docker would make it root's. A folder that's there
+  // keeps its owner. Numbered apart, as open work adds to this message.
+  string make_owner = 60;
 }
 
 // Relabel is how Docker labels a server path for SELinux when it mounts
@@ -352,6 +357,10 @@ message WebsiteFolder {
   // Answers a path with no file of its own with the index at the folder's top, as
   // an app that routes in the browser needs, rather than with a 404.
   bool single_page_app = 3;
+  // Who owns the folder Dockwell makes when it isn't there, as "uid:gid", such as
+  // "1000:1000", so you can put the site's files in it as yourself. Empty leaves
+  // it to Docker, which makes it root's. A folder that's there keeps its owner.
+  string owner = 4;
 }
 
 // WebsiteProxy sends a website's requests on, to a URL or to a port on the

@@ -20,6 +20,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 const (
@@ -122,6 +123,15 @@ func checkFolder(f *resourcev1.WebsiteFolder) error {
 		}
 	}
 	f.Root = path.Clean(root)
+	if o := strings.TrimSpace(f.GetOwner()); o != "" {
+		uid, gid, err := resource.ParseOwner(o)
+		if err != nil {
+			return fmt.Errorf("the folder's owner: %w", err)
+		}
+		f.Owner = resource.FormatOwner(uid, gid)
+	} else {
+		f.Owner = ""
+	}
 	seen := map[string]bool{}
 	var index []string
 	for _, name := range f.GetIndex() {
@@ -320,6 +330,9 @@ func Resources(w *resourcev1.Website, domain string, front Front) Serving {
 			Source:   &resourcev1.Mount_HostPath{HostPath: w.GetFolder().GetRoot()},
 			Target:   FolderTarget,
 			ReadOnly: true,
+			// Docker makes a folder that isn't there root's, which nobody else can put
+			// the site's files in: Dockwell makes it its owner's.
+			MakeOwner: w.GetFolder().GetOwner(),
 		}}
 		out.Services[WebService] = web
 		out.Networks[SiteNetwork] = &resourcev1.Network{}
@@ -378,15 +391,31 @@ func folderConfig(f *resourcev1.WebsiteFolder) string {
 	b.WriteString("\tlog {\n\t\toutput stderr\n\t\tformat console\n\t}\n")
 	fmt.Fprintf(&b, "\troot * %s\n", FolderTarget)
 	b.WriteString("\tencode zstd gzip\n")
+	b.WriteString(wellKnown)
+	b.WriteString("\thandle {\n")
 	index := Index(f)
 	if f.GetSinglePageApp() {
-		fmt.Fprintf(&b, "\ttry_files {path} {path}/ /%s\n", index[0])
+		fmt.Fprintf(&b, "\t\ttry_files {path} {path}/ /%s\n", index[0])
 	}
-	// What starts with a dot, such as .git and .env, is never a site's to serve.
-	fmt.Fprintf(&b, "\tfile_server {\n\t\tindex %s\n\t\thide .*\n\t}\n", strings.Join(index, " "))
-	b.WriteString("}\n")
+	fmt.Fprintf(&b, "\t\tfile_server {\n\t\t\tindex %s\n\t\t\thide .* %s\n\t\t}\n", strings.Join(index, " "), strings.Join(Hidden, " "))
+	b.WriteString("\t}\n}\n")
 	return b.String()
 }
+
+// Hidden are the files no website's folder serves as they are, besides what starts
+// with a dot, such as .git and .env: scripts, whose source holds what they keep from
+// visitors, such as wp-config.php's password, and the copies editors and tools leave
+// of them. A PHP website runs its scripts, and hides the rest.
+var Hidden = []string{"*.php", "*.phtml", "*.phar", "*.php~", "*.php.*", "*.bak", "*.save", "*.orig", "*.swp"}
+
+// wellKnown serves /.well-known/ from the folder, for what looks for a site's own
+// files there, such as a security.txt or a domain's proof, though it starts with a
+// dot. What starts with a dot below it is still hidden, as are scripts.
+var wellKnown = "\t@hidden path_regexp ^/\\.well-known/(.*/)?\\.\n" +
+	"\thandle /.well-known/* {\n" +
+	"\t\trespond @hidden 404\n" +
+	"\t\tfile_server {\n\t\t\thide " + strings.Join(Hidden, " ") + "\n\t\t}\n" +
+	"\t}\n"
 
 // globals is what every website's web server says first: no admin API, as nothing
 // changes it but a deploy; no automatic HTTPS, as TLS ends at the ingress; and the

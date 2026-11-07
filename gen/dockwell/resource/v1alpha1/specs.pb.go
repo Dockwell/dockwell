@@ -895,7 +895,12 @@ type Mount struct {
 	// already: Dockwell never makes, changes or deletes one. Whatever else mounts it
 	// shares what it holds, so mounting one is host access, which a person approves.
 	// A container on its own names Docker's volumes already, so it takes none.
-	External      bool `protobuf:"varint,6,opt,name=external,proto3" json:"external,omitempty"`
+	External bool `protobuf:"varint,6,opt,name=external,proto3" json:"external,omitempty"`
+	// For a server path: when it isn't there, the folder Dockwell makes for it
+	// before the container starts, owned by this user and group, as "uid:gid", such
+	// as "82:82", with mode 0755. Docker would make it root's. A folder that's there
+	// keeps its owner. Numbered apart, as open work adds to this message.
+	MakeOwner     string `protobuf:"bytes,60,opt,name=make_owner,json=makeOwner,proto3" json:"make_owner,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -981,6 +986,13 @@ func (x *Mount) GetExternal() bool {
 		return x.External
 	}
 	return false
+}
+
+func (x *Mount) GetMakeOwner() string {
+	if x != nil {
+		return x.MakeOwner
+	}
+	return ""
 }
 
 type isMount_Source interface {
@@ -1556,6 +1568,10 @@ type WebsiteFolder struct {
 	// Answers a path with no file of its own with the index at the folder's top, as
 	// an app that routes in the browser needs, rather than with a 404.
 	SinglePageApp bool `protobuf:"varint,3,opt,name=single_page_app,json=singlePageApp,proto3" json:"single_page_app,omitempty"`
+	// Who owns the folder Dockwell makes when it isn't there, as "uid:gid", such as
+	// "1000:1000", so you can put the site's files in it as yourself. Empty leaves
+	// it to Docker, which makes it root's. A folder that's there keeps its owner.
+	Owner         string `protobuf:"bytes,4,opt,name=owner,proto3" json:"owner,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1609,6 +1625,13 @@ func (x *WebsiteFolder) GetSinglePageApp() bool {
 		return x.SinglePageApp
 	}
 	return false
+}
+
+func (x *WebsiteFolder) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
 }
 
 // WebsiteProxy sends a website's requests on, to a URL or to a port on the
@@ -2907,14 +2930,16 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x12memory_reservation\x18\x03 \x01(\tR\x11memoryReservation\"_\n" +
 	"\aRollout\x12>\n" +
 	"\x05order\x18\x01 \x01(\x0e2(.dockwell.resource.v1alpha1.RolloutOrderR\x05order\x12\x14\n" +
-	"\x05drain\x18\x02 \x01(\tR\x05drain\"\xda\x01\n" +
+	"\x05drain\x18\x02 \x01(\tR\x05drain\"\xf9\x01\n" +
 	"\x05Mount\x12\x18\n" +
 	"\x06volume\x18\x01 \x01(\tH\x00R\x06volume\x12\x1d\n" +
 	"\thost_path\x18\x02 \x01(\tH\x00R\bhostPath\x12\x16\n" +
 	"\x06target\x18\x03 \x01(\tR\x06target\x12\x1b\n" +
 	"\tread_only\x18\x04 \x01(\bR\breadOnly\x12=\n" +
 	"\arelabel\x18\x05 \x01(\x0e2#.dockwell.resource.v1alpha1.RelabelR\arelabel\x12\x1a\n" +
-	"\bexternal\x18\x06 \x01(\bR\bexternalB\b\n" +
+	"\bexternal\x18\x06 \x01(\bR\bexternal\x12\x1d\n" +
+	"\n" +
+	"make_owner\x18< \x01(\tR\tmakeOwnerB\b\n" +
 	"\x06source\"\x87\x02\n" +
 	"\vHealthcheck\x12\x12\n" +
 	"\x04test\x18\x01 \x03(\tR\x04test\x12\x1a\n" +
@@ -2948,11 +2973,12 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\aWebsite\x12@\n" +
 	"\x05proxy\x18\x01 \x01(\v2(.dockwell.resource.v1alpha1.WebsiteProxyH\x00R\x05proxy\x12C\n" +
 	"\x06folder\x18\x02 \x01(\v2).dockwell.resource.v1alpha1.WebsiteFolderH\x00R\x06folderB\b\n" +
-	"\x06serves\"a\n" +
+	"\x06serves\"w\n" +
 	"\rWebsiteFolder\x12\x12\n" +
 	"\x04root\x18\x01 \x01(\tR\x04root\x12\x14\n" +
 	"\x05index\x18\x02 \x03(\tR\x05index\x12&\n" +
-	"\x0fsingle_page_app\x18\x03 \x01(\bR\rsinglePageApp\"^\n" +
+	"\x0fsingle_page_app\x18\x03 \x01(\bR\rsinglePageApp\x12\x14\n" +
+	"\x05owner\x18\x04 \x01(\tR\x05owner\"^\n" +
 	"\fWebsiteProxy\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12(\n" +

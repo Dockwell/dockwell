@@ -229,7 +229,7 @@ func TestWhatServesAFolder(t *testing.T) {
 		t.Errorf("the web server mounts %v, want the folder at %s, read-only", m, FolderTarget)
 	}
 	config := Config(w)
-	for _, want := range []string{"root * /srv", "file_server {\n\t\tindex index.html index.htm\n\t\thide .*\n\t}"} {
+	for _, want := range []string{"root * /srv", "file_server {\n\t\t\tindex index.html index.htm\n\t\t\thide .* *.php *.phtml *.phar", "handle /.well-known/* {"} {
 		if !strings.Contains(config, want) {
 			t.Errorf("the config has no %q:\n%s", want, config)
 		}

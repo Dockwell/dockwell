@@ -781,6 +781,12 @@ func TestEveryRefusalIsOnRecord(t *testing.T) {
 	read(dir + "/a/../b")          // a path that doesn't say what it means
 	list("/proc")                  // a refused listing
 	list(missing)                  // a listing of nothing
+	// A form's lookups, as someone types a folder, go on no record, refused or not.
+	for _, p := range []string{"/proc", missing, dir + "/a/../b"} {
+		if _, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: p, Lookup: true})); err == nil {
+			t.Fatalf("a lookup listed %s", p)
+		}
+	}
 	want := 7
 	seen := map[string]bool{}
 	events := fileEvents(t, f)

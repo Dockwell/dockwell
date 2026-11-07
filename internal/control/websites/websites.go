@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -297,7 +298,7 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	serving := website.Resources(spec, domain, website.Front{TLS: m.GetTls(), TrustedProxies: m.GetTrustedProxies(), PlainForAnyone: m.GetPlainForAnyone()})
 	edits := puts(env, serving, m.GetServers())
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), "Add the website "+domain)
-	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made})
+	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: folderNotes(env, spec)})
 	if err != nil {
 		return nil, err
 	}
@@ -358,6 +359,7 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), "Change what "+domain+" serves")
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{
 		IfNothing: fault.New(revision.ErrInvalid, "%s serves that already, so there's nothing to change", domain),
+		Notes:     folderNotes(s.env, spec),
 	})
 	if err != nil {
 		return nil, err
@@ -593,4 +595,19 @@ func (h *Handler) probe(key reachKey, call *agentv1.ProbeCall, done chan struct{
 	if got != nil {
 		e.got = got
 	}
+}
+
+// folderNotes say, in the plan, that a website's folder is made with its owner when
+// it isn't there, as the agent does before its web server starts.
+func folderNotes(env string, w *resourcev1.Website) []revision.Note {
+	f := w.GetFolder()
+	if f.GetOwner() == "" {
+		return nil
+	}
+	return []revision.Note{{
+		Reason:  "makes_folder",
+		Message: fmt.Sprintf("%s is made, owned by %s, if it isn't there. A folder that's there keeps its owner", f.GetRoot(), f.GetOwner()),
+		Ref:     resource.Ref{Kind: service.Kind, Scope: env, Name: website.WebService},
+		Names:   []string{f.GetRoot(), f.GetOwner()},
+	}}
 }

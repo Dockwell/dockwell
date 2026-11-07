@@ -2697,12 +2697,13 @@ done
 [[ "$(drifted)" == "$drift_before" ]] || fail "drift after a website: $(dw drift list --json), and before it was $drift_before"
 docker rm --force e2e-site-url e2e-site-port >/dev/null || fail "can't remove what the website sent to"
 
-step "Websites: one serves a folder a person approves, and an edit through Files shows with nothing to deploy"
-# Its web server reads the folder as nobody's user, so the folder and its files are open to everyone.
-site_root=$(mktemp -d) || fail "can't make a folder for the website"
-if ! { chmod 755 "$site_root" && printf 'from-the-folder\n' >"$site_root/index.html" && chmod 644 "$site_root/index.html"; }; then
-  fail "can't write the website's folder"
-fi
+step "Websites: one serves a folder a person approves, made as its owner's, and an edit through Files shows with nothing to deploy"
+# The folder isn't there yet: Dockwell makes it for its owner, here whoever runs this,
+# who then puts the site's files in it without sudo, as scp or rsync would.
+site_parent=$(mktemp -d) || fail "can't make a folder for the website"
+chmod 755 "$site_parent" || fail "can't open $site_parent to everyone"
+site_root="$site_parent/site"
+owner="$(id -u):$(id -g)"
 folder_site=folder.e2e-dockwell.example.net
 folder_says() {
   local body=""
@@ -2713,16 +2714,32 @@ folder_says() {
   fail "http://$folder_site/ says '$body', want $1"
 }
 set +e
-planned=$(dw websites create --domain "$folder_site" --website "{\"folder\":{\"root\":\"$site_root\"}}" --tls off --yes 2>&1)
+planned=$(dw websites create --domain "$folder_site" --website "{\"folder\":{\"root\":\"$site_root\",\"owner\":\"$owner\"}}" --tls off --yes 2>&1)
 status=$?
 set -e
 [[ "$status" == 4 ]] || fail "a website that serves a folder exited $status, want 4: it waits for a person: $planned"
 [[ "$planned" == *"$site_root"* ]] || fail "the plan doesn't name the folder: $planned"
+[[ "$planned" == *"$site_root is made, owned by $owner"* ]] || fail "the plan doesn't say the folder is made for its owner: $planned"
 changes=$(dw changes list --json) || fail "changes list failed"
 serving=$(jq -r '.changes[0].id' <<<"$changes")
 token_refused "$serving"
 person_apply "$serving"
+made=$(stat -c '%u:%g %a' "$site_root") || fail "Dockwell didn't make $site_root"
+[[ "$made" == "$owner 755" ]] || fail "Dockwell made $site_root as $made, want $owner 755"
+if ! { printf 'from-the-folder\n' >"$site_root/index.html" && chmod 644 "$site_root/index.html"; }; then
+  fail "its owner can't put the website's files in $site_root"
+fi
 folder_says from-the-folder
+# Scripts and dotfiles stay hidden; .well-known is served.
+mkdir -p "$site_root/.well-known" && chmod 755 "$site_root/.well-known" || fail "can't make .well-known"
+printf 'Contact: mailto:security@example.com\n' >"$site_root/.well-known/security.txt" && chmod 644 "$site_root/.well-known/security.txt" ||
+  fail "can't write security.txt"
+printf '<?php $password = "secret";\n' >"$site_root/config.php" && chmod 644 "$site_root/config.php" || fail "can't write config.php"
+for want in "config.php 404" ".well-known/security.txt 200"; do
+  got=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/${want% *}") ||
+    fail "http://$folder_site/${want% *} didn't answer"
+  [[ "$got" == "${want#* }" ]] || fail "http://$folder_site/${want% *} answers $got, want ${want#* }"
+done
 missing=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/nothing-here") ||
   fail "http://$folder_site/nothing-here didn't answer"
 [[ "$missing" == 404 ]] || fail "a path the folder hasn't got answers $missing, want 404"
@@ -2742,7 +2759,7 @@ folder_says edited-in-files
 gone=$(dw websites delete "$folder_site" --yes 2>&1) || fail "websites delete failed: $gone"
 [[ "$(cat "$site_root/index.html")" == edited-in-files ]] || fail "deleting the website touched its folder: $(ls -la "$site_root")"
 [[ "$(drifted)" == "$drift_before" ]] || fail "drift after a folder's website: $(dw drift list --json), and before it was $drift_before"
-rm -rf "$site_root"
+rm -rf "$site_parent"
 
 step "Ingress: a route with a certificate takes port 443 beside them, and frees it as it goes"
 took=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www failed: $took"

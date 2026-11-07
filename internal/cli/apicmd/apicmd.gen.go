@@ -647,6 +647,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server's ID, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
 				{Path: "path", Help: "The directory's absolute path, without . or .. in it, such as \"/var/www\"."},
+				{Path: "lookup", Help: "Says a form is looking whether a folder is there as you type, such as a website's: a listing it can't have goes on no Activity, as it's a guess at a path, not a person opening one. Files never sets it. Numbered apart, as open work adds to this message."},
 			},
 			Call: apicli.Unary[v1.ListFilesRequest, v1.ListFilesResponse](dockwellv1connect.FileServiceListFilesProcedure),
 		},
@@ -1472,6 +1473,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "website.folder.root", Help: "The folder, as an absolute path on the server, such as \"/var/www/blog\". Its web server reads it as nobody's user, so what it serves must be readable by everyone. Docker makes a folder that isn't there, empty and owned by root."},
 				{Path: "website.folder.index", Help: "The files a request for a folder gets, the first there is, such as \"index.html\". Empty takes index.html, then index.htm."},
 				{Path: "website.folder.single_page_app", Help: "Answers a path with no file of its own with the index at the folder's top, as an app that routes in the browser needs, rather than with a 404."},
+				{Path: "website.folder.owner", Help: "Who owns the folder Dockwell makes when it isn't there, as \"uid:gid\", such as \"1000:1000\", so you can put the site's files in it as yourself. Empty leaves it to Docker, which makes it root's. A folder that's there keeps its owner."},
 			},
 		},
 		{

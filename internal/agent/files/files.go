@@ -436,7 +436,7 @@ func entry(name string, st *unix.Stat_t, owners owners) *dockwellv1.FileEntry {
 		Name: strings.ToValidUTF8(name, "�"), UnreadableName: !utf8.ValidString(name),
 		Type: typeOf(st.Mode), SizeBytes: uint64(max(st.Size, 0)), Mode: modeString(st.Mode),
 		ModifyTime: timestamppb.New(time.Unix(st.Mtim.Unix())),
-		Owner:      owners.user(st.Uid), Group: owners.group(st.Gid),
+		Owner:      owners.user(st.Uid), Group: owners.group(st.Gid), Uid: st.Uid, Gid: st.Gid,
 	}
 }
 
