@@ -90,9 +90,9 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
   /** Takes you to the first field that was refused, ready to change, as New app does. */
   const revealError = () =>
     requestAnimationFrame(() => {
-      const refused = form.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]');
+      const refused = form.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
       refused?.focus();
-      refused?.select();
+      if (refused instanceof HTMLInputElement) refused.select();
     });
 
   // Back from a plan that failed, what it said is at the field, ready to change.
