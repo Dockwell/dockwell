@@ -20,8 +20,18 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
+import { sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -32,6 +42,7 @@ import { useApp } from "./AppContext";
 import { environmentOf, isMoving, nameOf } from "./app";
 import { alsoRestarts, type EnvEdit, type EnvRow, envCounts, envEdits, envRows } from "./envEdit";
 import { parseEnv, validEnvName } from "./form";
+import { useServices } from "./useServices";
 
 /**
  * What one app runs with, to change: the variables and secrets of its
@@ -53,16 +64,21 @@ export function AppEnvironment() {
   const store = useAllVariables(environment);
   // A secret it uses reveals here as on Variables, with a passkey, for a minute.
   const reveals = useReveals();
-  const [pending, setPending] = useState<ReadonlyMap<string, EnvEdit>>(new Map());
+  const [pending, setPending] = useDraft(service.id);
+  // While the plan sheet is open, it has the keyboard: ⌘↵ there applies.
+  const reviewing = useRef(false);
   const [changing, setChanging] = useState<string>();
   const [importing, setImporting] = useState(false);
   const rows = useMemo(() => envRows(service, pending, store.data?.variables), [service, pending, store.data]);
   const moving = isMoving(state);
   const readable = service.spec !== undefined;
 
-  const put = useCallback((edit: EnvEdit) => {
-    setPending((was) => new Map(was).set(edit.name, edit));
-  }, []);
+  const put = useCallback(
+    (edit: EnvEdit) => {
+      setPending((was) => new Map(was).set(edit.name, edit));
+    },
+    [setPending],
+  );
   const revert = useCallback(
     (key: string) =>
       setPending((was) => {
@@ -70,7 +86,7 @@ export function AppEnvironment() {
         next.delete(key);
         return next;
       }),
-    [],
+    [setPending],
   );
 
   const review = useCallback(() => {
@@ -85,11 +101,13 @@ export function AppEnvironment() {
           : only?.op === "remove"
             ? t`Remove ${key} from ${name}`
             : t`Change the environment of ${name}`;
+    reviewing.current = true;
     sheet.open({
       kind: "propose",
       summary,
       edits: envEdits(service, pending),
       onClose: (change: Change | undefined) => {
+        reviewing.current = false;
         // Applied, or applying: what was pending is the app's now, or on its way.
         if (change && (change.state === ChangeState.APPLIED || change.state === ChangeState.APPLYING)) {
           setPending(new Map());
@@ -100,12 +118,15 @@ export function AppEnvironment() {
           ? t`${name} changed after you started. Close this and review your edits again: they apply to what it is now.`
           : undefined,
     });
-  }, [pending, moving, service, sheet, name, t]);
+  }, [pending, moving, service, sheet, name, t, setPending]);
 
   // ⌘↵ or Ctrl ↵ reviews what's pending, from anywhere on the page.
   useEffect(() => {
     if (pending.size === 0) return;
     const onKey = (event: KeyboardEvent) => {
+      // The plan sheet takes the key once it's open: there it applies, and here it would plan again.
+      const inDialog = event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
+      if (event.defaultPrevented || inDialog || reviewing.current) return;
       if (event.key === "Enter" && (onApple() ? event.metaKey : event.ctrlKey)) {
         event.preventDefault();
         review();
@@ -116,6 +137,16 @@ export function AppEnvironment() {
   }, [pending.size, review]);
 
   const counts = useCountsWords(rows);
+  // Applying asks for a passkey if anything it restarts is as good as root: this app,
+  // or another that uses a value this changes, as the plan reads them.
+  const apps = useServices().data;
+  const others = alsoRestarts(service, rows);
+  const asRoot = (s: { hostAccess: readonly { sameAsRoot: boolean }[] } | undefined) =>
+    s?.hostAccess.some((a) => a.sameAsRoot) ?? false;
+  const root = [
+    ...(asRoot(service) ? [name] : []),
+    ...others.filter((o) => asRoot(apps?.find((s) => s.id === o.id))).map((o) => o.name),
+  ];
   const columns = useColumns(
     phone,
     (row) => setChanging(row.name),
@@ -138,16 +169,40 @@ export function AppEnvironment() {
         <div className="app-env-head">
           <span className="app-env-counts">{counts}</span>
           <span className="app-env-spacer" />
-          <Button variant="ghost" icon="upload" onClick={() => setImporting(true)}>
+          <Button variant="ghost" icon="upload" disabled={store.data === undefined} onClick={() => setImporting(true)}>
             <Trans>Import .env</Trans>
           </Button>
         </div>
+
+        {store.error ? (
+          <Callout
+            tone="warning"
+            title={t`Can't read the environment's variables and secrets`}
+            actions={
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="refresh"
+                loading={store.isFetching}
+                onClick={() => void store.refetch()}
+              >
+                <Trans>Try again</Trans>
+              </Button>
+            }
+          >
+            {sentence(store.error)}{" "}
+            <Trans>
+              Their values don't show until then, and adding waits, so a new name can't clash with one already there.
+            </Trans>
+          </Callout>
+        ) : null}
 
         <AddForm
           key={changing ?? "add"}
           name={name}
           rows={rows}
           store={store.data?.variables}
+          reading={store.data === undefined}
           changing={rows.find((row) => row.name === changing)}
           onAdd={put}
           onDone={() => setChanging(undefined)}
@@ -187,8 +242,8 @@ export function AppEnvironment() {
           <PendingBar
             name={name}
             pending={pending}
-            others={alsoRestarts(service, rows)}
-            root={service.hostAccess.some((a) => a.sameAsRoot)}
+            others={others.map((o) => o.name)}
+            root={root}
             moving={moving}
             phone={phone}
             onDiscard={() => setPending(new Map())}
@@ -199,6 +254,7 @@ export function AppEnvironment() {
         {importing ? (
           <ImportSheet
             rows={rows}
+            store={store.data?.variables ?? []}
             onClose={() => setImporting(false)}
             onImport={(edits) => {
               setPending((was) => {
@@ -213,6 +269,44 @@ export function AppEnvironment() {
       </div>
     </RevealsProvider>
   );
+}
+
+/**
+ * Edits not yet planned, by app, kept while the panel is open, so leaving the tab
+ * and coming back finds them. Never stored anywhere, as a secret's value may be
+ * among them, so a reload loses them, and the page asks before one.
+ */
+const drafts = new Map<string, ReadonlyMap<string, EnvEdit>>();
+
+/** Forgets every app's edits not yet planned, as a test starts from none. */
+export function forgetDrafts(): void {
+  drafts.clear();
+}
+
+function useDraft(
+  id: string,
+): [ReadonlyMap<string, EnvEdit>, (next: SetStateAction<ReadonlyMap<string, EnvEdit>>) => void] {
+  const [state, setState] = useState(() => ({ id, pending: drafts.get(id) ?? new Map<string, EnvEdit>() }));
+  const pending = state.id === id ? state.pending : (drafts.get(id) ?? new Map<string, EnvEdit>());
+  const set = useCallback(
+    (next: SetStateAction<ReadonlyMap<string, EnvEdit>>) =>
+      setState((was) => {
+        const from = was.id === id ? was.pending : (drafts.get(id) ?? new Map<string, EnvEdit>());
+        const value = typeof next === "function" ? next(from) : next;
+        if (value.size === 0) drafts.delete(id);
+        else drafts.set(id, value);
+        return { id, pending: value };
+      }),
+    [id],
+  );
+  // A reload would lose them, so the browser asks first.
+  useEffect(() => {
+    if (pending.size === 0) return;
+    const onLeave = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", onLeave);
+    return () => window.removeEventListener("beforeunload", onLeave);
+  }, [pending.size]);
+  return [pending, set];
 }
 
 /** "3 variables · 1 secret · 2 set on this app", for what it has now. */
@@ -323,7 +417,8 @@ function Value({ row, loading }: { row: EnvRow; loading: boolean }) {
   const kind = edit?.op === "add" || edit?.op === "use" ? (edit.secret ? "secret" : "variable") : row.now?.kind;
   if (edit?.op === "remove") return <span className="app-muted">{t`Removed`}</span>;
   if (edit?.op === "add") {
-    return kind === "secret" ? <Masked label={t`New secret`} /> : <code className="app-env-to">{edit.value}</code>;
+    // Its Source says it's a new secret.
+    return kind === "secret" ? <Masked /> : <code className="app-env-to">{edit.value}</code>;
   }
   if (edit?.op === "change") {
     if (kind !== "variable") return <Masked label={t`New value`} />;
@@ -385,6 +480,8 @@ interface AddFormProps {
   name: string;
   rows: readonly EnvRow[];
   store: readonly EnvironmentVariable[] | undefined;
+  /** What the environment has isn't read yet, or couldn't be: a new name waits for it. */
+  reading: boolean;
   /** The row whose value is changing; a new one when unset. */
   changing: EnvRow | undefined;
   onAdd: (edit: EnvEdit) => void;
@@ -397,7 +494,7 @@ interface AddFormProps {
  * has is changed in its row; one its environment has already is used as it is,
  * rather than changed for every app that uses it.
  */
-function AddForm({ name: app, rows, store, changing, onAdd, onDone }: AddFormProps) {
+function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: AddFormProps) {
   const { t } = useLingui();
   const [key, setKey] = useState(changing?.name ?? "");
   const [value, setValue] = useState("");
@@ -513,7 +610,7 @@ function AddForm({ name: app, rows, store, changing, onAdd, onDone }: AddFormPro
               </Button>
             </>
           ) : (
-            <Button type="submit" icon="plus">
+            <Button type="submit" icon="plus" disabled={reading}>
               <Trans>Add</Trans>
             </Button>
           )}
@@ -578,8 +675,8 @@ interface PendingBarProps {
   pending: ReadonlyMap<string, EnvEdit>;
   /** Other apps a changed value restarts too. */
   others: readonly string[];
-  /** The app is as good as root on a server, so applying asks for a passkey. */
-  root: boolean;
+  /** What applying restarts that's as good as root on a server, so applying asks for a passkey. */
+  root: readonly string[];
   moving: boolean;
   phone: boolean;
   onDiscard: () => void;
@@ -588,10 +685,12 @@ interface PendingBarProps {
 
 /** What's waiting to be planned, what applying it will do, and the way to plan it. */
 function PendingBar({ name, pending, others, root, moving, phone, onDiscard, onReview }: PendingBarProps) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const { added, changed, removed } = envCounts(pending);
   const total = pending.size;
-  const also = others.join(", ");
+  const joined = (names: readonly string[]) => new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(names);
+  const also = joined(others);
+  const rooted = joined(root);
   return (
     <section aria-label={t`Unapplied changes`} className="app-env-bar">
       <div className="app-env-bar-text">
@@ -633,10 +732,14 @@ function PendingBar({ name, pending, others, root, moving, phone, onDiscard, onR
               ? t`Review plan shows what this does first. Applying it restarts ${name}, and ${also}, which use what changes too.`
               : t`Review plan shows what this does first. Applying it restarts ${name}.`}
         </span>
-        {root ? (
+        {root.length > 0 ? (
           <span className="app-env-bar-root">
             <Icon name="key" size={14} />
-            <Trans>{name} is as good as root on its server, so applying this asks for your passkey.</Trans>
+            {root.length === 1 ? (
+              <Trans>{rooted} is as good as root on its server, so applying this asks for your passkey.</Trans>
+            ) : (
+              <Trans>{rooted} are as good as root on their servers, so applying this asks for your passkey.</Trans>
+            )}
           </span>
         ) : null}
       </div>
@@ -661,6 +764,8 @@ function PendingBar({ name, pending, others, root, moving, phone, onDiscard, onR
 
 interface ImportSheetProps {
   rows: readonly EnvRow[];
+  /** What the environment has, read: a name among it is used as it is. */
+  store: readonly EnvironmentVariable[];
   onClose: () => void;
   onImport: (edits: EnvEdit[]) => void;
 }
@@ -669,25 +774,29 @@ interface ImportSheetProps {
  * Reads an .env file's text into edits: a name the app has gets the new value,
  * and the rest are added, as variables or, with the switch, as secrets.
  */
-function ImportSheet({ rows, onClose, onImport }: ImportSheetProps) {
-  const { t } = useLingui();
+function ImportSheet({ rows, store, onClose, onImport }: ImportSheetProps) {
+  const { t, i18n } = useLingui();
   const [text, setText] = useState("");
   const [secret, setSecret] = useState(false);
   const [error, setError] = useState<string>();
   const parsed = text.trim() === "" ? undefined : parseEnv(text);
   const count = parsed?.length ?? 0;
+  // A name the environment has already is used as it is, as Add offers it: changing it from
+  // here would change it for every app that uses it, unseen.
+  const edits = (parsed ?? []).map(({ name, value }): EnvEdit => {
+    if (rows.some((row) => row.name === name && row.now)) return { op: "change", name, value };
+    const there = store.find((v) => v.name === name);
+    return there ? { op: "use", name, from: there.name, secret: there.secret } : { op: "add", name, value, secret };
+  });
+  const used = edits.filter((e) => e.op === "use").map((e) => e.name);
+  const usedList = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(used);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!parsed) {
       setError(t`Each line needs a NAME=value, as an .env file has them. Lines that start with # are skipped.`);
       return;
     }
-    onImport(
-      parsed.map(({ name, value }): EnvEdit => {
-        const has = rows.find((row) => row.name === name && row.now);
-        return has ? { op: "change", name, value } : { op: "add", name, value, secret };
-      }),
-    );
+    onImport(edits);
   };
   return (
     <Sheet
@@ -700,7 +809,7 @@ function ImportSheet({ rows, onClose, onImport }: ImportSheetProps) {
             <Trans>Cancel</Trans>
           </Button>
           <Button variant="primary" type="submit" form="app-env-import" disabled={count === 0}>
-            {plural(count, { one: "Add # variable", other: "Add # variables" })}
+            {plural(count, { one: "Import # value", other: "Import # values" })}
           </Button>
         </>
       }
@@ -733,6 +842,21 @@ function ImportSheet({ rows, onClose, onImport }: ImportSheetProps) {
             </Trans>
           </p>
         )}
+        {used.length > 0 ? (
+          <p className="app-env-form-note" role="status">
+            {used.length === 1 ? (
+              <Trans>
+                The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in
+                Variables and secrets, where every app that uses it gets the change.
+              </Trans>
+            ) : (
+              <Trans>
+                The environment has {usedList} already, so the app uses them as they are, with their own values. Change
+                them in Variables and secrets, where every app that uses them gets the change.
+              </Trans>
+            )}
+          </p>
+        ) : null}
         <Switch
           label={t`Keep the new ones as secrets`}
           description={t`Their values are hidden, and revealing one takes your passkey.`}

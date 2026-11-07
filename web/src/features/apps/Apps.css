@@ -165,10 +165,24 @@
 }
 
 /* A domain's state can run to a sentence, which wraps under it. */
+/* A value wraps, however long, rather than widen the table, which keeps its cells to one line;
+   a key stays whole, so a long value never squeezes the keys to a letter a line. */
 .app-env-value,
-.app-env-name {
+.app-env-to,
+.app-env-from,
+.app-env-diff,
+.app-env-masked-row {
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+.app-env-diff > * {
+  min-width: 0;
+}
+
+.app-env-name {
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 
 .app-env-name {
