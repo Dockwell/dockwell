@@ -2,19 +2,8 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeState, type Website, type WebsiteInfo, WebsiteService } from "@dockwell/api";
-import {
-  Button,
-  cx,
-  Glyph,
-  Icon,
-  Panel,
-  PHONE_QUERY,
-  SelectField,
-  Switch,
-  TextField,
-  useMediaQuery,
-} from "@dockwell/ui";
+import { ChangeState, type WebsiteInfo, WebsiteService } from "@dockwell/api";
+import { Button, cx, Glyph, Icon, Panel, PHONE_QUERY, SelectField, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
@@ -27,36 +16,10 @@ import { validPort } from "../apps/form";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { CopyButton } from "../servers/CopyButton";
 import { useCertificateWords } from "./Standing";
+import { changed, type Missing, missing, type Serves, type Settings, settingsOf, specOf } from "./settings";
+import { useMissingWords, useServesWords, WasHint, WebsiteFields } from "./WebsiteFields";
 import { useWebsiteValue } from "./WebsiteLayout";
 import { changedLines, kindOf } from "./website";
-
-/** What the form holds of what a website sends to. */
-interface Settings {
-  sendsTo: "url" | "port";
-  url: string;
-  port: string;
-  targetHost: boolean;
-}
-
-function settingsOf(spec: Website | undefined): Settings {
-  const proxy = spec?.serves.case === "proxy" ? spec.serves.value : undefined;
-  return {
-    sendsTo: proxy?.port ? "port" : "url",
-    url: proxy?.url ?? "",
-    port: proxy?.port ? String(proxy.port) : "",
-    targetHost: proxy?.sendTargetHost ?? false,
-  };
-}
-
-/** The settings as the API takes them. */
-function specOf(s: Settings) {
-  return {
-    serves: {
-      case: "proxy" as const,
-      value: s.sendsTo === "port" ? { port: Number(s.port) || 0 } : { url: s.url.trim(), sendTargetHost: s.targetHost },
-    },
-  };
-}
 
 /** How long typing settles before what it comes to is asked for. */
 const PREVIEW_AFTER_MS = 300;
@@ -71,7 +34,7 @@ function useSettled<T>(value: T): T {
 }
 
 /**
- * A website's configuration, as Website-Detail lays it out: what it sends to on the
+ * A website's configuration, as Website-Detail lays it out: what it serves on the
  * left, and on the right the config its web server runs, with the lines an edit
  * changes marked, as the control plane writes it. Nothing changes until the plan is
  * applied. A website that sends to a port on the server has no web server of its own,
@@ -88,31 +51,22 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
   const sheet = useChangeSheet();
+  const missingWords = useMissingWords();
+  const servesWords = useServesWords();
   const was = useMemo(() => settingsOf(site.spec), [site.spec]);
   const [now, setNow] = useState<Settings>(was);
   const settled = useSettled(now);
   const current = useQuery(WebsiteService.method.previewWebsite, { website: site.spec }, { enabled: !!site.spec });
-  const portOk = settled.sendsTo !== "port" || validPort(settled.port);
-  const urlTyped = settled.sendsTo !== "url" || settled.url.trim() !== "";
+  const gap = missing(settled);
   const preview = useQuery(
     WebsiteService.method.previewWebsite,
     { website: specOf(settled) },
-    { enabled: portOk && urlTyped, retry: false },
+    { enabled: gap === undefined, retry: false },
   );
-  const refusal = !portOk
-    ? t`Use a port from 1 to 65535.`
-    : !urlTyped
-      ? t`Give the URL to send to, such as https://backend.example.com.`
-      : preview.error
-        ? sentence(preview.error)
-        : "";
+  const refusal = gap ? missingWords(gap) : preview.error ? sentence(preview.error) : "";
+  const refusedAt: Missing["field"] | "" = gap?.field ?? (preview.error ? fieldOf(now.serves) : "");
 
-  const changes = [
-    now.sendsTo !== was.sendsTo,
-    now.sendsTo === "url" && now.url.trim() !== was.url,
-    now.sendsTo === "url" && now.targetHost !== was.targetHost,
-    now.sendsTo === "port" && now.port !== was.port,
-  ].filter(Boolean).length;
+  const changes = changed(was, now).length;
   const typing = JSON.stringify(now) !== JSON.stringify(settled);
   // What its web server runs differs from what these settings write, as a change made
   // outside Websites edited it: planning these settings puts them back in step.
@@ -129,89 +83,44 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
       },
     });
 
-  const wasHint = (text: string) => (
-    <span className="website-was">
-      <span className="dw-plan-sym is-change" aria-hidden="true">
-        ~
-      </span>
-      <span>{text}</span>
-    </span>
-  );
-  const fieldRefusal = (field: "url" | "port") => {
-    if (!refusal) return undefined;
-    if (field === "port" && now.sendsTo === "port") return refusal;
-    if (field === "url" && now.sendsTo === "url") return refusal;
-    return undefined;
+  const servesHint: Record<Serves, string> = {
+    folder: t`Its web server serves the files as they are, and an edit shows at once`,
+    url: t`A small web server of its own sends each request on`,
+    port: t`The ingress sends each request straight to the port`,
   };
 
   return (
     <div className="website-tab">
       <div className="website-columns">
         <div className="website-settings">
-          <Panel title={<Trans>Where it sends</Trans>}>
+          <Panel title={<Trans>What it serves</Trans>}>
             <div className="website-fields">
               <SelectField
-                label={t`Sends its requests to`}
-                value={now.sendsTo}
-                options={[
-                  { value: "url", label: t`A URL` },
-                  { value: "port", label: t`A port on this server` },
-                ]}
+                label={t`Serves`}
+                value={now.serves}
+                options={(["folder", "url", "port"] as const).map((value) => ({ value, label: servesWords[value] }))}
                 hint={
-                  now.sendsTo !== was.sendsTo
-                    ? wasHint(was.sendsTo === "url" ? t`Was a URL` : t`Was a port on this server`)
-                    : now.sendsTo === "url"
-                      ? t`A small web server of its own sends each request on`
-                      : t`The ingress sends each request straight to the port`
+                  now.serves !== was.serves ? (
+                    <WasHint>{t`Was ${servesWords[was.serves]}`}</WasHint>
+                  ) : (
+                    servesHint[now.serves]
+                  )
                 }
-                onChange={(event) => setNow({ ...now, sendsTo: event.target.value === "port" ? "port" : "url" })}
+                onChange={(event) => setNow({ ...now, serves: event.target.value as Serves })}
               />
-              {now.sendsTo === "url" ? (
-                <>
-                  <TextField
-                    label={t`URL`}
-                    mono
-                    inputMode="url"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    value={now.url}
-                    error={fieldRefusal("url")}
-                    hint={
-                      was.sendsTo === "url" && now.url.trim() !== was.url
-                        ? wasHint(t`Was ${was.url}`)
-                        : t`With a path, such as /app, each request goes under it.`
-                    }
-                    onChange={(event) => setNow({ ...now, url: event.target.value })}
-                  />
-                  <Switch
-                    label={t`Send the URL's own name as Host`}
-                    description={t`For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain.`}
-                    checked={now.targetHost}
-                    onChange={(on) => setNow({ ...now, targetHost: on })}
-                  />
-                </>
-              ) : (
-                <TextField
-                  label={t`Port on the server`}
-                  mono
-                  inputMode="numeric"
-                  value={now.port}
-                  error={fieldRefusal("port")}
-                  hint={
-                    was.sendsTo === "port" && now.port !== was.port
-                      ? wasHint(t`Was ${was.port} · whatever listens there sees every visitor as local`)
-                      : t`Whatever listens there sees every visitor as local, so you approve it in the plan.`
-                  }
-                  onChange={(event) => setNow({ ...now, port: event.target.value })}
-                />
-              )}
+              <WebsiteFields
+                settings={now}
+                was={was}
+                server={site.serverId}
+                errors={{ [refusedAt || "none"]: refusal || undefined }}
+                onChange={setNow}
+              />
             </div>
           </Panel>
           <DomainPanel />
         </div>
         <Panel className={cx("website-config")} flush>
-          {now.sendsTo === "url" ? (
+          {now.serves !== "port" ? (
             <ConfigView
               before={site.config || (current.data?.config ?? "")}
               after={preview.data?.config ?? (refusal ? "" : site.config || (current.data?.config ?? ""))}
@@ -280,6 +189,11 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
       <DeletePanel site={site} />
     </div>
   );
+}
+
+/** The field a refusal of the server's is about, for a kind: its one field that can be wrong. */
+function fieldOf(serves: Serves): Missing["field"] {
+  return serves === "folder" ? "root" : serves;
 }
 
 /** A Caddyfile's line, in the parts the design colours: directive, placeholder, brace, comment. */
@@ -473,7 +387,12 @@ function DeletePanel({ site }: { site: WebsiteInfo }) {
   return (
     <Panel title={<Trans>Delete this website</Trans>} className="website-delete">
       <p>
-        {kind === "url" ? (
+        {kind === "folder" ? (
+          <Trans>
+            Its route and its web server go, and the folder stays on the server as it is. Undo from Activity brings them
+            back.
+          </Trans>
+        ) : kind === "url" ? (
           <Trans>Its route and its web server go. Undo from Activity brings them back.</Trans>
         ) : (
           <Trans>Its route goes, and what listens on the port keeps running. Undo from Activity brings it back.</Trans>

@@ -8,6 +8,7 @@ import {
   ChangeSchema,
   ChangeState,
   type CreateWebsiteRequest,
+  FileType,
   HealthState,
   PlanAction,
   type UpdateWebsiteRequest,
@@ -54,6 +55,50 @@ const tools = create(WebsiteInfoSchema, {
   serverId: SERVER,
   serverName: "hz-1",
 });
+
+const docs = create(WebsiteInfoSchema, {
+  id: "prj_docs",
+  name: "docs-example-com",
+  domain: "docs.example.com",
+  spec: { serves: { case: "folder", value: { root: "/var/www/docs", index: [], singlePageApp: false } } },
+  environmentId: "env_docs",
+  serviceId: "svc_docsweb",
+  routeId: "rte_docs",
+  updateTime: timestampFromDate(new Date(2026, 9, 20, 12)),
+  serverId: SERVER,
+  serverName: "hz-1",
+});
+
+/** A folder's entries as ListFiles has them: a name and its mode. */
+const entry = (name: string, mode = "-rw-r--r--", type = FileType.FILE) => ({ name, mode, type });
+
+/**
+ * A server's disk, as ListFiles reads it: the folders given, each with its mode and
+ * what's in it, and the folders above them, which hold them. What isn't there is
+ * refused, as the agent refuses it, and listed in asked.
+ */
+function disk(folders: Record<string, { mode: string; entries: ReturnType<typeof entry>[] }>, asked: string[] = []) {
+  return (req: { path: string }) => {
+    asked.push(req.path);
+    const folder = folders[req.path];
+    if (folder)
+      return { path: req.path, directory: { mode: folder.mode, type: FileType.DIRECTORY }, entries: folder.entries };
+    const children = Object.entries(folders).filter(
+      ([path]) =>
+        path.slice(0, path.lastIndexOf("/")) === req.path || (req.path === "/" && path.lastIndexOf("/") === 0),
+    );
+    if (children.length > 0 || req.path === "/var/www" || req.path === "/srv") {
+      return {
+        path: req.path,
+        directory: { mode: "drwxr-xr-x", type: FileType.DIRECTORY },
+        entries: children.map(([path, f]) => entry(path.slice(path.lastIndexOf("/") + 1), f.mode, FileType.DIRECTORY)),
+      };
+    }
+    const err = new ConnectError(`there's nothing at ${req.path}`, Code.NotFound);
+    err.metadata.set("Dockwell-Error", "not_found");
+    throw err;
+  };
+}
 
 const days = (n: number) => timestampFromDate(new Date(Date.now() + n * 86_400_000 - 60_000));
 
@@ -125,6 +170,9 @@ function api(websites: WebsiteInfo[], more: Api = {}): Api {
           );
           err.metadata.set("Dockwell-Error", "invalid");
           throw err;
+        }
+        if (req.website?.serves.case === "folder") {
+          return { website: req.website, config: ":8080 {\n\troot * /srv\n\tfile_server\n}\n" };
         }
         return {
           website: req.website,
@@ -319,6 +367,7 @@ describe("New website", () => {
     const sheet = await screen.findByRole("dialog", { name: "New website" });
     await expectAccessible(container);
     await user.type(within(sheet).getByLabelText("Domain"), "Shop.Example.com");
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
     await user.type(within(sheet).getByLabelText("URL"), "https://backend.example.com/shop");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
@@ -383,6 +432,7 @@ describe("New website", () => {
       }),
     );
     const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(within(sheet).getByLabelText("Domain")).toHaveAttribute("aria-invalid", "true");
     expect(within(sheet).getByLabelText("URL")).toHaveAttribute("aria-invalid", "true");
@@ -394,6 +444,124 @@ describe("New website", () => {
     await asked;
     expect(await within(sheet).findByText(/a character a website can't send on/)).toBeVisible();
     expect(within(sheet).getByLabelText("URL")).toHaveAttribute("aria-invalid", "true");
+  });
+});
+
+describe("A website that serves a folder", () => {
+  it("starts from a folder that follows the domain, says what's in it, and plans it", async () => {
+    const user = userEvent.setup();
+    let asked: CreateWebsiteRequest | undefined;
+    const read: string[] = [];
+    renderAt(
+      "/websites/new",
+      api([], {
+        websites: {
+          createWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        files: {
+          listFiles: disk(
+            {
+              "/srv/site": {
+                mode: "drwxr-xr-x",
+                entries: [entry("index.html"), entry("style.css"), entry("img", "drwxr-xr-x", FileType.DIRECTORY)],
+              },
+            },
+            read,
+          ),
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    expect(within(sheet).getByRole("radio", { name: /^Files in a folder/ })).toBeChecked();
+    await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
+    expect(within(sheet).getByLabelText("Folder")).toHaveValue("/var/www/shop.example.com");
+    expect(await within(sheet).findByText(/Nothing is at/, {}, { timeout: 3_000 })).toBeVisible();
+
+    await user.clear(within(sheet).getByLabelText("Folder"));
+    await user.type(within(sheet).getByLabelText("Folder"), "/srv/site");
+    expect(await within(sheet).findByText("Holds index.html and 2 more.", {}, { timeout: 3_000 })).toBeVisible();
+    expect(within(sheet).getByRole("link", { name: "Open in Files" })).toHaveAttribute(
+      "href",
+      `/servers/${SERVER}/files?path=%2Fsrv%2Fsite`,
+    );
+    // The domain doesn't take a folder that was typed.
+    await user.type(within(sheet).getByLabelText("Domain"), "x");
+    expect(within(sheet).getByLabelText("Folder")).toHaveValue("/srv/site");
+
+    await user.click(within(sheet).getByRole("switch", { name: /Single-page app/ }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.website?.serves).toEqual({
+      case: "folder",
+      value: expect.objectContaining({ root: "/srv/site", index: [], singlePageApp: true }),
+    });
+    expect(read).toContain("/srv/site");
+    // A folder that isn't there is seen from the folder above, as asking for it would go on Activity as refused.
+    expect(read).not.toContain("/var/www/shop.example.com");
+  });
+
+  it("says when the web server can't read the folder, or there's no index in it", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/websites/new",
+      api([], {
+        files: {
+          listFiles: disk({
+            "/srv/closed": { mode: "drwx------", entries: [entry("index.html")] },
+            "/srv/empty": { mode: "drwxr-xr-x", entries: [entry("readme.md")] },
+            "/srv/shut": { mode: "drwxr-xr-x", entries: [entry("index.html", "-rw-------")] },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    const folder = within(sheet).getByLabelText("Folder");
+    await user.type(folder, "/srv/closed");
+    expect(
+      await within(sheet).findByText(/closed to everyone else, so it answers 403/, {}, { timeout: 3_000 }),
+    ).toBeVisible();
+    await user.clear(folder);
+    await user.type(folder, "/srv/shut");
+    expect(await within(sheet).findByText(/closed to everyone but its owner/, {}, { timeout: 3_000 })).toBeVisible();
+    await user.clear(folder);
+    await user.type(folder, "/srv/empty");
+    expect(
+      await within(sheet).findByText(/so its address answers 404 until there is/, {}, { timeout: 3_000 }),
+    ).toBeVisible();
+  });
+
+  it("shows what serves it, and leads to its files", async () => {
+    onWideScreen();
+    renderAt(
+      "/websites/prj_docs/configuration",
+      api([docs], {
+        files: {
+          listFiles: disk({ "/var/www/docs": { mode: "drwxr-xr-x", entries: [entry("index.html")] } }),
+        },
+      }),
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: "docs.example.com" })).toBeVisible();
+    expect(screen.getByText(/Static files from \/var\/www\/docs/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Edit files" })).toHaveAttribute(
+      "href",
+      `/servers/${SERVER}/files?path=%2Fvar%2Fwww%2Fdocs`,
+    );
+    expect(screen.getByLabelText("Serves")).toHaveValue("folder");
+    expect(screen.getByLabelText("Folder")).toHaveValue("/var/www/docs");
+    const code = await screen.findByRole("region", { name: "The web server's config" });
+    await waitFor(() => expect(code).toHaveTextContent("file_server"));
+  });
+
+  it("lists as static files, with its folder under its domain", async () => {
+    onWideScreen();
+    renderAt("/websites", api([docs]));
+    const row = await rowOf(/docs\.example\.com/);
+    expect(row).toHaveTextContent("/var/www/docs");
+    expect(row).toHaveTextContent("Static files");
   });
 });
 
@@ -421,6 +589,7 @@ describe("New website on a fleet", () => {
     });
     const sheet = await screen.findByRole("dialog", { name: "New website" });
     await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "shop.example.com");
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
     await user.type(within(sheet).getByRole("textbox", { name: "URL" }), "https://backend.example.com");
     const server = await within(sheet).findByRole("combobox", { name: "Server" });
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));

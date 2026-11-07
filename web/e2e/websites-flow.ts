@@ -31,6 +31,7 @@ const NONE = 4;
 interface Site {
   id: string;
   domain: string;
+  root?: string;
   url?: string;
   port?: number;
   environment: string;
@@ -51,7 +52,7 @@ function aWebsite(site: Site, server: { id: string; name: string }): Buffer {
       bytes(1, site.id),
       bytes(2, site.domain.replaceAll(".", "-")),
       bytes(3, site.domain),
-      bytes(4, bytes(1, proxy)),
+      bytes(4, site.root ? bytes(2, bytes(1, site.root)) : bytes(1, proxy)),
       bytes(5, site.environment),
       site.service ? bytes(6, site.service) : Buffer.alloc(0),
       bytes(7, `rte_${site.id}`),
@@ -116,14 +117,22 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await page.getByRole("heading", { name: "No websites yet" }).waitFor();
   await shoot(page, "websites-empty");
 
-  step("websites: one to a URL reaches its plan, with its web server and its route, and needs no person");
+  step("websites: a folder follows the domain, and its plan names the folder for a person to approve");
   await page.getByRole("link", { name: "New website" }).click();
   const sheet = page.getByRole("dialog", { name: "New website" });
   await sheet.waitFor();
+  if (!(await sheet.getByRole("radio", { name: /^Files in a folder/ }).isChecked())) {
+    fail("a new website doesn't start from a folder");
+  }
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   await sheet.getByText("Name the domain, such as blog.example.com.").waitFor();
+  await sheet.getByText("Give the folder that holds its files, such as /var/www/blog.").waitFor();
   await sheet.getByRole("textbox", { name: "Domain", exact: true }).fill("blog.example.net");
-  await sheet.getByRole("textbox", { name: "URL", exact: true }).fill("https://backend.example.net/blog");
+  const folder = sheet.getByRole("textbox", { name: "Folder", exact: true });
+  if ((await folder.inputValue()) !== "/var/www/blog.example.net") {
+    fail(`the folder doesn't follow the domain: ${await folder.inputValue()}`);
+  }
+  await sheet.getByText(/Nothing is at/).waitFor({ timeout: 15_000 });
   // With several servers, the sheet asks which, as a website runs on one.
   const where = sheet.getByRole("combobox", { name: "Server" });
   if ((await where.count()) > 0) {
@@ -133,6 +142,17 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await shoot(page, "website-new");
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   const plan = page.getByRole("dialog", { name: "Review plan" });
+  await plan.waitFor({ timeout: 30_000 });
+  await plan.getByText("/var/www/blog.example.net").first().waitFor();
+  await shoot(page, "website-plan-folder");
+  await plan.getByRole("button", { name: /Cancel/ }).click();
+  await sheet.waitFor();
+
+  step("websites: one to a URL reaches its plan, with its web server and its route, and needs no person");
+  await sheet.getByRole("radio", { name: /^A URL/ }).check();
+  await sheet.getByRole("textbox", { name: "URL", exact: true }).fill("https://backend.example.net/blog");
+  await shoot(page, "website-new-url");
+  await sheet.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByText("blog.example.net").first().waitFor();
   await plan.getByText("web", { exact: true }).first().waitFor();
@@ -177,6 +197,14 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
     },
     { id: "prj_tools", domain: "tools.example.net", port: 3000, environment: "env_tools", daysAgo: 9 },
     {
+      id: "prj_docs",
+      domain: "docs.example.net",
+      root: "/var/www/docs",
+      environment: "env_docs",
+      service: "svc_docsweb",
+      daysAgo: 12,
+    },
+    {
       id: "prj_long",
       domain: "a-website-with-a-name-long-enough-to-wrap.e2e-dockwell.example.net",
       url: "http://10.0.0.5:8080",
@@ -185,7 +213,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
       daysAgo: 24,
     },
   ];
-  const days: Record<string, number | undefined> = { prj_blog: 61, prj_tools: undefined, prj_long: 88 };
+  const days: Record<string, number | undefined> = { prj_blog: 61, prj_tools: undefined, prj_long: 88, prj_docs: 40 };
   const websites = /WebsiteService\/ListWebsites/;
   const domains = /DomainService\/ListDomains/;
   await page.route(websites, (route) =>
@@ -212,7 +240,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await row("tools.example.net").getByText("Port 3000 on the server").waitFor();
   await row("tools.example.net").getByText("TLS ends in front").waitFor();
   await page
-    .getByText(/^3 sites( on |$)/)
+    .getByText(/^4 sites( on |$)/)
     .first()
     .waitFor();
   await shoot(page, "websites");
@@ -260,6 +288,16 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
     fail("a URL that won't do can be planned");
   await page.getByRole("button", { name: "Discard" }).click();
   await code.getByText("rewrite * /blog{uri}").waitFor();
+
+  step("websites: a folder's page shows its file server, from the control plane, and leads to its files");
+  await page.goto(`${origin}/websites/prj_docs`);
+  await page.waitForURL(/\/websites\/prj_docs\/configuration$/);
+  await page.getByText("Static files from /var/www/docs").first().waitFor();
+  await code.getByText("root * /srv").waitFor({ timeout: 15_000 });
+  await code.getByText("file_server {").waitFor();
+  await shoot(page, "website-folder");
+  const edit = await page.getByRole("link", { name: "Edit files" }).getAttribute("href");
+  if (edit !== `/servers/${server.id}/files?path=%2Fvar%2Fwww%2Fdocs`) fail(`Edit files goes to ${edit}`);
 
   step("websites: one to a port says how the ingress reaches it, and that nothing of its own logs");
   await page.goto(`${origin}/websites/prj_tools`);

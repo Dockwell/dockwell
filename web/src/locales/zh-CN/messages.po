@@ -6969,11 +6969,8 @@ msgstr "作为 {0}"
 msgid "value"
 msgstr "值"
 
-msgid "A URL"
-msgstr "URL"
-
-msgid "A port on this server"
-msgstr "此服务器上的端口"
+msgid "A static site: the files in a folder on this server, as they are. You approve the folder in the plan."
+msgstr "静态网站：原样提供此服务器上某个文件夹中的文件。你需要在计划中批准该文件夹。"
 
 msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
 msgstr "网站运行在一台服务器上，因为证书只会颁发给其 DNS 指向的那一台。"
@@ -6986,12 +6983,6 @@ msgstr "选择服务器"
 
 msgid "Choose the server it runs on."
 msgstr "请选择它运行的服务器。"
-
-msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
-msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"
-
-msgid "Give the URL to send to, such as https://backend.example.com."
-msgstr "请填写要转发到的 URL，例如 https://backend.example.com。"
 
 msgid "Name the domain, such as blog.example.com."
 msgstr "请填写域名，例如 blog.example.com。"
@@ -7011,26 +7002,11 @@ msgstr "访问者经由此服务器前面的隧道或代理在其域名上访问
 msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
 msgstr "将它的 DNS 指向此服务器，之前或之后均可。指向后证书会自动签发。"
 
-msgid "Send the URL's own name as Host"
-msgstr "将 URL 自己的主机名作为 Host 发送"
-
-msgid "Sends its requests to"
-msgstr "将请求转发到"
-
 msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
 msgstr "服务器本身上监听的程序，例如端口 3000。它会把每个访问者都视为本机，所以需要你在计划中批准。"
 
-msgid "Start it with http:// or https://, such as https://backend.example.com."
-msgstr "请以 http:// 或 https:// 开头，例如 https://backend.example.com。"
-
-msgid "URL"
-msgstr "URL"
-
-msgid "What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's."
-msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。端口 80 归代理使用。"
-
-msgid "With a path, such as /app, each request goes under it."
-msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
+msgid "What it serves"
+msgstr "提供的内容"
 
 msgid "Can't reach {host}"
 msgstr "无法访问 {host}"
@@ -7093,6 +7069,9 @@ msgstr "不一致"
 msgid "Go to the websites"
 msgstr "前往网站"
 
+msgid "Its route and its web server go, and the folder stays on the server as it is. Undo from Activity brings them back."
+msgstr "它的路由和 Web 服务器会被删除，文件夹原样保留在服务器上。在“动态”中撤销即可恢复。"
+
 msgid "Its route and its web server go. Undo from Activity brings them back."
 msgstr "它的路由和 Web 服务器会被删除。在“动态”中撤销即可恢复。"
 
@@ -7101,6 +7080,9 @@ msgstr "它的路由会被删除，端口上监听的程序继续运行。在“
 
 msgid "Its web server"
 msgstr "它的 Web 服务器"
+
+msgid "Its web server serves the files as they are, and an edit shows at once"
+msgstr "它的 Web 服务器原样提供这些文件，修改会立即生效"
 
 msgid "No route gives it a domain now"
 msgstr "目前没有路由为它提供域名"
@@ -7126,6 +7108,9 @@ msgstr "路由"
 msgid "Sends to"
 msgstr "转发到"
 
+msgid "Serves"
+msgstr "提供内容"
+
 msgid "The ingress sends each request straight to the port"
 msgstr "入口代理将每个请求直接发送到该端口"
 
@@ -7138,25 +7123,11 @@ msgstr "Web 服务器的配置"
 msgid "Through a tunnel or a proxy in front, which ends TLS"
 msgstr "通过前面终止 TLS 的隧道或代理"
 
-msgid "Was a URL"
-msgstr "原为 URL"
-
-msgid "Was a port on this server"
-msgstr "原为此服务器上的端口"
-
-#. placeholder {0}: was.url
+#. placeholder {0}: servesWords[was.serves]
+#. placeholder {0}: was.index
+#. placeholder {0}: was.root
 msgid "Was {0}"
 msgstr "原为 {0}"
-
-#. placeholder {0}: was.port
-msgid "Was {0} · whatever listens there sees every visitor as local"
-msgstr "原为 {0} · 在那里监听的程序会把每个访问者都视为本机"
-
-msgid "Whatever listens there sees every visitor as local, so you approve it in the plan."
-msgstr "在那里监听的程序会把每个访问者都视为本机，所以需要你在计划中批准。"
-
-msgid "Where it sends"
-msgstr "转发目标"
 
 msgid "its web server runs a config these settings don't write, as a change edited it outside Websites. Review plan puts them back."
 msgstr "它的 Web 服务器运行的配置与这些设置不符，因为有变更在“网站”之外修改了它。审查计划可将其恢复。"
@@ -7167,6 +7138,93 @@ msgstr "由 Dockwell 根据这些设置生成"
 msgid "{changes, plural, one {# change} other {# changes}}"
 msgstr "{changes, plural, other {# 处更改}}"
 
+#. placeholder {0}: shut.name
+#. placeholder {1}: shut.mode
+msgid "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
+msgstr "<0>{0}</0> 的权限是 <1>{1}</1>，只有所有者可读，所以 Web 服务器读不到它。请对它以及该文件夹中的其他文件运行 <2>chmod o+r</2>。"
+
+msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
+msgstr "<0>{path}</0> 是文件，不是文件夹。请填写存放网站文件的文件夹。"
+
+msgid "A URL"
+msgstr "URL"
+
+msgid "A port on this server"
+msgstr "此服务器上的端口"
+
+msgid "Answers a path with no file of its own with the index, as an app that routes in the browser needs. Off, it gets a 404."
+msgstr "没有对应文件的路径用首页文件响应，在浏览器中处理路由的应用需要这样。关闭时返回 404。"
+
+msgid "Files in a folder"
+msgstr "文件夹中的文件"
+
+msgid "Folder"
+msgstr "文件夹"
+
+msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
+msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"
+
+msgid "Give the URL to send to, such as https://backend.example.com."
+msgstr "请填写要转发到的 URL，例如 https://backend.example.com。"
+
+msgid "Give the folder from the top, starting with /, such as /var/www/blog."
+msgstr "请从根目录写起，以 / 开头，例如 /var/www/blog。"
+
+msgid "Give the folder that holds its files, such as /var/www/blog."
+msgstr "请填写存放网站文件的文件夹，例如 /var/www/blog。"
+
+msgid "Holds {found}."
+msgstr "包含 {found}。"
+
+msgid "Index files"
+msgstr "首页文件"
+
+msgid "Nothing is at <0>{path}</0> yet. Docker makes the folder, empty and owned by root, as the plan applies. Put the site's files in it with scp or rsync, as Files edits files that are there."
+msgstr "<0>{path}</0> 目前不存在。应用计划时 Docker 会创建这个文件夹，内容为空，归 root 所有。请用 scp 或 rsync 把网站文件放进去，因为“文件”只能编辑已有的文件。"
+
+msgid "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
+msgstr "位于服务器上。它的 Web 服务器以 nobody 用户读取，所以其中的内容必须所有人可读。"
+
+msgid "Open in Files"
+msgstr "在“文件”中打开"
+
+msgid "Send the URL's own name as Host"
+msgstr "将 URL 自己的主机名作为 Host 发送"
+
+msgid "Single-page app"
+msgstr "单页应用"
+
+msgid "Start it with http:// or https://, such as https://backend.example.com."
+msgstr "请以 http:// 或 https:// 开头，例如 https://backend.example.com。"
+
+msgid "The first of these in a folder answers for it."
+msgstr "文件夹中按顺序找到的第一个文件用来响应该文件夹。"
+
+msgid "The web server reads the folder as nobody's user, and <0>{path}</0> is <1>{mode}</1>, closed to everyone else, so it answers 403. Run <2>chmod o+rx {path}</2>, and <3>o+r</3> on its files."
+msgstr "Web 服务器以 nobody 用户读取该文件夹，而 <0>{path}</0> 的权限是 <1>{mode}</1>，其他人无法访问，所以会返回 403。请运行 <2>chmod o+rx {path}</2>，并对其中的文件设置 <3>o+r</3>。"
+
+msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
+msgstr "<1>{path}</1> 中没有 <0>{first}</0>，所以在添加之前访问它会返回 404。请添加一个，或填写网站已有的首页文件。"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "Was index.html index.htm"
+msgstr "原为 index.html index.htm"
+
+#. placeholder {0}: was.port
+msgid "Was {0} · whatever listens there sees every visitor as local"
+msgstr "原为 {0} · 在那里监听的程序会把每个访问者都视为本机"
+
+msgid "What listens on the server itself, on 127.0.0.1 or every address. It sees every visitor as local, so you approve it in the plan."
+msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。它会把每个访问者都视为本机，所以需要你在计划中批准。"
+
+msgid "With a path, such as /app, each request goes under it."
+msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
+
+msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
+msgstr "{others, plural, other {包含 {found} 以及另外 # 项。}}"
+
 msgid "<0>{websiteId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{websiteId}</0> 可能已被删除，或链接有误。"
 
@@ -7175,6 +7233,9 @@ msgstr "无法加载此网站"
 
 msgid "Dockwell can't read what this website serves"
 msgstr "Dockwell 无法读取此网站提供的内容"
+
+msgid "Edit files"
+msgstr "编辑文件"
 
 msgid "Loading the website"
 msgstr "正在加载网站"
@@ -7185,9 +7246,11 @@ msgstr "没有此 ID 的网站"
 msgid "Reverse proxy to port {port} on the server"
 msgstr "反向代理到服务器上的端口 {port}"
 
-#. placeholder {0}: targetOf(site.spec)
-msgid "Reverse proxy to {0}"
-msgstr "反向代理到 {0}"
+msgid "Reverse proxy to {root}"
+msgstr "反向代理到 {root}"
+
+msgid "Static files from {root}"
+msgstr "来自 {root} 的静态文件"
 
 msgid "Visit site"
 msgstr "访问网站"
@@ -7227,6 +7290,9 @@ msgstr "反向代理"
 
 msgid "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
 msgstr "将域名转发到某个 URL，或你服务器上的某个端口。任何变更之前，你都会先审查计划。"
+
+msgid "Static files"
+msgstr "静态文件"
 
 msgid "Type"
 msgstr "类型"

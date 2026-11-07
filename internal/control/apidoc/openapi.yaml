@@ -9513,7 +9513,36 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/WebsiteProxy'
                     description: Sends its requests on to a URL, or to a port on the server.
+                folder:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteFolder'
+                    description: Serves the files in a folder on the server, as they are.
             description: Website is what a website serves at its domain, as a person chose it.
+        WebsiteFolder:
+            type: object
+            properties:
+                root:
+                    type: string
+                    description: |-
+                        The folder, as an absolute path on the server, such as "/var/www/blog". Its
+                         web server reads it as nobody's user, so what it serves must be readable by
+                         everyone. Docker makes a folder that isn't there, empty and owned by root.
+                index:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The files a request for a folder gets, the first there is, such as
+                         "index.html". Empty takes index.html, then index.htm.
+                singlePageApp:
+                    type: boolean
+                    description: |-
+                        Answers a path with no file of its own with the index at the folder's top, as
+                         an app that routes in the browser needs, rather than with a 404.
+            description: |-
+                WebsiteFolder serves the files in a folder on the server, as they are. Its web
+                 server mounts the folder read-only, so a person approves it, and edits to the
+                 files show at once, with nothing to deploy.
         WebsiteInfo:
             type: object
             properties:

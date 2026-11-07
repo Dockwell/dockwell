@@ -3,18 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { type Change, ChangeState, type Server, WebsiteService } from "@dockwell/api";
-import {
-  Button,
-  Callout,
-  cx,
-  Icon,
-  PHONE_QUERY,
-  SelectField,
-  Sheet,
-  Switch,
-  TextField,
-  useMediaQuery,
-} from "@dockwell/ui";
+import { Button, Callout, cx, Icon, PHONE_QUERY, SelectField, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -24,14 +13,20 @@ import { useTunnelSwitchName } from "../apps/DomainNote";
 import { DomainRecord } from "../apps/DomainRecord";
 import { formRefusal, proxyList, refusedField } from "../apps/domains";
 import { FrontFields, frontOf, type InFront } from "../apps/FrontFields";
-import { validPort } from "../apps/form";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { type FleetState, useFleet } from "../servers/useFleet";
+import {
+  BLANK,
+  type Missing,
+  missing,
+  type Serves,
+  type Settings,
+  refusedField as servesField,
+  specOf,
+} from "./settings";
+import { useMissingWords, useServesWords, WebsiteFields } from "./WebsiteFields";
 import "../apps/Apps.css";
 import "./Websites.css";
-
-/** Where a website sends its requests. */
-export type SendsTo = "url" | "port";
 
 /** The server a website goes on: the one chosen, or the only one there is. */
 function serverOf(fleet: FleetState, id: string): Server | undefined {
@@ -39,22 +34,11 @@ function serverOf(fleet: FleetState, id: string): Server | undefined {
   return fleet.servers.find((s) => s.id === id) ?? (fleet.servers.length === 1 ? fleet.servers[0] : undefined);
 }
 
-/** A URL a website can send to, as far as a form can tell before the server says. */
-function looksLikeURL(written: string): boolean {
-  return /^https?:\/\/\S+$/i.test(written.trim());
-}
-
-/** Which field a refusal of what a website sends to is about, by what the server says. */
-function targetField(said: string): "url" | "port" | "" {
-  if (/\bURL\b|http:\/\/|https:\/\/|host name|path|query/i.test(said)) return "url";
-  if (/\bport\b/i.test(said) && !/\bURL\b/.test(said)) return "port";
-  return "";
-}
-
 /**
- * New website: its domain, where it sends its requests, and what's in front of the
- * server, then the plan. A URL is reached by a small web server of its own, which needs
- * nothing a token couldn't do; a port on the server needs a person, which the plan says.
+ * New website: its domain, what it serves, and what's in front of the server, then the
+ * plan. A folder and a URL are served by a small web server of its own; a folder and a
+ * port on the server need a person, which the plan says. The folder follows the domain,
+ * as /var/www/<domain>, until it's typed.
  */
 export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMade?: (domain: string) => void }) {
   const { t } = useLingui();
@@ -65,17 +49,14 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
   const servers = fleet.status === "connecting" ? [] : fleet.servers;
   const [server, setServer] = useState("");
   const [domain, setDomain] = useState("");
-  const [sendsTo, setSendsTo] = useState<SendsTo>("url");
-  const [url, setURL] = useState("");
-  const [port, setPort] = useState("");
-  const [targetHost, setTargetHost] = useState(false);
+  const [settings, setSettings] = useState<Settings>(BLANK);
+  const rootTyped = useRef(false);
   const [noCertificate, setNoCertificate] = useState(false);
   const [inFront, setInFront] = useState<InFront>("tunnel");
   const [proxies, setProxies] = useState("");
   const [proxiesError, setProxiesError] = useState<string>();
   const [domainError, setDomainError] = useState<string>();
-  const [urlError, setURLError] = useState<string>();
-  const [portError, setPortError] = useState<string>();
+  const [fieldError, setFieldError] = useState<{ field: Missing["field"]; said: string }>();
   const [serverError, setServerError] = useState<string>();
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -84,6 +65,8 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
   const form = useRef<HTMLFormElement>(null);
   const choiceName = useId();
   const switchName = useTunnelSwitchName();
+  const missingWords = useMissingWords();
+  const servesWords = useServesWords();
   const typed = domain.trim().toLowerCase();
   const several = servers.length > 1;
 
@@ -107,12 +90,11 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
   /** Puts what the server refused at the field it's about, or above them all if it's about none of them. */
   const land = (raw: string, wanted: string) => {
     const said = formRefusal(raw, wanted);
-    const at = refusedField(said, { domain: wanted, port, onServer: sendsTo === "port" });
+    const at = refusedField(said, { domain: wanted, port: settings.port, onServer: settings.serves === "port" });
     if (at === "domain") return setDomainError(said);
     if (at === "proxies" && noCertificate && inFront === "proxy") return setProxiesError(said);
-    const target = targetField(said);
-    if (target === "url" && sendsTo === "url") return setURLError(said);
-    if ((target === "port" || at === "port") && sendsTo === "port") return setPortError(said);
+    const target = servesField(said, settings.serves) || (at === "port" && settings.serves === "port" ? "port" : "");
+    if (target) return setFieldError({ field: target, said });
     setFailure(said);
   };
 
@@ -120,34 +102,21 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
     event?.preventDefault();
     if (busy) return;
     const domainOk = typed !== "" && !/\s/.test(typed);
-    const urlOk = sendsTo !== "url" || looksLikeURL(url);
-    const portOk = sendsTo !== "port" || validPort(port);
+    const gap = missing(settings);
     const named = proxyList(proxies);
     const proxiesOk = !noCertificate || inFront !== "proxy" || named.length > 0;
     const serverOk = !several || server !== "";
     setDomainError(domainOk ? undefined : t`Name the domain, such as blog.example.com.`);
-    setURLError(
-      urlOk
-        ? undefined
-        : url.trim() === ""
-          ? t`Give the URL to send to, such as https://backend.example.com.`
-          : t`Start it with http:// or https://, such as https://backend.example.com.`,
-    );
-    setPortError(portOk ? undefined : t`Use a port from 1 to 65535.`);
+    setFieldError(gap ? { field: gap.field, said: missingWords(gap) } : undefined);
     setProxiesError(proxiesOk ? undefined : t`Name what connects to this server, as an address or a range.`);
     setServerError(serverOk ? undefined : t`Choose the server it runs on.`);
     setFailure(undefined);
-    if (!domainOk || !urlOk || !portOk || !proxiesOk || !serverOk) {
+    if (!domainOk || gap || !proxiesOk || !serverOk) {
       revealError();
       return;
     }
     const front = frontOf(noCertificate, inFront, named);
-    const website = {
-      serves: {
-        case: "proxy" as const,
-        value: sendsTo === "port" ? { port: Number(port) } : { url: url.trim(), sendTargetHost: targetHost },
-      },
-    };
+    const website = specOf(settings);
     setBusy(true);
     let change: Change | undefined;
     try {
@@ -190,15 +159,17 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
     });
   };
 
-  const choices: { value: SendsTo; label: string; hint: string }[] = [
+  const choices: { value: Serves; hint: string }[] = [
+    {
+      value: "folder",
+      hint: t`A static site: the files in a folder on this server, as they are. You approve the folder in the plan.`,
+    },
     {
       value: "url",
-      label: t`A URL`,
       hint: t`Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on.`,
     },
     {
       value: "port",
-      label: t`A port on this server`,
       hint: t`Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan.`,
     },
   ];
@@ -270,6 +241,9 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
           onChange={(event) => {
             setDomain(event.target.value);
             setDomainError(undefined);
+            // The folder follows the domain until it's typed, as /var/www/<domain>.
+            const name = event.target.value.trim().toLowerCase();
+            if (!rootTyped.current) setSettings((was) => ({ ...was, root: name ? `/var/www/${name}` : "" }));
           }}
         />
         <DomainRecord
@@ -279,68 +253,6 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
           tunnelName={switchName}
           onLeave={onClose}
         />
-        <fieldset className="app-front website-sends">
-          <legend className="dw-field-label">
-            <Trans>Sends its requests to</Trans>
-          </legend>
-          {choices.map((choice) => (
-            <label key={choice.value} className={cx("app-front-choice", sendsTo === choice.value && "is-on")}>
-              <input
-                type="radio"
-                name={choiceName}
-                checked={sendsTo === choice.value}
-                onChange={() => {
-                  setSendsTo(choice.value);
-                  setFailure(undefined);
-                }}
-              />
-              <span className="app-front-text">
-                <span className="app-front-name">{choice.label}</span>
-                <span className="app-front-hint">{choice.hint}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-        {sendsTo === "url" ? (
-          <>
-            <TextField
-              label={t`URL`}
-              mono
-              inputMode="url"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              placeholder="https://backend.example.com"
-              value={url}
-              error={urlError}
-              hint={t`With a path, such as /app, each request goes under it.`}
-              onChange={(event) => {
-                setURL(event.target.value);
-                setURLError(undefined);
-              }}
-            />
-            <Switch
-              label={t`Send the URL's own name as Host`}
-              description={t`For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain.`}
-              checked={targetHost}
-              onChange={setTargetHost}
-            />
-          </>
-        ) : (
-          <TextField
-            label={t`Port on the server`}
-            mono
-            inputMode="numeric"
-            placeholder="3000"
-            value={port}
-            error={portError}
-            hint={t`What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's.`}
-            onChange={(event) => {
-              setPort(event.target.value);
-              setPortError(undefined);
-            }}
-          />
-        )}
         {several ? (
           <SelectField
             label={t`Server`}
@@ -357,6 +269,39 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
             }}
           />
         ) : null}
+        <fieldset className="app-front website-sends">
+          <legend className="dw-field-label">
+            <Trans>What it serves</Trans>
+          </legend>
+          {choices.map((choice) => (
+            <label key={choice.value} className={cx("app-front-choice", settings.serves === choice.value && "is-on")}>
+              <input
+                type="radio"
+                name={choiceName}
+                checked={settings.serves === choice.value}
+                onChange={() => {
+                  setSettings({ ...settings, serves: choice.value });
+                  setFieldError(undefined);
+                  setFailure(undefined);
+                }}
+              />
+              <span className="app-front-text">
+                <span className="app-front-name">{servesWords[choice.value]}</span>
+                <span className="app-front-hint">{choice.hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        <WebsiteFields
+          settings={settings}
+          server={serverOf(fleet, server)?.id ?? ""}
+          errors={fieldError ? { [fieldError.field]: fieldError.said } : {}}
+          onChange={(next) => {
+            if (next.root !== settings.root) rootTyped.current = true;
+            setSettings(next);
+            setFieldError(undefined);
+          }}
+        />
         <FrontFields
           behind="website"
           noCertificate={noCertificate}

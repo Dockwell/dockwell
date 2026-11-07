@@ -5,15 +5,17 @@ import { type Website, type WebsiteInfo, WebsiteService } from "@dockwell/api";
 import { useMemo } from "react";
 
 /** What a website does, as its settings say. */
-export type WebsiteKind = "url" | "port" | "unknown";
+export type WebsiteKind = "folder" | "url" | "port" | "unknown";
 
 export function kindOf(spec: Website | undefined): WebsiteKind {
+  if (spec?.serves.case === "folder") return "folder";
   if (spec?.serves.case !== "proxy") return "unknown";
   return spec.serves.value.port ? "port" : "url";
 }
 
-/** Where a website sends its requests: a URL, or a port on the server. Empty for one that says nothing. */
+/** What a website serves from: its folder, a URL, or a port on the server. Empty for one that says nothing. */
 export function targetOf(spec: Website | undefined): string {
+  if (spec?.serves.case === "folder") return spec.serves.value.root;
   if (spec?.serves.case !== "proxy") return "";
   const { url, port } = spec.serves.value;
   return port ? `127.0.0.1:${port}` : url;

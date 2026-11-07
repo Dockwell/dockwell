@@ -1469,6 +1469,9 @@ func Kinds() []*apicli.Kind {
 				{Path: "website.proxy.url", Help: "Where to send them, such as \"https://backend.example.com\" or \"http://10.0.0.5:8080/app\": http or https, a host, and a port and a path if it needs them, with no query. A path goes in front of each request's own. It's reached from a container, as any app reaches the internet, so it can't be the server's own loopback: give port for that."},
 				{Path: "website.proxy.port", Help: "A port on the server itself, such as 3000, in place of url. Whatever listens there sees every visitor as local, so a person approves it."},
 				{Path: "website.proxy.send_target_host", Help: "Sends the url's own host as the Host header, in place of the website's domain, as a target that serves several names needs, such as another site over HTTPS. For a url only."},
+				{Path: "website.folder.root", Help: "The folder, as an absolute path on the server, such as \"/var/www/blog\". Its web server reads it as nobody's user, so what it serves must be readable by everyone. Docker makes a folder that isn't there, empty and owned by root."},
+				{Path: "website.folder.index", Help: "The files a request for a folder gets, the first there is, such as \"index.html\". Empty takes index.html, then index.htm."},
+				{Path: "website.folder.single_page_app", Help: "Answers a path with no file of its own with the index at the folder's top, as an app that routes in the browser needs, rather than with a 404."},
 			},
 		},
 		{

@@ -42,6 +42,14 @@ A website is a project of its own, as a catalog install is. `Project.website` sa
 - **It has a network of its own.** `web` joins the website environment's `site` network, and the ingress's, which its route adds, and never Docker's default bridge. The default bridge holds every service that names no network and every container run by hand, and `web` takes the ingress's word on who a visitor is from any private address, so one of those could say it was anyone. On its own network, what reaches it from a private address is the ingress. It may use 128 MB of memory, so one website can't starve another.
 - **Its health check is a TCP connection.** A GET would ask the upstream, so an upstream that was down for a moment would fail the deploy and roll it back. So whether what it sends to answers is asked apart from deploys: the website's server asks it, as the ingress or `web` would, when the list is read, at most every 30 seconds, and the list says "Can't reach …" or "Nothing listens on port 3000" in place of a state. That reads the status line, and nothing of what answers.
 
+### A folder, as it is
+
+A folder's web server serves the files as they are, with its index for a folder, a 404 for what isn't there, and, for a single-page app, the top index in place of that 404. It mounts the folder read-only at `/srv`, so serving writes nothing and nothing served can change it, and an edit, in Files or anywhere, shows at the next request with nothing to deploy.
+
+- **It reads the folder as uid 65532,** so the folder must be open to everyone, as a site's usually is. The forms read it through Files and say when it isn't, or has no index, with the `chmod` that fixes it. They read the folder above first, as a listing that comes to nothing goes on Activity as refused ([ADR 0032](0032-files-on-a-server.md)), and a folder that isn't there yet is the form's business, not Activity's.
+- **A folder that isn't there yet is made by Docker,** empty and owned by root. Files edits what's there and makes no file, so a new site's first files arrive by `scp` or `rsync` for now, and the form says so.
+- **Deleting the website leaves the folder as it is.**
+
 ### PHP runs beside the web server
 
 `php` is PHP-FPM from a pinned image for each version on offer, listening on 9000 on the environment's own network, where `web` reaches it by name. Its workers run as the folder's owner, so files it writes keep the owner they had. Choosing another version is a change to `php`'s image, which rolls with no downtime. Each PHP site has its own `php`, so one site's code can't read another's folder, and one version's upgrade moves no other site.

@@ -333,7 +333,25 @@ message Website {
   oneof serves {
     // Sends its requests on to a URL, or to a port on the server.
     WebsiteProxy proxy = 1;
+    // Serves the files in a folder on the server, as they are.
+    WebsiteFolder folder = 2;
   }
+}
+
+// WebsiteFolder serves the files in a folder on the server, as they are. Its web
+// server mounts the folder read-only, so a person approves it, and edits to the
+// files show at once, with nothing to deploy.
+message WebsiteFolder {
+  // The folder, as an absolute path on the server, such as "/var/www/blog". Its
+  // web server reads it as nobody's user, so what it serves must be readable by
+  // everyone. Docker makes a folder that isn't there, empty and owned by root.
+  string root = 1;
+  // The files a request for a folder gets, the first there is, such as
+  // "index.html". Empty takes index.html, then index.htm.
+  repeated string index = 2;
+  // Answers a path with no file of its own with the index at the folder's top, as
+  // an app that routes in the browser needs, rather than with a 404.
+  bool single_page_app = 3;
 }
 
 // WebsiteProxy sends a website's requests on, to a URL or to a port on the
