@@ -243,7 +243,10 @@ export function NewWebsiteSheet({ onClose, onMade }: { onClose: () => void; onMa
             setDomainError(undefined);
             // The folder follows the domain until it's typed, as /var/www/<domain>.
             const name = event.target.value.trim().toLowerCase();
-            if (!rootTyped.current) setSettings((was) => ({ ...was, root: name ? `/var/www/${name}` : "" }));
+            if (!rootTyped.current) {
+              setSettings((was) => ({ ...was, root: name ? `/var/www/${name}` : "" }));
+              setFieldError((said) => (said?.field === "root" ? undefined : said));
+            }
           }}
         />
         <DomainRecord

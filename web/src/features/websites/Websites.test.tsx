@@ -477,8 +477,12 @@ describe("A website that serves a folder", () => {
     );
     const sheet = await screen.findByRole("dialog", { name: "New website" });
     expect(within(sheet).getByRole("radio", { name: /^Files in a folder/ })).toBeChecked();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(within(sheet).getByLabelText("Folder")).toHaveAttribute("aria-invalid", "true");
     await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
     expect(within(sheet).getByLabelText("Folder")).toHaveValue("/var/www/shop.example.com");
+    // The domain gave it a folder, so what it said of none goes.
+    expect(within(sheet).getByLabelText("Folder")).not.toHaveAttribute("aria-invalid", "true");
     expect(await within(sheet).findByText(/Nothing is at/, {}, { timeout: 3_000 })).toBeVisible();
 
     await user.clear(within(sheet).getByLabelText("Folder"));
