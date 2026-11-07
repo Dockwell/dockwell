@@ -82,8 +82,10 @@ export function BackupsPage() {
     ) : null;
 
   const failed = backups.filter((b) => b.state === BackupState.FAILED).length;
+  // The list is one page, the newest: with more beyond it, the count says so rather than claim them all.
+  const shown = backups.length;
   const runs = [
-    plural(backups.length, { one: "# backup", other: "# backups" }),
+    query.data?.nextPageToken ? t`${shown} newest` : plural(shown, { one: "# backup", other: "# backups" }),
     failed > 0 ? plural(failed, { one: "# failed", other: "# failed" }) : "",
   ]
     .filter(Boolean)

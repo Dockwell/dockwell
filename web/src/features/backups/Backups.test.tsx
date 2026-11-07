@@ -124,6 +124,13 @@ describe("the backups page", () => {
     await expectAccessible(container);
   });
 
+  it("says the runs are the newest, when there are more than a page holds", async () => {
+    const page = Array.from({ length: 3 }, (_, i) => aBackup({ id: `bkp_${i}` }));
+    renderAt("/backups", api([], { backups: { listBackups: () => ({ backups: page, nextPageToken: "more" }) } }));
+    const runs = await screen.findByRole("region", { name: "Recent runs" });
+    expect(within(runs).getByText("3 newest")).toBeVisible();
+  });
+
   it("stacks on a phone", async () => {
     onPhone();
     renderAt("/backups", api([aBackup()]));

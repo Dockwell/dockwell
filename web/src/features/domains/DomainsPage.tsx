@@ -514,8 +514,12 @@ function Reaches({
   const says = fleet || environment?.(row.domain.environmentId);
   return (
     <span className="domains-reaches">
-      {/* What it reaches, as Domains-List marks it: an app, or a port on the server itself. */}
-      <Icon name={row.service ? "service" : "server"} size={16} className="domains-reaches-mark" />
+      {/* What it reaches, as Domains-List marks it: an app, or a port on the server itself, by the route, whether or not the app has loaded. */}
+      <Icon
+        name={row.route.service ? "service" : "server"}
+        size={16}
+        className={cx("domains-reaches-mark", row.route.service ? "is-app" : "is-server")}
+      />
       <span className="dw-cell">
         {row.service ? (
           // The row takes the keyboard; the link is for a new tab, and for screen readers' lists of links.

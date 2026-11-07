@@ -84,11 +84,6 @@ msgstr "{0, plural, one {# app stops, and you can undo this until {deadline}.} o
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, one {# app stops.} other {# apps stop.}}"
 
-#. placeholder {0}: backups.length
-#: src/features/backups/BackupsPage.tsx
-msgid "{0, plural, one {# backup} other {# backups}}"
-msgstr "{0, plural, one {# backup} other {# backups}}"
-
 #. placeholder {0}: waiting.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {# change to this app needs your approval} other {# changes to this app need your approval}}"
@@ -913,9 +908,17 @@ msgstr "{servers} offline"
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
 
+#: src/features/backups/BackupsPage.tsx
+msgid "{shown, plural, one {# backup} other {# backups}}"
+msgstr "{shown, plural, one {# backup} other {# backups}}"
+
 #: src/features/apps/AppDeployments.tsx
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
+
+#: src/features/backups/BackupsPage.tsx
+msgid "{shown} newest"
+msgstr "{shown} newest"
 
 #: src/app/Providers.tsx
 msgid "{size} more not kept"
