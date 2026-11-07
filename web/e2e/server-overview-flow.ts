@@ -56,13 +56,18 @@ export async function serverOverviewFlow(page: Page, { origin, step, shoot, brea
   const broken = (await disk.getByText("Images", { exact: true }).count()) > 0;
   if (breakdown && !broken) fail(`the disk Docker's data is on isn't drawn part by part: ${await disk.innerText()}`);
   if (broken) {
-    // Every part, the bar that draws them, and the disk they're of.
-    for (const part of ["Images", "Volumes", "Free"]) await disk.getByText(part, { exact: true }).waitFor();
-    const bar = await disk
+    // Every part, the bar that draws them, and the disk they're of. A server with
+    // another disk, as CI's runners have /mnt, draws that one's used and free
+    // beside it, Free and all, so this looks inside the breakdown alone.
+    const docker = disk.locator(".disk-use-docker");
+    const drawn = await docker.count();
+    if (drawn !== 1) fail(`Docker's disk is drawn ${drawn} times: ${await disk.innerText()}`);
+    for (const part of ["Images", "Volumes", "Free"]) await docker.getByText(part, { exact: true }).waitFor();
+    const bar = await docker
       .getByRole("img", { name: /^Disk usage of \/.*: Images .+, Volumes .+, Free .+, of .+$/ })
       .count();
     if (bar !== 1) fail(`the disk's bar doesn't name its parts: ${await disk.innerHTML()}`);
-    const images = await disk.getByText(/^\d+ images?( · .+)?$/).count();
+    const images = await docker.getByText(/^\d+ images?( · .+)?$/).count();
     if (images === 0) fail(`the images part doesn't count the fake Docker's images: ${await disk.innerText()}`);
   }
   step(broken ? "  Docker's disk, part by part" : "  each disk's used and free, as Docker's data isn't on a data disk");

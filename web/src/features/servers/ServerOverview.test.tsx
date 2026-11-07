@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { create } from "@bufbuild/protobuf";
+import { clone, create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
@@ -9,6 +9,7 @@ import {
   Connection,
   DeploymentState,
   DiskSchema,
+  DiskUsageSchema,
   HealthState,
   NetworkShape,
   PublicAddressSchema,
@@ -17,6 +18,7 @@ import {
   ServerDiskUseSchema,
   ServerInventorySchema,
   ServerNetworkSchema,
+  ServerSchema,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -192,6 +194,25 @@ describe("ServerOverview", () => {
     const disks = await screen.findByRole("region", { name: "Disk usage" });
     expect(disks).toHaveTextContent("38% of 160 GB used");
     expect(getServerDiskUse).not.toHaveBeenCalled();
+  });
+
+  it("draws Docker's disk part by part, and another disk beside it by used and free, each once", async () => {
+    const two = clone(ServerSchema, hz1);
+    two.inventory?.disks.push(
+      create(DiskSchema, { mountPoint: "/mnt", device: "/dev/sdb1", filesystem: "ext4", sizeBytes: BigInt(75 * GiB) }),
+    );
+    two.stats?.disks.push(
+      create(DiskUsageSchema, { mountPoint: "/mnt", sizeBytes: BigInt(75 * GiB), usedBytes: BigInt(5 * GiB) }),
+    );
+    await renderServerWith({}, "/servers/srv_1", two);
+    const disks = await screen.findByRole("region", { name: "Disk usage" });
+    await within(disks).findByText("Images");
+    expect(within(disks).getAllByRole("img", { name: /^Disk usage of \/:/ })).toHaveLength(1);
+    expect(within(disks).getAllByRole("img", { name: /^\/mnt: / })).toHaveLength(1);
+    // / is drawn once, part by part, and not again by used and free.
+    expect(within(disks).queryByRole("img", { name: /^\/: / })).toBeNull();
+    // Each has its own Free.
+    expect(within(disks).getAllByText("Free", { exact: true })).toHaveLength(2);
   });
 
   it("draws each disk's used and free space while Docker adds up what takes it", async () => {
