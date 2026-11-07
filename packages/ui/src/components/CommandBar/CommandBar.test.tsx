@@ -64,7 +64,11 @@ describe("CommandBar inline", () => {
     const user = userEvent.setup();
     render(<CommandBar inline items={items} />);
     await user.type(combobox(), "api");
-    expect(screen.getAllByRole("option").map((o) => o.textContent?.slice(0, 6))).toEqual(["Deploy", "Restar"]);
+    // Both have api-gateway whole, at the start of a word, so the shorter comes first; Roll back has no a, p and i.
+    expect(screen.getAllByRole("option").map((o) => o.textContent?.slice(0, 6))).toEqual(["Restar", "Deploy"]);
+    await user.clear(combobox());
+    await user.type(combobox(), "dep");
+    expect(screen.getAllByRole("option")[0]).toHaveTextContent("Deploy api-gateway");
   });
 
   it("moves the active option with arrow keys, stopping at the ends, and runs it with Enter", async () => {
