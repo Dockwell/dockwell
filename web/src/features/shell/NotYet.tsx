@@ -13,9 +13,9 @@ import { UPCOMING, type UpcomingSection } from "./sections";
  */
 export function NotYet({ section }: { section: UpcomingSection }) {
   const { i18n } = useLingui();
-  const { label, icon, inMore } = UPCOMING[section];
+  const { label, icon, inMore, width } = UPCOMING[section];
   return (
-    <Page title={i18n._(label)} back={inMore ? "/more" : undefined}>
+    <Page title={i18n._(label)} width={width} back={inMore ? "/more" : undefined}>
       <EmptyState
         icon={icon}
         title={<Trans>Not in this release yet</Trans>}

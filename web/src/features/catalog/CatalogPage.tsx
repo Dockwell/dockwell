@@ -50,6 +50,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   const count = new Set((installs ?? []).map((install) => install.project)).size;
   return (
     <Page
+      width="wide"
       title={t`Catalog`}
       back="/more"
       lead={t`Open-source apps you can install in one step`}

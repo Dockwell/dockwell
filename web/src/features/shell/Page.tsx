@@ -11,6 +11,20 @@ import "./Page.css";
 
 type Back = "/" | "/more" | "/servers" | "/apps" | "/settings";
 
+/**
+ * How wide a page grows, by its kind, as Layout in design/system/README.md sets out. Each is centred right of the
+ * rail, and each fills the room it has at 1440px and below.
+ */
+export type PageWidth =
+  /** Lists, tables and dashboards: their grids gain columns up to page-wide. */
+  | "wide"
+  /** Detail pages, such as an app's: up to page-standard. */
+  | "standard"
+  /** Forms and settings: up to page-narrow. */
+  | "narrow"
+  /** A log view or a terminal: the whole width. */
+  | "full";
+
 export interface PageProps {
   /** The page's name: its heading, and the start of the document title. */
   title: string;
@@ -38,6 +52,8 @@ export interface PageProps {
   phoneAction?: ReactNode;
   /** A quiet note on the state of the page's data, such as "Reconnecting". */
   status?: ReactNode;
+  /** How wide the page grows on wide screens, by its kind. */
+  width?: PageWidth;
   children?: ReactNode;
   className?: string;
 }
@@ -61,6 +77,7 @@ export function Page({
   backLink,
   phoneAction,
   status,
+  width = "standard",
   children,
   className,
 }: PageProps) {
@@ -80,7 +97,7 @@ export function Page({
           action={phoneAction}
         />
       ) : null}
-      <div className={cx("page", className)}>
+      <div className={cx("page", width !== "standard" && `is-${width}`, className)}>
         {phone ? (
           status ? (
             <div className="page-status">{status}</div>

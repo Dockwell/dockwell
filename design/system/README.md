@@ -76,6 +76,23 @@ Write like a senior operator explaining something to a colleague: plain, specifi
 - A page leads with its `title` and one line of context in `ink-muted`, then at most one `Callout`, then up to four `Metric` panels, then the working panels.
 - Below 960px the rail collapses to icons; below 640px it becomes a bottom sheet and tables turn into stacked rows. Every view works from 360px up.
 
+#### Page widths
+
+The mocks are drawn at 1440px, where every page fills the room right of the rail (the `max-width: 1360px` they give every page hardly shows there). Past 1440px a page grows only to the width its kind reads well at, as this table sets, and sits centred in that room, so it is balanced on any screen. Pick the kind by what the page is for, never by how much it holds today:
+
+| Kind | Token | For | Past 1440px |
+| --- | --- | --- | --- |
+| Wide | `page-wide` (1680px) | Lists, tables and dashboards: Overview, Apps, Servers, Websites, Databases, Domains, Backups, Activity, the catalog, a server's pages | Grids gain columns rather than stretch what's there |
+| Standard | `page-standard` (1360px) | Detail pages: an app's, a website's, a database's, a change's. The default | Columns share the width by weight, so a main column and its aside grow together |
+| Narrow | `page-narrow` (1040px) | Forms and settings: Profile, Settings, API tokens, a form that is a page | Stops at its width, so fields and their notes stay a comfortable line long |
+| Full | none | A log view and the terminal, where every column of a line helps | Edge to edge, with the usual gutter |
+
+- At 1440px and below each kind fills the room it has, exactly as the mocks draw it, and phones don't change.
+- A grid in a page that grows, such as the catalog's cards, uses `repeat(auto-fill, minmax(<floor>, 1fr))`, so it gains a column each time there's room for one, and a row of panels uses `auto-fit` with a floor, so a dashboard takes a third or fourth column where it has the width.
+- The top bar spans the column, and its contents line up with the page's edges below: the scope above the title, the last control above the page's right edge.
+- A sheet keeps `sheet-width` whatever the page's kind.
+- In the panel, `Page` takes the kind as `width` (`"wide"`, `"standard"`, `"narrow"` or `"full"`). A screen never sets a max-width of its own.
+
 ## Iconography
 
 - Use the `Icon` component: line icons on a 24-unit grid, 1.5 stroke, round caps and joins, drawn in `currentColor`. 16px in controls and lists, 14px in small buttons and tags, 20px in empty states.

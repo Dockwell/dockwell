@@ -68,7 +68,7 @@ export function AppLayout({ serviceId, children }: { serviceId: string; children
   }
   if (!value) {
     return (
-      <Page title={t`App`} back="/apps" breadcrumb={<Crumbs />}>
+      <Page title={t`App`} width={logs ? "full" : "standard"} back="/apps" breadcrumb={<Crumbs />}>
         {query.isPending ? (
           <div className="app-loading" aria-busy="true">
             <span className="dw-sr">
@@ -141,6 +141,7 @@ function GoneAppFrame({ serviceId, children }: { serviceId: string; children: Re
     <LogsSearchButton value={searchButton}>
       <Page
         title={name ?? t`Logs`}
+        width="full"
         back="/apps"
         breadcrumb={<Crumbs {...(name ? { name } : {})} />}
         phoneAction={<LogsSearchAction opens={searchButton} />}
@@ -204,6 +205,8 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   return (
     <Page
       title={name}
+      // A log view gains from every column it can have; the other tabs read as a detail page.
+      width={onLogs ? "full" : "standard"}
       back="/apps"
       breadcrumb={<Crumbs name={name} project={place && !place.isDefault ? place.label : undefined} />}
       badge={

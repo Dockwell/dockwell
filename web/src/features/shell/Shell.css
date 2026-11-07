@@ -223,9 +223,27 @@
   align-items: center;
   gap: var(--space-2) var(--space-3);
   min-height: var(--scopebar-height);
-  padding: 10px var(--space-6) 10px var(--space-4);
+  padding: 10px var(--topbar-inset-right) 10px var(--topbar-inset-left);
   border-bottom: 1px solid var(--line);
   background: var(--canvas);
+  /* It spans the column, and its contents line up with the page's edges below, however wide that page's kind grows. */
+  --page-max: var(--page-standard);
+  --topbar-inset-left: max(var(--space-4), calc((100% - var(--page-max)) / 2 + var(--space-4)));
+  --topbar-inset-right: max(var(--space-6), calc((100% - var(--page-max)) / 2 + var(--space-6)));
+}
+
+.shell-column:has(> .shell-main .page.is-wide) > .topbar {
+  --page-max: var(--page-wide);
+}
+
+.shell-column:has(> .shell-main .page.is-full) > .topbar {
+  --page-max: 100%;
+}
+
+@media (min-width: 1440.02px) {
+  .shell-column:has(> .shell-main .page.is-narrow) > .topbar {
+    --page-max: var(--page-narrow);
+  }
 }
 
 .topbar-scope {

@@ -95,7 +95,14 @@ export function BackupsPage() {
       ? t`On each server's own disk, unencrypted, and sealed on a destination where you ask for it`
       : t`On each server's own disk, unencrypted, so they go if the server does`;
   return (
-    <Page title={t`Backups`} lead={where} phoneSub={where} back="/more" actions={backups.length > 0 ? action : null}>
+    <Page
+      width="wide"
+      title={t`Backups`}
+      lead={where}
+      phoneSub={where}
+      back="/more"
+      actions={backups.length > 0 ? action : null}
+    >
       {query.error ? (
         <Callout tone="critical" title={t`Dockwell can't read its backups`}>
           {sentence(query.error)}

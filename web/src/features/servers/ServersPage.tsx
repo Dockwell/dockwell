@@ -16,7 +16,7 @@ export function ServersPage() {
   const status = usePageReconnecting(fleet.status);
   const lead = fleet.status === "connecting" ? undefined : strings.fleetGrid.servers(fleet.servers.length);
   return (
-    <Page title={t`Servers`} lead={lead} status={status}>
+    <Page width="wide" title={t`Servers`} lead={lead} status={status}>
       <ServersPanel linked reconnectingNote={false} />
     </Page>
   );

@@ -40,7 +40,7 @@ export function ServerFrame({ id, phoneHead, noTabs = false, children }: ServerF
   const status = usePageReconnecting(state.status);
   if (state.status === "connecting") {
     return (
-      <Page title={t`Server`}>
+      <Page width="wide" title={t`Server`}>
         <Connecting error={state.error} />
       </Page>
     );
@@ -48,7 +48,7 @@ export function ServerFrame({ id, phoneHead, noTabs = false, children }: ServerF
   const server = state.servers.find((s) => s.id === id);
   if (!server) {
     return (
-      <Page title={t`Server`} status={status}>
+      <Page width="wide" title={t`Server`} status={status}>
         <EmptyState
           icon="server"
           title={<Trans>No server with this ID</Trans>}
@@ -107,6 +107,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
       : undefined;
   return (
     <Page
+      width="wide"
       title={server.name}
       machineTitle
       badge={server.controlServer ? <Tag>{t`Runs the control plane`}</Tag> : null}

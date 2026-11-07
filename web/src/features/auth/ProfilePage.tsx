@@ -40,6 +40,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
 
   return (
     <Page
+      width="narrow"
       title={t`Profile and security`}
       lead={user ? [user.name, user.email, how].filter(Boolean).join(" · ") : null}
       phoneSub={user?.email}

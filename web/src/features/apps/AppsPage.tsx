@@ -350,6 +350,7 @@ export function AppsPage({
   const envOptions = environments.map((e) => ({ value: e.id, label: e.label, count: e.count }));
   return (
     <Page
+      width="wide"
       title={t`Apps`}
       // The line is held while they load, so the list doesn't move when it lands.
       lead={

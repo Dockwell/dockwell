@@ -34,7 +34,7 @@ export function Overview() {
   const status = usePageReconnecting(state.status);
   if (state.status === "connecting") {
     return (
-      <Page title={t`Overview`}>
+      <Page width="wide" title={t`Overview`}>
         <Connecting error={state.error} />
       </Page>
     );
@@ -45,7 +45,7 @@ export function Overview() {
   if (servers.length === 1 && only) return <OneServer server={only} status={status} />;
   if (servers.length === 0) {
     return (
-      <Page title={t`Overview`} status={status}>
+      <Page width="wide" title={t`Overview`} status={status}>
         <EmptyState icon="server" title={<Trans>No servers yet</Trans>}>
           <p>
             <Trans>
@@ -58,7 +58,7 @@ export function Overview() {
     );
   }
   return (
-    <Page title={t`Overview`} lead={strings.fleetGrid.servers(count)} status={status}>
+    <Page width="wide" title={t`Overview`} lead={strings.fleetGrid.servers(count)} status={status}>
       <ServersPanel linked reconnectingNote={false} />
     </Page>
   );
@@ -81,6 +81,7 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
     .join(" · ");
   return (
     <Page
+      width="wide"
       title={t`Overview`}
       lead={lead || undefined}
       phoneTitle={server.name}
