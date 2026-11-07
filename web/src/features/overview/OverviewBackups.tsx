@@ -84,7 +84,7 @@ export function OverviewBackups() {
           actions={
             <Button
               size="sm"
-              loading={backupsRead.isFetching || policiesRead.isFetching}
+              loading={volumesRead.isFetching || backupsRead.isFetching || policiesRead.isFetching}
               onClick={() => {
                 if (volumesRead.error) volumesRead.refetch();
                 if (backupsRead.error) void backupsRead.refetch();

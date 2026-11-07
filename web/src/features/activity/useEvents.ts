@@ -3,11 +3,12 @@
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { ConnectError, createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type ActorKind, type Event, type EventKind, EventService, type WatchEventsResponse } from "@dockwell/api";
+import { ActorKind, type Event, type EventKind, EventService, type WatchEventsResponse } from "@dockwell/api";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { isSessionEnded } from "../../lib/errors";
 import { keepTrying } from "../../lib/retry";
+import { PAGE_SIZE, useEventsHub } from "./EventsHub";
 
 /** Which events to show; every field set must hold. */
 export interface EventFilter {
@@ -32,8 +33,10 @@ export interface Events {
   loadOlder(): void;
 }
 
-const PAGE_SIZE = 50;
 const BACKOFF = { minMs: 1_000, maxMs: 15_000 };
+
+/** How long a filtered timeline waits after an event before reading its page again, so a burst reads once. */
+const READ_AGAIN_MS = 250;
 
 /** Newest first, then by ID, as the API orders them. */
 export function newestFirst(a: Event, b: Event): number {
@@ -78,13 +81,15 @@ export function takeSnapshot(
 }
 
 /**
- * The timeline, live, from EventService.WatchEvents: its snapshot of the
- * newest page, then each new event and each change as it moves on. Older
- * pages come from ListEvents on request. A dropped watch reconnects with
+ * The timeline, live, from the tab's one WatchEvents stream (EventsHub): its
+ * snapshot of the newest page, then each new event and each change as it moves
+ * on. A filtered timeline reads its own newest page with ListEvents. Older
+ * pages come from ListEvents on request. A dropped stream reconnects with
  * backoff, keeps showing what it had, and merges in the fresh snapshot.
  */
 export function useEvents(filter: EventFilter): Events {
   const transport = useTransport();
+  const hub = useEventsHub();
   const [shown, setShown] = useState<{ state: EventsState; older: string }>({
     state: { status: "connecting" },
     older: "",
@@ -115,50 +120,105 @@ export function useEvents(filter: EventFilter): Events {
     setShown({ state: { status: "connecting" }, older: "" });
     setOlderError(undefined);
     let started = false;
-    const show = (status: "live" | "reconnecting", error?: ConnectError) =>
+    const show = () => {
+      const status = hub.status;
+      const error = status.kind === "live" ? undefined : status.error;
       setShown({
-        state: { status, events: [...loaded.current.events.values()].sort(newestFirst), ...(error ? { error } : {}) },
+        state: {
+          status: status.kind === "reconnecting" ? "reconnecting" : "live",
+          events: [...loaded.current.events.values()].sort(newestFirst),
+          ...(error ? { error } : {}),
+        },
         older: loaded.current.older,
       });
-    const request = { kinds, serverId, resourceId, actorId, actorKind, pageSize: PAGE_SIZE };
-    const client = createClient(EventService, transport);
-    void keepTrying(
-      abort.signal,
-      BACKOFF,
-      async (connected, attempt) => {
-        for await (const msg of client.watchEvents(request, { signal: attempt })) {
-          if (msg.snapshot) {
-            const { loaded: next, kept } = takeSnapshot(started ? loaded.current : undefined, msg);
-            if (kept) {
-              loaded.current.events = next.events;
-            } else {
-              stopListing();
-              loaded.current = next;
-            }
-            started = true;
-          } else {
-            for (const event of msg.events) loaded.current.events.set(event.id, event);
-            for (const id of msg.removed) loaded.current.events.delete(id);
-          }
-          show("live");
-          connected();
+    };
+    const takeIn = (msg: Pick<WatchEventsResponse, "events" | "removed" | "snapshot" | "nextPageToken">) => {
+      if (msg.snapshot) {
+        const { loaded: next, kept } = takeSnapshot(started ? loaded.current : undefined, msg as WatchEventsResponse);
+        if (kept) {
+          loaded.current.events = next.events;
+        } else {
+          stopListing();
+          loaded.current = next;
         }
-        throw new ConnectError("the watch ended");
-      },
-      (err) => {
-        // An ended session is the gate's to handle, as for the fleet.
-        if (isSessionEnded(err)) return undefined;
-        const error = ConnectError.from(err);
-        if (started) show("reconnecting", error);
-        else setShown({ state: { status: "connecting", error }, older: "" });
-        return undefined;
-      },
-    );
+        started = true;
+      } else {
+        for (const event of msg.events) loaded.current.events.set(event.id, event);
+        for (const id of msg.removed) loaded.current.events.delete(id);
+      }
+      show();
+    };
+
+    // The tab's one stream carries every event. A timeline of all of them takes it
+    // as it comes; one that's filtered reads its own newest page, as the stream's
+    // holds every kind, and takes from the stream what matches it from then on.
+    const filtered =
+      kinds.length > 0 || serverId !== "" || resourceId !== "" || actorId !== "" || actorKind !== ActorKind.UNSPECIFIED;
+    // What only the control plane can match, it matches: such a timeline reads its page again as events come.
+    const matchedHere = serverId === "" && resourceId === "";
+    const matches = (event: Event) =>
+      (kinds.length === 0 || kinds.includes(event.kind)) &&
+      (actorId === "" || event.actor?.id === actorId) &&
+      (actorKind === ActorKind.UNSPECIFIED || event.actor?.kind === actorKind);
+    const client = createClient(EventService, transport);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const readPage = () =>
+      keepTrying(
+        abort.signal,
+        BACKOFF,
+        async (connected, attempt) => {
+          const page = await client.listEvents(
+            { kinds, serverId, resourceId, actorId, actorKind, pageSize: PAGE_SIZE },
+            { signal: attempt },
+          );
+          connected();
+          takeIn({ events: page.events, removed: [], snapshot: true, nextPageToken: page.nextPageToken });
+          return "done";
+        },
+        (err) => {
+          // An ended session is the gate's to handle, as for the fleet.
+          if (isSessionEnded(err)) return "done";
+          const error = ConnectError.from(err);
+          if (started) setShown((was) => ({ ...was, state: { ...was.state, error } as EventsState }));
+          else setShown({ state: { status: "connecting", error }, older: "" });
+          return undefined;
+        },
+      );
+    const readSoon = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void readPage(), READ_AGAIN_MS);
+    };
+    const unsubscribe = hub.subscribe((msg) => {
+      if (!filtered) {
+        takeIn(msg);
+        return;
+      }
+      // A snapshot after the first says the stream was away: the page is read again.
+      if (msg.snapshot) {
+        if (started) readSoon();
+        return;
+      }
+      if (!matchedHere) {
+        if (msg.events.length > 0 || msg.removed.length > 0) readSoon();
+        return;
+      }
+      const mine = msg.events.filter(matches);
+      if (mine.length > 0 || msg.removed.length > 0) takeIn({ ...msg, events: mine });
+    });
+    const unwatch = hub.watch(() => {
+      if (started) show();
+      else if (!filtered && hub.status.kind === "connecting" && hub.status.error)
+        setShown({ state: { status: "connecting", error: hub.status.error }, older: "" });
+    });
+    if (filtered) void readPage();
     return () => {
       abort.abort();
+      clearTimeout(timer);
+      unsubscribe();
+      unwatch();
       stopListing();
     };
-  }, [transport, kindList, serverId, resourceId, actorId, actorKind, stopListing]);
+  }, [hub, transport, kindList, serverId, resourceId, actorId, actorKind, stopListing]);
 
   const loadOlder = useCallback(() => {
     const into = loaded.current;

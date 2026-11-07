@@ -39,6 +39,7 @@ export interface VolumeChoice {
 export function useVolumesRead(): {
   volumes: VolumeChoice[];
   isPending: boolean;
+  isFetching: boolean;
   error: Error | null;
   refetch: () => void;
 } {
@@ -51,7 +52,13 @@ export function useVolumesRead(): {
         .sort((a, b) => a.name.localeCompare(b.name)),
     [resources],
   );
-  return { volumes, isPending: query.isPending, error: query.error, refetch: () => void query.refetch() };
+  return {
+    volumes,
+    isPending: query.isPending,
+    isFetching: query.isFetching,
+    error: query.error,
+    refetch: () => void query.refetch(),
+  };
 }
 
 /** Every volume there is, by name: none while they load or can't be read. */

@@ -332,7 +332,11 @@ describe("what the overview shows below the numbers", () => {
           ],
         }),
       },
-      events: { watchEvents: eventsWatch(changeEvent(applied(webPlanned()))) },
+      events: {
+        watchEvents: eventsWatch(changeEvent(applied(webPlanned()))),
+        // Recent changes reads its own newest page of changes alone.
+        listEvents: () => ({ events: [changeEvent(applied(webPlanned()))] }),
+      },
       backups: {
         listBackups: () => ({ backups: [] }),
         listBackupPolicies: () => ({ policies: [] }),
@@ -410,7 +414,7 @@ describe("the overview's backups", () => {
       },
       health: running(web),
       domains: { listDomains: () => ({ domains: [] }) },
-      events: { watchEvents: eventsWatch() },
+      events: { watchEvents: eventsWatch(), listEvents: () => ({}) },
       backups: {
         listBackups: () => ({ backups: [] }),
         listBackupPolicies: () => ({ policies: [] }),
@@ -503,7 +507,7 @@ describe("the overview's backups", () => {
 });
 
 describe("the overview's apps, live", () => {
-  it("shows an app made elsewhere as soon as its change applies", async () => {
+  it("shows an app made elsewhere, and where it answers, as soon as its change applies", async () => {
     const web = anApp("web", "ghcr.io/example/web:1.5.0");
     const cli = anApp("cli-made", "ghcr.io/example/worker:2.1.0");
     let made = false;
@@ -516,8 +520,15 @@ describe("the overview's apps, live", () => {
       services: { listServices: () => ({ services: made ? [web, cli] : [web] }) },
       resources: places(),
       health: running(web, cli),
-      domains: { listDomains: () => ({ domains: [] }) },
+      domains: {
+        listDomains: () => ({
+          domains: made
+            ? [{ name: "cli.example.com", environmentId: ENV, routes: [{ service: "cli-made", port: 80 }] }]
+            : [],
+        }),
+      },
       events: {
+        listEvents: () => ({}),
         watchEvents: async function* (_req: unknown, ctx: HandlerContext): AsyncGenerator<WatchEventsResponse> {
           yield snapshot([]);
           await applying;
@@ -532,5 +543,7 @@ describe("the overview's apps, live", () => {
     made = true;
     act(() => apply());
     expect(await within(table).findByText("cli-made", {}, { timeout: 3_000 })).toBeVisible();
+    // Where it answers comes with it: the same change marks the domains' names old too.
+    expect(await within(table).findByText("cli.example.com", {}, { timeout: 3_000 })).toBeVisible();
   });
 });

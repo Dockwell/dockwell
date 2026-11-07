@@ -12,6 +12,7 @@ import { Rail } from "./Rail";
 import { TabBar } from "./TabBar";
 import { Topbar } from "./Topbar";
 import "./Shell.css";
+import { EventsHubProvider } from "../activity/EventsHub";
 import { ServicesLive } from "../apps/ServicesLive";
 
 /**
@@ -22,13 +23,15 @@ import { ServicesLive } from "../apps/ServicesLive";
 export function Shell({ children }: { children: ReactNode }) {
   return (
     <FleetProvider>
-      <ServicesLive>
-        <ChangeSheetProvider>
-          <CommandMenu>
-            <Frame>{children}</Frame>
-          </CommandMenu>
-        </ChangeSheetProvider>
-      </ServicesLive>
+      <EventsHubProvider>
+        <ServicesLive>
+          <ChangeSheetProvider>
+            <CommandMenu>
+              <Frame>{children}</Frame>
+            </CommandMenu>
+          </ChangeSheetProvider>
+        </ServicesLive>
+      </EventsHubProvider>
     </FleetProvider>
   );
 }

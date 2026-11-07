@@ -428,15 +428,18 @@ describe("Activity", () => {
     expect(screen.getByText("hz-1")).toBeVisible();
   });
 
-  it("filters by kind and actor, in its address", async () => {
+  it("filters by kind and actor, in its address, reading each filter's own page", async () => {
     const user = userEvent.setup();
-    const requests: WatchEventsRequest[] = [];
+    const pages: ListEventsRequest[] = [];
     const { router } = renderAt("/activity", {
       events: {
-        async *watchEvents(req, ctx) {
-          requests.push(req);
+        async *watchEvents(_req, ctx) {
           yield snapshot([shopEvent, signIn]);
           await new Promise((resolve) => ctx.signal.addEventListener("abort", resolve));
+        },
+        listEvents: (req) => {
+          pages.push(req);
+          return { events: req.kinds.length > 0 ? [shopEvent] : [shopEvent, signIn] };
         },
       },
     });
@@ -444,33 +447,39 @@ describe("Activity", () => {
 
     await user.click(screen.getByRole("radio", { name: "Changes" }));
     await waitFor(() => expect(router.state.location.search).toEqual({ kind: "changes" }));
-    await waitFor(() => expect(requests.at(-1)?.kinds).toEqual([EventKind.CHANGE]));
+    await waitFor(() => expect(pages.at(-1)?.kinds).toEqual([EventKind.CHANGE]));
+    await waitFor(() => expect(screen.queryByRole("row", { name: /Signed in/ })).toBeNull());
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Actor" }), "usr_1");
-    await waitFor(() => expect(requests.at(-1)?.actorId).toBe("usr_1"));
+    await waitFor(() => expect(pages.at(-1)?.actorId).toBe("usr_1"));
     await user.selectOptions(screen.getByRole("combobox", { name: "Actor" }), "dockwell");
-    await waitFor(() => expect(requests.at(-1)?.actorKind).toBe(ActorKind.DOCKWELL));
-    expect(requests.at(-1)?.actorId).toBe("");
+    await waitFor(() => expect(pages.at(-1)?.actorKind).toBe(ActorKind.DOCKWELL));
+    expect(pages.at(-1)?.actorId).toBe("");
   });
 
   it("narrows to a server from its address, and clears it", async () => {
     const user = userEvent.setup();
-    const requests: WatchEventsRequest[] = [];
+    const pages: ListEventsRequest[] = [];
     const { router } = renderAt("/activity?server=srv_1", {
       events: {
-        async *watchEvents(req, ctx) {
-          requests.push(req);
-          yield snapshot([joined]);
+        async *watchEvents(_req, ctx) {
+          yield snapshot([joined, signIn]);
           await new Promise((resolve) => ctx.signal.addEventListener("abort", resolve));
+        },
+        listEvents: (req) => {
+          pages.push(req);
+          return { events: [joined] };
         },
       },
     });
     await screen.findByRole("row", { name: /hz-1 joined/ });
-    expect(requests[0]?.serverId).toBe("srv_1");
+    expect(pages[0]?.serverId).toBe("srv_1");
+    expect(screen.queryByRole("row", { name: /Signed in/ })).toBeNull();
     expect(screen.getByText("hz-1", { selector: ".dw-tag-value" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Remove the server filter" }));
     await waitFor(() => expect(router.state.location.search).toEqual({}));
-    await waitFor(() => expect(requests.at(-1)?.serverId).toBe(""));
+    // Without a filter, the timeline is the tab's own stream again, every event of it.
+    expect(await screen.findByRole("row", { name: /Signed in/ })).toBeVisible();
   });
 
   it("shows earlier events from the page after the snapshot", async () => {
@@ -497,12 +506,14 @@ describe("Activity", () => {
     let answer: () => void = () => {};
     renderAt("/activity", {
       events: {
-        async *watchEvents(req, ctx) {
-          yield req.kinds.length === 0 ? snapshot([shopEvent], "page-2") : snapshot([shopEvent], "changes-2");
+        async *watchEvents(_req, ctx) {
+          yield snapshot([shopEvent], "page-2");
           await untilAborted(ctx.signal);
         },
         listEvents: async (req) => {
           if (req.pageToken === "page-2") await new Promise<void>((resolve) => (answer = resolve));
+          // The changes' own first page.
+          if (req.pageToken === "" && req.kinds.length > 0) return { events: [shopEvent], nextPageToken: "changes-2" };
           return { events: req.pageToken === "page-2" ? [token] : [], nextPageToken: "" };
         },
       },
@@ -680,13 +691,17 @@ describe("Activity", () => {
     });
     if (destructive.plan) destructive.plan.destructive = true;
     const applying = moved(destructive, { state: ChangeState.APPLYING, appliedBy: mira, appliedVia: Surface.PANEL });
-    // Each watch starts from the change as it stands.
+    // The tab's one watch starts from the change as it stands, and says so when it moves on.
     let now = destructive;
+    let moved_on = () => {};
+    const movedOn = new Promise<void>((resolve) => (moved_on = resolve));
     const applies: string[] = [];
     const { router } = renderAt("/changes/chg_web", {
       events: {
         async *watchEvents(_req, ctx) {
           yield snapshot([changeEvent(now)]);
+          await movedOn;
+          yield since([changeEvent(now)]);
           await untilAborted(ctx.signal);
         },
       },
@@ -696,6 +711,7 @@ describe("Activity", () => {
         applyChange: (req) => {
           applies.push(req.fingerprint);
           now = applying;
+          moved_on();
           return { change: applying };
         },
       },
@@ -916,16 +932,18 @@ describe("Activity's health", () => {
   });
 
   it("filters to health, and asks for it", async () => {
-    const asked: WatchEventsRequest[] = [];
+    const asked: ListEventsRequest[] = [];
     const user = userEvent.setup();
     renderAt("/activity", {
       events: {
-        watchEvents: async function* (req: WatchEventsRequest, ctx: { signal: AbortSignal }) {
-          asked.push(req);
+        watchEvents: async function* (_req: WatchEventsRequest, ctx: { signal: AbortSignal }) {
           yield snapshot([]);
           await untilAborted(ctx.signal);
         },
-        listEvents: () => ({}),
+        listEvents: (req) => {
+          asked.push(req);
+          return {};
+        },
       },
     });
     await user.click(await screen.findByRole("radio", { name: "Health" }));
