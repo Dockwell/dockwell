@@ -88,7 +88,7 @@ var hostConfigRules = map[string]rule{
 	"ConsoleSize": kept, "ContainerIDFile": kept, "MaskedPaths": kept, "ReadonlyPaths": kept,
 
 	"Binds": readBinds, "CgroupnsMode": readCgroupns, "LogConfig": readLogging, "MemorySwap": readSwap,
-	"Mounts": readMounts, "NetworkMode": readNetworkMode, "PidsLimit": readPidsLimit, "Runtime": readRuntime,
+	"Mounts": readMountList, "NetworkMode": readNetworkMode, "PidsLimit": readPidsLimit, "Runtime": readRuntime,
 	"Tmpfs": readTmpfs,
 
 	"Annotations": only("annotations"), "AutoRemove": only("auto remove (--rm)"),
@@ -255,7 +255,7 @@ func readBinds(raw json.RawMessage, _ *reading) []string {
 	return out
 }
 
-func readMounts(raw json.RawMessage, _ *reading) []string {
+func readMountList(raw json.RawMessage, _ *reading) []string {
 	var mounts []map[string]json.RawMessage
 	if json.Unmarshal(raw, &mounts) != nil {
 		return []string{"HostConfig.Mounts"}
