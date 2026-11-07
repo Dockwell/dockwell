@@ -282,7 +282,12 @@ type ReadFileResponse struct {
 	// True when the file isn't UTF-8 text, so its contents aren't sent.
 	Binary bool `protobuf:"varint,4,opt,name=binary,proto3" json:"binary,omitempty"`
 	// True when the file is longer than 1 MiB, so content is its beginning.
-	Truncated     bool `protobuf:"varint,5,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	Truncated bool `protobuf:"varint,5,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	// What SaveFile takes to save over this text: a digest of where the path led,
+	// which file that was, and what it held, which tells whether any of it changed
+	// since. Empty for what can't be saved here: a binary file, one with more to
+	// it than content, or a file on a server whose agent is too old to save.
+	Version       string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -352,6 +357,151 @@ func (x *ReadFileResponse) GetTruncated() bool {
 	return false
 }
 
+func (x *ReadFileResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+// SaveFileRequest replaces a file's text.
+type SaveFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// The file's absolute path, without . or .. in it. The file must exist:
+	// SaveFile doesn't make one.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// The file's new text, 1 MiB at most.
+	Content string `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	// The version from ReadFile: the file as you last read it.
+	Version       string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveFileRequest) Reset() {
+	*x = SaveFileRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveFileRequest) ProtoMessage() {}
+
+func (x *SaveFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveFileRequest.ProtoReflect.Descriptor instead.
+func (*SaveFileRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SaveFileRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *SaveFileRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *SaveFileRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *SaveFileRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+// SaveFileResponse is the file as saved.
+type SaveFileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The file's path, with every symlink followed.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// The file itself.
+	File *FileEntry `protobuf:"bytes,2,opt,name=file,proto3" json:"file,omitempty"`
+	// What the next save over this text takes.
+	Version       string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveFileResponse) Reset() {
+	*x = SaveFileResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveFileResponse) ProtoMessage() {}
+
+func (x *SaveFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveFileResponse.ProtoReflect.Descriptor instead.
+func (*SaveFileResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SaveFileResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *SaveFileResponse) GetFile() *FileEntry {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
+func (x *SaveFileResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
 // FileEntry is one file or directory on a server.
 type FileEntry struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -386,7 +536,7 @@ type FileEntry struct {
 
 func (x *FileEntry) Reset() {
 	*x = FileEntry{}
-	mi := &file_dockwell_v1_file_proto_msgTypes[4]
+	mi := &file_dockwell_v1_file_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -398,7 +548,7 @@ func (x *FileEntry) String() string {
 func (*FileEntry) ProtoMessage() {}
 
 func (x *FileEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_file_proto_msgTypes[4]
+	mi := &file_dockwell_v1_file_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -411,7 +561,7 @@ func (x *FileEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileEntry.ProtoReflect.Descriptor instead.
 func (*FileEntry) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *FileEntry) GetName() string {
@@ -506,13 +656,23 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\ttruncated\x18\x04 \x01(\bR\ttruncated\"B\n" +
 	"\x0fReadFileRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\"\xa2\x01\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\xbc\x01\n" +
 	"\x10ReadFileResponse\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
 	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x12\x16\n" +
 	"\x06binary\x18\x04 \x01(\bR\x06binary\x12\x1c\n" +
-	"\ttruncated\x18\x05 \x01(\bR\ttruncated\"\xfe\x02\n" +
+	"\ttruncated\x18\x05 \x01(\bR\ttruncated\x12\x18\n" +
+	"\aversion\x18\x06 \x01(\tR\aversion\"v\n" +
+	"\x0fSaveFileRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\"l\n" +
+	"\x10SaveFileResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
+	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\"\xfe\x02\n" +
 	"\tFileEntry\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x1d\n" +
@@ -534,12 +694,14 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x0eFILE_TYPE_FILE\x10\x01\x12\x17\n" +
 	"\x13FILE_TYPE_DIRECTORY\x10\x02\x12\x15\n" +
 	"\x11FILE_TYPE_SYMLINK\x10\x03\x12\x13\n" +
-	"\x0fFILE_TYPE_OTHER\x10\x042\xaf\x02\n" +
+	"\x0fFILE_TYPE_OTHER\x10\x042\xc1\x03\n" +
 	"\vFileService\x12\x8d\x01\n" +
 	"\tListFiles\x12\x1d.dockwell.v1.ListFilesRequest\x1a\x1e.dockwell.v1.ListFilesResponse\"A\xa0\xbb\x18\x01\xaa\xbb\x18\r\n" +
 	"\x05files\x12\x04list\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/servers/{server_id}/files\x90\x02\x01\x12\x8f\x01\n" +
 	"\bReadFile\x12\x1c.dockwell.v1.ReadFileRequest\x1a\x1d.dockwell.v1.ReadFileResponse\"F\xa0\xbb\x18\x01\xaa\xbb\x18\r\n" +
-	"\x05files\x12\x04read\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/servers/{server_id}/files:readB\xa2\x01\n" +
+	"\x05files\x12\x04read\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/servers/{server_id}/files:read\x12\x8f\x01\n" +
+	"\bSaveFile\x12\x1c.dockwell.v1.SaveFileRequest\x1a\x1d.dockwell.v1.SaveFileResponse\"F\xa0\xbb\x18\x04\xaa\xbb\x18\r\n" +
+	"\x05files\x12\x04save\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/servers/{server_id}/files:saveB\xa2\x01\n" +
 	"\x0fcom.dockwell.v1B\tFileProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -555,32 +717,37 @@ func file_dockwell_v1_file_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_file_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_file_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dockwell_v1_file_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_dockwell_v1_file_proto_goTypes = []any{
 	(FileType)(0),                 // 0: dockwell.v1.FileType
 	(*ListFilesRequest)(nil),      // 1: dockwell.v1.ListFilesRequest
 	(*ListFilesResponse)(nil),     // 2: dockwell.v1.ListFilesResponse
 	(*ReadFileRequest)(nil),       // 3: dockwell.v1.ReadFileRequest
 	(*ReadFileResponse)(nil),      // 4: dockwell.v1.ReadFileResponse
-	(*FileEntry)(nil),             // 5: dockwell.v1.FileEntry
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
+	(*SaveFileRequest)(nil),       // 5: dockwell.v1.SaveFileRequest
+	(*SaveFileResponse)(nil),      // 6: dockwell.v1.SaveFileResponse
+	(*FileEntry)(nil),             // 7: dockwell.v1.FileEntry
+	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
 }
 var file_dockwell_v1_file_proto_depIdxs = []int32{
-	5, // 0: dockwell.v1.ListFilesResponse.directory:type_name -> dockwell.v1.FileEntry
-	5, // 1: dockwell.v1.ListFilesResponse.entries:type_name -> dockwell.v1.FileEntry
-	5, // 2: dockwell.v1.ReadFileResponse.file:type_name -> dockwell.v1.FileEntry
-	0, // 3: dockwell.v1.FileEntry.type:type_name -> dockwell.v1.FileType
-	6, // 4: dockwell.v1.FileEntry.modify_time:type_name -> google.protobuf.Timestamp
-	0, // 5: dockwell.v1.FileEntry.link_type:type_name -> dockwell.v1.FileType
-	1, // 6: dockwell.v1.FileService.ListFiles:input_type -> dockwell.v1.ListFilesRequest
-	3, // 7: dockwell.v1.FileService.ReadFile:input_type -> dockwell.v1.ReadFileRequest
-	2, // 8: dockwell.v1.FileService.ListFiles:output_type -> dockwell.v1.ListFilesResponse
-	4, // 9: dockwell.v1.FileService.ReadFile:output_type -> dockwell.v1.ReadFileResponse
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	7,  // 0: dockwell.v1.ListFilesResponse.directory:type_name -> dockwell.v1.FileEntry
+	7,  // 1: dockwell.v1.ListFilesResponse.entries:type_name -> dockwell.v1.FileEntry
+	7,  // 2: dockwell.v1.ReadFileResponse.file:type_name -> dockwell.v1.FileEntry
+	7,  // 3: dockwell.v1.SaveFileResponse.file:type_name -> dockwell.v1.FileEntry
+	0,  // 4: dockwell.v1.FileEntry.type:type_name -> dockwell.v1.FileType
+	8,  // 5: dockwell.v1.FileEntry.modify_time:type_name -> google.protobuf.Timestamp
+	0,  // 6: dockwell.v1.FileEntry.link_type:type_name -> dockwell.v1.FileType
+	1,  // 7: dockwell.v1.FileService.ListFiles:input_type -> dockwell.v1.ListFilesRequest
+	3,  // 8: dockwell.v1.FileService.ReadFile:input_type -> dockwell.v1.ReadFileRequest
+	5,  // 9: dockwell.v1.FileService.SaveFile:input_type -> dockwell.v1.SaveFileRequest
+	2,  // 10: dockwell.v1.FileService.ListFiles:output_type -> dockwell.v1.ListFilesResponse
+	4,  // 11: dockwell.v1.FileService.ReadFile:output_type -> dockwell.v1.ReadFileResponse
+	6,  // 12: dockwell.v1.FileService.SaveFile:output_type -> dockwell.v1.SaveFileResponse
+	10, // [10:13] is the sub-list for method output_type
+	7,  // [7:10] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_file_proto_init() }
@@ -595,7 +762,7 @@ func file_dockwell_v1_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_file_proto_rawDesc), len(file_dockwell_v1_file_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

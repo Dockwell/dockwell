@@ -8,9 +8,10 @@ import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// FileService browses and reads the files on a server, through its agent. Files
-// on a server aren't managed state, so nothing here is a revision or has a
-// plan. See docs/adr/0032-files-on-a-server.md.
+// FileService browses, reads and saves the files on a server, through its
+// agent. Files on a server aren't managed state, so nothing here is a revision
+// or has a plan, and a save can't be undone. See
+// docs/adr/0032-files-on-a-server.md.
 //
 // Every method needs a signed-in session: no API token can call them, whatever
 // its scope. The agent refuses what holds Dockwell's keys, secrets' values and
@@ -43,6 +44,23 @@ service FileService {
     };
     option (google.api.http) = {
       post: "/v1/servers/{server_id}/files:read"
+      body: "*"
+    };
+  }
+
+  // SaveFile replaces a file's text, if the file is still as ReadFile gave it. A
+  // file that changed since fails with the reason "file_changed", and nothing is
+  // written. It can't be undone. No API token can call it. Every save is in the
+  // audit log, and on the timeline.
+  rpc SaveFile(SaveFileRequest) returns (SaveFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "save"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:save"
       body: "*"
     };
   }
@@ -90,6 +108,34 @@ message ReadFileResponse {
   bool binary = 4;
   // True when the file is longer than 1 MiB, so content is its beginning.
   bool truncated = 5;
+  // What SaveFile takes to save over this text: a digest of where the path led,
+  // which file that was, and what it held, which tells whether any of it changed
+  // since. Empty for what can't be saved here: a binary file, one with more to
+  // it than content, or a file on a server whose agent is too old to save.
+  string version = 6;
+}
+
+// SaveFileRequest replaces a file's text.
+message SaveFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The file's absolute path, without . or .. in it. The file must exist:
+  // SaveFile doesn't make one.
+  string path = 2;
+  // The file's new text, 1 MiB at most.
+  string content = 3;
+  // The version from ReadFile: the file as you last read it.
+  string version = 4;
+}
+
+// SaveFileResponse is the file as saved.
+message SaveFileResponse {
+  // The file's path, with every symlink followed.
+  string path = 1;
+  // The file itself.
+  FileEntry file = 2;
+  // What the next save over this text takes.
+  string version = 3;
 }
 
 // FileType says what an entry in a directory is.

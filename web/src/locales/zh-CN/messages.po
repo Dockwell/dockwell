@@ -74,6 +74,11 @@ msgstr "{0, plural, other {# 个应用将停止，你可以在 {deadline} 之前
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, other {# 个应用将停止。}}"
 
+#. placeholder {0}: lineCount(draft)
+#: src/features/files/FileViewer.tsx
+msgid "{0, plural, one {# line} other {# lines}}"
+msgstr "{0, plural, other {# 行}}"
+
 #. placeholder {0}: all.length
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
@@ -197,6 +202,10 @@ msgstr "{app} 采用 {license} 许可证。"
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
+
+#: src/features/files/FileViewer.tsx
+msgid "{changes, plural, one {# line changed} other {# lines changed}}"
+msgstr "{changes, plural, other {已改动 # 行}}"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
@@ -356,10 +365,6 @@ msgstr "{later}。“优先显示”会把它们移到列表顶部。"
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢了身份验证器应用，请在下方重新设置，这也会生成新的恢复码。"
 
-#: src/features/files/FileViewer.tsx
-msgid "{lines} lines"
-msgstr "{lines} 行"
-
 #: src/features/changes/ChangeSheet.tsx
 msgid "{made} is deployed"
 msgstr "{made} 已部署"
@@ -404,6 +409,10 @@ msgstr "{name} 在 {server} 上信任代理 {path}"
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符，并以字母开头"
 
+#: src/features/files/FileViewer.tsx
+msgid "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
+msgstr "{name} 在你打开之后发生了变化，所以没有保存。你输入的内容还在这里。你可以覆盖服务器上的版本，也可以加载服务器上的版本替换你的内容。"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "{name} fails its health check"
@@ -420,6 +429,14 @@ msgstr "{name} 将取回服务器保留的数据。"
 #: src/features/changes/notices.tsx
 msgid "{name} gets root on {server}"
 msgstr "{name} 将获得 {server} 的 root 权限"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} has more than one kind of line ending now, so it can't be loaded here."
+msgstr "{name} 现在混用了多种换行符，所以无法在这里载入。"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} has more than one kind of line ending, so saving it here would change lines you didn't touch. Connect to the server over SSH to edit it."
+msgstr "{name} 混用了多种换行符，在这里保存会改动你没碰过的行。请通过 SSH 连接到服务器来编辑。"
 
 #: src/features/logs/LogNote.tsx
 msgid "{name} has no container now, so these are the logs of its last deploy."
@@ -494,6 +511,14 @@ msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
 msgid "{name} is waiting for its agent"
 msgstr "{name} 正在等待代理连接"
 
+#: src/features/files/FileViewer.tsx
+msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
+msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里加载。"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} isn't a text file under 1 MB any more, so it can't be saved here."
+msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里保存。"
+
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} isn't reporting"
 msgstr "{name} 没有上报数据"
@@ -556,6 +581,10 @@ msgstr "{name} 可能没有运行，也可能正在运行新版本。请检查�
 #: src/features/changes/notices.tsx
 msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
 msgstr "{name} 可能需要更久才能恢复健康，因为它的镜像还不在服务器上。"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
+msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
 
 #: src/features/changes/notices.tsx
 msgid "{name} reaches {path} on {server}"
@@ -1034,10 +1063,6 @@ msgstr "<0>{source}</0>，只读"
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
 msgstr "1 小时"
-
-#: src/features/files/FileViewer.tsx
-msgid "1 line"
-msgstr "1 行"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "1, 5 and 15 min"
@@ -1617,6 +1642,10 @@ msgstr "阻止 <0>{port}</0>，{proto}，来源不限"
 msgid "Breadcrumb"
 msgstr "面包屑导航"
 
+#: src/features/files/FileViewer.tsx
+msgid "Bring them back"
+msgstr "恢复这些更改"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Brings back the data the server kept"
 msgstr "恢复服务器保留的数据"
@@ -1698,6 +1727,10 @@ msgstr "无法读取这个文件"
 #: src/features/files/FilesPage.tsx
 msgid "Can't read this folder"
 msgstr "无法读取这个文件夹"
+
+#: src/features/files/FileViewer.tsx
+msgid "Can't save this file"
+msgstr "无法保存这个文件"
 
 #. placeholder {0}: groupSecret(setup.secret)
 #: src/features/auth/TotpPanel.tsx
@@ -2187,6 +2220,10 @@ msgstr "无法替换"
 msgid "Couldn't roll back to {revision}"
 msgstr "无法回滚到 {revision}"
 
+#: src/features/activity/describe.ts
+msgid "Couldn't save {path} on {server}"
+msgstr "无法保存 {server} 上的 {path}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't take it off {left}"
 msgstr "无法把它从 {left} 上移走"
@@ -2465,8 +2502,13 @@ msgid "Directory on the server"
 msgstr "服务器上的目录"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/files/FileViewer.tsx
 msgid "Discard"
 msgstr "丢弃"
+
+#: src/features/files/FileViewer.tsx
+msgid "Discard them"
+msgstr "丢弃这些更改"
 
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
@@ -2752,6 +2794,10 @@ msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无�
 #: src/features/catalog/InstallSheet.tsx
 msgid "Edit and try again"
 msgstr "修改后重试"
+
+#: src/features/files/FileViewer.tsx
+msgid "Edited"
+msgstr "已编辑"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/SignInPage.tsx
@@ -3629,6 +3675,15 @@ msgstr "最近 24 小时"
 msgid "Last heartbeat"
 msgstr "最后心跳"
 
+#. placeholder {0}: base.where
+#: src/features/files/FileViewer.tsx
+msgid "Leads to <0>{0}</0>"
+msgstr "指向 <0>{0}</0>"
+
+#: src/features/files/FileViewer.tsx
+msgid "Leave {name} without saving? What you typed goes."
+msgstr "不保存就离开 {name} 吗？你输入的内容会丢失。"
+
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
 msgstr "因可能包含机密而未导出"
@@ -3687,6 +3742,10 @@ msgstr "实时"
 #: src/features/servers/ServerMetrics.tsx
 msgid "Load average"
 msgstr "平均负载"
+
+#: src/features/files/FileViewer.tsx
+msgid "Load the server's version"
+msgstr "加载服务器上的版本"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Loading activity"
@@ -3814,6 +3873,10 @@ msgstr "可能切断对 {server} 的访问"
 #: src/features/auth/PasskeysPanel.tsx
 msgid "May have been copied; it no longer signs in"
 msgstr "可能已被复制，不能再用于登录"
+
+#: src/features/activity/describe.ts
+msgid "May have saved {path} on {server}"
+msgstr "可能已保存 {server} 上的 {path}"
 
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
@@ -5485,12 +5548,33 @@ msgid "same as the control plane"
 msgstr "与控制平面相同"
 
 #: src/features/apps/ExportSheet.tsx
+#: src/features/files/FileViewer.tsx
 msgid "Save"
 msgstr "保存"
+
+#: src/features/files/FileViewer.tsx
+msgid "Save over it"
+msgstr "覆盖保存"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Save your recovery codes"
 msgstr "保存你的恢复码"
+
+#: src/features/files/FileViewer.tsx
+msgid "Saved {name}"
+msgstr "已保存 {name}"
+
+#: src/features/activity/describe.ts
+msgid "Saved {path} on {server}"
+msgstr "已保存 {server} 上的 {path}"
+
+#: src/features/files/FileViewer.tsx
+msgid "Saving"
+msgstr "正在保存"
+
+#: src/features/files/FileViewer.tsx
+msgid "Saving replaces the file at once, and can't be undone."
+msgstr "保存会立即替换文件，且无法撤销。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Say where the file is to review the plan"
@@ -6500,13 +6584,21 @@ msgstr "此次部署的日志已不存在"
 msgid "This device already has a passkey for your account here. Use it, or pick another device or security key."
 msgstr "这台设备已经有你在此处账户的通行密钥。请直接使用它，或选择其他设备或安全密钥。"
 
+#: src/features/files/FileViewer.tsx
+msgid "This file can't be edited here"
+msgstr "这个文件无法在这里编辑"
+
+#: src/features/files/FileViewer.tsx
+msgid "This file changed on the server"
+msgstr "这个文件在服务器上发生了变化"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "这个文件有 {kib} KiB，而 Dockwell 最多读取 {limit} KiB。请删除 Dockwell 不会运行的内容，或把服务拆分到多个文件中导入。"
 
 #: src/features/files/FileViewer.tsx
-msgid "This file is {size}, so the rest of it stays on the server. Connect to the server over SSH to see it all."
-msgstr "这个文件大小为 {size}，其余内容留在服务器上。请通过 SSH 连接服务器查看完整内容。"
+msgid "This file is {size}, so the rest of it stays on the server, and it can't be edited here. Connect to the server over SSH to work with it all."
+msgstr "这个文件大小为 {size}，其余内容留在服务器上，也无法在这里编辑。请通过 SSH 连接服务器处理完整文件。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "This file is too large to read"
@@ -6543,6 +6635,10 @@ msgstr "这是 {server} 上的最后一条路由，因此 {proxy} 将停止并�
 #: src/features/files/FileViewer.tsx
 msgid "This isn't a text file"
 msgstr "这不是文本文件"
+
+#: src/features/files/FileViewer.tsx
+msgid "This isn't the file you opened"
+msgstr "这不是你打开的文件"
 
 #. placeholder {0}: server.serverName
 #: src/features/changes/notices.tsx
@@ -6594,6 +6690,10 @@ msgstr "这会访问服务器上的 <0>{source}</0>。需要你在计划中批�
 msgid "This reloads the proxy on {server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not"
 msgstr "这会重新加载 {server} 上的代理，可能重置正在进入该服务器上任何站点的连接，并可能丢失保持连接的 HTTP/1.1 上的 POST 请求。浏览器会再次发送此类请求，而应用自身的客户端可能不会"
 
+#: src/features/files/FileViewer.tsx
+msgid "This save may still land"
+msgstr "这次保存可能仍会写入"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "This server"
 msgstr "这台服务器"
@@ -6605,6 +6705,10 @@ msgstr "这台服务器的实时带宽由所有读者分享。"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "This server takes no certificate, and traffic reaches it unencrypted."
 msgstr "此服务器不使用证书，流量以未加密方式到达。"
+
+#: src/features/files/FileViewer.tsx
+msgid "This server's agent can't save files"
+msgstr "这台服务器的 agent 无法保存文件"
 
 #: src/features/auth/messages.ts
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -6926,6 +7030,10 @@ msgstr "原地更新"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Update out"
 msgstr "有更新"
+
+#: src/features/files/FileViewer.tsx
+msgid "Update the agent on this server to edit {name} here. You can still read it."
+msgstr "更新这台服务器上的 agent，才能在这里编辑 {name}。你仍然可以查看它。"
 
 #: src/app/Providers.tsx
 msgid "updated"
@@ -7258,6 +7366,10 @@ msgstr "你看到的内容可能已过时。{0}"
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell run 仍在运行，然后重试。"
 
+#: src/features/files/FileViewer.tsx
+msgid "What you typed is still here."
+msgstr "你输入的内容还在这里。"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What's in front"
 msgstr "前面是什么"
@@ -7346,6 +7458,10 @@ msgstr "你将成为所有者。其他人无法登录。"
 msgid "You can't read these logs"
 msgstr "你无法读取这些日志"
 
+#: src/features/files/FileViewer.tsx
+msgid "You have unsaved changes to {name}"
+msgstr "{name} 有未保存的更改"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "You name what connects to this server."
 msgstr "由你写明连接此服务器的来源。"
@@ -7361,6 +7477,14 @@ msgstr "使用验证码登录时需要它。"
 #: src/features/auth/ProfilePage.tsx
 msgid "You signed in with a one-time link"
 msgstr "你通过一次性链接登录了"
+
+#: src/features/files/FileViewer.tsx
+msgid "You typed them before your session ended, and the file has changed on the server since, so saving will ask what to do."
+msgstr "这些更改是你在会话结束前输入的，此后服务器上的文件已有变动，所以保存时会询问如何处理。"
+
+#: src/features/files/FileViewer.tsx
+msgid "You typed them before your session ended."
+msgstr "这些更改是你在会话结束前输入的。"
 
 #: src/features/auth/ProfilePage.tsx
 msgid "You used a recovery code"

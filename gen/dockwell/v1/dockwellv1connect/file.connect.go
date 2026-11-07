@@ -39,6 +39,8 @@ const (
 	FileServiceListFilesProcedure = "/dockwell.v1.FileService/ListFiles"
 	// FileServiceReadFileProcedure is the fully-qualified name of the FileService's ReadFile RPC.
 	FileServiceReadFileProcedure = "/dockwell.v1.FileService/ReadFile"
+	// FileServiceSaveFileProcedure is the fully-qualified name of the FileService's SaveFile RPC.
+	FileServiceSaveFileProcedure = "/dockwell.v1.FileService/SaveFile"
 )
 
 // FileServiceClient is a client for the dockwell.v1.FileService service.
@@ -51,6 +53,11 @@ type FileServiceClient interface {
 	// when it isn't UTF-8 text. No API token can call it. Every read is in the
 	// audit log.
 	ReadFile(context.Context, *connect.Request[v1.ReadFileRequest]) (*connect.Response[v1.ReadFileResponse], error)
+	// SaveFile replaces a file's text, if the file is still as ReadFile gave it. A
+	// file that changed since fails with the reason "file_changed", and nothing is
+	// written. It can't be undone. No API token can call it. Every save is in the
+	// audit log, and on the timeline.
+	SaveFile(context.Context, *connect.Request[v1.SaveFileRequest]) (*connect.Response[v1.SaveFileResponse], error)
 }
 
 // NewFileServiceClient constructs a client for the dockwell.v1.FileService service. By default, it
@@ -77,6 +84,12 @@ func NewFileServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(fileServiceMethods.ByName("ReadFile")),
 			connect.WithClientOptions(opts...),
 		),
+		saveFile: connect.NewClient[v1.SaveFileRequest, v1.SaveFileResponse](
+			httpClient,
+			baseURL+FileServiceSaveFileProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("SaveFile")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -84,6 +97,7 @@ func NewFileServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 type fileServiceClient struct {
 	listFiles *connect.Client[v1.ListFilesRequest, v1.ListFilesResponse]
 	readFile  *connect.Client[v1.ReadFileRequest, v1.ReadFileResponse]
+	saveFile  *connect.Client[v1.SaveFileRequest, v1.SaveFileResponse]
 }
 
 // ListFiles calls dockwell.v1.FileService.ListFiles.
@@ -96,6 +110,11 @@ func (c *fileServiceClient) ReadFile(ctx context.Context, req *connect.Request[v
 	return c.readFile.CallUnary(ctx, req)
 }
 
+// SaveFile calls dockwell.v1.FileService.SaveFile.
+func (c *fileServiceClient) SaveFile(ctx context.Context, req *connect.Request[v1.SaveFileRequest]) (*connect.Response[v1.SaveFileResponse], error) {
+	return c.saveFile.CallUnary(ctx, req)
+}
+
 // FileServiceHandler is an implementation of the dockwell.v1.FileService service.
 type FileServiceHandler interface {
 	// ListFiles returns what a directory on a server holds, by name. It follows
@@ -106,6 +125,11 @@ type FileServiceHandler interface {
 	// when it isn't UTF-8 text. No API token can call it. Every read is in the
 	// audit log.
 	ReadFile(context.Context, *connect.Request[v1.ReadFileRequest]) (*connect.Response[v1.ReadFileResponse], error)
+	// SaveFile replaces a file's text, if the file is still as ReadFile gave it. A
+	// file that changed since fails with the reason "file_changed", and nothing is
+	// written. It can't be undone. No API token can call it. Every save is in the
+	// audit log, and on the timeline.
+	SaveFile(context.Context, *connect.Request[v1.SaveFileRequest]) (*connect.Response[v1.SaveFileResponse], error)
 }
 
 // NewFileServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -128,12 +152,20 @@ func NewFileServiceHandler(svc FileServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(fileServiceMethods.ByName("ReadFile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	fileServiceSaveFileHandler := connect.NewUnaryHandler(
+		FileServiceSaveFileProcedure,
+		svc.SaveFile,
+		connect.WithSchema(fileServiceMethods.ByName("SaveFile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.FileService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case FileServiceListFilesProcedure:
 			fileServiceListFilesHandler.ServeHTTP(w, r)
 		case FileServiceReadFileProcedure:
 			fileServiceReadFileHandler.ServeHTTP(w, r)
+		case FileServiceSaveFileProcedure:
+			fileServiceSaveFileHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -149,4 +181,8 @@ func (UnimplementedFileServiceHandler) ListFiles(context.Context, *connect.Reque
 
 func (UnimplementedFileServiceHandler) ReadFile(context.Context, *connect.Request[v1.ReadFileRequest]) (*connect.Response[v1.ReadFileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.ReadFile is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) SaveFile(context.Context, *connect.Request[v1.SaveFileRequest]) (*connect.Response[v1.SaveFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.SaveFile is not implemented"))
 }

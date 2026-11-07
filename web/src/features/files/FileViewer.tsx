@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
-import { FileService } from "@dockwell/api";
-import { Button, Callout, Icon, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
+import { createClient } from "@connectrpc/connect";
+import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
+import { type FileEntry, FileService, type ReadFileResponse } from "@dockwell/api";
+import { Button, Callout, CodeField, Icon, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useBlocker, useNavigate } from "@tanstack/react-router";
+import { type KeyboardEvent, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
-import { lineCount, lineEnding, lineNumbers, nameOf } from "./paths";
+import { onApple } from "../../lib/platform";
+import { useSignedInUser } from "../auth/useAuthState";
+import { type Base, type Draft, dropDraft, heldDraft, holdDraft } from "./drafts";
+import { changedLines, editable, lineCount, lineEnding, nameOf, restoreEndings } from "./paths";
 
 interface FileViewerProps {
   serverId: string;
@@ -19,10 +25,10 @@ interface FileViewerProps {
 }
 
 /**
- * A file's text, as the server has it. Reading one goes on record, so it reads
- * once each time the file opens: never on its own when the window takes focus,
- * and nothing of it stays in the cache once it closes. What it shows is text in
- * a pre, whatever the file's name says: nothing in a file runs here.
+ * A file, as the server has it. Reading one goes on record, so it reads once each
+ * time the file opens: never on its own when the window takes focus, and nothing
+ * of it stays in the cache once it closes. What it shows is text in a field,
+ * whatever the file's name says: nothing in a file runs here.
  */
 export function FileViewer({ serverId, path, folder }: FileViewerProps) {
   const { t, i18n } = useLingui();
@@ -35,10 +41,9 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
   );
   const name = nameOf(path);
   const read = query.data;
-  const file = read?.file;
-  const content = read?.content ?? "";
-  const lines = useMemo(() => lineCount(content), [content]);
-  const numbers = useMemo(() => lineNumbers(lines), [lines]);
+  const [saved, setSaved] = useState<FileEntry>();
+  const [edited, setEdited] = useState(false);
+  const file = saved ?? read?.file;
   const close = () => {
     void navigate({ to: "/servers/$serverId/files", params: { serverId }, search: { path: folder } });
   };
@@ -79,32 +84,49 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
         </div>
       );
     }
-    return (
-      <>
-        {read.truncated ? (
+    if (read.truncated) {
+      return (
+        <>
           <div className="files-note">
             <Callout tone="warning" title={t`Showing the first 1 MB`}>
               <Trans>
-                This file is {size}, so the rest of it stays on the server. Connect to the server over SSH to see it
-                all.
+                This file is {size}, so the rest of it stays on the server, and it can't be edited here. Connect to the
+                server over SSH to work with it all.
               </Trans>
             </Callout>
           </div>
-        ) : null}
-        {/* biome-ignore lint/a11y/noNoninteractiveTabindex: it scrolls, so a keyboard has to reach it */}
-        <section className="files-code" aria-label={t`Contents of ${name}`} tabIndex={0}>
-          <pre aria-hidden="true" className="files-gutter">
-            {numbers}
-          </pre>
-          <pre className="files-text">{content}</pre>
-        </section>
-        <div className="files-foot">
-          <span>{lines === 1 ? <Trans>1 line</Trans> : <Trans>{lines} lines</Trans>}</span>
-          <span>UTF-8</span>
-          <span>{lineEnding(content)}</span>
-        </div>
-      </>
-    );
+          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
+        </>
+      );
+    }
+    if (!read.version) {
+      return (
+        <>
+          <div className="files-note">
+            <Callout tone="info" title={t`This server's agent can't save files`}>
+              <Trans>Update the agent on this server to edit {name} here. You can still read it.</Trans>
+            </Callout>
+          </div>
+          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
+        </>
+      );
+    }
+    if (lineEnding(read.content) === "mixed") {
+      return (
+        <>
+          <div className="files-note">
+            <Callout tone="info" title={t`This file can't be edited here`}>
+              <Trans>
+                {name} has more than one kind of line ending, so saving it here would change lines you didn't touch.
+                Connect to the server over SSH to edit it.
+              </Trans>
+            </Callout>
+          </div>
+          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
+        </>
+      );
+    }
+    return <Editor serverId={serverId} path={path} name={name} read={read} onSaved={setSaved} onEdited={setEdited} />;
   };
   return (
     <Panel
@@ -117,6 +139,11 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
               <Icon name="file" size={16} />
             </span>
             <span className="files-viewer-name">{name}</span>
+            {edited ? (
+              <span className="files-edited">
+                <Trans>Edited</Trans>
+              </span>
+            ) : null}
           </span>
         )
       }
@@ -133,5 +160,304 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
       ) : null}
       {body()}
     </Panel>
+  );
+}
+
+interface EditorProps {
+  serverId: string;
+  path: string;
+  name: string;
+  read: ReadFileResponse;
+  onSaved: (file: FileEntry | undefined) => void;
+  onEdited: (edited: boolean) => void;
+}
+
+function baseOf(read: ReadFileResponse): Base {
+  return {
+    text: editable(read.content),
+    version: read.version,
+    crlf: lineEnding(read.content) === "CRLF",
+    where: read.path,
+  };
+}
+
+/**
+ * A file's text, to edit and save. A save names the version it was edited from,
+ * so a file that changed since isn't written over without you saying so. What you
+ * typed stays in the field whatever a save comes to, and leaving with it unsaved
+ * asks first. A session that ends takes the page with it and asks nobody, so what
+ * you typed is held for when you sign in again.
+ */
+function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) {
+  const { t } = useLingui();
+  const phone = useMediaQuery(PHONE_QUERY);
+  const transport = useTransport();
+  const queryClient = useQueryClient();
+  const [base, setBase] = useState(() => baseOf(read));
+  const [draft, setDraft] = useState(base.text);
+  const [saving, setSaving] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [problem, setProblem] = useState<string>();
+  // A save that was writing as the server stopped answering isn't a failure.
+  const [mayLand, setMayLand] = useState(false);
+  // Where the file leads now, once that isn't where it led when you read it.
+  const [moved, setMoved] = useState<string>();
+  const [justSaved, setJustSaved] = useState(false);
+  const who = useSignedInUser()?.id ?? "";
+  const [offer, setOffer] = useState<Draft | undefined>(() => heldDraft(serverId, path, who));
+  const edited = draft !== base.text;
+  const changes = edited ? changedLines(base.text, draft) : 0;
+
+  useBlocker({
+    shouldBlockFn: () => {
+      if (!window.confirm(t`Leave ${name} without saving? What you typed goes.`)) return true;
+      dropDraft(serverId, path);
+      return false;
+    },
+    disabled: !edited,
+    enableBeforeUnload: edited,
+  });
+
+  const client = createClient(FileService, transport);
+  const change = (next: string) => {
+    setDraft(next);
+    setJustSaved(false);
+    onEdited(next !== base.text);
+    if (next === base.text) dropDraft(serverId, path);
+    else holdDraft(serverId, path, { who, text: next, base });
+  };
+
+  const discard = () => {
+    change(base.text);
+    setConflict(false);
+    setMoved(undefined);
+    setProblem(undefined);
+  };
+
+  /** Back to what was typed before you were signed out, over what it was typed on. */
+  const bringBack = (held: Draft) => {
+    setBase(held.base);
+    setDraft(held.text);
+    onEdited(true);
+    setOffer(undefined);
+  };
+
+  const letGo = () => {
+    dropDraft(serverId, path);
+    setOffer(undefined);
+  };
+
+  const save = async (over: string) => {
+    const sent = draft;
+    const content = restoreEndings(sent, base.crlf);
+    setSaving(true);
+    setProblem(undefined);
+    setMayLand(false);
+    setConflict(false);
+    setJustSaved(false);
+    try {
+      const res = await client.saveFile({ serverId, path, content, version: over });
+      setBase((was) => ({ ...was, text: sent, version: res.version }));
+      dropDraft(serverId, path);
+      setJustSaved(true);
+      onSaved(res.file);
+      onEdited(false);
+      void queryClient.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: FileService.method.listFiles, cardinality: "finite" }),
+      });
+    } catch (err) {
+      const reason = reasonOf(err);
+      if (reason === "file_changed") setConflict(true);
+      else {
+        setMayLand(reason === "save_may_land");
+        setProblem(sentence(err));
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** What's on the server now, for a person who has seen the file changed. */
+  const reread = () => client.readFile({ serverId, path });
+
+  const saveOver = async () => {
+    try {
+      const now = await reread();
+      if (!now.version) {
+        setConflict(false);
+        setProblem(t`${name} isn't a text file under 1 MB any more, so it can't be saved here.`);
+        return;
+      }
+      // The change may be that this path leads somewhere else now, so saving would
+      // write there. You decide that with the file in front of you.
+      if (now.path !== base.where) {
+        setConflict(false);
+        setMoved(now.path);
+        return;
+      }
+      await save(now.version);
+    } catch (err) {
+      setProblem(sentence(err));
+    }
+  };
+
+  const loadServers = async () => {
+    try {
+      const now = await reread();
+      if (!now.version) {
+        setConflict(false);
+        setProblem(t`${name} isn't a text file under 1 MB any more, so it can't be loaded here.`);
+        return;
+      }
+      if (lineEnding(now.content) === "mixed") {
+        setConflict(false);
+        setProblem(t`${name} has more than one kind of line ending now, so it can't be loaded here.`);
+        return;
+      }
+      const next = baseOf(now);
+      setBase(next);
+      setDraft(next.text);
+      dropDraft(serverId, path);
+      setConflict(false);
+      setMoved(undefined);
+      setProblem(undefined);
+      onSaved(now.file);
+      onEdited(false);
+    } catch (err) {
+      setProblem(sentence(err));
+    }
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      if (edited && !saving && !conflict && !moved) void save(base.version);
+    }
+  };
+
+  return (
+    <>
+      {base.where !== path ? (
+        <p className="files-facts">
+          <span>
+            <Trans>
+              Leads to <code>{base.where}</code>
+            </Trans>
+          </span>
+        </p>
+      ) : null}
+      {offer ? (
+        <div className="files-note">
+          <Callout tone="info" title={t`You have unsaved changes to ${name}`}>
+            {offer.base.version === base.version ? (
+              <Trans>You typed them before your session ended.</Trans>
+            ) : (
+              <Trans>
+                You typed them before your session ended, and the file has changed on the server since, so saving will
+                ask what to do.
+              </Trans>
+            )}
+            <span className="files-note-actions">
+              <Button size="sm" onClick={() => bringBack(offer)}>
+                <Trans>Bring them back</Trans>
+              </Button>
+              <Button size="sm" variant="ghost" onClick={letGo}>
+                <Trans>Discard them</Trans>
+              </Button>
+            </span>
+          </Callout>
+        </div>
+      ) : null}
+      {moved ? (
+        <div className="files-note">
+          <Callout tone="critical" title={t`This isn't the file you opened`}>
+            <Trans>
+              {name} now leads to <code>{moved}</code>, so saving would write there. Nothing was saved, and what you
+              typed is still here. Load the server's version to see what's there.
+            </Trans>
+            <span className="files-note-actions">
+              <Button size="sm" variant="ghost" disabled={saving} onClick={() => void loadServers()}>
+                <Trans>Load the server's version</Trans>
+              </Button>
+            </span>
+          </Callout>
+        </div>
+      ) : null}
+      {conflict ? (
+        <div className="files-note">
+          <Callout tone="warning" title={t`This file changed on the server`}>
+            <Trans>
+              {name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the
+              server's version, or load it in place of yours.
+            </Trans>
+            <span className="files-note-actions">
+              <Button size="sm" disabled={saving} onClick={() => void saveOver()}>
+                <Trans>Save over it</Trans>
+              </Button>
+              <Button size="sm" variant="ghost" disabled={saving} onClick={() => void loadServers()}>
+                <Trans>Load the server's version</Trans>
+              </Button>
+            </span>
+          </Callout>
+        </div>
+      ) : null}
+      {problem ? (
+        <div className="files-note">
+          <Callout
+            tone={mayLand ? "warning" : "critical"}
+            title={mayLand ? t`This save may still land` : t`Can't save this file`}
+          >
+            {problem} <Trans>What you typed is still here.</Trans>
+          </Callout>
+        </div>
+      ) : null}
+      <CodeField
+        className="files-code"
+        aria-label={t`Contents of ${name}`}
+        value={draft}
+        readOnly={offer !== undefined}
+        onChange={(event) => change(event.target.value)}
+        onKeyDown={onKeyDown}
+      />
+      <div className="files-foot">
+        <span>{plural(lineCount(draft), { one: "# line", other: "# lines" })}</span>
+        <span>UTF-8</span>
+        <span>{base.crlf ? "CRLF" : "LF"}</span>
+      </div>
+      {edited ? (
+        <div className="files-save">
+          <div className="files-save-what">
+            <p className="dw-text-label files-save-count">
+              {plural(changes, { one: "# line changed", other: "# lines changed" })}
+            </p>
+            <span>
+              <Trans>Saving replaces the file at once, and can't be undone.</Trans>
+            </span>
+          </div>
+          <div className="files-save-actions">
+            <Button disabled={saving} onClick={discard}>
+              <Trans>Discard</Trans>
+            </Button>
+            <Button
+              variant="primary"
+              kbd={phone ? undefined : onApple() ? "⌘S" : "Ctrl S"}
+              disabled={saving || conflict || moved !== undefined}
+              onClick={() => void save(base.version)}
+            >
+              {saving ? <Trans>Saving</Trans> : <Trans>Save</Trans>}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <span className="dw-sr" role="status">
+        {justSaved ? t`Saved ${name}` : ""}
+      </span>
+      {justSaved && !edited ? (
+        <p className="files-saved">
+          <Icon name="check" size={14} />
+          <Trans>Saved {name}</Trans>
+        </p>
+      ) : null}
+    </>
   );
 }

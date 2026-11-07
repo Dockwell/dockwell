@@ -93,6 +93,7 @@ type Agents struct {
 	// each report. It outlives the stream as domains does.
 	health       map[string]health.Report
 	healthHearer func(server string, instances []*dockwellv1.InstanceHealth)
+	saveHearer   func(server string, ended *agentv1.SaveEnded)
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
@@ -101,6 +102,25 @@ func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
 		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
+	}
+}
+
+// OnSaveEnded calls fn with what an agent says of a save that ended after nobody
+// was waiting for it. An agent speaks for its own server and nothing more, so what
+// it names has to be checked.
+func (a *Agents) OnSaveEnded(fn func(server string, ended *agentv1.SaveEnded)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.saveHearer = fn
+}
+
+// reportSaveEnded passes on what an agent says of a save.
+func (a *Agents) reportSaveEnded(server string, ended *agentv1.SaveEnded) {
+	a.mu.Lock()
+	hear := a.saveHearer
+	a.mu.Unlock()
+	if hear != nil {
+		hear(server, ended)
 	}
 }
 
@@ -722,6 +742,10 @@ func (s *Session) lost(c *agentv1.Call) error {
 	if c.GetApply() != nil {
 		return resource.Plainly(fmt.Sprintf("%s went offline during this step, so Dockwell can't tell whether it ran. Check that %s is up.", s.name, s.name),
 			fault.New(ErrLost, "%s's agent disconnected during this step", s.name))
+	}
+	if c.GetSaveFile() != nil {
+		return fault.New(ErrLost, "%s's agent disconnected before it answered, so the file may or may not have saved. "+
+			"Open it again once the agent reconnects, to see what's there", s.name)
 	}
 	return fault.New(ErrLost, "%s's agent disconnected before it answered. Try again once it reconnects", s.name)
 }

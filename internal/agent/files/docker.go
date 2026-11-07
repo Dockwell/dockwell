@@ -24,7 +24,8 @@ import (
 //   - what it said is kept on disk, so a restart with Docker away, or a root that
 //     moved, still knows;
 //   - a directory that looks like one is one, and the files it holds are refused
-//     by what they are, for a root no one has named, and for a copy of them.
+//     by what they are, for a root no one has named, and for a copy of them. What
+//     looks like one is strict enough to leave a project alone: see dockerShaped.
 
 const (
 	// defaultDockerRoot is where Docker keeps its data unless told otherwise.
@@ -115,18 +116,30 @@ func (s *Server) saveRoots() error {
 	return os.Rename(tmp, path)
 }
 
-// dockerShaped reports a directory that holds what Docker's data root does: a
-// directory for containers and one for volumes, which the engine makes as it
-// first starts. A project that happens to hold both reads as shut, which is the
-// side to be wrong on.
+// dockerDirs are what Docker keeps beside containers in its data root.
+var dockerDirs = []string{"image", "network", "overlay2", "volumes", "plugins", "swarm", "buildkit", "runtimes"}
+
+// dockerShaped reports a directory that holds what Docker's data root does: its
+// containers, and at least two more of what the engine makes as it first starts. A
+// project with a containers and a volumes directory of its own isn't one. A link
+// counts as what it leads to, as a root can keep a part of itself on another disk.
 func dockerShaped(dir int) bool {
-	for _, name := range []string{"containers", "volumes"} {
-		var st unix.Stat_t
-		if unix.Fstatat(dir, name, &st, unix.AT_SYMLINK_NOFOLLOW) != nil || st.Mode&unix.S_IFMT != unix.S_IFDIR {
-			return false
+	if !holdsDir(dir, "containers") {
+		return false
+	}
+	found := 0
+	for _, name := range dockerDirs {
+		if holdsDir(dir, name) {
+			found++
 		}
 	}
-	return true
+	return found >= 2
+}
+
+// holdsDir reports a directory in dir, or a link to one.
+func holdsDir(dir int, name string) bool {
+	var st unix.Stat_t
+	return unix.Fstatat(dir, name, &st, 0) == nil && st.Mode&unix.S_IFMT == unix.S_IFDIR
 }
 
 // holdsDockerState finds what Docker keeps of a container or a volume, by the

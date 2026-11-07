@@ -89,13 +89,7 @@ export function FilesPage({ serverId, search }: { serverId: string; search: File
           : undefined
       }
     >
-      {(server) =>
-        reading && file ? (
-          <FileViewer serverId={serverId} path={file} folder={folder} key={file} />
-        ) : (
-          <Files server={server} folder={folder} file={file} />
-        )
-      }
+      {(server) => <Files server={server} folder={folder} file={file} reading={reading} />}
     </ServerFrame>
   );
 }
@@ -125,7 +119,15 @@ function iconOf(row: Row): IconName {
   return row.folder ? "folder" : "file";
 }
 
-function Files({ server, folder, file }: { server: Server; folder: string; file: string | undefined }) {
+interface FilesProps {
+  server: Server;
+  folder: string;
+  file: string | undefined;
+  /** An open file has the screen to itself. It stays where it is in the tree, so turning a phone keeps what you typed. */
+  reading: boolean;
+}
+
+function Files({ server, folder, file, reading }: FilesProps) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const navigate = useNavigate();
@@ -220,110 +222,116 @@ function Files({ server, folder, file }: { server: Server; folder: string; file:
   const owner = listing?.directory?.owner;
   return (
     <div className="files">
-      <div className="files-bar">
-        <div className="files-where">
-          <nav aria-label={t`Path`} className="files-crumbs">
-            {crumbs(shown).map((crumb, i, all) =>
-              i === all.length - 1 ? (
-                <span key={crumb.path} aria-current="page" className="files-crumb-here">
-                  {crumb.name}
-                </span>
-              ) : (
-                <span key={crumb.path} className="files-crumb">
-                  <RouterButtonLink
-                    variant="ghost"
-                    size="sm"
-                    to="/servers/$serverId/files"
-                    params={{ serverId }}
-                    search={{ path: crumb.path }}
-                  >
+      {reading ? null : (
+        <div className="files-bar">
+          <div className="files-where">
+            <nav aria-label={t`Path`} className="files-crumbs">
+              {crumbs(shown).map((crumb, i, all) =>
+                i === all.length - 1 ? (
+                  <span key={crumb.path} aria-current="page" className="files-crumb-here">
                     {crumb.name}
-                  </RouterButtonLink>
-                  {i > 0 ? <span aria-hidden="true">/</span> : null}
-                </span>
-              ),
-            )}
-          </nav>
-          <CopyButton text={shown} label={t`Copy path ${shown}`} />
-          {listing ? (
-            <span className="files-count">
-              {plural(count, { one: "# item", other: "# items" })}
-              {owner ? (
-                <>
-                  {" · "}
-                  <Trans>
-                    owned by <code>{owner}</code>
-                  </Trans>
-                </>
-              ) : null}
-            </span>
-          ) : null}
+                  </span>
+                ) : (
+                  <span key={crumb.path} className="files-crumb">
+                    <RouterButtonLink
+                      variant="ghost"
+                      size="sm"
+                      to="/servers/$serverId/files"
+                      params={{ serverId }}
+                      search={{ path: crumb.path }}
+                    >
+                      {crumb.name}
+                    </RouterButtonLink>
+                    {i > 0 ? <span aria-hidden="true">/</span> : null}
+                  </span>
+                ),
+              )}
+            </nav>
+            <CopyButton text={shown} label={t`Copy path ${shown}`} />
+            {listing ? (
+              <span className="files-count">
+                {plural(count, { one: "# item", other: "# items" })}
+                {owner ? (
+                  <>
+                    {" · "}
+                    <Trans>
+                      owned by <code>{owner}</code>
+                    </Trans>
+                  </>
+                ) : null}
+              </span>
+            ) : null}
+          </div>
+          <div className="files-filter">
+            <TextField
+              size="sm"
+              icon="search"
+              placeholder={t`Search in ${nameOf(shown)}`}
+              aria-label={t`Search in ${nameOf(shown)}`}
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+            />
+          </div>
         </div>
-        <div className="files-filter">
-          <TextField
-            size="sm"
-            icon="search"
-            placeholder={t`Search in ${nameOf(shown)}`}
-            aria-label={t`Search in ${nameOf(shown)}`}
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          />
-        </div>
-      </div>
+      )}
       <div className="files-panes">
-        <Panel flush className="files-places">
-          <nav aria-label={t`Places`}>
-            {places.map((place) => (
-              <RouterButtonLink
-                key={place.path}
-                variant="ghost"
-                size="sm"
-                icon={place.icon}
-                to="/servers/$serverId/files"
-                params={{ serverId }}
-                search={{ path: place.path }}
-                title={place.path}
-              >
-                {place.label}
-              </RouterButtonLink>
-            ))}
-          </nav>
-        </Panel>
-        <div className="files-list">
-          {query.error ? (
-            <FolderProblem error={query.error} folder={folder} serverId={serverId} />
-          ) : (
-            <>
-              {listing?.truncated ? (
-                <Callout tone="warning" title={t`This folder holds more than a listing shows`}>
-                  <Trans>
-                    Only {count} of its items are here, so one you're after may be missing. Connect to the server over
-                    SSH to see them all.
-                  </Trans>
-                </Callout>
-              ) : null}
-              <Table
-                columns={columns}
-                rows={rows}
-                rowKey="name"
-                density="compact"
-                maxHeight={phone ? undefined : 640}
-                selectedKey={file ? nameOf(file) : null}
-                caption={t`Files in ${shown}`}
-                onRowClick={open}
-                empty={
-                  query.isPending ? (
-                    <Trans>Reading this folder</Trans>
-                  ) : filter ? (
-                    <Trans>Nothing here matches your search.</Trans>
-                  ) : (
-                    <Trans>This folder is empty.</Trans>
-                  )
-                }
-              />
-            </>
-          )}
-        </div>
+        {reading ? null : (
+          <Panel flush className="files-places">
+            <nav aria-label={t`Places`}>
+              {places.map((place) => (
+                <RouterButtonLink
+                  key={place.path}
+                  variant="ghost"
+                  size="sm"
+                  icon={place.icon}
+                  to="/servers/$serverId/files"
+                  params={{ serverId }}
+                  search={{ path: place.path }}
+                  title={place.path}
+                >
+                  {place.label}
+                </RouterButtonLink>
+              ))}
+            </nav>
+          </Panel>
+        )}
+        {reading ? null : (
+          <div className="files-list">
+            {query.error ? (
+              <FolderProblem error={query.error} folder={folder} serverId={serverId} />
+            ) : (
+              <>
+                {listing?.truncated ? (
+                  <Callout tone="warning" title={t`This folder holds more than a listing shows`}>
+                    <Trans>
+                      Only {count} of its items are here, so one you're after may be missing. Connect to the server over
+                      SSH to see them all.
+                    </Trans>
+                  </Callout>
+                ) : null}
+                <Table
+                  columns={columns}
+                  rows={rows}
+                  rowKey="name"
+                  density="compact"
+                  maxHeight={phone ? undefined : 640}
+                  selectedKey={file ? nameOf(file) : null}
+                  caption={t`Files in ${shown}`}
+                  onRowClick={open}
+                  empty={
+                    query.isPending ? (
+                      <Trans>Reading this folder</Trans>
+                    ) : filter ? (
+                      <Trans>Nothing here matches your search.</Trans>
+                    ) : (
+                      <Trans>This folder is empty.</Trans>
+                    )
+                  }
+                />
+              </>
+            )}
+          </div>
+        )}
         {file ? <FileViewer serverId={serverId} path={file} folder={shown} key={file} /> : null}
       </div>
     </div>

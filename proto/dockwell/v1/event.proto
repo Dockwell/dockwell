@@ -192,7 +192,8 @@ message EventSubject {
   // secret's environment, as "env_…", for a secret revealed. Empty
   // otherwise.
   string scope = 3;
-  // Which file on it, for a file read on a server, or refused. Empty otherwise.
+  // Which file on it, for a file read, saved or refused on a server. Empty
+  // otherwise.
   string path = 4;
 }
 
@@ -202,7 +203,8 @@ enum EventKind {
   // A change to managed state: a plan waiting to be applied, or a change
   // applying, applied or failed, rollbacks and undos included.
   EVENT_KIND_CHANGE = 1;
-  // A server joined the fleet, renewed its certificate, or was removed.
+  // A server joined the fleet, renewed its certificate, or was removed, or
+  // someone saved a file on it.
   EVENT_KIND_SERVER = 2;
   // Someone gained or gave up a way in: claiming the install, signing in,
   // signing other sessions out, passkeys, authenticator codes, API tokens,

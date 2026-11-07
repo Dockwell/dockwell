@@ -26,9 +26,14 @@ export function crumbs(path: string): { name: string; path: string }[] {
   return out;
 }
 
-/** Which line ending a text uses, for the editor's footer. */
-export function lineEnding(text: string): "LF" | "CRLF" {
-  return text.includes("\r\n") ? "CRLF" : "LF";
+/**
+ * Which line ending a text uses, for the editor's footer. "mixed" is a text with more
+ * than one kind, or a lone CR: a field holds only one, so what it saves would change
+ * lines nobody touched.
+ */
+export function lineEnding(text: string): "LF" | "CRLF" | "mixed" {
+  if (!text.includes("\r")) return "LF";
+  return restoreEndings(editable(text), true) === text ? "CRLF" : "mixed";
 }
 
 /** How many lines a text has, as an editor numbers them: a last newline starts none. */
@@ -39,7 +44,23 @@ export function lineCount(text: string): number {
   return lines;
 }
 
-/** The line numbers beside a text, one to a line. */
-export function lineNumbers(count: number): string {
-  return Array.from({ length: count }, (_, i) => i + 1).join("\n");
+/** A text as a field keeps it: a browser turns every line ending into LF as it takes it in. */
+export function editable(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
+
+/** A field's text as the file has it, back on the line endings it came with. */
+export function restoreEndings(text: string, crlf: boolean): string {
+  return crlf ? text.replace(/\n/g, "\r\n") : text;
+}
+
+/** How many lines an edit touches: what's between the lines the two share at either end. */
+export function changedLines(before: string, after: string): number {
+  const a = before.split("\n");
+  const b = after.split("\n");
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let end = 0;
+  while (end < a.length - start && end < b.length - start && a[a.length - 1 - end] === b[b.length - 1 - end]) end++;
+  return Math.max(a.length - start - end, b.length - start - end);
 }

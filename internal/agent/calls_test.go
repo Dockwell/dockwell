@@ -342,6 +342,10 @@ func listCall(id uint64, path string, timeout time.Duration) *agentv1.Call {
 	return &agentv1.Call{Id: id, Timeout: durationpb.New(timeout), Call: &agentv1.Call_ListFiles{ListFiles: &agentv1.ListFilesCall{Path: path}}}
 }
 
+func saveCall(id uint64, path string, timeout time.Duration) *agentv1.Call {
+	return &agentv1.Call{Id: id, Timeout: durationpb.New(timeout), Call: &agentv1.Call_SaveFile{SaveFile: &agentv1.SaveFileCall{Path: path, Content: "x", Version: "v"}}}
+}
+
 // A call into a dead mount can stay in the kernel for as long as the mount is
 // down, and nothing can stop it. The agent's next stream, and so the server being
 // online, can't wait on that.
@@ -355,7 +359,11 @@ func TestAFileCallThatNeverReturnsDoesntHoldUpTheStream(t *testing.T) {
 	s := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{Logger: slog.New(slog.DiscardHandler), Files: disk}, s.send, nil)
 	for i := range uint64(4) {
-		c.start(listCall(i+1, "/mnt/dead", time.Hour))
+		if i%2 == 0 {
+			c.start(listCall(i+1, "/mnt/dead", time.Hour))
+		} else {
+			c.start(saveCall(i+1, "/mnt/dead", time.Hour))
+		}
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for held.Load() < 4 {
@@ -386,6 +394,10 @@ func TestResultsWaitingToSendAreBounded(t *testing.T) {
 		return nil
 	}, nil)
 	for i := range uint64(12) {
+		if i%3 == 2 {
+			c.start(saveCall(i+1, filepath.Join(dir, "nothing"), time.Minute))
+			continue
+		}
 		c.start(listCall(i+1, dir, time.Minute))
 	}
 	time.Sleep(300 * time.Millisecond)

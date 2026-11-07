@@ -154,7 +154,7 @@ func (c *calls) start(call *agentv1.Call) {
 		defer c.done(call.GetId())
 		// A file call keeps its place until its result has gone, so what waits
 		// for a slow stream is bounded, and a call whose caller left drops out.
-		if c.cfg.Files != nil && (call.GetListFiles() != nil || call.GetReadFile() != nil) {
+		if c.cfg.Files != nil && (call.GetListFiles() != nil || call.GetReadFile() != nil || call.GetSaveFile() != nil) {
 			release, err := c.cfg.Files.Take(ctx)
 			if err != nil {
 				c.reply(call.GetId(), &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}})
@@ -550,6 +550,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadFile{ReadFile: file}}
+	}
+	if save := call.GetSaveFile(); save != nil {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		saved, err := c.cfg.Files.Save(ctx, save.GetPath(), save.GetContent(), save.GetVersion(), save.GetRecord())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_SaveFile{SaveFile: saved}}
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",

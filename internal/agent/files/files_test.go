@@ -6,14 +6,17 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
 
+	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
@@ -778,5 +781,613 @@ func TestPrintable(t *testing.T) {
 	long := Printable(strings.Repeat("好", maxPrintable))
 	if !strings.HasSuffix(long, "…") || !utf8.ValidString(long) || len(long) > maxPrintable+len("…") {
 		t.Errorf("a long text comes to %d bytes", len(long))
+	}
+}
+
+// savable reads a file, for the version a save takes.
+// versionOf is what a read of the text at p would say, which anyone who knows
+// what's there can work out.
+func versionOf(t *testing.T, p, text string) string {
+	t.Helper()
+	var st unix.Stat_t
+	if err := unix.Stat(p, &st); err != nil {
+		t.Fatal(err)
+	}
+	return version(p, &st, []byte(text))
+}
+
+func savable(t *testing.T, d *fakeDisk, p string) string {
+	t.Helper()
+	v := d.read(t, p).GetFile().GetVersion()
+	if v == "" {
+		t.Fatalf("%s has no version to save over", p)
+	}
+	return v
+}
+
+func (d *fakeDisk) save(t *testing.T, p, content, version string) *agentv1.SaveFileResult {
+	t.Helper()
+	r, err := d.server.Save(t.Context(), p, content, version, "evt_save")
+	if err != nil {
+		t.Fatalf("Save(%s): %v", p, err)
+	}
+	mustSend(t, r)
+	return r
+}
+
+func spares(t *testing.T, dir string) []string {
+	t.Helper()
+	found, err := filepath.Glob(filepath.Join(dir, ".dockwell-save-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
+}
+
+func TestSavingAFile(t *testing.T) {
+	d := newDisk(t)
+	p := filepath.Join(d.root, "site", "nginx.conf")
+	write(t, p, "listen 80;\n")
+	if err := os.Chmod(p, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := d.save(t, p, "listen 8080;\n", savable(t, d, p))
+	saved := got.GetSaved()
+	if saved == nil {
+		t.Fatalf("refused: %v", got.GetRefusal())
+	}
+	content, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "listen 8080;\n" {
+		t.Fatalf("the file holds %q", content)
+	}
+	after, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A mount holds the inode, so a container that mounts this file sees the save.
+	if !os.SameFile(before, after) {
+		t.Error("the save replaced the file, so what mounts it keeps reading the old one")
+	}
+	if after.Mode() != before.Mode() {
+		t.Errorf("its mode went from %v to %v", before.Mode(), after.Mode())
+	}
+	if saved.GetFile().GetSizeBytes() != 13 || saved.GetVersion() != d.read(t, p).GetFile().GetVersion() {
+		t.Errorf("saved as %v", saved)
+	}
+	if left := spares(t, filepath.Dir(p)); len(left) != 0 {
+		t.Errorf("the save left %v", left)
+	}
+	// What it gives is what the next save takes.
+	if got := d.save(t, p, "shorter\n", saved.GetVersion()); got.GetSaved() == nil {
+		t.Errorf("a second save: %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "shorter\n" {
+		t.Errorf("a shorter save left %q", content)
+	}
+}
+
+func TestASaveNoticesAFileThatChanged(t *testing.T) {
+	d := newDisk(t)
+	p := filepath.Join(d.root, "site", "app.env")
+	write(t, p, "A=1\n")
+	version := savable(t, d, p)
+	write(t, p, "A=2\n") // someone else, same size, within the same clock tick
+	got := d.save(t, p, "A=3\n", version)
+	if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_CHANGED || !strings.Contains(got.GetRefusal().GetMessage(), "changed since you opened it") {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "A=2\n" {
+		t.Fatalf("the file holds %q", content)
+	}
+	if left := spares(t, filepath.Dir(p)); len(left) != 0 {
+		t.Errorf("a refused save left %v", left)
+	}
+	// A file that grew past what can be read is changed too, not cut short.
+	write(t, p, strings.Repeat("x", MaxFileBytes+1))
+	if got := d.save(t, p, "A=3\n", version); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_CHANGED {
+		t.Errorf("a file that grew: %v", got)
+	}
+}
+
+func TestASaveRefusesWhatAReadRefuses(t *testing.T) {
+	d := newDisk(t)
+	allowed := filepath.Join(d.root, "app")
+	key := filepath.Join(d.data, "control", "key")
+	link(t, key, filepath.Join(allowed, "planted"))
+	write(t, filepath.Join(allowed, ".pgpass"), "x")
+	write(t, filepath.Join(allowed, "tls.key"), "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n")
+	// What goes by what it holds, each with the version a save would take, as a
+	// version can be worked out by whoever knows the text.
+	held := map[string]string{
+		"indented.yaml": "tls:\n  key: |\n    -----BEGIN PRIVATE KEY-----\n    MIIE\n",
+		"shadow.bak":    "root:$6$saltsalt$abcdefghijklmnop:19000:0:99999:7:::\n",
+		"inspect.json":  `[{"ResolvConfPath":"/x","Config":{"Env":["A=1"]}}]`,
+	}
+	for name, text := range held {
+		p := filepath.Join(allowed, name)
+		write(t, p, text)
+		if got := d.save(t, p, "written", versionOf(t, p, text)); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Errorf("saving over %s: %v", name, got)
+		}
+		if content, _ := os.ReadFile(p); string(content) != text {
+			t.Errorf("%s holds %q", name, content)
+		}
+	}
+	// Docker's data, with no one having said where it is.
+	moved := filepath.Join(d.root, "elsewhere", "docker")
+	config := filepath.Join(moved, "containers", "abc", "config.v2.json")
+	opts := filepath.Join(moved, "volumes", "web", "opts.json")
+	write(t, config, `{"Env":["A=1"]}`)
+	write(t, opts, `{"o":"password=x"}`)
+	dark := New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
+	for p, text := range map[string]string{config: `{"Env":["A=1"]}`, opts: `{"o":"password=x"}`} {
+		r, err := dark.Save(t.Context(), p, "written", versionOf(t, p, text), "evt_save")
+		if err != nil || r.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Errorf("saving %s with Docker's root unknown: %v, %v", p, r, err)
+		}
+	}
+	stale := strings.Repeat("0", 64)
+	for _, p := range []string{
+		key,
+		filepath.Join(allowed, "planted"),
+		filepath.Join(d.docker, "containers", "abc", "config.v2.json"),
+		filepath.Join(d.docker, "volumes", "web", "opts.json"),
+		"/proc/self/environ",
+		"/etc/shadow",
+		filepath.Join(allowed, ".pgpass"),
+		filepath.Join(allowed, "tls.key"),
+	} {
+		if got := d.save(t, p, "written", stale); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Errorf("saving %s: %v", p, got)
+		}
+	}
+	if content, _ := os.ReadFile(key); string(content) != "the install's key" {
+		t.Fatalf("the key holds %q", content)
+	}
+}
+
+func TestASaveWritesThroughALinkToWhereItLeads(t *testing.T) {
+	d := newDisk(t)
+	target := filepath.Join(d.root, "app", "real.conf")
+	write(t, target, "a\n")
+	link(t, "real.conf", filepath.Join(d.root, "app", "current.conf"))
+	via := filepath.Join(d.root, "app", "current.conf")
+	got := d.save(t, via, "b\n", savable(t, d, via))
+	if got.GetSaved().GetPath() != target {
+		t.Fatalf("got %v", got)
+	}
+	if st, err := os.Lstat(via); err != nil || st.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("the link went: %v %v", st, err)
+	}
+	if content, _ := os.ReadFile(target); string(content) != "b\n" {
+		t.Errorf("the file holds %q", content)
+	}
+}
+
+func TestASaveLeavesWhatIsntAFile(t *testing.T) {
+	d := newDisk(t)
+	dir := filepath.Join(d.root, "app")
+	write(t, filepath.Join(dir, "a"), "x")
+	stale := strings.Repeat("0", 64)
+	if got := d.save(t, dir, "x", stale); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_NOT_A_FILE {
+		t.Errorf("a directory: %v", got)
+	}
+	if got := d.save(t, filepath.Join(dir, "nothing"), "x", stale); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_NOT_FOUND {
+		t.Errorf("nothing there: %v", got)
+	}
+	if _, err := d.server.Save(t.Context(), filepath.Join(dir, "a"), strings.Repeat("x", MaxFileBytes+1), stale, "evt_save"); err == nil {
+		t.Error("a save over the limit went ahead")
+	}
+	if _, err := d.server.Save(t.Context(), dir+"/../a", "x", stale, "evt_save"); err == nil {
+		t.Error("a save with .. in its path went ahead")
+	}
+}
+
+// A person never saw a binary here, so its digest proves nothing: anyone can work
+// out that of a well-known one.
+func TestASaveLeavesABinaryAlone(t *testing.T) {
+	d := newDisk(t)
+	p := filepath.Join(d.root, "app", "tool")
+	binary := "\x7fELF\x00\x01"
+	write(t, p, binary)
+	got := d.save(t, p, "#!/bin/sh\n", versionOf(t, p, binary))
+	if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_NOT_A_FILE || !strings.Contains(got.GetRefusal().GetMessage(), "isn't a text file") {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != binary {
+		t.Fatalf("the file holds %q", content)
+	}
+}
+
+func TestASaveTheServerKeepsOutLeavesTheFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes everything here")
+	}
+	d := newDisk(t)
+	dir := filepath.Join(d.root, "app")
+	p := filepath.Join(dir, "conf")
+	write(t, p, "a\n")
+	version := savable(t, d, p)
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	got := d.save(t, p, "b\n", version)
+	if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_DENIED || !strings.Contains(got.GetRefusal().GetMessage(), "nothing was saved") {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "a\n" {
+		t.Fatalf("the file holds %q", content)
+	}
+}
+
+// A write that fails partway puts the file back. One that can't says where the text
+// the file had is, as that's what can't be had again: the browser has what was typed.
+func TestAWriteThatFailsPartwayPutsTheFileBack(t *testing.T) {
+	d := newDisk(t)
+	dir := filepath.Join(d.root, "app")
+	p := filepath.Join(dir, "conf")
+	write(t, p, "before\n")
+	version := savable(t, d, p)
+	full := errors.New("no space left on device")
+
+	calls := 0
+	putIn = func(f *os.File, text []byte) error {
+		calls++
+		if calls == 1 {
+			if err := overwrite(f, text[:1]); err != nil { // cut short, as a full disk leaves it
+				t.Fatal(err)
+			}
+			return full
+		}
+		return overwrite(f, text)
+	}
+	t.Cleanup(func() { putIn = overwrite })
+	got := d.save(t, p, "after\n", version)
+	if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_DENIED || !strings.Contains(got.GetRefusal().GetMessage(), "nothing was saved") {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "before\n" {
+		t.Fatalf("the file holds %q", content)
+	}
+	if left := spares(t, dir); len(left) != 0 {
+		t.Errorf("left %v", left)
+	}
+
+	calls = 0
+	putIn = func(f *os.File, text []byte) error {
+		calls++
+		if calls == 1 {
+			_ = overwrite(f, text[:1])
+		}
+		return full
+	}
+	got = d.save(t, p, "after\n", version)
+	if content, _ := os.ReadFile(p); string(content) != "a" {
+		t.Fatalf("the file holds %q, not what a write cut short leaves", content)
+	}
+	left := spares(t, dir)
+	if len(left) != 1 {
+		t.Fatalf("the text the file had isn't beside it: %v", left)
+	}
+	if !strings.Contains(got.GetRefusal().GetMessage(), filepath.Base(left[0])) {
+		t.Errorf("it doesn't say where it is: %s", got.GetRefusal().GetMessage())
+	}
+	kept, err := os.ReadFile(left[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Stat(left[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(kept) != "before\n" || st.Mode().Perm() != 0o600 {
+		t.Errorf("the spare holds %q, mode %v", kept, st.Mode())
+	}
+}
+
+// A limit on how large a file can grow fails a write as a full disk does, in the
+// kernel, partway through, and it leaves room for the copy, as a disk can. It's set
+// on a process of its own, as it holds for everything in it.
+func TestAWriteTheDiskCantHoldLeavesTheFileAsItWas(t *testing.T) {
+	const limit = 4096
+	if os.Getenv("DOCKWELL_TEST_FILE_LIMIT") == "" {
+		run := exec.Command(os.Args[0], "-test.run=^"+t.Name()+"$", "-test.v")
+		run.Env = append(os.Environ(), "DOCKWELL_TEST_FILE_LIMIT=1")
+		out, err := run.CombinedOutput()
+		if err != nil || !strings.Contains(string(out), "PASS") {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		return
+	}
+	d := newDisk(t)
+	dir := filepath.Join(d.root, "app")
+	p := filepath.Join(dir, "conf")
+	write(t, p, "before\n")
+	version := savable(t, d, p)
+	// Only for the save, as a test binary writes its coverage as it exits.
+	var was unix.Rlimit
+	if err := unix.Getrlimit(unix.RLIMIT_FSIZE, &was); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Setrlimit(unix.RLIMIT_FSIZE, &unix.Rlimit{Cur: limit, Max: was.Max}); err != nil {
+		t.Fatal(err)
+	}
+	got := d.save(t, p, strings.Repeat("x", 2*limit), version)
+	if err := unix.Setrlimit(unix.RLIMIT_FSIZE, &was); err != nil {
+		t.Fatal(err)
+	}
+	if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_DENIED || !strings.Contains(got.GetRefusal().GetMessage(), "nothing was saved") {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "before\n" {
+		t.Fatalf("the file holds %d bytes, starting %.20q", len(content), content)
+	}
+	if left := spares(t, dir); len(left) != 0 {
+		t.Errorf("left %v", left)
+	}
+}
+
+// A browser's decoder takes the mark off the start of what it reads, so the text
+// that comes back doesn't have it, and nobody can see to have taken it out. The
+// version that comes back is of what's there, so the next save goes through.
+func TestASaveKeepsTheMarkAFileStartsWith(t *testing.T) {
+	d := newDisk(t)
+	p := filepath.Join(d.root, "app.ini")
+	write(t, p, "\xef\xbb\xbfold\n")
+	got := d.save(t, p, "new\n", savable(t, d, p))
+	if got.GetSaved() == nil {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "\xef\xbb\xbfnew\n" {
+		t.Fatalf("the file holds %q", content)
+	}
+	if now := savable(t, d, p); got.GetSaved().GetVersion() != now {
+		t.Errorf("the save says version %s, and the file reads as %s", got.GetSaved().GetVersion(), now)
+	}
+	if again := d.save(t, p, "newer\n", got.GetSaved().GetVersion()); again.GetSaved() == nil {
+		t.Errorf("a second save over what the first returned: %v", again)
+	}
+	// One sent with its mark, as a field gets it in JSON, gets one.
+	if got := d.save(t, p, "\ufeffnewest\n", savable(t, d, p)); got.GetSaved() == nil {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "\xef\xbb\xbfnewest\n" {
+		t.Fatalf("the file holds %q", content)
+	}
+	// A file without one doesn't gain one.
+	plain := filepath.Join(d.root, "plain.ini")
+	write(t, plain, "old\n")
+	if got := d.save(t, plain, "new\n", savable(t, d, plain)); got.GetSaved() == nil {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(plain); string(content) != "new\n" {
+		t.Fatalf("the file holds %q", content)
+	}
+}
+
+// A read names the file it read, so a link swapped in after it isn't what it read,
+// whatever that link's text. A person who sees that goes on, or doesn't, on purpose.
+func TestAFileSwappedSinceItWasReadIsntSavedOver(t *testing.T) {
+	const text = "deploy_key: |\n  ssh-ed25519 AAAA\n"
+	for name, swap := range map[string]func(t *testing.T, p, keys string){
+		"for a link to another file": func(t *testing.T, p, keys string) {
+			t.Helper()
+			if err := os.Remove(p); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(keys, p); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"for a link to another name of the same file": func(t *testing.T, p, keys string) {
+			t.Helper()
+			if err := os.Remove(keys); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Link(p, keys); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(p); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(keys, p); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"for another file by a rename": func(t *testing.T, p, _ string) {
+			t.Helper()
+			next := p + ".new"
+			write(t, next, text)
+			if err := os.Rename(next, p); err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			d := newDisk(t)
+			p := filepath.Join(d.root, "volume", "config.yml")
+			write(t, p, text)
+			keys := filepath.Join(d.root, "root", ".ssh", "authorized_keys")
+			write(t, keys, text) // the same text, so only what the version covers can tell
+			read := savable(t, d, p)
+			swap(t, p, keys)
+			got := d.save(t, p, "what a person typed\n", read).GetRefusal()
+			if got.GetKind() != agentv1.FileRefusal_KIND_CHANGED {
+				t.Fatalf("got %v", got)
+			}
+			if content, _ := os.ReadFile(keys); string(content) != text {
+				t.Fatalf("the save went through a link swapped in: %q", content)
+			}
+			if content, _ := os.ReadFile(p); string(content) != text {
+				t.Fatalf("the file holds %q", content)
+			}
+		})
+	}
+}
+
+// What a read of it says after that names where it leads now, for a person to see.
+func TestAReadSaysWhereALinkSwappedInLeads(t *testing.T) {
+	d := newDisk(t)
+	p := filepath.Join(d.root, "volume", "config.yml")
+	write(t, p, "text")
+	keys := filepath.Join(d.root, "root", ".ssh", "authorized_keys")
+	write(t, keys, "text")
+	first := d.read(t, p).GetFile()
+	if err := os.Remove(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(keys, p); err != nil {
+		t.Fatal(err)
+	}
+	now := d.read(t, p).GetFile()
+	if first.GetPath() != p || now.GetPath() != keys || first.GetVersion() == now.GetVersion() {
+		t.Errorf("first %s at %s, now %s at %s", first.GetVersion(), first.GetPath(), now.GetVersion(), now.GetPath())
+	}
+}
+
+// saveOver is the last step of a save, once the file has been checked.
+func saveOver(ctx context.Context, t *trail, w *walked) *agentv1.FileRefusal {
+	var began atomic.Bool
+	return t.s.putText(ctx, t, w, version(w.path(), &w.st, []byte("checked")), []byte("checked"), []byte("written"), &began)
+}
+
+// A file that goes from under a save isn't written, and neither is what took its
+// place: the agent saves over what it read.
+func TestAFileSwappedAfterItsCheckIsntSavedOver(t *testing.T) {
+	d := newDisk(t)
+	p := filepath.Join(d.root, "file")
+	write(t, p, "checked")
+	key := filepath.Join(d.data, "control", "key")
+	trail := &trail{s: d.server}
+	w, refusal := d.server.guard(t.Context()).walk(trail, p)
+	if refusal != nil {
+		t.Fatal(refusal)
+	}
+	defer w.close()
+	if err := os.Remove(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(key, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := saveOver(t.Context(), trail, w); got == nil {
+		t.Fatal("wrote through a link swapped in")
+	}
+	if content, _ := os.ReadFile(key); string(content) != "the install's key" {
+		t.Fatalf("the key holds %q", content)
+	}
+	if err := os.Remove(p); err != nil {
+		t.Fatal(err)
+	}
+	write(t, p, "another file altogether")
+	if got := saveOver(t.Context(), trail, w); got.GetKind() != agentv1.FileRefusal_KIND_CHANGED {
+		t.Fatalf("wrote over a file swapped in: %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "another file altogether" {
+		t.Fatalf("the file holds %q", content)
+	}
+	if left := spares(t, d.root); len(left) != 0 {
+		t.Errorf("left %v", left)
+	}
+}
+
+// A project can hold directories called containers and volumes. It isn't Docker's.
+func TestAProjectWithDockersNamesIsAProject(t *testing.T) {
+	d := newDisk(t)
+	stack := filepath.Join(d.root, "srv", "stack")
+	compose := filepath.Join(stack, "docker-compose.yml")
+	dockerfile := filepath.Join(stack, "containers", "web", "Dockerfile")
+	sql := filepath.Join(stack, "volumes", "db", "init.sql")
+	write(t, compose, "services: {}\n")
+	write(t, dockerfile, "FROM nginx\n")
+	write(t, sql, "select 1;\n")
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
+	for _, p := range []string{compose, dockerfile, sql} {
+		if got := d.read(t, p); got.GetFile() == nil {
+			t.Errorf("%s: %v", p, got.GetRefusal())
+		}
+	}
+	for _, e := range d.list(t, stack).GetListing().GetEntries() {
+		if e.GetRefused() {
+			t.Errorf("%s is marked as refused", e.GetName())
+		}
+	}
+	// Plenty of Docker's names, but no containers, is no root either.
+	other := filepath.Join(d.root, "srv", "site")
+	write(t, filepath.Join(other, "image", "logo.png.txt"), "x")
+	write(t, filepath.Join(other, "network", "hosts"), "x")
+	write(t, filepath.Join(other, "volumes", "db", "init.sql"), "x")
+	write(t, filepath.Join(other, "index.html"), "x")
+	if got := d.read(t, filepath.Join(other, "index.html")); got.GetFile() == nil {
+		t.Errorf("a site with no containers: %v", got.GetRefusal())
+	}
+}
+
+// A real root can keep a part of itself elsewhere, and is still one, which a check
+// that doesn't follow links can't see. Each of these holds what a container printed
+// or was given.
+func TestARootWithPartsElsewhereIsStillOne(t *testing.T) {
+	d := newDisk(t)
+	root := filepath.Join(d.root, "bigdisk", "docker")
+	secrets := []string{
+		filepath.Join(root, "containers", "abc", "mounts", "secrets", "db_password"),
+		filepath.Join(root, "containers", "abc", "abc-json.log"),
+		filepath.Join(root, "overlay2", "abc", "diff", "app", ".env"),
+	}
+	for _, p := range secrets {
+		write(t, p, "hunter2\n")
+	}
+	write(t, filepath.Join(root, "image", "overlay2", "repositories.json"), "{}")
+	write(t, filepath.Join(d.root, "elsewhere", "vols", "web", "_data", "index.html"), "<h1>hello</h1>")
+	link(t, filepath.Join(d.root, "elsewhere", "vols"), filepath.Join(root, "volumes"))
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
+	for _, p := range secrets {
+		if got := refusalOf(t, d, p); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Errorf("%s: %v", p, got)
+		}
+	}
+	// With links as the only way it adds up: it's the link that makes it a root.
+	sparse := filepath.Join(d.root, "bigdisk", "sparse")
+	log := filepath.Join(sparse, "containers", "abc", "abc-json.log")
+	write(t, log, "hunter2\n")
+	write(t, filepath.Join(sparse, "image", "x"), "x")
+	link(t, filepath.Join(d.root, "elsewhere", "vols"), filepath.Join(sparse, "volumes"))
+	if got := refusalOf(t, d, log); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Errorf("with volumes a link: %v", got)
+	}
+	// And with containers the link, what's left of the root is still shut.
+	moved := filepath.Join(d.root, "bigdisk", "moved")
+	diff := filepath.Join(moved, "overlay2", "abc", "diff", ".env")
+	write(t, diff, "hunter2\n")
+	write(t, filepath.Join(moved, "image", "x"), "x")
+	write(t, filepath.Join(d.root, "elsewhere", "ctrs", "abc", "f"), "x")
+	link(t, filepath.Join(d.root, "elsewhere", "ctrs"), filepath.Join(moved, "containers"))
+	if got := refusalOf(t, d, diff); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Errorf("with containers a link: %v", got)
+	}
+}
+
+// A root with its containers elsewhere: they're walked by where they really are.
+func TestARootWhoseContainersAreElsewhereIsStillOne(t *testing.T) {
+	d := newDisk(t)
+	big := filepath.Join(d.root, "big")
+	secret := filepath.Join(big, "containers", "abc", "abc-json.log")
+	write(t, secret, "hunter2\n")
+	write(t, filepath.Join(big, "image", "x"), "x")
+	write(t, filepath.Join(big, "overlay2", "x"), "x")
+	root := filepath.Join(d.root, "docker2")
+	write(t, filepath.Join(root, "volumes", "web", "_data", "x"), "x")
+	link(t, filepath.Join(big, "containers"), filepath.Join(root, "containers"))
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
+	if got := refusalOf(t, d, filepath.Join(root, "containers", "abc", "abc-json.log")); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Errorf("through the link: %v", got)
 	}
 }

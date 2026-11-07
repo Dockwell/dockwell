@@ -424,7 +424,8 @@ export type EventSubject = Message<"dockwell.v1.EventSubject"> & {
   scope: string;
 
   /**
-   * Which file on it, for a file read on a server, or refused. Empty otherwise.
+   * Which file on it, for a file read, saved or refused on a server. Empty
+   * otherwise.
    *
    * @generated from field: string path = 4;
    */
@@ -458,7 +459,8 @@ export enum EventKind {
   CHANGE = 1,
 
   /**
-   * A server joined the fleet, renewed its certificate, or was removed.
+   * A server joined the fleet, renewed its certificate, or was removed, or
+   * someone saved a file on it.
    *
    * @generated from enum value: EVENT_KIND_SERVER = 2;
    */

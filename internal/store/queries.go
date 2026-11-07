@@ -323,6 +323,18 @@ func (t *Tx) LatestEvent(ctx context.Context, action, subject, target string) (E
 	return e, true, nil
 }
 
+// GetEvent reads one audit event by its ID, or ErrNotFound.
+func (t *Tx) GetEvent(ctx context.Context, id string) (Event, error) {
+	e, err := scanEvent(t.queryRow(ctx, `SELECT `+eventColumns+` FROM audit_events WHERE id = ?`, id))
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return Event{}, fmt.Errorf("audit event %s: %w", id, ErrNotFound)
+	case err != nil:
+		return Event{}, fmt.Errorf("can't read an audit event: %w", err)
+	}
+	return e, nil
+}
+
 const eventColumns = `id, at, actor, action, subject, detail, surface, target`
 
 func scanEvent(row interface{ Scan(...any) error }) (Event, error) {
