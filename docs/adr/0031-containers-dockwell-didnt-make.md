@@ -91,7 +91,7 @@ A row opens the container's page: what Docker says of it, and the log view an ap
 
 ## In 1Panel, after taking on
 
-Read from 1Panel's source at `726fd94e07`, for an app from its store. An app's Compose file and what it binds live in one folder, `/opt/1panel/apps/<app>/<name>`, which is the Compose working-directory label: its MySQL binds `./data/:/var/lib/mysql`. So what a taken-on service mounts is in that folder.
+Read from 1Panel's source at `726fd94e07` and v2.4.2, for an app from its store. An app's Compose file and what it binds live in one folder, `/opt/1panel/apps/<app>/<name>`, which is the Compose working-directory label: its MySQL binds `./data/:/var/lib/mysql`. So what a taken-on service mounts is in that folder.
 
 | In 1Panel | What it runs | Until Dockwell changes the image | After that |
 | --- | --- | --- | --- |
@@ -100,11 +100,11 @@ Read from 1Panel's source at `726fd94e07`, for an app from its store. An app's C
 | Start | `compose up` | Starts this container | Starts a second copy |
 | Rebuild, or a change of port | `compose down`, then `up` | Removes this container and makes another, which Dockwell doesn't know | Starts a second copy |
 | Upgrade, or editing its settings | ends in `compose up` | Makes another, if what it asks for changed | Starts a second copy |
-| Uninstall | `compose down`, then deletes the folder, with no way to keep it | Removes this container, then deletes its data | Deletes the folder under the running service |
+| Uninstall | `compose down --remove-orphans`, then deletes the folder, with no way to keep it. Its "delete database" box is about linked databases, not this | Removes this container, then deletes its data | Deletes the folder under the running service |
 
 So, after taking an app on:
 
-1. Leave it alone in 1Panel, which goes on listing it, and don't uninstall it there. Nothing in 1Panel keeps the folder.
+1. Leave it alone in 1Panel, which goes on listing it, and don't uninstall it there. Nothing in 1Panel keeps the folder. After Dockwell's first change of image, 1Panel's status sync can't find the container by name, so it marks the app "Error, container not found". That's expected, and acting on it there is what starts a second copy.
 2. Change its image from Dockwell from then on, not there.
 3. To clear it out of 1Panel, first give the service what it mounts somewhere outside that folder, with a copy you've checked, and only then uninstall it there.
 

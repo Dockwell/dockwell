@@ -770,6 +770,9 @@ describe("the plan sheet", () => {
     ).toBeVisible();
     expect(within(sheet).getByText(/Don't uninstall it in 1Panel/)).toBeVisible();
     expect(within(sheet).getByText(/Something may still manage shop-app-1/)).toBeVisible();
+    // It leads the plan, before everything a plan of many services has to say.
+    expect(sheet.querySelector(".plan-risk")?.textContent).toMatch(/^1Panel still manages 1Panel-blog-Ab3x/);
+    expect(within(sheet).getByText(/After that, 1Panel shows it in error/)).toBeVisible();
     // A path is set apart from the words around it, so these read across elements.
     expect(sheet.textContent).toContain(
       "that deletes /opt/1panel/apps/mysql/blog, which holds what this service mounts",

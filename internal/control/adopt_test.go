@@ -604,6 +604,9 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 		for _, says := range []string{
 			"1Panel still manages 1Panel-blog-Ab3x",
 			"Until Dockwell changes its image, anything done to it in 1Panel acts on this container",
+			// Its status sync reports a container it can't find as an error, which
+			// invites just what would start a second copy.
+			"After that, 1Panel shows it in error", "Leave that as it is",
 			"Start, Rebuild, Upgrade or editing its settings there starts a second copy",
 			"Don't uninstall it in 1Panel", "that deletes " + folder, "which holds what this service mounts",
 		} {
