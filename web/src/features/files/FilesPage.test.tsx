@@ -587,7 +587,7 @@ describe("editing a file", () => {
       expect(screen.getByText("It asks for your passkey", { exact: false })).toBeVisible();
       await userEvent.click(saveButton());
       await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
-      expect(saveFile.mock.calls[0]?.[0]).toMatchObject({ proof: "", confirmedPath: "" });
+      expect(saveFile.mock.calls[0]?.[0]).toMatchObject({ proof: "", confirmedPath: keys });
       expect(saveFile.mock.lastCall?.[0]).toMatchObject({ proof: "proof_1", confirmedPath: keys, version: "v1" });
       expect(beginStepUp).toHaveBeenCalledWith(
         expect.objectContaining({ action: StepUpAction.SAVE_WAY_BACK_IN, target: `srv_1:${keys}` }),
@@ -624,7 +624,11 @@ describe("editing a file", () => {
         },
       );
       await userEvent.click(saveButton());
-      expect(await screen.findByText("The passkey prompt closed", { exact: false })).toBeVisible();
+      expect(
+        await screen.findByText("The passkey prompt closed, so nothing was saved. Save again when you're ready.", {
+          exact: false,
+        }),
+      ).toBeVisible();
       expect(field).toHaveValue("memory_limit = 512M");
     });
 

@@ -36,6 +36,10 @@ import (
 // StepUpTTL is how long a step-up's proof works.
 const StepUpTTL = time.Minute
 
+// StepUpLasts is how long a proof for saving one path stands for the saves after
+// it, in that session, so editing a file doesn't ask for a passkey each time.
+const StepUpLasts = 10 * time.Minute
+
 // StepUpAction is an action that needs a step-up.
 type StepUpAction string
 
@@ -123,15 +127,90 @@ type stepUpProof struct {
 	expires       time.Time
 }
 
-// stepUps holds proofs in memory, at most max of them. A restart drops
-// them, and the person confirms again.
-type stepUps struct {
-	mu  sync.Mutex
-	max int
-	m   map[string]stepUpProof // by hex of the proof's hash
+// stepUpFor is what one action on one target, by one person in one session, comes to.
+type stepUpFor struct {
+	user, session string
+	action        StepUpAction
+	target        string
 }
 
-func newStepUps(maxProofs int) *stepUps { return &stepUps{max: maxProofs, m: map[string]stepUpProof{}} }
+// stepUps holds proofs in memory, at most max of them, what they've confirmed for
+// a while, and what's waiting for one. A restart drops them, and the person
+// confirms again.
+type stepUps struct {
+	mu     sync.Mutex
+	max    int
+	m      map[string]stepUpProof    // by hex of the proof's hash
+	stands map[stepUpFor]time.Time   // what stays confirmed, until when
+	asked  map[stepUpFor]*time.Timer // what's been asked for and not confirmed
+}
+
+func newStepUps(maxProofs int) *stepUps {
+	return &stepUps{max: maxProofs, m: map[string]stepUpProof{}, stands: map[stepUpFor]time.Time{}, asked: map[stepUpFor]*time.Timer{}}
+}
+
+// stand has what a proof confirmed go on standing until until. Past the limit it
+// drops what's over, and if that's nothing, the one that ends soonest.
+func (s *stepUps) stand(key stepUpFor, until, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.stands) >= s.max {
+		var soonest stepUpFor
+		var at time.Time
+		for k, v := range s.stands {
+			if now.After(v) {
+				delete(s.stands, k)
+			} else if at.IsZero() || v.Before(at) {
+				soonest, at = k, v
+			}
+		}
+		if len(s.stands) >= s.max {
+			delete(s.stands, soonest)
+		}
+	}
+	s.stands[key] = until
+}
+
+// standing reports what's still confirmed.
+func (s *stepUps) standing(key stepUpFor, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	until, ok := s.stands[key]
+	return ok && !now.After(until)
+}
+
+// settle says what was asked for has its answer.
+func (s *stepUps) settle(key stepUpFor) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if t, ok := s.asked[key]; ok {
+		t.Stop()
+		delete(s.asked, key)
+	}
+}
+
+// ask starts waiting for key, once however often it's asked, and reports whether
+// there's room to. It calls missed if nothing settles it in time.
+func (s *stepUps) ask(key stepUpFor, wait time.Duration, missed func()) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.asked[key]; ok {
+		return true
+	}
+	if len(s.asked) >= s.max {
+		return false
+	}
+	s.asked[key] = time.AfterFunc(wait, func() {
+		s.mu.Lock()
+		_, still := s.asked[key]
+		delete(s.asked, key)
+		s.mu.Unlock()
+		if still {
+			missed()
+		}
+	})
+	return true
+}
 
 func (s *stepUps) put(hash []byte, p stepUpProof, now time.Time) {
 	s.mu.Lock()
@@ -353,25 +432,66 @@ func (s *Service) FinishStepUp(ctx context.Context, client Client, p Principal, 
 	return StepUp{Proof: proof, Expires: expires}, nil
 }
 
-// UseStepUp spends a proof for action on target, in the principal's
-// session. It works once: a proof given for anything else is spent too.
-// No API token can use one. For an action on the person's own account,
-// the target is their ID.
+// UseStepUp spends a proof for action on target, in the principal's session. It
+// works once: a proof given for anything else is spent too. No API token can use
+// one. For an action on the person's own account, the target is their ID.
 func (s *Service) UseStepUp(p Principal, proof string, action StepUpAction, target string) error {
+	_, err := s.HoldStepUp(p, proof, action, target)
+	return err
+}
+
+// HoldStepUp is UseStepUp for what can still be refused once it has a proof, and
+// says how to give the proof back if it is. ADR 0022 spends a proof where the action
+// happens, so one that confirmed nothing isn't used up, and holding it means no
+// second call can use it meanwhile. A save happens on an agent, where no
+// transaction reaches, and starting a change happens in the engine.
+func (s *Service) HoldStepUp(p Principal, proof string, action StepUpAction, target string) (func(), error) {
 	if p.Token != nil || p.Session.ID == "" {
-		return ErrNeedsSession
+		return nil, ErrNeedsSession
 	}
 	if proof == "" {
-		return ErrNeedsStepUp
+		return nil, ErrNeedsStepUp
 	}
-	got, ok := s.stepUps.take(hashToken(proof))
+	hash := hashToken(proof)
+	got, ok := s.stepUps.take(hash)
 	if !ok || s.now().After(got.expires) || got.action != action ||
 		subtle.ConstantTimeCompare([]byte(got.user), []byte(p.User.ID)) != 1 ||
 		subtle.ConstantTimeCompare([]byte(got.session), []byte(p.Session.ID)) != 1 ||
 		got.target != target {
-		return ErrNeedsStepUp
+		return nil, ErrNeedsStepUp
 	}
-	return nil
+	s.stepUps.settle(forPrincipal(p, action, target))
+	return func() { s.stepUps.put(hash, got, s.now()) }, nil
+}
+
+func forPrincipal(p Principal, action StepUpAction, target string) stepUpFor {
+	return stepUpFor{user: p.User.ID, session: p.Session.ID, action: action, target: target}
+}
+
+// KeepStepUp has action on target stay confirmed in this session for StepUpLasts.
+// It's for a save of one path, as a person saving a file is at it a while, and
+// nothing else: the rest of a step-up is that it's for one thing, just now.
+func (s *Service) KeepStepUp(p Principal, action StepUpAction, target string) {
+	now := s.now()
+	s.stepUps.stand(forPrincipal(p, action, target), now.Add(StepUpLasts), now)
+}
+
+// StepUpStands reports action on target still confirmed in this session.
+func (s *Service) StepUpStands(p Principal, action StepUpAction, target string) bool {
+	if p.Token != nil || p.Session.ID == "" {
+		return false
+	}
+	return s.stepUps.standing(forPrincipal(p, action, target), s.now())
+}
+
+// AskedForStepUp notes action on target was refused for want of a step-up, and
+// calls missed if nothing confirms it within a proof's minute, which is someone
+// trying a way in with no passkey, or thinking better of it. Past the limit of what
+// it keeps track of, it says so at once.
+func (s *Service) AskedForStepUp(p Principal, action StepUpAction, target string, missed func()) {
+	if !s.stepUps.ask(forPrincipal(p, action, target), s.askWait, missed) {
+		missed()
+	}
 }
 
 // confirmed spends a proof for an action on the principal's own account

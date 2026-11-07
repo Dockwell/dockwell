@@ -1311,7 +1311,6 @@ msgstr "{cpus} 个 vCPU 合计"
 msgid "action"
 msgstr "动作"
 
-#: src/features/backups/BackupsPage.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Actions"
@@ -1327,7 +1326,6 @@ msgstr "动态"
 msgid "Actor"
 msgstr "执行者"
 
-#: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
 msgstr "添加"
@@ -1763,9 +1761,6 @@ msgstr "已备份 {volume}"
 msgid "backup"
 msgstr "备份"
 
-#: src/features/activity/ActivityPage.tsx
-#: src/features/backups/AppBackups.tsx
-#: src/features/backups/BackupsPage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
@@ -1909,9 +1904,6 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/TokensPanel.tsx
 #: src/features/auth/TotpPanel.tsx
-#: src/features/backups/BackUpSheet.tsx
-#: src/features/backups/BackupsPage.tsx
-#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -3008,7 +3000,6 @@ msgid "Domains"
 msgstr "域名"
 
 #: src/features/auth/TokensPanel.tsx
-#: src/features/backups/words.ts
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/changes/words.ts
 msgid "Done"
@@ -3233,7 +3224,6 @@ msgstr "失败"
 #: src/features/apps/DomainNote.tsx
 #: src/features/apps/revision.ts
 #: src/features/apps/words.ts
-#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 msgid "Failed"
 msgstr "失败"
@@ -4822,7 +4812,6 @@ msgid "Offline"
 msgstr "离线"
 
 #: src/features/auth/TotpPanel.tsx
-#: src/features/backups/PolicySheet.tsx
 msgid "On"
 msgstr "开启"
 
@@ -5773,7 +5762,6 @@ msgstr "显示了密钥 {name}"
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
-#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -5984,8 +5972,6 @@ msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只�
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
-#: src/features/backups/PoliciesPanel.tsx
-#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/servers/containers.ts
 msgid "Running"
@@ -6422,9 +6408,7 @@ msgstr "在其他所有地方退出登录后，这个浏览器仍保持登录。
 msgid "Signing you in with a one-time link"
 msgstr "正在用一次性链接为你登录"
 
-#: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
-#: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
 msgid "Size"
 msgstr "规格"
@@ -6510,7 +6494,6 @@ msgstr "状态"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
-#: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
@@ -7446,7 +7429,6 @@ msgid "Too many wrong codes. Wait a moment, then try again."
 msgstr "验证码错误次数过多。请稍候再试。"
 
 #: src/features/apps/AppDeployments.tsx
-#: src/features/backups/BackupsPage.tsx
 msgid "Took"
 msgstr "耗时"
 
@@ -7590,7 +7572,6 @@ msgstr "不健康"
 #: src/app/Providers.tsx
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
-#: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/overview/Overview.tsx
 #: src/features/servers/containers.ts
@@ -7860,7 +7841,6 @@ msgstr "卷"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
-#: src/features/backups/PolicySheet.tsx
 msgid "Volume"
 msgstr "卷"
 
@@ -8206,3 +8186,35 @@ msgstr "你的姓名"
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "你的会话已结束，所以这个操作没有执行。请重新登录后重试。"
+
+#: src/features/changes/words.ts
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {here}; it comes once you do"
+msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {here} 的 A 或 AAAA 记录，添加后即可获取证书"
+
+#: src/features/changes/words.ts
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at this server; it comes once you do"
+msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向此服务器的 A 或 AAAA 记录，添加后即可获取证书"
+
+#: src/features/activity/describe.ts
+msgid "Asked for a passkey to apply {change}, and none came"
+msgstr "应用 {change} 时要求验证通行密钥，但未收到"
+
+#: src/features/activity/describe.ts
+msgid "Asked for a passkey to save {path} on {server}, and none came"
+msgstr "保存 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
+#: src/features/changes/words.ts
+msgid "DNS for {domain} points at {found}, not this server ({here}), so its certificate can't come yet. Point it here; it comes once you do. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 {found}，而不是此服务器（{here}），因此暂时无法获取证书。请将其指向此服务器，之后即可获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Every change, server event, access grant and change of health, newest first"
+msgstr "所有变更、服务器事件、访问授权和健康变化，最新的在前"
+
+#: src/features/changes/ChangeSheet.tsx
+msgid "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready."
+msgstr "通行密钥提示已关闭，所以没有应用任何内容，计划仍待应用。准备好后请再次应用。"
+
+#: src/features/files/FileViewer.tsx
+msgid "The passkey prompt closed, so nothing was saved. Save again when you're ready."
+msgstr "通行密钥提示已关闭，所以没有保存任何内容。准备好后请再次保存。"

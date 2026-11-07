@@ -527,3 +527,111 @@ func must[T any](v T, err error) T {
 	}
 	return v
 }
+
+func aPerson(session string) Principal {
+	return Principal{User: store.User{ID: "usr_1"}, Session: store.Session{ID: session}}
+}
+
+// holding is a service with a proof for action on target in session s, by now.
+func holding(now *time.Time, action StepUpAction, target string) *Service {
+	s := &Service{stepUps: newStepUps(8), now: func() time.Time { return *now }, askWait: StepUpTTL}
+	s.stepUps.put(hashToken("proof"), stepUpProof{user: "usr_1", session: "s", action: action, target: target, expires: now.Add(StepUpTTL)}, *now)
+	return s
+}
+
+// A refused action didn't use its proof, so a person isn't asked twice for nothing.
+// While it's held, nothing else can use it, so it still only works once.
+func TestAHeldProofGoesBackIfTheActionIsRefused(t *testing.T) {
+	now := time.Now()
+	s := holding(&now, StepUpApplyRootChange, "chg_1")
+	p := aPerson("s")
+	back, err := s.HoldStepUp(p, "proof", StepUpApplyRootChange, "chg_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.HoldStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
+		t.Fatalf("a proof that's held worked again: %v", err)
+	}
+	back()
+	if err := s.UseStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); err != nil {
+		t.Fatalf("a proof given back: %v", err)
+	}
+	if err := s.UseStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
+		t.Fatalf("a proof that was used worked again: %v", err)
+	}
+}
+
+// One given back keeps the minute it had.
+func TestAProofGivenBackDoesntGetLonger(t *testing.T) {
+	now := time.Now()
+	s := holding(&now, StepUpApplyRootChange, "chg_1")
+	p := aPerson("s")
+	back, err := s.HoldStepUp(p, "proof", StepUpApplyRootChange, "chg_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(StepUpTTL + time.Second)
+	back()
+	if err := s.UseStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
+		t.Fatalf("a proof past its minute: %v", err)
+	}
+}
+
+// What a proof confirmed for a save stands for that target, in that session, for ten
+// minutes, and for nothing else.
+func TestASaveStaysConfirmedForTenMinutesInThatSession(t *testing.T) {
+	now := time.Now()
+	s := holding(&now, StepUpSaveWayBackIn, "srv_1:/etc/hosts")
+	p := aPerson("s")
+	if s.StepUpStands(p, StepUpSaveWayBackIn, "srv_1:/etc/hosts") {
+		t.Fatal("it stands with nothing confirmed")
+	}
+	s.KeepStepUp(p, StepUpSaveWayBackIn, "srv_1:/etc/hosts")
+	now = now.Add(StepUpLasts - time.Second)
+	if !s.StepUpStands(p, StepUpSaveWayBackIn, "srv_1:/etc/hosts") {
+		t.Error("it doesn't stand within ten minutes")
+	}
+	for what, ok := range map[string]bool{
+		"another path":    s.StepUpStands(p, StepUpSaveWayBackIn, "srv_1:/etc/passwd"),
+		"another server":  s.StepUpStands(p, StepUpSaveWayBackIn, "srv_2:/etc/hosts"),
+		"another session": s.StepUpStands(aPerson("t"), StepUpSaveWayBackIn, "srv_1:/etc/hosts"),
+		"another action":  s.StepUpStands(p, StepUpRevealSecret, "srv_1:/etc/hosts"),
+		"a token":         s.StepUpStands(Principal{User: p.User, Token: &store.APIToken{ID: "tok_1"}}, StepUpSaveWayBackIn, "srv_1:/etc/hosts"),
+	} {
+		if ok {
+			t.Errorf("it stands for %s", what)
+		}
+	}
+	now = now.Add(2 * time.Second)
+	if s.StepUpStands(p, StepUpSaveWayBackIn, "srv_1:/etc/hosts") {
+		t.Error("it stands past ten minutes")
+	}
+}
+
+// What's asked for and never comes gets said, once. What comes doesn't.
+func TestAStepUpAskedForThatNeverComesIsHeardOnce(t *testing.T) {
+	now := time.Now()
+	s := holding(&now, StepUpApplyRootChange, "chg_1")
+	s.askWait = 20 * time.Millisecond
+	p := aPerson("s")
+	heard := make(chan string, 4)
+	s.AskedForStepUp(p, StepUpApplyRootChange, "chg_2", func() { heard <- "chg_2" })
+	s.AskedForStepUp(p, StepUpApplyRootChange, "chg_2", func() { heard <- "chg_2 again" })
+	s.AskedForStepUp(p, StepUpApplyRootChange, "chg_1", func() { heard <- "chg_1" })
+	if _, err := s.HoldStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-heard:
+		if got != "chg_2" {
+			t.Fatalf("heard %s", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("nothing heard of what never came")
+	}
+	select {
+	case got := <-heard:
+		t.Fatalf("heard %s as well", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}

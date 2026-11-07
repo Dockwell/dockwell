@@ -531,11 +531,19 @@ function ChangeSheet({
     } catch (err) {
       // Still planned: closing discards it, as before.
       if (held) held.keep = false;
-      setFailure(err instanceof PasskeyError ? new Error(explain(err)) : err);
+      if (err instanceof PasskeyError && err.problem === "cancelled") {
+        setFailure(
+          new Error(
+            t`The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready.`,
+          ),
+        );
+      } else {
+        setFailure(err instanceof PasskeyError ? new Error(explain(err)) : err);
+      }
     } finally {
       setBusy(undefined);
     }
-  }, [change, canApply, busy, client, transport, explain]);
+  }, [change, canApply, busy, client, transport, explain, t]);
 
   // Closing lets go of the plan this sheet made, which discards it unless it applied.
   const close = useCallback(() => onClose(change), [onClose, change]);

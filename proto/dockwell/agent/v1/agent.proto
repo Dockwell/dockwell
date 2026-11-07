@@ -213,6 +213,10 @@ message Hello {
   // as it makes the container. The control plane sends none to one that
   // doesn't say so, which would run ${NAME} as the words it is.
   bool writes_references = 6;
+  // True when the agent refuses a save to what can let someone back onto the
+  // server unless a passkey confirmed it. Only the agent can tell where a path
+  // leads, so the control plane saves through no agent that doesn't.
+  bool guards_ways_in = 7;
 }
 
 // ConnectResponse is one message from the control plane.

@@ -279,12 +279,26 @@ describe("Activity", () => {
       time: timestampFromDate(new Date(Date.now() - 6 * HOUR)),
       subject: { ...on, path: "/root/.ssh/authorized_keys" },
     });
-    watch.push(snapshot([read, refused, failed, saved, unknown, wayIn]));
+    const unconfirmed = auditEvent({
+      id: "evt_unconfirmed",
+      action: "file.save_unconfirmed",
+      time: timestampFromDate(new Date(Date.now() - 7 * HOUR)),
+      subject: { ...on, path: "/etc/crontab" },
+    });
+    const notApplied = auditEvent({
+      id: "evt_not_applied",
+      action: "change.apply_unconfirmed",
+      time: timestampFromDate(new Date(Date.now() - 8 * HOUR)),
+      subject: { id: "chg_1" },
+    });
+    watch.push(snapshot([read, refused, failed, saved, unknown, wayIn, unconfirmed, notApplied]));
     const { router } = renderActivity(watch);
 
     await screen.findByRole("row", { name: /Couldn't open \/root\/\.ssh\/id_rsa on hz-1/ });
     await screen.findByRole("row", { name: /Couldn't save \/etc\/cron\.d\/job on hz-1/ });
     await screen.findByRole("row", { name: /May have saved \/etc\/hosts on hz-1/ });
+    await screen.findByRole("row", { name: /Asked for a passkey to save \/etc\/crontab on hz-1, and none came/ });
+    await screen.findByRole("row", { name: /Asked for a passkey to apply chg_1, and none came/ });
     await screen.findByRole("row", {
       name: /Saved \/root\/\.ssh\/authorized_keys on hz-1, which can let someone back in/,
     });

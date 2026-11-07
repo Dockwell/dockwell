@@ -17,6 +17,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
@@ -476,6 +477,90 @@ func testSavingAWayBackInTakesAPasskey(t *testing.T, backend store.Backend) {
 		t.Fatalf("the file holds %q: %v", got, err)
 	}
 	waitForFileEvent(t, b, id, "file.save_way_back_in", keys)
+}
+
+// keysFile is a way back in on a server, with what a read of it gives.
+func keysFile(t *testing.T, c dockwellv1connect.FileServiceClient, id string) (string, *dockwellv1.ReadFileResponse) {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := filepath.Join(dir, ".ssh", "authorized_keys")
+	writeFile(t, keys, "ssh-ed25519 AAAA admin\n")
+	read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: keys}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return keys, read.Msg
+}
+
+// One proof stands for that path on that server for a while, as editing a file means
+// saving it again. A stale save doesn't use it up, and it stands for nothing else.
+func TestOnePasskeyStandsForSavingThatFile(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	c := fileClient(b, b.origin)
+	keys, read := keysFile(t, c, id)
+	action := dockwellv1.StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN
+	save := func(p, content, version, proof string) (*connect.Response[dockwellv1.SaveFileResponse], error) {
+		return c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: p, Content: content, Version: version, ConfirmedPath: p, Proof: proof}))
+	}
+	proof := stepUpFor(t, b, action, id+":"+keys)
+	if _, err := save(keys, "stale\n", strings.Repeat("0", 64), proof); reasonOf(err) != "file_changed" {
+		t.Fatalf("over a stale version = %v", err)
+	}
+	first, err := save(keys, "first\n", read.GetVersion(), proof)
+	if err != nil {
+		t.Fatalf("with that proof, after a refused save = %v", err)
+	}
+	if _, err := save(keys, "second\n", first.Msg.GetVersion(), ""); err != nil {
+		t.Fatalf("saving it again = %v", err)
+	}
+	if got, err := os.ReadFile(keys); err != nil || string(got) != "second\n" {
+		t.Fatalf("the file holds %q: %v", got, err)
+	}
+	other, more := keysFile(t, c, id)
+	if _, err := save(other, "typed\n", more.GetVersion(), ""); reasonOf(err) != "needs_step_up" {
+		t.Fatalf("another file = %v", err)
+	}
+}
+
+// Asked for a passkey to save a way back in, with none following, is on Activity.
+func TestASaveNobodyConfirmsIsOnActivity(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	c := fileClient(b, b.origin)
+	keys, read := keysFile(t, c, id)
+	_, err := c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: keys, Content: "typed\n", Version: read.GetVersion()}))
+	if reasonOf(err) != "needs_step_up" {
+		t.Fatal(err)
+	}
+	waitForFileEvent(t, b, id, "file.save_unconfirmed", keys)
+}
+
+// Only an agent can tell where a path leads, so one too old to ask for a passkey
+// isn't saved through, and says what to do about it.
+func TestAnAgentThatDoesntGuardWaysInIsntSavedThrough(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	server := f.addServer(t, false)
+	id := server.id.ServerID
+	server.stop()
+	waitConnected(t, f, id, false)
+	server.hello = func(h *agentv1.Hello) { h.GuardsWaysIn = false }
+	server.connect(t, f)
+	c := fileClient(b, b.origin)
+	keys, read := keysFile(t, c, id)
+	_, err := c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: keys, Content: "typed\n", Version: read.GetVersion()}))
+	if reasonOf(err) != "agent_outdated" || !strings.Contains(err.Error(), "Update the agent on") {
+		t.Fatalf("saving through it = %v", err)
+	}
+	if got, err := os.ReadFile(keys); err != nil || string(got) != "ssh-ed25519 AAAA admin\n" {
+		t.Fatalf("the file holds %q: %v", got, err)
+	}
 }
 
 // heldWrite is a server whose agent holds each save as it begins to write, past where

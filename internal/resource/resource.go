@@ -124,8 +124,8 @@ type Decision struct {
 	// was planned, for those that lead elsewhere. What makes a container checks
 	// again, and refuses what leads elsewhere by then.
 	PlannedLeads map[string]string `json:",omitempty"`
-	Action Action
-	Effect Effect
+	Action       Action
+	Effect       Effect
 	// Downtime is how long what the resource serves is unavailable; zero
 	// means none. Drivers must not understate it.
 	Downtime time.Duration

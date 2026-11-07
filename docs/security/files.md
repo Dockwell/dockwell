@@ -59,7 +59,11 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | Read a file without leaving a record | It can't. The audit event is written before the contents leave the control plane, and a failed write returns nothing. Tested |
 | Look for credentials and leave no trace of what it missed | It can't. A refused or failed read is on Activity however it failed: nothing there, not a file, denied, refused, or not answering. So is a refused listing. Tested |
 | Hide in the record with a crafted path | A name can hold a newline or a terminal's escape codes, and a link can lead through one. A path is cleaned before it's stored or shown. Tested |
-| Save a file, such as a cron job or `authorized_keys`, to get root or keep a way in | It can't without the person's passkey, just now, for that path on that server, however it got there: a save to one of these takes a step-up, decided by the agent on where the walk ended. With no passkey at that address, it can't at all. Each one is on the timeline in a warning tone, and in the audit log. Tested |
+| Save a file, such as a cron job or `authorized_keys`, to get root or keep a way in | It can't without the person's passkey, just now, for that path on that server. A save asks where a plan's mount would count as root (`resource.SystemPath`), or in Dockwell's data, and for names that rule can't see. With no passkey at that address, it can't at all. Each one is on the timeline in a warning tone, and in the audit log. Tested |
+| Reach a way in under another name, by a bind mount, a volume's data or a hard link | The agent matches what's listed by device and inode, on the walk's directories and the final file, as it does for what's refused. Tested |
+| Save through an old agent, which doesn't ask | The agent says in its hello that it guards these, and the control plane saves through no agent that doesn't. Tested |
+| Keep at it, unseen, until something gives | A passkey asked for that doesn't come within a minute is on the timeline in a warning tone, for a save or an apply. Tested |
+| Put new code in a service that already has root, by a plan | Anything that changes what runs in it asks for a person, the typed fingerprint and a passkey, whichever way it came. Only another tag or digest of the same image repository goes on as it did. Tested |
 | Save a file without leaving a record | It can't. `file.saving` is written before the agent is asked, and if it can't be written nothing is. Tested |
 | Write over the install's key, or a secret's value in Docker's state | Refused: a save takes the same walk as a read |
 | Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |
@@ -84,6 +88,8 @@ It can't reach past its container on its own. What it can do is leave things for
 | Change a file a person is editing, to have their save undo it, or to slip something in | A save names the version it was edited from, and a file that differs isn't written over. The person sees that it changed, and chooses. Tested |
 | Have a person's session overwrite a binary it knows the digest of, such as `/usr/bin/sudo` | A save goes only over what reads as text, and the version counts for nothing on anything else. Tested |
 | Fill the disk, so a save leaves a file cut short | A copy of the old text goes beside the file first. A disk that can't hold that stops the save with the file untouched. One that holds the copy can still fail the write, as the file grows: the old text goes back, and failing that the copy stays, and the error names it, with the file cut short. Tested, with a real write that fails partway |
+| Turn a folder a service mounts into a link to `/etc`, for the next deploy to mount | A container says where its paths led when it was made, so a plan that finds one moved asks as if for the first time, and what makes a container looks again and refuses. Tested |
+
 
 ### A mount that stops answering
 

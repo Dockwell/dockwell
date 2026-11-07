@@ -840,7 +840,11 @@ describe("what a plan asks of whoever applies it", () => {
         { beginStepUp: () => ({ ceremonyId: "cer_1", optionsJson: requestOptions }) },
       );
       const sheet = await typeAndApply(change);
-      expect(await within(sheet).findByText("The passkey prompt closed", { exact: false })).toBeVisible();
+      expect(
+        await within(sheet).findByText(
+          "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready.",
+        ),
+      ).toBeVisible();
       expect(within(sheet).getByRole("button", { name: /Apply plan/ })).toBeVisible();
     });
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
@@ -348,5 +349,75 @@ func testAKeptPathThatLeadsElsewhereAsksAgain(t *testing.T, backend store.Backen
 	}
 	if err := askedBy(t, c, etc, etc.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
 		t.Errorf("a person applying a link to /etc with no passkey = %v", err)
+	}
+}
+
+// A proof goes where the action does. One for a change that can't start, as its
+// server is away, isn't used up, and works once the server's back.
+func TestARefusedApplyLeavesItsProofToUse(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	registerImages(f.addDockerServer(t))
+	c := changeClient(b, b.origin)
+	planned := proposeEdit(t, c, socketEdit("ops", nil))
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, planned.GetId())
+	server := f.lastDocker
+	server.stop()
+	waitConnected(t, f, server.id.ServerID, false)
+	req := &dockwellv1.ApplyChangeRequest{Id: planned.GetId(), Fingerprint: planned.GetPlan().GetFingerprint(), Proof: proof}
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(req)); err == nil || reasonOf(err) == "needs_step_up" {
+		t.Fatalf("applying with its server away = %v", err)
+	}
+	server.connect(t, f)
+	w := watch(t, c, planned.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(req)); err != nil {
+		t.Fatalf("with that proof, once it's back = %v", err)
+	}
+	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the change = %v", got)
+	}
+}
+
+// Trying to apply what's as good as root, with no passkey following, is what a stolen
+// session looks like, so it's on Activity. One that's confirmed isn't.
+func TestAPlanNobodyConfirmsIsOnActivity(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	registerImages(f.addDockerServer(t))
+	c := changeClient(b, b.origin)
+	planned := proposeEdit(t, c, socketEdit("ops", nil))
+	if err := askedBy(t, c, planned, planned.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
+		t.Fatal(err)
+	}
+	warned := func(id string) bool {
+		list, err := dockwellv1connect.NewEventServiceClient(b, b.origin, connect.WithProtoJSON()).ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range list.Msg.GetEvents() {
+			if e.GetAction() == "change.apply_unconfirmed" && e.GetSubject().GetId() == id {
+				return true
+			}
+		}
+		return false
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for !warned(planned.GetId()) {
+		if time.Now().After(deadline) {
+			t.Fatal("nothing on Activity says a passkey was asked for and none came")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: planned.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	confirmed := proposeEdit(t, c, socketEdit("ops", nil))
+	if err := askedBy(t, c, confirmed, confirmed.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
+		t.Fatal(err)
+	}
+	applyAsRoot(t, b, confirmed)
+	time.Sleep(3 * askWait)
+	if warned(confirmed.GetId()) {
+		t.Error("a plan someone confirmed reads as one nobody did")
 	}
 }

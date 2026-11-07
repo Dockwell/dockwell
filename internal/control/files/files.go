@@ -46,6 +46,10 @@ const (
 	// eventSaveWayBackIn is eventSave of a file that lets someone back onto the
 	// server, which took a passkey, and reads as a warning on Activity.
 	eventSaveWayBackIn = "file.save_way_back_in"
+	// eventSaveUnconfirmed is a save that asked for a passkey, and none came within
+	// the minute a proof lasts. Nothing was written, and it's what a stolen session
+	// looks like.
+	eventSaveUnconfirmed = "file.save_unconfirmed"
 )
 
 // Handler implements FileService.
@@ -209,19 +213,31 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 	if err != nil {
 		return nil, failed(err)
 	}
+	if !session.GuardsWaysIn() {
+		return nil, failed(authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent is too old to ask for a passkey before saving what can let someone back onto the server, so Dockwell won't save through it. "+
+				"Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated"))
+	}
 	// A proof is for where a read said the path leads, and the agent writes only if
 	// its own walk ends there. It says when a save needs one, as only it can tell.
-	confirmed := req.Msg.GetConfirmedPath()
-	if proof := req.Msg.GetProof(); proof != "" {
-		if err := h.auth.UseStepUp(p, proof, auth.StepUpSaveWayBackIn, srv.GetId()+":"+confirmed); err != nil {
+	// One stands for that path for a while, as someone saving a file is at it a
+	// while. It's held until the agent answers, as a save can still be refused.
+	confirmed, proof := req.Msg.GetConfirmedPath(), req.Msg.GetProof()
+	giveBack := func() {}
+	switch {
+	case proof != "":
+		back, err := h.auth.HoldStepUp(p, proof, auth.StepUpSaveWayBackIn, srv.GetId()+":"+confirmed)
+		if err != nil {
 			return nil, failed(authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp))
 		}
-	} else {
+		giveBack = back
+	case confirmed != "" && !h.auth.StepUpStands(p, auth.StepUpSaveWayBackIn, srv.GetId()+":"+confirmed):
 		confirmed = ""
 	}
 	ctx = context.WithoutCancel(ctx)
 	saving, err := record(eventSaving, path, fmt.Sprintf("saving %s on %s", path, srv.GetName()))
 	if err != nil {
+		giveBack()
 		return nil, h.rpcError(ctx, err)
 	}
 	// unknown puts on record a save that may have landed, under where it got to.
@@ -234,21 +250,34 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 		if errors.Is(err, resource.ErrLost) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, unknown(path, h.rpcError(ctx, err))
 		}
+		giveBack()
 		return nil, failed(h.rpcError(ctx, err))
 	}
 	if r := out.GetRefusal(); r != nil {
 		where := cmp.Or(r.GetPath(), path)
-		if r.GetKind() == agentv1.FileRefusal_KIND_MAY_LAND {
+		switch r.GetKind() {
+		case agentv1.FileRefusal_KIND_MAY_LAND:
 			return nil, unknown(where, refusal(r))
+		case agentv1.FileRefusal_KIND_NEEDS_STEP_UP:
+			// Not a failure, as every such save starts here. What matters is whether
+			// a passkey follows.
+			giveBack()
+			h.auth.AskedForStepUp(p, auth.StepUpSaveWayBackIn, srv.GetId()+":"+where, func() {
+				if _, err := record(eventSaveUnconfirmed, where, fmt.Sprintf("asked for a passkey to save %s on %s, and none came", where, srv.GetName())); err != nil {
+					h.logger.WarnContext(ctx, "can't record a save that wasn't confirmed", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
+				}
+			})
+			return nil, refusal(r)
 		}
-		if r.GetKind() == agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
-			return nil, refusal(r) // not a failure: every such save starts here
-		}
+		giveBack()
 		err := refusal(r)
 		h.note(ctx, record, eventSaveFailed, "save", where, srv, err)
 		return nil, err
 	}
 	saved := out.GetSaved()
+	if proof != "" {
+		h.auth.KeepStepUp(p, auth.StepUpSaveWayBackIn, srv.GetId()+":"+confirmed)
+	}
 	if _, err := record(savedAs(saved.GetWayBackIn()), saved.GetPath(), fmt.Sprintf("saved %s on %s, %d bytes", saved.GetPath(), srv.GetName(), len(content))); err != nil {
 		// It's on the disk, and eventSaving says so might be: the person hears it saved.
 		h.logger.ErrorContext(ctx, "saved a file, and can't record that it saved", slog.String("server", srv.GetId()), slog.String("error", err.Error()))

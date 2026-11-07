@@ -63,6 +63,9 @@ const (
 	fileSaveWayBackIn = "file.save_way_back_in"
 	fileSaveFailed    = "file.save_failed"
 	fileSaveUnknown   = "file.save_unknown"
+	// What asked for a passkey to reach what lets someone back in, with none following.
+	fileSaveUnconfirmed    = "file.save_unconfirmed"
+	changeApplyUnconfirmed = "change.apply_unconfirmed"
 )
 
 // The audit log's actions that belong on the timeline, by kind. What the
@@ -70,7 +73,7 @@ const (
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
-	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown}
+	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed}
 	healthActions = []string{health.Action}
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
@@ -81,7 +84,7 @@ var (
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
-		fileRead, fileRefuse,
+		fileRead, fileRefuse, changeApplyUnconfirmed,
 	}
 )
 
@@ -489,7 +492,7 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Id: a.ID, Kind: dockwellv1.EventKind_EVENT_KIND_ACCESS, Action: a.Action, Time: timestamppb.New(a.At),
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
-	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown {
+	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if a.Action == health.Action {

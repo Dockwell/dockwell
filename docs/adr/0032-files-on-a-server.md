@@ -64,19 +64,40 @@ Those reasons are wrong for a write to a place that lets someone back in, as the
 - That the same door is open by a plan is a reason to close that one too, not to leave this one open. A plan has a sheet, a typed fingerprint when it's as good as root, and an undo. A save is one request.
 - A server without Docker can't run that plan, so there a save is new reach for a stolen session.
 
-So:
+So a save asks for the existing step-up where what it writes lets someone back in, and a plan asks where what it runs has root. These are the rules, and why each is what it is.
 
-- A save to a short list of paths takes the existing one-minute step-up: `authorized_keys`, `passwd`, `shadow`, `group`, `sudoers*`, `/etc/ssh`, `/etc/pam.d`, cron, systemd units, `ld.so.preload`, and Dockwell's own unit and data. `group` is on it as joining `docker` or `sudo` is root.
-- The agent decides, on where the walk ended, as only it can tell, so a link to one of these is one too. It asks last, so a passkey isn't asked for over what would be refused anyway, and `file_changed` comes first.
-- The proof is for that path on that server, and the control plane hands the path on with the save. The agent writes only if its own walk ended there, so a link swapped in after the passkey doesn't pass.
-- Saves anywhere else don't need one, and being asked isn't a failed save, so it isn't on Activity.
-- With no passkey at that address, the panel points the person to SSH.
-- Those saves show in a warning tone on Activity, as `file.save_way_back_in`.
-- A plan that's as good as root takes the same step-up, for that change, as this section always said it would ([ADR 0021](0021-the-docker-driver.md#host-access)).
+**What a save asks for**
 
-The list goes by name, so a hard link to one of these, under another name, isn't one. Making such a link takes write access to the file already, on the same filesystem, or a mount that crosses it, which a container doesn't have. The list has to grow with what runs on a server.
+- **The rule is a plan's.** A save asks where it ends under `resource.SystemPath`, which takes in a person's logins, or in Dockwell's data directory. That's what a plan's mount goes by, so mounting `/etc` and saving in `/etc` get the same answer, and closing a gap closes it for both. A list of files was the wrong shape: it let through whatever it didn't name.
+- **Names that rule can't see stay as extras:** `authorized_keys`, `sudoers*`, `.rhosts`, `.shosts`, `.k5login`, `.k5users`, `~/.config/systemd/user`, `~/.local/share/systemd/user`, and the shell start files of root and of members of `sudo`, `wheel`, `admin` and `docker`, wherever their home is.
+- **It goes by what a place is.** The agent stats each listed place once a call, and matches the walk's directories and the final file by device and inode, as the refused list does, so a bind mount of a listed place, a volume's `_data` bound to `/etc`, or a hard link counts. A bind mount of a folder inside a listed place isn't found this way, as nothing on it says where it came from. A home on a network mount isn't stat'ed, as that would hold every call while the mount is down, and its names still count by path.
+- **What people edit most asks nothing:** site files, app configs and `.env` under `/srv`, `/var/www`, `/opt/<app>` and volumes. Docker's data is on the rule's list and holds apps' files, so past a volume only what a place is counts.
+- **The agent decides,** on where its walk ended, as only it can tell, so a link to one of these is one too. It asks last, so a passkey isn't asked for over what would be refused anyway, and `file_changed` comes first.
+- **It says so in its hello** (`guards_ways_in`), and the control plane saves through no agent that doesn't, with words that say to update it. The gate lives in the agent, so one built before it would save `authorized_keys` with nothing asked, and nothing else could tell.
+- **With no passkey at that address,** the panel points the person to SSH.
 
-The refused list stops Files, not a stolen session, which can still reach it with a plan that mounts Docker's socket, now only with a passkey.
+**How a proof works**
+
+- **It's for that path on that server.** The control plane hands the path on with the save, and the agent writes only if its own walk ended there, so a link swapped in after the passkey doesn't pass.
+- **One stands for ten minutes,** for that path on that server, in that session, as editing a file means saving it again. It's the only step-up that lasts past its action. It starts with the first save, and saving again doesn't extend it.
+- **It goes where the action does.** ADR 0022 spends a proof in the transaction that acts, and neither of these has one that reaches: a save happens on an agent, and a change starts in the engine. So the proof is held, which stops a second call using it, and given back if the action is refused: busy, offline, out of date, or `file_changed`. A wrong proof is still spent, and so is one for a save that may have landed.
+
+**What's on Activity**
+
+- A save to one of these is `file.save_way_back_in`, in a warning tone, in place of `file.save`.
+- Being asked isn't a failed save. But a save or an apply that asked for a passkey, with none following within a proof's minute, is `file.save_unconfirmed` or `change.apply_unconfirmed`, in a warning tone, as that's what a stolen session looks like. It's kept in memory until then, so a restart in that minute loses it.
+
+**What a plan asks for**
+
+- **A plan that's as good as root takes the same step-up, for that change** ([ADR 0021](0021-the-docker-driver.md#host-access)), as this section always said it would.
+- **Keeping root doesn't excuse what runs with it.** Where a resource keeps access that's as good as root, any change to what runs in it counts as gaining that access again: an image, command, entrypoint, user, health check or environment. So it needs a person, the typed fingerprint and a passkey, or a stolen session or a token could put any code at all in a service with Docker's socket.
+- **The one exception is how CI deploys:** another tag or digest of the same image repository, with nothing else changed. A token may apply that, and it reads as it did. It's the same code by the same hand, and a repository the plan named is what was approved.
+- **A path is what it leads to now.** A container keeps where its paths led when it was made (`dev.dockwell.leads`). Each plan that changes it resolves every host path again, and counts one that's moved as gained, so a folder approved in amber and turned into a link to `/etc` asks as if for the first time. A step with nothing to do resolves nothing, as nothing is mounted, and a dead path on what's left alone shouldn't refuse a plan for something else. What makes a container checks again, and refuses a path that isn't where its plan said. A container made before this has no record, so a path of its that leads elsewhere asks once.
+- **#159 and #160 meet this rule here.** They count a new command, entrypoint or health check of what's `same_as_root`, and a new tag too. This is the general form, and it has the exception above. Whichever lands second takes the other's rule into its own, by rebasing, so there's one rule. A variable's value is the gap: changing one that a root service uses changes no spec of that service, so it asks nothing.
+
+The list goes by what's on it, so it has to grow with what runs on a server. What runs that isn't on it, such as a script a cron job calls, asks nothing.
+
+The refused list stops Files, not a stolen session, which can still reach what's refused with a plan that mounts Docker's socket, now only with a passkey.
 
 ### How a save lands
 
@@ -94,7 +115,7 @@ The refused list stops Files, not a stolen session, which can still reach it wit
 - `file.read` for each `ReadFile`, naming the person, the server and the path, written before the contents go out. If it can't be written, nothing goes out, as with `secret.reveal`.
 - `file.refuse` for each read or listing that came to nothing, however it failed. Someone looking for credentials mostly misses, so a miss leaves a mark as a hit does.
 - `file.saving` before each save, and `file.save` after one lands, or `file.save_failed`, however it failed, under where the walk ended. If the first can't be written, nothing is saved. A save that may have landed, as its stream dropped or it was left behind as it wrote, is `file.save_unknown`, and when the agent can say how it ended, that's `file.save` or `file.save_failed`, as whoever saved it. The first stays in the audit log, as a save may yet fail, so a save always leaves a line, and Activity says only what happened.
-- `file.save_way_back_in` in place of `file.save`, for a file that lets someone back in.
+- `file.save_way_back_in` in place of `file.save`, for a file that lets someone back in, and `file.save_unconfirmed` for one that asked for a passkey and none came.
 - All but `file.saving` are on Activity, by person, server and path, where ADR 0020 leaves other refusals in the audit log, as the case for no step-up on reads rests on them being seen.
 - A listing that works isn't recorded: it returns names, and it runs on every click. Nor is a listing that can't reach its server, as the panel asks again by itself.
 - A file's contents are never recorded or logged. A path is cleaned before it's stored or shown, as a name can hold a newline or a terminal's escape codes, and a link can lead through one.

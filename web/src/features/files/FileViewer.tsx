@@ -266,7 +266,14 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         StepUpAction.SAVE_WAY_BACK_IN,
         `${serverId}:${base.where}`,
         (proof) =>
-          client.saveFile({ serverId, path, content, version: over, proof, confirmedPath: proof ? base.where : "" }),
+          client.saveFile({
+            serverId,
+            path,
+            content,
+            version: over,
+            proof,
+            confirmedPath: base.wayBackIn || proof ? base.where : "",
+          }),
       );
       setBase((was) => ({ ...was, text: sent, version: res.version }));
       dropDraft(serverId, path);
@@ -286,7 +293,11 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         );
       } else {
         setMayLand(reason === "save_may_land");
-        setProblem(err instanceof PasskeyError ? explain(err) : sentence(err));
+        if (err instanceof PasskeyError && err.problem === "cancelled") {
+          setProblem(t`The passkey prompt closed, so nothing was saved. Save again when you're ready.`);
+        } else {
+          setProblem(err instanceof PasskeyError ? explain(err) : sentence(err));
+        }
       }
     } finally {
       setSaving(false);

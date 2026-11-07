@@ -371,7 +371,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
