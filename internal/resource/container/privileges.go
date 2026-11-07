@@ -66,6 +66,18 @@ func validatePrivileges(c *resourcev1.Container) error {
 	return nil
 }
 
+// capabilityNames puts capabilities in the form a spec keeps them, and refuses nothing.
+func capabilityNames(list []string) []string {
+	if list == nil {
+		return nil
+	}
+	out := make([]string, len(list))
+	for i, name := range list {
+		out[i] = strings.TrimPrefix(strings.ToUpper(name), "CAP_")
+	}
+	return out
+}
+
 // validateCapabilities reads capabilities as Docker does, with or without CAP_,
 // in either case. A file's value becomes one of these or is refused.
 func validateCapabilities(list []string, field string) ([]string, error) {

@@ -582,13 +582,13 @@ msgstr "{name} may not be running, or may be running the new version. Check it, 
 msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
 msgstr "{name} may take longer to be healthy, as its image isn't on the server yet."
 
-#: src/features/files/FileViewer.tsx
-msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
-msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
-
 #: src/features/changes/notices.tsx
 msgid "{name} mounts the volume {path} on {server}"
 msgstr "{name} mounts the volume {path} on {server}"
+
+#: src/features/files/FileViewer.tsx
+msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
+msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 
 #: src/features/changes/notices.tsx
 msgid "{name} reaches {path} on {server}"

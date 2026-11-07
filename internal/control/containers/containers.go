@@ -147,6 +147,9 @@ func Refusal(name string, a resource.Adoption) string {
 	if len(a.Refused) > 0 {
 		why = append(why, fmt.Sprintf("%s runs with %s, which a service can't hold yet, so changing its image would drop them without a word", name, human.List(a.Refused)))
 	}
+	if a.Invalid != "" {
+		why = append(why, fmt.Sprintf("%s can't be a service as it runs: %s", name, a.Invalid))
+	}
 	if len(a.Shows) > 0 {
 		why = append(why, fmt.Sprintf("%s holds %s, so a plan would show it to anyone who can read plans", name, human.List(a.Shows)))
 	}

@@ -7,7 +7,11 @@ import (
 	"slices"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // hostDefaults is what Docker 28 says of a container nobody asked anything of, key by
@@ -165,5 +169,44 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 	o.Config["Healthcheck"] = json.RawMessage(`{"Test": ["CMD", "true"], "StartInterval": 1000000000}`)
 	if got := noSpecHolds(c, o, "SIGQUIT", info); !slices.Equal(got, []string{"healthcheck start_interval", "hostname", "stop_signal"}) {
 		t.Errorf("noSpecHolds of its Config = %v", got)
+	}
+}
+
+// What a real engine reports, as the CLI and docker compose write it, reads as the
+// form a spec keeps. Anything else fails at the plan, or reads as drift for good.
+func TestWhatDockerReportsReadsAsASpecDoes(t *testing.T) {
+	stop := 90
+	c := &docker.Container{ID: "0123456789abcdef", Name: "/app"}
+	c.Config = docker.Config{
+		Image:        "nginx:1.27",
+		ExposedPorts: map[string]struct{}{"80/tcp": {}, "9000/tcp": {}, "3000": {}, "53/udp": {}, "4000-4001": {}, "5000-5001/udp": {}},
+		StopTimeout:  &stop,
+	}
+	c.HostConfig = docker.HostConfig{
+		CapAdd: []string{"CAP_NET_ADMIN", "cap_sys_time"}, CapDrop: []string{"CAP_MKNOD"},
+		Binds:        []string{"/srv/app/:/app/:ro"},
+		Mounts:       []docker.Mount{{Type: "volume", Source: "shop_data", Target: "/data/"}},
+		PortBindings: map[string][]docker.PortBinding{"80/tcp": {{HostIP: "0:0:0:0:0:0:0:1", HostPort: "8080"}}},
+	}
+	img := &docker.Config{ExposedPorts: map[string]struct{}{"9000/tcp": {}}}
+	got := Project(c, img, Target{Name: "x", Project: "env_x", Service: "app", Scoped: true})
+	Normalize(got)
+	before := proto.Clone(got).(*resourcev1.Container)
+	if err := Validate(got); err != nil {
+		t.Fatalf("what Docker reports isn't valid as it reads: %v", err)
+	}
+	if diff := resource.Diff(before, got); len(diff) != 0 {
+		t.Errorf("what Docker reports reads one way, and validates as another: %+v", diff)
+	}
+	if want := []string{"3000/tcp", "4000/tcp", "4001/tcp", "5000/udp", "5001/udp", "53/udp"}; !slices.Equal(got.GetExpose(), want) {
+		t.Errorf("it exposes %v, want %v", got.GetExpose(), want)
+	}
+	if want := []string{"NET_ADMIN", "SYS_TIME"}; !slices.Equal(got.GetCapAdd(), want) {
+		t.Errorf("it adds %v, want %v", got.GetCapAdd(), want)
+	}
+	for _, m := range got.GetMounts() {
+		if m.GetTarget() != "/app" && m.GetTarget() != "/data" {
+			t.Errorf("a mount reads at %q", m.GetTarget())
+		}
 	}
 }

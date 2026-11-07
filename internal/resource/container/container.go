@@ -199,7 +199,21 @@ func Normalize(c *resourcev1.Container) {
 		if p.Protocol == resourcev1.Protocol_PROTOCOL_UNSPECIFIED {
 			p.Protocol = resourcev1.Protocol_PROTOCOL_TCP
 		}
+		if addr, err := netip.ParseAddr(p.GetHostIp()); err == nil {
+			p.HostIp = addr.String()
+		}
 	}
+	// In the form Validate leaves them, as what Docker reports can be written otherwise:
+	// its CLI sends CAP_NET_ADMIN, and a Compose file can say /data/.
+	for _, m := range c.GetMounts() {
+		if path.IsAbs(m.GetTarget()) {
+			m.Target = path.Clean(m.GetTarget())
+		}
+		if src, ok := m.GetSource().(*resourcev1.Mount_HostPath); ok && path.IsAbs(src.HostPath) {
+			src.HostPath = path.Clean(src.HostPath)
+		}
+	}
+	c.CapAdd, c.CapDrop = capabilityNames(c.GetCapAdd()), capabilityNames(c.GetCapDrop())
 	sortPorts(c)
 	sortMounts(c)
 	sortTmpfs(c)

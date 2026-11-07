@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dockwell/dockwell/internal/docker"
@@ -82,14 +83,14 @@ func zeroValue(v any) bool {
 var hostConfigRules = map[string]rule{
 	// A spec holds these, as Project reads them.
 	"CapAdd": kept, "CapDrop": kept, "GroupAdd": kept, "Memory": kept, "MemoryReservation": kept,
-	"NanoCpus": kept, "PortBindings": kept, "Privileged": kept, "RestartPolicy": kept, "ShmSize": kept,
+	"NanoCpus": kept, "Privileged": kept, "RestartPolicy": kept, "ShmSize": kept,
 	// These say how it was started, or follow from what's refused below by name: the
 	// paths Docker masks depend on its version and on security_opt and privileged.
 	"ConsoleSize": kept, "ContainerIDFile": kept, "MaskedPaths": kept, "ReadonlyPaths": kept,
 
 	"Binds": readBinds, "CgroupnsMode": readCgroupns, "LogConfig": readLogging, "MemorySwap": readSwap,
 	"Mounts": readMountList, "NetworkMode": readNetworkMode, "PidsLimit": readPidsLimit, "Runtime": readRuntime,
-	"Tmpfs": readTmpfs,
+	"PortBindings": readPortBindings, "Tmpfs": readTmpfs,
 
 	"Annotations": only("annotations"), "AutoRemove": only("auto remove (--rm)"),
 	"BlkioDeviceReadBps": only("blkio_config"), "BlkioDeviceReadIOps": only("blkio_config"),
@@ -223,6 +224,30 @@ func readEndpoint(network string, ep map[string]json.RawMessage) []string {
 	} {
 		if !isZero(ep[s.key]) {
 			out = append(out, s.name+" on "+network)
+		}
+	}
+	return out
+}
+
+// readPortBindings reads what's published. A spec holds one server port for each, over
+// TCP or UDP. Docker keeps "" for a port it picks itself, and a range as it was written.
+func readPortBindings(raw json.RawMessage, _ *reading) []string {
+	var bindings map[string][]struct {
+		HostPort string `json:"HostPort"`
+	}
+	if json.Unmarshal(raw, &bindings) != nil {
+		return []string{"HostConfig.PortBindings"}
+	}
+	var out []string
+	for _, port := range slices.Sorted(maps.Keys(bindings)) {
+		if strings.HasSuffix(port, "/sctp") {
+			out = append(out, "the sctp port "+port)
+		}
+		for _, b := range bindings[port] {
+			if n, err := strconv.ParseUint(b.HostPort, 10, 16); err != nil || n == 0 {
+				out = append(out, "a server port Docker picks for "+port)
+				break
+			}
 		}
 	}
 	return out

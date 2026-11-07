@@ -347,6 +347,51 @@ func TestWhatNoSpecHoldsIsRefusedByName(t *testing.T) {
 	adopt(t, cc, "plain", "plain")
 }
 
+// A container can run with what's fine to Docker and no spec can say. That's refused by
+// what it is, in words a person can act on, and isn't left to fail validation later.
+func TestWhatASpecCantSayIsSaidBeforeItsPlanned(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	plain := func(edit func(*docker.CreateRequest)) func(*docker.CreateRequest) {
+		return func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+			edit(r)
+		}
+	}
+	zero := 0
+	for name, c := range map[string]struct {
+		edit func(*docker.CreateRequest)
+		says string
+	}{
+		"picks-a-port": {func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings = map[string][]docker.PortBinding{"80/tcp": {{HostPort: ""}}}
+		}, "a server port Docker picks for 80/tcp"},
+		"a-port-range": {func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings = map[string][]docker.PortBinding{"80/tcp": {{HostPort: "8000-8010"}}}
+		}, "a server port Docker picks for 80/tcp"},
+		"sctp": {func(r *docker.CreateRequest) {
+			r.HostConfig.PortBindings = map[string][]docker.PortBinding{"5000/sctp": {{HostPort: "5000"}}}
+		}, "the sctp port 5000/sctp"},
+		"stops-at-once": {func(r *docker.CreateRequest) { r.StopTimeout = &zero }, "isn't a time for a container to stop in"},
+	} {
+		runByHand(t, e, name, plain(c.edit))
+		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name}))
+		if err == nil || !strings.Contains(err.Error(), c.says) || !strings.Contains(err.Error(), "It stays as it is") {
+			t.Errorf("taking on %s: %v, want it to say %q", name, err, c.says)
+		}
+	}
+
+	// What's written as Docker's CLI writes it isn't a change, then or as it applies.
+	c := changeClient(b, b.origin)
+	runByHand(t, e, "by-cli", plain(func(r *docker.CreateRequest) {
+		r.HostConfig.CapAdd, r.HostConfig.CapDrop = []string{"CAP_NET_BIND_SERVICE"}, []string{"cap_mknod"}
+		r.HostConfig.Binds = []string{"/srv/by-cli/:/data/"}
+	}))
+	applyConfirmed(t, c, adopt(t, cc, "by-cli", "by-cli"))
+}
+
 // What a spec holds comes along, in either way Docker says a tmpfs, and a replace
 // gives it back: a change of image doesn't lose /dev/shm or what's kept in memory.
 func TestShmSizeAndTmpfsComeAlong(t *testing.T) {
@@ -404,7 +449,8 @@ func TestAnExposedPortComesAlong(t *testing.T) {
 	runByHand(t, e, "behind-traefik", func(r *docker.CreateRequest) {
 		r.Image = "exposing:1"
 		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
-		r.ExposedPorts = map[string]struct{}{"3000/tcp": {}}
+		// docker compose sends expose: as it was written, and Docker keeps it so.
+		r.ExposedPorts = map[string]struct{}{"3000": {}, "4000-4001/udp": {}}
 	})
 	planned := adopt(t, cc, "behind-traefik", "api")
 	if text := protojson.Format(planned); !strings.Contains(text, "3000/tcp") {
@@ -426,8 +472,10 @@ func TestAnExposedPortComesAlong(t *testing.T) {
 		if replaced == nil {
 			t.Fatalf("nothing runs %s: %v", image, e.Containers())
 		}
-		if _, on := replaced.Config.ExposedPorts["3000/tcp"]; !on {
-			t.Errorf("on %s it exposes %v, and lost 3000/tcp", image, replaced.Config.ExposedPorts)
+		for _, port := range []string{"3000/tcp", "4000/udp", "4001/udp"} {
+			if _, on := replaced.Config.ExposedPorts[port]; !on {
+				t.Errorf("on %s it exposes %v, and lost %s", image, replaced.Config.ExposedPorts, port)
+			}
 		}
 	}
 	file, err := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()).ExportCompose(t.Context(), connect.NewRequest(&dockwellv1.ExportComposeRequest{}))

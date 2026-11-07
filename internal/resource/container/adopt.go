@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -85,8 +86,17 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 	if err != nil {
 		return resource.Adoption{}, err
 	}
+	refused := noSpecHolds(c, options, imageSignal, info)
+	// What's fine to Docker and no spec can say is refused by what it is, here, rather
+	// than by a plan that can't name the container. What's refused above would fail too.
+	var invalid string
+	if len(refused) == 0 {
+		if err := Validate(proto.Clone(spec).(*resourcev1.Container)); err != nil {
+			invalid = err.Error()
+		}
+	}
 	return resource.Adoption{
-		Spec: spec, Refused: noSpecHolds(c, options, imageSignal, info), Shows: valuesShown(spec), LeanedOn: leaning,
+		Spec: spec, Refused: refused, Invalid: invalid, Shows: valuesShown(spec), LeanedOn: leaning,
 		Manager: docker.ManagedBy(c.Config.Labels), Folder: c.Config.Labels[docker.LabelWorkingDir],
 	}, nil
 }

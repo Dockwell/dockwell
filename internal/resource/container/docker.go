@@ -836,6 +836,31 @@ func environment(spec *resourcev1.Container) []string {
 	return out
 }
 
+// exposedPorts reads a port as Docker keeps it into what a spec holds: one port with its
+// protocol. Docker keeps what it was asked for, and docker compose sends expose: as it
+// was written, so that can be "3000", "3000/tcp", or a range of either. One that can't
+// be read stays as it is, for Validate to say so.
+func exposedPorts(key string) []string {
+	ports, protocol, found := strings.Cut(key, "/")
+	if !found {
+		protocol = "tcp"
+	}
+	low, high, isRange := strings.Cut(ports, "-")
+	if !isRange {
+		return []string{ports + "/" + protocol}
+	}
+	first, errFirst := strconv.Atoi(low)
+	last, errLast := strconv.Atoi(high)
+	if errFirst != nil || errLast != nil || last < first || last-first >= MaxPorts {
+		return []string{key}
+	}
+	out := make([]string, 0, last-first+1)
+	for p := first; p <= last; p++ {
+		out = append(out, strconv.Itoa(p)+"/"+protocol)
+	}
+	return out
+}
+
 // Project reads a container as Docker reports it back into a spec, at t,
 // leaving out what Docker took from its image: an image's environment,
 // labels, command and the rest, unless the spec set them too, as LabelSet
@@ -920,14 +945,17 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	}
 	// Docker lists here what its image exposes and what it publishes as well, and a
 	// spec says neither. With no image to tell by, it says what the spec does alone.
-	for port := range c.Config.ExposedPorts {
-		_, fromImage := img.ExposedPorts[port]
-		_, published := c.HostConfig.PortBindings[port]
-		if set["expose:"+port] || imageKnown && !fromImage && !published {
-			out.Expose = append(out.Expose, port)
+	for key := range c.Config.ExposedPorts {
+		for _, port := range exposedPorts(key) {
+			_, fromImage := img.ExposedPorts[port]
+			_, published := c.HostConfig.PortBindings[port]
+			if set["expose:"+port] || imageKnown && !fromImage && !published {
+				out.Expose = append(out.Expose, port)
+			}
 		}
 	}
 	slices.Sort(out.Expose)
+	out.Expose = slices.Compact(out.Expose)
 	for key, bindings := range c.HostConfig.PortBindings {
 		port, transport, _ := strings.Cut(key, "/")
 		cp, _ := strconv.ParseUint(port, 10, 16)

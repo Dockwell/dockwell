@@ -151,12 +151,26 @@ type container struct {
 	reports map[string]map[string]any
 }
 
-// inspected is what an inspect of c answers. With nothing else to say it's
-// c.Container as it stands.
+// reported are what a real engine says of a container nobody asked anything of, key
+// by key, which a client has no field for or leaves empty. A reader of what a
+// container runs with has to pass them all, as it does on a server.
+var reported = map[string]map[string]any{
+	"HostConfig": {
+		"ContainerIDFile": "", "LogConfig": map[string]any{"Type": "json-file", "Config": map[string]any{}}, "AutoRemove": false,
+		"VolumeDriver": "", "ConsoleSize": []int{0, 0}, "CgroupnsMode": "private", "Dns": []string{}, "DnsOptions": []string{},
+		"DnsSearch": []string{}, "IpcMode": "private", "Cgroup": "", "OomScoreAdj": 0, "PidMode": "", "PublishAllPorts": false,
+		"UTSMode": "", "ShmSize": 64 << 20, "Runtime": "runc", "Isolation": "", "CpuShares": 0, "CgroupParent": "", "BlkioWeight": 0,
+		"BlkioWeightDevice": []any{}, "BlkioDeviceReadBps": []any{}, "BlkioDeviceWriteBps": []any{}, "BlkioDeviceReadIOps": []any{},
+		"BlkioDeviceWriteIOps": []any{}, "CpuPeriod": 0, "CpuQuota": 0, "CpuRealtimePeriod": 0, "CpuRealtimeRuntime": 0, "CpusetCpus": "",
+		"CpusetMems": "", "Devices": []any{}, "OomKillDisable": false, "Ulimits": []any{}, "CpuCount": 0, "CpuPercent": 0,
+		"IOMaximumIOps": 0, "IOMaximumBandwidth": 0, "MaskedPaths": []string{"/proc/kcore", "/sys/firmware"}, "ReadonlyPaths": []string{"/proc/bus"},
+	},
+	"Config": {"Domainname": "", "AttachStdin": false, "AttachStdout": true, "AttachStderr": true, "OpenStdin": false, "StdinOnce": false, "Tty": false},
+}
+
+// inspected is what an inspect of c answers: what the client asked for, as it asked,
+// and what a real engine fills in around that.
 func (c *container) inspected() any {
-	if len(c.reports) == 0 {
-		return c.Container
-	}
 	b, err := json.Marshal(c.Container)
 	if err != nil {
 		return c.Container
@@ -165,13 +179,34 @@ func (c *container) inspected() any {
 	if err := json.Unmarshal(b, &out); err != nil {
 		return c.Container
 	}
-	for section, keys := range c.reports {
-		into, _ := out[section].(map[string]any)
+	section := func(name string) map[string]any {
+		into, _ := out[name].(map[string]any)
 		if into == nil {
 			into = map[string]any{}
+			out[name] = into
 		}
-		maps.Copy(into, keys)
-		out[section] = into
+		return into
+	}
+	for name, keys := range reported {
+		into := section(name)
+		for k, v := range keys {
+			if _, set := into[k]; !set {
+				into[k] = v
+			}
+		}
+	}
+	host, config := section("HostConfig"), section("Config")
+	if _, set := host["NetworkMode"]; !set {
+		host["NetworkMode"] = "bridge"
+	}
+	if c.memorySwap != 0 {
+		host["MemorySwap"] = c.memorySwap
+	}
+	if _, set := config["Hostname"]; !set && len(c.ID) >= 12 {
+		config["Hostname"] = c.ID[:12]
+	}
+	for name, keys := range c.reports {
+		maps.Copy(section(name), keys)
 	}
 	return out
 }

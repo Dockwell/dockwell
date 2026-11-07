@@ -715,6 +715,9 @@ message AdoptionResult {
   // What depends on it in a way a replace would cut off, each with how, such as "app
   // shares its network". With any, it can't be taken on.
   repeated string leaned_on = 6;
+  // Why the spec isn't one a service can hold, in words for people. With any, it
+  // can't be taken on.
+  string invalid = 7;
 }
 
 // ContainersResult lists the containers Docker has.

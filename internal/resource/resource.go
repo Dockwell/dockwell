@@ -816,6 +816,9 @@ type Adoption struct {
 	// Refused is what it runs with that no spec holds, in words for people, which a
 	// replace would drop.
 	Refused []string
+	// Invalid says why Spec isn't one a service can hold, when it runs with what's fine
+	// to Docker and no spec can say.
+	Invalid string
 	// Shows says where Spec would show a value of its environment, by the variable's
 	// name and never the value.
 	Shows []string

@@ -3775,7 +3775,10 @@ type AdoptionResult struct {
 	Folder string `protobuf:"bytes,5,opt,name=folder,proto3" json:"folder,omitempty"`
 	// What depends on it in a way a replace would cut off, each with how, such as "app
 	// shares its network". With any, it can't be taken on.
-	LeanedOn      []string `protobuf:"bytes,6,rep,name=leaned_on,json=leanedOn,proto3" json:"leaned_on,omitempty"`
+	LeanedOn []string `protobuf:"bytes,6,rep,name=leaned_on,json=leanedOn,proto3" json:"leaned_on,omitempty"`
+	// Why the spec isn't one a service can hold, in words for people. With any, it
+	// can't be taken on.
+	Invalid       string `protobuf:"bytes,7,opt,name=invalid,proto3" json:"invalid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3850,6 +3853,13 @@ func (x *AdoptionResult) GetLeanedOn() []string {
 		return x.LeanedOn
 	}
 	return nil
+}
+
+func (x *AdoptionResult) GetInvalid() string {
+	if x != nil {
+		return x.Invalid
+	}
+	return ""
 }
 
 // ContainersResult lists the containers Docker has.
@@ -4538,14 +4548,15 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tread_file\x18\v \x01(\v2!.dockwell.agent.v1.ReadFileResultH\x00R\breadFile\x12@\n" +
 	"\tsave_file\x18\f \x01(\v2!.dockwell.agent.v1.SaveFileResultH\x00R\bsaveFile\x12?\n" +
 	"\badoption\x18\r \x01(\v2!.dockwell.agent.v1.AdoptionResultH\x00R\badoptionB\b\n" +
-	"\x06result\"\xa3\x01\n" +
+	"\x06result\"\xbd\x01\n" +
 	"\x0eAdoptionResult\x12\x12\n" +
 	"\x04spec\x18\x01 \x01(\fR\x04spec\x12\x18\n" +
 	"\arefused\x18\x02 \x03(\tR\arefused\x12\x14\n" +
 	"\x05shows\x18\x03 \x03(\tR\x05shows\x12\x18\n" +
 	"\amanager\x18\x04 \x01(\tR\amanager\x12\x16\n" +
 	"\x06folder\x18\x05 \x01(\tR\x06folder\x12\x1b\n" +
-	"\tleaned_on\x18\x06 \x03(\tR\bleanedOn\"\x86\x01\n" +
+	"\tleaned_on\x18\x06 \x03(\tR\bleanedOn\x12\x18\n" +
+	"\ainvalid\x18\a \x01(\tR\ainvalid\"\x86\x01\n" +
 	"\x10ContainersResult\x12<\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x1c.dockwell.v1.ServerContainerR\n" +
