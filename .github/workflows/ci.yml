@@ -247,6 +247,8 @@ jobs:
       matrix:
         apps:
           - pgadmin redis mariadb coder
+          - uptime-kuma n8n gitea vaultwarden
+          - nextcloud rustfs grafana umami
     env:
       E2E_ROOT: "1"
     steps:
