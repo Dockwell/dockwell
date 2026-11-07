@@ -682,6 +682,42 @@ export async function appsFlow(
     fail(`the two files' fronts share a network, so they can reach each other: ${JSON.stringify(fronts)}`);
   }
 
+  step("apps: its environment takes a variable and a secret as one plan, and its container gets both");
+  await page.goto(`${origin}/apps`);
+  await page.getByRole("link", { name: "nginx", exact: true }).first().click();
+  await page.getByRole("heading", { level: 1, name: "nginx", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Environment", exact: true }).click();
+  const envForm = page.getByRole("form", { name: "Add a variable" });
+  const addValue = async (key: string, value: string, secret: boolean) => {
+    await envForm.getByRole("textbox", { name: "Key" }).fill(key);
+    await envForm.getByRole("textbox", { name: "Value" }).fill(value);
+    if (secret) await envForm.getByRole("switch", { name: "Secret" }).click();
+    await envForm.getByRole("button", { name: "Add" }).click();
+  };
+  await addValue("GREETING", "hello", false);
+  await addValue("SIGNING_KEY", "e2e-signing-key", true);
+  const unapplied = page.getByRole("region", { name: "Unapplied changes" });
+  await unapplied.getByText("2 unapplied changes").waitFor();
+  if ((await docker()).some((c) => c.env.some((v) => v.startsWith("GREETING="))))
+    fail("an edit reached Docker before its plan");
+  await shoot(page, "apps-environment-pending");
+  await unapplied.getByRole("button", { name: /Review plan/ }).click();
+  await applyPlan(page, "Done");
+  await unapplied.waitFor({ state: "detached" });
+  await page
+    .getByRole("row", { name: /GREETING/ })
+    .getByText("hello")
+    .waitFor();
+  await page
+    .getByRole("row", { name: /SIGNING_KEY/ })
+    .getByRole("img", { name: "Hidden" })
+    .waitFor();
+  const given = (await docker()).find((c) => c.service === "nginx" && c.running)?.env ?? [];
+  if (!given.includes("GREETING=hello") || !given.includes("SIGNING_KEY=e2e-signing-key")) {
+    fail(`the container runs with ${JSON.stringify(given)}, want GREETING and SIGNING_KEY`);
+  }
+  await shoot(page, "apps-environment");
+
   step("apps: deleting goes through a plan too, and the list follows");
   // A project left with one app is that app's row, under the project's name.
   for (const name of ["nginx", "front", "front", "blog", "wiki"]) {

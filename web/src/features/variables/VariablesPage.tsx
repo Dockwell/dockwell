@@ -277,7 +277,7 @@ function ValueCell({ variable }: { variable: EnvironmentVariable }) {
 }
 
 /** A secret's value: hidden, until a passkey reveals it, for a minute. */
-function SecretValue({ variable }: { variable: EnvironmentVariable }) {
+export function SecretValue({ variable }: { variable: EnvironmentVariable }) {
   const { t } = useLingui();
   const name = variable.name;
   const shown = useReveal(variable.id);

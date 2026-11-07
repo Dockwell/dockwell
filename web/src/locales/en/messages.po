@@ -905,26 +905,107 @@ msgstr "{0, plural, one {# revision · newest first} other {# revisions · newes
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 
-msgid "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
-msgstr "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
+msgid "A change is applying to {name}. Review this once it ends."
+msgstr "A change is applying to {name}. Review this once it ends."
 
-msgid "Dockwell hands what's set on this app to it, and never shows those values again, as they may hold secrets."
-msgstr "Dockwell hands what's set on this app to it, and never shows those values again, as they may hold secrets."
+msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
+msgstr "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
 
-msgid "Environment variables"
-msgstr "Environment variables"
+msgid "A variable or secret lives in its environment, and goes only to the servers that run an app using it. Change one here or in <0>Variables and secrets</0>, and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it may hold secrets."
+msgstr "A variable or secret lives in its environment, and goes only to the servers that run an app using it. Change one here or in <0>Variables and secrets</0>, and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it may hold secrets."
+
+msgid "A variable or secret of the environment"
+msgstr "A variable or secret of the environment"
+
+msgid "Actions"
+msgstr "Actions"
+
+msgid "Add"
+msgstr "Add"
+
+msgid "Add a variable"
+msgstr "Add a variable"
+
+msgid "Add {key} to {name}"
+msgstr "Add {key} to {name}"
+
+msgid "Change"
+msgstr "Change"
+
+msgid "Change the environment of {name}"
+msgstr "Change the environment of {name}"
+
+msgid "Change {key} on {name}"
+msgstr "Change {key} on {name}"
+
+msgid "Change {name}"
+msgstr "Change {name}"
+
+msgid "Change {target}"
+msgstr "Change {target}"
+
+msgid "Discard"
+msgstr "Discard"
+
+msgid "Each line needs a NAME=value, as an .env file has them. Lines that start with # are skipped."
+msgstr "Each line needs a NAME=value, as an .env file has them. Lines that start with # are skipped."
+
+msgid "Environment variables of {name}"
+msgstr "Environment variables of {name}"
+
+msgid "Every app that uses this variable gets the new value."
+msgstr "Every app that uses this variable gets the new value."
 
 msgid "Hidden"
 msgstr "Hidden"
 
-msgid "Name"
-msgstr "Name"
+msgid "Import .env"
+msgstr "Import .env"
 
-msgid "No environment variables"
-msgstr "No environment variables"
+msgid "Keep the new ones as secrets"
+msgstr "Keep the new ones as secrets"
+
+msgid "Key"
+msgstr "Key"
+
+msgid "New secret"
+msgstr "New secret"
+
+msgid "New value"
+msgstr "New value"
+
+msgid "New value of {target}"
+msgstr "New value of {target}"
+
+msgid "New variable"
+msgstr "New variable"
+
+msgid "Not applied"
+msgstr "Not applied"
 
 msgid "Not loaded"
 msgstr "Not loaded"
+
+msgid "Paste the file's text"
+msgstr "Paste the file's text"
+
+msgid "Remove {key} from {name}"
+msgstr "Remove {key} from {name}"
+
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+msgid "Removed"
+msgstr "Removed"
+
+msgid "Revert {name}"
+msgstr "Revert {name}"
+
+msgid "Review plan shows what this does first. Applying it restarts {name}, and {also}, which use what changes too."
+msgstr "Review plan shows what this does first. Applying it restarts {name}, and {also}, which use what changes too."
+
+msgid "Review plan shows what this does first. Applying it restarts {name}."
+msgstr "Review plan shows what this does first. Applying it restarts {name}."
 
 msgid "Secret"
 msgstr "Secret"
@@ -935,8 +1016,41 @@ msgstr "Secret {from}"
 msgid "Set on this app"
 msgstr "Set on this app"
 
-msgid "This app runs with only what its image sets."
-msgstr "This app runs with only what its image sets."
+msgid "Source"
+msgstr "Source"
+
+msgid "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
+msgstr "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
+
+msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
+msgstr "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
+
+msgid "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
+msgstr "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
+
+msgid "Their values are hidden, and revealing one takes your passkey."
+msgstr "Their values are hidden, and revealing one takes your passkey."
+
+msgid "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
+msgstr "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
+
+msgid "Unapplied changes"
+msgstr "Unapplied changes"
+
+msgid "Updated"
+msgstr "Updated"
+
+msgid "Use"
+msgstr "Use"
+
+msgid "Use letters, digits and underscores, starting with a letter or underscore."
+msgstr "Use letters, digits and underscores, starting with a letter or underscore."
+
+msgid "Use one the environment has…"
+msgstr "Use one the environment has…"
+
+msgid "Use {storedName}"
+msgstr "Use {storedName}"
 
 msgid "Value"
 msgstr "Value"
@@ -946,6 +1060,63 @@ msgstr "Variable"
 
 msgid "Variable {from}"
 msgstr "Variable {from}"
+
+msgid "What's set on this app isn't shown, so type the whole value it should have."
+msgstr "What's set on this app isn't shown, so type the whole value it should have."
+
+msgid "added, not applied"
+msgstr "added, not applied"
+
+msgid "changed, not applied"
+msgstr "changed, not applied"
+
+msgid "new value"
+msgstr "new value"
+
+msgid "removed, not applied"
+msgstr "removed, not applied"
+
+msgid "value"
+msgstr "value"
+
+msgid "{added} added"
+msgstr "{added} added"
+
+msgid "{app} has {trimmed} already. Change it in its row below."
+msgstr "{app} has {trimmed} already. Change it in its row below."
+
+msgid "{changed} changed"
+msgstr "{changed} changed"
+
+msgid "{count, plural, one {Add # variable} other {Add # variables}}"
+msgstr "{count, plural, one {Add # variable} other {Add # variables}}"
+
+msgid "{name} changed after you started. Close this and review your edits again: they apply to what it is now."
+msgstr "{name} changed after you started. Close this and review your edits again: they apply to what it is now."
+
+msgid "{name} is as good as root on its server, so applying this asks for your passkey."
+msgstr "{name} is as good as root on its server, so applying this asks for your passkey."
+
+msgid "{name}'s spec can't be read"
+msgstr "{name}'s spec can't be read"
+
+msgid "{name}, secret"
+msgstr "{name}, secret"
+
+msgid "{own} set on this app"
+msgstr "{own} set on this app"
+
+msgid "{removed} removed"
+msgstr "{removed} removed"
+
+msgid "{secrets, plural, one {# secret} other {# secrets}}"
+msgstr "{secrets, plural, one {# secret} other {# secrets}}"
+
+msgid "{total, plural, one {# unapplied change} other {# unapplied changes}}"
+msgstr "{total, plural, one {# unapplied change} other {# unapplied changes}}"
+
+msgid "{variables, plural, one {# variable} other {# variables}}"
+msgstr "{variables, plural, one {# variable} other {# variables}}"
 
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
@@ -1329,9 +1500,6 @@ msgstr "{revision} rolled back by Dockwell {when}"
 
 msgid "{revision} started deploying {when}"
 msgstr "{revision} started deploying {when}"
-
-msgid "{secrets, plural, one {# secret} other {# secrets}}"
-msgstr "{secrets, plural, one {# secret} other {# secrets}}"
 
 msgid "All environments"
 msgstr "All environments"
@@ -1768,11 +1936,11 @@ msgstr "Compose"
 msgid "Directory on the server"
 msgstr "Directory on the server"
 
-msgid "Discard"
-msgstr "Discard"
-
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
+
+msgid "Environment variables"
+msgstr "Environment variables"
 
 msgid "Fix line {line} to review the plan"
 msgstr "Fix line {line} to review the plan"
@@ -1817,6 +1985,9 @@ msgstr "Keep editing"
 #. placeholder {1}: onFileField.text
 msgid "Line {0}: {1}"
 msgstr "Line {0}: {1}"
+
+msgid "Name"
+msgstr "Name"
 
 msgid "Name a volume, or an absolute path on the server."
 msgstr "Name a volume, or an absolute path on the server."
@@ -1920,9 +2091,6 @@ msgstr "Show the apps"
 msgid "Show the value"
 msgstr "Show the value"
 
-msgid "Source"
-msgstr "Source"
-
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "Such as 8080 on the server, to 80 in the app."
 
@@ -1946,9 +2114,6 @@ msgstr "This reaches <0>{source}</0> on the server. You approve this in the plan
 
 msgid "Use an absolute path, such as /data."
 msgstr "Use an absolute path, such as /data."
-
-msgid "Use letters, digits and underscores, starting with a letter or underscore."
-msgstr "Use letters, digits and underscores, starting with a letter or underscore."
 
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
 msgstr "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
@@ -2397,9 +2562,6 @@ msgstr "Passkeys"
 
 msgid "Remove"
 msgstr "Remove"
-
-msgid "Remove {name}"
-msgstr "Remove {name}"
 
 msgid "Synced"
 msgstr "Synced"
@@ -2986,9 +3148,6 @@ msgstr "{0, plural, one {{list} runs on this volume} other {{list} run on this v
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "A backup is of a volume. Add one to an app, or install a database from the catalog."
 
-msgid "Actions"
-msgstr "Actions"
-
 #. placeholder {0}: b.destination
 msgid "Also on {0}"
 msgstr "Also on {0}"
@@ -3115,9 +3274,6 @@ msgstr "{shown} newest"
 
 msgid "Access key"
 msgstr "Access key"
-
-msgid "Add"
-msgstr "Add"
 
 msgid "Add a destination"
 msgstr "Add a destination"
@@ -3771,9 +3927,6 @@ msgstr "No steps: it left the fleet"
 
 msgid "Reaches {reach} on {server}"
 msgstr "Reaches {reach} on {server}"
-
-msgid "Removed"
-msgstr "Removed"
 
 msgid "Steps"
 msgstr "Steps"
@@ -4803,9 +4956,6 @@ msgstr "Two containers mustn't write to the volume {volumes} at once, so the old
 
 msgid "Update"
 msgstr "Update"
-
-msgid "Updated"
-msgstr "Updated"
 
 msgid "Updating"
 msgstr "Updating"
@@ -5963,9 +6113,6 @@ msgstr "Addresses"
 msgid "Can't read Docker"
 msgstr "Can't read Docker"
 
-msgid "Change"
-msgstr "Change"
-
 msgid "Connected"
 msgstr "Connected"
 
@@ -6887,9 +7034,6 @@ msgstr "Change the secret {trimmed}"
 msgid "Change the variable {trimmed}"
 msgstr "Change the variable {trimmed}"
 
-msgid "Change {name}"
-msgstr "Change {name}"
-
 msgid "Change {trimmed}"
 msgstr "Change {trimmed}"
 
@@ -6905,9 +7049,6 @@ msgstr "Hide {name}"
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
 msgstr "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
 
-msgid "Key"
-msgstr "Key"
-
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
 
@@ -6919,9 +7060,6 @@ msgstr "Make {trimmed} a variable"
 
 msgid "Name it, such as DATABASE_URL."
 msgstr "Name it, such as DATABASE_URL."
-
-msgid "New value"
-msgstr "New value"
 
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
@@ -6959,9 +7097,6 @@ msgstr "What the services in {envName} use, by name. Changing a value restarts e
 #. placeholder {0}: use.name
 msgid "as {0}"
 msgstr "as {0}"
-
-msgid "value"
-msgstr "value"
 
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, one {# day} other {# days}}"

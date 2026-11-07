@@ -255,7 +255,9 @@ describe("an app's frame", () => {
     // It sees TZ under a name of its own, so the row says which it is.
     expect(await (await row("TZ_NAME")).findByText("UTC")).toBeVisible();
     expect((await row("TZ_NAME")).getByRole("cell", { name: "Variable TZ" })).toBeVisible();
-    expect((await row("API_KEY")).getByRole("cell", { name: "Hidden" })).toBeVisible();
+    // A secret is hidden until a passkey reveals it, as on Variables.
+    expect((await row("API_KEY")).getByRole("img", { name: "Hidden" })).toBeVisible();
+    expect((await row("API_KEY")).getByRole("button", { name: "Reveal API_KEY" })).toBeVisible();
     expect((await row("API_KEY")).getByRole("cell", { name: "Secret" })).toBeVisible();
     expect((await row("DB_PASS")).getByRole("cell", { name: "Secret DB_PASSWORD" })).toBeVisible();
     expect((await row("OWN")).getByRole("cell", { name: "Set on this app" })).toBeVisible();
@@ -275,9 +277,9 @@ describe("an app's frame", () => {
     expect(screen.queryByText("None set")).not.toBeInTheDocument();
     await router.navigate({ to: "/apps/$serviceId/environment", params: { serviceId: service.id } });
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
-    expect(screen.queryByText("No environment variables")).not.toBeInTheDocument();
-    // With nothing plain to show, it asks nothing of the variables.
-    expect(reads).not.toHaveBeenCalled();
+    expect(screen.queryByText(/This app runs with only what its image sets/)).not.toBeInTheDocument();
+    // It reads the environment's variables once, to offer them to the app.
+    await waitFor(() => expect(reads).toHaveBeenCalledOnce());
   });
 
   it("says when a variable's value couldn't be read, not that it's empty", async () => {
