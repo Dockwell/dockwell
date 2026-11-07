@@ -1337,6 +1337,68 @@ func Methods() []*apicli.Method {
 			},
 			Call: apicli.Unary[v1.ListVariablesRequest, v1.ListVariablesResponse](dockwellv1connect.VariableServiceListVariablesProcedure),
 		},
+		{
+			Name:      "dockwell.v1.WebsiteService.CreateWebsite",
+			Procedure: dockwellv1connect.WebsiteServiceCreateWebsiteProcedure,
+			HTTP:      "POST /v1/websites",
+			Noun:      "websites",
+			Verb:      "create",
+			Short:     "Plan a new website at a domain",
+			Long:      "Plan a new website at a domain, as a project of its own, ready to apply or\ndiscard. A website that sends to a port on the server reaches past containers,\nso a person applies it.",
+			Effect:    v1.Effect_EFFECT_PLAN,
+			Fields: []apicli.Field{
+				{Path: "domain", Help: "The domain it answers at, such as \"blog.example.com\", as a route takes one."},
+				{Path: "website", Help: "What it serves."},
+				{Path: "tls", Help: "\"off\" when TLS ends before this server, at a tunnel or a proxy in front, as a route's tls says. Empty gets a certificate."},
+				{Path: "trusted_proxies", Help: "The proxies in front whose word it takes on a visitor's address, as a route's trusted_proxies."},
+				{Path: "plain_for_anyone", Help: "With tls off, answers anyone who reaches the server's port 80, as a route's plain_for_anyone."},
+				{Path: "servers", Help: "Where it runs, by server ID. Empty runs it on the only server; once there are several, name one."},
+				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it makes."},
+			},
+			Call: apicli.Unary[v1.CreateWebsiteRequest, v1.CreateWebsiteResponse](dockwellv1connect.WebsiteServiceCreateWebsiteProcedure),
+		},
+		{
+			Name:      "dockwell.v1.WebsiteService.DeleteWebsite",
+			Procedure: dockwellv1connect.WebsiteServiceDeleteWebsiteProcedure,
+			HTTP:      "POST /v1/websites/{id}:delete",
+			Noun:      "websites",
+			Verb:      "delete",
+			Short:     "Plan deleting a website",
+			Long:      "Plan deleting a website: its route, what serves it, and its project. Undoing it\nbrings it all back. Its folder on the server, if it has one, stays where it is.",
+			Effect:    v1.Effect_EFFECT_PLAN,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "The website, by its project's name or ID.", Arg: true},
+				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it deletes."},
+			},
+			Call: apicli.Unary[v1.DeleteWebsiteRequest, v1.DeleteWebsiteResponse](dockwellv1connect.WebsiteServiceDeleteWebsiteProcedure),
+		},
+		{
+			Name:      "dockwell.v1.WebsiteService.ListWebsites",
+			Procedure: dockwellv1connect.WebsiteServiceListWebsitesProcedure,
+			HTTP:      "GET /v1/websites",
+			Noun:      "websites",
+			Verb:      "list",
+			Short:     "Return every website",
+			Long:      "Return every website, sorted by domain.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Call:      apicli.Unary[v1.ListWebsitesRequest, v1.ListWebsitesResponse](dockwellv1connect.WebsiteServiceListWebsitesProcedure),
+		},
+		{
+			Name:      "dockwell.v1.WebsiteService.UpdateWebsite",
+			Procedure: dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure,
+			HTTP:      "POST /v1/websites/{id}:update",
+			Noun:      "websites",
+			Verb:      "update",
+			Short:     "Plan changing what a website serves",
+			Long:      "Plan changing what a website serves, ready to apply or discard. Its domain, and\nwhat's in front of it, stay as they are: change those as for any route.",
+			Effect:    v1.Effect_EFFECT_PLAN,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "The website, by its project's name or ID.", Arg: true},
+				{Path: "website", Help: "What it serves, whole."},
+				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it changes."},
+			},
+			Call: apicli.Unary[v1.UpdateWebsiteRequest, v1.UpdateWebsiteResponse](dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure),
+		},
 	}
 }
 
@@ -1368,6 +1430,7 @@ func Nouns() []apicli.Noun {
 		{Name: "totp", Short: "Get, disable or unlock TOTP, and 4 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},
 		{Name: "updates", Short: "Get or check updates", Long: "UpdateService says which package updates wait on a server, through its agent,\nwhich reads them with the server's own package manager: apt, dnf or apk. Nothing\nis read while nobody asks, and a server's package lists are refreshed at most\ndaily. See docs/adr/0043-package-updates-on-a-server.md."},
 		{Name: "variables", Short: "List, create, update or delete variables", Long: "A variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use\nvariables and secrets by reference, under the names they expect, so changing one\nis a plan that restarts every service that uses it.\n\ndockwell variables create, update and delete each propose a change, show its\nplan, and ask before applying it."},
+		{Name: "websites", Short: "List, create, update or delete websites", Long: "WebsiteService lists your websites, and plans making one, changing what it\nserves and deleting it, each as a change to apply or discard. A website is a\nproject of its own: Dockwell writes its route, and the service that serves it,\nfrom what you choose, such as a URL to send its requests to. Its domain gets its\ncertificate as any route's does, or none behind a tunnel or a proxy that ends\nTLS. See docs/adr/0037-websites-as-projects-of-their-own.md."},
 	}
 }
 
@@ -1389,6 +1452,9 @@ func Kinds() []*apicli.Kind {
 				{Path: "catalog.commit", Help: "The commit it came from."},
 				{Path: "catalog.values", Help: "What each input that isn't a secret was given, by name, so an upgrade gives the same."},
 				{Path: "catalog.file", Help: "The entry's Compose file at this release, with its ${NAME}s as written, so it holds no secret. Read with values, it's what the file gave, which an upgrade needs to tell that from what a person changed since. Empty for an install from before Dockwell kept it, which can't be upgraded."},
+				{Path: "website.proxy.url", Help: "Where to send them, such as \"https://backend.example.com\" or \"http://10.0.0.5:8080/app\": http or https, a host, and a port and a path if it needs them, with no query. A path goes in front of each request's own. It's reached from a container, as any app reaches the internet, so it can't be the server's own loopback: give port for that."},
+				{Path: "website.proxy.port", Help: "A port on the server itself, such as 3000, in place of url. Whatever listens there sees every visitor as local, so a person approves it."},
+				{Path: "website.proxy.send_target_host", Help: "Sends the url's own host as the Host header, in place of the website's domain, as a target that serves several names needs, such as another site over HTTPS. For a url only."},
 			},
 		},
 		{

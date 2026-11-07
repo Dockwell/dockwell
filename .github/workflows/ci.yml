@@ -186,7 +186,7 @@ jobs:
           echo "DOCKWELL_TEST_PEBBLE=$RUNNER_TEMP/ingress-tools" >> "$GITHUB_ENV"
       - name: Tests against Caddy
         if: steps.pick.outputs.run == 'true'
-        run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/...
+        run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/... ./internal/website/...
 
   docker-e2e:
     name: Service end to end on Docker

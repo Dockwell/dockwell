@@ -30,3 +30,4 @@ export * from "./gen/dockwell/v1/system_pb";
 export * from "./gen/dockwell/v1/token_pb";
 export * from "./gen/dockwell/v1/update_pb";
 export * from "./gen/dockwell/v1/variable_pb";
+export * from "./gen/dockwell/v1/website_pb";

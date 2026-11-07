@@ -1,0 +1,152 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// WebsiteService lists your websites, and plans making one, changing what it
+// serves and deleting it, each as a change to apply or discard. A website is a
+// project of its own: Dockwell writes its route, and the service that serves
+// it, from what you choose, such as a URL to send its requests to. Its domain
+// gets its certificate as any route's does, or none behind a tunnel or a proxy
+// that ends TLS. See docs/adr/0037-websites-as-projects-of-their-own.md.
+service WebsiteService {
+  // ListWebsites returns every website, sorted by domain.
+  rpc ListWebsites(ListWebsitesRequest) returns (ListWebsitesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/websites"};
+  }
+
+  // CreateWebsite plans a new website at a domain, as a project of its own,
+  // ready to apply or discard. A website that sends to a port on the server
+  // reaches past containers, so a person applies it.
+  rpc CreateWebsite(CreateWebsiteRequest) returns (CreateWebsiteResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/websites"
+      body: "*"
+    };
+  }
+
+  // UpdateWebsite plans changing what a website serves, ready to apply or
+  // discard. Its domain, and what's in front of it, stay as they are: change
+  // those as for any route.
+  rpc UpdateWebsite(UpdateWebsiteRequest) returns (UpdateWebsiteResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/websites/{id}:update"
+      body: "*"
+    };
+  }
+
+  // DeleteWebsite plans deleting a website: its route, what serves it, and its
+  // project. Undoing it brings it all back. Its folder on the server, if it has
+  // one, stays where it is.
+  rpc DeleteWebsite(DeleteWebsiteRequest) returns (DeleteWebsiteResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/websites/{id}:delete"
+      body: "*"
+    };
+  }
+}
+
+// ListWebsitesRequest asks for every website.
+message ListWebsitesRequest {}
+
+// ListWebsitesResponse lists the websites.
+message ListWebsitesResponse {
+  // The websites, sorted by domain.
+  repeated WebsiteInfo websites = 1;
+}
+
+// WebsiteInfo is one website.
+message WebsiteInfo {
+  // Its project's ID, such as "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // Its project's name, such as "blog-example-com".
+  string name = 2;
+  // The domain it answers at, such as "blog.example.com". Empty once its route
+  // has gone.
+  string domain = 3;
+  // What it serves.
+  dockwell.resource.v1alpha1.Website spec = 4;
+  // The environment its route and services are in, by ID.
+  string environment_id = 5;
+  // The service that serves it, by ID. Empty for a website that sends to a port
+  // on the server, which needs none.
+  string service_id = 6;
+  // Its route, by ID. Empty once it has gone.
+  string route_id = 7;
+  // When what serves it last changed.
+  google.protobuf.Timestamp update_time = 8;
+  // The server it runs on, by ID. Empty before it's placed.
+  string server_id = 9;
+  // That server's name, such as "hz-1".
+  string server_name = 10;
+}
+
+// CreateWebsiteRequest is a website to make.
+message CreateWebsiteRequest {
+  // The domain it answers at, such as "blog.example.com", as a route takes one.
+  string domain = 1;
+  // What it serves.
+  dockwell.resource.v1alpha1.Website website = 2;
+  // "off" when TLS ends before this server, at a tunnel or a proxy in front, as
+  // a route's tls says. Empty gets a certificate.
+  string tls = 3;
+  // The proxies in front whose word it takes on a visitor's address, as a
+  // route's trusted_proxies.
+  repeated string trusted_proxies = 4;
+  // With tls off, answers anyone who reaches the server's port 80, as a route's
+  // plain_for_anyone.
+  bool plain_for_anyone = 5;
+  // Where it runs, by server ID. Empty runs it on the only server; once there
+  // are several, name one.
+  repeated string servers = 6;
+  // What the change is for, for the timeline. Empty says what it makes.
+  string summary = 7;
+}
+
+// CreateWebsiteResponse carries the planned change.
+message CreateWebsiteResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// UpdateWebsiteRequest is what a website should serve now.
+message UpdateWebsiteRequest {
+  // The website, by its project's name or ID.
+  string id = 1;
+  // What it serves, whole.
+  dockwell.resource.v1alpha1.Website website = 2;
+  // What the change is for, for the timeline. Empty says what it changes.
+  string summary = 3;
+}
+
+// UpdateWebsiteResponse carries the planned change.
+message UpdateWebsiteResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// DeleteWebsiteRequest names a website to delete.
+message DeleteWebsiteRequest {
+  // The website, by its project's name or ID.
+  string id = 1;
+  // What the change is for, for the timeline. Empty says what it deletes.
+  string summary = 2;
+}
+
+// DeleteWebsiteResponse carries the planned change.
+message DeleteWebsiteResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
