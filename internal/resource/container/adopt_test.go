@@ -109,7 +109,7 @@ func TestAStopThatFailsLeavesTheNameItCameWith(t *testing.T) {
 	if err := d.markStopping(t.Context(), taken, o); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.bringBack(t.Context(), taken, o); err != nil {
+	if err := d.bringBack(t.Context(), taken, o, nil); err != nil {
 		t.Fatal(err)
 	}
 	got := e.Container("legacy_api")
@@ -212,7 +212,7 @@ func TestTakingOnKeepsWhereItsPathsLead(t *testing.T) {
 	if moved, err := d.LeadsMoved(t.Context(), taken, spec); err != nil || len(moved) != 0 {
 		t.Errorf("what it was taken on with reads as moved: %v, %v", moved, err)
 	}
-	if err := d.Paths.LeadsAsMade(t.Context(), got); err != nil {
+	if err := d.Paths.LeadsAsMade(t.Context(), got, nil); err != nil {
 		t.Errorf("starting it as it was taken on: %v", err)
 	}
 
@@ -225,7 +225,7 @@ func TestTakingOnKeepsWhereItsPathsLead(t *testing.T) {
 	if moved, err := d.LeadsMoved(t.Context(), taken, spec); err != nil || len(moved) != 1 {
 		t.Errorf("a path that moved since = %v, %v", moved, err)
 	}
-	if err := d.Paths.LeadsAsMade(t.Context(), got); err == nil {
+	if err := d.Paths.LeadsAsMade(t.Context(), got, nil); err == nil {
 		t.Error("starting it over a path that moved passed")
 	}
 }

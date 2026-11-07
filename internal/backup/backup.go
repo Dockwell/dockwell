@@ -542,7 +542,7 @@ func (r *Runner) startContainer(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := r.Paths.LeadsAsMade(ctx, c); err != nil {
+	if err := r.Paths.LeadsAsMade(ctx, c, nil); err != nil {
 		return err
 	}
 	return r.Client.StartContainer(ctx, id)

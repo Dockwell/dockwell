@@ -48,6 +48,7 @@ const (
 	PointSwapMarked  = "swapmarked"  // and marked the old one, which may not have been told
 	PointSwapStopped = "swapstopped" // and stopped it, and hasn't removed it
 	PointSwapGone    = "swapgone"    // and removed the old one
+	PointStarting    = "starting"    // is about to check and start what it keeps or made, starting first
 	PointSwapNamed   = "swapnamed"   // and gave the new one its name, and hasn't started it
 )
 
@@ -223,6 +224,16 @@ func (d *Docker) pick(ctx context.Context, t Target, spec *resourcev1.Container,
 		same, err := d.matches(ctx, t, i.Container, spec)
 		if err != nil {
 			return nil, nil, err
+		}
+		// One that's stopped would start on wherever its paths lead by then, and its
+		// record can't change, so where one moved since, it's made anew, with a record
+		// of what the plan approved, rather than ask again on every plan after.
+		if same && !i.State.Running {
+			moved, err := d.Paths.movedSince(ctx, i.Container, nil)
+			if err != nil {
+				return nil, nil, err
+			}
+			same = moved == nil
 		}
 		if same {
 			keep = i
@@ -759,7 +770,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 	// has to finish stopping before it can start, or it could stop under what
 	// comes to depend on it.
 	if keep != nil && keep.stopping {
-		if err := d.bringBack(ctx, t, keep); err != nil {
+		if err := d.bringBack(ctx, t, keep, dec.PlannedLeads); err != nil {
 			return err
 		}
 	}
@@ -783,11 +794,10 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 		keep, made = &instance{Container: c, number: number}, true
 	}
 	if !keep.State.Running {
-		// What was made has just been checked.
-		if !made {
-			if _, err := d.leadsAsPlanned(ctx, t, spec, dec, "it wasn't started"); err != nil {
-				return err
-			}
+		// Right before it starts, what was just made too, as a link can come between.
+		d.Points.Reach(PointStarting)
+		if err := d.startsAsPlanned(ctx, t, spec, dec, keep.ID); err != nil {
+			return err
 		}
 		resource.Progress(ctx, "Starting "+t.Service)
 		if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
@@ -901,11 +911,11 @@ func (d *Docker) markStopping(ctx context.Context, t Target, o *instance) error 
 // stopping it, as Docker goes on whoever asked, starts it, and only then gives it
 // back the name of its number, so what dies on the way still reads as a rollout's to
 // finish, and not as stopped by hand. Stopping one that has stopped is nothing.
-func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance) error {
+func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance, planned map[string]string) error {
 	if err := d.Client.StopContainer(ctx, keep.ID, stopGrace(keep.Container)); err != nil && !docker.IsNotFound(err) {
 		return fmt.Errorf("can't finish stopping the old %s, so it can't start again: %w", t.Service, err)
 	}
-	if err := d.Paths.LeadsAsMade(ctx, keep.Container); err != nil {
+	if err := d.Paths.LeadsAsMade(ctx, keep.Container, planned); err != nil {
 		return err
 	}
 	if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
@@ -923,16 +933,33 @@ func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance) error 
 	return nil
 }
 
+// startsAsPlanned checks the paths of the container id is about to start lead where
+// its plan said, and keeps it from starting by itself where one doesn't.
+func (d *Docker) startsAsPlanned(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, id string) error {
+	if _, err := d.leadsAsPlanned(ctx, t, spec, dec, "it wasn't started, and won't start by itself"); err != nil {
+		var moved *pathNotPlanned
+		if errors.As(err, &moved) {
+			return d.Paths.holdDown(ctx, id, err)
+		}
+		return err
+	}
+	return nil
+}
+
 // takeBack puts what ran back, after a step began to stop it and can't go on. The
 // caller may have stopped waiting, as when the agent's stream dropped, so it has
 // its own time, and an agent carries on serving with nothing to tell it what to do.
 // What it can't do, the next step to this service finds marked, and finishes.
-func (d *Docker) takeBack(ctx context.Context, t Target, o *instance, made func(error) error, cause error) error {
+func (d *Docker) takeBack(ctx context.Context, t Target, o *instance, made func(error) error, cause error, planned map[string]string) error {
 	ctx, cancel := resource.Finishing(ctx, finishWait+stopGrace(o.Container))
 	defer cancel()
 	// What this step made hasn't run, and has nothing to say a mark doesn't.
 	_ = made(nil)
-	if err := d.bringBack(ctx, t, o); err != nil {
+	if err := d.bringBack(ctx, t, o, planned); err != nil {
+		// docker start would follow the link, and what moved says what to do.
+		if moved := (*PathMovedError)(nil); errors.As(err, &moved) {
+			return fmt.Errorf("%w. The old %s had begun to stop, and can't be started again, so nothing of it may be running: %w", cause, t.Service, err)
+		}
 		return fmt.Errorf("%w. The old %s had begun to stop, and can't be started again, so nothing of it may be running: %w. The next change to it finishes this, or start it with docker start %s", cause, t.Service, err, o.ID[:12])
 	}
 	return fmt.Errorf("%w. The old %s is running again", cause, t.Service)
@@ -986,9 +1013,10 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 	discard := func(err error) error { return err }
 	if keep != nil {
 		id, name = keep.ID, keep.name()
-		// Here, while what runs goes on running: bringBack checks for itself.
+		// Here, while what runs goes on running, and again right before it starts:
+		// bringBack checks for itself.
 		if !keep.State.Running && !keep.stopping {
-			if _, err := d.leadsAsPlanned(ctx, t, spec, dec, "it wasn't started"); err != nil {
+			if err := d.startsAsPlanned(ctx, t, spec, dec, keep.ID); err != nil {
 				return err
 			}
 		}
@@ -1032,7 +1060,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 			if err := d.Client.StopContainer(ctx, o.ID, stopGrace(o.Container)); err != nil && !docker.IsNotFound(err) {
 				err = fmt.Errorf("can't stop the old %s: %w", t.Service, err)
 				if canGoBack {
-					return d.takeBack(ctx, t, o, discard, err)
+					return d.takeBack(ctx, t, o, discard, err, dec.PlannedLeads)
 				}
 				return err
 			}
@@ -1042,7 +1070,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 		if err := d.Client.RemoveContainer(ctx, o.ID, true); err != nil && !docker.IsNotFound(err) {
 			err = fmt.Errorf("can't remove the old %s: %w", t.Service, err)
 			if ran && canGoBack {
-				return d.takeBack(ctx, t, o, discard, err)
+				return d.takeBack(ctx, t, o, discard, err, dec.PlannedLeads)
 			}
 			return err
 		}
@@ -1057,7 +1085,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 	// What this step keeps is what a rollout that stopped partway marked: Docker
 	// may still be stopping it.
 	if keep != nil && keep.stopping {
-		if err := d.bringBack(ctx, t, keep); err != nil {
+		if err := d.bringBack(ctx, t, keep, dec.PlannedLeads); err != nil {
 			return err
 		}
 		name = final
@@ -1069,6 +1097,10 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 	}
 	d.Points.Reach(PointSwapNamed)
 	if keep == nil || !keep.State.Running {
+		// Again, after the stop grace: a link can come between.
+		if err := d.startsAsPlanned(ctx, t, spec, dec, id); err != nil {
+			return err
+		}
 		resource.Progress(ctx, "Starting "+t.Service)
 		if err := d.Client.StartContainer(ctx, id); err != nil {
 			return fmt.Errorf("docker can't start %s: %w", t.Name, hideIn(err, valuesInSpec(spec)))
