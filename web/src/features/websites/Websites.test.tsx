@@ -87,7 +87,7 @@ function disk(folders: Record<string, { mode: string; entries: ReturnType<typeof
       ([path]) =>
         path.slice(0, path.lastIndexOf("/")) === req.path || (req.path === "/" && path.lastIndexOf("/") === 0),
     );
-    if (children.length > 0 || req.path === "/var/www" || req.path === "/srv") {
+    if (children.length > 0 || req.path === "/srv") {
       return {
         path: req.path,
         directory: { mode: "drwxr-xr-x", type: FileType.DIRECTORY },
