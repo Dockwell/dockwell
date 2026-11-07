@@ -122,6 +122,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		if err != nil {
 			return err
 		}
+		reaches := h.reaches(ctx, tx, list, decoded, unreadable)
 		names := serverNames{tx: tx, known: map[string]string{}}
 		for i := range list {
 			r := &list[i]
@@ -143,7 +144,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 					return err
 				}
 				info.Spec = Blanked(spec)
-				info.HostAccess = resourcepb.HostAccess(h.engine.Kinds().HostAccess(resource.Kind(r.Kind), spec))
+				info.HostAccess = resourcepb.HostAccess(reaches[i])
 			}
 			var err error
 			if info.Deployments, err = names.deployments(ctx, deployments[r.ID]); err != nil {
@@ -162,6 +163,38 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		return nil, h.internal(ctx, "listing services", err)
 	}
 	return connect.NewResponse(res), nil
+}
+
+// reaches says what each service of a page reaches, as the plan reads it,
+// through the volumes it mounts too, so an editor never promises no passkey for
+// a plan that asks for one. What it mounts that can't be read costs what that
+// reaches, not the list: each then says what its own spec reaches, and the plan,
+// which reads the rest, says it all.
+func (h *Handler) reaches(ctx context.Context, tx *store.Tx, list []store.LiveResource, decoded []proto.Message, unreadable []error) [][]resource.Access {
+	refs := make([]resource.Ref, 0, len(list))
+	specs := make([]proto.Message, 0, len(list))
+	at := make([]int, 0, len(list))
+	for i := range list {
+		if unreadable[i] != nil {
+			continue
+		}
+		refs = append(refs, resource.Ref{Kind: resource.Kind(list[i].Kind), Scope: list[i].Scope, Name: list[i].Name})
+		specs = append(specs, decoded[i])
+		at = append(at, i)
+	}
+	out := make([][]resource.Access, len(list))
+	got, err := h.engine.Reaches(ctx, tx, refs, specs)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "can't read what services mount", slog.String("error", err.Error()))
+	}
+	for k, i := range at {
+		if err != nil {
+			out[i] = h.engine.Kinds().HostAccess(refs[k].Kind, specs[k])
+		} else {
+			out[i] = got[k]
+		}
+	}
+	return out
 }
 
 // asService is a service's spec, read.

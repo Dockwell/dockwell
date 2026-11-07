@@ -182,7 +182,7 @@ func (*Driver) KeepEnv(current, desired proto.Message, names []string) (resource
 		case seen[name]:
 			return resource.Kept{}, fmt.Errorf("keep_env names %s twice. Name it once", name)
 		case !ok:
-			return resource.Kept{}, fmt.Errorf("it has no environment variable %s of its own to keep, as it changed after it was read. Read it again, and set %s or leave it out", name, name)
+			return resource.Kept{}, fmt.Errorf("it has no environment variable %s of its own to keep. Read it again, and set %s or leave it out", name, name)
 		}
 		if _, set := app.GetEnv()[name]; set {
 			return resource.Kept{}, fmt.Errorf("the edit both sets and keeps %s. Set it, or keep it", name)
@@ -200,7 +200,7 @@ func (*Driver) KeepEnv(current, desired proto.Message, names []string) (resource
 	return resource.Kept{
 		Reason: "keeps_env",
 		Words:  words,
-		Stays:  "the values it keeps go only to the servers that have them. Set them again in the edit, or place it in a change of its own",
+		Stays:  "the values it keeps go only to the servers that have them. Set them again in the edit to run it there",
 	}, nil
 }
 

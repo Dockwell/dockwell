@@ -1176,7 +1176,11 @@ func (e *Engine) keepEnv(it item, names []string) (resource.Kept, error) {
 		return resource.Kept{}, fault.New(ErrInvalid, "%w", err)
 	}
 	k, ok := t.(resource.EnvKeeper)
+	_, keeper := t.(resource.Keeper)
 	switch {
+	case keeper:
+		// Both would say what they kept in it.kept, and one would drop the other's word.
+		return resource.Kept{}, fmt.Errorf("%s is a kind that keeps what it was made with, so it can't keep environment variables too", it.ref.Kind)
 	case !ok:
 		return resource.Kept{}, fault.New(ErrInvalid, "%s keeps environment variables, which only a service has. Leave keep_env out", it.ref)
 	case it.current == nil:
@@ -2222,6 +2226,50 @@ func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resour
 		}
 		a.Writer, a.Detail, a.User = writer, detail, user
 	}
+}
+
+// Reaches is what each of a page of resources reaches on its servers as its
+// spec says, through what it mounts too, as a plan reads it (reach), but for where
+// a path leads, which only an agent says. So ListServices can tell an editor that
+// a passkey is coming before it plans, from the same rule the plan's gate uses.
+// What they mount is read by kind and scope, once each, so a page costs the same
+// few queries however many it holds. specs[i] is refs[i]'s.
+func (e *Engine) Reaches(ctx context.Context, tx *store.Tx, refs []resource.Ref, specs []proto.Message) ([][]resource.Access, error) {
+	type group struct {
+		scope string
+		kind  resource.Kind
+	}
+	var groups []group
+	for i := range refs {
+		for _, use := range e.kinds.References(refs[i].Kind, specs[i]) {
+			if g := (group{refs[i].Scope, use.Kind}); !use.Apart && !slices.Contains(groups, g) {
+				groups = append(groups, g)
+			}
+		}
+	}
+	named := map[resource.Ref]proto.Message{}
+	for _, g := range groups {
+		list, err := tx.ListResources(ctx, g.scope, string(g.kind))
+		if err != nil {
+			return nil, err
+		}
+		stored := make([]store.StoredSpec, len(list))
+		for k := range list {
+			stored[k] = store.StoredSpec{At: store.InRevision(list[k].ID, list[k].Kind, list[k].Revision), Spec: list[k].Spec}
+		}
+		decoded, err := e.decodeAll(ctx, tx, stored)
+		if err != nil {
+			return nil, fmt.Errorf("reading the %ss of %s: %w", g.kind, g.scope, err)
+		}
+		for k := range list {
+			named[resource.Ref{Kind: g.kind, Scope: g.scope, Name: list[k].Name}] = decoded[k]
+		}
+	}
+	out := make([][]resource.Access, len(refs))
+	for i := range refs {
+		out[i] = e.reach(refs[i], specs[i], named)
+	}
+	return out, nil
 }
 
 // named reads what the items name (resource.Referrer), as it stands
