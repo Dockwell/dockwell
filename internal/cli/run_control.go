@@ -80,7 +80,8 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 		"The panel stays on loopback, reached through an SSH tunnel, until you give it a domain with --domain. " +
 		"It is then also served over HTTPS on " + defaultHTTPSListen + ", with a certificate from Let's Encrypt, " +
 		"and " + defaultHTTPListen + " redirects to it.\n\n" +
-		"Until the install has an owner, dockwell run prints a one-time link that claims it."
+		"Until the install has an owner, dockwell run prints a one-time link that claims it when its output is a terminal. " +
+		"Anywhere else, as for a service, whose output a log keeps, it prints the command that prints one, such as sudo dockwell claim."
 	fl := cmd.Flags()
 	fl.StringVar(&f.listen, "listen", envOr(stdio, envListen, control.DefaultListen),
 		"loopback address for the API and panel, as host:port; to reach the panel from elsewhere, add --domain (env "+envListen+")")
@@ -239,7 +240,8 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 	} else if proxied {
 		addr.HTTPSPort = "443"
 	}
-	if err := announce(ctx, stdio, logger, db, people, addr); err != nil {
+	claim := claimCommand(dir, f.database, stdio.Getenv)
+	if err := announce(ctx, stdio, logger, db, people, addr, claim); err != nil {
 		closeAll()
 		return err
 	}
@@ -282,6 +284,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		Auth:          people,
 		Public:        public,
 		PublicAddress: addr.dnsAddress(),
+		ClaimCommand:  claim,
 		Changes:       engine,
 		Agents:        agents,
 		Store:         db,

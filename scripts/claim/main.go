@@ -56,7 +56,7 @@ func main() {
 func claim(ctx context.Context, link, cookieFile string) error {
 	u, err := url.Parse(link)
 	if err != nil || u.Fragment == "" || !strings.HasSuffix(u.Path, "/claim") {
-		return fmt.Errorf("%q isn't a claim link, such as http://localhost:7697/claim#<token>. Copy it from what dockwell run printed", link)
+		return fmt.Errorf("%q isn't a claim link, such as http://localhost:7697/claim#<token>. Copy it from what dockwell claim printed", link)
 	}
 	base := u.Scheme + "://" + u.Host
 	var d net.Dialer

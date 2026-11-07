@@ -1922,8 +1922,8 @@ msgid "Claim code"
 msgstr "Claim code"
 
 #: src/features/auth/Unclaimed.tsx
-msgid "Claim it with the one-time link that <0>dockwell run</0> printed when it started. For a new link, run this on {name} over SSH:"
-msgstr "Claim it with the one-time link that <0>dockwell run</0> printed when it started. For a new link, run this on {name} over SSH:"
+msgid "Claim it with a one-time link from {name}, such as the one the install printed. For a new link, run this on {name} over SSH:"
+msgstr "Claim it with a one-time link from {name}, such as the one the install printed. For a new link, run this on {name} over SSH:"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Claim this server"
@@ -3142,13 +3142,13 @@ msgstr "From the API"
 msgid "From the catalog"
 msgstr "From the catalog"
 
+#: src/features/auth/ClaimPage.tsx
+msgid "From the claim link. Run <0>{claimCommand}</0> on {name} for a new one."
+msgstr "From the claim link. Run <0>{claimCommand}</0> on {name} for a new one."
+
 #: src/features/changes/words.ts
 msgid "From the CLI"
 msgstr "From the CLI"
-
-#: src/features/auth/ClaimPage.tsx
-msgid "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
-msgstr "From the link <0>dockwell run</0> printed. Run <1>dockwell claim</1> on {name} for a new one."
 
 #: src/features/changes/words.ts
 msgid "From the panel"
@@ -4722,8 +4722,8 @@ msgid "Paste it, or drop the file here. Dockwell reads it as you type, and nothi
 msgstr "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
 
 #: src/features/auth/ClaimPage.tsx
-msgid "Paste the claim link or code that dockwell run printed."
-msgstr "Paste the claim link or code that dockwell run printed."
+msgid "Paste the claim link or code you got on the server."
+msgstr "Paste the claim link or code you got on the server."
 
 #: src/features/changes/fields.tsx
 msgid "path"
@@ -6672,8 +6672,8 @@ msgid "This changes what runs: a service of the same name in the file replaces i
 msgstr "This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own."
 
 #: src/features/auth/messages.ts
-msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
-msgstr "This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link."
+msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
+msgstr "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 
 #: src/features/logs/LogsPage.tsx
 msgid "This container isn't here"

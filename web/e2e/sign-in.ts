@@ -154,20 +154,24 @@ async function start(): Promise<string> {
     out += b.toString();
   });
   server.stderr?.on("data", (b: Buffer) => log.push(b.toString()));
-  for (let i = 0; i < 200; i++) {
-    const link = out.match(/(http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]{43})/);
-    if (link?.[1]) {
-      console.log(
-        out
-          .trim()
-          .replace(/#[A-Za-z0-9_-]{43}/, "#<token>")
-          .replace(/^/gm, "  | "),
-      );
-      return link[1];
-    }
+  // dockwell run prints a claim link only to a terminal, which this isn't, so it
+  // says to run dockwell claim, which prints one.
+  for (let i = 0; i < 200 && !out.includes("To claim it, run this"); i++) {
     await new Promise((r) => setTimeout(r, 50));
   }
-  fail(`dockwell run printed no claim link:\n${out}\n${log.join("")}`);
+  if (/claim#/.test(out + log.join(""))) fail(`dockwell run printed a claim link where it isn't a terminal:\n${out}`);
+  if (!out.includes(`dockwell claim --data-dir ${data}`))
+    fail(`dockwell run didn't say how to claim it:\n${out}\n${log.join("")}`);
+  const claimed = execFileSync(bin, ["claim", "--data-dir", data, "--log-format", "json"], { encoding: "utf8" });
+  const link = claimed.match(/(http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]{43})/)?.[1];
+  if (!link) fail(`dockwell claim printed no claim link:\n${claimed}`);
+  console.log(
+    claimed
+      .trim()
+      .replace(/#[A-Za-z0-9_-]{43}/, "#<token>")
+      .replace(/^/gm, "  | "),
+  );
+  return link;
 }
 
 /** A browser context with a platform authenticator that does user verification. */
@@ -238,6 +242,8 @@ async function main() {
   step("an unclaimed panel explains how to claim it");
   await page.goto(`${origin}/`);
   await expectText(page, "has no owner yet");
+  // The command that prints a link, as this control plane runs.
+  await expectText(page, `dockwell claim --data-dir ${data}`);
   await shoot(page, "unclaimed");
 
   step("claim: open the printed link, create the owner with a passkey");

@@ -33,14 +33,14 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Use:   "create",
 		Short: "Make a ticket that adds one server",
 		Long: "Prints a ticket to paste on the server you're adding. It works once and expires after --ttl.\n\n" +
-			"Run it on the control server, as the user that runs dockwell.",
+			"Run it on the control server, as the user that runs dockwell: with sudo, when it runs as the system service.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger, err := g.logger(stdio.Err)
 			if err != nil {
 				return err
 			}
-			dir, err := g.dir(stdio)
+			dir, err := g.controlDir(stdio, "dockwell token create")
 			if err != nil {
 				return err
 			}
@@ -114,8 +114,9 @@ func controlState(dir datadir.Dir, location string) error {
 	case !hasControlPlane(dir):
 		return fmt.Errorf("there's no control plane in %s. Run this on the control server, or pass its --data-dir", dir.Root)
 	case !store.IsPostgres(location) && !exists(location):
-		return fmt.Errorf("the control plane in %s has no state in %s. If it keeps its state in Postgres, pass --database or set %s to its URL, as dockwell run has it",
-			dir.Root, location, envDatabase)
+		return fmt.Errorf("the control plane in %s has no state in %s. If it keeps its state in Postgres, pass --database or set %s to its URL, as dockwell run has it. "+
+			"sudo leaves %s out, so with sudo, keep it: sudo --preserve-env=%s",
+			dir.Root, location, envDatabase, envDatabase, envDatabase)
 	}
 	return nil
 }

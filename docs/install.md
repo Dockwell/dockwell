@@ -20,7 +20,7 @@ The first server becomes your control server. It runs the full build of `dockwel
 ssh -L 7600:127.0.0.1:7600 <user>@<your server>
 ```
 
-The install ends with a one-time link, `http://localhost:7600/claim#…`. Open it through the tunnel to create the owner account with a passkey. It works once, for 24 h; `dockwell claim` on the server prints a new one. Open the panel at `localhost`, not `127.0.0.1`: passkeys need a hostname.
+Run on a terminal, the install ends with a one-time link, `http://localhost:7600/claim#…`. Open it through the tunnel to create the owner account with a passkey. It works once, for 24 h. For a new one, run `sudo dockwell claim` on the server; the panel's claim page shows the same command. Neither the service nor the script prints a link anywhere its output is kept, as a log can be read by more people than root, and a link gives whoever spends it first every server ([the threat model](security/sign-in.md)). So run from cloud-init's user data, through `tee`, or by Ansible, the install says the server has no owner yet, and to run `sudo dockwell claim` there for a link. Open the panel at `localhost`, not `127.0.0.1`: passkeys need a hostname.
 
 To serve the panel over HTTPS on your own domain instead, point the domain's DNS A record at the server, then set `DOCKWELL_DOMAIN` for the service, as in [Change settings](#change-settings). The panel then also answers on `https://<domain>`, with a certificate from Let's Encrypt, on ports 443 and 80. Passkeys belong to the address they were made on, so add one for the domain after you sign in there. [ADR 0011](adr/0011-claim-and-sign-in.md) explains both ways in. When that server gets its first route, Caddy takes those ports and serves the panel's domain too. Its address and passkeys stay as they are, and the SSH tunnel works whatever Caddy is doing ([ADR 0024](adr/0024-the-caddy-ingress-driver.md#coexisting-with-the-panel)).
 
@@ -63,7 +63,7 @@ The script picks the build from what the server is:
 3. It verifies the release before it installs anything. It downloads cosign, at the version and SHA-256 pinned in the script, and checks that Dockwell's release workflow signed the release's checksums at that release's tag. Then it checks the archive against them. If any check fails, nothing is installed. [ADR 0010](adr/0010-install-script-verifies-with-pinned-cosign.md) explains why it works this way. Through a mirror, the checks are the same, against a copy of Sigstore's trust root pinned in the script ([below](#install-through-a-mirror)).
 4. With `--join`, it runs `dockwell join` before the service ever starts, because a server that starts without an identity becomes a control server. A server that already joined keeps its control plane, and the script says which one; to move it to another, remove `/var/lib/dockwell/agent` and run the script again with a new ticket. `dockwell role` shows which role a server takes.
 5. It installs the service and starts it, then waits until the panel answers, or on a server that joined, until the agent is up. If the panel doesn't answer within 30 s, it shows the service's last log lines, which say why.
-6. On a control server, it prints a one-time claim link from `dockwell claim`. Once the install has an owner, `dockwell claim` exits with status 3, and the script says where the panel is instead. Any other failure of `dockwell claim` is shown, and the script fails.
+6. On a control server, it prints a one-time claim link from `dockwell claim`, when its own output is a terminal. Where it isn't, it makes no link, asks the panel whether the install has an owner, and says to run `sudo dockwell claim` for a link if it has none. Once the install has an owner, the script says where the panel is instead. Any other failure of `dockwell claim` is shown, and the script fails.
 
 It changes only these files:
 
@@ -265,7 +265,7 @@ The panel itself always stays on loopback. `DOCKWELL_LISTEN` can move it to anot
 The control plane keeps its state in SQLite, in `/var/lib/dockwell/control/state.db`. To keep it in Postgres instead, ahead of running more than one control plane, set `DOCKWELL_DATABASE` to a `postgres://` URL before the first start, such as `postgres://dockwell@db.internal:5432/dockwell?sslmode=verify-full`. [ADR 0014](adr/0014-object-model-and-store.md) says how the two compare.
 
 - Keep the password out of the service file, which anyone on the server can read: put it in `/root/.pgpass`, mode 0600, or set `DOCKWELL_DATABASE` in an `EnvironmentFile=` that only root can read. Dockwell never logs or prints the password.
-- Commands you run beside the control plane, such as `dockwell claim`, `dockwell recover` and `dockwell token create`, need the same `DOCKWELL_DATABASE` in your shell.
+- Commands you run beside the control plane, such as `dockwell claim`, `dockwell recover` and `dockwell token create`, need the same `DOCKWELL_DATABASE` in your shell. `sudo` leaves it out, so pass it through: `sudo --preserve-env=DOCKWELL_DATABASE dockwell claim`.
 - Moving an install that has started on SQLite to Postgres isn't supported yet. `dockwell run` refuses to start that way, rather than begin a second install that your servers wouldn't recognize, and it also refuses when `DOCKWELL_DATABASE` goes missing from an install on Postgres.
 
 `dockwell run --help` lists every setting.

@@ -4047,6 +4047,13 @@ components:
                     type: string
                     description: How this session began. Unset when not signed in.
                     format: enum
+                claimCommand:
+                    type: string
+                    description: |-
+                        The command that prints a new claim link on the control server, as
+                         Dockwell runs there, such as "sudo dockwell claim" for the system service,
+                         or "dockwell claim" for a control plane a user runs themselves. Set only
+                         while the install has no owner.
             description: GetAuthStateResponse describes the install and this request's session.
         GetCatalogEntryResponse:
             type: object

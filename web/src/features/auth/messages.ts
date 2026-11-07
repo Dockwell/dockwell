@@ -24,7 +24,7 @@ function useWait() {
  * language. Failures the control plane names get the panel's own words;
  * anything else falls back to the control plane's message.
  */
-export function useAuthError() {
+export function useAuthError({ claimCommand = "dockwell claim" }: { claimCommand?: string } = {}) {
   const { t } = useLingui();
   const wait = useWait();
   return useCallback(
@@ -85,7 +85,7 @@ export function useAuthError() {
         case "too_many_requests":
           return t`Too many requests from your address. Wait a minute, then try again.`;
         case "claim_link_rejected":
-          return t`This claim link is invalid, already used, replaced by a newer one, or expired. Run dockwell claim on the server for a new link.`;
+          return t`This claim link is invalid, already used, replaced by a newer one, or expired. Run ${claimCommand} on the server for a new link.`;
         case "sign_in_link_rejected":
           return t`This sign-in link is invalid, already used, replaced by a newer one, or expired. Run dockwell recover on the server for a new link.`;
         case "claimed":
@@ -106,6 +106,6 @@ export function useAuthError() {
           return sentence(error) || t`Something went wrong. Try again.`;
       }
     },
-    [t, wait],
+    [t, wait, claimCommand],
   );
 }

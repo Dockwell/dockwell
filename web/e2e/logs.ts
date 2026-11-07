@@ -291,10 +291,11 @@ async function main() {
   const socket = await startEngine();
   await startServer(socket);
   step("claim the install, run a service, and open a session");
-  const link = await until(
-    "a claim link",
-    () => serverLog.join("").match(/http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]+/)?.[0],
-  );
+  // dockwell run prints a claim link only to a terminal, so this asks for one.
+  await until("dockwell run to say how to claim it", () => serverLog.join("").includes("To claim it, run this"));
+  const claimed = execFileSync(bin, ["claim", "--log-format", "json"], { encoding: "utf8", env: env() });
+  const link =
+    claimed.match(/http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]+/)?.[0] ?? fail(`dockwell claim printed:\n${claimed}`);
   execFileSync("go", ["run", "./scripts/claim", link], { stdio: "inherit" });
   dockwell("login", "--local");
   dockwell("services", "create", "web", "--app-image", "ghcr.io/acme/shop:1", "--yes");

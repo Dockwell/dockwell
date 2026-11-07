@@ -22,6 +22,15 @@ export function useSignedIn() {
   return useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false }).data;
 }
 
+/**
+ * The command that prints a new claim link on the control server, as Dockwell
+ * runs there, such as "sudo dockwell claim" for the system service. A control
+ * plane that doesn't say gets "dockwell claim".
+ */
+export function useClaimCommand(): string {
+  return useSignedIn()?.claimCommand || "dockwell claim";
+}
+
 /** Who is signed in, from the gate's answer. */
 export function useSignedInUser() {
   return useSignedIn()?.user;

@@ -102,8 +102,9 @@ done
 if [[ -z "$addr" ]] || ! curl -fsS "http://$addr/healthz" >/dev/null 2>&1; then
   fail "the control plane didn't start"
 fi
-link=$(grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' "$work/control.log" | head -1) || true
-[[ -n "$link" ]] || fail "dockwell run printed no claim link"
+# dockwell run prints a claim link only to a terminal.
+link=$("$full" claim 2>>"$work/control.log" | grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' | head -1) || true
+[[ -n "$link" ]] || fail "dockwell claim printed no claim link"
 "$work/claim" "$link" >/dev/null || fail "can't claim the install"
 "$full" login --local >/dev/null 2>&1 || fail "can't sign in on the control server"
 ticket=$("$full" token create 2>>"$work/control.log" | awk '$1 == "dockwell" && $2 == "join" { print $3 }')

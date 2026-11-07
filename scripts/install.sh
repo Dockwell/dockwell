@@ -861,42 +861,97 @@ install_dockwell() {
 	say ""
 	current_role=$(role)
 	if [ "$current_role" = control ]; then
-		panel=$(panel_url)
-		port=${panel##*:}
-		bound=${panel#http://}
-		bound=${bound%:*}
-		# A new install has no owner yet: print a fresh one-time claim link
-		# and how to open it. Once someone has claimed it, dockwell claim
-		# exits with status 3, and the summary says where the panel is
-		# instead. Any other failure is shown as it is.
-		code=0
+		control_summary "$(panel_url)"
+	else
+		say "Dockwell v$version is running on this server as an agent of ${current_role#agent }. It appears on the servers page of your panel."
+	fi
+}
+
+# control_summary ends an install on a control server, whose panel answers at
+# $1. A new install has no owner yet, and a one-time link claims it. Anyone who
+# spends that link first owns every server, so it goes only to a terminal, where
+# the person installing reads it. Output that isn't a terminal is kept somewhere,
+# as cloud-init's log, the journal, a file from tee or Ansible keep it
+# (docs/security/sign-in.md), so there the summary says how to get a link, and
+# makes none. Once someone has claimed it, it says where the panel is instead.
+# Any other failure of dockwell claim is shown as it is.
+control_summary() {
+	panel=$1
+	port=${panel##*:}
+	bound=${panel#http://}
+	bound=${bound%:*}
+	owner_state "$panel"
+	code=0
+	if [ -t 1 ]; then
 		claim=$("$BIN" claim --data-dir "$DATA" 2>"$tmp/claim.log" </dev/null) || code=$?
-		case $code in
-		0)
-			say "Dockwell v$version is running, and this is your control server."
-			printf '%s\n' "$claim"
-			;;
-		3)
-			cat <<EOF
+	else
+		case $owner in
+		claimed) code=3 ;;
+		unclaimed) code=4 ;;
+		*) code=5 ;;
+		esac
+	fi
+	case $code in
+	0)
+		say "Dockwell v$version is running, and this is your control server."
+		printf '%s\n' "$claim"
+		;;
+	3)
+		cat <<EOF
 Dockwell v$version is running, and this is your control server. Its panel
 listens on $panel. To open it from your computer, forward the port over
 SSH, then open http://localhost:$port there:
 
   ssh -L $port:$bound:$port <user>@<this server>
 EOF
-			;;
-		*)
-			cat "$tmp/claim.log" >&2
-			fail "Dockwell v$version is running, but dockwell claim failed, so there's no link to claim it with. Fix what it says above, then run dockwell claim on this server for a link."
-			;;
-		esac
+		;;
+	4 | 5)
+		if [ "$code" = 4 ]; then
+			say "Dockwell v$version is running, and this is your control server. This install has no owner yet. To claim it, run this on this server, which prints a one-time link:"
+		else
+			say "Dockwell v$version is running, and this is your control server. Its panel listens on $panel, but didn't say whether this install has an owner. If it has none yet, run this on this server, which prints a one-time link:"
+		fi
 		cat <<EOF
+
+  $claim_cmd
+
+The script doesn't print the link here, as its output isn't a terminal: a log
+such as cloud-init's keeps it, and anyone who reads the link before you could
+claim this install.
+EOF
+		;;
+	*)
+		cat "$tmp/claim.log" >&2
+		fail "Dockwell v$version is running, but dockwell claim failed, so there's no link to claim it with. Fix what it says above, then run $claim_cmd on this server for a link."
+		;;
+	esac
+	cat <<EOF
 
 To add a server, run dockwell token create here and follow what it prints.
 Other servers reach this one on TCP port 7443, so open it to them.
 EOF
-	else
-		say "Dockwell v$version is running on this server as an agent of ${current_role#agent }. It appears on the servers page of your panel."
+}
+
+# owner_state reads from the panel at $1 whether this install has an owner, into
+# owner: claimed, unclaimed, or unknown when the panel doesn't say. It sets
+# claim_cmd to the command that prints a claim link, as the control plane gives
+# it, which knows how it runs: as root or not, with a data directory or a
+# database of its own. A control plane that doesn't say gets one made here.
+owner_state() {
+	owner=unknown
+	claim_cmd=
+	if fetch "$1/v1/authState" "$tmp/auth.json" 2>/dev/null; then
+		if grep -q '"claimed": *true' "$tmp/auth.json"; then
+			owner=claimed
+		else
+			owner=unclaimed
+		fi
+		claim_cmd=$(sed -n 's/.*"claimCommand": *"\([^"\\]*\)".*/\1/p' "$tmp/auth.json")
+	fi
+	if [ -z "$claim_cmd" ]; then
+		claim_cmd="dockwell claim"
+		! has sudo || claim_cmd="sudo $claim_cmd"
+		[ "$DATA" = /var/lib/dockwell ] || claim_cmd="$claim_cmd --data-dir $DATA"
 	fi
 }
 

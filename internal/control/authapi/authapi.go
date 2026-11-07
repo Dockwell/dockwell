@@ -31,6 +31,9 @@ type Config struct {
 	// PublicAddress is this server's public IP address, such as
 	// "203.0.113.7", for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
+	// ClaimCommand prints a new claim link on the control server, such as
+	// "sudo dockwell claim". Empty leaves the panel to say "dockwell claim".
+	ClaimCommand string
 }
 
 // Handler implements AuthService.
@@ -39,6 +42,7 @@ type Handler struct {
 	logger        *slog.Logger
 	controlServer func() *dockwellv1.Server
 	publicAddress string
+	claimCommand  string
 }
 
 var _ dockwellv1connect.AuthServiceHandler = (*Handler)(nil)
@@ -48,7 +52,7 @@ func New(cfg Config) *Handler {
 	if cfg.ControlServer == nil {
 		cfg.ControlServer = func() *dockwellv1.Server { return nil }
 	}
-	return &Handler{auth: cfg.Auth, logger: cfg.Logger, controlServer: cfg.ControlServer, publicAddress: cfg.PublicAddress}
+	return &Handler{auth: cfg.Auth, logger: cfg.Logger, controlServer: cfg.ControlServer, publicAddress: cfg.PublicAddress, claimCommand: cfg.ClaimCommand}
 }
 
 func (h *Handler) client(ctx context.Context) (auth.Client, error) {
@@ -90,6 +94,9 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 	}
 	if srv := h.controlServer(); srv != nil {
 		msg.ServerName = srv.GetName()
+	}
+	if !claimed {
+		msg.ClaimCommand = h.claimCommand
 	}
 	res := connect.NewResponse(msg)
 	if p, ok := PrincipalFrom(ctx); ok {
