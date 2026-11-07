@@ -88,7 +88,7 @@ It can't reach past its container on its own. What it can do is leave things for
 | Change a file a person is editing, to have their save undo it, or to slip something in | A save names the version it was edited from, and a file that differs isn't written over. The person sees that it changed, and chooses. Tested |
 | Have a person's session overwrite a binary it knows the digest of, such as `/usr/bin/sudo` | A save goes only over what reads as text, and the version counts for nothing on anything else. Tested |
 | Fill the disk, so a save leaves a file cut short | A copy of the old text goes beside the file first. A disk that can't hold that stops the save with the file untouched. One that holds the copy can still fail the write, as the file grows: the old text goes back, and failing that the copy stays, and the error names it, with the file cut short. Tested, with a real write that fails partway |
-| Turn a folder a service mounts into a link to `/etc`, for the next deploy to mount | A container says where its paths led when it was made, so a plan that finds one moved asks as if for the first time, and what makes a container looks again and refuses. Tested |
+| Turn a folder a service mounts into a link to `/etc`, to be mounted next | A container says where its paths led when it was made, so a plan that finds one moved asks as if for the first time, and what makes a container looks again and refuses. That holds for what a plan makes. A container that starts again isn't asked about: see [known gaps](#known-gaps). Tested |
 
 ### A mount that stops answering
 
@@ -120,6 +120,7 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 
 ## Known gaps
 
+- **A folder that becomes a link, once what mounts it starts again.** A start step, `bringBack` or Docker's own restart mounts what the path leads to by then, with no plan to ask, so a folder approved in amber can come back as `/etc`. #190 takes this up, and it has to land before a release.
 - **A file that holds a secret's value because an app wrote it there.** Dockwell delivers a value to a container's environment, and an app may copy it to a volume, a log or a config file. Files serves that as it serves any file. It's the same boundary as "deploying is reading" in [secrets.md](secrets.md#known-gaps).
 - **A copy of something refused.** A backup of the data directory made by hand, under another path, is served like any file. The database is SQLite, which reads as binary, and the key is raw bytes, which do too, so neither's contents go out. A JSON or text copy of a token would.
 - **An `EnvironmentFile` with `DOCKWELL_DATABASE` in it** is named by the operator, so Dockwell can't refuse it by its path. Keep the password in `/root/.pgpass`, which is refused. The database holds sealed specs, and reaching it isn't reaching the key.

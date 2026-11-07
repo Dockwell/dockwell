@@ -421,3 +421,50 @@ func TestAPlanNobodyConfirmsIsOnActivity(t *testing.T) {
 		t.Error("a plan someone confirmed reads as one nobody did")
 	}
 }
+
+// A variable or a secret a service uses is what runs in it, so one that keeps root
+// asks again when it changes. The change takes the service along, and pins it to the
+// new value, so what's as good as root is what the token is refused on. Rotating such
+// a secret takes a person and their passkey, which is what this costs.
+func TestAValueWhatKeepsRootUsesAsksAgain(t *testing.T) {
+	storetest.Each(t, testAValueWhatKeepsRootUsesAsksAgain)
+}
+
+func testAValueWhatKeepsRootUsesAsksAgain(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	registerImages(f.addDockerServer(t))
+	c := changeClient(b, b.origin)
+	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
+	ops := socketEdit(nil)
+	ops.GetSpec().GetService().Variables = map[string]string{"LOG_LEVEL": "LOG_LEVEL"}
+	ops.GetSpec().GetService().Secrets = map[string]string{"API_KEY": "API_KEY"}
+	applyAsRoot(t, b, propose(t, c, "Run ops", variableSpec("LOG_LEVEL", "info"), secretSpec("API_KEY", "s3cret-first"), ops))
+
+	for what, edit := range map[string]*dockwellv1.Edit{
+		"a variable": variableSpec("LOG_LEVEL", "debug"),
+		"a secret":   secretSpec("API_KEY", "s3cret-second"),
+	} {
+		t.Run(what, func(t *testing.T) {
+			planned := propose(t, script, "Change what ops uses", edit)
+			fingerprint := planned.GetPlan().GetFingerprint()
+			if !planned.GetPlan().GetHostAccess() {
+				t.Fatalf("changing what a root service uses plans no host access: %v", planned.GetPlan())
+			}
+			if err := askedBy(t, script, planned, fingerprint); reasonOf(err) != "needs_session" {
+				t.Errorf("a token applying it = %v", err)
+			}
+			says := false
+			for _, n := range planned.GetPlan().GetNotes() {
+				says = says || n.GetReason() == "new_code_as_root" && strings.Contains(n.GetMessage(), "ops")
+			}
+			if !says {
+				t.Errorf("the plan doesn't say why it asks: %v", planned.GetPlan().GetNotes())
+			}
+			if err := askedBy(t, c, planned, fingerprint); reasonOf(err) != "needs_step_up" {
+				t.Errorf("a person with no passkey = %v", err)
+			}
+			applyAsRoot(t, b, planned)
+		})
+	}
+}
