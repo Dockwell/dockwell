@@ -1008,6 +1008,35 @@ func TestReconcileStartsAStoppedProxyAndAttachesInstances(t *testing.T) {
 	}
 }
 
+// A container taken on keeps the name it came with, so it isn't found by the name of
+// its number. A route to it still has to reach it, with no restart, or it answers bad
+// gateway until something replaces it.
+func TestARouteReachesWhatWasTakenOn(t *testing.T) {
+	s := newSetup(t)
+	s.Client.Adopted = &docker.Adopted{}
+	c := s.engine.AddContainer(docker.Container{
+		Name:  "/legacy_api",
+		State: docker.State{Running: true, Status: "running"},
+		NetworkSettings: struct {
+			Networks map[string]*docker.EndpointSettings `json:"Networks"`
+		}{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
+	})
+	if err := s.Client.Adopted.Take(c.ID, docker.Taken{Project: docker.Project(envID), Service: "api", Name: "legacy_api"}); err != nil {
+		t.Fatal(err)
+	}
+	s.apply(t, "api", spec("api.example.com", "", "api", 8080))
+	ep := s.engine.Container("legacy_api").NetworkSettings.Networks[docker.IngressNetwork]
+	if ep == nil || ep.IPAMConfig == nil || ep.IPAMConfig.IPv4Address == "" {
+		t.Fatalf("it's on the network as %+v, want an address", ep)
+	}
+
+	// And it comes off the network with its last route.
+	s.apply(t, "api", nil)
+	if _, on := s.engine.Container("legacy_api").NetworkSettings.Networks[docker.IngressNetwork]; on {
+		t.Error("with its route gone, it's still on the network")
+	}
+}
+
 func TestReconcileFinishesAStopThatDidntEnd(t *testing.T) {
 	s := newSetup(t)
 	s.apply(t, "www", spec("app.example.com", "", "web", 8080))

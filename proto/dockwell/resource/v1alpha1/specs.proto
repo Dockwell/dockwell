@@ -107,6 +107,10 @@ message Container {
   // Filesystems held in memory at paths in the container. What is in one goes
   // when the container does, so a deploy starts it empty.
   repeated Tmpfs tmpfs = 31;
+  // Ports it exposes to what shares a network with it, beyond what its image exposes
+  // and what it publishes, such as "3000/tcp". It opens nothing on the server. What
+  // finds containers through Docker reads it, as Traefik does for the port to reach.
+  repeated string expose = 32;
 }
 
 // Tmpfs is a filesystem held in memory, at a path in a container.
@@ -177,6 +181,12 @@ message Mount {
   // the container can use it on a server that enforces SELinux. Only a
   // server path takes one; elsewhere Docker changes nothing.
   Relabel relabel = 5;
+  // Says a service's volume is one Dockwell didn't make, by its name in Docker,
+  // as one a container came with when it was taken on. It must be on the server
+  // already: Dockwell never makes, changes or deletes one. Whatever else mounts it
+  // shares what it holds, so mounting one is host access, which a person approves.
+  // A container on its own names Docker's volumes already, so it takes none.
+  bool external = 6;
 }
 
 // Relabel is how Docker labels a server path for SELinux when it mounts

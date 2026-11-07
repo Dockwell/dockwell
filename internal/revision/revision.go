@@ -228,6 +228,10 @@ type Edit struct {
 	// what a caller said. So nothing is kept of what's stored (resource.Keeper): it
 	// holds what those servers were given, and nothing goes anywhere it hasn't been.
 	Reverses bool
+	// Adopt takes on this container, by its full ID, as what the resource runs, in
+	// place of making one, and AdoptName is what it is called. Bringing a container
+	// in brings its environment, so a person applies it (resource.AccessTakesOn).
+	Adopt, AdoptName string
 }
 
 // Note is something a person should know before applying a plan that no step
@@ -480,6 +484,8 @@ type item struct {
 	pulled []string
 	// run says the change asks it to run (Edit.Run).
 	run bool
+	// adopt and adoptName are what it takes on (Edit.Adopt).
+	adopt, adoptName string
 	// madeOn are the servers a run of the change stopped partway had a step on that
 	// makes its container, which may not have got as far as starting it. That isn't
 	// a stop by hand.
@@ -591,7 +597,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))
+	p.Notes = elsewhereNotes(plan, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -912,7 +918,7 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string,
 		}
 		out[i] = store.ChangeItem{
 			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: spec,
-			Servers: it.servers, Rotates: it.rotates, Pull: it.pull, Run: it.run,
+			Servers: it.servers, Rotates: it.rotates, Pull: it.pull, Run: it.run, Adopts: it.adopt, AdoptsName: it.adoptName,
 		}
 	}
 	return out, nil
@@ -1004,7 +1010,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if err != nil {
 				return err
 			}
-			it.pull, it.run = ed.Pull, ed.Run
+			it.pull, it.run, it.adopt, it.adoptName = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
@@ -1436,6 +1442,93 @@ func (e *Engine) NewProject(ctx context.Context, tx *store.Tx, org, name, enviro
 	}, environmentID, nil
 }
 
+// newCode says the item runs other code where it runs now: another image, whatever
+// its tag points at by now, or another command, entrypoint or health check.
+func (e *Engine) newCode(it *item) bool {
+	n, ok := e.imageNamer(it.ref.Kind)
+	if !ok || it.spec == nil || it.current == nil {
+		return false
+	}
+	return it.pull || n.ImageOf(it.current) != n.ImageOf(it.spec) || !slices.Equal(n.CodeOf(it.current), n.CodeOf(it.spec))
+}
+
+// ManagedElsewhere is what a plan says of a container from a Compose project, as
+// something else may run that yet, and Dockwell taking it on doesn't stop that. It
+// says it when it's taken on and on the first plan that replaces it, which is when it
+// starts to matter. It warns and doesn't refuse, as a project someone ran by hand is
+// fine to take on.
+//
+// Each word of what's safe is read from what the tool does, as a plan is what someone
+// follows. 1Panel's are from its source, and ADR 0031 says which: its uninstall runs
+// docker compose down, then deletes the app's folder, with no way to keep it, and that
+// folder holds what its apps bind. No other tool's remove has been read, so a plan
+// says to find out, and tells no one to use it.
+func ManagedElsewhere(e resource.Elsewhere) Note {
+	folder := cmp.Or(e.Folder, "the folder it runs from")
+	var message string
+	switch e.Manager {
+	case "":
+		message = fmt.Sprintf("%s came from the Compose project %s, and something may still run that. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to %s before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again",
+			e.Container, e.Project, folder)
+	case "1Panel":
+		message = fmt.Sprintf("1Panel still manages %s, through the Compose project %s. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes %s, which holds what this service mounts",
+			e.Container, e.Project, folder)
+	default:
+		message = fmt.Sprintf("%[1]s still manages %[2]s, through the Compose project %[3]s. Until Dockwell changes its image, what you do to it in %[1]s acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to %[4]s, as it may delete what this service mounts",
+			e.Manager, e.Container, e.Project, folder)
+	}
+	return Note{Reason: "managed_elsewhere", Message: message, Names: []string{e.Manager, e.Container, e.Project, e.Folder}}
+}
+
+// elsewhereNotes are a plan's notes, saying again what else may run what it replaces.
+func elsewhereNotes(plan *Plan, notes []Note) []Note {
+	out := slices.Clone(notes)
+	seen := map[resource.Ref]bool{}
+	for i := range plan.Servers {
+		steps := plan.Servers[i].Steps
+		for j := range steps {
+			if e := steps[j].Elsewhere; e != nil && !seen[steps[j].Ref] {
+				seen[steps[j].Ref] = true
+				n := ManagedElsewhere(*e)
+				n.Ref = steps[j].Ref
+				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
+// newCodeNotes are a plan's notes, saying why new code alone needs a person.
+func (e *Engine) newCodeNotes(plan *Plan, items []item, notes []Note) []Note {
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		if !e.newCode(it) {
+			continue
+		}
+		for j := range plan.Resources {
+			r := &plan.Resources[j]
+			if r.Ref == it.ref && slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot) {
+				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: it.ref.Name +
+					" reaches what's as good as root on its server, so a new image, command or health check is any code at all with that reach. A person approves it, as no token may"})
+			}
+		}
+	}
+	return out
+}
+
+// asRoot is what of list is as good as root on a server, by where its agent says each
+// path leads.
+func asRoot(list []resource.Access, leads map[string]string) []resource.Access {
+	var out []resource.Access
+	for i := range list {
+		if a := list[i].Leading(leads[list[i].Path]); a.AsGoodAsRoot() {
+			out = append(out, list[i])
+		}
+	}
+	return out
+}
+
 // knownID is the ID a resource has from before, or a new one.
 func (e *Engine) knownID(ctx context.Context, tx *store.Tx, ref resource.Ref) (string, error) {
 	r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
@@ -1628,6 +1721,14 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
 			if it.desiredOn(server) != nil {
 				gained = append(gained, takes[it.ref]...)
+				if it.adopt != "" {
+					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
+				}
+				// New code is anything at all with what the service reaches, so where
+				// that's as good as root, it's as much as reaching it anew.
+				if e.newCode(it) {
+					gained = append(gained, resource.NewAccess(gained, asRoot(e.reach(it.ref, it.desiredOn(server), after), leads))...)
+				}
 			}
 			for j := range gained {
 				gained[j] = gained[j].Leading(leads[gained[j].Path])
@@ -1665,6 +1766,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
 			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
 				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs)
+			if s.Adopts != "" || s.Releases {
+				fmt.Fprintf(fp, "  adopts %s|%t\n", s.Adopts, s.Releases)
+			}
 			for _, c := range s.Changes {
 				fmt.Fprintf(fp, "  %s|%d|%s|%s|%t\n", c.Path, c.Op, c.From, c.To, c.Sensitive)
 			}
@@ -1797,7 +1901,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -2876,7 +2980,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if !bytes.Equal(it.encoded, asked) || it.base == 0 {
 				continue // a later change moved it on
 			}
-			it.run = ci.Run
+			it.run, it.adopt, it.adoptName = ci.Run, ci.Adopts, ci.AdoptsName
 			if ci.Pull {
 				moved, err := resumingPull(ctx, tx, c.ID, ci, &it)
 				if err != nil {
@@ -3051,7 +3155,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				it.id = e.newID(ref.Kind)
 			}
 		}
-		it.servers, it.rotates, it.pull, it.run = ci.Servers, ci.Rotates, ci.Pull, ci.Run
+		it.servers, it.rotates, it.pull, it.run, it.adopt, it.adoptName = ci.Servers, ci.Rotates, ci.Pull, ci.Run, ci.Adopts, ci.AdoptsName
 		// Opened as the item of the change it was sealed for, of the
 		// resource the base check above makes the one there now.
 		if it.encoded, err = e.open(ctx, tx, store.InChange(cmp.Or(ci.ResourceID, it.id), ci.Kind, c.ID, i), ci.Spec); err != nil {

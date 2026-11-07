@@ -747,6 +747,39 @@ describe("the plan sheet", () => {
     expect(await within(sheet).findByText(/which the file doesn't name, would be deleted/)).toBeVisible();
   });
 
+  it("says what's safe of a tool that still manages what's taken on, and never to remove it", async () => {
+    const taking = webPlanned();
+    if (taking.plan) {
+      taking.plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "managed_elsewhere",
+          names: ["1Panel", "1Panel-blog-Ab3x", "blog", "/opt/1panel/apps/mysql/blog"],
+        }),
+        create(PlanNoteSchema, { reason: "managed_elsewhere", names: ["Coolify", "web-1", "web", "/data/coolify/x"] }),
+        create(PlanNoteSchema, { reason: "managed_elsewhere", names: ["", "shop-app-1", "shop", ""] }),
+      ];
+    }
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: taking }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByText("1Panel still manages 1Panel-blog-Ab3x")).toBeVisible();
+    expect(within(sheet).getByText(/anything done to it in 1Panel acts on this container/)).toBeVisible();
+    expect(
+      within(sheet).getByText(/Start, Rebuild, Upgrade or editing its settings there starts a second copy/),
+    ).toBeVisible();
+    expect(within(sheet).getByText(/Don't uninstall it in 1Panel/)).toBeVisible();
+    expect(within(sheet).getByText(/Something may still manage shop-app-1/)).toBeVisible();
+    // A path is set apart from the words around it, so these read across elements.
+    expect(sheet.textContent).toContain(
+      "that deletes /opt/1panel/apps/mysql/blog, which holds what this service mounts",
+    );
+    expect(sheet.textContent).toContain("find out what that does to /data/coolify/x");
+    expect(sheet.textContent).toContain("find out what its remove does to the folder it runs from");
+    // Each of these would lose what the service mounts, or stop what was taken on.
+    expect(sheet.textContent).not.toMatch(/keep its data|Stop it in|or remove it there/);
+  });
+
   it("says what a server's note means in its own words, so they translate", async () => {
     await activateLocale("zh-CN");
     try {

@@ -97,6 +97,135 @@ func (ContainerState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{0}
 }
 
+// AdoptContainerRequest names a container, and what to make of it.
+type AdoptContainerRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The container, by its name or its full ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The server it is on, by name or ID. It can be left out while there is only one.
+	Server string `protobuf:"bytes,2,opt,name=server,proto3" json:"server,omitempty"`
+	// What to call the service. Unset takes the container's Compose service, or its
+	// own name, written as a service's name.
+	Service string `protobuf:"bytes,3,opt,name=service,proto3" json:"service,omitempty"`
+	// The project the service goes in, by name or ID.
+	Project string `protobuf:"bytes,4,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment the service goes in, by name or ID.
+	Environment   string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdoptContainerRequest) Reset() {
+	*x = AdoptContainerRequest{}
+	mi := &file_dockwell_v1_container_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdoptContainerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdoptContainerRequest) ProtoMessage() {}
+
+func (x *AdoptContainerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_container_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdoptContainerRequest.ProtoReflect.Descriptor instead.
+func (*AdoptContainerRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *AdoptContainerRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AdoptContainerRequest) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+func (x *AdoptContainerRequest) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *AdoptContainerRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *AdoptContainerRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// AdoptContainerResponse carries the plan.
+type AdoptContainerResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned and not applied.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdoptContainerResponse) Reset() {
+	*x = AdoptContainerResponse{}
+	mi := &file_dockwell_v1_container_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdoptContainerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdoptContainerResponse) ProtoMessage() {}
+
+func (x *AdoptContainerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_container_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdoptContainerResponse.ProtoReflect.Descriptor instead.
+func (*AdoptContainerResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AdoptContainerResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 // ListContainersRequest names a server.
 type ListContainersRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -108,7 +237,7 @@ type ListContainersRequest struct {
 
 func (x *ListContainersRequest) Reset() {
 	*x = ListContainersRequest{}
-	mi := &file_dockwell_v1_container_proto_msgTypes[0]
+	mi := &file_dockwell_v1_container_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -120,7 +249,7 @@ func (x *ListContainersRequest) String() string {
 func (*ListContainersRequest) ProtoMessage() {}
 
 func (x *ListContainersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_container_proto_msgTypes[0]
+	mi := &file_dockwell_v1_container_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -133,7 +262,7 @@ func (x *ListContainersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListContainersRequest.ProtoReflect.Descriptor instead.
 func (*ListContainersRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListContainersRequest) GetServer() string {
@@ -160,7 +289,7 @@ type ListContainersResponse struct {
 
 func (x *ListContainersResponse) Reset() {
 	*x = ListContainersResponse{}
-	mi := &file_dockwell_v1_container_proto_msgTypes[1]
+	mi := &file_dockwell_v1_container_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -172,7 +301,7 @@ func (x *ListContainersResponse) String() string {
 func (*ListContainersResponse) ProtoMessage() {}
 
 func (x *ListContainersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_container_proto_msgTypes[1]
+	mi := &file_dockwell_v1_container_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -185,7 +314,7 @@ func (x *ListContainersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListContainersResponse.ProtoReflect.Descriptor instead.
 func (*ListContainersResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListContainersResponse) GetContainers() []*ServerContainer {
@@ -249,7 +378,7 @@ type ServerContainer struct {
 
 func (x *ServerContainer) Reset() {
 	*x = ServerContainer{}
-	mi := &file_dockwell_v1_container_proto_msgTypes[2]
+	mi := &file_dockwell_v1_container_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -261,7 +390,7 @@ func (x *ServerContainer) String() string {
 func (*ServerContainer) ProtoMessage() {}
 
 func (x *ServerContainer) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_container_proto_msgTypes[2]
+	mi := &file_dockwell_v1_container_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -274,7 +403,7 @@ func (x *ServerContainer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerContainer.ProtoReflect.Descriptor instead.
 func (*ServerContainer) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ServerContainer) GetId() string {
@@ -385,7 +514,7 @@ type ContainerPort struct {
 
 func (x *ContainerPort) Reset() {
 	*x = ContainerPort{}
-	mi := &file_dockwell_v1_container_proto_msgTypes[3]
+	mi := &file_dockwell_v1_container_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -397,7 +526,7 @@ func (x *ContainerPort) String() string {
 func (*ContainerPort) ProtoMessage() {}
 
 func (x *ContainerPort) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_container_proto_msgTypes[3]
+	mi := &file_dockwell_v1_container_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -410,7 +539,7 @@ func (x *ContainerPort) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerPort.ProtoReflect.Descriptor instead.
 func (*ContainerPort) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ContainerPort) GetServerPort() uint32 {
@@ -460,7 +589,7 @@ type ContainerMount struct {
 
 func (x *ContainerMount) Reset() {
 	*x = ContainerMount{}
-	mi := &file_dockwell_v1_container_proto_msgTypes[4]
+	mi := &file_dockwell_v1_container_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -472,7 +601,7 @@ func (x *ContainerMount) String() string {
 func (*ContainerMount) ProtoMessage() {}
 
 func (x *ContainerMount) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_container_proto_msgTypes[4]
+	mi := &file_dockwell_v1_container_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -485,7 +614,7 @@ func (x *ContainerMount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerMount.ProtoReflect.Descriptor instead.
 func (*ContainerMount) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_container_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ContainerMount) GetVolume() string {
@@ -527,7 +656,15 @@ var File_dockwell_v1_container_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_container_proto_rawDesc = "" +
 	"\n" +
-	"\x1bdockwell/v1/container.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"/\n" +
+	"\x1bdockwell/v1/container.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x95\x01\n" +
+	"\x15AdoptContainerRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06server\x18\x02 \x01(\tR\x06server\x12\x18\n" +
+	"\aservice\x18\x03 \x01(\tR\aservice\x12\x18\n" +
+	"\aproject\x18\x04 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x05 \x01(\tR\venvironment\"E\n" +
+	"\x16AdoptContainerResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"/\n" +
 	"\x15ListContainersRequest\x12\x16\n" +
 	"\x06server\x18\x01 \x01(\tR\x06server\"\x99\x01\n" +
 	"\x16ListContainersResponse\x12<\n" +
@@ -574,9 +711,12 @@ const file_dockwell_v1_container_proto_rawDesc = "" +
 	"\x1aCONTAINER_STATE_RESTARTING\x10\x04\x12\x1c\n" +
 	"\x18CONTAINER_STATE_REMOVING\x10\x05\x12\x1a\n" +
 	"\x16CONTAINER_STATE_EXITED\x10\x06\x12\x18\n" +
-	"\x14CONTAINER_STATE_DEAD\x10\a2\x8c\x01\n" +
+	"\x14CONTAINER_STATE_DEAD\x10\a2\xad\x02\n" +
 	"\x10ContainerService\x12x\n" +
-	"\x0eListContainers\x12\".dockwell.v1.ListContainersRequest\x1a#.dockwell.v1.ListContainersResponse\"\x1d\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/containers\x90\x02\x01B\xa7\x01\n" +
+	"\x0eListContainers\x12\".dockwell.v1.ListContainersRequest\x1a#.dockwell.v1.ListContainersResponse\"\x1d\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/containers\x90\x02\x01\x12\x9e\x01\n" +
+	"\x0eAdoptContainer\x12\".dockwell.v1.AdoptContainerRequest\x1a#.dockwell.v1.AdoptContainerResponse\"C\xa0\xbb\x18\x02\xaa\xbb\x18\x13\n" +
+	"\n" +
+	"containers\x12\x05adopt\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/containers/{id}:adoptB\xa7\x01\n" +
 	"\x0fcom.dockwell.v1B\x0eContainerProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -592,29 +732,35 @@ func file_dockwell_v1_container_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_container_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_container_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dockwell_v1_container_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_dockwell_v1_container_proto_goTypes = []any{
 	(ContainerState)(0),            // 0: dockwell.v1.ContainerState
-	(*ListContainersRequest)(nil),  // 1: dockwell.v1.ListContainersRequest
-	(*ListContainersResponse)(nil), // 2: dockwell.v1.ListContainersResponse
-	(*ServerContainer)(nil),        // 3: dockwell.v1.ServerContainer
-	(*ContainerPort)(nil),          // 4: dockwell.v1.ContainerPort
-	(*ContainerMount)(nil),         // 5: dockwell.v1.ContainerMount
-	(*timestamppb.Timestamp)(nil),  // 6: google.protobuf.Timestamp
+	(*AdoptContainerRequest)(nil),  // 1: dockwell.v1.AdoptContainerRequest
+	(*AdoptContainerResponse)(nil), // 2: dockwell.v1.AdoptContainerResponse
+	(*ListContainersRequest)(nil),  // 3: dockwell.v1.ListContainersRequest
+	(*ListContainersResponse)(nil), // 4: dockwell.v1.ListContainersResponse
+	(*ServerContainer)(nil),        // 5: dockwell.v1.ServerContainer
+	(*ContainerPort)(nil),          // 6: dockwell.v1.ContainerPort
+	(*ContainerMount)(nil),         // 7: dockwell.v1.ContainerMount
+	(*Change)(nil),                 // 8: dockwell.v1.Change
+	(*timestamppb.Timestamp)(nil),  // 9: google.protobuf.Timestamp
 }
 var file_dockwell_v1_container_proto_depIdxs = []int32{
-	3, // 0: dockwell.v1.ListContainersResponse.containers:type_name -> dockwell.v1.ServerContainer
-	0, // 1: dockwell.v1.ServerContainer.state:type_name -> dockwell.v1.ContainerState
-	6, // 2: dockwell.v1.ServerContainer.create_time:type_name -> google.protobuf.Timestamp
-	4, // 3: dockwell.v1.ServerContainer.ports:type_name -> dockwell.v1.ContainerPort
-	5, // 4: dockwell.v1.ServerContainer.mounts:type_name -> dockwell.v1.ContainerMount
-	1, // 5: dockwell.v1.ContainerService.ListContainers:input_type -> dockwell.v1.ListContainersRequest
-	2, // 6: dockwell.v1.ContainerService.ListContainers:output_type -> dockwell.v1.ListContainersResponse
-	6, // [6:7] is the sub-list for method output_type
-	5, // [5:6] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	8, // 0: dockwell.v1.AdoptContainerResponse.change:type_name -> dockwell.v1.Change
+	5, // 1: dockwell.v1.ListContainersResponse.containers:type_name -> dockwell.v1.ServerContainer
+	0, // 2: dockwell.v1.ServerContainer.state:type_name -> dockwell.v1.ContainerState
+	9, // 3: dockwell.v1.ServerContainer.create_time:type_name -> google.protobuf.Timestamp
+	6, // 4: dockwell.v1.ServerContainer.ports:type_name -> dockwell.v1.ContainerPort
+	7, // 5: dockwell.v1.ServerContainer.mounts:type_name -> dockwell.v1.ContainerMount
+	3, // 6: dockwell.v1.ContainerService.ListContainers:input_type -> dockwell.v1.ListContainersRequest
+	1, // 7: dockwell.v1.ContainerService.AdoptContainer:input_type -> dockwell.v1.AdoptContainerRequest
+	4, // 8: dockwell.v1.ContainerService.ListContainers:output_type -> dockwell.v1.ListContainersResponse
+	2, // 9: dockwell.v1.ContainerService.AdoptContainer:output_type -> dockwell.v1.AdoptContainerResponse
+	8, // [8:10] is the sub-list for method output_type
+	6, // [6:8] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_container_proto_init() }
@@ -622,6 +768,7 @@ func file_dockwell_v1_container_proto_init() {
 	if File_dockwell_v1_container_proto != nil {
 		return
 	}
+	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -629,7 +776,7 @@ func file_dockwell_v1_container_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_container_proto_rawDesc), len(file_dockwell_v1_container_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -281,7 +281,7 @@ func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Containe
 				if m.GetReadOnly() && h.GetReadOnly() {
 					continue
 				}
-				if v := m.GetVolume(); v != "" && v == h.GetVolume() {
+				if v := m.GetVolume(); v != "" && v == h.GetVolume() && m.GetExternal() == h.GetExternal() {
 					volumes[v] = true
 					continue
 				}
@@ -442,7 +442,7 @@ func (d *Docker) readLanding(ctx context.Context, t Target, m *resourcev1.Mount)
 		return landing{name: p, path: resolved}
 	}
 	name := m.GetVolume()
-	v, err := d.Client.InspectVolume(ctx, t.DockerName(name))
+	v, err := d.Client.InspectVolume(ctx, t.VolumeName(m))
 	switch {
 	case docker.IsNotFound(err):
 		// The same change makes it: a step that finds otherwise when it runs says
@@ -898,7 +898,9 @@ func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance) error 
 	if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
 		return fmt.Errorf("docker can't start the old %s: %w", t.Service, hideIn(err, valuesInContainer(keep.Container)))
 	}
-	final := instanceName(t, keep.number)
+	// What was taken on goes back to the name it came with: what's on its network
+	// reaches it by that.
+	final := cmp.Or(keep.Config.Labels[docker.LabelAdopted], instanceName(t, keep.number))
 	if err := d.Client.RenameContainer(ctx, keep.ID, final); err != nil {
 		return fmt.Errorf("can't give the old %s its name back: %w", t.Service, err)
 	}

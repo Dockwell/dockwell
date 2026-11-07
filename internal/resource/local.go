@@ -33,6 +33,9 @@ type Desired struct {
 	// Rollback says a rollback is planning this, which runs before anyone reads its
 	// plan, so it takes nothing only a person may approve.
 	Rollback bool
+	// Adopt takes on this container, by its full ID, as what the resource runs, in
+	// place of making one. Its kind is an Adopter.
+	Adopt string
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -243,7 +246,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt}, d
 	}
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
@@ -253,6 +256,20 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			if err := c.Check(ctx, want.Ref, spec); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 			}
+		}
+		// Taking something on starts nothing and changes nothing, so none of what
+		// follows has anything to say of it.
+		if want.Adopt != "" {
+			a, ok := d.(Adopter)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't take on what a %s runs", want.Ref, want.Ref.Kind)
+			}
+			dec, err := a.Adopts(ctx, want.Ref, want.Adopt, spec)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			steps = append(steps, Step{Ref: want.Ref, Decision: dec, Changes: Diff(nil, spec)})
+			continue
 		}
 		actual, err := Observe(ctx, d, want.Ref)
 		if err != nil {
@@ -417,7 +434,8 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		return Plainly(fmt.Sprintf("%s changed, but this server has %s than asked for. Check what else manages it, then try again.", step.Ref.Name, what),
 			fmt.Errorf("applied %s, but the server has %s than asked for", step.Ref, what))
 	}
-	if desired == nil {
+	// What was taken on is as it was, running or not, and nothing touched it.
+	if desired == nil || step.Adopts != "" {
 		return nil
 	}
 	// A change in place leaves what someone stopped stopped, so nothing is running

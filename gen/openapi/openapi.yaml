@@ -604,6 +604,46 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/containers/{id}:adopt:
+        post:
+            tags:
+                - ContainerService
+            description: |-
+                AdoptContainer plans taking on a container Dockwell didn't make, as a service
+                 that runs it from then on. Nothing about the container changes: it isn't
+                 restarted, and it keeps its name and labels until a change replaces it. Its
+                 environment comes in with it, sealed like any service's, and no plan or log
+                 shows a value of it. A person plans it and applies it, never a token, as its plan
+                 shows what the list of containers leaves out: its command, labels, user and
+                 mounts. Deleting the service before anything replaces the container lets go of
+                 it again.
+            operationId: ContainerService_AdoptContainer
+            parameters:
+                - name: id
+                  in: path
+                  description: The container, by its name or its full ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AdoptContainerRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AdoptContainerResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -2326,6 +2366,35 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: AddServicePortResponse carries the planned change.
+        AdoptContainerRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The container, by its name or its full ID.
+                server:
+                    type: string
+                    description: The server it is on, by name or ID. It can be left out while there is only one.
+                service:
+                    type: string
+                    description: |-
+                        What to call the service. Unset takes the container's Compose service, or its
+                         own name, written as a service's name.
+                project:
+                    type: string
+                    description: The project the service goes in, by name or ID.
+                environment:
+                    type: string
+                    description: The environment the service goes in, by name or ID.
+            description: AdoptContainerRequest names a container, and what to make of it.
+        AdoptContainerResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned and not applied.
+            description: AdoptContainerResponse carries the plan.
         AdoptDriftRequest:
             type: object
             properties:
@@ -3089,6 +3158,14 @@ components:
                     description: |-
                         Filesystems held in memory at paths in the container. What is in one goes
                          when the container does, so a deploy starts it empty.
+                expose:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Ports it exposes to what shares a network with it, beyond what its image exposes
+                         and what it publishes, such as "3000/tcp". It opens nothing on the server. What
+                         finds containers through Docker reads it, as Traefik does for the port to reach.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves
@@ -4205,6 +4282,8 @@ components:
                         - HOST_ACCESS_KIND_PRIVILEGED
                         - HOST_ACCESS_KIND_PLAIN_FOR_ANYONE
                         - HOST_ACCESS_KIND_HTTPS_OFF
+                        - HOST_ACCESS_KIND_EXTERNAL_VOLUME
+                        - HOST_ACCESS_KIND_TAKES_ON
                     type: string
                     description: What it is.
                     format: enum
@@ -5049,6 +5128,24 @@ components:
             description: |-
                 LoggedService says which service logs are from, or which container, for one
                  Dockwell didn't make.
+        ManagedElsewhere:
+            type: object
+            properties:
+                manager:
+                    type: string
+                    description: |-
+                        The tool that runs its Compose project, such as "1Panel". Empty when its labels
+                         don't show one.
+                container:
+                    type: string
+                    description: The name it came with.
+                project:
+                    type: string
+                    description: Its Compose project.
+                folder:
+                    type: string
+                    description: Where that project runs from, which may hold what the service mounts.
+            description: ManagedElsewhere is what else may run a container that was taken on.
         Mount:
             type: object
             properties:
@@ -5077,6 +5174,14 @@ components:
                          the container can use it on a server that enforces SELinux. Only a
                          server path takes one; elsewhere Docker changes nothing.
                     format: enum
+                external:
+                    type: boolean
+                    description: |-
+                        Says a service's volume is one Dockwell didn't make, by its name in Docker,
+                         as one a container came with when it was taken on. It must be on the server
+                         already: Dockwell never makes, changes or deletes one. Whatever else mounts it
+                         shares what it holds, so mounting one is host access, which a person approves.
+                         A container on its own names Docker's volumes already, so it takes none.
             description: Mount puts a volume, or a directory on the server, into a container.
         Network:
             type: object
@@ -5457,6 +5562,22 @@ components:
                         Set when a route leaves the service it sent to for another, as what a domain
                          reaches changing is easy to miss among a plan's fields. It never stops a plan.
                          Numbered apart, as open work adds to this message.
+                adopts:
+                    type: string
+                    description: |-
+                        The full ID of the container this step takes on, which goes on running as it
+                         is, with no restart, as what the step's service runs.
+                releases:
+                    type: boolean
+                    description: |-
+                        True when this deletion lets go of a container that was taken on and hasn't been
+                         replaced since: it goes on running as it is, and nothing about it changes.
+                managedElsewhere:
+                    allOf:
+                        - $ref: '#/components/schemas/ManagedElsewhere'
+                    description: |-
+                        What else may still run what this step replaces, which came from a Compose
+                         project. A plan says what that means in a note.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object

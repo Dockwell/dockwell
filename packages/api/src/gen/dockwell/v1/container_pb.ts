@@ -6,6 +6,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Change } from "./change_pb";
+import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
@@ -16,7 +18,78 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/container.proto.
  */
 export const file_dockwell_v1_container: GenFile = /*@__PURE__*/
-  fileDesc("Chtkb2Nrd2VsbC92MS9jb250YWluZXIucHJvdG8SC2RvY2t3ZWxsLnYxIicKFUxpc3RDb250YWluZXJzUmVxdWVzdBIOCgZzZXJ2ZXIYASABKAkidAoWTGlzdENvbnRhaW5lcnNSZXNwb25zZRIwCgpjb250YWluZXJzGAEgAygLMhwuZG9ja3dlbGwudjEuU2VydmVyQ29udGFpbmVyEhYKDm93bl9jb250YWluZXJzGAIgASgFEhAKCHVubGlzdGVkGAMgASgFIusCCg9TZXJ2ZXJDb250YWluZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRINCgVpbWFnZRgDIAEoCRIqCgVzdGF0ZRgEIAEoDjIbLmRvY2t3ZWxsLnYxLkNvbnRhaW5lclN0YXRlEg4KBnN0YXR1cxgFIAEoCRIvCgtjcmVhdGVfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoFcG9ydHMYByADKAsyGi5kb2Nrd2VsbC52MS5Db250YWluZXJQb3J0EhIKCm1vcmVfcG9ydHMYCCABKAUSKwoGbW91bnRzGAkgAygLMhsuZG9ja3dlbGwudjEuQ29udGFpbmVyTW91bnQSEwoLbW9yZV9tb3VudHMYCiABKAUSFwoPY29tcG9zZV9wcm9qZWN0GAsgASgJEhcKD2NvbXBvc2Vfc2VydmljZRgMIAEoCRIPCgdvbmVfb2ZmGA0gASgIIl8KDUNvbnRhaW5lclBvcnQSEwoLc2VydmVyX3BvcnQYASABKA0SFgoOY29udGFpbmVyX3BvcnQYAiABKA0SDwoHYWRkcmVzcxgDIAEoCRIQCghwcm90b2NvbBgEIAEoCSJpCg5Db250YWluZXJNb3VudBIOCgZ2b2x1bWUYASABKAkSEQoJYW5vbnltb3VzGAIgASgIEhEKCWhvc3RfcGF0aBgDIAEoCRIOCgZ0YXJnZXQYBCABKAkSEQoJcmVhZF9vbmx5GAUgASgIKvsBCg5Db250YWluZXJTdGF0ZRIfChtDT05UQUlORVJfU1RBVEVfVU5TUEVDSUZJRUQQABIbChdDT05UQUlORVJfU1RBVEVfQ1JFQVRFRBABEhsKF0NPTlRBSU5FUl9TVEFURV9SVU5OSU5HEAISGgoWQ09OVEFJTkVSX1NUQVRFX1BBVVNFRBADEh4KGkNPTlRBSU5FUl9TVEFURV9SRVNUQVJUSU5HEAQSHAoYQ09OVEFJTkVSX1NUQVRFX1JFTU9WSU5HEAUSGgoWQ09OVEFJTkVSX1NUQVRFX0VYSVRFRBAGEhgKFENPTlRBSU5FUl9TVEFURV9ERUFEEAcyjAEKEENvbnRhaW5lclNlcnZpY2USeAoOTGlzdENvbnRhaW5lcnMSIi5kb2Nrd2VsbC52MS5MaXN0Q29udGFpbmVyc1JlcXVlc3QaIy5kb2Nrd2VsbC52MS5MaXN0Q29udGFpbmVyc1Jlc3BvbnNlIh2QAgGguxgBgtPkkwIQEg4vdjEvY29udGFpbmVyc0KnAQoPY29tLmRvY2t3ZWxsLnYxQg5Db250YWluZXJQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chtkb2Nrd2VsbC92MS9jb250YWluZXIucHJvdG8SC2RvY2t3ZWxsLnYxImoKFUFkb3B0Q29udGFpbmVyUmVxdWVzdBIKCgJpZBgBIAEoCRIOCgZzZXJ2ZXIYAiABKAkSDwoHc2VydmljZRgDIAEoCRIPCgdwcm9qZWN0GAQgASgJEhMKC2Vudmlyb25tZW50GAUgASgJIj0KFkFkb3B0Q29udGFpbmVyUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIicKFUxpc3RDb250YWluZXJzUmVxdWVzdBIOCgZzZXJ2ZXIYASABKAkidAoWTGlzdENvbnRhaW5lcnNSZXNwb25zZRIwCgpjb250YWluZXJzGAEgAygLMhwuZG9ja3dlbGwudjEuU2VydmVyQ29udGFpbmVyEhYKDm93bl9jb250YWluZXJzGAIgASgFEhAKCHVubGlzdGVkGAMgASgFIusCCg9TZXJ2ZXJDb250YWluZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRINCgVpbWFnZRgDIAEoCRIqCgVzdGF0ZRgEIAEoDjIbLmRvY2t3ZWxsLnYxLkNvbnRhaW5lclN0YXRlEg4KBnN0YXR1cxgFIAEoCRIvCgtjcmVhdGVfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoFcG9ydHMYByADKAsyGi5kb2Nrd2VsbC52MS5Db250YWluZXJQb3J0EhIKCm1vcmVfcG9ydHMYCCABKAUSKwoGbW91bnRzGAkgAygLMhsuZG9ja3dlbGwudjEuQ29udGFpbmVyTW91bnQSEwoLbW9yZV9tb3VudHMYCiABKAUSFwoPY29tcG9zZV9wcm9qZWN0GAsgASgJEhcKD2NvbXBvc2Vfc2VydmljZRgMIAEoCRIPCgdvbmVfb2ZmGA0gASgIIl8KDUNvbnRhaW5lclBvcnQSEwoLc2VydmVyX3BvcnQYASABKA0SFgoOY29udGFpbmVyX3BvcnQYAiABKA0SDwoHYWRkcmVzcxgDIAEoCRIQCghwcm90b2NvbBgEIAEoCSJpCg5Db250YWluZXJNb3VudBIOCgZ2b2x1bWUYASABKAkSEQoJYW5vbnltb3VzGAIgASgIEhEKCWhvc3RfcGF0aBgDIAEoCRIOCgZ0YXJnZXQYBCABKAkSEQoJcmVhZF9vbmx5GAUgASgIKvsBCg5Db250YWluZXJTdGF0ZRIfChtDT05UQUlORVJfU1RBVEVfVU5TUEVDSUZJRUQQABIbChdDT05UQUlORVJfU1RBVEVfQ1JFQVRFRBABEhsKF0NPTlRBSU5FUl9TVEFURV9SVU5OSU5HEAISGgoWQ09OVEFJTkVSX1NUQVRFX1BBVVNFRBADEh4KGkNPTlRBSU5FUl9TVEFURV9SRVNUQVJUSU5HEAQSHAoYQ09OVEFJTkVSX1NUQVRFX1JFTU9WSU5HEAUSGgoWQ09OVEFJTkVSX1NUQVRFX0VYSVRFRBAGEhgKFENPTlRBSU5FUl9TVEFURV9ERUFEEAcyrQIKEENvbnRhaW5lclNlcnZpY2USeAoOTGlzdENvbnRhaW5lcnMSIi5kb2Nrd2VsbC52MS5MaXN0Q29udGFpbmVyc1JlcXVlc3QaIy5kb2Nrd2VsbC52MS5MaXN0Q29udGFpbmVyc1Jlc3BvbnNlIh2QAgGguxgBgtPkkwIQEg4vdjEvY29udGFpbmVycxKeAQoOQWRvcHRDb250YWluZXISIi5kb2Nrd2VsbC52MS5BZG9wdENvbnRhaW5lclJlcXVlc3QaIy5kb2Nrd2VsbC52MS5BZG9wdENvbnRhaW5lclJlc3BvbnNlIkOguxgCqrsYEwoKY29udGFpbmVycxIFYWRvcHSwuxgBgtPkkwIeOgEqIhkvdjEvY29udGFpbmVycy97aWR9OmFkb3B0QqcBCg9jb20uZG9ja3dlbGwudjFCDkNvbnRhaW5lclByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * AdoptContainerRequest names a container, and what to make of it.
+ *
+ * @generated from message dockwell.v1.AdoptContainerRequest
+ */
+export type AdoptContainerRequest = Message<"dockwell.v1.AdoptContainerRequest"> & {
+  /**
+   * The container, by its name or its full ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The server it is on, by name or ID. It can be left out while there is only one.
+   *
+   * @generated from field: string server = 2;
+   */
+  server: string;
+
+  /**
+   * What to call the service. Unset takes the container's Compose service, or its
+   * own name, written as a service's name.
+   *
+   * @generated from field: string service = 3;
+   */
+  service: string;
+
+  /**
+   * The project the service goes in, by name or ID.
+   *
+   * @generated from field: string project = 4;
+   */
+  project: string;
+
+  /**
+   * The environment the service goes in, by name or ID.
+   *
+   * @generated from field: string environment = 5;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.AdoptContainerRequest.
+ * Use `create(AdoptContainerRequestSchema)` to create a new message.
+ */
+export const AdoptContainerRequestSchema: GenMessage<AdoptContainerRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_container, 0);
+
+/**
+ * AdoptContainerResponse carries the plan.
+ *
+ * @generated from message dockwell.v1.AdoptContainerResponse
+ */
+export type AdoptContainerResponse = Message<"dockwell.v1.AdoptContainerResponse"> & {
+  /**
+   * The change, planned and not applied.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.AdoptContainerResponse.
+ * Use `create(AdoptContainerResponseSchema)` to create a new message.
+ */
+export const AdoptContainerResponseSchema: GenMessage<AdoptContainerResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_container, 1);
 
 /**
  * ListContainersRequest names a server.
@@ -37,7 +110,7 @@ export type ListContainersRequest = Message<"dockwell.v1.ListContainersRequest">
  * Use `create(ListContainersRequestSchema)` to create a new message.
  */
 export const ListContainersRequestSchema: GenMessage<ListContainersRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_container, 0);
+  messageDesc(file_dockwell_v1_container, 2);
 
 /**
  * ListContainersResponse lists a server's containers that Dockwell didn't make.
@@ -74,7 +147,7 @@ export type ListContainersResponse = Message<"dockwell.v1.ListContainersResponse
  * Use `create(ListContainersResponseSchema)` to create a new message.
  */
 export const ListContainersResponseSchema: GenMessage<ListContainersResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_container, 1);
+  messageDesc(file_dockwell_v1_container, 3);
 
 /**
  * ServerContainer is a container on a server, as Docker lists it.
@@ -184,7 +257,7 @@ export type ServerContainer = Message<"dockwell.v1.ServerContainer"> & {
  * Use `create(ServerContainerSchema)` to create a new message.
  */
 export const ServerContainerSchema: GenMessage<ServerContainer> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_container, 2);
+  messageDesc(file_dockwell_v1_container, 4);
 
 /**
  * ContainerPort is a port a container publishes on the server.
@@ -226,7 +299,7 @@ export type ContainerPort = Message<"dockwell.v1.ContainerPort"> & {
  * Use `create(ContainerPortSchema)` to create a new message.
  */
 export const ContainerPortSchema: GenMessage<ContainerPort> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_container, 3);
+  messageDesc(file_dockwell_v1_container, 5);
 
 /**
  * ContainerMount is a volume or a server path mounted in a container.
@@ -275,7 +348,7 @@ export type ContainerMount = Message<"dockwell.v1.ContainerMount"> & {
  * Use `create(ContainerMountSchema)` to create a new message.
  */
 export const ContainerMountSchema: GenMessage<ContainerMount> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_container, 4);
+  messageDesc(file_dockwell_v1_container, 6);
 
 /**
  * ContainerState is where a container is, as Docker says it.
@@ -367,6 +440,23 @@ export const ContainerService: GenService<{
     methodKind: "unary";
     input: typeof ListContainersRequestSchema;
     output: typeof ListContainersResponseSchema;
+  },
+  /**
+   * AdoptContainer plans taking on a container Dockwell didn't make, as a service
+   * that runs it from then on. Nothing about the container changes: it isn't
+   * restarted, and it keeps its name and labels until a change replaces it. Its
+   * environment comes in with it, sealed like any service's, and no plan or log
+   * shows a value of it. A person plans it and applies it, never a token, as its plan
+   * shows what the list of containers leaves out: its command, labels, user and
+   * mounts. Deleting the service before anything replaces the container lets go of
+   * it again.
+   *
+   * @generated from rpc dockwell.v1.ContainerService.AdoptContainer
+   */
+  adoptContainer: {
+    methodKind: "unary";
+    input: typeof AdoptContainerRequestSchema;
+    output: typeof AdoptContainerResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_container, 0);

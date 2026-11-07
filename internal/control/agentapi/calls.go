@@ -804,6 +804,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		dr.Pull, dr.Run = d.Pull, d.Run
 		dr.Restart = d.Restart
 		dr.Rollback = d.Rollback
+		dr.Adopt = d.Adopt
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)
@@ -1160,6 +1161,20 @@ func (s *Session) LogSources(ctx context.Context, call *agentv1.LogSourcesCall) 
 		return nil, err
 	}
 	return r.GetLogSources().GetSources(), nil
+}
+
+// Adoption asks the agent what a container would be as the service ref.
+func (s *Session) Adoption(ctx context.Context, container string, ref resource.Ref) (resource.Adoption, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Adoption{Adoption: &agentv1.AdoptionCall{Container: container, Resource: resourcepb.Ref(ref)}}}, ObserveTimeout, nil)
+	if err != nil {
+		return resource.Adoption{}, err
+	}
+	a := r.GetAdoption()
+	spec, err := s.agents.kinds.Decode(ref.Kind, a.GetSpec())
+	if err != nil {
+		return resource.Adoption{}, fmt.Errorf("can't read %s from %s's agent: %w", container, s.name, err)
+	}
+	return resource.Adoption{Spec: spec, Refused: a.GetRefused(), Shows: a.GetShows(), Manager: a.GetManager(), Folder: a.GetFolder(), LeanedOn: a.GetLeanedOn(), Invalid: a.GetInvalid()}, nil
 }
 
 // Containers asks the agent what Docker lists: every container, or the one named.

@@ -769,7 +769,7 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 		// A value anyone can read stops nobody, and is the most a note can say.
 		label := "Note"
 		switch {
-		case strings.HasPrefix(n.GetReason(), "exposed_"), n.GetReason() == "no_backup", n.GetReason() == "undo_no_backup":
+		case strings.HasPrefix(n.GetReason(), "exposed_"), n.GetReason() == "no_backup", n.GetReason() == "undo_no_backup", n.GetReason() == "managed_elsewhere":
 			label = "Warning"
 		case n.GetReason() == "first_steps":
 			label = "First steps"
@@ -1098,6 +1098,8 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PANEL_DOMAIN:   resource.AccessPanelDomain,
 
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_NETWORK: resource.AccessExternalNetwork,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_VOLUME:  resource.AccessExternalVolume,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON:         resource.AccessTakesOn,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:       resource.AccessCapability,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP:            resource.AccessGroup,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED:       resource.AccessPrivileged,

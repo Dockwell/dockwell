@@ -587,6 +587,10 @@ msgstr "{name} may not be running, or may be running the new version. Check it, 
 msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
 msgstr "{name} may take longer to be healthy, as its image isn't on the server yet."
 
+#: src/features/changes/notices.tsx
+msgid "{name} mounts the volume {path} on {server}"
+msgstr "{name} mounts the volume {path} on {server}"
+
 #: src/features/files/FileViewer.tsx
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
@@ -626,6 +630,10 @@ msgstr "{name} stopped running on {server}"
 #: src/features/changes/notices.tsx
 msgid "{name} stops HTTPS on {path} on {server}"
 msgstr "{name} stops HTTPS on {path} on {server}"
+
+#: src/features/changes/notices.tsx
+msgid "{name} takes on the container {path} on {server}"
+msgstr "{name} takes on the container {path} on {server}"
 
 #: src/features/activity/describe.ts
 msgid "{name} turned unhealthy on {server}"
@@ -877,9 +885,17 @@ msgstr "{subject} is deleted"
 msgid "{subject} is replaced"
 msgstr "{subject} is replaced"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "{subject} is taken on"
+msgstr "{subject} is taken on"
+
 #: src/features/changes/fields.tsx
 msgid "{target}, up to {size}"
 msgstr "{target}, up to {size}"
+
+#: src/features/changes/notices.tsx
+msgid "{tool} still manages {container}"
+msgstr "{tool} still manages {container}"
 
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
@@ -1085,6 +1101,10 @@ msgstr "10k+ new lines"
 #: src/features/logs/LogsPage.tsx
 msgid "15 min"
 msgstr "15 min"
+
+#: src/features/changes/notices.tsx
+msgid "1Panel still manages {container}"
+msgstr "1Panel still manages {container}"
 
 #: src/features/logs/LogsPage.tsx
 msgid "24 h"
@@ -2214,6 +2234,10 @@ msgstr "Couldn't deploy"
 msgid "Couldn't deploy {image}"
 msgstr "Couldn't deploy {image}"
 
+#: src/features/changes/words.ts
+msgid "Couldn't let go of"
+msgstr "Couldn't let go of"
+
 #: src/features/activity/describe.ts
 msgid "Couldn't open {path} on {server}"
 msgstr "Couldn't open {path} on {server}"
@@ -2269,6 +2293,10 @@ msgstr "Couldn't save {path} on {server}"
 #: src/features/apps/revision.ts
 msgid "Couldn't take it off {left}"
 msgstr "Couldn't take it off {left}"
+
+#: src/features/changes/words.ts
+msgid "Couldn't take on"
+msgstr "Couldn't take on"
 
 #: src/features/changes/words.ts
 msgid "Couldn't update"
@@ -2658,6 +2686,10 @@ msgstr "Dockwell didn't make that network, and it reaches past the server's fire
 msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 
+#: src/features/changes/notices.tsx
+msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
+msgstr "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
+
 #: src/features/files/FilesPage.tsx
 msgid "Dockwell doesn't open this"
 msgstr "Dockwell doesn't open this"
@@ -2715,6 +2747,10 @@ msgstr "Dockwell is putting things back as they were"
 msgid "Dockwell keeps trying."
 msgstr "Dockwell keeps trying."
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Dockwell let go of {subject}"
+msgstr "Dockwell let go of {subject}"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell made a rollback of this, and can't say yet how it went."
 msgstr "Dockwell made a rollback of this, and can't say yet how it went."
@@ -2767,6 +2803,10 @@ msgstr "Dockwell put things back as they were"
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell puts <0>{image}</0> back once {0} reconnects"
 msgstr "Dockwell puts <0>{image}</0> back once {0} reconnects"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
+msgstr "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
 
 #: src/features/changes/fields.tsx
 msgid "doesn't come back"
@@ -2901,6 +2941,7 @@ msgstr "environment"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/servers/ContainerPage.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Environment"
 msgstr "Environment"
@@ -3403,6 +3444,10 @@ msgid "It answers only what runs on {server} itself, such as a tunnel on its own
 msgstr "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
 
 #: src/features/changes/notices.tsx
+msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
+msgstr "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
+
+#: src/features/changes/notices.tsx
 msgid "It can read and write that path on the server."
 msgstr "It can read and write that path on the server."
 
@@ -3530,6 +3575,14 @@ msgstr "It runs in privileged mode, which gives it every device and capability o
 msgid "It runs the new image with the rest as it is"
 msgstr "It runs the new image with the rest as it is"
 
+#: src/features/changes/notices.tsx
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+
+#: src/features/changes/notices.tsx
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
+msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
+
 #: src/features/apps/AppOverview.tsx
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
 msgstr "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
@@ -3622,6 +3675,10 @@ msgstr "Its check said"
 #: src/features/logs/LogNote.tsx
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
+
+#: src/features/changes/notices.tsx
+msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
+msgstr "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 
 #: src/features/changes/words.ts
 msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
@@ -3742,6 +3799,14 @@ msgstr "Leave {name} without saving? What you typed goes."
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
 msgstr "Left out as they may hold secrets"
+
+#: src/features/changes/words.ts
+msgid "Let go of"
+msgstr "Let go of"
+
+#: src/features/changes/words.ts
+msgid "Letting go of"
+msgstr "Letting go of"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Levels"
@@ -3986,6 +4051,10 @@ msgstr "Name"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Name a volume, or an absolute path on the server."
 msgstr "Name a volume, or an absolute path on the server."
+
+#: src/features/servers/ContainerPage.tsx
+msgid "Name as a service"
+msgstr "Name as a service"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Name it to review the plan"
@@ -4798,6 +4867,10 @@ msgstr "plain HTTP on {path} for anyone who can reach this server, around whatev
 msgid "Plan"
 msgstr "Plan"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Plan taking it on"
+msgstr "Plan taking it on"
+
 #: src/features/changes/words.ts
 msgid "Planned"
 msgstr "Planned"
@@ -4913,6 +4986,7 @@ msgid "project"
 msgstr "project"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "Project"
 msgstr "Project"
@@ -6046,6 +6120,10 @@ msgstr "Someone paused it, so it serves nothing and no check runs. Unpause it wi
 msgid "something else on the server"
 msgstr "something else on the server"
 
+#: src/features/changes/notices.tsx
+msgid "Something may still manage {container}"
+msgstr "Something may still manage {container}"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
@@ -6142,6 +6220,14 @@ msgctxt "theme"
 msgid "System"
 msgstr "System"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Take it on"
+msgstr "Take it on"
+
+#: src/features/changes/words.ts
+msgid "Take on"
+msgstr "Take on"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Takes away {stopping}"
 msgstr "Takes away {stopping}"
@@ -6153,6 +6239,10 @@ msgstr "Takes out of use what its image keeps at {kept}, which the server keeps 
 #: src/features/apps/revision.ts
 msgid "Taking it off {left}"
 msgstr "Taking it off {left}"
+
+#: src/features/changes/words.ts
+msgid "Taking on"
+msgstr "Taking on"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
@@ -6322,6 +6412,10 @@ msgstr "The CLI"
 msgid "the CLI on {local}"
 msgstr "the CLI on {local}"
 
+#: src/features/changes/words.ts
+msgid "the container {path}, which Dockwell didn't make, and its environment, which comes in with it"
+msgstr "the container {path}, which Dockwell didn't make, and its environment, which comes in with it"
+
 #: src/features/auth/messages.ts
 msgid "The control plane couldn't check your session just now. Try again in a moment."
 msgstr "The control plane couldn't check your session just now. Try again in a moment."
@@ -6361,6 +6455,10 @@ msgstr "The file uses these. Leave one with a default empty to use its default."
 #: src/features/changes/notices.tsx
 msgid "The file writes more variables in plain sight than these"
 msgstr "The file writes more variables in plain sight than these"
+
+#: src/features/changes/notices.tsx
+msgid "the folder it runs from"
+msgstr "the folder it runs from"
 
 #: src/features/changes/words.ts
 msgid "the group {path}, which is the same as root"
@@ -6569,6 +6667,10 @@ msgstr "The token wasn't created"
 #: src/features/apps/NewAppSheet.tsx
 msgid "the volume {owner}"
 msgstr "the volume {owner}"
+
+#: src/features/changes/words.ts
+msgid "the volume {path}, which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds"
+msgstr "the volume {path}, which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds"
 
 #: src/features/changes/words.ts
 msgid "the volume driver {driver} at {path}, which reaches what the plugin does ({reads})"
@@ -6946,6 +7048,10 @@ msgstr "Took {took} on <0>{names}</0>"
 #: src/features/apps/revision.ts
 msgid "Took it off {left}"
 msgstr "Took it off {left}"
+
+#: src/features/changes/words.ts
+msgid "Took on"
+msgstr "Took on"
 
 #: src/features/changes/words.ts
 msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"

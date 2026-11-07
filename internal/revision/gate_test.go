@@ -172,6 +172,61 @@ func TestResumeKeepsARestoreARestore(t *testing.T) {
 // mounts them so. The control plane reads that from their specs, so what
 // adds to a service's reach through them needs a person, and what keeps it
 // as it is doesn't.
+// A new image is any code at all with what a service reaches, so on what's as good as
+// root it needs a person, however it comes: another tag, or what a tag points at now.
+// What runs the same image, and what isn't as good as root, go on as they did.
+func TestANewImageOnWhatIsAsGoodAsRootNeedsAPerson(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setupDocker(t, b, "srv_A")
+		env := production(t, db)
+		app := func(image string, mutate func(*resourcev1.Container)) Edit {
+			c := &resourcev1.Container{
+				Image:  image,
+				Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/var/run/docker.sock"}, Target: "/var/run/docker.sock"}},
+			}
+			if mutate != nil {
+				mutate(c)
+			}
+			return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "agent"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}}
+		}
+		apply(t, e, propose(t, e, "Run it", app("nginx:1.27", nil)))
+
+		tag := propose(t, e, "Another tag", app("nginx:1.28", nil))
+		if !tag.HostAccess() {
+			t.Errorf("another tag asks nothing of anyone: %+v", tag.Resources)
+		}
+		if a := tag.Resources[0].HostAccess; len(a) != 1 || !a[0].AsGoodAsRoot() || a[0].Path != "/var/run/docker.sock" {
+			t.Errorf("another tag says it reaches %+v, want the socket", a)
+		}
+		if err := e.Discard(t.Context(), tag.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+
+		again := app("nginx:1.27", nil)
+		again.Pull = true
+		if p := propose(t, e, "What the tag points at now", again); !p.HostAccess() {
+			t.Errorf("pulling its tag again asks nothing of anyone: %+v", p.Resources)
+		} else if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+
+		// So for what Dockwell made, a new command counts as a new image does.
+		if p := propose(t, e, "Another command", app("nginx:1.27", func(c *resourcev1.Container) {
+			c.Command = []string{"sh", "-c", "docker ps"}
+		})); !p.HostAccess() {
+			t.Errorf("another command asks nothing of anyone: %+v", p.Resources)
+		} else if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+
+		if p := propose(t, e, "A limit", app("nginx:1.27", func(c *resourcev1.Container) {
+			c.Resources = &resourcev1.Resources{Memory: "512M"}
+		})); p.HostAccess() {
+			t.Errorf("a change of the same image needs a person: %+v", p.Resources)
+		}
+	})
+}
+
 func TestAServiceReachesWhatItsVolumesAndNetworksDo(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		e, _, db := setupDocker(t, b, "srv_A")

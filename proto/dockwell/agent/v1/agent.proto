@@ -333,7 +333,18 @@ message Call {
     ReadFileCall read_file = 11;
     // Save a file on the server.
     SaveFileCall save_file = 12;
+    // Read a container as the spec of a service that takes it on.
+    AdoptionCall adoption = 13;
   }
+}
+
+// AdoptionCall asks what a container would be as a service. It reads the
+// container, environment and all, and changes nothing.
+message AdoptionCall {
+  // The container, by its full ID.
+  string container = 1;
+  // The service it would be.
+  dockwell.v1.ResourceRef resource = 2;
 }
 
 // ContainersCall asks which containers Docker has, as it lists them, so nothing
@@ -639,6 +650,9 @@ message DesiredResource {
   // Says a rollback is planning it, which runs before anyone reads its plan, so it
   // takes nothing only a person may approve.
   bool rollback = 6;
+  // Takes on this container, by its full ID, as what the resource runs, in place
+  // of making one.
+  string adopt = 7;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.
@@ -675,7 +689,35 @@ message CallResult {
     ReadFileResult read_file = 11;
     // How a save file call went.
     SaveFileResult save_file = 12;
+    // What an adoption call read.
+    AdoptionResult adoption = 13;
   }
+}
+
+// AdoptionResult is a container as the spec of a service.
+message AdoptionResult {
+  // The service's app, encoded as a Container. It holds the container's
+  // environment, so what carries it treats it as any spec with sensitive fields.
+  bytes spec = 1;
+  // What the container runs with that a replace couldn't carry, each in words
+  // for people, such as "hostname". With any, it can't be taken on yet, as a change
+  // of its image would quietly drop them.
+  repeated string refused = 2;
+  // Where the spec would show a value of the container's environment, by the
+  // variable's name and never the value, such as "the value of DB_PASSWORD in its
+  // command". With any, it can't be taken on, as a plan would show them.
+  repeated string shows = 3;
+  // The tool that runs its Compose project, where its labels show one, such as
+  // "1Panel".
+  string manager = 4;
+  // Where its Compose project runs from.
+  string folder = 5;
+  // What depends on it in a way a replace would cut off, each with how, such as "app
+  // shares its network". With any, it can't be taken on.
+  repeated string leaned_on = 6;
+  // Why the spec isn't one a service can hold, in words for people. With any, it
+  // can't be taken on.
+  string invalid = 7;
 }
 
 // ContainersResult lists the containers Docker has.

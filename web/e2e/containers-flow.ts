@@ -88,6 +88,30 @@ export async function containersFlow(
     step("containers: nothing was touched by being looked at");
     const after = await dockerStarted(socket, id);
     if (after !== before) fail(`looking at it changed it: ${before}, then ${after}`);
+
+    step("containers: taking it on is a plan, it doesn't restart, and it leaves the list for Apps");
+    await page.goto(`${origin}${link}/containers/${NAME}`);
+    const take = page.getByRole("region", { name: "Take it on" });
+    await take.getByRole("textbox", { name: "Name as a service" }).fill("legacy");
+    await take.getByRole("button", { name: "Plan taking it on" }).click();
+    const sheet = page.getByRole("dialog");
+    await sheet.getByText("takes on the container").first().waitFor({ timeout: 20_000 });
+    await shoot(page, "take-on-plan");
+    if ((await page.content()).includes(SECRET)) fail("a value of the container's environment reached the plan");
+    await sheet.getByRole("button", { name: /Apply plan/ }).click();
+    await sheet.locator(".plan-title-words", { hasText: "is taken on" }).waitFor({ timeout: 30_000 });
+    await sheet
+      .getByRole("button", { name: /^Open legacy|^Done/ })
+      .first()
+      .click();
+    await page.getByRole("heading", { level: 1, name: "legacy", exact: true }).waitFor({ timeout: 30_000 });
+    const taken = await dockerStarted(socket, id);
+    if (taken !== before) fail(`taking it on changed it: ${before}, then ${taken}`);
+    await page.goto(`${origin}${link}`);
+    await page.getByRole("region", { name: PANEL }).getByText("Dockwell runs").waitFor({ timeout: 20_000 });
+    if (await page.getByRole("region", { name: PANEL }).getByRole("link", { name: NAME }).count()) {
+      fail(`${NAME} is still among what Dockwell didn't make once it was taken on`);
+    }
   } finally {
     await dockerRemove(socket, id, "legacy-data");
   }

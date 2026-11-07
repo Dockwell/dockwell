@@ -37,6 +37,9 @@ type Config struct {
 	// engine kills it, when asked to stop it without saying. Nil takes the
 	// engine's 10.
 	StopTimeout *int `json:"StopTimeout,omitempty"`
+	// StopSignal is what it is sent to stop, which no spec says, read from a
+	// container made outside Dockwell, and from its image, to tell them apart.
+	StopSignal string `json:"StopSignal,omitempty"`
 }
 
 // Healthcheck is a container's health check. Durations are in
@@ -223,6 +226,37 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (*Container, e
 	if err := c.do(ctx, http.MethodGet, "/containers/"+esc(id)+"/json", nil, nil, &out); err != nil {
 		return nil, err
 	}
+	if t, ok := c.Adopted.snapshot()[out.ID]; ok {
+		out.Config.Labels = asTaken(out.Config.Labels, t, out.Name)
+	}
+	return &out, nil
+}
+
+// TakenView is c as it will read once taken on as t.
+func TakenView(c *Container, t Taken) *Container {
+	view := *c
+	view.Config.Labels = asTaken(c.Config.Labels, t, c.Name)
+	return &view
+}
+
+// Options is how a container runs, key by key as Docker says it, for what reads a
+// container that wasn't made from a spec. Fields would leave out whatever they don't
+// name, and what Dockwell doesn't know of is what such a reader is looking for.
+type Options struct {
+	Name            string                     `json:"Name"` // with a leading slash
+	Config          map[string]json.RawMessage `json:"Config"`
+	HostConfig      map[string]json.RawMessage `json:"HostConfig"`
+	NetworkSettings struct {
+		Networks map[string]map[string]json.RawMessage `json:"Networks"`
+	} `json:"NetworkSettings"`
+}
+
+// InspectOptions reads what InspectContainer leaves out as nothing else uses it.
+func (c *Client) InspectOptions(ctx context.Context, id string) (*Options, error) {
+	var out Options
+	if err := c.do(ctx, http.MethodGet, "/containers/"+esc(id)+"/json", nil, nil, &out); err != nil {
+		return nil, err
+	}
 	return &out, nil
 }
 
@@ -315,21 +349,34 @@ type SummaryPort struct {
 // on the name with its leading slash; label, a key or key=value; and
 // volume, a volume's name.
 func (c *Client) ListContainers(ctx context.Context, filters map[string][]string) ([]ContainerSummary, error) {
-	q, err := listQuery(filters)
-	if err != nil {
-		return nil, err
-	}
 	var out []ContainerSummary
-	if err := c.do(ctx, http.MethodGet, "/containers/json", q, nil, &out); err != nil {
+	if err := c.eachListed(ctx, filters, func(s *ContainerSummary) error {
+		out = append(out, *s)
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	return out, nil
+	return c.listTaken(out, filters, func(more map[string][]string, each func(*ContainerSummary) error) error {
+		return c.eachListed(ctx, more, each)
+	})
 }
 
 // EachContainer is ListContainers one container at a time, as Docker sends them,
 // so a server of hundreds costs what its largest container costs, not all of them
-// at once. The summary is each's alone, and an error from each ends the list.
+// at once. The summary is each's alone, and an error from each ends the list. It
+// takes no label filter, as Docker can't apply one to what was taken on.
 func (c *Client) EachContainer(ctx context.Context, filters map[string][]string, each func(*ContainerSummary) error) error {
+	taken := c.Adopted.snapshot()
+	return c.eachListed(ctx, filters, func(s *ContainerSummary) error {
+		if t, ok := taken[s.ID]; ok {
+			s.Labels = asTaken(s.Labels, t, plainSummaryName(s.Names))
+		}
+		return each(s)
+	})
+}
+
+// eachListed reads Docker's list as it comes.
+func (c *Client) eachListed(ctx context.Context, filters map[string][]string, each func(*ContainerSummary) error) error {
 	q, err := listQuery(filters)
 	if err != nil {
 		return err
@@ -409,7 +456,15 @@ func (c *Client) StopContainer(ctx context.Context, id string, timeout time.Dura
 // Its anonymous volumes stay, until a prune.
 func (c *Client) RemoveContainer(ctx context.Context, id string, force bool) error {
 	q := url.Values{"force": {strconv.FormatBool(force)}, "v": {"false"}}
-	return c.do(ctx, http.MethodDelete, "/containers/"+esc(id), q, nil, nil)
+	err := c.do(ctx, http.MethodDelete, "/containers/"+esc(id), q, nil, nil)
+	if err == nil || IsNotFound(err) {
+		if c.Adopted != nil {
+			if ferr := c.Adopted.Forget(id); ferr != nil {
+				return ferr
+			}
+		}
+	}
+	return err
 }
 
 // RenameContainer gives a container a new name.

@@ -587,6 +587,10 @@ msgstr "{name} 可能没有运行，也可能正在运行新版本。请检查�
 msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
 msgstr "{name} 可能需要更久才能恢复健康，因为它的镜像还不在服务器上。"
 
+#: src/features/changes/notices.tsx
+msgid "{name} mounts the volume {path} on {server}"
+msgstr "{name} 在 {server} 上挂载卷 {path}"
+
 #: src/features/files/FileViewer.tsx
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
@@ -626,6 +630,10 @@ msgstr "{name} 在 {server} 上停止运行"
 #: src/features/changes/notices.tsx
 msgid "{name} stops HTTPS on {path} on {server}"
 msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
+
+#: src/features/changes/notices.tsx
+msgid "{name} takes on the container {path} on {server}"
+msgstr "{name} 在 {server} 上接管容器 {path}"
 
 #: src/features/activity/describe.ts
 msgid "{name} turned unhealthy on {server}"
@@ -877,9 +885,17 @@ msgstr "{subject} 已删除"
 msgid "{subject} is replaced"
 msgstr "{subject} 已替换"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "{subject} is taken on"
+msgstr "{subject} 已接管"
+
 #: src/features/changes/fields.tsx
 msgid "{target}, up to {size}"
 msgstr "{target},最多 {size}"
+
+#: src/features/changes/notices.tsx
+msgid "{tool} still manages {container}"
+msgstr "{tool} 仍在管理 {container}"
 
 #: src/features/activity/describe.ts
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
@@ -1085,6 +1101,10 @@ msgstr "超过 1 万行新日志"
 #: src/features/logs/LogsPage.tsx
 msgid "15 min"
 msgstr "15 分钟"
+
+#: src/features/changes/notices.tsx
+msgid "1Panel still manages {container}"
+msgstr "1Panel 仍在管理 {container}"
 
 #: src/features/logs/LogsPage.tsx
 msgid "24 h"
@@ -2214,6 +2234,10 @@ msgstr "未能部署"
 msgid "Couldn't deploy {image}"
 msgstr "无法部署 {image}"
 
+#: src/features/changes/words.ts
+msgid "Couldn't let go of"
+msgstr "无法放开"
+
 #: src/features/activity/describe.ts
 msgid "Couldn't open {path} on {server}"
 msgstr "无法打开 {server} 上的 {path}"
@@ -2269,6 +2293,10 @@ msgstr "无法保存 {server} 上的 {path}"
 #: src/features/apps/revision.ts
 msgid "Couldn't take it off {left}"
 msgstr "无法把它从 {left} 上移走"
+
+#: src/features/changes/words.ts
+msgid "Couldn't take on"
+msgstr "无法接管"
 
 #: src/features/changes/words.ts
 msgid "Couldn't update"
@@ -2658,6 +2686,10 @@ msgstr "该网络不是 Dockwell 创建的，并且可以绕过服务器的防�
 msgid "Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "该网络不是 Dockwell 创建的。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
 
+#: src/features/changes/notices.tsx
+msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
+msgstr "该卷不是 Dockwell 创建的，Dockwell 也不会删除它。其他挂载它的容器会共享其中的内容。"
+
 #: src/features/files/FilesPage.tsx
 msgid "Dockwell doesn't open this"
 msgstr "Dockwell 不打开这一项"
@@ -2715,6 +2747,10 @@ msgstr "Dockwell 正在恢复原样"
 msgid "Dockwell keeps trying."
 msgstr "Dockwell 会继续尝试。"
 
+#: src/features/changes/ChangeSheet.tsx
+msgid "Dockwell let go of {subject}"
+msgstr "Dockwell 已放开 {subject}"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell made a rollback of this, and can't say yet how it went."
 msgstr "Dockwell 已为此创建回滚，但暂时无法确定结果。"
@@ -2767,6 +2803,10 @@ msgstr "Dockwell 已恢复原样"
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell puts <0>{image}</0> back once {0} reconnects"
 msgstr "{0} 重新连接后，Dockwell 会恢复 <0>{image}</0>"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
+msgstr "此后 Dockwell 会把它作为服务运行，因此更换镜像是一个可撤销的计划，并保留它的卷。接管不会重启它，它的环境变量会加密带入，任何计划或日志都不会显示。"
 
 #: src/features/changes/fields.tsx
 msgid "doesn't come back"
@@ -2901,6 +2941,7 @@ msgstr "环境"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/servers/ContainerPage.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Environment"
 msgstr "环境"
@@ -3403,6 +3444,10 @@ msgid "It answers only what runs on {server} itself, such as a tunnel on its own
 msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
 
 #: src/features/changes/notices.tsx
+msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
+msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
+
+#: src/features/changes/notices.tsx
 msgid "It can read and write that path on the server."
 msgstr "它可以读写服务器上的该路径。"
 
@@ -3530,6 +3575,14 @@ msgstr "它以特权模式运行，可使用服务器上的所有设备和能力
 msgid "It runs the new image with the rest as it is"
 msgstr "运行新镜像，其余保持不变"
 
+#: src/features/changes/notices.tsx
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
+msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，在 1Panel 中对它的任何操作都会作用于这个容器。更换之后，在那里启动、重建、升级或编辑其设置都会启动第二个副本，使用相同的目录和相同的名称。无论何时都不要在 1Panel 中卸载它：那会删除 {where}，其中保存着此服务挂载的内容。"
+
+#: src/features/changes/notices.tsx
+msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
+msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，你在 {tool} 中的操作会作用于这个容器。更换之后，在那里启动或重新部署可能会启动第二个副本，使用相同的目录和相同的名称。在那里移除它之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
 msgstr "在有人恢复它之前，它不提供任何服务。重启或部署也能解决这个问题。"
@@ -3622,6 +3675,10 @@ msgstr "检查结果"
 #: src/features/logs/LogNote.tsx
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
+
+#: src/features/changes/notices.tsx
+msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
+msgstr "它的环境变量会加密后一同进入 Dockwell。任何计划或日志都不会显示其值，容器也会继续运行。"
 
 #: src/features/changes/words.ts
 msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
@@ -3742,6 +3799,14 @@ msgstr "不保存就离开 {name} 吗？你输入的内容会丢失。"
 #: src/features/apps/ExportSheet.tsx
 msgid "Left out as they may hold secrets"
 msgstr "因可能包含机密而未导出"
+
+#: src/features/changes/words.ts
+msgid "Let go of"
+msgstr "放开"
+
+#: src/features/changes/words.ts
+msgid "Letting go of"
+msgstr "正在放开"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Levels"
@@ -3986,6 +4051,10 @@ msgstr "名称"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Name a volume, or an absolute path on the server."
 msgstr "请填写卷名称，或服务器上的绝对路径。"
+
+#: src/features/servers/ContainerPage.tsx
+msgid "Name as a service"
+msgstr "服务名称"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Name it to review the plan"
@@ -4798,6 +4867,10 @@ msgstr "{path} 上面向任何能访问此服务器的人的纯 HTTP，绕过它
 msgid "Plan"
 msgstr "计划"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Plan taking it on"
+msgstr "计划接管"
+
 #: src/features/changes/words.ts
 msgid "Planned"
 msgstr "已计划"
@@ -4913,6 +4986,7 @@ msgid "project"
 msgstr "项目"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ContainersPanel.tsx
 msgid "Project"
 msgstr "项目"
@@ -6046,6 +6120,10 @@ msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。
 msgid "something else on the server"
 msgstr "服务器上的其他内容"
 
+#: src/features/changes/notices.tsx
+msgid "Something may still manage {container}"
+msgstr "可能还有其他工具在管理 {container}"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "{name} 有部分在运行，但 Dockwell 无法确定是哪个版本。请检查后部署应当运行的版本，或在服务器上修复。"
@@ -6142,6 +6220,14 @@ msgctxt "theme"
 msgid "System"
 msgstr "跟随系统"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Take it on"
+msgstr "接管它"
+
+#: src/features/changes/words.ts
+msgid "Take on"
+msgstr "接管"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "Takes away {stopping}"
 msgstr "将取消{stopping}"
@@ -6153,6 +6239,10 @@ msgstr "停用其镜像在 {kept} 保存的数据，服务器会保留 7 天"
 #: src/features/apps/revision.ts
 msgid "Taking it off {left}"
 msgstr "正在把它从 {left} 上移走"
+
+#: src/features/changes/words.ts
+msgid "Taking on"
+msgstr "正在接管"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
@@ -6322,6 +6412,10 @@ msgstr "CLI"
 msgid "the CLI on {local}"
 msgstr "{local} 上的命令行"
 
+#: src/features/changes/words.ts
+msgid "the container {path}, which Dockwell didn't make, and its environment, which comes in with it"
+msgstr "容器 {path}（不是 Dockwell 创建的）及一同带入的环境变量"
+
 #: src/features/auth/messages.ts
 msgid "The control plane couldn't check your session just now. Try again in a moment."
 msgstr "控制平面暂时无法检查你的会话。请稍后重试。"
@@ -6361,6 +6455,10 @@ msgstr "文件使用这些变量。有默认值的留空即使用默认值。"
 #: src/features/changes/notices.tsx
 msgid "The file writes more variables in plain sight than these"
 msgstr "该文件以明文写出的变量比这里列出的更多"
+
+#: src/features/changes/notices.tsx
+msgid "the folder it runs from"
+msgstr "它运行所在的目录"
 
 #: src/features/changes/words.ts
 msgid "the group {path}, which is the same as root"
@@ -6569,6 +6667,10 @@ msgstr "令牌未创建"
 #: src/features/apps/NewAppSheet.tsx
 msgid "the volume {owner}"
 msgstr "卷 {owner}"
+
+#: src/features/changes/words.ts
+msgid "the volume {path}, which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds"
+msgstr "卷 {path}，它已在服务器上，且不是 Dockwell 创建的：其他挂载它的容器会共享其中的内容"
 
 #: src/features/changes/words.ts
 msgid "the volume driver {driver} at {path}, which reaches what the plugin does ({reads})"
@@ -6946,6 +7048,10 @@ msgstr "在 <0>{names}</0> 上用时 {took}"
 #: src/features/apps/revision.ts
 msgid "Took it off {left}"
 msgstr "已把它从 {left} 上移走"
+
+#: src/features/changes/words.ts
+msgid "Took on"
+msgstr "已接管"
 
 #: src/features/changes/words.ts
 msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"

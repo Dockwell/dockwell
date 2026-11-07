@@ -50,6 +50,7 @@ var (
 	_ resource.Driver   = (*Driver)(nil)
 	_ resource.Binder   = (*Driver)(nil)
 	_ resource.Rebinder = (*Driver)(nil)
+	_ resource.Adopter  = (*Driver)(nil)
 )
 
 // Kind returns "service".
@@ -129,7 +130,7 @@ func (*Driver) References(spec proto.Message) []resource.Reference {
 	app := spec.(*resourcev1.Service).GetApp()
 	var out []resource.Reference
 	for _, m := range app.GetMounts() {
-		if v := m.GetVolume(); v != "" {
+		if v := m.GetVolume(); v != "" && !m.GetExternal() {
 			out = append(out, resource.Reference{Kind: volume.Kind, Name: v, Verb: "mount", ReadOnly: m.GetReadOnly()})
 		}
 	}
@@ -287,6 +288,11 @@ func (*Driver) ImageOf(spec proto.Message) string {
 	return spec.(*resourcev1.Service).GetApp().GetImage()
 }
 
+// CodeOf is what a service's app runs in its image, to compare.
+func (*Driver) CodeOf(spec proto.Message) []string {
+	return container.Code(spec.(*resourcev1.Service).GetApp())
+}
+
 // SetImage changes the image a service's app runs.
 func (*Driver) SetImage(spec proto.Message, image string) {
 	if app := spec.(*resourcev1.Service).GetApp(); app != nil {
@@ -387,6 +393,21 @@ func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) 
 // rollout that stopped partway left, or a restart it hasn't had.
 func (d *Driver) Settle(ctx context.Context, ref resource.Ref, desired proto.Message, restart string) (resource.Decision, bool, error) {
 	return d.Containers.SettleAt(ctx, Target(ref), planned(desired).(*resourcev1.Container), restart)
+}
+
+// ReadAdoption reads a container as the app of the service ref would be.
+func (d *Driver) ReadAdoption(ctx context.Context, ref resource.Ref, containerID string) (resource.Adoption, error) {
+	read, err := d.Containers.ReadAdoptionAt(ctx, Target(ref), containerID)
+	if err != nil {
+		return resource.Adoption{}, err
+	}
+	read.Spec = &resourcev1.Service{Runs: &resourcev1.Service_App{App: read.Spec.(*resourcev1.Container)}}
+	return read, nil
+}
+
+// Adopts says what taking the container on as the service takes.
+func (d *Driver) Adopts(ctx context.Context, ref resource.Ref, containerID string, desired proto.Message) (resource.Decision, error) {
+	return d.Containers.AdoptsAt(ctx, Target(ref), containerID, desired.(*resourcev1.Service).GetApp())
 }
 
 // Ready says why services can't run now, as their containers can't.

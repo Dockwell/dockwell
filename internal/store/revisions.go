@@ -113,6 +113,9 @@ type ChangeItem struct {
 	// Run is true when the change asks it to run, so one that's there and isn't
 	// running is started.
 	Run bool
+	// Adopts is the full ID of a container the change takes on as this resource,
+	// and AdoptsName what it is called.
+	Adopts, AdoptsName string
 }
 
 // Resource is a managed resource with its latest revision.
@@ -170,9 +173,9 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	}
 	for i := range c.Items {
 		it := &c.Items[i]
-		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates, pull, run)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
-			strings.Join(it.Servers, " "), boolInt(it.Rotates), boolInt(it.Pull), boolInt(it.Run)); err != nil {
+		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates, pull, run, adopts, adopts_name)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
+			strings.Join(it.Servers, " "), boolInt(it.Rotates), boolInt(it.Pull), boolInt(it.Run), it.Adopts, it.AdoptsName); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
 	}
@@ -211,7 +214,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 	}
-	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates, pull, run
+	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates, pull, run, adopts, adopts_name
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
@@ -222,7 +225,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 		var servers string
 		var deleted bool
 		var rotates, pull, run int64
-		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates, &pull, &run); err != nil {
+		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates, &pull, &run, &it.Adopts, &it.AdoptsName); err != nil {
 			return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 		}
 		it.Rotates, it.Pull, it.Run = rotates != 0, pull != 0, run != 0

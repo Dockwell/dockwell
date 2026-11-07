@@ -50,6 +50,7 @@ type (
 		StopGrace   string            `yaml:"stop_grace_period,omitempty"`
 		ShmSize     string            `yaml:"shm_size,omitempty"`
 		Tmpfs       []string          `yaml:"tmpfs,omitempty"`
+		Expose      []string          `yaml:"expose,omitempty"`
 		Deploy      *deployEntry      `yaml:"deploy,omitempty"`
 		CapAdd      []string          `yaml:"cap_add,omitempty"`
 		CapDrop     []string          `yaml:"cap_drop,omitempty"`
@@ -123,6 +124,7 @@ type (
 		Driver     string            `yaml:"driver,omitempty"`
 		DriverOpts map[string]string `yaml:"driver_opts,omitempty"`
 		Labels     map[string]string `yaml:"labels,omitempty"`
+		External   bool              `yaml:"external,omitempty"`
 	}
 )
 
@@ -228,6 +230,13 @@ func Export(project string, stack *Stack) (*Exported, error) {
 				v += ":" + strings.Join(options, ",")
 			}
 			entry.Volumes = append(entry.Volumes, escape(v))
+			// A volume the server has, as a network it has is listed.
+			if m.GetExternal() {
+				if f.Volumes == nil {
+					f.Volumes = map[string]volumeEntry{}
+				}
+				f.Volumes[m.GetVolume()] = volumeEntry{External: true}
+			}
 		}
 		switch {
 		case c.GetHostNetwork():
@@ -245,7 +254,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		if n := c.GetRestartRetries(); n > 0 {
 			entry.Restart += ":" + strconv.FormatUint(uint64(n), 10)
 		}
-		entry.StopGrace, entry.ShmSize = c.GetStopGracePeriod(), c.GetShmSize()
+		entry.StopGrace, entry.ShmSize, entry.Expose = c.GetStopGracePeriod(), c.GetShmSize(), c.GetExpose()
 		for _, t := range c.GetTmpfs() {
 			v := t.GetTarget()
 			if t.GetSize() != "" {

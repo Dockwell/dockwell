@@ -837,6 +837,11 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   // A deploy says how what it deployed runs, as its server says, and a new app the same. A
   // port or a rollback says what it did, as its button promised.
   if (intent && intent.kind !== IntentKind.DEPLOY) return words.intent(intent, "done");
+  // Taking something on deployed nothing: it runs as it did.
+  if (plan?.servers.some((server) => server.steps.some((step) => step.adopts))) {
+    const subject = shownName(changing(plan)[0]);
+    return t`${subject} is taken on`;
+  }
   const live = goesLive(plan);
   const name = live[0]?.resource?.name ?? "";
   if (live.length === 1 && live[0]) {
@@ -870,6 +875,9 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
     return onlyDeletes(plan)
       ? plural(all.length, { one: "# resource is deleted", other: "# resources are deleted" })
       : t`Applied`;
+  }
+  if (plan?.servers.some((server) => server.steps.some((step) => step.releases))) {
+    return t`Dockwell let go of ${subject}`;
   }
   switch (only?.action) {
     case PlanAction.CREATE:

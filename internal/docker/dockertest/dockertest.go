@@ -146,6 +146,69 @@ type container struct {
 	// made with, and none without one.
 	memorySwap int64
 	log        containerLog
+	// reports is what its inspect says besides what the client has a field for, by
+	// section, as a real engine says far more than it reads.
+	reports map[string]map[string]any
+}
+
+// reported are what a real engine says of a container nobody asked anything of, key
+// by key, which a client has no field for or leaves empty. A reader of what a
+// container runs with has to pass them all, as it does on a server.
+var reported = map[string]map[string]any{
+	"HostConfig": {
+		"ContainerIDFile": "", "LogConfig": map[string]any{"Type": "json-file", "Config": map[string]any{}}, "AutoRemove": false,
+		"VolumeDriver": "", "ConsoleSize": []int{0, 0}, "CgroupnsMode": "private", "Dns": []string{}, "DnsOptions": []string{},
+		"DnsSearch": []string{}, "IpcMode": "private", "Cgroup": "", "OomScoreAdj": 0, "PidMode": "", "PublishAllPorts": false,
+		"UTSMode": "", "ShmSize": 64 << 20, "Runtime": "runc", "Isolation": "", "CpuShares": 0, "CgroupParent": "", "BlkioWeight": 0,
+		"BlkioWeightDevice": []any{}, "BlkioDeviceReadBps": []any{}, "BlkioDeviceWriteBps": []any{}, "BlkioDeviceReadIOps": []any{},
+		"BlkioDeviceWriteIOps": []any{}, "CpuPeriod": 0, "CpuQuota": 0, "CpuRealtimePeriod": 0, "CpuRealtimeRuntime": 0, "CpusetCpus": "",
+		"CpusetMems": "", "Devices": []any{}, "OomKillDisable": false, "Ulimits": []any{}, "CpuCount": 0, "CpuPercent": 0,
+		"IOMaximumIOps": 0, "IOMaximumBandwidth": 0, "MaskedPaths": []string{"/proc/kcore", "/sys/firmware"}, "ReadonlyPaths": []string{"/proc/bus"},
+	},
+	"Config": {"Domainname": "", "AttachStdin": false, "AttachStdout": true, "AttachStderr": true, "OpenStdin": false, "StdinOnce": false, "Tty": false},
+}
+
+// inspected is what an inspect of c answers: what the client asked for, as it asked,
+// and what a real engine fills in around that.
+func (c *container) inspected() any {
+	b, err := json.Marshal(c.Container)
+	if err != nil {
+		return c.Container
+	}
+	var out map[string]any
+	if err := json.Unmarshal(b, &out); err != nil {
+		return c.Container
+	}
+	section := func(name string) map[string]any {
+		into, _ := out[name].(map[string]any)
+		if into == nil {
+			into = map[string]any{}
+			out[name] = into
+		}
+		return into
+	}
+	for name, keys := range reported {
+		into := section(name)
+		for k, v := range keys {
+			if _, set := into[k]; !set {
+				into[k] = v
+			}
+		}
+	}
+	host, config := section("HostConfig"), section("Config")
+	if _, set := host["NetworkMode"]; !set {
+		host["NetworkMode"] = "bridge"
+	}
+	if c.memorySwap != 0 {
+		host["MemorySwap"] = c.memorySwap
+	}
+	if _, set := config["Hostname"]; !set && len(c.ID) >= 12 {
+		config["Hostname"] = c.ID[:12]
+	}
+	for name, keys := range c.reports {
+		maps.Copy(section(name), keys)
+	}
+	return out
 }
 
 // New starts a fake engine on a socket in a test's temporary directory,
@@ -573,7 +636,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 	}
 	switch {
 	case r.Method == http.MethodGet && action == "json":
-		writeJSON(w, http.StatusOK, c.Container)
+		writeJSON(w, http.StatusOK, c.inspected())
 	case r.Method == http.MethodPost && action == "start":
 		if c.State.Running {
 			w.WriteHeader(http.StatusNotModified)
@@ -1609,6 +1672,24 @@ func (e *Engine) Edit(name string, edit func(*docker.Container)) {
 	if c := e.byNameOrID(name); c != nil {
 		edit(&c.Container)
 	}
+}
+
+// Reports has a container's inspect say keys of a section, such as HostConfig,
+// that the client has no field for.
+func (e *Engine) Reports(name, section string, keys map[string]any) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	c := e.byNameOrID(name)
+	if c == nil {
+		return
+	}
+	if c.reports == nil {
+		c.reports = map[string]map[string]any{}
+	}
+	if c.reports[section] == nil {
+		c.reports[section] = map[string]any{}
+	}
+	maps.Copy(c.reports[section], keys)
 }
 
 // KillForMemory records the kernel killing something in a container, as its events

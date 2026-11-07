@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
 const (
@@ -58,6 +61,31 @@ func containers(ctx context.Context, client *docker.Client, call *agentv1.Contai
 		return nil, err
 	}
 	return out, nil
+}
+
+// adoption reads a container as the service a call names, with its driver. What it
+// sends holds the container's environment, as what an agent reports of any service
+// does: over the agent's own stream, and into a spec's sensitive field, which the
+// control plane seals, and no plan or log shows.
+func (c *calls) adoption(ctx context.Context, call *agentv1.AdoptionCall) (*agentv1.AdoptionResult, error) {
+	ref := resourcepb.FromRef(call.GetResource())
+	d, err := c.cfg.Drivers.Driver(ref.Kind)
+	if err != nil {
+		return nil, err
+	}
+	a, ok := d.(resource.Adopter)
+	if !ok {
+		return nil, fmt.Errorf("this agent can't take on what a %s runs", ref.Kind)
+	}
+	read, err := a.ReadAdoption(ctx, ref, call.GetContainer())
+	if err != nil {
+		return nil, err
+	}
+	b, err := resource.Encode(read.Spec)
+	if err != nil {
+		return nil, err
+	}
+	return &agentv1.AdoptionResult{Spec: b, Refused: read.Refused, Shows: read.Shows, Manager: read.Manager, Folder: read.Folder, LeanedOn: read.LeanedOn, Invalid: read.Invalid}, nil
 }
 
 // containerFilter asks Docker for one container, exactly: a name goes through its

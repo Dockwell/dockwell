@@ -867,6 +867,12 @@ enum HostAccessKind {
   // The domain in path going off HTTPS, as it had a certificate within the undo
   // window. https:// stops answering, and browsers that saw HSTS refuse plain HTTP.
   HOST_ACCESS_KIND_HTTPS_OFF = 15;
+  // A volume on the server that Dockwell didn't make, in path. Whatever else
+  // mounts it shares what it holds.
+  HOST_ACCESS_KIND_EXTERNAL_VOLUME = 16;
+  // A container Dockwell didn't make, in path, whose environment comes into
+  // Dockwell with it: a token mustn't be able to bring in what it couldn't read.
+  HOST_ACCESS_KIND_TAKES_ON = 17;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -981,6 +987,28 @@ message PlanStep {
   // reaches changing is easy to miss among a plan's fields. It never stops a plan.
   // Numbered apart, as open work adds to this message.
   RouteMove moves = 32;
+  // The full ID of the container this step takes on, which goes on running as it
+  // is, with no restart, as what the step's service runs.
+  string adopts = 33;
+  // True when this deletion lets go of a container that was taken on and hasn't been
+  // replaced since: it goes on running as it is, and nothing about it changes.
+  bool releases = 34;
+  // What else may still run what this step replaces, which came from a Compose
+  // project. A plan says what that means in a note.
+  ManagedElsewhere managed_elsewhere = 35;
+}
+
+// ManagedElsewhere is what else may run a container that was taken on.
+message ManagedElsewhere {
+  // The tool that runs its Compose project, such as "1Panel". Empty when its labels
+  // don't show one.
+  string manager = 1;
+  // The name it came with.
+  string container = 2;
+  // Its Compose project.
+  string project = 3;
+  // Where that project runs from, which may hold what the service mounts.
+  string folder = 4;
 }
 
 // RouteMove is a route leaving one service for another.

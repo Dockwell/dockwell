@@ -3,6 +3,8 @@
 package dockertest_test
 
 import (
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -78,5 +80,67 @@ func TestAListSaysWhatRunsOnceItsTagMoves(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Image == "nginx:1.27" || !strings.HasPrefix(got[0].Image, "sha256:") {
 		t.Errorf("once the tag means another image, the list says %+v", got)
+	}
+}
+
+// Docker can't label a running container, so what was taken on reads as its service
+// through the client alone: a list, a filter Docker can't apply to it, and an inspect.
+// Only that goes when the container does, and the record outlives the process.
+func TestWhatWasTakenOnReadsAsItsService(t *testing.T) {
+	e := dockertest.New(t)
+	path := filepath.Join(t.TempDir(), "adopted.json")
+	c := e.Client()
+	c.Adopted = &docker.Adopted{Path: path}
+	made := e.AddContainer(docker.Container{ID: "a1", Name: "/by-hand", Config: docker.Config{Labels: map[string]string{docker.LabelProject: "shop", docker.LabelService: "db"}}})
+	e.AddContainer(docker.Container{ID: "b2", Name: "/other", Config: docker.Config{Labels: map[string]string{docker.LabelProject: "env_x", docker.LabelService: "web"}}})
+	byLabels := map[string][]string{"label": {docker.LabelProject + "=env_x", docker.LabelService + "=api"}}
+	ids := func(c *docker.Client, filters map[string][]string) []string {
+		t.Helper()
+		list, err := c.ListContainers(t.Context(), filters)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, s := range list {
+			out = append(out, strings.TrimPrefix(s.Names[0], "/"))
+		}
+		return out
+	}
+	if got := ids(c, byLabels); len(got) != 0 {
+		t.Fatalf("before it was taken on, the list has %v", got)
+	}
+	if err := c.Adopted.Take(made.ID, docker.Taken{Project: "env_x", Service: "api"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(c, byLabels); !slices.Equal(got, []string{"by-hand"}) {
+		t.Errorf("by its service's labels, the list has %v", got)
+	}
+	if got := ids(c, map[string][]string{"label": {docker.LabelProject + "=shop"}}); len(got) != 0 {
+		t.Errorf("by the project it left, the list has %v", got)
+	}
+	inspected, err := c.InspectContainer(t.Context(), made.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := inspected.Config.Labels
+	if l[docker.LabelProject] != "env_x" || l[docker.LabelService] != "api" || l[docker.LabelNumber] != "1" || l[docker.LabelOneoff] != "False" || l[docker.LabelAdopted] != "by-hand" {
+		t.Errorf("it reads with the labels %v", l)
+	}
+
+	again := e.Client()
+	again.Adopted = &docker.Adopted{Path: path}
+	if got := ids(again, byLabels); !slices.Equal(got, []string{"by-hand"}) {
+		t.Errorf("after a restart, the list has %v", got)
+	}
+	if err := again.RemoveContainer(t.Context(), made.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	third := e.Client()
+	third.Adopted = &docker.Adopted{Path: path}
+	if got := ids(third, byLabels); len(got) != 0 {
+		t.Errorf("with it gone, the list has %v", got)
+	}
+	if got := third.Adopted.Forget(made.ID); got != nil {
+		t.Errorf("forgetting what's gone: %v", got)
 	}
 }

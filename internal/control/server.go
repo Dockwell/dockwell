@@ -246,7 +246,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler) (http.Hand
 		services = append(services, strings.Trim(path, "/"))
 		guardREST = logs.GuardREST
 		handle(dockwellv1connect.NewHealthServiceHandler(health.New(cfg.Store, cfg.Agents, cfg.Logger), opts...))
-		handle(dockwellv1connect.NewContainerServiceHandler(containers.New(cfg.Agents, cfg.Store, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewContainerServiceHandler(containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger), opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {

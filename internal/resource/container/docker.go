@@ -219,6 +219,9 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	add("user", spec.GetUser() != "")
 	add("working_dir", spec.GetWorkingDir() != "")
 	add("shm_size", spec.GetShmSize() != "")
+	for _, p := range spec.GetExpose() {
+		set = append(set, "expose:"+p)
+	}
 	if hc := spec.GetHealthcheck(); hc != nil {
 		set = append(set, "healthcheck")
 		add("healthcheck.interval", hc.GetInterval() != "")
@@ -614,12 +617,18 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 		}
 		req.HostConfig.Tmpfs[m.GetTarget()] = tmpfsOptions(m)
 	}
+	for _, p := range spec.GetExpose() {
+		if req.ExposedPorts == nil {
+			req.ExposedPorts = map[string]struct{}{}
+		}
+		req.ExposedPorts[p] = struct{}{}
+	}
 	targets := mountTargets(spec)
 	for _, m := range spec.GetMounts() {
 		switch src := m.GetSource().(type) {
 		case *resourcev1.Mount_Volume:
 			req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{
-				Type: "volume", Source: t.DockerName(src.Volume), Target: m.GetTarget(), ReadOnly: m.GetReadOnly(),
+				Type: "volume", Source: t.VolumeName(m), Target: m.GetTarget(), ReadOnly: m.GetReadOnly(),
 			})
 		case *resourcev1.Mount_HostPath:
 			req.HostConfig.Binds = append(req.HostConfig.Binds, bind(src.HostPath, m))
@@ -827,13 +836,39 @@ func environment(spec *resourcev1.Container) []string {
 	return out
 }
 
+// exposedPorts reads a port as Docker keeps it into what a spec holds: one port with its
+// protocol. Docker keeps what it was asked for, and docker compose sends expose: as it
+// was written, so that can be "3000", "3000/tcp", or a range of either. One that can't
+// be read stays as it is, for Validate to say so.
+func exposedPorts(key string) []string {
+	ports, protocol, found := strings.Cut(key, "/")
+	if !found {
+		protocol = "tcp"
+	}
+	low, high, isRange := strings.Cut(ports, "-")
+	if !isRange {
+		return []string{ports + "/" + protocol}
+	}
+	first, errFirst := strconv.Atoi(low)
+	last, errLast := strconv.Atoi(high)
+	if errFirst != nil || errLast != nil || last < first || last-first >= MaxPorts {
+		return []string{key}
+	}
+	out := make([]string, 0, last-first+1)
+	for p := first; p <= last; p++ {
+		out = append(out, strconv.Itoa(p)+"/"+protocol)
+	}
+	return out
+}
+
 // Project reads a container as Docker reports it back into a spec, at t,
 // leaving out what Docker took from its image: an image's environment,
 // labels, command and the rest, unless the spec set them too, as LabelSet
 // says; Dockwell's and Compose's own labels; and anything Docker adds,
 // such as IDs, start times and the volumes it made for the image.
 func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Container {
-	if img == nil {
+	imageKnown := img != nil
+	if !imageKnown {
 		img = &docker.Config{}
 	}
 	set := setOf(c.Config.Labels)
@@ -908,6 +943,19 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	if s := c.Config.StopTimeout; s != nil {
 		out.StopGracePeriod = (time.Duration(*s) * time.Second).String()
 	}
+	// Docker lists here what its image exposes and what it publishes as well, and a
+	// spec says neither. With no image to tell by, it says what the spec does alone.
+	for key := range c.Config.ExposedPorts {
+		for _, port := range exposedPorts(key) {
+			_, fromImage := img.ExposedPorts[port]
+			_, published := c.HostConfig.PortBindings[port]
+			if set["expose:"+port] || imageKnown && !fromImage && !published {
+				out.Expose = append(out.Expose, port)
+			}
+		}
+	}
+	slices.Sort(out.Expose)
+	out.Expose = slices.Compact(out.Expose)
 	for key, bindings := range c.HostConfig.PortBindings {
 		port, transport, _ := strings.Cut(key, "/")
 		cp, _ := strconv.ParseUint(port, 10, 16)
@@ -928,11 +976,14 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		}
 		return name
 	}
+	// What a service mounts is its environment's, by a name of that form, and
+	// anything else is a volume Dockwell didn't make.
+	outside := func(name string) bool { return t.Scoped && !strings.HasPrefix(name, t.Project+"_") }
 	for _, m := range c.HostConfig.Mounts {
 		switch {
 		case m.Type == "volume" && m.Source != "" && !anonymous(m.Source):
 			out.Mounts = append(out.Mounts, &resourcev1.Mount{
-				Source: &resourcev1.Mount_Volume{Volume: unscope(m.Source)}, Target: m.Target, ReadOnly: m.ReadOnly,
+				Source: &resourcev1.Mount_Volume{Volume: unscope(m.Source)}, Target: m.Target, ReadOnly: m.ReadOnly, External: outside(m.Source),
 			})
 		case m.Type == "bind":
 			out.Mounts = append(out.Mounts, &resourcev1.Mount{
@@ -968,7 +1019,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		case anonymous(parts[0]):
 			continue
 		default:
-			m.Source = &resourcev1.Mount_Volume{Volume: unscope(parts[0])}
+			m.Source, m.External = &resourcev1.Mount_Volume{Volume: unscope(parts[0])}, outside(parts[0])
 		}
 		out.Mounts = append(out.Mounts, m)
 	}
@@ -1302,7 +1353,10 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 		if v == "" {
 			continue
 		}
-		if _, err := d.Client.InspectVolume(ctx, t.DockerName(v)); docker.IsNotFound(err) {
+		if _, err := d.Client.InspectVolume(ctx, t.VolumeName(m)); docker.IsNotFound(err) {
+			if m.GetExternal() {
+				return fmt.Errorf("the volume %s isn't on this server, so %s can't mount it. Dockwell didn't make it, so it won't make it again: restore it, or mount another", v, t.Service)
+			}
 			return fmt.Errorf("the volume %s isn't on this server, so %s can't mount it. Add it to the environment, in this change or an earlier one", v, t.Service)
 		} else if err != nil {
 			return err
@@ -1310,7 +1364,7 @@ func (d *Docker) checkRefs(ctx context.Context, t Target, spec *resourcev1.Conta
 		if d.Deleted == nil {
 			continue
 		}
-		if deleted, err := d.Deleted.Has(t.DockerName(v)); err != nil {
+		if deleted, err := d.Deleted.Has(t.VolumeName(m)); err != nil {
 			return err
 		} else if deleted {
 			return fmt.Errorf("the volume %s was deleted, so %s can't mount it, though the server keeps its data for 7 days. "+
@@ -1400,6 +1454,16 @@ func owned(t Target, c *docker.Container) error {
 // how it replaces what runs, and why; and a recreated container's health check,
 // its image's included, says how long it may take to be healthy.
 func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Container, dec *resource.Decision) error {
+	if dec.Action == resource.ActionDelete {
+		letsGo, err := d.lettingGo(ctx, t)
+		if err != nil {
+			return err
+		}
+		if letsGo {
+			dec.Releases = true
+			return nil
+		}
+	}
 	if dec.Action == resource.ActionDelete && d.Logs != nil && t.Scoped {
 		dec.HidesLogs = true
 	}
@@ -1425,6 +1489,16 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	var c *docker.Container
 	if len(all) > 0 {
 		c = all[0].Container
+		if dec.Action == resource.ActionReplace && c.Config.Labels[docker.LabelAdopted] != "" {
+			dec.Elsewhere = elsewhere(c)
+			leaning, err := d.leaningOn(ctx, c)
+			if err != nil {
+				return err
+			}
+			if len(leaning) > 0 {
+				return fmt.Errorf("%s can't be replaced while others depend on it: %s, so a new container would cut that off. It stays as it is. Make that again on its own, then try this again", t.Service, human.List(leaning))
+			}
+		}
 		if dec.Action == resource.ActionReplace && !all[0].temp && !all[0].stopping {
 			// A replace makes the new one under this name, and a try that
 			// failed before leaves one there, but it may be someone's.
@@ -1626,6 +1700,13 @@ func (d *Docker) Update(ctx context.Context, t Target, spec *resourcev1.Containe
 // days, so a container of the name made again in that time, as undoing the
 // deletion does, mounts them again.
 func (d *Docker) Remove(ctx context.Context, t Target) error {
+	id, err := d.takenOn(ctx, t)
+	if err != nil {
+		return err
+	}
+	if id != "" {
+		return d.Client.Adopted.Forget(id)
+	}
 	c, err := d.find(ctx, t.Name)
 	if err != nil {
 		return err

@@ -54,6 +54,8 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.GROUP]: 2,
   [HostAccessKind.NETWORK_DRIVER]: 3,
   [HostAccessKind.EXTERNAL_NETWORK]: 3,
+  [HostAccessKind.EXTERNAL_VOLUME]: 3,
+  [HostAccessKind.TAKES_ON]: 3,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
@@ -199,6 +201,18 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           detail: leadsTo
             ? t`Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`
             : t`Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`,
+        };
+      case HostAccessKind.EXTERNAL_VOLUME:
+        return {
+          key,
+          title: t`${name} mounts the volume ${path} on ${server}`,
+          detail: t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
+        };
+      case HostAccessKind.TAKES_ON:
+        return {
+          key,
+          title: t`${name} takes on the container ${path} on ${server}`,
+          detail: t`Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running.`,
         };
       case HostAccessKind.SERVER_PORT: {
         const at = plain(access.detail);
@@ -404,6 +418,28 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       }
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
+      case "managed_elsewhere": {
+        const [tool = "", container = "", project = "", folder = ""] = note.names;
+        const where = folder || t`the folder it runs from`;
+        if (tool === "1Panel") {
+          return {
+            key,
+            title: t`1Panel still manages ${container}`,
+            detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes ${where}, which holds what this service mounts.`,
+          };
+        }
+        return tool !== ""
+          ? {
+              key,
+              title: t`${tool} still manages ${container}`,
+              detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, what you do to it in ${tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to ${where}, as it may delete what this service mounts.`,
+            }
+          : {
+              key,
+              title: t`Something may still manage ${container}`,
+              detail: t`It came from the Compose project ${project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to ${where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again.`,
+            };
+      }
       case "no_backup":
         return {
           key,

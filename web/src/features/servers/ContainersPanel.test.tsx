@@ -17,8 +17,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { webPlanned } from "../../test/changes";
 import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { serviceNameFor } from "./containers";
 
 const hz1 = aServer({ id: "srv_1", name: "hz-1" });
 
@@ -51,6 +53,16 @@ async function renderList(listContainers: () => ListContainersResponse | Promise
 afterEach(() => {
   vi.useRealTimers();
   activateLocale("en");
+});
+
+describe("the name a service takes", () => {
+  it("is written as a service's name is", () => {
+    const named = (name: string, composeService = "") => serviceNameFor(container(name, { composeService }));
+    expect(named("legacy_api")).toBe("legacy-api");
+    expect(named("shop-db-1", "db")).toBe("db");
+    expect(named("9lives")).toBe("app-9lives");
+    expect(named("Web.Server")).toBe("web-server");
+  });
 });
 
 describe("the containers Dockwell didn't make", () => {
@@ -248,6 +260,30 @@ describe("a container's page", () => {
     offline = false;
     await act(() => vi.advanceTimersByTimeAsync(6_000));
     await vi.waitFor(() => expect(screen.queryByText("These logs can't be read now")).toBeNull());
+  });
+
+  it("plans taking it on, under a name it works out, and says nothing restarts", async () => {
+    const asked: unknown[] = [];
+    renderContainer("/servers/srv_1/containers/legacy_api", {
+      containers: {
+        listContainers: () => answer({ containers: [container("legacy_api", { composeService: "" })] }),
+        adoptContainer: (req) => {
+          asked.push({ id: req.id, server: req.server, service: req.service });
+          return { change: webPlanned() };
+        },
+      },
+      logs: {
+        listLogSources: () => ({}),
+        async *watchLogs() {
+          yield { caughtUp: true };
+        },
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Take it on" });
+    expect(within(panel).getByText(/doesn't restart it/)).toBeVisible();
+    expect(within(panel).getByRole("textbox", { name: "Name as a service" })).toHaveValue("legacy-api");
+    await userEvent.setup().click(within(panel).getByRole("button", { name: "Plan taking it on" }));
+    await vi.waitFor(() => expect(asked).toEqual([{ id: "legacy_api", server: "srv_1", service: "legacy-api" }]));
   });
 
   it("says when it has gone", async () => {

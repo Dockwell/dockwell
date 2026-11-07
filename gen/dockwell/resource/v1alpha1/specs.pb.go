@@ -396,7 +396,11 @@ type Container struct {
 	ShmSize string `protobuf:"bytes,30,opt,name=shm_size,json=shmSize,proto3" json:"shm_size,omitempty"`
 	// Filesystems held in memory at paths in the container. What is in one goes
 	// when the container does, so a deploy starts it empty.
-	Tmpfs         []*Tmpfs `protobuf:"bytes,31,rep,name=tmpfs,proto3" json:"tmpfs,omitempty"`
+	Tmpfs []*Tmpfs `protobuf:"bytes,31,rep,name=tmpfs,proto3" json:"tmpfs,omitempty"`
+	// Ports it exposes to what shares a network with it, beyond what its image exposes
+	// and what it publishes, such as "3000/tcp". It opens nothing on the server. What
+	// finds containers through Docker reads it, as Traefik does for the port to reach.
+	Expose        []string `protobuf:"bytes,32,rep,name=expose,proto3" json:"expose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -620,6 +624,13 @@ func (x *Container) GetTmpfs() []*Tmpfs {
 	return nil
 }
 
+func (x *Container) GetExpose() []string {
+	if x != nil {
+		return x.Expose
+	}
+	return nil
+}
+
 // Tmpfs is a filesystem held in memory, at a path in a container.
 type Tmpfs struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -822,7 +833,13 @@ type Mount struct {
 	// Relabels a server path for SELinux, as Docker's z and Z options do, so
 	// the container can use it on a server that enforces SELinux. Only a
 	// server path takes one; elsewhere Docker changes nothing.
-	Relabel       Relabel `protobuf:"varint,5,opt,name=relabel,proto3,enum=dockwell.resource.v1alpha1.Relabel" json:"relabel,omitempty"`
+	Relabel Relabel `protobuf:"varint,5,opt,name=relabel,proto3,enum=dockwell.resource.v1alpha1.Relabel" json:"relabel,omitempty"`
+	// Says a service's volume is one Dockwell didn't make, by its name in Docker,
+	// as one a container came with when it was taken on. It must be on the server
+	// already: Dockwell never makes, changes or deletes one. Whatever else mounts it
+	// shares what it holds, so mounting one is host access, which a person approves.
+	// A container on its own names Docker's volumes already, so it takes none.
+	External      bool `protobuf:"varint,6,opt,name=external,proto3" json:"external,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -901,6 +918,13 @@ func (x *Mount) GetRelabel() Relabel {
 		return x.Relabel
 	}
 	return Relabel_RELABEL_UNSPECIFIED
+}
+
+func (x *Mount) GetExternal() bool {
+	if x != nil {
+		return x.External
+	}
+	return false
 }
 
 type isMount_Source interface {
@@ -2270,7 +2294,7 @@ var File_dockwell_resource_v1alpha1_specs_proto protoreflect.FileDescriptor
 
 const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
-	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\x89\n" +
+	"&dockwell/resource/v1alpha1/specs.proto\x12\x1adockwell.resource.v1alpha1\x1a\x1fgoogle/api/field_behavior.proto\x1a google/protobuf/descriptor.proto\"\xa1\n" +
 	"\n" +
 	"\tContainer\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
@@ -2307,7 +2331,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"references\x18\x1d \x03(\tR\n" +
 	"references\x12\x19\n" +
 	"\bshm_size\x18\x1e \x01(\tR\ashmSize\x127\n" +
-	"\x05tmpfs\x18\x1f \x03(\v2!.dockwell.resource.v1alpha1.TmpfsR\x05tmpfs\x1a6\n" +
+	"\x05tmpfs\x18\x1f \x03(\v2!.dockwell.resource.v1alpha1.TmpfsR\x05tmpfs\x12\x16\n" +
+	"\x06expose\x18  \x03(\tR\x06expose\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
@@ -2323,13 +2348,14 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x12memory_reservation\x18\x03 \x01(\tR\x11memoryReservation\"_\n" +
 	"\aRollout\x12>\n" +
 	"\x05order\x18\x01 \x01(\x0e2(.dockwell.resource.v1alpha1.RolloutOrderR\x05order\x12\x14\n" +
-	"\x05drain\x18\x02 \x01(\tR\x05drain\"\xbe\x01\n" +
+	"\x05drain\x18\x02 \x01(\tR\x05drain\"\xda\x01\n" +
 	"\x05Mount\x12\x18\n" +
 	"\x06volume\x18\x01 \x01(\tH\x00R\x06volume\x12\x1d\n" +
 	"\thost_path\x18\x02 \x01(\tH\x00R\bhostPath\x12\x16\n" +
 	"\x06target\x18\x03 \x01(\tR\x06target\x12\x1b\n" +
 	"\tread_only\x18\x04 \x01(\bR\breadOnly\x12=\n" +
-	"\arelabel\x18\x05 \x01(\x0e2#.dockwell.resource.v1alpha1.RelabelR\arelabelB\b\n" +
+	"\arelabel\x18\x05 \x01(\x0e2#.dockwell.resource.v1alpha1.RelabelR\arelabel\x12\x1a\n" +
+	"\bexternal\x18\x06 \x01(\bR\bexternalB\b\n" +
 	"\x06source\"\x87\x02\n" +
 	"\vHealthcheck\x12\x12\n" +
 	"\x04test\x18\x01 \x03(\tR\x04test\x12\x1a\n" +

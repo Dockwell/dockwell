@@ -204,7 +204,7 @@ func New(agents *agentapi.Agents, ch *changes.Handler, db *store.DB, logger *slo
 		options.Now = time.Now
 	}
 	h := &Handler{
-		agents: agents, changes: ch, containers: containers.New(agents, db, logger), db: db, logger: logger, now: options.Now, options: options,
+		agents: agents, changes: ch, containers: containers.New(agents, ch, db, logger), db: db, logger: logger, now: options.Now, options: options,
 		audited: map[string]time.Time{}, pages: map[string]int{},
 	}
 	agents.OnConnect(func(server string) { h.tell(context.Background(), server) })

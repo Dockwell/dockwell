@@ -45,6 +45,10 @@ export interface ChangeWords {
   kind(kind: string): string;
   /** What a step does, in the tense of where it is: "Create", "Creating", "Created", "Couldn't create". */
   verb(action: PlanAction, tense: Tense): string;
+  /** Taking on a container Dockwell didn't make, in place of making one. */
+  takesOn(tense: Tense): string;
+  /** Handing one back, in place of deleting it. */
+  letsGo(tense: Tense): string;
   /** What a change is for, in the tense of where it is: "Deploy nginx:1.29", "Deploying nginx:1.29", "Couldn't deploy nginx:1.29". */
   intent(intent: Intent, tense: Tense): string;
   /** What a change is for, as its row's tag: "Deploy", "Deployed". */
@@ -158,6 +162,14 @@ export function useChangeWords(): ChangeWords {
             return { plan: t`Delete`, doing: t`Deleting`, done: t`Deleted`, failed: t`Couldn't delete` }[tense];
         }
         return { plan: t`Check`, doing: t`Checking`, done: t`Checked`, failed: t`Couldn't check` }[tense];
+      },
+      takesOn(tense) {
+        return { plan: t`Take on`, doing: t`Taking on`, done: t`Took on`, failed: t`Couldn't take on` }[tense];
+      },
+      letsGo(tense) {
+        return { plan: t`Let go of`, doing: t`Letting go of`, done: t`Let go of`, failed: t`Couldn't let go of` }[
+          tense
+        ];
       },
       intent(intent, tense) {
         const { image, port } = intent;
@@ -323,6 +335,10 @@ export function useChangeWords(): ChangeWords {
             return detail === ""
               ? t`the network ${path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them`
               : t`the network ${path}, which is on the server already, where it answers to its name and to ${detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them`;
+          case HostAccessKind.EXTERNAL_VOLUME:
+            return t`the volume ${path}, which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds`;
+          case HostAccessKind.TAKES_ON:
+            return t`the container ${path}, which Dockwell didn't make, and its environment, which comes in with it`;
           case HostAccessKind.CAPABILITY:
             return access.sameAsRoot
               ? t`the Linux capability ${path}, which is the same as root`

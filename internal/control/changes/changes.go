@@ -105,8 +105,15 @@ type Also struct {
 	Pull bool
 	// Run says this asks what's edited to run (revision.Edit).
 	Run bool
+	// Adopts is what each edit takes on, by the name of what's edited.
+	Adopts map[string]Adoption
 	// Intent is what the plan is for, when the method proposing it knows.
 	Intent *revision.Intent
+}
+
+// Adoption is a container a change takes on: its full ID, and what it is called.
+type Adoption struct {
+	ID, Name string
 }
 
 // Propose plans edits as a new change, as ProposeChange does, for another
@@ -145,6 +152,8 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	for i := range edits {
 		edits[i].Base, edits[i].Pull, edits[i].Run = also.Base, also.Pull, also.Run
+		a := also.Adopts[edits[i].Ref.Name]
+		edits[i].Adopt, edits[i].AdoptName = a.ID, a.Name
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,
