@@ -132,6 +132,13 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 // connect runs the server's agent until stop, and waits for it.
 func (s *testServer) connect(t *testing.T, f *fullServer) {
 	t.Helper()
+	s.run(t)
+	waitConnected(t, f, s.id.ServerID, true)
+}
+
+// run runs the server's agent until stop, whether or not the control plane takes it.
+func (s *testServer) run(t *testing.T) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	// It says nothing of the world, whatever machine the test runs on.
@@ -152,7 +159,6 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	var once sync.Once
 	s.stop = func() { once.Do(func() { cancel(); <-done }) }
 	t.Cleanup(s.stop)
-	waitConnected(t, f, s.id.ServerID, true)
 }
 
 func waitConnected(t *testing.T, f *fullServer, server string, connected bool) {

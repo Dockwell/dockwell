@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/terminals"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -503,6 +504,38 @@ func testATerminalEndsWithItsAgent(t *testing.T, backend store.Backend) {
 			t.Fatalf("the agent still has a terminal the control plane doesn't know: %v", s.terms.Known())
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A server that's removed from the fleet takes its terminals off the control plane,
+// on record as ended that way.
+func TestATerminalEndsWithItsServer(t *testing.T) { storetest.Each(t, testATerminalEndsWithItsServer) }
+
+func testATerminalEndsWithItsServer(t *testing.T, backend store.Backend) {
+	was := terminals.RemovedEvery
+	terminals.RemovedEvery = 20 * time.Millisecond
+	t.Cleanup(func() { terminals.RemovedEvery = was })
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	keep := f.addServer(t, false).id.ServerID
+	gone := f.addNamedServer(t, "hz-2", false)
+	openTerminal(t, b, keep)
+	openTerminal(t, b, gone.id.ServerID)
+	// Its agent comes back with a certificate that's revoked, which is refused, and
+	// that takes it off the fleet.
+	if err := f.ident.Revoke(t.Context(), gone.id.ServerID, "cli:test"); err != nil {
+		t.Fatal(err)
+	}
+	gone.stop()
+	gone.run(t)
+	closing := waitForTerminalEvent(t, b, gone.id.ServerID, "terminal.close")
+	if closing.GetTerminal().GetEnd().GetReason() != dockwellv1.TerminalEndReason_TERMINAL_END_REASON_SERVER_REMOVED {
+		t.Errorf("closed as %v", closing.GetTerminal())
+	}
+	c := terminalClient(b, b.origin)
+	list, err := c.ListTerminals(t.Context(), connect.NewRequest(&dockwellv1.ListTerminalsRequest{ServerId: keep}))
+	if err != nil || len(list.Msg.GetTerminals()) != 1 {
+		t.Errorf("the server that stayed has %v, %v", list, err)
 	}
 }
 
