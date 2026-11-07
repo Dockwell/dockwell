@@ -210,6 +210,15 @@ func TestANewImageOnWhatIsAsGoodAsRootNeedsAPerson(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// So for what Dockwell made, a new command counts as a new image does.
+		if p := propose(t, e, "Another command", app("nginx:1.27", func(c *resourcev1.Container) {
+			c.Command = []string{"sh", "-c", "docker ps"}
+		})); !p.HostAccess() {
+			t.Errorf("another command asks nothing of anyone: %+v", p.Resources)
+		} else if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+
 		if p := propose(t, e, "A limit", app("nginx:1.27", func(c *resourcev1.Container) {
 			c.Resources = &resourcev1.Resources{Memory: "512M"}
 		})); p.HostAccess() {

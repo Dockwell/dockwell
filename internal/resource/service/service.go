@@ -288,6 +288,11 @@ func (*Driver) ImageOf(spec proto.Message) string {
 	return spec.(*resourcev1.Service).GetApp().GetImage()
 }
 
+// CodeOf is what a service's app runs in its image, to compare.
+func (*Driver) CodeOf(spec proto.Message) []string {
+	return container.Code(spec.(*resourcev1.Service).GetApp())
+}
+
 // SetImage changes the image a service's app runs.
 func (*Driver) SetImage(spec proto.Message, image string) {
 	if app := spec.(*resourcev1.Service).GetApp(); app != nil {

@@ -9,7 +9,9 @@ import (
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -589,12 +591,78 @@ func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
 			t.Errorf("a new image on %s asks nothing of anyone: %v", name, p.GetPlan())
 		}
 		tokenRefused(t, script, p, name)
-		if !slices.ContainsFunc(p.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "new_image_as_root" }) {
+		if !slices.ContainsFunc(p.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "new_code_as_root" }) {
 			t.Errorf("the plan for %s doesn't say why it needs a person: %v", name, p.GetPlan().GetNotes())
 		}
 		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: p.GetId()})); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// A new command is any code at all too, and a health check runs one, so what's as good
+// as root needs a person for those as for an image: a token that holds the socket's
+// command runs what it likes as root. That holds for what Dockwell made as for what it
+// took on. The environment isn't that, and stays open.
+func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	c := changeClient(b, b.origin)
+	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
+	runByHand(t, e, "runs-docker", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings = nil
+		r.HostConfig.Binds = []string{"/var/run/docker.sock:/var/run/docker.sock"}
+	})
+	applyConfirmed(t, c, adopt(t, cc, "runs-docker", "runs-docker"))
+	env := listedEnv(t, b)
+	current := func() *resourcev1.Service {
+		t.Helper()
+		var spec proto.Message
+		err := f.store.View(t.Context(), func(tx *store.Tx) error {
+			r, err := tx.GetResource(t.Context(), "service", env, "runs-docker")
+			if err != nil {
+				return err
+			}
+			spec, err = f.keeper.Decode(t.Context(), tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return proto.Clone(spec).(*resourcev1.Service)
+	}
+	plan := func(what string, edit func(*resourcev1.Container)) *dockwellv1.Change {
+		t.Helper()
+		svc := current()
+		edit(svc.GetApp())
+		return propose(t, c, what, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: env, Name: "runs-docker"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
+		})
+	}
+	for what, edit := range map[string]func(*resourcev1.Container){
+		"a command":     func(a *resourcev1.Container) { a.Command = []string{"sh", "-c", "docker run --privileged alpine"} },
+		"an entrypoint": func(a *resourcev1.Container) { a.Entrypoint = []string{"sh", "-c", "docker ps"} },
+		"a health check": func(a *resourcev1.Container) {
+			a.Healthcheck = &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "docker ps"}}
+		},
+	} {
+		p := plan(what, edit)
+		if !p.GetPlan().GetHostAccess() {
+			t.Errorf("%s on what holds the socket asks nothing of anyone: %v", what, p.GetPlan())
+		}
+		tokenRefused(t, script, p, "runs-docker")
+		if !slices.ContainsFunc(p.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "new_code_as_root" }) {
+			t.Errorf("the plan for %s doesn't say why it needs a person: %v", what, p.GetPlan().GetNotes())
+		}
+		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: p.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if p := plan("a variable", func(a *resourcev1.Container) { a.Env["LOG_LEVEL"] = "debug" }); p.GetPlan().GetHostAccess() {
+		t.Errorf("a change of environment on what holds the socket needs a person: %v", p.GetPlan().GetResources())
 	}
 }
 

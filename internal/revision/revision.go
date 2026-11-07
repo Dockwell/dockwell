@@ -597,7 +597,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = elsewhereNotes(plan, e.newImageNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))
+	p.Notes = elsewhereNotes(plan, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1442,14 +1442,14 @@ func (e *Engine) NewProject(ctx context.Context, tx *store.Tx, org, name, enviro
 	}, environmentID, nil
 }
 
-// newImage says the item runs another image where one runs now: another name, or
-// whatever its tag points at by now.
-func (e *Engine) newImage(it *item) bool {
+// newCode says the item runs other code where it runs now: another image, whatever
+// its tag points at by now, or another command, entrypoint or health check.
+func (e *Engine) newCode(it *item) bool {
 	n, ok := e.imageNamer(it.ref.Kind)
 	if !ok || it.spec == nil || it.current == nil {
 		return false
 	}
-	return it.pull || n.ImageOf(it.current) != n.ImageOf(it.spec)
+	return it.pull || n.ImageOf(it.current) != n.ImageOf(it.spec) || !slices.Equal(n.CodeOf(it.current), n.CodeOf(it.spec))
 }
 
 // ManagedElsewhere is what a plan says of a container from a Compose project, as
@@ -1498,19 +1498,19 @@ func elsewhereNotes(plan *Plan, notes []Note) []Note {
 	return out
 }
 
-// newImageNotes are a plan's notes, saying why a new image alone needs a person.
-func (e *Engine) newImageNotes(plan *Plan, items []item, notes []Note) []Note {
+// newCodeNotes are a plan's notes, saying why new code alone needs a person.
+func (e *Engine) newCodeNotes(plan *Plan, items []item, notes []Note) []Note {
 	out := slices.Clone(notes)
 	for i := range items {
 		it := &items[i]
-		if !e.newImage(it) {
+		if !e.newCode(it) {
 			continue
 		}
 		for j := range plan.Resources {
 			r := &plan.Resources[j]
 			if r.Ref == it.ref && slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot) {
-				out = append(out, Note{Reason: "new_image_as_root", Ref: it.ref, Message: it.ref.Name +
-					" reaches what's as good as root on its server, so a new image is any code at all with that reach. A person approves it, as no token may"})
+				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: it.ref.Name +
+					" reaches what's as good as root on its server, so a new image, command or health check is any code at all with that reach. A person approves it, as no token may"})
 			}
 		}
 	}
@@ -1724,9 +1724,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				if it.adopt != "" {
 					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
 				}
-				// A new image is any code at all with what the service reaches, so
-				// where that's as good as root, it's as much as reaching it anew.
-				if e.newImage(it) {
+				// New code is anything at all with what the service reaches, so where
+				// that's as good as root, it's as much as reaching it anew.
+				if e.newCode(it) {
 					gained = append(gained, resource.NewAccess(gained, asRoot(e.reach(it.ref, it.desiredOn(server), after), leads))...)
 				}
 			}
