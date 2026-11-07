@@ -113,6 +113,13 @@ describe("FilesPage", () => {
     expect(await screen.findByRole("link", { name: "Files" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("groups its places as Server-Files does: the pinned ones, then the server's root", async () => {
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
+    const places = await screen.findByRole("navigation", { name: "Places" });
+    const said = [...places.children].map((child) => child.textContent);
+    expect(said).toEqual(["Pinned", "Websites", "Logs", "Docker volumes", "", "Server", "Server root"]);
+  });
+
   it("lists a folder, folders first, and says where you are", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     await screen.findByRole("table", { name: "Files in /var/www" });

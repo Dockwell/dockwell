@@ -89,6 +89,19 @@
   font-weight: 400;
 }
 
+.files-places-head {
+  padding: var(--space-1) var(--space-2) 6px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.files-places-rule {
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--line);
+}
+
 .files-list {
   flex: 1 1 520px;
   display: flex;
@@ -299,6 +312,11 @@
     flex-direction: row;
     overflow-x: auto;
     padding: var(--space-1);
+  }
+
+  .files-places-head,
+  .files-places-rule {
+    display: none;
   }
 
   .files-places .dw-btn {

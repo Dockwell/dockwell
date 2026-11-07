@@ -5651,6 +5651,10 @@ msgstr "人们通过此名称访问应用，流量经过此服务器前面的隧
 msgid "Permissions"
 msgstr "权限"
 
+#: src/features/files/FilesPage.tsx
+msgid "Pinned"
+msgstr "常用位置"
+
 #: src/features/apps/revision.ts
 msgid "Placed it on {added}"
 msgstr "已把它放到 {added} 上"
@@ -6792,6 +6796,7 @@ msgstr "服务器"
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
 #: src/features/domains/DomainsPage.tsx
+#: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx

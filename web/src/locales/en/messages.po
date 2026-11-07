@@ -5651,6 +5651,10 @@ msgstr "People reach the app at this name, through what's in front of this serve
 msgid "Permissions"
 msgstr "Permissions"
 
+#: src/features/files/FilesPage.tsx
+msgid "Pinned"
+msgstr "Pinned"
+
 #: src/features/apps/revision.ts
 msgid "Placed it on {added}"
 msgstr "Placed it on {added}"
@@ -6792,6 +6796,7 @@ msgstr "server"
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
 #: src/features/domains/DomainsPage.tsx
+#: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx

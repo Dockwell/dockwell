@@ -18,7 +18,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import { isTransient } from "../../app/api";
 import { reasonOf, sentence } from "../../lib/errors";
@@ -278,19 +278,28 @@ function Files({ server, folder, file, reading }: FilesProps) {
         {reading ? null : (
           <Panel flush className="files-places">
             <nav aria-label={t`Places`}>
-              {places.map((place) => (
-                <RouterButtonLink
-                  key={place.path}
-                  variant="ghost"
-                  size="sm"
-                  icon={place.icon}
-                  to="/servers/$serverId/files"
-                  params={{ serverId }}
-                  search={{ path: place.path }}
-                  title={place.path}
-                >
-                  {place.label}
-                </RouterButtonLink>
+              {/* As Server-Files groups them: the places worth a click, then the server's own root. */}
+              {places.map((place, i) => (
+                <Fragment key={place.path}>
+                  {i === 0 ? <div className="files-places-head">{t`Pinned`}</div> : null}
+                  {i === places.length - 1 ? (
+                    <>
+                      <div className="files-places-rule" />
+                      <div className="files-places-head">{t`Server`}</div>
+                    </>
+                  ) : null}
+                  <RouterButtonLink
+                    variant="ghost"
+                    size="sm"
+                    icon={place.icon}
+                    to="/servers/$serverId/files"
+                    params={{ serverId }}
+                    search={{ path: place.path }}
+                    title={place.path}
+                  >
+                    {place.label}
+                  </RouterButtonLink>
+                </Fragment>
               ))}
             </nav>
           </Panel>
