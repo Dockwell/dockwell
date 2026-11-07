@@ -11,6 +11,7 @@ import {
   BackupState,
   Connection,
   HealthState,
+  PackageManager,
   ServerInventorySchema,
   type WatchEventsResponse,
   type WatchServersResponse,
@@ -389,6 +390,49 @@ describe("what the overview shows below the numbers", () => {
       ),
     ).toBeVisible();
     await expectAccessible(container);
+  });
+
+  const updates: Api["updates"] = {
+    getServerUpdates: () => ({
+      updates: {
+        serverId: "srv_1",
+        manager: PackageManager.APT,
+        marksSecurity: true,
+        readTime: timestampFromDate(new Date()),
+        packages: [
+          {
+            name: "openssl",
+            installed: "3.0.13-0ubuntu3.4",
+            available: "3.0.13-0ubuntu3.5",
+            origin: "noble-security",
+            security: true,
+          },
+        ],
+      },
+    }),
+  };
+
+  it("puts the updates last beside them, as Overview-Single has them", async () => {
+    renderAt("/", { ...overviewApi(), updates });
+
+    const card = await screen.findByRole("region", { name: "Updates" });
+    expect(await within(card).findByText("1 security update for Ubuntu")).toBeVisible();
+    const backups = screen.getByRole("region", { name: "Backups" });
+    expect(card.parentElement).toBe(backups.parentElement);
+    expect(card.parentElement?.lastElementChild).toBe(card);
+    expect(screen.getByRole("region", { name: "Recent changes" }).parentElement).toBe(card.parentElement);
+  });
+
+  it("puts the updates right after the apps on a phone, as M-Overview-Single has them", async () => {
+    onPhone();
+    renderAt("/", { ...overviewApi(), updates });
+
+    const link = await screen.findByRole("link", { name: /1 security update for Ubuntu/ });
+    expect(link).toHaveAttribute("href", "/servers/srv_1/updates");
+    const app = await screen.findByRole("link", { name: /^web/ });
+    const changes = screen.getByRole("region", { name: "Recent changes" });
+    expect(app.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(link.compareDocumentPosition(changes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("lists the apps as rows on a phone, healthy ones quiet", async () => {

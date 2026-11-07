@@ -24,8 +24,8 @@ import "./Overview.css";
 /**
  * The first screen: is everything OK? With one server, that server's health,
  * live, then what runs on it, what changed, how its backups stand and which
- * updates wait, as Overview-Single has them. With none, how to add one. From the second server
- * on, every server in a list, until the fleet overview exists.
+ * updates wait, as Overview-Single has them. With none, how to add one. From the
+ * second server on, every server in a list, until the fleet overview exists.
  */
 export function Overview() {
   const { t } = useLingui();
