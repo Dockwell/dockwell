@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/auth.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// MemberService says who can sign in to the install, with their role and how
+// they sign in. Today that is one person, the owner, who claimed the install:
+// inviting others, and roles beyond the owner, come later. See
+// docs/adr/0048-members-as-far-as-one-owner-goes.md.
+//
+// It names people and their emails, so only a person signed in reads it, never
+// an API token.
+service MemberService {
+  // ListMembers returns everyone who can sign in, oldest first.
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {get: "/v1/members"};
+  }
+}
+
+// ListMembersRequest takes no parameters.
+message ListMembersRequest {}
+
+// ListMembersResponse lists who can sign in.
+message ListMembersResponse {
+  // Everyone who can sign in, oldest first.
+  repeated Member members = 1;
+}
+
+// Member is a person who can sign in, and how.
+message Member {
+  // Who they are, and their role.
+  User user = 1;
+  // True for the person asking.
+  bool you = 2;
+  // How many passkeys they have that still sign in: one flagged as copied
+  // doesn't.
+  int32 passkeys = 3;
+  // The addresses those passkeys work at, such as "localhost" or
+  // "panel.example.com", each once.
+  repeated string passkey_addresses = 4;
+  // True when they can sign in with codes from an authenticator app.
+  bool authenticator = 5;
+  // How many of their recovery codes are left. Zero without an
+  // authenticator app.
+  int32 recovery_codes_left = 6;
+  // How many browsers they're signed in on now.
+  int32 sessions = 7;
+  // When one of those browsers was last used. Unset with none.
+  google.protobuf.Timestamp last_active_time = 8;
+}

@@ -6882,6 +6882,123 @@ msgstr "使用 OpenRC 时，在 <1>/etc/conf.d/dockwell</1> 中写入 <0>export 
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "使用 systemd 时，用 <0>sudo systemctl edit dockwell</0> 添加 <1>Environment=DOCKWELL_DOMAIN=…</1> 这一行，然后运行 <2>sudo systemctl restart dockwell</2>。"
 
+msgid "1 browser"
+msgstr "1 个浏览器"
+
+msgid "1 passkey"
+msgstr "1 个通行密钥"
+
+msgid "1 person signs in to this install, its owner · inviting others comes later"
+msgstr "1 人可以登录这个安装，即其所有者 · 邀请他人将在之后推出"
+
+msgid "<0>dockwell recover</0> on the control server"
+msgstr "在控制服务器上运行 <0>dockwell recover</0>"
+
+msgid "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
+msgstr "目前一个安装只有一个人，即认领它的所有者，因为还没有任何机制能把管理员、开发者或查看者与所有者区分开。脚本和集成使用 API 令牌登录。<0>成员和角色需要什么</0>"
+
+msgid "Change the install's settings"
+msgstr "更改这个安装的设置"
+
+msgid "Deploy, and apply any plan"
+msgstr "部署，并应用任何计划"
+
+msgid "Dockwell can't say who signs in"
+msgstr "Dockwell 无法得知谁可以登录"
+
+msgid "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
+msgstr "在每台服务器上拥有全部权限。管理员、开发者和查看者各自能看到和执行的更少，并按项目划分范围，将随成员功能推出。"
+
+msgid "How you sign in"
+msgstr "你的登录方式"
+
+msgid "Inviting someone comes in a later release"
+msgstr "邀请他人将在之后的版本中推出"
+
+msgid "Last active"
+msgstr "上次活动"
+
+msgid "Last resort"
+msgstr "最后手段"
+
+msgid "Loading who signs in"
+msgstr "正在加载可以登录的人"
+
+msgid "Make and revoke API tokens"
+msgstr "创建和撤销 API 令牌"
+
+msgid "Manage servers, their files and their terminals"
+msgstr "管理服务器及其文件和终端"
+
+msgid "Member"
+msgstr "成员"
+
+msgid "Members"
+msgstr "成员"
+
+msgid "Now"
+msgstr "现在"
+
+msgid "OIDC comes in a later release"
+msgstr "OIDC 将在之后的版本中推出"
+
+msgid "On, 1 recovery code left"
+msgstr "已开启，剩余 1 个恢复码"
+
+#. placeholder {0}: member.recoveryCodesLeft
+msgid "On, {0} recovery codes left"
+msgstr "已开启，剩余 {0} 个恢复码"
+
+msgid "Permission"
+msgstr "权限"
+
+msgid "Read the audit log"
+msgstr "读取审计日志"
+
+msgid "Role"
+msgstr "角色"
+
+msgid "Sign-in"
+msgstr "登录"
+
+msgid "Signed in on"
+msgstr "已登录于"
+
+msgid "Single sign-on"
+msgstr "单点登录"
+
+msgid "What the owner can do"
+msgstr "所有者可以做什么"
+
+msgid "Who signs in"
+msgstr "谁可以登录"
+
+msgid "Who signs in to this install"
+msgstr "谁可以登录这个安装"
+
+msgid "You"
+msgstr "你"
+
+msgid "all sign in with a passkey"
+msgstr "全部使用通行密钥登录"
+
+#. placeholder {0}: member.sessions
+msgid "{0} browsers"
+msgstr "{0} 个浏览器"
+
+#. placeholder {0}: m.passkeys
+msgid "{0} passkeys"
+msgstr "{0} 个通行密钥"
+
+msgid "{count} people sign in to this install"
+msgstr "{count} 人可以登录这个安装"
+
+msgid "{keys} and an authenticator app"
+msgstr "{keys}和一个身份验证器应用"
+
+msgid "{withPasskeys} of {count} sign in with a passkey"
+msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
+
 msgid "Account"
 msgstr "账户"
 
