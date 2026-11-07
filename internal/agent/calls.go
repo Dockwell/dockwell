@@ -657,7 +657,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Terminals == nil {
 			return fail(errNoTerminals)
 		}
-		opened, err := c.cfg.Terminals.Open(open)
+		opened, err := c.cfg.Terminals.Open(ctx, open)
 		if err != nil {
 			return fail(err)
 		}

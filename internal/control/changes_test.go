@@ -139,6 +139,11 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 // run runs the server's agent until stop, whether or not the control plane takes it.
 func (s *testServer) run(t *testing.T) {
 	t.Helper()
+	if s.terms == nil && s.client != nil {
+		s.terms = terminal.New(terminal.Options{
+			Shell: []string{"/bin/sh"}, Home: t.TempDir(), Docker: s.client, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(s.drivers),
+		})
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	// It says nothing of the world, whatever machine the test runs on.

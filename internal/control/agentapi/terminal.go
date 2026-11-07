@@ -30,6 +30,9 @@ var ErrNotAttached = errors.New("the terminal isn't attached")
 // Terminals reports an agent that opens terminals.
 func (s *Session) Terminals() bool { return s.terminals }
 
+// ContainerTerminals reports an agent that opens shells in containers.
+func (s *Session) ContainerTerminals() bool { return s.containerTerminals }
+
 // OpenTerminals is what the agent said in its hello of the terminals it has.
 func (s *Session) OpenTerminals() []string { return slices.Clone(s.openTerminals) }
 

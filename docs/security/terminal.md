@@ -42,6 +42,16 @@ A terminal hands a browser a root shell on a server, through an agent that runs 
 | Keep its session alive through a terminal nobody is attached to | It can't. The control plane checks a detached terminal's session every 30 s, and that check isn't use: it keeps no session past its idle limit, and leaves its last-seen time and address as they were. Tested |
 | Take every terminal a server or the control plane has | It can't. One session holds 4 of a server's 8 and 16 of the control plane's 32. Tested |
 
+### A shell in a container
+
+| It tries to | What happens |
+| --- | --- |
+| Open a shell in a container that reaches no further than itself | It can, with a session and no passkey: that's root in the container, which a plan already gives a session, as it can deploy any image. Tested |
+| Open a shell in a container that's privileged, holds Docker's socket, shares the server's network or mounts a system path | Refused with `needs_step_up` until a passkey confirms that container on that server: a proof for the server, or for another container, doesn't open it. The agent decides, on the container it runs the shell in. Tested, on the fake engine and on Docker |
+| Open one in a container that runs with what no service's spec can hold, such as `--pid=host` | Counted as root, so it asks for the passkey, as what that does can't be told |
+| Swap the container for a root one between the check and the shell | It can't: the agent checks the container by its ID, and runs the shell in that one |
+| Open one through an agent from before shells in containers | Refused as `agent_outdated`: such an agent would read the call as one for the server's own shell. Tested |
+
 ### Another session of the same person
 
 | It tries to | What happens |

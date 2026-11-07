@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,15 +53,16 @@ var Actions = []string{EventOpen, EventOpenFailed, EventClose, EventUnconfirmed}
 // Told is what a terminal's event on Activity says. It holds nothing typed or
 // printed, and only this package writes it.
 type Told struct {
-	ID       string    `json:"id,omitempty"`     // none for one that asked for a passkey and never opened
-	Server   string    `json:"server,omitempty"` // by name, for whoever reads the audit log
-	Title    string    `json:"title,omitempty"`
-	Opened   time.Time `json:"opened,omitzero"`
-	Reason   int32     `json:"reason,omitempty"`
-	ExitCode int32     `json:"exit_code,omitempty"`
-	Ended    time.Time `json:"ended,omitzero"`
-	Message  string    `json:"message,omitempty"`
-	Error    string    `json:"error,omitempty"`
+	ID        string    `json:"id,omitempty"`     // none for one that asked for a passkey and never opened
+	Server    string    `json:"server,omitempty"` // by name, for whoever reads the audit log
+	Container string    `json:"container,omitempty"`
+	Title     string    `json:"title,omitempty"`
+	Opened    time.Time `json:"opened,omitzero"`
+	Reason    int32     `json:"reason,omitempty"`
+	ExitCode  int32     `json:"exit_code,omitempty"`
+	Ended     time.Time `json:"ended,omitzero"`
+	Message   string    `json:"message,omitempty"`
+	Error     string    `json:"error,omitempty"`
 }
 
 // ReadTold reads what a terminal's event says.
@@ -72,7 +74,7 @@ func ReadTold(detail string) (Told, bool) {
 
 // Proto is t as the timeline says it.
 func (t Told) Proto() *dockwellv1.EventTerminal {
-	out := &dockwellv1.EventTerminal{Id: t.ID, Title: t.Title, Error: t.Error}
+	out := &dockwellv1.EventTerminal{Id: t.ID, Title: t.Title, Error: t.Error, Container: t.Container}
 	if !t.Opened.IsZero() {
 		out.OpenTime = timestamppb.New(t.Opened)
 	}
@@ -125,6 +127,7 @@ var _ dockwellv1connect.TerminalServiceHandler = (*Handler)(nil)
 // entry is a terminal the control plane knows of: whose it is, and its attachment.
 type entry struct {
 	id, server     string
+	container      string // by name, for a shell in a container
 	user, session  string // whose it is: no one else reaches it
 	actor, surface string
 	title          string
@@ -193,7 +196,9 @@ func (h *Handler) mine(p auth.Principal, terminalID string) (*entry, error) {
 func (e *entry) proto() *dockwellv1.Terminal {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return &dockwellv1.Terminal{Id: e.id, ServerId: e.server, Title: e.title, OpenTime: timestamppb.New(e.opened), Columns: e.cols, Rows: e.rows}
+	return &dockwellv1.Terminal{
+		Id: e.id, ServerId: e.server, Title: e.title, OpenTime: timestamppb.New(e.opened), Columns: e.cols, Rows: e.rows, Container: e.container,
+	}
 }
 
 // OpenTerminal starts root's login shell on a server, once everything else is
@@ -220,33 +225,62 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's agent is too old to open terminals. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated")
 	}
+	container := req.Msg.GetContainer()
+	if container != "" {
+		if len(container) > 255 || strings.ContainsFunc(container, func(r rune) bool { return r <= ' ' || r == '/' || r == ':' }) {
+			return nil, authapi.Invalid(errors.New("name a container as Docker does, by its name or full ID, with no spaces, slashes or colons"))
+		}
+		if !session.ContainerTerminals() {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("%s's agent is too old to open a shell in a container. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated")
+		}
+	}
 	if err := h.room(srv, p.Session.ID); err != nil {
 		return nil, err
 	}
 	record := h.recorder(ctx, p, srv)
-	// A proof opens one terminal, and is held until the shell starts, as opening it
-	// can still be refused.
-	proof := req.Msg.GetProof()
-	if proof == "" {
-		h.auth.AskedForStepUp(p, auth.StepUpOpenTerminal, srv.GetId(), func() {
-			if _, err := record(EventUnconfirmed, "", Told{Server: srv.GetName(), Error: "asked for a passkey, and none came"}.String()); err != nil {
+	// A server's terminal is root, so it takes a passkey for that server. A shell in
+	// a container takes one for that container where the agent finds it as good as
+	// root, as only the agent can tell, so it asks once the agent has said.
+	target := srv.GetId()
+	if container != "" {
+		target += ":" + container
+	}
+	asked := func() error {
+		h.auth.AskedForStepUp(p, auth.StepUpOpenTerminal, target, func() {
+			if _, err := record(EventUnconfirmed, "", Told{Server: srv.GetName(), Container: container, Error: "asked for a passkey, and none came"}.String()); err != nil {
 				h.logger.WarnContext(ctx, "can't record a terminal that wasn't confirmed", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
 			}
 		})
-		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+		if container != "" {
+			return authapi.ReasonError(connect.CodePermissionDenied,
+				fmt.Errorf("%s reaches as far as root on %s, so a shell in it takes your passkey. Confirm with it, then open it again", container, srv.GetName()),
+				authapi.ReasonNeedsStepUp)
+		}
+		return authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("a terminal on %s is a root shell, so opening one takes your passkey. Confirm with it, then open it again", srv.GetName()),
 			authapi.ReasonNeedsStepUp)
 	}
-	giveBack, err := h.auth.HoldStepUp(p, proof, auth.StepUpOpenTerminal, srv.GetId())
-	if err != nil {
-		return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+	// A proof opens one terminal, and is held until the shell starts, as opening it
+	// can still be refused.
+	proof := req.Msg.GetProof()
+	if proof == "" && container == "" {
+		return nil, asked()
+	}
+	giveBack := func() {}
+	if proof != "" {
+		back, err := h.auth.HoldStepUp(p, proof, auth.StepUpOpenTerminal, target)
+		if err != nil {
+			return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+		}
+		giveBack = back
 	}
 	ctx = context.WithoutCancel(ctx)
 	termID := id.New(id.Terminal)
 	client, _ := authapi.ClientFrom(ctx)
 	e := &entry{
 		id: termID, server: srv.GetId(), user: p.User.ID, session: p.Session.ID, actor: p.Actor(), surface: client.Surface(p),
-		opened: h.now(), cols: cols, rows: rows,
+		opened: h.now(), cols: cols, rows: rows, container: container,
 	}
 	// Its place is taken before the shell starts, so two can't both take the last,
 	// and a shell that ends at once finds what it ends.
@@ -254,18 +288,30 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		giveBack()
 		return nil, err
 	}
-	opening, err := record(eventOpening, termID, "opening a terminal on "+srv.GetName())
+	what := "a terminal on " + srv.GetName()
+	if container != "" {
+		what = "a shell in " + container + " on " + srv.GetName()
+	}
+	opening, err := record(eventOpening, termID, "opening "+what)
 	if err != nil {
 		h.forget(termID)
 		giveBack()
 		return nil, h.rpcError(ctx, err)
 	}
-	opened, err := session.OpenTerminal(ctx, &agentv1.OpenTerminalCall{Id: termID, Columns: cols, Rows: rows, Record: opening})
+	opened, err := session.OpenTerminal(ctx, &agentv1.OpenTerminalCall{
+		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: container, Confirmed: proof != "",
+	})
+	if err == nil && opened.GetNeedsStepUp() {
+		// Being asked isn't a failure: what matters is whether a passkey follows.
+		h.forget(termID)
+		giveBack()
+		return nil, asked()
+	}
 	if err != nil {
 		h.forget(termID)
 		giveBack()
 		err = h.rpcError(ctx, err)
-		why := Told{ID: termID, Server: srv.GetName(), Error: connect.NewError(connect.CodeUnknown, err).Message()}
+		why := Told{ID: termID, Server: srv.GetName(), Container: container, Error: connect.NewError(connect.CodeUnknown, err).Message()}
 		if _, rerr := record(EventOpenFailed, termID, why.String()); rerr != nil {
 			h.logger.WarnContext(ctx, "can't record a terminal that didn't open", slog.String("server", srv.GetId()), slog.String("error", rerr.Error()))
 		}
@@ -274,7 +320,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	e.mu.Lock()
 	e.title = opened.GetTitle()
 	e.mu.Unlock()
-	if _, err := record(EventOpen, termID, Told{ID: termID, Server: srv.GetName(), Title: opened.GetTitle(), Opened: e.opened}.String()); err != nil {
+	if _, err := record(EventOpen, termID, Told{ID: termID, Server: srv.GetName(), Container: container, Title: opened.GetTitle(), Opened: e.opened}.String()); err != nil {
 		// What can't go on record doesn't stay open.
 		if _, cerr := session.CloseTerminal(ctx, termID, dockwellv1.TerminalEndReason_TERMINAL_END_REASON_CLOSED); cerr != nil {
 			h.logger.ErrorContext(ctx, "opened a terminal that can't go on record, and can't close it; it closes once nobody is attached",
@@ -571,7 +617,7 @@ func (h *Handler) watch(tied context.Context, e *entry) {
 			e.mu.Lock()
 			title := e.title
 			e.mu.Unlock()
-			h.recordClose(context.Background(), e.server, e.id, e.actor, e.surface, title, e.opened, &dockwellv1.TerminalEnd{
+			h.recordClose(context.Background(), e.server, e.id, e.actor, e.surface, title, e.container, e.opened, &dockwellv1.TerminalEnd{
 				Reason: dockwellv1.TerminalEndReason_TERMINAL_END_REASON_SERVER_REMOVED, Time: timestamppb.New(h.now()),
 				Message: "Its server was removed from Dockwell.",
 			})
@@ -624,11 +670,11 @@ func (h *Handler) ended(server string, msg *agentv1.TerminalEnded) {
 		h.mu.Unlock()
 		return
 	}
-	var actor, surface, title string
+	var actor, surface, title, container string
 	var opened time.Time
 	if e != nil {
 		e.mu.Lock()
-		actor, surface, title, opened = e.actor, e.surface, e.title, e.opened
+		actor, surface, title, container, opened = e.actor, e.surface, e.title, e.container, e.opened
 		e.mu.Unlock()
 	} else {
 		// One this control plane doesn't know, as it restarted since: its opening
@@ -644,10 +690,10 @@ func (h *Handler) ended(server string, msg *agentv1.TerminalEnded) {
 		}
 		actor, surface, opened = opening.Actor, opening.Surface, msg.GetOpened().AsTime()
 	}
-	h.recordClose(ctx, server, msg.GetId(), actor, surface, title, opened, msg.GetEnd())
+	h.recordClose(ctx, server, msg.GetId(), actor, surface, title, container, opened, msg.GetEnd())
 }
 
-func (h *Handler) recordClose(ctx context.Context, server, terminalID, actor, surface, title string, opened time.Time, end *dockwellv1.TerminalEnd) {
+func (h *Handler) recordClose(ctx context.Context, server, terminalID, actor, surface, title, container string, opened time.Time, end *dockwellv1.TerminalEnd) {
 	name := server
 	if srv, err := h.fleet.Get(server); err == nil {
 		name = srv.GetName()
@@ -657,7 +703,7 @@ func (h *Handler) recordClose(ctx context.Context, server, terminalID, actor, su
 		at = end.GetTime().AsTime()
 	}
 	detail := Told{
-		ID: terminalID, Server: name, Title: title, Opened: opened, Reason: int32(end.GetReason()), ExitCode: end.GetExitCode(), Ended: at, Message: end.GetMessage(),
+		ID: terminalID, Server: name, Container: container, Title: title, Opened: opened, Reason: int32(end.GetReason()), ExitCode: end.GetExitCode(), Ended: at, Message: end.GetMessage(),
 	}.String()
 	if err := h.db.Update(ctx, func(tx *store.Tx) error {
 		return tx.RecordEvent(ctx, store.Event{
@@ -700,7 +746,7 @@ func (h *Handler) reconcile(server string) {
 		e.mu.Lock()
 		title := e.title
 		e.mu.Unlock()
-		h.recordClose(ctx, server, e.id, e.actor, e.surface, title, e.opened, &dockwellv1.TerminalEnd{
+		h.recordClose(ctx, server, e.id, e.actor, e.surface, title, e.container, e.opened, &dockwellv1.TerminalEnd{
 			Reason: dockwellv1.TerminalEndReason_TERMINAL_END_REASON_AGENT_RESTARTED, Time: timestamppb.New(h.now()),
 			Message: "Its server's agent restarted, and its shell with it.",
 		})

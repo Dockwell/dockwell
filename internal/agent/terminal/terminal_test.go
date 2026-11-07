@@ -199,7 +199,7 @@ func shellManager(t *testing.T, opts Options) *Manager {
 
 func open(t *testing.T, m *Manager, id string) *agentv1.OpenTerminalResult {
 	t.Helper()
-	r, err := m.Open(&agentv1.OpenTerminalCall{Id: id, Columns: 80, Rows: 24, Record: "evt_" + id})
+	r, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: id, Columns: 80, Rows: 24, Record: "evt_" + id})
 	if err != nil {
 		t.Fatalf("opening %s: %v", id, err)
 	}
@@ -384,11 +384,11 @@ func TestAServerKeepsEightTerminals(t *testing.T) {
 	for i := range MaxOpen {
 		open(t, m, fmt.Sprintf("trm_%d", i))
 	}
-	_, err := m.Open(&agentv1.OpenTerminalCall{Id: "trm_9", Columns: 80, Rows: 24})
+	_, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_9", Columns: 80, Rows: 24})
 	if err == nil || !strings.Contains(err.Error(), "8 terminals open") {
 		t.Errorf("a ninth = %v", err)
 	}
-	if _, err := m.Open(&agentv1.OpenTerminalCall{Id: "trm_0"}); err == nil {
+	if _, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_0"}); err == nil {
 		t.Error("opened a terminal with an ID that's taken")
 	}
 	if _, err := m.Close("trm_0", dockwellv1.TerminalEndReason_TERMINAL_END_REASON_CLOSED); err != nil {

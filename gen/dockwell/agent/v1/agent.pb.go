@@ -1158,8 +1158,13 @@ type Hello struct {
 	// those still open, and those whose TerminalEnded hasn't gone yet. A control
 	// plane that doesn't know one asks for it to be closed.
 	OpenTerminals []string `protobuf:"bytes,51,rep,name=open_terminals,json=openTerminals,proto3" json:"open_terminals,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// True when the agent opens shells in containers (OpenTerminalCall.container),
+	// and asks for a passkey for one that's as good as root. One that doesn't would
+	// take a call for a container as one for the server, so the control plane sends it
+	// none.
+	ContainerTerminals bool `protobuf:"varint,52,opt,name=container_terminals,json=containerTerminals,proto3" json:"container_terminals,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
@@ -1260,6 +1265,13 @@ func (x *Hello) GetOpenTerminals() []string {
 		return x.OpenTerminals
 	}
 	return nil
+}
+
+func (x *Hello) GetContainerTerminals() bool {
+	if x != nil {
+		return x.ContainerTerminals
+	}
+	return false
 }
 
 // ConnectResponse is one message from the control plane.
@@ -2378,7 +2390,8 @@ func (*Call_AttachTerminal) isCall_Call() {}
 
 func (*Call_CloseTerminal) isCall_Call() {}
 
-// OpenTerminalCall starts root's login shell on the server.
+// OpenTerminalCall starts root's login shell on the server, or the first shell a
+// container has, in it.
 type OpenTerminalCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The terminal's ID, which the control plane gives it.
@@ -2388,7 +2401,12 @@ type OpenTerminalCall struct {
 	// Its height, in lines.
 	Rows uint32 `protobuf:"varint,3,opt,name=rows,proto3" json:"rows,omitempty"`
 	// What the control plane calls its opening, which TerminalEnded hands back.
-	Record        string `protobuf:"bytes,4,opt,name=record,proto3" json:"record,omitempty"`
+	Record string `protobuf:"bytes,4,opt,name=record,proto3" json:"record,omitempty"`
+	// A container, by name or full ID, to open a shell in, in place of the server's.
+	Container string `protobuf:"bytes,5,opt,name=container,proto3" json:"container,omitempty"`
+	// True when a passkey confirmed opening a shell in container, which one that's as
+	// good as root on the server takes.
+	Confirmed     bool `protobuf:"varint,6,opt,name=confirmed,proto3" json:"confirmed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2451,13 +2469,30 @@ func (x *OpenTerminalCall) GetRecord() string {
 	return ""
 }
 
+func (x *OpenTerminalCall) GetContainer() string {
+	if x != nil {
+		return x.Container
+	}
+	return ""
+}
+
+func (x *OpenTerminalCall) GetConfirmed() bool {
+	if x != nil {
+		return x.Confirmed
+	}
+	return false
+}
+
 // OpenTerminalResult is the terminal, running.
 type OpenTerminalResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Who it runs as and where, such as "root@hz-1".
 	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	// When it opened, by this server's clock.
-	Opened        *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=opened,proto3" json:"opened,omitempty"`
+	Opened *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=opened,proto3" json:"opened,omitempty"`
+	// True when the container is as good as root on the server and no passkey
+	// confirmed it, so nothing was opened.
+	NeedsStepUp   bool `protobuf:"varint,3,opt,name=needs_step_up,json=needsStepUp,proto3" json:"needs_step_up,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2504,6 +2539,13 @@ func (x *OpenTerminalResult) GetOpened() *timestamppb.Timestamp {
 		return x.Opened
 	}
 	return nil
+}
+
+func (x *OpenTerminalResult) GetNeedsStepUp() bool {
+	if x != nil {
+		return x.NeedsStepUp
+	}
+	return false
 }
 
 // AttachTerminalCall has the agent open Terminal for a terminal, and carry its
@@ -6583,7 +6625,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\n" +
 	"\n" +
-	"\bDraining\"\xa2\x03\n" +
+	"\bDraining\"\xd3\x03\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -6594,7 +6636,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0eguards_ways_in\x18\a \x01(\bR\fguardsWaysIn\x12\x18\n" +
 	"\aupdates\x185 \x01(\bR\aupdates\x12\x1c\n" +
 	"\tterminals\x182 \x01(\bR\tterminals\x12%\n" +
-	"\x0eopen_terminals\x183 \x03(\tR\ropenTerminals\"\xbf\x02\n" +
+	"\x0eopen_terminals\x183 \x03(\tR\ropenTerminals\x12/\n" +
+	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\"\xbf\x02\n" +
 	"\x0fConnectResponse\x126\n" +
 	"\awelcome\x18\x01 \x01(\v2\x1a.dockwell.agent.v1.WelcomeH\x00R\awelcome\x12-\n" +
 	"\x04call\x18\x02 \x01(\v2\x17.dockwell.agent.v1.CallH\x00R\x04call\x127\n" +
@@ -6669,15 +6712,18 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\ropen_terminal\x182 \x01(\v2#.dockwell.agent.v1.OpenTerminalCallH\x00R\fopenTerminal\x12P\n" +
 	"\x0fattach_terminal\x183 \x01(\v2%.dockwell.agent.v1.AttachTerminalCallH\x00R\x0eattachTerminal\x12M\n" +
 	"\x0eclose_terminal\x184 \x01(\v2$.dockwell.agent.v1.CloseTerminalCallH\x00R\rcloseTerminalB\x06\n" +
-	"\x04call\"h\n" +
+	"\x04call\"\xa4\x01\n" +
 	"\x10OpenTerminalCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\acolumns\x18\x02 \x01(\rR\acolumns\x12\x12\n" +
 	"\x04rows\x18\x03 \x01(\rR\x04rows\x12\x16\n" +
-	"\x06record\x18\x04 \x01(\tR\x06record\"^\n" +
+	"\x06record\x18\x04 \x01(\tR\x06record\x12\x1c\n" +
+	"\tcontainer\x18\x05 \x01(\tR\tcontainer\x12\x1c\n" +
+	"\tconfirmed\x18\x06 \x01(\bR\tconfirmed\"\x82\x01\n" +
 	"\x12OpenTerminalResult\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x122\n" +
-	"\x06opened\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06opened\"\x82\x01\n" +
+	"\x06opened\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06opened\x12\"\n" +
+	"\rneeds_step_up\x18\x03 \x01(\bR\vneedsStepUp\"\x82\x01\n" +
 	"\x12AttachTerminalCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06stream\x18\x02 \x01(\x04R\x06stream\x12\x16\n" +

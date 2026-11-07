@@ -488,6 +488,9 @@ msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
 
+msgid "Asked for a passkey to open a shell in {container} on {server}, and none came"
+msgstr "在 {server} 上的 {container} 中打开 shell 时要求验证通行密钥，但未收到"
+
 msgid "Asked for a passkey to open a terminal on {server}, and none came"
 msgstr "在 {server} 上打开终端时要求验证通行密钥，但未收到"
 
@@ -509,11 +512,20 @@ msgstr "清除了新计划的时区（原为 {previous}），新计划改用 UTC
 msgid "Cleared this install's name, which was {previous}"
 msgstr "清除了这个安装的名称（原为 {previous}）"
 
+msgid "Closed a shell in {container} on {server}"
+msgstr "关闭了 {server} 上 {container} 中的 shell"
+
+msgid "Closed a shell in {container} on {server}, open {open}"
+msgstr "关闭了 {server} 上 {container} 中的 shell，共打开 {open}"
+
 msgid "Closed a terminal on {server}"
 msgstr "关闭了 {server} 上的终端"
 
 msgid "Closed a terminal on {server}, open {open}"
 msgstr "关闭了 {server} 上的终端，共打开 {open}"
+
+msgid "Couldn't open a shell in {container} on {server}"
+msgstr "无法在 {server} 上的 {container} 中打开 shell"
 
 msgid "Couldn't open a terminal on {server}"
 msgstr "无法在 {server} 上打开终端"
@@ -565,6 +577,9 @@ msgstr "将这个安装命名为 {value}（原为 {previous}）"
 
 msgid "Not running"
 msgstr "没有运行"
+
+msgid "Opened a shell in {container} on {server}"
+msgstr "在 {server} 上的 {container} 中打开了 shell"
 
 msgid "Opened a terminal on {server}"
 msgstr "在 {server} 上打开了终端"
@@ -1675,8 +1690,16 @@ msgstr "现在无法确定 {name} 的运行情况。"
 msgid "Nothing checks it, so this only means it started."
 msgstr "没有任何检查，因此这只表示它已启动。"
 
+#. placeholder {0}: server.container
+#. placeholder {1}: server.serverName
+msgid "Open a shell in {0} on {1}"
+msgstr "在 {1} 上的 {0} 中打开 shell"
+
 msgid "Reading how it runs."
 msgstr "正在读取运行情况。"
+
+msgid "Shell"
+msgstr "Shell"
 
 msgid "Someone paused it, so it serves nothing and no check runs. Unpause it with {command}."
 msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。请用 {command} 恢复。"
@@ -5836,6 +5859,9 @@ msgstr "创建时间"
 msgid "Name as a service"
 msgstr "服务名称"
 
+msgid "Open a shell"
+msgstr "打开 shell"
+
 msgid "Plan taking it on"
 msgstr "计划接管"
 
@@ -6567,6 +6593,10 @@ msgid "Unreachable"
 msgstr "无法访问"
 
 #. placeholder {0}: server.name
+msgid "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
+msgstr "<0>{wanted}</0> 中的 shell 在容器内以容器自己的用户运行，使用镜像中 bash、ash、sh 里找到的第一个。如果容器在 <1>{0}</1> 上的权限相当于 root，打开时会要求验证你的通行密钥。"
+
+#. placeholder {0}: server.name
 msgid "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
 msgstr "这里的终端是 <0>{0}</0> 上的 root shell，通过它的代理连接，所以无需 SSH 端口。打开终端时会要求验证你的通行密钥。"
 
@@ -6611,6 +6641,9 @@ msgstr "查找上一个"
 
 msgid "New session"
 msgstr "新会话"
+
+msgid "No shell open in <0>{wanted}</0>"
+msgstr "<0>{wanted}</0> 中没有打开的 shell"
 
 msgid "No terminal open"
 msgstr "没有打开的终端"
@@ -6666,6 +6699,9 @@ msgstr "你输入的内容会等待发送"
 #. placeholder {0}: names.get(tab.id) ?? tab.title
 msgid "{0} output"
 msgstr "{0} 的输出"
+
+msgid "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "{inContainer} 在 {name} 上的权限相当于 root，所以在其中打开 shell 需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
 
 msgid "{title} · through the agent"
 msgstr "{title} · 通过代理"

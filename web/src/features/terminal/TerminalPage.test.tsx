@@ -259,6 +259,55 @@ describe("TerminalPage", () => {
     expect(await screen.findByText("No terminal open", { selector: "h2" })).toBeInTheDocument();
   });
 
+  it("offers a shell in the container the page was asked for, and opens one with no passkey where none is needed", async () => {
+    const sh = shell("$ ");
+    const openTerminal = vi.fn(() => ({ terminal: term("trm_9", "node@web-1") }));
+    renderAt("/servers/srv_1/terminal?container=web-1", {
+      servers: { watchServers },
+      terminals: { listTerminals: () => ({ terminals: [term()] }), openTerminal, attachTerminal: sh.attachTerminal },
+    });
+    expect(await screen.findByRole("heading", { name: "No shell open in web-1" })).toBeInTheDocument();
+    expect(screen.getByText(/runs in the container, as its own user/)).toHaveTextContent(
+      "A shell in web-1 runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on hz-1 asks for your passkey.",
+    );
+    // The server's own terminal is there to go back to, and nothing is attached meanwhile.
+    expect(screen.getByRole("tab", { name: "root@hz-1" })).toHaveAttribute("aria-selected", "false");
+    expect(sh.attaches).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: "Open a shell" }));
+    expect(await screen.findByRole("tab", { name: "node@web-1", selected: true })).toBeInTheDocument();
+    expect(openTerminal).toHaveBeenCalledTimes(1);
+    expect(openTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ container: "web-1", proof: "" }),
+      expect.anything(),
+    );
+    await expectAccessible(document.body);
+  });
+
+  it("asks for the passkey for that container where it's as good as root", async () => {
+    stubPasskeys();
+    const sh = shell("# ");
+    const openTerminal = vi
+      .fn()
+      .mockRejectedValueOnce(authError(Code.PermissionDenied, "needs_step_up"))
+      .mockResolvedValueOnce({ terminal: term("trm_9", "root@admin-1") });
+    const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
+    renderAt("/servers/srv_1/terminal?container=admin-1", {
+      servers: { watchServers },
+      terminals: { listTerminals: () => ({}), openTerminal, attachTerminal: sh.attachTerminal },
+      auth: { getAuthState: () => authState(), beginStepUp, finishStepUp: () => ({ proof: "proof_1" }) },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Open a shell" }));
+    expect(await screen.findByRole("tab", { name: "root@admin-1", selected: true })).toBeInTheDocument();
+    expect(beginStepUp).toHaveBeenCalledWith(
+      expect.objectContaining({ action: StepUpAction.OPEN_TERMINAL, target: "srv_1:admin-1" }),
+      expect.anything(),
+    );
+    expect(openTerminal.mock.calls.map((c) => [c[0].container, c[0].proof])).toEqual([
+      ["admin-1", ""],
+      ["admin-1", "proof_1"],
+    ]);
+  });
+
   it("takes the phone's screen under a header of its own", async () => {
     onPhone();
     const sh = shell();

@@ -54,10 +54,13 @@ const (
 
 // TerminalServiceClient is a client for the dockwell.v1.TerminalService service.
 type TerminalServiceClient interface {
-	// OpenTerminal starts root's login shell on a server. It needs a proof from
-	// FinishStepUp, for opening a terminal on that server: call without it first,
-	// and it checks everything else, then refuses with the reason needs_step_up. A
-	// server has room for 8 terminals. No API token can call it.
+	// OpenTerminal starts root's login shell on a server, or the first of bash, ash
+	// and sh a container on it has, in it, as the container's own user. A server's
+	// terminal needs a proof from FinishStepUp, for opening a terminal on that
+	// server, and so does a container's, for it, where the container is as good as
+	// root on the server: call without it first, and it checks everything else, then
+	// refuses with the reason needs_step_up. A server has room for 8 terminals. No API
+	// token can call it.
 	OpenTerminal(context.Context, *connect.Request[v1.OpenTerminalRequest]) (*connect.Response[v1.OpenTerminalResponse], error)
 	// ListTerminals returns your terminals on a server that are still open, from
 	// this session, oldest first. No API token can call it.
@@ -159,10 +162,13 @@ func (c *terminalServiceClient) CloseTerminal(ctx context.Context, req *connect.
 
 // TerminalServiceHandler is an implementation of the dockwell.v1.TerminalService service.
 type TerminalServiceHandler interface {
-	// OpenTerminal starts root's login shell on a server. It needs a proof from
-	// FinishStepUp, for opening a terminal on that server: call without it first,
-	// and it checks everything else, then refuses with the reason needs_step_up. A
-	// server has room for 8 terminals. No API token can call it.
+	// OpenTerminal starts root's login shell on a server, or the first of bash, ash
+	// and sh a container on it has, in it, as the container's own user. A server's
+	// terminal needs a proof from FinishStepUp, for opening a terminal on that
+	// server, and so does a container's, for it, where the container is as good as
+	// root on the server: call without it first, and it checks everything else, then
+	// refuses with the reason needs_step_up. A server has room for 8 terminals. No API
+	// token can call it.
 	OpenTerminal(context.Context, *connect.Request[v1.OpenTerminalRequest]) (*connect.Response[v1.OpenTerminalResponse], error)
 	// ListTerminals returns your terminals on a server that are still open, from
 	// this session, oldest first. No API token can call it.

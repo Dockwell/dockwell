@@ -67,6 +67,10 @@ type Image struct {
 	// Exec runs a command in a container of it, and says how it exited. Nil has
 	// no commands, as an image without a shell.
 	Exec func(Exec) int
+	// Shell is the path of the shell a container of it has, such as "/bin/sh",
+	// which an exec with a terminal runs as this machine's /bin/sh on a
+	// pseudo-terminal of its own. Empty has none, as a distroless image.
+	Shell string
 }
 
 // Engine is a fake Docker Engine.
@@ -375,6 +379,8 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "json":
 		e.inspectExec(w, parts[1])
+	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "resize" && r.Method == http.MethodPost:
+		e.resizeExec(w, r, parts[1])
 	case parts[0] == "images":
 		e.serveImages(w, r, path)
 	case parts[0] == "distribution" && len(parts) > 2 && parts[len(parts)-1] == "json":
@@ -666,6 +672,8 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		writeJSON(w, http.StatusOK, c.inspected())
 	case r.Method == http.MethodPost && action == "exec":
 		e.createExec(w, r, c)
+	case r.Method == http.MethodHead && action == "archive":
+		e.statPath(w, r, c)
 	case r.Method == http.MethodPost && action == "start":
 		if c.State.Running {
 			w.WriteHeader(http.StatusNotModified)

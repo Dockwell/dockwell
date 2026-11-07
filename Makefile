@@ -175,7 +175,7 @@ e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server'
 	node web/e2e/logs.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/files.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/updates.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
-	node web/e2e/terminal.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
+	node web/e2e/terminal.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
 
 .PHONY: docker-panel-e2e
 docker-panel-e2e: build ## Create, deploy, roll back and export an app in the panel on this machine's Docker, in headless Chromium

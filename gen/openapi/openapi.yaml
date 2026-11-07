@@ -1743,10 +1743,13 @@ paths:
             tags:
                 - TerminalService
             description: |-
-                OpenTerminal starts root's login shell on a server. It needs a proof from
-                 FinishStepUp, for opening a terminal on that server: call without it first,
-                 and it checks everything else, then refuses with the reason needs_step_up. A
-                 server has room for 8 terminals. No API token can call it.
+                OpenTerminal starts root's login shell on a server, or the first of bash, ash
+                 and sh a container on it has, in it, as the container's own user. A server's
+                 terminal needs a proof from FinishStepUp, for opening a terminal on that
+                 server, and so does a container's, for it, where the container is as good as
+                 root on the server: call without it first, and it checks everything else, then
+                 refuses with the reason needs_step_up. A server has room for 8 terminals. No API
+                 token can call it.
             operationId: TerminalService_OpenTerminal
             parameters:
                 - name: serverId
@@ -5074,6 +5077,9 @@ components:
                 error:
                     type: string
                     description: Why it didn't open, for people, on a terminal that didn't.
+                container:
+                    type: string
+                    description: The container it ran in, by name, for a shell in a container.
             description: |-
                 EventTerminal is a terminal on a server, as its opening or closing tells of it.
                  What was typed and printed in it is never kept.
@@ -6599,9 +6605,15 @@ components:
                 proof:
                     type: string
                     description: |-
-                        The proof from FinishStepUp, for opening a terminal on this server. Call
-                         without it first: it checks everything else, then refuses with the reason
-                         needs_step_up.
+                        The proof from FinishStepUp, for opening a terminal on this server, as the
+                         target "srv_…", or in this container, as "srv_…:container". Call without it
+                         first: it checks everything else, then refuses with the reason needs_step_up
+                         where it takes one.
+                container:
+                    type: string
+                    description: |-
+                        A container on the server, by name or full ID, to open a shell in, in place of
+                         the server's own.
             description: OpenTerminalRequest names a server.
         OpenTerminalResponse:
             type: object
@@ -9239,6 +9251,9 @@ components:
                     type: integer
                     description: Its height, in lines.
                     format: uint32
+                container:
+                    type: string
+                    description: The container it runs in, by name, for a shell in a container.
             description: Terminal is a shell on a server.
         TerminalEnd:
             type: object

@@ -187,6 +187,8 @@ message EventTerminal {
   TerminalEnd end = 4;
   // Why it didn't open, for people, on a terminal that didn't.
   string error = 5;
+  // The container it ran in, by name, for a shell in a container.
+  string container = 6;
 }
 
 // EventBackup is what became of one backup.

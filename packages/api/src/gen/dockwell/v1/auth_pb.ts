@@ -1605,7 +1605,8 @@ export enum StepUpAction {
 
   /**
    * Opening a terminal on a server, with TerminalService.OpenTerminal. The
-   * target is the server's ID.
+   * target is the server's ID, or for a shell in a container, the server's ID and
+   * the container as the request names it, as "srv_…:web".
    *
    * @generated from enum value: STEP_UP_ACTION_OPEN_TERMINAL = 10;
    */

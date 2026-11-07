@@ -119,7 +119,9 @@ type Terminal struct {
 	// Its width, in characters.
 	Columns uint32 `protobuf:"varint,5,opt,name=columns,proto3" json:"columns,omitempty"`
 	// Its height, in lines.
-	Rows          uint32 `protobuf:"varint,6,opt,name=rows,proto3" json:"rows,omitempty"`
+	Rows uint32 `protobuf:"varint,6,opt,name=rows,proto3" json:"rows,omitempty"`
+	// The container it runs in, by name, for a shell in a container.
+	Container     string `protobuf:"bytes,7,opt,name=container,proto3" json:"container,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -196,6 +198,13 @@ func (x *Terminal) GetRows() uint32 {
 	return 0
 }
 
+func (x *Terminal) GetContainer() string {
+	if x != nil {
+		return x.Container
+	}
+	return ""
+}
+
 // OpenTerminalRequest names a server.
 type OpenTerminalRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -205,10 +214,14 @@ type OpenTerminalRequest struct {
 	Columns uint32 `protobuf:"varint,2,opt,name=columns,proto3" json:"columns,omitempty"`
 	// Its height, from 1 to 200 lines.
 	Rows uint32 `protobuf:"varint,3,opt,name=rows,proto3" json:"rows,omitempty"`
-	// The proof from FinishStepUp, for opening a terminal on this server. Call
-	// without it first: it checks everything else, then refuses with the reason
-	// needs_step_up.
-	Proof         string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	// The proof from FinishStepUp, for opening a terminal on this server, as the
+	// target "srv_…", or in this container, as "srv_…:container". Call without it
+	// first: it checks everything else, then refuses with the reason needs_step_up
+	// where it takes one.
+	Proof string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	// A container on the server, by name or full ID, to open a shell in, in place of
+	// the server's own.
+	Container     string `protobuf:"bytes,5,opt,name=container,proto3" json:"container,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -267,6 +280,13 @@ func (x *OpenTerminalRequest) GetRows() uint32 {
 func (x *OpenTerminalRequest) GetProof() string {
 	if x != nil {
 		return x.Proof
+	}
+	return ""
+}
+
+func (x *OpenTerminalRequest) GetContainer() string {
+	if x != nil {
+		return x.Container
 	}
 	return ""
 }
@@ -883,19 +903,21 @@ var File_dockwell_v1_terminal_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_terminal_proto_rawDesc = "" +
 	"\n" +
-	"\x1adockwell/v1/terminal.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb4\x01\n" +
+	"\x1adockwell/v1/terminal.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd2\x01\n" +
 	"\bTerminal\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tserver_id\x18\x02 \x01(\tR\bserverId\x12\x14\n" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x127\n" +
 	"\topen_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bopenTime\x12\x18\n" +
 	"\acolumns\x18\x05 \x01(\rR\acolumns\x12\x12\n" +
-	"\x04rows\x18\x06 \x01(\rR\x04rows\"v\n" +
+	"\x04rows\x18\x06 \x01(\rR\x04rows\x12\x1c\n" +
+	"\tcontainer\x18\a \x01(\tR\tcontainer\"\x94\x01\n" +
 	"\x13OpenTerminalRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x18\n" +
 	"\acolumns\x18\x02 \x01(\rR\acolumns\x12\x12\n" +
 	"\x04rows\x18\x03 \x01(\rR\x04rows\x12\x14\n" +
-	"\x05proof\x18\x04 \x01(\tR\x05proof\"I\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\x12\x1c\n" +
+	"\tcontainer\x18\x05 \x01(\tR\tcontainer\"I\n" +
 	"\x14OpenTerminalResponse\x121\n" +
 	"\bterminal\x18\x01 \x01(\v2\x15.dockwell.v1.TerminalR\bterminal\"3\n" +
 	"\x14ListTerminalsRequest\x12\x1b\n" +

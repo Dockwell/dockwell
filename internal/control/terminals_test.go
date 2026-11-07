@@ -20,6 +20,8 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/terminals"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -521,7 +523,7 @@ func testATerminalEndsWithItsAgent(t *testing.T, backend store.Backend) {
 	s.stop()
 	waitConnected(t, f, id, false)
 	s.terms = terminal.New(terminal.Options{Shell: []string{"/bin/sh"}, Home: t.TempDir()})
-	if _, err := s.terms.Open(&agentv1.OpenTerminalCall{Id: "trm_stranger", Columns: 80, Rows: 24}); err != nil {
+	if _, err := s.terms.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_stranger", Columns: 80, Rows: 24}); err != nil {
 		t.Fatal(err)
 	}
 	s.connect(t, f)
@@ -567,6 +569,105 @@ func testATerminalEndsWithItsServer(t *testing.T, backend store.Backend) {
 	list, err := c.ListTerminals(t.Context(), connect.NewRequest(&dockwellv1.ListTerminalsRequest{ServerId: keep}))
 	if err != nil || len(list.Msg.GetTerminals()) != 1 {
 		t.Errorf("the server that stayed has %v, %v", list, err)
+	}
+}
+
+// A shell in a container runs the first shell its image has, as its own user. One
+// that reaches no further than itself asks no passkey; one that's as good as root on
+// the server asks for one for that container, which the agent decides on the
+// container it runs the shell in.
+func TestAShellInAContainer(t *testing.T) { storetest.Each(t, testAShellInAContainer) }
+
+func testAShellInAContainer(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addServerWith(t, nil)
+	id := f.lastDocker.id.ServerID
+	e.AddLocalImage("acme/app:1", dockertest.Image{Shell: "/bin/sh"})
+	e.AddLocalImage("acme/distroless:1", dockertest.Image{})
+	e.AddContainer(docker.Container{Name: "/app-1", Config: docker.Config{Image: "acme/app:1", User: "node:node"}})
+	e.AddContainer(docker.Container{Name: "/bare-1", Config: docker.Config{Image: "acme/distroless:1"}})
+	e.AddContainer(docker.Container{Name: "/admin-1", Config: docker.Config{Image: "acme/app:1"}, HostConfig: docker.HostConfig{Privileged: true}})
+	e.AddContainer(docker.Container{Name: "/stopped-1", Config: docker.Config{Image: "acme/app:1"}, State: docker.State{Status: "exited"}})
+	c := terminalClient(b, b.origin)
+	open := func(container, proof string) (*dockwellv1.Terminal, error) {
+		res, err := c.OpenTerminal(t.Context(), connect.NewRequest(&dockwellv1.OpenTerminalRequest{
+			ServerId: id, Container: container, Columns: 80, Rows: 24, Proof: proof,
+		}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetTerminal(), nil
+	}
+
+	term, err := open("app-1", "")
+	if err != nil {
+		t.Fatalf("a shell in a container that reaches no further than itself = %v", err)
+	}
+	if term.GetTitle() != "node@app-1" || term.GetContainer() != "app-1" {
+		t.Errorf("opened %v", term)
+	}
+	a := attachTo(t, b, term.GetId(), 0)
+	a.write("echo in-a-container-$((20+1)); stty size\n")
+	a.waitFor("in-a-container-21")
+	a.waitFor("24 80")
+	if _, err := c.CloseTerminal(t.Context(), connect.NewRequest(&dockwellv1.CloseTerminalRequest{TerminalId: term.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	if end := a.ended(); end.GetEnd().GetReason() != dockwellv1.TerminalEndReason_TERMINAL_END_REASON_CLOSED {
+		t.Errorf("closing it ended the attachment with %v", end)
+	}
+
+	for container, says := range map[string]string{
+		"bare-1":    "has none of /bin/bash, /bin/ash and /bin/sh",
+		"stopped-1": "isn't running",
+		"nowhere-1": "there's no container nowhere-1",
+	} {
+		if _, err := open(container, ""); err == nil || !strings.Contains(err.Error(), says) {
+			t.Errorf("a shell in %s = %v, want it to say %q", container, err, says)
+		}
+	}
+	if _, err := open("app 1", ""); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("a container named with a space = %v", err)
+	}
+
+	_, err = open("admin-1", "")
+	if reasonOf(err) != authapi.ReasonNeedsStepUp || !strings.Contains(err.Error(), "admin-1 reaches as far as root") {
+		t.Fatalf("a shell in a privileged container with no passkey = %v", err)
+	}
+	if _, err := open("admin-1", stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL, id)); reasonOf(err) != authapi.ReasonNeedsStepUp {
+		t.Errorf("a shell in admin-1 with the server's proof = %v", err)
+	}
+	root, err := open("admin-1", stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL, id+":admin-1"))
+	if err != nil || root.GetTitle() != "root@admin-1" {
+		t.Fatalf("a shell in admin-1 with its proof = %v, %v", root, err)
+	}
+	opening := waitForTerminalEvent(t, b, id, "terminal.open")
+	if opening.GetTerminal().GetContainer() == "" {
+		t.Errorf("its opening doesn't say which container: %v", opening.GetTerminal())
+	}
+}
+
+// An agent from before shells in containers would take a call for one as a call
+// for the server's own shell, so the control plane sends it none.
+func TestNoContainerShellThroughAnOlderAgent(t *testing.T) {
+	storetest.Each(t, testNoContainerShellThroughAnOlderAgent)
+}
+
+func testNoContainerShellThroughAnOlderAgent(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	s := f.addServer(t, false)
+	s.stop()
+	waitConnected(t, f, s.id.ServerID, false)
+	s.hello = func(h *agentv1.Hello) { h.ContainerTerminals = false }
+	s.connect(t, f)
+	c := terminalClient(b, b.origin)
+	_, err := c.OpenTerminal(t.Context(), connect.NewRequest(&dockwellv1.OpenTerminalRequest{
+		ServerId: s.id.ServerID, Container: "web-1", Columns: 80, Rows: 24,
+	}))
+	if reasonOf(err) != "agent_outdated" || !strings.Contains(err.Error(), "too old to open a shell in a container") {
+		t.Errorf("a shell in a container through an older agent = %v", err)
 	}
 }
 

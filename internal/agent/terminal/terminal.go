@@ -26,6 +26,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
 )
 
@@ -77,6 +78,11 @@ type Options struct {
 	Passwd string
 	// DetachedFor and IdleFor change the package's limits, as for a test.
 	DetachedFor, IdleFor time.Duration
+	// Docker opens shells in this server's containers. Nil opens none.
+	Docker *docker.Client
+	// AsGoodAsRoot says whether a container, by its full ID, reaches as far as root
+	// on the server, so a shell in it takes a passkey. Nil counts every one so.
+	AsGoodAsRoot func(ctx context.Context, container string) (bool, error)
 	// Now is the clock. Nil is time.Now.
 	Now func() time.Time
 }
@@ -224,8 +230,10 @@ func (m *Manager) signal() {
 	}
 }
 
-// Open starts root's login shell on a new terminal.
-func (m *Manager) Open(call *agentv1.OpenTerminalCall) (*agentv1.OpenTerminalResult, error) {
+// Open starts root's login shell on a new terminal, or the first shell a container
+// has, in it. A container that's as good as root on the server takes a passkey,
+// which call says confirmed it, or Open returns ErrNeedsStepUp and starts nothing.
+func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*agentv1.OpenTerminalResult, error) {
 	id := call.GetId()
 	if id == "" {
 		return nil, errors.New("a terminal needs an ID; the control plane gives it one")
@@ -243,13 +251,28 @@ func (m *Manager) Open(call *agentv1.OpenTerminalCall) (*agentv1.OpenTerminalRes
 	t := &Terminal{m: m, id: id, record: call.GetRecord(), out: newOutput(Keep), changed: make(chan struct{}), exited: make(chan struct{})}
 	m.open[id] = t
 	m.mu.Unlock()
-	if err := t.start(clampColumns(call.GetColumns()), clampRows(call.GetRows())); err != nil {
+	cols, rows := clampColumns(call.GetColumns()), clampRows(call.GetRows())
+	var (
+		proc  process
+		title string
+		err   error
+	)
+	if container := call.GetContainer(); container != "" {
+		proc, title, err = m.startInContainer(ctx, container, call.GetConfirmed(), cols, rows)
+	} else {
+		proc, title, err = m.startOnServer(cols, rows)
+	}
+	if err != nil {
 		m.mu.Lock()
 		delete(m.open, id)
 		m.mu.Unlock()
+		if errors.Is(err, ErrNeedsStepUp) {
+			return &agentv1.OpenTerminalResult{NeedsStepUp: true}, nil
+		}
 		return nil, err
 	}
-	m.logger.Info("opened a terminal", slog.String("terminal", id))
+	t.begin(proc, title)
+	m.logger.Info("opened a terminal", slog.String("terminal", id), slog.String("as", title))
 	return &agentv1.OpenTerminalResult{Title: t.title, Opened: timestamppb.New(t.opened)}, nil
 }
 
@@ -297,7 +320,7 @@ func (m *Manager) Attach(ctx context.Context, call *agentv1.AttachTerminalCall, 
 		t.resize(cols, rows)
 	}
 	// What runs in front draws itself again, so a full-screen program comes back whole.
-	t.pty.redraw()
+	t.proc.redraw()
 	if err := a.send(&agentv1.TerminalRequest{Stream: call.GetStream(), Offset: from, InputOffset: taken}); err != nil {
 		return nil, err
 	}
@@ -337,8 +360,7 @@ type Terminal struct {
 	record string
 	title  string
 	opened time.Time
-	pty    *pty
-	cmd    *exec.Cmd
+	proc   process
 	exited chan struct{} // closed once the shell has exited
 
 	mu            sync.Mutex
@@ -358,8 +380,10 @@ func (t *Terminal) notify() {
 	t.changed = make(chan struct{})
 }
 
-func (t *Terminal) start(cols, rows uint16) error {
-	opts := t.m.opts
+// startOnServer runs the agent's own user's login shell, root's on a server, on a
+// pseudo-terminal, and says who it runs as where.
+func (m *Manager) startOnServer(cols, rows uint16) (process, string, error) {
+	opts := m.opts
 	acct := accountOf(cmpOr(opts.Passwd, "/etc/passwd"), os.Getuid())
 	var cmd *exec.Cmd
 	if len(opts.Shell) > 0 {
@@ -368,7 +392,7 @@ func (t *Terminal) start(cols, rows uint16) error {
 		acct.shell = opts.Shell[0]
 	} else {
 		if acct.shell == "" {
-			return fmt.Errorf("this server has no shell for %s: /etc/passwd names none that runs, and there's no /bin/bash or /bin/sh. "+
+			return nil, "", fmt.Errorf("this server has no shell for %s: /etc/passwd names none that runs, and there's no /bin/bash or /bin/sh. "+
 				"Connect over SSH to fix %s's shell", acct.name, acct.name)
 		}
 		cmd = &exec.Cmd{Path: acct.shell, Args: []string{"-" + filepath.Base(acct.shell)}} // a login shell
@@ -383,19 +407,22 @@ func (t *Terminal) start(cols, rows uint16) error {
 	}
 	p, err := start(cmd, cols, rows)
 	if err != nil {
-		return fmt.Errorf("can't start a shell: %w", err)
+		return nil, "", fmt.Errorf("can't start a shell: %w", err)
 	}
 	host, _ := os.Hostname()
 	host, _, _ = strings.Cut(host, ".")
-	t.title = acct.name + "@" + cmpOr(host, "server")
-	t.pty, t.cmd = p, cmd
+	return &ptyShell{pty: p, cmd: cmd}, acct.name + "@" + cmpOr(host, "server"), nil
+}
+
+// begin carries proc's terminal from now on.
+func (t *Terminal) begin(proc process, title string) {
+	t.proc, t.title = proc, title
 	now := t.m.now()
 	t.opened, t.lastInput, t.detachedSince = now, now, now
 	read := make(chan struct{})
 	go t.readOutput(read)
 	go t.writeInput()
 	go t.wait(read)
-	return nil
 }
 
 // readOutput keeps what the shell prints, and waits while an attachment is Keep
@@ -421,7 +448,7 @@ func (t *Terminal) readOutput(done chan<- struct{}) {
 		if ended {
 			return
 		}
-		n, err := t.pty.Read(buf[:room])
+		n, err := t.proc.Read(buf[:room])
 		if n > 0 {
 			t.mu.Lock()
 			t.out.write(buf[:n])
@@ -459,7 +486,7 @@ func (t *Terminal) writeInput() {
 		}
 		piece = append(piece[:0], t.input[:min(len(t.input), inputPiece)]...)
 		t.mu.Unlock()
-		n, err := t.pty.Write(piece)
+		n, err := t.proc.Write(piece)
 		t.mu.Lock()
 		t.input = t.input[n:]
 		if len(t.input) == 0 {
@@ -478,12 +505,8 @@ func (t *Terminal) writeInput() {
 
 // wait ends the terminal when its shell exits, once what it wrote last is read.
 func (t *Terminal) wait(read <-chan struct{}) {
-	err := t.cmd.Wait()
+	code, err := t.proc.wait(read)
 	close(t.exited)
-	code := t.cmd.ProcessState.ExitCode()
-	if status, ok := t.cmd.ProcessState.Sys().(syscall.WaitStatus); ok && status.Signaled() {
-		code = 128 + int(status.Signal())
-	}
 	message := fmt.Sprintf("The shell exited with code %d.", code)
 	if code < 0 {
 		message = fmt.Sprintf("The shell ended: %s.", err)
@@ -513,14 +536,12 @@ func (t *Terminal) hangUp(reason dockwellv1.TerminalEndReason, message string) *
 	end := t.end
 	t.notify()
 	t.mu.Unlock()
+	t.proc.signal(syscall.SIGHUP)
 	t.finish()
-	if t.cmd.Process != nil {
-		_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGHUP)
-		select {
-		case <-t.exited:
-		case <-time.After(hangUpWait):
-			_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGKILL)
-		}
+	select {
+	case <-t.exited:
+	case <-time.After(hangUpWait):
+		t.proc.signal(syscall.SIGKILL)
 	}
 	return end
 }
@@ -539,7 +560,7 @@ func (t *Terminal) finish() {
 	if !first {
 		return
 	}
-	_ = t.pty.Close()
+	_ = t.proc.close()
 	m := t.m
 	m.mu.Lock()
 	delete(m.open, t.id)
@@ -684,7 +705,7 @@ func (t *Terminal) accept(a *attachment, off uint64, data []byte) (uint64, bool)
 }
 
 func (t *Terminal) resize(cols, rows uint32) {
-	if err := t.pty.resize(clampColumns(cols), clampRows(rows)); err != nil && !isHangUp(err) {
+	if err := t.proc.resize(clampColumns(cols), clampRows(rows)); err != nil && !isHangUp(err) {
 		t.m.logger.Warn("can't resize a terminal", slog.String("terminal", t.id), slog.String("error", err.Error()))
 	}
 }
