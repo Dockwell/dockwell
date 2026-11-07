@@ -2,8 +2,9 @@
 
 // Package settings serves dockwell.v1.SettingsService: the install's own
 // settings, which aren't managed state, so a change is on the activity log with
-// what it replaced rather than a revision with a plan, and how the panel is
-// served, as dockwell run was started. See docs/adr/0042-the-installs-settings.md.
+// what it replaced rather than a revision with a plan; how the panel is served,
+// as dockwell run was started; and what the control plane is, and how it's
+// doing. See docs/adr/0042-the-installs-settings.md.
 package settings
 
 import (
@@ -67,15 +68,16 @@ type Serving struct {
 type Handler struct {
 	db      *store.DB
 	serving Serving
+	plane   Plane
 	now     func() time.Time
 }
 
 var _ dockwellv1connect.SettingsServiceHandler = (*Handler)(nil)
 
-// New returns a handler that keeps settings in db, and says the panel is served as
-// serving has it.
-func New(db *store.DB, serving Serving) *Handler {
-	return &Handler{db: db, serving: serving, now: time.Now}
+// New returns a handler that keeps settings in db, says the panel is served as
+// serving has it, and the control plane is as plane has it.
+func New(db *store.DB, serving Serving, plane Plane) *Handler {
+	return &Handler{db: db, serving: serving, plane: plane, now: time.Now}
 }
 
 // Change is what an event of a setting keeps: the value, and the one it replaced.

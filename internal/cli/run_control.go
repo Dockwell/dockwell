@@ -306,6 +306,9 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		// The ingress takes the public ports at the server's first route, and gives them
 		// back at its last, so the settings ask which holds them on each request.
 		PanelHandsOver: handsOver,
+		DataDir:        dir.Root,
+		KeyFile:        dir.SealKey(),
+		AgentListen:    ls.Agents.Addr().String(),
 		PublicAddress:  addr.dnsAddress(),
 		ClaimCommand:   claim,
 		Changes:        engine,

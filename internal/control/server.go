@@ -108,6 +108,10 @@ type Config struct {
 	// then (ADR 0024): the settings ask PublicPorts which holds them now.
 	PanelListen, HTTPSListen, PanelURL, PanelCA string
 	PanelHandsOver                              bool
+	// DataDir is the directory dockwell run keeps its files in, KeyFile the
+	// install's key there, and AgentListen where servers' agents reach it, for
+	// the settings to say what the control plane is.
+	DataDir, KeyFile, AgentListen string
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
@@ -240,7 +244,17 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.PanelHandsOver {
 			serving.Proxied = func() bool { return !ports.Serving() }
 		}
-		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving), opts...))
+		plane := settings.Plane{
+			Build:       cfg.Build,
+			Started:     time.Now(),
+			DataDir:     cfg.DataDir,
+			KeyFile:     cfg.KeyFile,
+			AgentListen: cfg.AgentListen,
+		}
+		if cfg.Identity != nil {
+			plane.AgentURLs = agentURLs(cfg.Identity)
+		}
+		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving, plane), opts...))
 	}
 	if cfg.Auth != nil {
 		controlServer := func() *dockwellv1.Server { return nil }
@@ -588,4 +602,24 @@ func fleetOf(cfg Config) domains.Servers {
 		return nil
 	}
 	return cfg.Fleet
+}
+
+// agentURLs says where agents reach the control plane, as its authority records it:
+// on the control server's own network, and from elsewhere.
+func agentURLs(a *identity.Authority) func(ctx context.Context) (string, []string, error) {
+	return func(ctx context.Context) (string, []string, error) {
+		local, err := a.AgentURL(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		public, err := a.PublicAgentURLs(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		urls := make([]string, 0, len(public))
+		for _, u := range public {
+			urls = append(urls, u.URL)
+		}
+		return local, urls, nil
+	}
 }

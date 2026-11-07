@@ -235,7 +235,7 @@ function Commands({ onClose }: { onClose: () => void }) {
       icon: "gauge",
       label: t`Check the control plane's status`,
       hint: version ? shortVersion(version) : undefined,
-      run: () => navigate({ to: "/status" }),
+      run: () => navigate({ to: "/settings/control-plane" }),
     });
     list.push({
       id: "profile",

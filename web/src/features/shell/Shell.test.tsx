@@ -86,7 +86,7 @@ describe("the shell on wide screens", () => {
     expect(within(nav).queryByRole("link", { name: "Fleet actions" })).toBeNull();
     expect(await within(nav).findByRole("link", { name: "Dockwell 0.4.0: control plane status" })).toHaveAttribute(
       "href",
-      "/status",
+      "/settings/control-plane",
     );
 
     const top = screen.getByRole("banner");
@@ -300,8 +300,8 @@ describe("the command bar", () => {
 
     await user.keyboard("control plane{Enter}");
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/status"));
-    expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/settings/control-plane"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Control plane" })).toBeVisible();
   });
 
   it("opens from the search button, which teaches the shortcut, and closes on Escape", async () => {
@@ -493,7 +493,10 @@ describe("the shell on phones", () => {
         .getAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual(["Alerts", "Scheduled tasks"]);
-    expect(await screen.findByRole("link", { name: "Control plane 0.4.0" })).toHaveAttribute("href", "/status");
+    expect(await screen.findByRole("link", { name: "Control plane 0.4.0" })).toHaveAttribute(
+      "href",
+      "/settings/control-plane",
+    );
     expect(screen.getByRole("link", { name: "Profile and security Mira Chen" })).toHaveAttribute("href", "/profile");
     expect(screen.getByRole("button", { name: "Sign out" })).toBeVisible();
 

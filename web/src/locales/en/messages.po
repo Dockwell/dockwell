@@ -170,6 +170,11 @@ msgstr "{0} can't read logs"
 msgid "{0} can't take its steps until its agent reconnects, so the plan can't apply until then."
 msgstr "{0} can't take its steps until its agent reconnects, so the plan can't apply until then."
 
+#. placeholder {0}: connected.length
+#: src/features/settings/ControlPlanePage.tsx
+msgid "{0} connected"
+msgstr "{0} connected"
+
 #. placeholder {0}: formatBytes(disk.sizeBytes, i18n.locale)
 #: src/features/auth/ClaimPage.tsx
 msgid "{0} disk"
@@ -185,11 +190,27 @@ msgstr "{0} has to reconnect first"
 msgid "{0} is offline"
 msgstr "{0} is offline"
 
+#. placeholder {0}: formatFixed(trip, trip < 10 ? 1 : 0, i18n.locale)
+#: src/features/settings/ControlPlanePage.tsx
+msgid "{0} ms"
+msgstr "{0} ms"
+
 #. placeholder {0}: step.toLocaleString(i18n.locale)
 #. placeholder {1}: store.matches.toLocaleString(i18n.locale)
 #: src/features/logs/LogFoot.tsx
 msgid "{0} of {1}"
 msgstr "{0} of {1}"
+
+#. placeholder {0}: count - behind.length
+#. placeholder {1}: behind.length
+#: src/features/settings/ControlPlanePage.tsx
+msgid "{0} on {short}, {1} on another version"
+msgstr "{0} on {short}, {1} on another version"
+
+#. placeholder {0}: shortVersion(build.version)
+#: src/features/settings/ControlPlanePage.tsx
+msgid "{0} runs here"
+msgstr "{0} runs here"
 
 #. placeholder {0}: s.create
 #: src/features/activity/describe.ts
@@ -221,10 +242,22 @@ msgstr "{0} to update"
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
 
+#. placeholder {0}: formatBytes(memory, i18n.locale)
+#. placeholder {1}: formatBytes(BUDGET_BYTES, i18n.locale)
+#: src/features/settings/ControlPlanePage.tsx
+msgid "{0} with its agent, of a {1} budget"
+msgstr "{0} with its agent, of a {1} budget"
+
 #. placeholder {0}: words(policy.spec)
 #: src/features/backups/PoliciesPanel.tsx
 msgid "{0}, {zone}"
 msgstr "{0}, {zone}"
+
+#. placeholder {0}: words.span(Math.max(0, now - started.getTime()))
+#. placeholder {1}: formatDay(started, i18n.locale)
+#: src/features/settings/ControlPlanePage.tsx
+msgid "{0}, since {1}"
+msgstr "{0}, since {1}"
 
 #. placeholder {0}: first.summary
 #: src/features/apps/AppOverview.tsx
@@ -1284,6 +1317,10 @@ msgstr "A domain sends people to an app, so run one first."
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "A file beside the control plane, for one control plane"
+msgstr "A file beside the control plane, for one control plane"
+
 #: src/features/servers/network.ts
 msgid "A metadata service says so, {when}, and this machine doesn't name that cloud, so it may not be a way in"
 msgstr "A metadata service says so, {when}, and this machine doesn't name that cloud, so it may not be a way in"
@@ -1331,6 +1368,10 @@ msgstr "A secret needs a value."
 #: src/features/activity/describe.ts
 msgid "a server"
 msgstr "a server"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "A server that joined upgrades the same way: run the install script again on it."
+msgstr "A server that joined upgrades the same way: run the install script again on it."
 
 #: src/features/activity/describe.ts
 msgid "A service"
@@ -1530,13 +1571,22 @@ msgid "Address"
 msgstr "Address"
 
 #: src/features/servers/ServerPanels.tsx
+#: src/features/settings/ControlPlanePage.tsx
 msgid "Addresses"
 msgstr "Addresses"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "agent"
+msgstr "agent"
 
 #: src/features/auth/ClaimPage.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Agent"
 msgstr "Agent"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "agent · {versions}"
+msgstr "agent · {versions}"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Agent connected"
@@ -1550,6 +1600,22 @@ msgstr "Agent not connected"
 #: src/features/auth/ClaimPage.tsx
 msgid "Agent starting"
 msgstr "Agent starting"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "agents"
+msgstr "agents"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Agents"
+msgstr "Agents"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "agents · {versions}"
+msgstr "agents · {versions}"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Agents connect to"
+msgstr "Agents connect to"
 
 #: src/features/catalog/useCatalog.ts
 msgid "AI"
@@ -1596,6 +1662,10 @@ msgstr "All levels"
 #: src/features/apps/AppOverview.tsx
 msgid "All of it"
 msgstr "All of it"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "all on {short}"
+msgstr "all on {short}"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
@@ -1679,6 +1749,14 @@ msgstr "and {morePorts} more"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Another proxy"
 msgstr "Another proxy"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Answering"
+msgstr "Answering"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Answers in"
+msgstr "Answers in"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Any image your server can pull, such as nginx:1.27."
@@ -1802,6 +1880,10 @@ msgstr "Apps"
 msgid "Apps you run with Dockwell are under <0>Apps</0>."
 msgstr "Apps you run with Dockwell are under <0>Apps</0>."
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+msgstr "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+
 #. placeholder {0}: use.name
 #: src/features/variables/VariablesPage.tsx
 msgid "as {0}"
@@ -1843,6 +1925,10 @@ msgstr "Automation"
 #: src/features/shell/Page.tsx
 msgid "Back"
 msgstr "Back"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
+msgstr "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
 
 #: src/features/files/FilesPage.tsx
 msgid "Back to {folder}"
@@ -1902,6 +1988,7 @@ msgstr "backup"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/settings/ControlPlanePage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
@@ -1963,10 +2050,22 @@ msgstr "Brings back the data the server kept"
 msgid "Bucket"
 msgstr "Bucket"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Built {built} from {commit}"
+msgstr "Built {built} from {commit}"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Built from {commit}"
+msgstr "Built from {commit}"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 msgid "By"
 msgstr "By"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "By hand, for now"
+msgstr "By hand, for now"
 
 #: src/features/settings/GeneralPage.tsx
 msgid "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
@@ -2416,6 +2515,8 @@ msgid "Contents of {name}"
 msgstr "Contents of {name}"
 
 #: src/features/servers/ServerPanels.tsx
+#: src/features/settings/ControlPlanePage.tsx
+#: src/features/settings/SettingsLayout.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Control plane"
 msgstr "Control plane"
@@ -3063,6 +3164,10 @@ msgstr "Dockwell can't read what this runs"
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Dockwell can't say how its control plane is"
+msgstr "Dockwell can't say how its control plane is"
+
 #: src/features/backups/PolicySheet.tsx
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell can't say what this costs"
@@ -3094,6 +3199,14 @@ msgstr "Dockwell didn't make that network. Whatever else is on it, other project
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 msgstr "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
+msgstr "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
 
 #: src/features/apps/DomainRecord.tsx
 msgid "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
@@ -3326,6 +3439,10 @@ msgstr "Ended an authenticator app's setup after 5 wrong codes"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Endpoint"
 msgstr "Endpoint"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Engine"
+msgstr "Engine"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Enter an email address, such as mira@acme.dev."
@@ -3639,9 +3756,17 @@ msgstr "from"
 msgid "From"
 msgstr "From"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "From elsewhere"
+msgstr "From elsewhere"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "From Git, a Docker image, a Compose file or the catalog."
 msgstr "From Git, a Docker image, a Compose file or the catalog."
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "From its network"
+msgstr "From its network"
 
 #: src/features/changes/words.ts
 msgid "From the API"
@@ -3706,6 +3831,10 @@ msgstr "Go to the overview"
 #: src/features/files/FilesPage.tsx
 msgid "Go up to {0}"
 msgstr "Go up to {0}"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "hasn't connected yet"
+msgstr "hasn't connected yet"
 
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Hasn't run yet"
@@ -3792,6 +3921,11 @@ msgstr "How"
 msgid "How often"
 msgstr "How often"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "How to back it up and restore it"
+msgstr "How to back it up and restore it"
+
+#: src/features/settings/ControlPlanePage.tsx
 #: src/features/settings/GeneralPage.tsx
 msgid "How to change settings"
 msgstr "How to change settings"
@@ -4357,6 +4491,11 @@ msgstr "Kernel"
 msgid "Key"
 msgstr "Key"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgctxt "encryption"
+msgid "Key"
+msgstr "Key"
+
 #: src/features/changes/fields.tsx
 msgid "label"
 msgstr "label"
@@ -4539,6 +4678,10 @@ msgstr "Loading tokens"
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Location"
+msgstr "Location"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Log filters"
 msgstr "Log filters"
@@ -4654,6 +4797,7 @@ msgstr "May have saved {path} on {server}"
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
+#: src/features/settings/ControlPlanePage.tsx
 msgid "Memory"
 msgstr "Memory"
 
@@ -5033,6 +5177,11 @@ msgstr "Not checked"
 msgid "Not connected"
 msgstr "Not connected"
 
+#. placeholder {0}: words.ago(timestampDate(s.lastSeenTime), now)
+#: src/features/settings/ControlPlanePage.tsx
+msgid "not connected, last heard {0}"
+msgstr "not connected, last heard {0}"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Not every server is connected"
 msgstr "Not every server is connected"
@@ -5046,6 +5195,7 @@ msgid "Not installed or not running"
 msgstr "Not installed or not running"
 
 #: src/features/servers/ServerPanels.tsx
+#: src/features/settings/ControlPlanePage.tsx
 msgid "Not known"
 msgstr "Not known"
 
@@ -5286,6 +5436,10 @@ msgstr "On each server's own disk, unencrypted, and sealed on a destination wher
 msgid "On each server's own disk, unencrypted, so they go if the server does"
 msgstr "On each server's own disk, unencrypted, so they go if the server does"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "on loopback"
+msgstr "on loopback"
+
 #: src/features/servers/network.ts
 msgid "On one of this server's interfaces"
 msgstr "On one of this server's interfaces"
@@ -5331,6 +5485,10 @@ msgstr "Once <0>{servers}</0> reconnects, Dockwell puts things back as they were
 #: src/features/apps/AppOverview.tsx
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
+msgstr "One · if it stops, the panel and API stop with it, and servers keep running what they run"
 
 #: src/features/files/FilesPage.tsx
 msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
@@ -5484,6 +5642,10 @@ msgstr "Opens a plan"
 msgid "Opens a plan to review first"
 msgstr "Opens a plan to review first"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Opens every secret the store keeps"
+msgstr "Opens every secret the store keeps"
+
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
 msgid "Operate"
@@ -5558,6 +5720,28 @@ msgstr "Pages"
 #: src/features/settings/GeneralPage.tsx
 msgid "Panel address"
 msgstr "Panel address"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Panel and API"
+msgstr "Panel and API"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Panel, API and scheduler for {name}"
+msgstr "Panel, API and scheduler for {name}"
+
+#. placeholder {0}: own.name
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Panel, API and scheduler for {name} · one replica, on {0}"
+msgstr "Panel, API and scheduler for {name} · one replica, on {0}"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Panel, API and scheduler for this install"
+msgstr "Panel, API and scheduler for this install"
+
+#. placeholder {0}: own.name
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Panel, API and scheduler for this install · one replica, on {0}"
+msgstr "Panel, API and scheduler for this install · one replica, on {0}"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Parts of it may still be on the server. Check what is there, then try again, or remove them by hand."
@@ -5701,6 +5885,7 @@ msgstr "Planning: asking each server what this would take"
 msgid "Plans say a value changed, and never show it."
 msgstr "Plans say a value changed, and never show it."
 
+#: src/features/settings/SettingsLayout.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Platform"
 msgstr "Platform"
@@ -5792,6 +5977,10 @@ msgstr "Ports"
 #: src/features/settings/GeneralPage.tsx
 msgid "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
 msgstr "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "PostgreSQL"
+msgstr "PostgreSQL"
 
 #: src/features/logs/LogFoot.tsx
 msgid "Press Enter to search all the servers keep."
@@ -6096,6 +6285,10 @@ msgstr "Reads logs"
 msgid "Reads servers and their state. Changes nothing."
 msgstr "Reads servers and their state. Changes nothing."
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Ready for more than one control plane"
+msgstr "Ready for more than one control plane"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Receiving"
 msgstr "Receiving"
@@ -6147,6 +6340,10 @@ msgstr "Refused"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Region"
 msgstr "Region"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Releases"
+msgstr "Releases"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Remove"
@@ -6253,6 +6450,10 @@ msgstr "replaced, and undoing this puts it back"
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "Replacing"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Replicas"
+msgstr "Replicas"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"
@@ -6564,6 +6765,11 @@ msgstr "Running"
 msgid "Running now"
 msgstr "Running now"
 
+#. placeholder {0}: shortVersion(s.agentBuild?.version ?? "")
+#: src/features/settings/ControlPlanePage.tsx
+msgid "runs {0}"
+msgstr "runs {0}"
+
 #: src/features/changes/fields.tsx
 msgid "runs no entrypoint"
 msgstr "runs no entrypoint"
@@ -6794,6 +7000,7 @@ msgstr "server"
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ServerFrame.tsx
+#: src/features/settings/ControlPlanePage.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Server"
@@ -6820,6 +7027,7 @@ msgstr "Server root"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/servers/ServersPage.tsx
 #: src/features/servers/ServersPanel.tsx
+#: src/features/settings/ControlPlanePage.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
@@ -7079,6 +7287,11 @@ msgstr "Signing you in with a one-time link"
 msgid "Size"
 msgstr "Size"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgctxt "on disk"
+msgid "Size"
+msgstr "Size"
+
 #: src/features/shell/Shell.tsx
 msgid "Skip to content"
 msgstr "Skip to content"
@@ -7136,6 +7349,10 @@ msgstr "Source"
 msgid "sources"
 msgstr "sources"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "SQLite, on this server"
+msgstr "SQLite, on this server"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Start of the log"
 msgstr "Start of the log"
@@ -7157,6 +7374,10 @@ msgstr "Starting"
 #: src/features/servers/ContainersPanel.tsx
 msgid "State"
 msgstr "State"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "State store"
+msgstr "State store"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
@@ -7189,6 +7410,10 @@ msgstr "Stop {running} for each backup"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Stop backing up {volume} on a schedule"
 msgstr "Stop backing up {volume} on a schedule"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 
 #. placeholder {0}: d.name
 #: src/features/backups/DestinationsPanel.tsx
@@ -7771,6 +7996,10 @@ msgstr "The sign-in screen and your browser's tabs say it. Empty, they say Dockw
 msgid "The token wasn't created"
 msgstr "The token wasn't created"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "The version that runs here is unknown"
+msgstr "The version that runs here is unknown"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "the volume {owner}"
 msgstr "the volume {owner}"
@@ -7792,6 +8021,10 @@ msgstr "the volume driver {driver}, which reaches what the plugin does ({reads})
 msgid "Theme"
 msgstr "Theme"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+
 #: src/features/apps/AppsPage.tsx
 msgid "There are no apps here yet. Choose another environment, or make one with New app."
 msgstr "There are no apps here yet. Choose another environment, or make one with New app."
@@ -7807,6 +8040,10 @@ msgstr "There are no lines to download"
 #: src/features/system/NotFound.tsx
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
 msgstr "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
+msgstr "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
 
 #: src/features/logs/LogsPage.tsx
 msgid "These logs can't be read now"
@@ -7906,6 +8143,7 @@ msgstr "This container isn't here"
 msgid "This container's log has no limit on {0}"
 msgstr "This container's log has no limit on {0}"
 
+#: src/features/settings/ControlPlanePage.tsx
 #: src/features/system/StatusPage.tsx
 msgid "This control plane"
 msgstr "This control plane"
@@ -8214,6 +8452,10 @@ msgstr "to update"
 msgid "to update if newer"
 msgstr "to update if newer"
 
+#: src/features/settings/ControlPlanePage.tsx
+msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
+msgstr "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Today"
 msgstr "Today"
@@ -8275,6 +8517,7 @@ msgstr "trend"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/settings/ControlPlanePage.tsx
 msgid "Try again"
 msgstr "Try again"
 
@@ -8325,6 +8568,10 @@ msgstr "Type <0>{confirmWith}</0> to apply it"
 #: src/features/logs/LogsPage.tsx
 msgid "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
 msgstr "Type what to find, and press Enter. It reads each container's log, at most for 30 s."
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "under 0.1 ms"
+msgstr "under 0.1 ms"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -8439,6 +8686,7 @@ msgid "Until then, a domain doesn't lead to its app, and you can't add one here.
 msgstr "Until then, a domain doesn't lead to its app, and you can't add one here."
 
 #: src/features/servers/ServersPanel.tsx
+#: src/features/settings/ControlPlanePage.tsx
 msgid "Up"
 msgstr "Up"
 
@@ -8478,6 +8726,10 @@ msgstr "Updated"
 #: src/app/Providers.tsx
 msgid "Updated in place"
 msgstr "Updated in place"
+
+#: src/features/settings/ControlPlanePage.tsx
+msgid "Updates"
+msgstr "Updates"
 
 #: src/features/changes/words.ts
 msgid "Updating"
@@ -8623,6 +8875,7 @@ msgid "Variables and secrets in {envName}"
 msgstr "Variables and secrets in {envName}"
 
 #: src/features/servers/ServerPanels.tsx
+#: src/features/settings/ControlPlanePage.tsx
 #: src/features/system/StatusPage.tsx
 msgid "Version"
 msgstr "Version"
