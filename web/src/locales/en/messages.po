@@ -3352,6 +3352,10 @@ msgstr "It answers only {list}. Anyone else gets what a name with no route gets"
 msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
 msgstr "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
 
+#: src/features/files/FileViewer.tsx
+msgid "It asks for your passkey, as this file can let someone back in."
+msgstr "It asks for your passkey, as this file can let someone back in."
+
 #: src/features/changes/notices.tsx
 msgid "It can read and write that path on the server."
 msgstr "It can read and write that path on the server."
@@ -5572,9 +5576,17 @@ msgstr "Saved {name}"
 msgid "Saved {path} on {server}"
 msgstr "Saved {path} on {server}"
 
+#: src/features/activity/describe.ts
+msgid "Saved {path} on {server}, which can let someone back in"
+msgstr "Saved {path} on {server}, which can let someone back in"
+
 #: src/features/files/FileViewer.tsx
 msgid "Saving"
 msgstr "Saving"
+
+#: src/features/files/FileViewer.tsx
+msgid "Saving {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
+msgstr "Saving {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
 
 #: src/features/files/FileViewer.tsx
 msgid "Saving replaces the file at once, and can't be undone."

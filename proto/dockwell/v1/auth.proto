@@ -599,6 +599,9 @@ enum StepUpAction {
   // Applying a change that gives something as much as root on a server, with
   // ChangeService.ApplyChange. The target is the change's ID.
   STEP_UP_ACTION_APPLY_ROOT_CHANGE = 8;
+  // Saving a file that's a way back onto a server, with FileService.SaveFile.
+  // The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
+  STEP_UP_ACTION_SAVE_WAY_BACK_IN = 9;
 }
 
 // BeginStepUpRequest says what the passkey confirms.

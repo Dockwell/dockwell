@@ -28,7 +28,8 @@ import (
 // to their API tokens that could let a stolen session keep its hold: adding
 // or removing a passkey, setting up or turning off code sign-in, making
 // recovery codes and creating a token. So does what could do the same on a
-// server: applying a plan that's as good as root there. See
+// server: applying a plan that's as good as root there, and saving a file
+// that's a way back onto it. See
 // docs/adr/0022-secrets-encrypted-at-rest.md,
 // docs/adr/0011-claim-and-sign-in.md and docs/adr/0032-files-on-a-server.md.
 
@@ -61,6 +62,9 @@ const (
 	// StepUpApplyRootChange applies a change that gives something as much as
 	// root on a server. Its target is the change's ID.
 	StepUpApplyRootChange StepUpAction = "change.apply_root"
+	// StepUpSaveWayBackIn saves a file that's a way back onto a server. Its
+	// target is the server's ID and the file's path, with every link followed.
+	StepUpSaveWayBackIn StepUpAction = "file.save_way_back_in"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -77,6 +81,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpRecoveryCodes:   {"making new recovery codes", false},
 	StepUpCreateToken:     {"creating an API token", false},
 	StepUpApplyRootChange: {"applying", true},
+	StepUpSaveWayBackIn:   {"saving", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

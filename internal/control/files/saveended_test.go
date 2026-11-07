@@ -27,7 +27,7 @@ func TestASaveEndedOnlyGoesOnRecordForASaveOnThatServer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		h := New(hub, agentapi.NewAgents(resource.NewRegistry(), logger), db, logger)
+		h := New(hub, agentapi.NewAgents(resource.NewRegistry(), logger), nil, db, logger)
 		if err := db.Update(ctx, func(tx *store.Tx) error {
 			for _, e := range []store.Event{
 				{ID: "evt_saving", At: time.Now(), Actor: "user:mira", Action: eventSaving, Subject: "/a", Target: "srv_A", Surface: store.SurfacePanel},

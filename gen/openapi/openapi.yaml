@@ -2447,6 +2447,7 @@ components:
                         - STEP_UP_ACTION_REGENERATE_RECOVERY_CODES
                         - STEP_UP_ACTION_CREATE_TOKEN
                         - STEP_UP_ACTION_APPLY_ROOT_CHANGE
+                        - STEP_UP_ACTION_SAVE_WAY_BACK_IN
                     type: string
                     description: The action.
                     format: enum
@@ -5640,6 +5641,11 @@ components:
                          which file that was, and what it held, which tells whether any of it changed
                          since. Empty for what can't be saved here: a binary file, one with more to
                          it than content, or a file on a server whose agent is too old to save.
+                wayBackIn:
+                    type: boolean
+                    description: |-
+                        True when saving this file takes a passkey, as it's a way back onto the
+                         server, such as authorized_keys, a cron job or a systemd unit.
             description: ReadFileResponse is a file on a server.
         ReadLogsResponse:
             type: object
@@ -6262,6 +6268,17 @@ components:
                 version:
                     type: string
                     description: 'The version from ReadFile: the file as you last read it.'
+                confirmedPath:
+                    type: string
+                    description: |-
+                        The path ReadFile said the file is at, with every symlink followed, which
+                         proof confirms. Set it with proof.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for saving this path on this server. A file
+                         that's a way back onto the server needs it. Call without it first: it checks
+                         everything else, then refuses with the reason needs_step_up.
             description: SaveFileRequest replaces a file's text.
         SaveFileResponse:
             type: object
@@ -6276,6 +6293,9 @@ components:
                 version:
                     type: string
                     description: What the next save over this text takes.
+                wayBackIn:
+                    type: boolean
+                    description: True when the file is a way back onto the server, which took a passkey.
             description: SaveFileResponse is the file as saved.
         Secret:
             type: object

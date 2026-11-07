@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/file.proto.
  */
 export const file_dockwell_v1_file: GenFile = /*@__PURE__*/
-  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSIzChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIogBChFMaXN0RmlsZXNSZXNwb25zZRIMCgRwYXRoGAEgASgJEikKCWRpcmVjdG9yeRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRInCgdlbnRyaWVzGAMgAygLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhEKCXRydW5jYXRlZBgEIAEoCCIyCg9SZWFkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkiiwEKEFJlYWRGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5Eg8KB2NvbnRlbnQYAyABKAkSDgoGYmluYXJ5GAQgASgIEhEKCXRydW5jYXRlZBgFIAEoCBIPCgd2ZXJzaW9uGAYgASgJIlQKD1NhdmVGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRIPCgdjb250ZW50GAMgASgJEg8KB3ZlcnNpb24YBCABKAkiVwoQU2F2ZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHdmVyc2lvbhgDIAEoCSKYAgoJRmlsZUVudHJ5EgwKBG5hbWUYASABKAkSIwoEdHlwZRgCIAEoDjIVLmRvY2t3ZWxsLnYxLkZpbGVUeXBlEhIKCnNpemVfYnl0ZXMYAyABKAQSLwoLbW9kaWZ5X3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBG1vZGUYBSABKAkSDQoFb3duZXIYBiABKAkSDQoFZ3JvdXAYByABKAkSEwoLbGlua190YXJnZXQYCCABKAkSKAoJbGlua190eXBlGAkgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSDwoHcmVmdXNlZBgKIAEoCBIXCg91bnJlYWRhYmxlX25hbWUYCyABKAgqfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBDLBAwoLRmlsZVNlcnZpY2USjQEKCUxpc3RGaWxlcxIdLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1JlcXVlc3QaHi5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXNwb25zZSJBkAIBoLsYAaq7GA0KBWZpbGVzEgRsaXN0sLsYAYLT5JMCHxIdL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMSjwEKCFJlYWRGaWxlEhwuZG9ja3dlbGwudjEuUmVhZEZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuUmVhZEZpbGVSZXNwb25zZSJGoLsYAaq7GA0KBWZpbGVzEgRyZWFksLsYAYLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6cmVhZBKPAQoIU2F2ZUZpbGUSHC5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlc3BvbnNlIkaguxgEqrsYDQoFZmlsZXMSBHNhdmWwuxgBgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpzYXZlQqIBCg9jb20uZG9ja3dlbGwudjFCCUZpbGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSIzChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIogBChFMaXN0RmlsZXNSZXNwb25zZRIMCgRwYXRoGAEgASgJEikKCWRpcmVjdG9yeRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRInCgdlbnRyaWVzGAMgAygLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhEKCXRydW5jYXRlZBgEIAEoCCIyCg9SZWFkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkioAEKEFJlYWRGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5Eg8KB2NvbnRlbnQYAyABKAkSDgoGYmluYXJ5GAQgASgIEhEKCXRydW5jYXRlZBgFIAEoCBIPCgd2ZXJzaW9uGAYgASgJEhMKC3dheV9iYWNrX2luGAcgASgIInsKD1NhdmVGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRIPCgdjb250ZW50GAMgASgJEg8KB3ZlcnNpb24YBCABKAkSFgoOY29uZmlybWVkX3BhdGgYBSABKAkSDQoFcHJvb2YYBiABKAkibAoQU2F2ZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHdmVyc2lvbhgDIAEoCRITCgt3YXlfYmFja19pbhgEIAEoCCKYAgoJRmlsZUVudHJ5EgwKBG5hbWUYASABKAkSIwoEdHlwZRgCIAEoDjIVLmRvY2t3ZWxsLnYxLkZpbGVUeXBlEhIKCnNpemVfYnl0ZXMYAyABKAQSLwoLbW9kaWZ5X3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBG1vZGUYBSABKAkSDQoFb3duZXIYBiABKAkSDQoFZ3JvdXAYByABKAkSEwoLbGlua190YXJnZXQYCCABKAkSKAoJbGlua190eXBlGAkgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSDwoHcmVmdXNlZBgKIAEoCBIXCg91bnJlYWRhYmxlX25hbWUYCyABKAgqfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBDLBAwoLRmlsZVNlcnZpY2USjQEKCUxpc3RGaWxlcxIdLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1JlcXVlc3QaHi5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXNwb25zZSJBkAIBoLsYAaq7GA0KBWZpbGVzEgRsaXN0sLsYAYLT5JMCHxIdL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMSjwEKCFJlYWRGaWxlEhwuZG9ja3dlbGwudjEuUmVhZEZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuUmVhZEZpbGVSZXNwb25zZSJGoLsYAaq7GA0KBWZpbGVzEgRyZWFksLsYAYLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6cmVhZBKPAQoIU2F2ZUZpbGUSHC5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlc3BvbnNlIkaguxgEqrsYDQoFZmlsZXMSBHNhdmWwuxgBgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpzYXZlQqIBCg9jb20uZG9ja3dlbGwudjFCCUZpbGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListFilesRequest names a directory on a server.
@@ -168,6 +168,14 @@ export type ReadFileResponse = Message<"dockwell.v1.ReadFileResponse"> & {
    * @generated from field: string version = 6;
    */
   version: string;
+
+  /**
+   * True when saving this file takes a passkey, as it's a way back onto the
+   * server, such as authorized_keys, a cron job or a systemd unit.
+   *
+   * @generated from field: bool way_back_in = 7;
+   */
+  wayBackIn: boolean;
 };
 
 /**
@@ -211,6 +219,23 @@ export type SaveFileRequest = Message<"dockwell.v1.SaveFileRequest"> & {
    * @generated from field: string version = 4;
    */
   version: string;
+
+  /**
+   * The path ReadFile said the file is at, with every symlink followed, which
+   * proof confirms. Set it with proof.
+   *
+   * @generated from field: string confirmed_path = 5;
+   */
+  confirmedPath: string;
+
+  /**
+   * The proof from FinishStepUp, for saving this path on this server. A file
+   * that's a way back onto the server needs it. Call without it first: it checks
+   * everything else, then refuses with the reason needs_step_up.
+   *
+   * @generated from field: string proof = 6;
+   */
+  proof: string;
 };
 
 /**
@@ -246,6 +271,13 @@ export type SaveFileResponse = Message<"dockwell.v1.SaveFileResponse"> & {
    * @generated from field: string version = 3;
    */
   version: string;
+
+  /**
+   * True when the file is a way back onto the server, which took a passkey.
+   *
+   * @generated from field: bool way_back_in = 4;
+   */
+  wayBackIn: boolean;
 };
 
 /**

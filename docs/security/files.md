@@ -59,7 +59,7 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | Read a file without leaving a record | It can't. The audit event is written before the contents leave the control plane, and a failed write returns nothing. Tested |
 | Look for credentials and leave no trace of what it missed | It can't. A refused or failed read is on Activity however it failed: nothing there, not a file, denied, refused, or not answering. So is a refused listing. Tested |
 | Hide in the record with a crafted path | A name can hold a newline or a terminal's escape codes, and a link can lead through one. A path is cleaned before it's stored or shown. Tested |
-| Save a file, such as a cron job or `authorized_keys`, to get root or keep a way in | It can today, and it won't by the first release: a save to one of these will take a step-up ([ADR 0032](../adr/0032-files-on-a-server.md#a-step-up-for-a-way-back-in-and-for-nothing-else)). Each save is on the timeline, with the path, and in the audit log |
+| Save a file, such as a cron job or `authorized_keys`, to get root or keep a way in | It can't without the person's passkey, just now, for that path on that server, however it got there: a save to one of these takes a step-up, decided by the agent on where the walk ended. With no passkey at that address, it can't at all. Each one is on the timeline in a warning tone, and in the audit log. Tested |
 | Save a file without leaving a record | It can't. `file.saving` is written before the agent is asked, and if it can't be written nothing is. Tested |
 | Write over the install's key, or a secret's value in Docker's state | Refused: a save takes the same walk as a read |
 | Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |
@@ -104,11 +104,11 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 
 ## What this doesn't do
 
-- **Keep a stolen session out of the disk.** A session controls every server: it can apply a plan that mounts `/etc`, with no passkey ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)). Reading a file takes no step-up, as that would add a prompt without closing that door. Saving to a way back in will, and so will a plan that's as good as root, before the first release: see [ADR 0032](../adr/0032-files-on-a-server.md#a-step-up-for-a-way-back-in-and-for-nothing-else).
+- **Keep a stolen session out of the disk.** A session controls every server: it can apply a plan that mounts `/etc`, with no passkey ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)). Reading a file takes no step-up, as that would add a prompt without closing that door. Saving to a way back in does, and so does a plan that's as good as root: see [ADR 0032](../adr/0032-files-on-a-server.md#a-step-up-for-a-way-back-in-and-for-nothing-else).
 - **Stop a stolen session reaching what's refused.** The refused list stops Files. ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach everything here.
 - **Keep a stolen session out of a server with no Docker by any other way.** With no plan to run, Files is new reach there, and Activity is what shows it.
 - **Undo a save.** A file isn't managed state, so there's no revision to go back to. The panel says so beside the Save button.
-- **Know what a file does.** A save to a cron job, a unit file or `sudoers` is root, and Dockwell doesn't read what's in it or check its syntax.
+- **Know what a file does.** A save to a cron job, a unit file or `sudoers` is root, and takes a passkey, but Dockwell doesn't read what's in it or check its syntax. What runs that isn't on the list, such as a script a cron job calls, takes none.
 - **Keep what's typed in a tab that closes.** What's typed stays in memory through a session that ends, and leaving the page asks first, but it never goes in the browser's storage, so a tab the browser discards loses it.
 - **Tell a config with a password in it from one without.** `.env`, `wp-config.php` and the like are readable with a session.
 - **Protect one person on a server from another.** Every signed-in person can read every server's files until roles come.

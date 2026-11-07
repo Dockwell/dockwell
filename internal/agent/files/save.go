@@ -22,8 +22,10 @@ import (
 // Save replaces the text of the file at p, if it is still the version the person
 // read: the same text, in the same file, where their read ended. A file that
 // changed since is left as it is, and they hear so. record is what the control plane
-// calls this save, for what's said of it if it ends after nobody is waiting.
-func (s *Server) Save(ctx context.Context, p, content, wanted, record string) (*agentv1.SaveFileResult, error) {
+// calls this save, for what's said of it if it ends after nobody is waiting. confirmed
+// is the path a passkey confirmed, if any: a way back onto the server takes one, for
+// where the walk ends here, which a link swapped in since doesn't pass.
+func (s *Server) Save(ctx context.Context, p, content, wanted, record, confirmed string) (*agentv1.SaveFileResult, error) {
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
@@ -32,7 +34,7 @@ func (s *Server) Save(ctx context.Context, p, content, wanted, record string) (*
 	}
 	var began atomic.Bool
 	return attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.SaveFileResult, error) {
-		out := s.save(ctx, t, p, content, wanted, &began)
+		out := s.save(ctx, t, p, content, wanted, confirmed, &began)
 		t.back = func() {
 			if began.Load() {
 				s.saveEnded(record, p, out)
@@ -59,7 +61,7 @@ func (s *Server) SavesEnded() <-chan *agentv1.SaveEnded { return s.savesEnded }
 func (s *Server) saveEnded(record, p string, out *agentv1.SaveFileResult) {
 	ended := &agentv1.SaveEnded{Record: record, Path: p}
 	if saved := out.GetSaved(); saved != nil {
-		ended.Path, ended.Landed = saved.GetPath(), true
+		ended.Path, ended.Landed, ended.WayBackIn = saved.GetPath(), true, saved.GetWayBackIn()
 	} else if r := out.GetRefusal(); r != nil {
 		ended.Path, ended.Reason = r.GetPath(), r.GetMessage()
 	}
@@ -70,7 +72,7 @@ func (s *Server) saveEnded(record, p string, out *agentv1.SaveFileResult) {
 	}
 }
 
-func (s *Server) save(ctx context.Context, t *trail, p, content, wanted string, began *atomic.Bool) *agentv1.SaveFileResult {
+func (s *Server) save(ctx context.Context, t *trail, p, content, wanted, confirmed string, began *atomic.Bool) *agentv1.SaveFileResult {
 	w, refusal := s.guard(ctx).walk(t, p)
 	if refusal != nil {
 		return &agentv1.SaveFileResult{Refusal: refusal}
@@ -104,12 +106,20 @@ func (s *Server) save(ctx context.Context, t *trail, p, content, wanted string, 
 	if truncated || version(where, &w.st, now) != wanted {
 		return &agentv1.SaveFileResult{Refusal: changed(where)}
 	}
+	// Asked last, so a passkey isn't asked for over what would be refused anyway.
+	wayIn := s.wayIn(where)
+	if wayIn && confirmed != where {
+		return &agentv1.SaveFileResult{Refusal: &agentv1.FileRefusal{
+			Kind: agentv1.FileRefusal_KIND_NEEDS_STEP_UP, Path: where,
+			Message: where + " can let someone back onto this server, so saving it takes your passkey, and nothing was saved. Confirm with it, then try again",
+		}}
+	}
 	text := keepMark(now, []byte(content))
 	if refusal := s.putText(ctx, t, w, wanted, now, text, began); refusal != nil {
 		return &agentv1.SaveFileResult{Refusal: refusal}
 	}
 	return &agentv1.SaveFileResult{Saved: &dockwellv1.SaveFileResponse{
-		Path: where, File: entry(w.last().name, &w.st, owners{}), Version: version(where, &w.st, text),
+		Path: where, File: entry(w.last().name, &w.st, owners{}), Version: version(where, &w.st, text), WayBackIn: wayIn,
 	}}
 }
 

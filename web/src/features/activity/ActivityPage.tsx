@@ -650,7 +650,10 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
         <Trans>Open the variables and secrets</Trans>
       </RouterButtonLink>
     ) : null;
-  const fileOn = event.action === "file.read" || event.action === "file.save" ? event.subject : undefined;
+  const fileOn =
+    event.action === "file.save_way_back_in" || event.action === "file.read" || event.action === "file.save"
+      ? event.subject
+      : undefined;
   const toFile = fileOn?.path ? (
     <RouterButtonLink
       to="/servers/$serverId/files"

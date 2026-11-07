@@ -399,6 +399,85 @@ func TestAPathThatStopsAnsweringLeavesTheServerOnline(t *testing.T) {
 	}
 }
 
+// Saving what lets someone back in takes a passkey, for that path on that server,
+// and reads as a warning on Activity. Being asked isn't a failed save. Anywhere else
+// takes nothing.
+func TestSavingAWayBackInTakesAPasskey(t *testing.T) {
+	storetest.Each(t, testSavingAWayBackInTakesAPasskey)
+}
+
+func testSavingAWayBackInTakesAPasskey(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := filepath.Join(dir, ".ssh", "authorized_keys")
+	writeFile(t, keys, "ssh-ed25519 AAAA admin\n")
+	via := filepath.Join(dir, "config.yml")
+	if err := os.Symlink(keys, via); err != nil {
+		t.Fatal(err)
+	}
+	c := fileClient(b, b.origin)
+	read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: via}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !read.Msg.GetWayBackIn() || read.Msg.GetPath() != keys {
+		t.Fatalf("a read says %v", read.Msg)
+	}
+	save := func(confirmed, proof string) (*connect.Response[dockwellv1.SaveFileResponse], error) {
+		return c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{
+			ServerId: id, Path: via, Content: "typed\n", Version: read.Msg.GetVersion(), ConfirmedPath: confirmed, Proof: proof,
+		}))
+	}
+	untouched := func() {
+		t.Helper()
+		if got, err := os.ReadFile(keys); err != nil || string(got) != "ssh-ed25519 AAAA admin\n" {
+			t.Fatalf("the file holds %q: %v", got, err)
+		}
+	}
+	action := dockwellv1.StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN
+	target := id + ":" + keys
+	if _, err := save("", ""); reasonOf(err) != "needs_step_up" {
+		t.Fatalf("with no proof = %v", err)
+	}
+	if _, err := save(keys, ""); reasonOf(err) != "needs_step_up" {
+		t.Fatalf("saying a path was confirmed, with no proof = %v", err)
+	}
+	untouched()
+	for _, e := range timelineFiles(t, b, &dockwellv1.ListEventsRequest{ServerId: id}) {
+		if e.GetAction() == "file.save_failed" {
+			t.Errorf("being asked for a passkey reads as a save that failed: %v", e)
+		}
+	}
+	for what, other := range map[string]string{
+		"another path":   stepUpFor(t, b, action, id+":"+keys+".old"),
+		"another server": stepUpFor(t, b, action, "srv_another:"+keys),
+		"another action": stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SECRET, target),
+	} {
+		if _, err := save(keys, other); reasonOf(err) != "needs_step_up" {
+			t.Fatalf("with a proof for %s = %v", what, err)
+		}
+		untouched()
+	}
+	// The path comes from the request, so a proof for one path can't be sent for another.
+	if _, err := save(via, stepUpFor(t, b, action, target)); reasonOf(err) != "needs_step_up" {
+		t.Fatalf("with the proof, naming another path = %v", err)
+	}
+	untouched()
+	saved, err := save(keys, stepUpFor(t, b, action, target))
+	if err != nil || !saved.Msg.GetWayBackIn() {
+		t.Fatalf("with its proof = %v, %v", saved, err)
+	}
+	if got, err := os.ReadFile(keys); err != nil || string(got) != "typed\n" {
+		t.Fatalf("the file holds %q: %v", got, err)
+	}
+	waitForFileEvent(t, b, id, "file.save_way_back_in", keys)
+}
+
 // heldWrite is a server whose agent holds each save as it begins to write, past where
 // it can stop, with a person signed in to save.
 func heldWrite(t *testing.T, f *fullServer, answerWithin time.Duration) (server *testServer, reached chan struct{}, release func()) {
