@@ -24,6 +24,7 @@ func Commands() []string {
 		"claim-link",
 		"compose",
 		"containers",
+		"control-plane",
 		"databases",
 		"domains",
 		"drift",

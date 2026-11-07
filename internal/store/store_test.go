@@ -79,6 +79,27 @@ func TestOpenMigratesOnceAndReopens(t *testing.T) {
 	})
 }
 
+// The control plane's Settings say what database it runs on, how big it is,
+// and how quickly it answers.
+func TestAboutSaysTheDatabasesVersionAndSize(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		about, err := db.About(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if about.Version == "" || strings.Contains(about.Version, " ") || about.Version[0] < '0' || about.Version[0] > '9' {
+			t.Errorf("version = %q, want a number alone, such as 3.50.4 or 17.2", about.Version)
+		}
+		if about.Size <= 0 {
+			t.Errorf("size = %d, want what the migrated schema takes", about.Size)
+		}
+		if about.RoundTrip <= 0 || about.RoundTrip > time.Minute {
+			t.Errorf("round trip = %s", about.RoundTrip)
+		}
+	})
+}
+
 func TestRefusesNewerSchema(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		db, location := storetest.Open(t, b)

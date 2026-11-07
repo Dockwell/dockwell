@@ -959,6 +959,28 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/controlPlane:
+        get:
+            tags:
+                - SettingsService
+            description: |-
+                GetControlPlane returns what serves the panel and API: its build, where it
+                 keeps its state, the addresses it answers on, and how it's doing. Most of
+                 it comes from how dockwell run was started, and changes there.
+            operationId: SettingsService_GetControlPlane
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetControlPlaneResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/databases:
         get:
             tags:
@@ -3038,6 +3060,25 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: A new change, planned, whose revision matches what the server has.
             description: AdoptDriftResponse carries the planned adoption.
+        AgentListener:
+            type: object
+            properties:
+                listen:
+                    type: string
+                    description: The address it listens on, such as ":7443".
+                url:
+                    type: string
+                    description: |-
+                        The URL a server on the control server's own network reaches it at, as
+                         a join ticket names it, such as "https://192.0.2.10:7443".
+                publicUrls:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The URLs a server elsewhere reaches it at, in the order a ticket tries
+                         them. Empty when that isn't known.
+            description: AgentListener is where servers' agents reach the control plane.
         ApplyChangeRequest:
             type: object
             properties:
@@ -4183,6 +4224,46 @@ components:
                     type: string
                     description: '"tcp" or "udp".'
             description: ContainerPort is a port a container publishes on the server.
+        ControlPlane:
+            type: object
+            properties:
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildInfo'
+                    description: The build it runs.
+                startTime:
+                    type: string
+                    description: When it started.
+                    format: date-time
+                dataDir:
+                    type: string
+                    description: The directory it keeps its files in, such as "/var/lib/dockwell".
+                keyFile:
+                    type: string
+                    description: |-
+                        The install's key, which opens every secret the state store keeps, such
+                         as "/var/lib/dockwell/control/key". A backup of the store needs it too,
+                         kept apart.
+                store:
+                    allOf:
+                        - $ref: '#/components/schemas/StateStore'
+                    description: Where it keeps its state.
+                panel:
+                    allOf:
+                        - $ref: '#/components/schemas/PanelServing'
+                    description: How the panel is served.
+                agents:
+                    allOf:
+                        - $ref: '#/components/schemas/AgentListener'
+                    description: Where servers' agents reach it.
+                memoryBytes:
+                    type: string
+                    description: |-
+                        The memory it holds, with its own agent's, in bytes: its resident set.
+                         Zero where the system doesn't say.
+            description: |-
+                ControlPlane is the dockwell run that serves the panel and API, with the
+                 agent it runs beside them.
         CreateBackupRequest:
             type: object
             properties:
@@ -5509,6 +5590,14 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change.
             description: GetChangeResponse carries one change.
+        GetControlPlaneResponse:
+            type: object
+            properties:
+                controlPlane:
+                    allOf:
+                        - $ref: '#/components/schemas/ControlPlane'
+                    description: The control plane.
+            description: GetControlPlaneResponse describes the control plane that answers.
         GetDatabaseResponse:
             type: object
             properties:
@@ -9177,6 +9266,33 @@ components:
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
                  every kind.
+        StateStore:
+            type: object
+            properties:
+                engine:
+                    enum:
+                        - STATE_STORE_ENGINE_UNSPECIFIED
+                        - STATE_STORE_ENGINE_SQLITE
+                        - STATE_STORE_ENGINE_POSTGRES
+                    type: string
+                    description: What kind of database it is.
+                    format: enum
+                location:
+                    type: string
+                    description: |-
+                        Where it is: a SQLite file's path, or a Postgres URL without its
+                         password.
+                version:
+                    type: string
+                    description: The database's own version, such as "3.50.4" or "17.2".
+                sizeBytes:
+                    type: string
+                    description: Its size on disk, in bytes.
+                roundTrip:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long a query that reads nothing took, just now.
+            description: StateStore is the database the control plane keeps its state in.
         Status:
             type: object
             properties:
@@ -9716,6 +9832,7 @@ tags:
       description: |-
         SettingsService reads and changes the install's own settings: what it's
          called, the time zone its schedules start in, and how its panel is served.
+         It also says what the control plane is, and how it's doing.
 
          None of these is managed state: they change what Dockwell says and suggests,
          not what runs on a server, so a change needs no plan. Each is on the activity

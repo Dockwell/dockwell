@@ -121,7 +121,7 @@ describe("Settings", () => {
     ]) {
       expect(panel).toHaveTextContent(how);
     }
-    expect(within(panel).getByRole("link", { name: "How to change settings" })).toHaveClass("general-link");
+    expect(within(panel).getByRole("link", { name: "How to change settings" })).toHaveClass("settings-link");
   });
 
   it("says when the server's ingress serves the domain, while it has routes", async () => {

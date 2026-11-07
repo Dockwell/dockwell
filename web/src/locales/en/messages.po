@@ -6544,6 +6544,192 @@ msgstr "{provider}'s metadata says so, {when}"
 msgid "up {uptime}"
 msgstr "up {uptime}"
 
+msgid "A file beside the control plane, for one control plane"
+msgstr "A file beside the control plane, for one control plane"
+
+msgid "A server that joined upgrades the same way: run the install script again on it."
+msgstr "A server that joined upgrades the same way: run the install script again on it."
+
+msgid "Agents"
+msgstr "Agents"
+
+msgid "Agents connect to"
+msgstr "Agents connect to"
+
+msgid "Answering"
+msgstr "Answering"
+
+msgid "Answers in"
+msgstr "Answers in"
+
+msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+msgstr "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+
+msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
+msgstr "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
+
+msgid "Built from {commit}"
+msgstr "Built from {commit}"
+
+msgid "Built {built} from {commit}"
+msgstr "Built {built} from {commit}"
+
+msgid "By hand, for now"
+msgstr "By hand, for now"
+
+msgid "Dockwell can't say how its control plane is"
+msgstr "Dockwell can't say how its control plane is"
+
+msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
+msgstr "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
+
+msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
+
+msgid "Engine"
+msgstr "Engine"
+
+msgid "From elsewhere"
+msgstr "From elsewhere"
+
+msgid "From its network"
+msgstr "From its network"
+
+msgid "How to back it up and restore it"
+msgstr "How to back it up and restore it"
+
+msgid "How to change settings"
+msgstr "How to change settings"
+
+msgctxt "encryption"
+msgid "Key"
+msgstr "Key"
+
+msgid "Location"
+msgstr "Location"
+
+msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
+msgstr "One · if it stops, the panel and API stop with it, and servers keep running what they run"
+
+msgid "Opens every secret the store keeps"
+msgstr "Opens every secret the store keeps"
+
+msgid "Panel and API"
+msgstr "Panel and API"
+
+msgid "Panel, API and scheduler for this install"
+msgstr "Panel, API and scheduler for this install"
+
+#. placeholder {0}: own.name
+msgid "Panel, API and scheduler for this install · one replica, on {0}"
+msgstr "Panel, API and scheduler for this install · one replica, on {0}"
+
+msgid "Panel, API and scheduler for {name}"
+msgstr "Panel, API and scheduler for {name}"
+
+#. placeholder {0}: own.name
+msgid "Panel, API and scheduler for {name} · one replica, on {0}"
+msgstr "Panel, API and scheduler for {name} · one replica, on {0}"
+
+msgid "PostgreSQL"
+msgstr "PostgreSQL"
+
+msgid "Ready for more than one control plane"
+msgstr "Ready for more than one control plane"
+
+msgid "Releases"
+msgstr "Releases"
+
+msgid "Replicas"
+msgstr "Replicas"
+
+msgid "SQLite, on this server"
+msgstr "SQLite, on this server"
+
+msgctxt "on disk"
+msgid "Size"
+msgstr "Size"
+
+msgid "State store"
+msgstr "State store"
+
+msgid "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+
+msgid "The version that runs here is unknown"
+msgstr "The version that runs here is unknown"
+
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+
+msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
+msgstr "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
+
+msgid "This control plane"
+msgstr "This control plane"
+
+msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
+msgstr "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
+
+msgid "agent"
+msgstr "agent"
+
+msgid "agent · {versions}"
+msgstr "agent · {versions}"
+
+msgid "agents"
+msgstr "agents"
+
+msgid "agents · {versions}"
+msgstr "agents · {versions}"
+
+msgid "all on {short}"
+msgstr "all on {short}"
+
+msgid "hasn't connected yet"
+msgstr "hasn't connected yet"
+
+#. placeholder {0}: words.ago(timestampDate(s.lastSeenTime), now)
+msgid "not connected, last heard {0}"
+msgstr "not connected, last heard {0}"
+
+msgid "on loopback"
+msgstr "on loopback"
+
+#. placeholder {0}: shortVersion(s.agentBuild?.version ?? "")
+msgid "runs {0}"
+msgstr "runs {0}"
+
+msgid "under 0.1 ms"
+msgstr "under 0.1 ms"
+
+#. placeholder {0}: connected.length
+msgid "{0} connected"
+msgstr "{0} connected"
+
+#. placeholder {0}: formatFixed(trip, trip < 10 ? 1 : 0, i18n.locale)
+msgid "{0} ms"
+msgstr "{0} ms"
+
+#. placeholder {0}: count - behind.length
+#. placeholder {1}: behind.length
+msgid "{0} on {short}, {1} on another version"
+msgstr "{0} on {short}, {1} on another version"
+
+#. placeholder {0}: shortVersion(build.version)
+msgid "{0} runs here"
+msgstr "{0} runs here"
+
+#. placeholder {0}: formatBytes(memory, i18n.locale)
+#. placeholder {1}: formatBytes(BUDGET_BYTES, i18n.locale)
+msgid "{0} with its agent, of a {1} budget"
+msgstr "{0} with its agent, of a {1} budget"
+
+#. placeholder {0}: words.span(Math.max(0, now - started.getTime()))
+#. placeholder {1}: formatDay(started, i18n.locale)
+msgid "{0}, since {1}"
+msgstr "{0}, since {1}"
+
 msgid "A change goes on Activity, with what it replaced."
 msgstr "A change goes on Activity, with what it replaced."
 
@@ -6567,9 +6753,6 @@ msgstr "General"
 
 msgid "HTTPS"
 msgstr "HTTPS"
-
-msgid "How to change settings"
-msgstr "How to change settings"
 
 msgid "Language"
 msgstr "Language"
@@ -6639,6 +6822,9 @@ msgstr "Account"
 
 msgid "Install"
 msgstr "Install"
+
+msgid "Platform"
+msgstr "Platform"
 
 msgid "Settings"
 msgstr "Settings"
@@ -6850,14 +7036,8 @@ msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and 
 msgid "Go"
 msgstr "Go"
 
-msgid "Platform"
-msgstr "Platform"
-
 msgid "The control plane is running"
 msgstr "The control plane is running"
-
-msgid "This control plane"
-msgstr "This control plane"
 
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
