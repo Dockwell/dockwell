@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/volume"
@@ -90,7 +91,7 @@ func withVolume(t *testing.T, b store.Backend) *restoreBench {
 	drivers := resource.NewRegistry(&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}, Paths: &container.Paths{Client: client}}, Restores: r})
 	agents["srv_A"] = twoAgents{Local: local, volumes: resource.Local{Drivers: drivers}}
 	ref := resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}
-	return &restoreBench{e, r, agents, ref, env, db}
+	return &restoreBench{e, r, agents, ref, env, db, engines["srv_A"]}
 }
 
 type restoreBench struct {
@@ -100,6 +101,7 @@ type restoreBench struct {
 	ref    resource.Ref
 	env    string
 	db     *store.DB
+	engine *dockertest.Engine
 }
 
 // twoAgents sends what's about volumes to a driver that restores, and the rest
@@ -298,6 +300,42 @@ func TestARestoreAsksWhatTheBackupsVolumeWould(t *testing.T) {
 				t.Errorf("the plan says %+v, want %q", plan.Notes, tt.says)
 			}
 		})
+	}
+}
+
+// A backup from before backups said what they reached asks what its volume's spec
+// said then, as the control plane has it: a backup of a bind of /etc, restored into an
+// ordinary volume of its name once the first has gone, asks as one that says so does.
+func TestAnOlderBackupAsksWhatItsVolumeDidThen(t *testing.T) {
+	x := withVolume(t, store.SQLite)
+	e, ref, env, db := x.e, x.ref, x.env, x.db
+	apply(t, e, propose(t, e, "The system", Edit{Ref: ref, Spec: &resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": "/etc"}}, Servers: []string{"srv_A"}}))
+	time.Sleep(5 * time.Millisecond)
+	if err := db.Update(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), string(volume.Kind), env, "data")
+		if err != nil {
+			return err
+		}
+		return tx.CreateBackup(t.Context(), store.Backup{
+			ID: "bkp_old", EnvironmentID: env, Volume: "data", VolumeID: r.ID, ServerID: "srv_A", State: store.BackupDone, StartedAt: time.Now(),
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	apply(t, e, propose(t, e, "Delete it", Edit{Ref: ref}))
+	if err := x.engine.Client().RemoveVolume(t.Context(), volume.TargetOf(ref).Name); err != nil {
+		t.Fatal(err)
+	}
+	apply(t, e, propose(t, e, "An ordinary one", Edit{Ref: ref, Spec: &resourcev1.Volume{}, Servers: []string{"srv_A"}}))
+
+	plan, err := e.Restore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_old", Server: "srv_A"}, restoreBy(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := resource.Access{Kind: resource.AccessBackupOf, Path: "/etc"}
+	if !plan.AsGoodAsRoot() || !slices.Contains(plan.Resources[0].HostAccess, want) {
+		t.Errorf("an older backup of the system asks %+v", plan.Resources)
 	}
 }
 

@@ -769,7 +769,8 @@ func (p *Paths) Follow(ctx context.Context, paths ...string) (map[string]string,
 
 // VolumeAsPlanned checks the server path a volume binds leads where a plan said, as
 // a helper mounts the volume and Docker follows what it finds.
-func (p *Paths) VolumeAsPlanned(ctx context.Context, v *docker.Volume, planned map[string]string) error {
+// stopped says what came of a refusal.
+func (p *Paths) VolumeAsPlanned(ctx context.Context, v *docker.Volume, planned map[string]string, stopped string) error {
 	dev, ok := BindDevice(v.Driver, v.Options)
 	if !ok {
 		return nil
@@ -780,7 +781,7 @@ func (p *Paths) VolumeAsPlanned(ctx context.Context, v *docker.Volume, planned m
 	}
 	for _, at := range slices.Sorted(maps.Keys(now)) {
 		if planned[at] != now[at] {
-			return fmt.Errorf("the server path %s leads to %s now, which isn't what this plan was approved for, so nothing was changed or stopped. Plan it again to see what it reaches", at, now[at])
+			return fmt.Errorf("the server path %s leads to %s now, which isn't what this plan was approved for, so %s. Plan it again to see what it reaches", at, now[at], stopped)
 		}
 	}
 	return nil
