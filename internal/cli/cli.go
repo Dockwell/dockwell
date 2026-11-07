@@ -45,6 +45,9 @@ const (
 	// for a registry mirror. Its digest stays pinned (ADR 0024).
 	envIngressImage = "DOCKWELL_INGRESS_IMAGE"
 	envDatabase     = "DOCKWELL_DATABASE"
+	// envNoStun turns off asking a public STUN server, when set to anything but
+	// false or 0 (ADR 0034).
+	envNoStun = "DOCKWELL_NO_STUN"
 )
 
 // IO carries the streams and environment a command runs with, so tests can
@@ -173,6 +176,8 @@ type sharedFlags struct {
 	logLevel  string
 	logFormat string
 	dataDir   string
+	// noStun is --no-stun, on dockwell run.
+	noStun bool
 }
 
 // dir resolves the data directory: --data-dir, then the default for this user.

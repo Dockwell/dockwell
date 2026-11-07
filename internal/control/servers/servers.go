@@ -7,18 +7,24 @@ package servers
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/actors"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Service answers ServerService calls.
 type Service struct {
 	fleet *fleet.Hub
+	db    *store.DB
 }
 
 var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)
@@ -26,8 +32,9 @@ var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)
 // HeartbeatEvery is how often a watch says it is alive, whatever else it says.
 var HeartbeatEvery = 10 * time.Second
 
-// New returns a Service reading hub.
-func New(hub *fleet.Hub) *Service { return &Service{fleet: hub} }
+// New returns a Service reading hub, which names who sets a server's public
+// address from db.
+func New(hub *fleet.Hub, db *store.DB) *Service { return &Service{fleet: hub, db: db} }
 
 // ListServers returns every server.
 func (s *Service) ListServers(context.Context, *connect.Request[dockwellv1.ListServersRequest]) (*connect.Response[dockwellv1.ListServersResponse], error) {
@@ -44,6 +51,33 @@ func (s *Service) GetServer(_ context.Context, req *connect.Request[dockwellv1.G
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.GetServerResponse{Server: srv}), nil
+}
+
+// SetServerPublicAddress records a server's public address as a person says it.
+func (s *Service) SetServerPublicAddress(ctx context.Context, req *connect.Request[dockwellv1.SetServerPublicAddressRequest]) (*connect.Response[dockwellv1.SetServerPublicAddressResponse], error) {
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, authapi.ReasonUnauthenticated)
+	}
+	client, _ := authapi.ClientFrom(ctx)
+	id := req.Msg.GetId()
+	by := fleet.Setting{Actor: p.Actor(), Surface: client.Surface(p)}
+	if err := s.db.View(ctx, func(tx *store.Tx) error {
+		by.Who = actors.New().In(ctx, tx).Actor(p.Actor())
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	srv, err := s.fleet.SetPublicAddress(ctx, id, strings.TrimSpace(req.Msg.GetAddress()), by)
+	switch {
+	case errors.Is(err, fleet.ErrNotFound):
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("there's no server "+id+". List them with ListServers"))
+	case errors.Is(err, fleet.ErrNotAPublicAddress):
+		return nil, authapi.Invalid(errors.New(strings.TrimPrefix(err.Error(), fleet.ErrNotAPublicAddress.Error()+": ")))
+	case err != nil:
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.SetServerPublicAddressResponse{Server: srv}), nil
 }
 
 // errBehind ends a watch whose client couldn't keep up; it should reconnect

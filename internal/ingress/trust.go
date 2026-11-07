@@ -35,6 +35,12 @@ var cloudflareRanges = []string{
 	"2a06:98c0::/29", "2c0f:f248::/32",
 }
 
+// IsCloudflare reports an address in Cloudflare's ranges, which everyone behind its
+// proxy shares, so a record that points there says nothing of where a server is.
+func IsCloudflare(a netip.Addr) bool {
+	return slices.ContainsFunc(cloudflareRanges, func(r string) bool { return netip.MustParsePrefix(r).Contains(a.Unmap()) })
+}
+
 // Limits on what a route may name as a proxy.
 const (
 	// maxTrustedProxies is more than any route needs, past which a token that

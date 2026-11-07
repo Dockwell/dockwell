@@ -63,6 +63,12 @@ type Config struct {
 	// agent tells the control plane as its stream opens and whenever they
 	// change. Nil says nothing.
 	Domains DomainReporter
+	// Public hears the public address the control plane knows this server by.
+	// Nil ignores it.
+	Public PublicAddressListener
+	// NoLookup keeps this server from asking a public STUN server how it reaches
+	// the internet (ADR 0034).
+	NoLookup bool
 	// Logs reads what this server's containers print. Nil reads none.
 	Logs LogReader
 	// Docker lists this server's containers. Nil lists none.
@@ -97,6 +103,13 @@ type HealthReporter interface {
 	DockerUnreadableSince() time.Time
 	// Changed signals when Report has something new to say.
 	Changed() <-chan struct{}
+}
+
+// PublicAddressListener uses what the control plane knows of a server's public
+// address, which isn't on its interfaces (ADR 0034).
+type PublicAddressListener interface {
+	// SetPublicAddress takes what's known.
+	SetPublicAddress(known *agentv1.PublicAddress)
 }
 
 // DomainReporter says where a server's routes' domains stand (ADR 0024).
@@ -154,6 +167,10 @@ type Desired interface {
 	// Applied records a resource's desired spec; nil means it was deleted.
 	Applied(ctx context.Context, ref resource.Ref, spec proto.Message) error
 }
+
+// networkEvery is how often a server looks again at how the internet sees it, as a
+// home router's address changes.
+const networkEvery = 6 * time.Hour
 
 // Timing.
 const (
@@ -423,6 +440,8 @@ func session(ctx context.Context, cfg Config) (err error) {
 				calls.cancel(msg.GetCancel().GetId())
 			case msg.GetDrained() != nil:
 				calls.acknowledged()
+			case msg.GetPublicAddress() != nil && cfg.Public != nil:
+				cfg.Public.SetPublicAddress(msg.GetPublicAddress())
 			}
 		}
 	}()
@@ -476,6 +495,21 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if err := sendStats(); err != nil {
 		return err
 	}
+	// Apart from the rest, as a server that isn't on a cloud has nothing to answer
+	// and takes its whole timeout to say so, and nothing waits for this.
+	go func() {
+		for {
+			network := cfg.Collector.Network(ctx, !cfg.NoLookup)
+			if ctx.Err() != nil || send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Network{Network: network}}) != nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(networkEvery):
+			}
+		}
+	}()
 	var domainsChanged <-chan struct{}
 	sendDomains := func() error { return nil }
 	if cfg.Domains != nil {

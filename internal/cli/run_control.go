@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -105,13 +106,13 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 			return err
 		}
 		if role == roleAgent {
-			return runAgent(ctx, stdio, logger, dir, id, build, nil, nil)
+			return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil)
 		}
 		f.listenFromEnv = !cmd.Flags().Changed("listen") && stdio.Getenv(envListen) != ""
 		if f.database, err = g.databaseOf(stdio, dir); err != nil {
 			return err
 		}
-		return runControl(ctx, stdio, logger, dir, build, f)
+		return runControl(ctx, stdio, g, logger, dir, build, f)
 	}
 }
 
@@ -122,7 +123,7 @@ const (
 )
 
 // runControl runs the control plane and this server's own agent.
-func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, build buildinfo.Info, f runFlags) error {
+func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, build buildinfo.Info, f runFlags) error {
 	compose.UseGuard()
 	if f.domain != "" {
 		if err := auth.ValidDomain(f.domain); err != nil {
@@ -331,7 +332,7 @@ func runControl(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.
 		}
 	}
 	wg.Go(func() {
-		agentErr = runAgent(agentCtx, stdio, logger, dir, own, build, panel, ownPorts(ls, f))
+		agentErr = runAgent(agentCtx, stdio, g, logger, dir, own, build, panel, ownPorts(ls, f))
 		cancel()
 	})
 	wg.Wait()
@@ -654,16 +655,10 @@ func advertiseURL(ctx context.Context, given string, addr net.Addr) (string, err
 }
 
 // outboundIP is the address this server uses to reach the internet, or its own if
-// that's a TUN's. A UDP "connection" sends nothing; it only picks the route.
+// that's a TUN's, or loopback with no way to it.
 func outboundIP(ctx context.Context) string {
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "udp", "192.0.2.1:9")
-	if err != nil {
-		return "127.0.0.1"
-	}
-	defer conn.Close()
-	if udp, ok := conn.LocalAddr().(*net.UDPAddr); ok {
-		return ingress.OwnAddress(udp.IP.String())
+	if ip := collect.OutboundAddress(ctx); ip != "" {
+		return ingress.OwnAddress(ip)
 	}
 	return "127.0.0.1"
 }

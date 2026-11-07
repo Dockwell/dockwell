@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -71,6 +72,24 @@ type live struct {
 	// dockerUnreadableSince is since when its agent hasn't been able to read
 	// Docker, as it last said, on the server's clock. Each stream says it anew.
 	dockerUnreadableSince *timestamppb.Timestamp
+	// person is what a person set of its public address, with who and when: only
+	// that, of what's known of its network, is kept in the store.
+	person *dockwellv1.ServerNetwork
+	// seen is the public address its agent last connected from.
+	seen string
+	// outside is what it last found out for itself beyond its interfaces. Nil
+	// until it has said, which an agent from before this never does.
+	outside *agentv1.Network
+	// domains is what it last said of its routes' domains.
+	domains []*dockwellv1.DomainStatus
+	// network is what all of that comes to.
+	network *dockwellv1.ServerNetwork
+	// told signals that its agent's public address changed.
+	told chan struct{}
+}
+
+func newLive(s store.Server) *live {
+	return &live{srv: s, told: make(chan struct{}, 1)}
 }
 
 // Hub is the fleet's live state.
@@ -99,13 +118,17 @@ func New(ctx context.Context, db *store.DB, logger *slog.Logger) (*Hub, error) {
 		}
 		for i := range servers {
 			s := &servers[i]
-			l := &live{srv: *s}
+			l := newLive(*s)
 			if s.LastSeenAt != nil {
 				l.lastSeen = *s.LastSeenAt
 			}
 			if r, ok := reports[s.ID]; ok {
 				l.inventory, l.build = decodeReport(r, logger, s.ID)
 			}
+			if l.person, err = loadPublicAddress(ctx, tx, s.ID); err != nil {
+				return err
+			}
+			h.refreshNetworkLocked(s.ID, l)
 			h.servers[s.ID] = l
 		}
 		return nil
@@ -140,7 +163,7 @@ func (h *Hub) Joined(s store.Server) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if _, ok := h.servers[s.ID]; !ok {
-		h.servers[s.ID] = &live{srv: s}
+		h.servers[s.ID] = newLive(s)
 	}
 	h.notifyLocked(s.ID, false)
 }
@@ -181,10 +204,11 @@ func (h *Hub) Attach(ctx context.Context, srv store.Server, inventory *dockwellv
 	h.mu.Lock()
 	l, ok := h.servers[id]
 	if !ok {
-		l = &live{srv: srv}
+		l = newLive(srv)
 		h.servers[id] = l
 	}
 	l.inventory, l.build, l.lastSeen = inventory, build, now
+	h.refreshNetworkLocked(id, l)
 	if l.streams == 0 {
 		l.connectedAt = now
 		l.dockerUnreadableSince = nil
@@ -388,6 +412,7 @@ func (h *Hub) toProtoLocked(id string, l *live, withHistory bool) *dockwellv1.Se
 		AgentBuild:    l.build,
 		ControlServer: id == h.control,
 		Ingress:       l.ingress,
+		Network:       l.network,
 	}
 	switch {
 	case l.streams > 0:

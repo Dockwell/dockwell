@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -298,6 +300,106 @@ func TestATunIsToldByKindNotByItsAddress(t *testing.T) {
 	}
 }
 
+// A public address the control plane knows beyond the interfaces reads as this
+// server, and only a way in makes a record that points anywhere else point elsewhere.
+func TestDNSReadsAPublicAddressKnownBeyondTheInterfaces(t *testing.T) {
+	addrs := func(list ...string) []netip.Addr {
+		out := make([]netip.Addr, len(list))
+		for i, s := range list {
+			out[i] = netip.MustParseAddr(s)
+		}
+		return out
+	}
+	public := netip.MustParseAddr("203.0.113.50")
+	for _, tc := range []struct {
+		name  string
+		found []netip.Addr
+		wayIn bool
+		want  resource.DomainState
+	}{
+		{"the record points at it", addrs("203.0.113.50"), true, resource.DomainHere},
+		{"the record points at it, as a way out", addrs("203.0.113.50"), false, resource.DomainHere},
+		{"another address, with a way in known", addrs("198.51.100.1"), true, resource.DomainElsewhere},
+		{"another address, with only a way out known", addrs("198.51.100.1"), false, resource.DomainCantTell},
+		{"no record yet", nil, true, resource.DomainNoRecord},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &DNS{
+				Lookup: func(context.Context, string) ([]netip.Addr, error) { return tc.found, nil },
+				Addrs:  func() ([]netip.Addr, error) { return addrs("10.0.0.25"), nil },
+				Public: public, WayIn: tc.wayIn,
+			}
+			got := d.Check(t.Context(), "app.example.com")
+			if got.State != tc.want {
+				t.Errorf("State = %d, want %d: %+v", got.State, tc.want, got)
+			}
+			if got.Public != public.String() || !slices.Contains(got.Here, public.String()) {
+				t.Errorf("it doesn't carry the address: %+v", got)
+			}
+		})
+	}
+}
+
+// The words say what's known of the way in: none of a server behind NAT as it was,
+// and the plain record once something proved it.
+func TestTheWordsUseThePublicAddress(t *testing.T) {
+	proved := &resource.DomainCheck{State: resource.DomainNoRecord, Public: "203.0.113.50", Here: []string{"10.0.0.25", "203.0.113.50"}}
+	router := &resource.DomainCheck{State: resource.DomainNoRecord, Public: "203.0.113.7", Unproven: true, Here: []string{"192.168.1.20", "203.0.113.7"}}
+	carrier := &resource.DomainCheck{State: resource.DomainNoRecord, Carrier: true, Here: []string{"100.72.1.2"}}
+	pending := CertState{Phase: CertPending}
+	for _, tc := range []struct {
+		name  string
+		check *resource.DomainCheck
+		says  string
+		never string
+	}{
+		{"known", proved, "Point an A record at this server, 203.0.113.50.", "10.0.0.25"},
+		{"looked up, not on a cloud", router, "Point an A record at 203.0.113.7, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither.", "192.168.1.20"},
+		{"behind carrier NAT", carrier, "so a DNS record can't reach it, and neither can a forwarded port", "Point an A record"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			msg := certMessage("app.example.com", pending, tc.check)
+			if !strings.Contains(msg, tc.says) || strings.Contains(msg, tc.never) {
+				t.Errorf("it says %q", msg)
+			}
+		})
+	}
+	msg := certMessage("app.example.com", CertState{Phase: CertFailed, Problem: ProblemConnection}, proved)
+	if !strings.Contains(msg, "behind NAT") {
+		t.Errorf("knowing its address doesn't put it on an interface: %q", msg)
+	}
+}
+
+// As the control plane comes to know the address, a domain waiting on it reads
+// again by it, with nobody waiting a minute to see.
+func TestAPublicAddressArrivingChangesWhatADomainSays(t *testing.T) {
+	s := newSetup(t)
+	found := []netip.Addr{netip.MustParseAddr("203.0.113.50")}
+	s.DNS = &DNS{
+		Lookup: func(context.Context, string) ([]netip.Addr, error) { return found, nil },
+		Addrs:  func() ([]netip.Addr, error) { return []netip.Addr{netip.MustParseAddr("10.0.0.25")}, nil },
+	}
+	s.apply(t, "www", spec("app.example.com", "", "web", 80))
+	s.proxy.certs = map[string]CertState{"app.example.com": {Phase: CertPending}}
+	s.watchOnce(t.Context())
+	if got := s.Domains()[0].GetDns().GetState(); got != dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL {
+		t.Fatalf("behind NAT with nothing known, it reads %v", got)
+	}
+	s.SetPublicAddress(&agentv1.PublicAddress{Address: "203.0.113.50", WayIn: true})
+	select {
+	case <-s.watchWakes():
+	default:
+		t.Error("nothing woke the watch")
+	}
+	s.watchOnce(t.Context())
+	if got := s.Domains()[0].GetDns(); got.GetState() != dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_POINTS_HERE || got.GetPublicAddress() != "203.0.113.50" {
+		t.Errorf("once known, it reads %v", got)
+	}
+	if s.proxy.retries != 1 {
+		t.Errorf("tried again %d times, with DNS now reading as here", s.proxy.retries)
+	}
+}
+
 func TestAFailureIsReadByItsProblemType(t *testing.T) {
 	for _, tc := range []struct {
 		text string
@@ -338,9 +440,9 @@ func TestEachCertificateStateSaysWhatToDo(t *testing.T) {
 		says  []string
 	}{
 		{"on its way", CertState{Phase: CertPending}, nil, []string{"Getting a certificate", "over HTTPS"}},
-		{"no record", CertState{Phase: CertPending}, &resource.DomainCheck{State: resource.DomainNoRecord, Here: []string{"203.0.113.9"}}, []string{"no DNS record", "Point an A or AAAA record", "203.0.113.9"}},
+		{"no record", CertState{Phase: CertPending}, &resource.DomainCheck{State: resource.DomainNoRecord, Here: []string{"203.0.113.9"}}, []string{"no DNS record", "Point an A record", "203.0.113.9"}},
 		{"elsewhere", CertState{Phase: CertPending}, here, []string{"points at 198.51.100.1", "203.0.113.9"}},
-		{"dns", CertState{Phase: CertFailed, Problem: ProblemDNS}, here, []string{"couldn't find", "Point an A or AAAA record", "tries again"}},
+		{"dns", CertState{Phase: CertFailed, Problem: ProblemDNS}, here, []string{"couldn't find", "Point an A record", "tries again"}},
 		{"no record, behind NAT", CertState{Phase: CertPending}, &resource.DomainCheck{State: resource.DomainNoRecord, Here: []string{"10.0.0.25"}}, []string{"no DNS record", "this server's public address", "only sees 10.0.0.25 here, which is private"}},
 		{"elsewhere, behind NAT", CertState{Phase: CertPending}, &resource.DomainCheck{State: resource.DomainElsewhere, Found: []string{"10.9.9.9"}, Here: []string{"10.0.0.25"}}, []string{"this server's public address", "only sees 10.0.0.25 here, which is private"}},
 		{"a firewall", CertState{Phase: CertFailed, Problem: ProblemConnection}, nil, []string{"port 80 or 443", "firewall", "Open both", "tries again"}},

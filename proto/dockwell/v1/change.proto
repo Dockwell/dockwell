@@ -1274,6 +1274,15 @@ message DomainCheck {
   repeated string found = 3;
   // The addresses the server has, which it compared them with.
   repeated string here = 4;
+  // The server's public address, when one is known beyond its interfaces.
+  // It's the one to point a record at.
+  string public_address = 5;
+  // Nothing has proved public_address is a way in, and the server isn't on a
+  // known cloud, so it may be a router's, which needs a forwarded port.
+  bool public_unproven = 6;
+  // The server is behind carrier-grade NAT, so no record can reach it, and
+  // no forwarded port either. Only a tunnel can.
+  bool carrier_nat = 7;
 }
 
 // DomainCheckState is whether a domain's DNS points at a server.

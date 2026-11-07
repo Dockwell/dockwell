@@ -5263,7 +5263,16 @@ type DomainCheck struct {
 	// The addresses DNS gives for it.
 	Found []string `protobuf:"bytes,3,rep,name=found,proto3" json:"found,omitempty"`
 	// The addresses the server has, which it compared them with.
-	Here          []string `protobuf:"bytes,4,rep,name=here,proto3" json:"here,omitempty"`
+	Here []string `protobuf:"bytes,4,rep,name=here,proto3" json:"here,omitempty"`
+	// The server's public address, when one is known beyond its interfaces.
+	// It's the one to point a record at.
+	PublicAddress string `protobuf:"bytes,5,opt,name=public_address,json=publicAddress,proto3" json:"public_address,omitempty"`
+	// Nothing has proved public_address is a way in, and the server isn't on a
+	// known cloud, so it may be a router's, which needs a forwarded port.
+	PublicUnproven bool `protobuf:"varint,6,opt,name=public_unproven,json=publicUnproven,proto3" json:"public_unproven,omitempty"`
+	// The server is behind carrier-grade NAT, so no record can reach it, and
+	// no forwarded port either. Only a tunnel can.
+	CarrierNat    bool `protobuf:"varint,7,opt,name=carrier_nat,json=carrierNat,proto3" json:"carrier_nat,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5324,6 +5333,27 @@ func (x *DomainCheck) GetHere() []string {
 		return x.Here
 	}
 	return nil
+}
+
+func (x *DomainCheck) GetPublicAddress() string {
+	if x != nil {
+		return x.PublicAddress
+	}
+	return ""
+}
+
+func (x *DomainCheck) GetPublicUnproven() bool {
+	if x != nil {
+		return x.PublicUnproven
+	}
+	return false
+}
+
+func (x *DomainCheck) GetCarrierNat() bool {
+	if x != nil {
+		return x.CarrierNat
+	}
+	return false
 }
 
 // FieldChange is one field that differs between two specs.
@@ -5899,12 +5929,16 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06change\x18\x01 \x01(\x0e2\x1a.dockwell.v1.IngressChangeR\x06change\x12\x14\n" +
 	"\x05proxy\x18\x02 \x01(\tR\x05proxy\x12\x14\n" +
 	"\x05ports\x18\x03 \x03(\tR\x05ports\x12!\n" +
-	"\fpanel_domain\x18\x04 \x01(\tR\vpanelDomain\"\x84\x01\n" +
+	"\fpanel_domain\x18\x04 \x01(\tR\vpanelDomain\"\xf5\x01\n" +
 	"\vDomainCheck\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x123\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1d.dockwell.v1.DomainCheckStateR\x05state\x12\x14\n" +
 	"\x05found\x18\x03 \x03(\tR\x05found\x12\x12\n" +
-	"\x04here\x18\x04 \x03(\tR\x04here\"\x89\x01\n" +
+	"\x04here\x18\x04 \x03(\tR\x04here\x12%\n" +
+	"\x0epublic_address\x18\x05 \x01(\tR\rpublicAddress\x12'\n" +
+	"\x0fpublic_unproven\x18\x06 \x01(\bR\x0epublicUnproven\x12\x1f\n" +
+	"\vcarrier_nat\x18\a \x01(\bR\n" +
+	"carrierNat\"\x89\x01\n" +
 	"\vFieldChange\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12$\n" +
 	"\x02op\x18\x02 \x01(\x0e2\x14.dockwell.v1.FieldOpR\x02op\x12\x12\n" +

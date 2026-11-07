@@ -794,7 +794,7 @@ func TestAStepANewerAgentPlansFailsPlanning(t *testing.T) {
 		_, err := a.Plan(t.Context(), []resource.Desired{{Ref: http, Spec: &resourcev1.FirewallRule{Port: 80}}})
 		planned <- err
 	}()
-	msg, err := stream.Receive()
+	msg, err := nextCall(stream)
 	if err != nil || msg.GetCall().GetPlan() == nil {
 		t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
 	}
@@ -1235,7 +1235,7 @@ func TestAnAgentCantPutASecretInAPlan(t *testing.T) {
 		steps, err := a.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: &resourcev1.Container{Image: "nginx:1.28"}}})
 		done <- planned{steps, err}
 	}()
-	msg, err := stream.Receive()
+	msg, err := nextCall(stream)
 	if err != nil || msg.GetCall().GetPlan() == nil {
 		t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
 	}
@@ -1294,7 +1294,7 @@ func TestAnAgentCantPutASecretInAPlanAtAWholeMessage(t *testing.T) {
 			}
 			done <- steps
 		}()
-		msg, err := stream.Receive()
+		msg, err := nextCall(stream)
 		if err != nil || msg.GetCall().GetPlan() == nil {
 			t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
 		}
@@ -1371,5 +1371,16 @@ func TestWhatAnAgentReportsIsMadeFitToShow(t *testing.T) {
 	a.ReportHealth("srv_B", &agentv1.Health{})
 	if got, _ := a.Health("srv_B"); got.Said || heard != nil {
 		t.Errorf("an agent that hasn't read Docker has said %+v", got)
+	}
+}
+
+// nextCall is what the control plane sends after the public address it tells an
+// agent as a stream opens, which comes first or doesn't, as it's sent on the side.
+func nextCall(stream *connect.BidiStreamForClient[agentv1.ConnectRequest, agentv1.ConnectResponse]) (*agentv1.ConnectResponse, error) {
+	for {
+		msg, err := stream.Receive()
+		if err != nil || msg.GetPublicAddress() == nil {
+			return msg, err
+		}
 	}
 }

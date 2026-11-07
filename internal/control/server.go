@@ -222,7 +222,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 		handle(dockwellv1connect.NewTokenServiceHandler(h, opts...))
 	}
 	if cfg.Fleet != nil {
-		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
+		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet, cfg.Store), opts...))
 	}
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Auth, cfg.Store, cfg.Logger)

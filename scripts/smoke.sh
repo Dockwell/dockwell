@@ -16,7 +16,7 @@ data=$(mktemp -d)
 # touches a real install's state, and can run beside another one or make
 # budgets. On a port someone else holds, it would test their server, and read
 # its own log for what that server did. SMOKE_PORT names a port instead.
-"$bin" run --listen "127.0.0.1:${SMOKE_PORT:-0}" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >"$log" 2>&1 &
+DOCKWELL_NO_STUN=1 "$bin" run --listen "127.0.0.1:${SMOKE_PORT:-0}" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json >"$log" 2>&1 &
 pid=$!
 cleanup() {
   kill "$pid" 2>/dev/null || true

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/netip"
 	"regexp"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -201,16 +203,13 @@ func problemWords(domain string, st CertState, check *resource.DomainCheck) stri
 // carrier-grade NAT nothing here can open a way in at all.
 func connectionWords(domain string, check *resource.DomainCheck) string {
 	lead := fmt.Sprintf("the certificate authority couldn't reach this server for %s on port 80 or 443", domain)
-	var here []string
-	if check != nil {
-		here = check.Here
-	}
+	own := check.Own()
 	switch {
-	case resource.BehindCarrierNAT(here):
-		return fmt.Sprintf("%s. %s is in carrier-grade NAT's range, so no forwarded port can reach it, and a tunnel is the way.", lead, human.List(here))
-	case resource.BehindNAT(here):
+	case check != nil && check.Carrier, resource.BehindCarrierNAT(own):
+		return lead + ". It's behind carrier-grade NAT, so no forwarded port can reach it, and a tunnel is the way."
+	case check.BehindNAT():
 		words := lead + ". It has only private addresses, so it's behind NAT, and two firewalls can each stop this: the cloud provider's and the machine's own, such as ufw or iptables. Open both ports in each."
-		if to := resource.ForwardTo(here); len(to) > 0 {
+		if to := resource.ForwardTo(own); len(to) > 0 {
 			words += " Behind a home or office router, forward both to this machine's private address, " + human.Either(to) + "."
 		}
 		return words
@@ -241,12 +240,7 @@ func routeCertMessage(domain string, st CertState, check *resource.DomainCheck) 
 	return msg + " " + offWords
 }
 
-func pointHere(check *resource.DomainCheck) string {
-	if check == nil {
-		return resource.PointHere(nil)
-	}
-	return resource.PointHere(check.Here)
-}
+func pointHere(check *resource.DomainCheck) string { return check.PointHere() }
 
 // upperFirst starts a sentence made of words that may follow a colon elsewhere.
 func upperFirst(s string) string {
@@ -307,6 +301,10 @@ type statusBoard struct {
 	restartsKnown bool
 	// ingress is what was last published of the ingress.
 	ingress *dockwellv1.IngressStatus
+	// public is the public address the control plane knows this server by, and
+	// known is all it said of it (SetPublicAddress).
+	public netip.Addr
+	known  *agentv1.PublicAddress
 }
 
 // problem is why a server's ingress isn't serving.
@@ -437,6 +435,34 @@ func (m *Manager) watchWakes() chan struct{} {
 	return m.wakes
 }
 
+// SetPublicAddress keeps the public address the control plane knows this server
+// by, and has what's said of its domains read again by it, as a domain's record
+// may now read as pointing here.
+func (m *Manager) SetPublicAddress(known *agentv1.PublicAddress) {
+	public, err := netip.ParseAddr(known.GetAddress())
+	if err != nil {
+		public = netip.Addr{}
+	}
+	b := &m.status
+	b.mu.Lock()
+	b.public, b.known = public, known
+	if b.checked != nil {
+		clear(b.checked)
+	}
+	b.mu.Unlock()
+	m.watchNow()
+}
+
+// check reads what DNS says of a domain, as far as this server knows itself.
+func (m *Manager) check(ctx context.Context, domain string) *resource.DomainCheck {
+	d := *m.dns()
+	b := &m.status
+	b.mu.Lock()
+	d.Public, d.WayIn, d.Unproven, d.Carrier = b.public, b.known.GetWayIn(), b.known.GetUnproven(), b.known.GetCarrierNat()
+	b.mu.Unlock()
+	return d.Check(ctx, domain)
+}
+
 // watchNow has Watch read again now, without waiting for it.
 func (m *Manager) watchNow() {
 	select {
@@ -552,7 +578,7 @@ func (m *Manager) domainCheck(ctx context.Context, name string, st CertState) (c
 	if last != nil && time.Since(read) < dnsEvery {
 		return last, false
 	}
-	check = m.dns().Check(ctx, name)
+	check = m.check(ctx, name)
 	b.mu.Lock()
 	b.checks[name], b.checked[name] = check, time.Now()
 	b.mu.Unlock()

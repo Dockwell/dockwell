@@ -93,29 +93,61 @@ func PublicAddresses(list []string) []string {
 	return out
 }
 
-// PointHere says where to point a domain's DNS, given a server's own addresses.
-// It names a public address or none, as a record pointed at a private one can't
-// work: with only private addresses, it says so, and that the public one is what's
-// wanted.
-func PointHere(here []string) string {
-	public := PublicAddresses(here)
-	if len(public) > 0 {
-		return "Point an A or AAAA record at this server, " + human.Either(public) + "."
+// PointHere says where to point a domain's DNS, given what a server knows of
+// itself. It names a public address or none, as a record pointed at a private one
+// can't work: with only private addresses, it says so, and that the public one is
+// what's wanted. An address nothing has proved is a way in says as much, unless
+// the server is on a known cloud, where it is its 1:1 NAT.
+func (c *DomainCheck) PointHere() string {
+	if c == nil {
+		return "Point an A or AAAA record at this server's public address."
 	}
-	if len(here) == 0 {
+	addresses := PublicAddresses(c.Here)
+	if c.Public != "" {
+		addresses = []string{c.Public}
+	}
+	switch {
+	case c.Carrier:
+		return fmt.Sprintf("This server is behind carrier NAT (%s), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither.", human.List(c.Here))
+	case c.Unproven && len(addresses) > 0:
+		return fmt.Sprintf("Point %s record at %s, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither.", recordKinds(addresses), human.Either(addresses))
+	case len(addresses) > 0:
+		return fmt.Sprintf("Point %s record at this server, %s.", recordKinds(addresses), human.Either(addresses))
+	case len(c.Here) == 0:
 		return "Point an A or AAAA record at this server's public address."
 	}
 	are := "are"
-	if len(here) == 1 {
+	if len(c.Here) == 1 {
 		are = "is"
 	}
-	return fmt.Sprintf("Point an A record at this server's public address. Dockwell only sees %s here, which %s private, so the internet can't reach it.", human.List(here), are)
+	return fmt.Sprintf("Point an A record at this server's public address. Dockwell only sees %s here, which %s private, so the internet can't reach it.", human.List(c.Here), are)
 }
 
-// BehindNAT reports whether a server's own addresses are all private, so what the
-// internet sees of it isn't on any interface. With no addresses, nothing is known.
-func BehindNAT(here []string) bool {
-	return len(here) > 0 && len(PublicAddresses(here)) == 0
+// recordKinds names the kinds of DNS record that point at addresses.
+func recordKinds(addresses []string) string {
+	four, six := false, false
+	for _, s := range addresses {
+		if a, err := netip.ParseAddr(s); err == nil && a.Unmap().Is4() {
+			four = true
+		} else {
+			six = true
+		}
+	}
+	switch {
+	case four && six:
+		return "an A or AAAA"
+	case six:
+		return "an AAAA"
+	}
+	return "an A"
+}
+
+// BehindNAT reports a server whose own addresses are all private, so what the
+// internet sees of it isn't on any interface. public is the one it goes by, if any,
+// which isn't its own. With no addresses of its own, nothing is known.
+func BehindNAT(public string, here []string) bool {
+	own := slices.DeleteFunc(slices.Clone(here), func(s string) bool { return s == public })
+	return len(own) > 0 && len(PublicAddresses(own)) == 0
 }
 
 // BehindCarrierNAT reports a server whose every address is carrier-grade NAT's, so

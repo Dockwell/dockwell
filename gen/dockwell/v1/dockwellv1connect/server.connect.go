@@ -43,6 +43,9 @@ const (
 	// ServerServiceWatchServersProcedure is the fully-qualified name of the ServerService's
 	// WatchServers RPC.
 	ServerServiceWatchServersProcedure = "/dockwell.v1.ServerService/WatchServers"
+	// ServerServiceSetServerPublicAddressProcedure is the fully-qualified name of the ServerService's
+	// SetServerPublicAddress RPC.
+	ServerServiceSetServerPublicAddressProcedure = "/dockwell.v1.ServerService/SetServerPublicAddress"
 )
 
 // ServerServiceClient is a client for the dockwell.v1.ServerService service.
@@ -55,6 +58,11 @@ type ServerServiceClient interface {
 	// end of that snapshot, and then streams each change within a second of
 	// the agent reporting it. It has no REST path, as streams have none.
 	WatchServers(context.Context, *connect.Request[v1.WatchServersRequest]) (*connect.ServerStreamForClient[v1.WatchServersResponse], error)
+	// SetServerPublicAddress records a server's public address, as a person
+	// knows it, which no other way of knowing it overrides. An empty address
+	// goes back to what Dockwell finds out for itself. It's on record in the
+	// activity log. See docs/adr/0034-a-servers-public-address.md.
+	SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error)
 }
 
 // NewServerServiceClient constructs a client for the dockwell.v1.ServerService service. By default,
@@ -88,14 +96,21 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(serverServiceMethods.ByName("WatchServers")),
 			connect.WithClientOptions(opts...),
 		),
+		setServerPublicAddress: connect.NewClient[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse](
+			httpClient,
+			baseURL+ServerServiceSetServerPublicAddressProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("SetServerPublicAddress")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // serverServiceClient implements ServerServiceClient.
 type serverServiceClient struct {
-	listServers  *connect.Client[v1.ListServersRequest, v1.ListServersResponse]
-	getServer    *connect.Client[v1.GetServerRequest, v1.GetServerResponse]
-	watchServers *connect.Client[v1.WatchServersRequest, v1.WatchServersResponse]
+	listServers            *connect.Client[v1.ListServersRequest, v1.ListServersResponse]
+	getServer              *connect.Client[v1.GetServerRequest, v1.GetServerResponse]
+	watchServers           *connect.Client[v1.WatchServersRequest, v1.WatchServersResponse]
+	setServerPublicAddress *connect.Client[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse]
 }
 
 // ListServers calls dockwell.v1.ServerService.ListServers.
@@ -113,6 +128,11 @@ func (c *serverServiceClient) WatchServers(ctx context.Context, req *connect.Req
 	return c.watchServers.CallServerStream(ctx, req)
 }
 
+// SetServerPublicAddress calls dockwell.v1.ServerService.SetServerPublicAddress.
+func (c *serverServiceClient) SetServerPublicAddress(ctx context.Context, req *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error) {
+	return c.setServerPublicAddress.CallUnary(ctx, req)
+}
+
 // ServerServiceHandler is an implementation of the dockwell.v1.ServerService service.
 type ServerServiceHandler interface {
 	// ListServers returns every server, connected or not, without history.
@@ -123,6 +143,11 @@ type ServerServiceHandler interface {
 	// end of that snapshot, and then streams each change within a second of
 	// the agent reporting it. It has no REST path, as streams have none.
 	WatchServers(context.Context, *connect.Request[v1.WatchServersRequest], *connect.ServerStream[v1.WatchServersResponse]) error
+	// SetServerPublicAddress records a server's public address, as a person
+	// knows it, which no other way of knowing it overrides. An empty address
+	// goes back to what Dockwell finds out for itself. It's on record in the
+	// activity log. See docs/adr/0034-a-servers-public-address.md.
+	SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error)
 }
 
 // NewServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -152,6 +177,12 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(serverServiceMethods.ByName("WatchServers")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serverServiceSetServerPublicAddressHandler := connect.NewUnaryHandler(
+		ServerServiceSetServerPublicAddressProcedure,
+		svc.SetServerPublicAddress,
+		connect.WithSchema(serverServiceMethods.ByName("SetServerPublicAddress")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServerServiceListServersProcedure:
@@ -160,6 +191,8 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 			serverServiceGetServerHandler.ServeHTTP(w, r)
 		case ServerServiceWatchServersProcedure:
 			serverServiceWatchServersHandler.ServeHTTP(w, r)
+		case ServerServiceSetServerPublicAddressProcedure:
+			serverServiceSetServerPublicAddressHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -179,4 +212,8 @@ func (UnimplementedServerServiceHandler) GetServer(context.Context, *connect.Req
 
 func (UnimplementedServerServiceHandler) WatchServers(context.Context, *connect.Request[v1.WatchServersRequest], *connect.ServerStream[v1.WatchServersResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.WatchServers is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.SetServerPublicAddress is not implemented"))
 }

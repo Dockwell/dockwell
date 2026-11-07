@@ -508,6 +508,31 @@ type DomainCheck struct {
 	// Found are the addresses DNS gives for it, and Here the server's own.
 	Found []string `json:",omitempty"`
 	Here  []string `json:",omitempty"`
+	// Public is the server's public address, when the control plane knows one
+	// beyond its interfaces. It's in Here too, and it's the one to point a record at.
+	Public string `json:",omitempty"`
+	// Unproven says nothing has proved Public is a way in, and the server isn't on
+	// a known cloud, so it may be a router's.
+	Unproven bool `json:",omitempty"`
+	// Carrier says the server is behind carrier-grade NAT, so no record reaches it.
+	Carrier bool `json:",omitempty"`
+}
+
+// Own is the addresses on the server's own interfaces, leaving out the public one
+// it was told.
+func (c *DomainCheck) Own() []string {
+	if c == nil {
+		return nil
+	}
+	return slices.DeleteFunc(slices.Clone(c.Here), func(s string) bool { return s == c.Public })
+}
+
+// BehindNAT reports a server with no public address on an interface.
+func (c *DomainCheck) BehindNAT() bool {
+	if c == nil {
+		return false
+	}
+	return BehindNAT(c.Public, c.Here)
 }
 
 // Access is something on a server a resource reaches beyond what Docker

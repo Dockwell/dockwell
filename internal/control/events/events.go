@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -73,7 +74,7 @@ const (
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
-	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed}
+	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress}
 	healthActions = []string{health.Action}
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions

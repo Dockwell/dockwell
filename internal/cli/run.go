@@ -46,6 +46,8 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Short: "Run Dockwell on this server",
 		Args:  noArgs,
 	}
+	cmd.Flags().BoolVar(&g.noStun, "no-stun", stunOff(stdio),
+		"never ask a public STUN server how this server reaches the internet ("+envNoStun+")")
 	start := runCommand(cmd, stdio, g)
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		logger, err := g.logger(stdio.Err)
@@ -79,10 +81,17 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // has a domain; nil on a server that joined. ownPorts are the ports the control
 // plane beside it listens on, which no route may send to; a server that joined
 // has none, as its agent opens no ports.
-func runAgent(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
+func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
+	cfg.NoLookup = g.noStun
 	return agent.Run(ctx, cfg)
+}
+
+// stunOff reports DOCKWELL_NO_STUN set to turn the lookup off.
+func stunOff(stdio IO) bool {
+	v := stdio.Getenv(envNoStun)
+	return v != "" && v != "0" && v != "false"
 }
 
 // serverFiles reads this server's disk for a person. What it refuses takes this
@@ -153,7 +162,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 			&volume.Driver{Runtime: volumes, Restores: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}),
-		Collector: collector, Domains: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
+		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups},
 	}
 }

@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/v1/change.proto";
 import "dockwell/v1/domain.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/system.proto";
@@ -39,6 +40,19 @@ service ServerService {
   rpc WatchServers(WatchServersRequest) returns (stream WatchServersResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
   }
+
+  // SetServerPublicAddress records a server's public address, as a person
+  // knows it, which no other way of knowing it overrides. An empty address
+  // goes back to what Dockwell finds out for itself. It's on record in the
+  // activity log. See docs/adr/0034-a-servers-public-address.md.
+  rpc SetServerPublicAddress(SetServerPublicAddressRequest) returns (SetServerPublicAddressResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.command) = {verb: "set-public-address"};
+    option (google.api.http) = {
+      post: "/v1/servers/{id}:setPublicAddress"
+      body: "*"
+    };
+  }
 }
 
 // ListServersRequest takes no parameters yet.
@@ -59,6 +73,20 @@ message GetServerRequest {
 // GetServerResponse carries one server.
 message GetServerResponse {
   // The server, with history.
+  Server server = 1;
+}
+
+// SetServerPublicAddressRequest says what a server's public address is.
+message SetServerPublicAddressRequest {
+  // The server's ID.
+  string id = 1;
+  // A public IP address, or empty to clear what a person set.
+  string address = 2;
+}
+
+// SetServerPublicAddressResponse carries the server as it now reads.
+message SetServerPublicAddressResponse {
+  // The server, without history.
   Server server = 1;
 }
 
@@ -132,6 +160,103 @@ message Server {
   // can say how what runs there is until it can. Unset while it can, and for a
   // server that isn't connected.
   google.protobuf.Timestamp docker_unreadable_since = 13;
+  // How the server meets the internet, as far as that's known. The addresses
+  // on its own interfaces are in its inventory.
+  ServerNetwork network = 14;
+}
+
+// ServerNetwork is what's known of a server beyond its own interfaces. Its
+// public address and whether the internet can reach it are separate facts: an
+// address can be known and nothing proved of it. See
+// docs/adr/0034-a-servers-public-address.md.
+message ServerNetwork {
+  // The address the internet knows the server by. Empty when nothing says.
+  string public_address = 1;
+  // How that's known.
+  PublicAddressSource source = 2;
+  // When Dockwell came to know it that way. For anything but what a person
+  // set, that's since the control plane last started.
+  google.protobuf.Timestamp known_time = 3;
+  // The domain whose certificate proved it, for
+  // PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN.
+  string domain = 4;
+  // Who set it, for PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON.
+  Actor set_by = 5;
+  // Whether the internet can reach the server there.
+  Reachable reachable = 6;
+  // The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
+  string reachable_domain = 7;
+  // The cloud provider it runs on, when its metadata service says so.
+  CloudProvider provider = 8;
+  // Which of the shapes a server comes in this one has, as far as can be told.
+  NetworkShape shape = 9;
+}
+
+// NetworkShape is how a server meets the internet. It's read from what's on its
+// interfaces and whether a cloud's metadata service answers, and says nothing
+// of whether the internet can reach it.
+enum NetworkShape {
+  // Not known yet: its agent hasn't said what it has, or whether a metadata
+  // service answers.
+  NETWORK_SHAPE_UNSPECIFIED = 0;
+  // A public address is on an interface.
+  NETWORK_SHAPE_INTERNET = 1;
+  // Private interfaces, and a cloud provider's metadata service answers: its
+  // public address is the provider's 1:1 NAT.
+  NETWORK_SHAPE_CLOUD_NAT = 2;
+  // Private interfaces, and no metadata service: likely a home or office
+  // network, behind a router. Reaching it needs a forwarded port or a tunnel.
+  NETWORK_SHAPE_LOCAL_NAT = 3;
+  // It reaches the internet from 100.64.0.0/10, so it's behind its provider's
+  // carrier-grade NAT, where a forwarded port can't work. Only a tunnel can.
+  NETWORK_SHAPE_CARRIER_NAT = 4;
+}
+
+// PublicAddressSource is how Dockwell knows a server's public address. A
+// source higher on this list wins over one lower on it.
+enum PublicAddressSource {
+  PUBLIC_ADDRESS_SOURCE_UNSPECIFIED = 0;
+  // A person set it.
+  PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON = 1;
+  // It's on one of the server's interfaces.
+  PUBLIC_ADDRESS_SOURCE_ON_INTERFACE = 2;
+  // A certificate came for a domain whose record points there, over HTTP-01
+  // or TLS-ALPN, so the server answers there.
+  PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN = 3;
+  // The control plane saw the agent connect from it. That's the server's way
+  // out, which may not be a way in.
+  PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE = 4;
+  // The cloud provider's metadata service gave it.
+  PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA = 5;
+  // A public STUN server said where the server's packets come from. That's
+  // its way out, and behind a router it's the router's shared address. It
+  // never says anything of a way in.
+  PUBLIC_ADDRESS_SOURCE_LOOKED_UP = 6;
+}
+
+// Reachable is whether the internet can reach a server. It's never a guess:
+// anything short of proof is REACHABLE_NOT_CHECKED.
+enum Reachable {
+  REACHABLE_UNSPECIFIED = 0;
+  // Nothing has tried, so nobody can say.
+  REACHABLE_NOT_CHECKED = 1;
+  // A certificate came over HTTP-01 or TLS-ALPN for a domain whose record
+  // points at its public address.
+  REACHABLE_YES = 2;
+  // The certificate authority couldn't connect for a domain whose record
+  // points at its public address.
+  REACHABLE_NO = 3;
+}
+
+// CloudProvider is a cloud provider whose metadata service an agent can read.
+enum CloudProvider {
+  CLOUD_PROVIDER_UNSPECIFIED = 0;
+  CLOUD_PROVIDER_AWS = 1;
+  CLOUD_PROVIDER_GCP = 2;
+  CLOUD_PROVIDER_AZURE = 3;
+  CLOUD_PROVIDER_DIGITALOCEAN = 4;
+  CLOUD_PROVIDER_HETZNER = 5;
+  CLOUD_PROVIDER_ORACLE = 6;
 }
 
 // ServerInventory is what a server is: its system and hardware.
@@ -164,6 +289,9 @@ message ServerInventory {
   // The logging driver Docker uses by default, such as "json-file". Empty
   // when Docker isn't running.
   string docker_log_driver = 13;
+  // The address its route to the internet leaves from. Empty when it has no
+  // such route, or from an agent from before this.
+  string outbound_address = 14;
 }
 
 // Disk is one mounted filesystem.

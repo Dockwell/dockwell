@@ -88,6 +88,9 @@ message ConnectRequest {
     // A save left behind as it wrote has ended, as the control plane stopped
     // waiting for it. It says so on whichever stream is up by then.
     SaveEnded save_ended = 10;
+    // What the server finds out of how the internet sees it, some seconds
+    // after the stream opens, and again every few hours.
+    Network network = 11;
   }
 }
 
@@ -106,6 +109,20 @@ message SaveEnded {
   string reason = 4;
   // True when the file is a way back onto the server.
   bool way_back_in = 5;
+}
+
+// Network is what a server can find out for itself beyond its interfaces. An
+// agent always sends it, so its coming with no provider says no metadata service
+// answered, where an agent from before this says nothing at all.
+message Network {
+  // Which cloud provider's metadata service answered, if any did.
+  dockwell.v1.CloudProvider provider = 1;
+  // The public address that service gives, if it does. Oracle's doesn't.
+  string metadata_address = 2;
+  // The address a public STUN server saw the server's packets come from, if
+  // one answered. Empty when turned off, or with UDP blocked, or when the
+  // server has a public IPv4 address of its own and has no need to ask.
+  string looked_up_address = 3;
 }
 
 // Health is how each container of a server's services is, as far as anything
@@ -234,7 +251,26 @@ message ConnectResponse {
     // answered each one, if only with a refusal, by the time it ends the
     // stream.
     Drained drained = 4;
+    // The server's public address as the control plane knows it: as the
+    // stream opens and whenever that changes.
+    PublicAddress public_address = 5;
   }
+}
+
+// PublicAddress is what the control plane knows of a server's public address,
+// so the agent's words and its reading of DNS use it.
+message PublicAddress {
+  // The address, or empty when none is known beyond the server's interfaces.
+  string address = 1;
+  // True when the address is known to be a way in. It's false for one seen as
+  // the agent connected or looked up, which is its way out: a record that
+  // points somewhere else may still be right.
+  bool way_in = 2;
+  // True when the address isn't known to be a way in and the server isn't on
+  // a known cloud, so it may be a router's.
+  bool unproven = 3;
+  // True when the server is behind carrier-grade NAT, with no way in known.
+  bool carrier_nat = 4;
 }
 
 // Drained says the control plane sends no more calls on this stream.

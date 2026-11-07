@@ -1401,6 +1401,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{id}:setPublicAddress:
+        post:
+            tags:
+                - ServerService
+            description: |-
+                SetServerPublicAddress records a server's public address, as a person
+                 knows it, which no other way of knowing it overrides. An empty address
+                 goes back to what Dockwell finds out for itself. It's on record in the
+                 activity log. See docs/adr/0034-a-servers-public-address.md.
+            operationId: ServerService_SetServerPublicAddress
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetServerPublicAddressRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetServerPublicAddressResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:
         get:
             tags:
@@ -3858,6 +3894,21 @@ components:
                     items:
                         type: string
                     description: The addresses the server has, which it compared them with.
+                publicAddress:
+                    type: string
+                    description: |-
+                        The server's public address, when one is known beyond its interfaces.
+                         It's the one to point a record at.
+                publicUnproven:
+                    type: boolean
+                    description: |-
+                        Nothing has proved public_address is a way in, and the server isn't on a
+                         known cloud, so it may be a router's, which needs a forwarded port.
+                carrierNat:
+                    type: boolean
+                    description: |-
+                        The server is behind carrier-grade NAT, so no record can reach it, and
+                         no forwarded port either. Only a tunnel can.
             description: DomainCheck is what DNS says of a domain, as a server sees it.
         DomainRoute:
             type: object
@@ -7143,6 +7194,12 @@ components:
                          can say how what runs there is until it can. Unset while it can, and for a
                          server that isn't connected.
                     format: date-time
+                network:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerNetwork'
+                    description: |-
+                        How the server meets the internet, as far as that's known. The addresses
+                         on its own interfaces are in its inventory.
             description: Server is one machine running the agent.
         ServerContainer:
             type: object
@@ -7317,6 +7374,11 @@ components:
                     description: |-
                         The logging driver Docker uses by default, such as "json-file". Empty
                          when Docker isn't running.
+                outboundAddress:
+                    type: string
+                    description: |-
+                        The address its route to the internet leaves from. Empty when it has no
+                         such route, or from an agent from before this.
             description: 'ServerInventory is what a server is: its system and hardware.'
         ServerLogStatus:
             type: object
@@ -7341,6 +7403,78 @@ components:
                     type: string
                     description: Why, for people, with how to fix it, when it isn't reading.
             description: ServerLogStatus is how reading logs from one server stands.
+        ServerNetwork:
+            type: object
+            properties:
+                publicAddress:
+                    type: string
+                    description: The address the internet knows the server by. Empty when nothing says.
+                source:
+                    enum:
+                        - PUBLIC_ADDRESS_SOURCE_UNSPECIFIED
+                        - PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON
+                        - PUBLIC_ADDRESS_SOURCE_ON_INTERFACE
+                        - PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN
+                        - PUBLIC_ADDRESS_SOURCE_SEEN_BY_CONTROL_PLANE
+                        - PUBLIC_ADDRESS_SOURCE_CLOUD_METADATA
+                        - PUBLIC_ADDRESS_SOURCE_LOOKED_UP
+                    type: string
+                    description: How that's known.
+                    format: enum
+                knownTime:
+                    type: string
+                    description: |-
+                        When Dockwell came to know it that way. For anything but what a person
+                         set, that's since the control plane last started.
+                    format: date-time
+                domain:
+                    type: string
+                    description: |-
+                        The domain whose certificate proved it, for
+                         PUBLIC_ADDRESS_SOURCE_PROVED_BY_DOMAIN.
+                setBy:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who set it, for PUBLIC_ADDRESS_SOURCE_SET_BY_PERSON.
+                reachable:
+                    enum:
+                        - REACHABLE_UNSPECIFIED
+                        - REACHABLE_NOT_CHECKED
+                        - REACHABLE_YES
+                        - REACHABLE_NO
+                    type: string
+                    description: Whether the internet can reach the server there.
+                    format: enum
+                reachableDomain:
+                    type: string
+                    description: The domain that shows it, for REACHABLE_YES and REACHABLE_NO.
+                provider:
+                    enum:
+                        - CLOUD_PROVIDER_UNSPECIFIED
+                        - CLOUD_PROVIDER_AWS
+                        - CLOUD_PROVIDER_GCP
+                        - CLOUD_PROVIDER_AZURE
+                        - CLOUD_PROVIDER_DIGITALOCEAN
+                        - CLOUD_PROVIDER_HETZNER
+                        - CLOUD_PROVIDER_ORACLE
+                    type: string
+                    description: The cloud provider it runs on, when its metadata service says so.
+                    format: enum
+                shape:
+                    enum:
+                        - NETWORK_SHAPE_UNSPECIFIED
+                        - NETWORK_SHAPE_INTERNET
+                        - NETWORK_SHAPE_CLOUD_NAT
+                        - NETWORK_SHAPE_LOCAL_NAT
+                        - NETWORK_SHAPE_CARRIER_NAT
+                    type: string
+                    description: Which of the shapes a server comes in this one has, as far as can be told.
+                    format: enum
+            description: |-
+                ServerNetwork is what's known of a server beyond its own interfaces. Its
+                 public address and whether the internet can reach it are separate facts: an
+                 address can be known and nothing proved of it. See
+                 docs/adr/0034-a-servers-public-address.md.
         ServerPlan:
             type: object
             properties:
@@ -7720,6 +7854,24 @@ components:
                     type: string
                     description: 'The address it works on: "localhost" or the panel''s domain.'
             description: Session is one signed-in browser.
+        SetServerPublicAddressRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The server's ID.
+                address:
+                    type: string
+                    description: A public IP address, or empty to clear what a person set.
+            description: SetServerPublicAddressRequest says what a server's public address is.
+        SetServerPublicAddressResponse:
+            type: object
+            properties:
+                server:
+                    allOf:
+                        - $ref: '#/components/schemas/Server'
+                    description: The server, without history.
+            description: SetServerPublicAddressResponse carries the server as it now reads.
         SharedName:
             type: object
             properties:

@@ -25,6 +25,18 @@ type DNS struct {
 	Lookup func(ctx context.Context, domain string) ([]netip.Addr, error)
 	// Addrs finds this server's addresses. Nil means its interfaces.
 	Addrs func() ([]netip.Addr, error)
+	// Public is this server's public address, when the control plane knows one
+	// beyond its interfaces. The zero address is none.
+	Public netip.Addr
+	// WayIn says Public is known to be a way in, so a record that points anywhere
+	// else points elsewhere. One that's only how the server goes out may not be how
+	// the internet comes in, when a record pointing somewhere else may be right.
+	WayIn bool
+	// Unproven says nothing has proved Public is a way in, and this server isn't on
+	// a known cloud, so it may be a router's.
+	Unproven bool
+	// Carrier says this server is behind carrier-grade NAT.
+	Carrier bool
 }
 
 // Check says what DNS says of a domain. It never fails: what it can't find
@@ -32,9 +44,14 @@ type DNS struct {
 func (d *DNS) Check(ctx context.Context, domain string) *resource.DomainCheck {
 	ctx, cancel := context.WithTimeout(ctx, dnsWait)
 	defer cancel()
-	out := &resource.DomainCheck{Domain: domain}
+	out := &resource.DomainCheck{Domain: domain, Unproven: d.Unproven, Carrier: d.Carrier}
 	found, err := d.lookup(ctx, domain)
-	here, herr := d.addrs()
+	own, herr := d.addrs()
+	here := own
+	if d.Public.IsValid() {
+		here = append(slices.Clone(own), d.Public)
+		out.Public = d.Public.String()
+	}
 	if herr == nil {
 		out.Here = addrWords(here)
 	}
@@ -48,7 +65,7 @@ func (d *DNS) Check(ctx context.Context, domain string) *resource.DomainCheck {
 		out.State = resource.DomainUnknown
 	case slices.ContainsFunc(found, func(a netip.Addr) bool { return slices.Contains(here, a.Unmap()) }):
 		out.State = resource.DomainHere
-	case !slices.ContainsFunc(here, resource.IsPublicAddress) && slices.ContainsFunc(found, resource.IsPublicAddress):
+	case !d.WayIn && !slices.ContainsFunc(own, resource.IsPublicAddress) && slices.ContainsFunc(found, resource.IsPublicAddress):
 		// Behind NAT, as on many clouds: the public address isn't on an
 		// interface, so it may be this server's or not.
 		out.State = resource.DomainCantTell
