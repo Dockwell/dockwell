@@ -33,6 +33,7 @@ import { recheckAuth, watchSession } from "../app/api";
 import { Providers } from "../app/Providers";
 import { routeTree } from "../routeTree.gen";
 import { authState } from "./auth";
+import { track } from "./routers";
 
 /** The parts of the API a test answers. Anything left out fails as unimplemented. */
 export type Api = {
@@ -130,7 +131,7 @@ export const version = () =>
  * answers GetVersion with v0.4.0, and GetAuthState with Mira signed in.
  */
 export function renderAt(path: string, api: Api = {}, cache?: CacheOptions) {
-  const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
+  const router = track(createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) }));
   const result = renderWithApi(
     <RouterProvider router={router} />,
     {
