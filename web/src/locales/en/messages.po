@@ -500,6 +500,10 @@ msgid "{name} gets back the data the server kept."
 msgstr "{name} gets back the data the server kept."
 
 #: src/features/changes/notices.tsx
+msgid "{name} gets back what reached root on {server}"
+msgstr "{name} gets back what reached root on {server}"
+
+#: src/features/changes/notices.tsx
 msgid "{name} gets root on {server}"
 msgstr "{name} gets root on {server}"
 
@@ -1223,6 +1227,10 @@ msgstr "A backup is of a volume. Add one to an app, or install a database from t
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
 
+#: src/features/changes/words.ts
+msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
+msgstr "a backup of a volume that reached {path}, which can hold what's there, as good as root"
+
 #: src/features/servers/network.ts
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "A certificate came for {domain} on port 80 or 443, as of {when}"
@@ -1388,6 +1396,7 @@ msgstr "Activity"
 msgid "Actor"
 msgstr "Actor"
 
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
@@ -2030,6 +2039,7 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -4603,6 +4613,7 @@ msgstr "Move to another app"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
@@ -6206,6 +6217,7 @@ msgstr "Revealed the secret {name}"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -7669,6 +7681,10 @@ msgstr "This backup didn't come back"
 msgid "This backup failed, so nothing is on the server. This removes the record of it."
 msgstr "This backup failed, so nothing is on the server. This removes the record of it."
 
+#: src/features/changes/notices.tsx
+msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
+msgstr "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
+
 #: src/features/auth/SessionsPanel.tsx
 msgid "This browser"
 msgstr "This browser"
@@ -8840,19 +8856,3 @@ msgstr "Your name"
 #: src/features/auth/messages.ts
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "Your session ended, so this didn't happen. Sign in again, then try again."
-
-#: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
-msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
-
-#: src/features/changes/notices.tsx
-msgid "{name} gets back what reached root on {server}"
-msgstr "{name} gets back what reached root on {server}"
-
-#: src/features/changes/words.ts
-msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
-msgstr "a backup of a volume that reached {path}, which can hold what's there, as good as root"
-
-#: src/features/changes/notices.tsx
-msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
-msgstr "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."

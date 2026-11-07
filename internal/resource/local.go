@@ -441,9 +441,10 @@ func (l Local) survey(ctx context.Context, desired []Desired, steps []Step) erro
 			continue
 		}
 		mounts := false
-		for _, a := range h.HostAccess(desired[i].Spec) {
-			if a.Kind == AccessPath || a.Kind == AccessDocker {
-				paths, mounts = append(paths, a.Path), true
+		access := h.HostAccess(desired[i].Spec)
+		for j := range access {
+			if access[j].Kind == AccessPath || access[j].Kind == AccessDocker {
+				paths, mounts = append(paths, access[j].Path), true
 			}
 		}
 		if !mounts {

@@ -505,7 +505,8 @@ func TestARestoreChecksAgainBeforeItWrites(t *testing.T) {
 	b.engine.Intercept(func(r *http.Request) error {
 		// The first helper to start is the copy of what's there.
 		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
-			if starts++; starts == 1 {
+			starts++
+			if starts == 1 {
 				if err := os.Remove(conf); err != nil {
 					return err
 				}

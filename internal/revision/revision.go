@@ -3736,9 +3736,10 @@ func (e *Engine) reachedThen(ctx context.Context, backupID string) ([]string, er
 		if err != nil {
 			return err
 		}
-		for _, a := range e.kinds.HostAccess(resource.Kind(then.Kind), spec) {
-			if a.AsGoodAsRoot() && a.Path != "" {
-				out = append(out, a.Path)
+		access := e.kinds.HostAccess(resource.Kind(then.Kind), spec)
+		for i := range access {
+			if access[i].AsGoodAsRoot() && access[i].Path != "" {
+				out = append(out, access[i].Path)
 			}
 		}
 		return nil

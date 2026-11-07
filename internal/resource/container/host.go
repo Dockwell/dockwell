@@ -620,8 +620,8 @@ func (p *Paths) LeadsAsMade(ctx context.Context, c *docker.Container, planned ma
 
 // holdDown keeps a container that a moved path stopped from starting by itself, and
 // returns why, which is what the caller says.
-func (p *Paths) holdDown(ctx context.Context, id string, why error) error {
-	if err := p.Client.UpdateContainer(ctx, id, docker.ContainerUpdate{RestartPolicy: docker.RestartPolicy{Name: "no"}}); err != nil && !docker.IsNotFound(err) {
+func (p *Paths) holdDown(ctx context.Context, containerID string, why error) error {
+	if err := p.Client.UpdateContainer(ctx, containerID, docker.ContainerUpdate{RestartPolicy: docker.RestartPolicy{Name: "no"}}); err != nil && !docker.IsNotFound(err) {
 		return fmt.Errorf("%w. Docker wouldn't stop it starting by itself, after a restart of the server: %w", why, err)
 	}
 	return why
