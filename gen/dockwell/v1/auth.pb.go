@@ -167,7 +167,8 @@ const (
 	// The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
 	StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN StepUpAction = 9
 	// Opening a terminal on a server, with TerminalService.OpenTerminal. The
-	// target is the server's ID.
+	// target is the server's ID, or for a shell in a container, the server's ID and
+	// the container as the request names it, as "srv_…:web".
 	StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL StepUpAction = 10
 )
 

@@ -429,7 +429,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Terminals != nil {
-		hello.Terminals, hello.OpenTerminals = true, cfg.Terminals.Known()
+		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true
 	}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)

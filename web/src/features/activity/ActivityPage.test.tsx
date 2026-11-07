@@ -316,8 +316,17 @@ describe("Activity", () => {
       subject: on,
       terminal: { id: "trm_0", error: "hz-1 has 8 terminals open" },
     });
-    watch.push(snapshot([closing, opening, unconfirmed, failed]));
+    const inContainer = auditEvent({
+      id: "evt_shell",
+      kind: EventKind.SERVER,
+      action: "terminal.open",
+      time: timestampFromDate(new Date(Date.now() - 5 * HOUR)),
+      subject: on,
+      terminal: { id: "trm_2", title: "node@web-1", container: "web-1" },
+    });
+    watch.push(snapshot([closing, opening, unconfirmed, failed, inContainer]));
     renderActivity(watch);
+    await screen.findByRole("row", { name: /Opened a shell in web-1 on hz-1/ });
 
     await screen.findByRole("row", { name: /Opened a terminal on hz-1, as root@hz-1/ });
     await screen.findByRole("row", { name: /Asked for a passkey to open a terminal on hz-1, and none came/ });

@@ -78,6 +78,7 @@ port=${addr##*:}
 cookie=$(mktemp)
 passkey=$(mktemp)
 stepup=$(mktemp)
+shell=$(mktemp)
 # What a file's relative paths start from. Not the data directory, which no
 # container may mount, and Docker makes what's in it as root.
 real_dir=$(mktemp -d)
@@ -145,7 +146,7 @@ cleanup() {
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
-  docker rm --force e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
   docker volume rm e2e-by-hand-data e2e-take-on-data >/dev/null 2>&1 || true
   docker network rm e2e-by-hand-net >/dev/null 2>&1 || true
   moving_tidy
@@ -158,7 +159,7 @@ cleanup() {
   done
   wait 2>/dev/null || true
   docker image rm --force dockwell-e2e-app:slow dockwell-e2e-app:never >/dev/null 2>&1 || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
+  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$shell" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
 }
 trap cleanup EXIT
 
@@ -3742,5 +3743,25 @@ for name in e2e-two-own e2e-two-agent; do
 done
 dw containers delete e2e-two-own --on "$own_id" --yes || fail "deleting e2e-two-own failed"
 dw containers delete e2e-two-agent --on "$agent_id" --yes || fail "deleting e2e-two-agent failed"
+
+step "A shell in a container: the first shell its image has, as its user, and a passkey only where it's as good as root"
+(cd "$(dirname "$0")/.." && go build -o "$shell" ./scripts/shell) || fail "can't build scripts/shell"
+docker run -d --name e2e-shell-ash alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine"
+docker run -d --name e2e-shell-bash --user nobody nginx:1.27 sleep 600 >/dev/null || fail "can't run nginx"
+docker run -d --name e2e-shell-root --privileged alpine:3.20 sleep 600 >/dev/null || fail "can't run a privileged alpine"
+docker run -d --name e2e-shell-none registry.k8s.io/pause:3.10 >/dev/null || fail "can't run the pause image"
+# shellcheck disable=SC2016 # the line is for the container's shell to expand
+in_shell() { "$shell" "http://localhost:$port" "$cookie" "$passkey" "$own_id" "$1" 'echo "in-$((6*7)) $0 $(id -un)"'; }
+said=$(in_shell e2e-shell-ash) || fail "a shell in alpine failed: $said"
+grep -q '^passkey: false' <<<"$said" || fail "a shell in a container that reaches no further than itself asked for the passkey: $said"
+grep -q 'in-42 /bin/ash root' <<<"$said" || fail "a shell in alpine isn't ash, as root: $said"
+said=$(in_shell e2e-shell-bash) || fail "a shell in nginx failed: $said"
+grep -q 'in-42 /bin/bash nobody' <<<"$said" || fail "a shell in nginx isn't bash, as the container's user: $said"
+said=$(in_shell e2e-shell-root) || fail "a shell in a privileged container failed: $said"
+grep -q '^passkey: true' <<<"$said" || fail "a shell in a privileged container opened with no passkey: $said"
+grep -q 'in-42 /bin/ash root' <<<"$said" || fail "a shell in a privileged alpine isn't ash: $said"
+if said=$(in_shell e2e-shell-none 2>&1); then fail "a shell opened in the pause image, which has none: $said"; fi
+[[ "$said" == *"has none of /bin/bash, /bin/ash and /bin/sh"* ]] || fail "a container with no shell was refused saying: $said"
+docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none >/dev/null || fail "removing the shells' containers failed"
 
 echo "docker-e2e: ok"

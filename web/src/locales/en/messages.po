@@ -435,6 +435,10 @@ msgstr "{first} couldn't be searched"
 msgid "{free} free"
 msgstr "{free} free"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
@@ -1314,6 +1318,11 @@ msgstr "a server"
 msgid "A service"
 msgstr "A service"
 
+#. placeholder {0}: server.name
+#: src/features/terminal/TerminalPage.tsx
+msgid "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
+msgstr "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
@@ -1785,6 +1794,10 @@ msgstr "as {0}"
 #: src/features/activity/describe.ts
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "Asked for a passkey to apply {change}, and none came"
+
+#: src/features/activity/describe.ts
+msgid "Asked for a passkey to open a shell in {container} on {server}, and none came"
+msgstr "Asked for a passkey to open a shell in {container} on {server}, and none came"
 
 #: src/features/activity/describe.ts
 msgid "Asked for a passkey to open a terminal on {server}, and none came"
@@ -2284,6 +2297,14 @@ msgid "Close, and lose what you typed here?"
 msgstr "Close, and lose what you typed here?"
 
 #: src/features/activity/describe.ts
+msgid "Closed a shell in {container} on {server}"
+msgstr "Closed a shell in {container} on {server}"
+
+#: src/features/activity/describe.ts
+msgid "Closed a shell in {container} on {server}, open {open}"
+msgstr "Closed a shell in {container} on {server}, open {open}"
+
+#: src/features/activity/describe.ts
 msgid "Closed a terminal on {server}"
 msgstr "Closed a terminal on {server}"
 
@@ -2574,6 +2595,10 @@ msgstr "Couldn't let go of"
 #: src/features/activity/describe.ts
 msgid "Couldn't open {path} on {server}"
 msgstr "Couldn't open {path} on {server}"
+
+#: src/features/activity/describe.ts
+msgid "Couldn't open a shell in {container} on {server}"
+msgstr "Couldn't open a shell in {container} on {server}"
 
 #: src/features/activity/describe.ts
 msgid "Couldn't open a terminal on {server}"
@@ -4970,6 +4995,10 @@ msgstr "No servers yet"
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "No shell open in <0>{wanted}</0>"
+msgstr "No shell open in <0>{wanted}</0>"
+
 #: src/features/changes/PlanSteps.tsx
 msgid "No steps: it left the fleet"
 msgstr "No steps: it left the fleet"
@@ -5394,6 +5423,17 @@ msgstr "Open {where}"
 msgid "Open a new terminal"
 msgstr "Open a new terminal"
 
+#: src/features/servers/ContainerPage.tsx
+#: src/features/terminal/TerminalPage.tsx
+msgid "Open a shell"
+msgstr "Open a shell"
+
+#. placeholder {0}: server.container
+#. placeholder {1}: server.serverName
+#: src/features/apps/Health.tsx
+msgid "Open a shell in {0} on {1}"
+msgstr "Open a shell in {0} on {1}"
+
 #: src/features/terminal/TerminalPage.tsx
 msgid "Open a terminal"
 msgstr "Open a terminal"
@@ -5494,6 +5534,10 @@ msgstr "Open-source apps you can install in one step"
 #: src/features/activity/ActivityPage.tsx
 msgid "Opened"
 msgstr "Opened"
+
+#: src/features/activity/describe.ts
+msgid "Opened a shell in {container} on {server}"
+msgstr "Opened a shell in {container} on {server}"
 
 #: src/features/activity/describe.ts
 msgid "Opened a terminal on {server}"
@@ -6919,6 +6963,10 @@ msgstr "Settings, status and account"
 #: src/features/changes/fields.tsx
 msgid "shared memory"
 msgstr "shared memory"
+
+#: src/features/apps/Health.tsx
+msgid "Shell"
+msgstr "Shell"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show"

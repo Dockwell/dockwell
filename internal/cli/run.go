@@ -85,7 +85,9 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
-	cfg.Terminals = terminal.New(terminal.Options{Logger: logger})
+	cfg.Terminals = terminal.New(terminal.Options{
+		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers),
+	})
 	lookups(&cfg, stdio, g)
 	return agent.Run(ctx, cfg)
 }

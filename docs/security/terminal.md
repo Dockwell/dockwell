@@ -40,6 +40,16 @@ A terminal hands a browser a root shell on a server, through an agent that runs 
 | Reach a terminal the person opened from this session | It can, as it is that session, until the session is revoked, which ends the terminal. The terminal opened with the person's passkey, so it's on Activity under their name |
 | Keep a shell after the session is revoked or signed out | It can't. The terminal ends within the stream recheck (30 s), and at once on revoking or signing out, as its attachment is a stream the interceptor ties to the session. Tested |
 
+### A shell in a container
+
+| It tries to | What happens |
+| --- | --- |
+| Open a shell in a container that reaches no further than itself | It can, with a session and no passkey: that's root in the container, which a plan already gives a session, as it can deploy any image. Tested |
+| Open a shell in a container that's privileged, holds Docker's socket, shares the server's network or mounts a system path | Refused with `needs_step_up` until a passkey confirms that container on that server: a proof for the server, or for another container, doesn't open it. The agent decides, on the container it runs the shell in. Tested, on the fake engine and on Docker |
+| Open one in a container that runs with what no service's spec can hold, such as `--pid=host` | Counted as root, so it asks for the passkey, as what that does can't be told |
+| Swap the container for a root one between the check and the shell | It can't: the agent checks the container by its ID, and runs the shell in that one |
+| Open one through an agent from before shells in containers | Refused as `agent_outdated`: such an agent would read the call as one for the server's own shell. Tested |
+
 ### Another session of the same person
 
 | It tries to | What happens |

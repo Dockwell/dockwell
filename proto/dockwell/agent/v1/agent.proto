@@ -275,6 +275,11 @@ message Hello {
   // those still open, and those whose TerminalEnded hasn't gone yet. A control
   // plane that doesn't know one asks for it to be closed.
   repeated string open_terminals = 51;
+  // True when the agent opens shells in containers (OpenTerminalCall.container),
+  // and asks for a passkey for one that's as good as root. One that doesn't would
+  // take a call for a container as one for the server, so the control plane sends it
+  // none.
+  bool container_terminals = 52;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -449,7 +454,8 @@ message Call {
   }
 }
 
-// OpenTerminalCall starts root's login shell on the server.
+// OpenTerminalCall starts root's login shell on the server, or the first shell a
+// container has, in it.
 message OpenTerminalCall {
   // The terminal's ID, which the control plane gives it.
   string id = 1;
@@ -459,6 +465,11 @@ message OpenTerminalCall {
   uint32 rows = 3;
   // What the control plane calls its opening, which TerminalEnded hands back.
   string record = 4;
+  // A container, by name or full ID, to open a shell in, in place of the server's.
+  string container = 5;
+  // True when a passkey confirmed opening a shell in container, which one that's as
+  // good as root on the server takes.
+  bool confirmed = 6;
 }
 
 // OpenTerminalResult is the terminal, running.
@@ -467,6 +478,9 @@ message OpenTerminalResult {
   string title = 1;
   // When it opened, by this server's clock.
   google.protobuf.Timestamp opened = 2;
+  // True when the container is as good as root on the server and no passkey
+  // confirmed it, so nothing was opened.
+  bool needs_step_up = 3;
 }
 
 // AttachTerminalCall has the agent open Terminal for a terminal, and carry its

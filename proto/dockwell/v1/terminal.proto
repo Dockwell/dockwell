@@ -24,10 +24,13 @@ import "google/protobuf/timestamp.proto";
 // nothing that fits in what the server keeps. AttachTerminal streams, so it
 // has no REST path.
 service TerminalService {
-  // OpenTerminal starts root's login shell on a server. It needs a proof from
-  // FinishStepUp, for opening a terminal on that server: call without it first,
-  // and it checks everything else, then refuses with the reason needs_step_up. A
-  // server has room for 8 terminals. No API token can call it.
+  // OpenTerminal starts root's login shell on a server, or the first of bash, ash
+  // and sh a container on it has, in it, as the container's own user. A server's
+  // terminal needs a proof from FinishStepUp, for opening a terminal on that
+  // server, and so does a container's, for it, where the container is as good as
+  // root on the server: call without it first, and it checks everything else, then
+  // refuses with the reason needs_step_up. A server has room for 8 terminals. No API
+  // token can call it.
   rpc OpenTerminal(OpenTerminalRequest) returns (OpenTerminalResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
     option (dockwell.v1.needs_session) = true;
@@ -115,6 +118,8 @@ message Terminal {
   uint32 columns = 5;
   // Its height, in lines.
   uint32 rows = 6;
+  // The container it runs in, by name, for a shell in a container.
+  string container = 7;
 }
 
 // OpenTerminalRequest names a server.
@@ -125,10 +130,14 @@ message OpenTerminalRequest {
   uint32 columns = 2;
   // Its height, from 1 to 200 lines.
   uint32 rows = 3;
-  // The proof from FinishStepUp, for opening a terminal on this server. Call
-  // without it first: it checks everything else, then refuses with the reason
-  // needs_step_up.
+  // The proof from FinishStepUp, for opening a terminal on this server, as the
+  // target "srv_…", or in this container, as "srv_…:container". Call without it
+  // first: it checks everything else, then refuses with the reason needs_step_up
+  // where it takes one.
   string proof = 4;
+  // A container on the server, by name or full ID, to open a shell in, in place of
+  // the server's own.
+  string container = 5;
 }
 
 // OpenTerminalResponse is the terminal, running.

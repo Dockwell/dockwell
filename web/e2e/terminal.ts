@@ -17,6 +17,7 @@
 
 import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -26,7 +27,10 @@ import { type Browser, type BrowserContext, chromium, type Page } from "playwrig
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
 
-const { values, positionals } = parseArgs({ allowPositionals: true, options: { shots: { type: "string" } } });
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  options: { shots: { type: "string" }, "fake-docker": { type: "string" } },
+});
 const bin = resolve(positionals[0] ?? "bin/dockwell");
 const shots = values.shots ? resolve(values.shots) : undefined;
 const port = 7360 + Math.floor(Math.random() * 280);
@@ -34,6 +38,8 @@ const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-terminal-"));
 
 let server: ChildProcess | undefined;
+let docker: ChildProcess | undefined;
+let dockerSocket = "";
 let browser: Browser | undefined;
 let lastPage: Page | undefined;
 const serverLog: string[] = [];
@@ -61,7 +67,60 @@ async function until<T>(what: string, fn: () => T | Promise<T>, timeout = 15_000
 }
 
 function env(): NodeJS.ProcessEnv {
-  return { ...process.env, DOCKWELL_DATA_DIR: data, DOCKWELL_LOG_FORMAT: "text", USER: "mira" };
+  return {
+    ...process.env,
+    DOCKWELL_DATA_DIR: data,
+    DOCKWELL_LOG_FORMAT: "text",
+    USER: "mira",
+    ...(dockerSocket ? { DOCKER_HOST: `unix://${dockerSocket}` } : {}),
+  };
+}
+
+/** Starts the fake Docker Engine, when there's one to start, and says where it listens. */
+async function fakeDocker(): Promise<void> {
+  const path = values["fake-docker"];
+  if (!path) return;
+  docker = spawn(resolve(path), [join(data, "docker")], { stdio: ["ignore", "pipe", "inherit"] });
+  dockerSocket = await new Promise<string>((done, refused) => {
+    const silent = setTimeout(() => refused(new Error(`${path} said nothing for 15 s, so it isn't serving`)), 15_000);
+    docker?.stdout?.once("data", (b: Buffer) => {
+      clearTimeout(silent);
+      done(b.toString().trim());
+    });
+    docker?.once("exit", (code, signal) => {
+      clearTimeout(silent);
+      refused(new Error(`${path} ended with ${code ?? signal} before it said where it serves`));
+    });
+  });
+}
+
+/** Asks Docker something on its socket, as docker run by hand does. */
+function dockerAPI(method: string, path: string, body?: unknown): Promise<{ status: number; text: string }> {
+  return new Promise((done, failed) => {
+    const req = request(
+      { socketPath: dockerSocket, path, method, headers: { "Content-Type": "application/json" } },
+      (res) => {
+        let text = "";
+        res.on("data", (d: Buffer) => {
+          text += d.toString();
+        });
+        res.on("end", () => done({ status: res.statusCode ?? 0, text }));
+      },
+    );
+    req.on("error", failed);
+    req.end(body === undefined ? undefined : JSON.stringify(body));
+  });
+}
+
+/** Runs a container behind Dockwell's back, as someone at the server would. */
+async function runByHand(name: string, image: string, more: Record<string, unknown> = {}) {
+  const [repo, tag] = image.split(":");
+  const pulled = await dockerAPI("POST", `/images/create?fromImage=${repo}&tag=${tag}`);
+  if (pulled.status >= 300) fail(`pulling ${image}: ${pulled.status} ${pulled.text}`);
+  const made = await dockerAPI("POST", `/containers/create?name=${name}`, { Image: image, ...more });
+  if (made.status >= 300) fail(`making ${name}: ${made.status} ${made.text}`);
+  const started = await dockerAPI("POST", `/containers/${name}/start`);
+  if (started.status >= 300) fail(`starting ${name}: ${started.status} ${started.text}`);
 }
 
 function dockwell(...args: string[]): string {
@@ -69,6 +128,7 @@ function dockwell(...args: string[]): string {
 }
 
 async function start(): Promise<string> {
+  await fakeDocker();
   server = spawn(
     bin,
     ["run", "--listen", `127.0.0.1:${port}`, "--agent-listen", "127.0.0.1:0", "--log-format", "json"],
@@ -353,6 +413,42 @@ async function main() {
     if (stored.includes(typed)) fail(`the database holds what was typed or printed: ${typed}`);
   }
 
+  if (dockerSocket) {
+    step("a shell in a container, from its page, with no passkey where it reaches no further than itself");
+    await runByHand("web-1", "acme/web:1", { User: "node" });
+    await runByHand("admin-1", "acme/web:1", { HostConfig: { Privileged: true } });
+    await runByHand("bare-1", "acme/web:distroless");
+    await page.goto(`${origin}/servers/${serverId}`);
+    await page
+      .getByRole("link", { name: /^web-1/ })
+      .first()
+      .click();
+    await page.getByRole("link", { name: "Open a shell" }).click();
+    await page.getByRole("heading", { name: "No shell open in web-1" }).waitFor();
+    await shoot(page, "container-offer");
+    const before = await asserted();
+    await page.getByRole("button", { name: "Open a shell" }).click();
+    await page.getByRole("tab", { name: "node@web-1", selected: true }).waitFor({ timeout: 15_000 });
+    await page.getByText("Connected through the agent").waitFor({ timeout: 15_000 });
+    await typeLine(page, "echo in-a-container-$((6*7))");
+    await shows(page, "in-a-container-42");
+    if ((await asserted()) !== before)
+      fail("a shell in a container that reaches no further than itself asked for the passkey");
+    await shoot(page, "container-shell");
+
+    step("one that's as good as root asks for the passkey, and one with no shell says so");
+    await page.goto(`${origin}/servers/${serverId}/terminal?container=admin-1`);
+    await page.getByRole("button", { name: "Open a shell" }).click();
+    await page.getByRole("tab", { name: "root@admin-1", selected: true }).waitFor({ timeout: 15_000 });
+    if ((await asserted()) <= before) fail("a shell in a privileged container opened without the passkey");
+    await page.goto(`${origin}/servers/${serverId}/terminal?container=bare-1`);
+    await page.getByRole("button", { name: "Open a shell" }).click();
+    await page.getByText(/has none of \/bin\/bash, \/bin\/ash and \/bin\/sh/).waitFor({ timeout: 15_000 });
+    await shoot(page, "container-no-shell");
+    await page.goto(`${origin}/activity`);
+    await page.getByText("Opened a shell in web-1 on").first().waitFor();
+  }
+
   step("in Chinese, on a phone and a desktop");
   const zh = await browser.newContext({
     viewport: { width: 1440, height: 930 },
@@ -368,9 +464,9 @@ async function main() {
   });
   zhPage.on("pageerror", (err) => fail(`the Chinese page threw: ${err.message}`));
   await zhPage.goto(`${origin}/servers/${serverId}/terminal`);
-  await zhPage.locator(".empty-state").waitFor();
-  await zhPage.locator(".empty-state .dw-btn").click();
-  await zhPage.locator(".terminal-screen .xterm").waitFor({ timeout: 15_000 });
+  // New session, which is there whether or not a terminal is open already.
+  await zhPage.locator(".terminal-head-tool").first().locator("button").click();
+  await zhPage.locator(".terminal-screen:not([hidden]) .xterm").waitFor({ timeout: 15_000 });
   await shows(zhPage, "$");
   await typeLine(zhPage, "echo 你好-$((1+1))");
   await shows(zhPage, "你好-2");
@@ -392,6 +488,7 @@ async function main() {
 async function finish(code: number): Promise<never> {
   await browser?.close().catch(() => {});
   server?.kill("SIGTERM");
+  docker?.kill("SIGTERM");
   await sleep(200);
   rmSync(data, { recursive: true, force: true });
   process.exit(code);
