@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
-import { Connection, type DiskUsage, type Server, type ServerDiskUse, ServerService } from "@dockwell/api";
+import {
+  Connection,
+  type DiskUsage,
+  DiskUsageSchema,
+  type Server,
+  type ServerDiskUse,
+  ServerService,
+} from "@dockwell/api";
 import { Panel } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -31,38 +39,48 @@ interface Part {
 export function DiskUsePanel({ server }: { server: Server }) {
   const { t } = useLingui();
   const connected = server.connection === Connection.CONNECTED;
+  // An agent that can't read Docker can't ask it either.
+  const asking = connected && server.dockerUnreadableSince === undefined;
   const use = useQuery(
     ServerService.method.getServerDiskUse,
     { id: server.id },
-    { enabled: connected, staleTime: 30_000, refetchInterval: ASK_EVERY_MS, retry: false },
+    // Docker adds up every volume to answer, so coming back to the tab asks nothing.
+    { enabled: asking, staleTime: 30_000, refetchInterval: ASK_EVERY_MS, refetchOnWindowFocus: false, retry: false },
   );
   const disks = server.stats?.disks.filter((disk) => disk.sizeBytes > 0n) ?? [];
   const docker = use.data?.diskUse;
   const dockerDisk = docker && docker.sizeBytes > 0n ? docker : undefined;
-  // While Docker adds it up, which disk it's on isn't known, so only its shape shows.
-  const busy = connected && use.isPending;
-  const others = busy ? [] : disks.filter((disk) => disk.mountPoint !== dockerDisk?.mountPoint);
+  // While Docker adds it up, each disk shows what's used and free, as when it can't say.
+  const busy = asking && use.isPending;
+  const others = disks.filter((disk) => disk.mountPoint !== dockerDisk?.mountPoint);
   if (!busy && !dockerDisk && disks.length === 0) return null;
   return (
     <Panel
       title={t`Disk usage`}
-      actions={dockerDisk ? <code className="panel-meta">{dockerDisk.mountPoint}</code> : null}
+      actions={
+        dockerDisk && !overCounted(dockerDisk) ? <code className="panel-meta">{dockerDisk.mountPoint}</code> : null
+      }
       className="disk-use"
     >
-      <div className="disk-use-body">
-        {busy ? <DiskSkeleton /> : null}
-        {dockerDisk ? <DockerDisk use={dockerDisk} /> : null}
+      <div className="disk-use-body" aria-busy={busy}>
+        {busy && disks.length === 0 ? <DiskSkeleton /> : null}
+        {dockerDisk ? <DockerDisk use={dockerDisk} server={server} /> : null}
         {others.map((disk) => (
           <PlainDisk key={disk.mountPoint} disk={disk} server={server} />
         ))}
-        {use.error && connected && !dockerDisk ? <p className="disk-use-note">{sentence(use.error)}</p> : null}
+        {busy && disks.length > 0 ? (
+          <p className="disk-use-note">
+            <Trans>Adding up what takes the disk Docker keeps its data on.</Trans>
+          </p>
+        ) : null}
+        {use.error && asking && !dockerDisk ? <p className="disk-use-note">{sentence(use.error)}</p> : null}
       </div>
     </Panel>
   );
 }
 
 /** The disk Docker keeps its data on, part by part. */
-function DockerDisk({ use }: { use: ServerDiskUse }) {
+function DockerDisk({ use, server }: { use: ServerDiskUse; server: Server }) {
   const { t, i18n } = useLingui();
   const locale = i18n.locale;
   const bytes = (n: number | bigint) => formatBytes(n, locale);
@@ -72,8 +90,23 @@ function DockerDisk({ use }: { use: ServerDiskUse }) {
   const volumes = Number(use.volumesBytes);
   const containers = Number(use.containersBytes);
   const logs = Number(use.logsBytes);
-  // Docker's data can sit on disks of its own, and its count can run ahead of df's.
-  const other = Math.max(0, used - images - volumes - containers - logs);
+  const counted = images + volumes + containers + logs;
+  if (overCounted(use)) {
+    const disk = create(DiskUsageSchema, {
+      mountPoint: use.mountPoint,
+      sizeBytes: use.sizeBytes,
+      usedBytes: use.usedBytes,
+    });
+    return (
+      <>
+        <PlainDisk disk={disk} server={server} />
+        <p className="disk-use-note">
+          {t`Docker counts ${bytes(counted)} for its images, volumes, containers and logs, more than the ${bytes(used)} used on this disk, as some of it is on another disk. So this shows what's used and free.`}
+        </p>
+      </>
+    );
+  }
+  const other = used - counted;
   const free = Math.max(0, size - used);
   const share = formatPercent(size > 0 ? (free / size) * 100 : 0, locale);
   const imageNotes = [
@@ -200,6 +233,15 @@ function DiskSkeleton() {
       </div>
     </div>
   );
+}
+
+/**
+ * Whether Docker counts more for its data than its disk has used: some of it is on
+ * another disk, such as a volume bound to one, so its parts can't be drawn as
+ * shares of this one.
+ */
+function overCounted(use: ServerDiskUse): boolean {
+  return use.imagesBytes + use.buildCacheBytes + use.volumesBytes + use.containersBytes + use.logsBytes > use.usedBytes;
 }
 
 function join(parts: readonly string[]): string {

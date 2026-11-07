@@ -27,8 +27,12 @@ import (
 const diskUseFor = 30 * time.Second
 
 // diskUseWait bounds one answer. Docker adds up every volume to answer, which
-// takes a while on a big disk.
-const diskUseWait = 60 * time.Second
+// takes a while on a big disk. A test shortens it.
+var diskUseWait = 60 * time.Second
+
+// infoWait bounds asking Docker where it keeps its data, which a Docker that
+// answers at all answers at once. A test shortens it.
+var infoWait = 5 * time.Second
 
 // diskUse adds up what takes the room on the disk that holds Docker's data, only
 // when asked (ADR 0040). It asks Docker once at a time, as Docker refuses a
@@ -46,6 +50,7 @@ type diskUse struct {
 	at      time.Time
 	running chan struct{} // closed when the count under way ends
 	err     error         // what the last count failed with
+	errAt   time.Time     // when it did, so a count that failed isn't tried again for diskUseFor
 }
 
 // read answers a disk use call.
@@ -59,6 +64,13 @@ func (d *diskUse) read(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
 			out := proto.CloneOf(d.last)
 			d.mu.Unlock()
 			return out, nil
+		}
+		// A Docker that failed to answer, or took too long, isn't asked again
+		// at once by each page that opens.
+		if d.err != nil && d.now().Sub(d.errAt) < diskUseFor {
+			err := d.err
+			d.mu.Unlock()
+			return nil, err
 		}
 		if running := d.running; running != nil {
 			d.mu.Unlock()
@@ -84,7 +96,7 @@ func (d *diskUse) read(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
 		out, err := d.count(count)
 		cancel()
 		d.mu.Lock()
-		d.running, d.err = nil, err
+		d.running, d.err, d.errAt = nil, err, d.now()
 		if err == nil {
 			d.last, d.at = out, d.now()
 		}
@@ -99,14 +111,19 @@ func (d *diskUse) read(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
 
 // count asks Docker, and adds up what its data takes on its disk.
 func (d *diskUse) count(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
-	info, err := d.docker.Info(ctx)
+	asked, cancel := context.WithTimeout(ctx, infoWait)
+	info, err := d.docker.Info(asked)
+	cancel()
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("its Docker didn't say where it keeps its data within %s. Check that Docker is running with systemctl status docker", human.Duration(infoWait))
+		}
 		return nil, err
 	}
 	df, err := d.docker.DiskUsage(ctx)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("can't say what takes the disk yet: Docker took more than %s to add up its images and volumes, as it reads every volume to do that, which is slow on a big disk. Try again in a few minutes", human.Duration(diskUseWait))
+			return nil, fmt.Errorf("its Docker took more than %s to add up its images and volumes, as it reads every volume to do that, which is slow on a big disk. Try again in a few minutes", human.Duration(diskUseWait))
 		}
 		return nil, err
 	}
@@ -121,8 +138,8 @@ func (d *diskUse) count(ctx context.Context) (*dockwellv1.ServerDiskUse, error) 
 	out.ImagesBytes = positive(df.LayersSize)
 	out.Images = uint32(len(df.Images)) //nolint:gosec // a count of images fits
 	for _, img := range df.Images {
-		// As `docker system df` counts what's reclaimable: what an unused image
-		// doesn't share with another.
+		// What an unused image doesn't share with another image: about what
+		// removing it would free, as the layers it shares stay for the others.
 		if img.Containers == 0 {
 			out.ImagesUnusedBytes += positive(img.Size - max(img.SharedSize, 0))
 		}

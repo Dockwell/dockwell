@@ -381,7 +381,8 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
-		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
+		followsPace: hello.GetFollowsPace(),
+		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	a.mu.Lock()
@@ -447,6 +448,9 @@ type Session struct {
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
 	readsUpdates bool
+	// followsPace says the agent sends stats at the pace each Pace says. One
+	// that doesn't is never told one.
+	followsPace bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -617,8 +621,12 @@ func (s *Session) writeCall(msg *agentv1.ConnectResponse) error {
 	return s.send(msg)
 }
 
-// tellPace tells the agent the pace setting gen says, unless it heard a later one.
+// tellPace tells the agent the pace setting gen says, unless it heard a later one
+// or doesn't follow a pace.
 func (s *Session) tellPace(pace time.Duration, gen uint64) {
+	if !s.followsPace {
+		return
+	}
 	s.paceMu.Lock()
 	defer s.paceMu.Unlock()
 	if gen <= s.paceGen {
@@ -646,7 +654,7 @@ func (s *Session) DiskUse(ctx context.Context) (*dockwellv1.ServerDiskUse, error
 }
 
 // ErrOlderAgent is an agent that doesn't know a call, as one from before it.
-var ErrOlderAgent = errors.New("the agent is older than the control plane")
+var ErrOlderAgent = errors.New("its agent is older than the control plane, and doesn't know how. Upgrade it by running the install script on the server again")
 
 // leftMoving reports a session that ended as its agent moved to a new stream.
 func (s *Session) leftMoving() bool {

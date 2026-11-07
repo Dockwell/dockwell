@@ -116,12 +116,9 @@ func (s *Service) SetServerPublicAddress(ctx context.Context, req *connect.Reque
 	return connect.NewResponse(&dockwellv1.SetServerPublicAddressResponse{Server: srv}), nil
 }
 
-// errBehind ends a watch whose client couldn't keep up; it should reconnect
-// and start from a fresh snapshot.
-var errBehind = connect.NewError(connect.CodeUnavailable, errors.New("the watch fell behind; reconnect to start from a fresh snapshot"))
-
 // WatchServers streams every server, marks the end of that snapshot, then
-// streams each change.
+// streams each change. A client that reads slowly is sent each server as it
+// stands when it can take it, and misses what changed in between.
 func (s *Service) WatchServers(ctx context.Context, _ *connect.Request[dockwellv1.WatchServersRequest], stream *connect.ServerStream[dockwellv1.WatchServersResponse]) error {
 	snapshot, updates := s.fleet.Watch(ctx)
 	for _, srv := range snapshot {
@@ -144,10 +141,7 @@ func (s *Service) WatchServers(ctx context.Context, _ *connect.Request[dockwellv
 			}
 		case u, ok := <-updates:
 			if !ok {
-				if ctx.Err() != nil {
-					return nil // the client went away; nothing failed
-				}
-				return errBehind
+				return nil // the client went away; nothing failed
 			}
 			if err := stream.Send(&dockwellv1.WatchServersResponse{Server: u.Server, Removed: u.Removed}); err != nil {
 				return err

@@ -6,6 +6,7 @@ import { useTransport } from "@connectrpc/connect-query";
 import { Connection, type Server, ServerService } from "@dockwell/api";
 import { createContext, createElement, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 
+import { useAwayFor } from "../../lib/away";
 import { isSessionEnded } from "../../lib/errors";
 import { type Unread, useOnline } from "../../lib/online";
 import { keepTrying } from "../../lib/retry";
@@ -158,6 +159,10 @@ const CONNECTING: FleetState = { status: "connecting" };
 function useWatch(enabled: boolean): Watched {
   const transport = useTransport();
   const heard = useRef<Heard>({ wall: 0, mono: undefined }).current;
+  // A page out of sight for a while stops watching, so agents can slow down as
+  // nobody sees them, and watches again as soon as it's seen (ADR 0040).
+  const away = useAwayFor();
+  const live = enabled && !away;
   const [watched, setWatched] = useState<Watched>(() => ({
     state: CONNECTING,
     view: fleetView(CONNECTING),
@@ -166,13 +171,18 @@ function useWatch(enabled: boolean): Watched {
   }));
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!live) {
+      // What it last heard stays on the page, unread for no fault of the control
+      // plane's, until the watch it opens again says how things are.
+      heard.mono = undefined;
+      return;
+    }
     const abort = new AbortController();
     void watch(transport, abort.signal, heard, (state, skewMs) =>
       setWatched((prev) => ({ state, view: fleetView(state, prev.view), skewMs, heard })),
     );
     return () => abort.abort();
-  }, [transport, enabled, heard]);
+  }, [transport, live, heard]);
 
   return watched;
 }

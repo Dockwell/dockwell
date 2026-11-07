@@ -73,3 +73,6 @@ export function removed(server: Server): WatchServersResponse {
 
 /** The watch message that ends the snapshot. */
 export const snapshotComplete: WatchServersResponse = create(WatchServersResponseSchema, { snapshotComplete: true });
+
+/** What the control plane sends every 10 s while nothing changes, so a watch knows it's alive. */
+export const heartbeat: WatchServersResponse = create(WatchServersResponseSchema, { heartbeat: true });

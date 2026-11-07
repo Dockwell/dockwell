@@ -6269,6 +6269,9 @@ msgstr "Copied {text}"
 msgid "Adding up what takes the disk"
 msgstr "Adding up what takes the disk"
 
+msgid "Adding up what takes the disk Docker keeps its data on."
+msgstr "Adding up what takes the disk Docker keeps its data on."
+
 msgid "Containers"
 msgstr "Containers"
 
@@ -6279,6 +6282,11 @@ msgstr "Disk usage"
 #. placeholder {1}: bytes(size)
 msgid "Disk usage of {0}: {summary}, of {1}"
 msgstr "Disk usage of {0}: {summary}, of {1}"
+
+#. placeholder {0}: bytes(counted)
+#. placeholder {1}: bytes(used)
+msgid "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
+msgstr "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
 
 msgid "Free"
 msgstr "Free"
@@ -6356,9 +6364,6 @@ msgstr "Add one to reach an app at a name of yours"
 
 msgid "Can't read them now"
 msgstr "Can't read them now"
-
-msgid "Checking how they run"
-msgstr "Checking how they run"
 
 msgid "Deploy one from an image or the catalog"
 msgstr "Deploy one from an image or the catalog"

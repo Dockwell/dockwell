@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Server, ServiceInfo } from "@dockwell/api";
+import { DeploymentState, type Server, type ServiceInfo } from "@dockwell/api";
 import { Icon, type IconName } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
@@ -8,7 +8,7 @@ import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { sentence } from "../../lib/errors";
-import { type AppState, appState, nameOf } from "../apps/app";
+import { nameOf } from "../apps/app";
 import { useAllDomains } from "../apps/domains";
 import { type HealthKind, type HealthView, useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
@@ -83,7 +83,9 @@ function AppsCard({ server }: { server: Server }) {
   const { servers } = useFleetView();
   const fleet = (servers?.length ?? 0) > 1;
   const here = (services.data ?? []).filter((s) => s.deployments.some((d) => d.serverId === server.id));
-  const busy = services.isPending;
+  // Until health has been read, or failed to be, the card holds its place, so its
+  // counts add up to its apps from the first words it says.
+  const busy = services.isPending || !health.settled;
   if (services.error && !services.data) {
     return <Card icon="service" kind={t`Apps`} title={t`Apps`} sub={sentence(services.error)} link={{ to: "/apps" }} />;
   }
@@ -99,7 +101,7 @@ function AppsCard({ server }: { server: Server }) {
       />
     );
   }
-  const notes = here.map((service) => noteOf(service, appState(service, servers), health, server.id));
+  const notes = here.map((service) => noteOf(service, health, server.id));
   const sub = <AppsLine names={here.map(nameOf)} notes={notes} />;
   const only = here.length === 1 ? here[0] : undefined;
   return (
@@ -118,19 +120,20 @@ function AppsCard({ server }: { server: Server }) {
   );
 }
 
-/** What an app's record or health says that someone should look at, or that it's fine. */
-function noteOf(service: ServiceInfo, state: AppState, health: HealthView, serverId: string): AppNote | undefined {
-  switch (state.kind) {
-    case "deploying":
-    case "waiting":
+/**
+ * What an app's deployment on this server or its health there says that someone
+ * should look at, or that it's fine. One whose health can't be read is unknown.
+ */
+function noteOf(service: ServiceInfo, health: HealthView, serverId: string): AppNote {
+  switch (service.deployments.find((d) => d.serverId === serverId)?.state) {
+    case DeploymentState.PENDING:
       return { kind: "look", words: "deploying" };
-    case "failed":
-    case "rollback-failed":
+    case DeploymentState.FAILED:
       return { kind: "look", words: "failed" };
     default:
   }
   const read = health.of(service);
-  if (read.read !== "read") return undefined;
+  if (read.read !== "read") return { kind: "fine", health: "unknown" };
   const kind = read.servers.find((s) => s.serverId === serverId)?.kind ?? read.kind;
   switch (kind) {
     case "unhealthy":
@@ -144,13 +147,14 @@ function noteOf(service: ServiceInfo, state: AppState, health: HealthView, serve
 }
 
 /** "5 healthy · worker deploying": how many are fine, then each that isn't, by name. */
-function AppsLine({ names, notes }: { names: readonly string[]; notes: readonly (AppNote | undefined)[] }) {
+function AppsLine({ names, notes }: { names: readonly string[]; notes: readonly AppNote[] }) {
   const { t } = useLingui();
-  const fine = (kind: HealthKind) => notes.filter((n) => n?.kind === "fine" && n.health === kind).length;
+  const fine = (kind: HealthKind) => notes.filter((n) => n.kind === "fine" && n.health === kind).length;
   const healthy = fine("healthy");
   const running = fine("running");
-  const unknown = fine("unknown");
-  const looks = notes.flatMap((n, i) => (n?.kind === "look" ? [{ name: names[i] ?? "", words: n.words }] : []));
+  // What's fine and none of those, as a check that's starting, reads as unknown.
+  const unknown = notes.filter((n) => n.kind === "fine").length - healthy - running;
+  const looks = notes.flatMap((n, i) => (n.kind === "look" ? [{ name: names[i] ?? "", words: n.words }] : []));
   const parts: string[] = [];
   if (healthy > 0) parts.push(plural(healthy, { one: "# healthy", other: "# healthy" }));
   if (running > 0) parts.push(plural(running, { one: "# running", other: "# running" }));
@@ -189,7 +193,6 @@ function AppsLine({ names, notes }: { names: readonly string[]; notes: readonly 
     if (unknown > 0) return <>{t`${only}, unknown`}</>;
     return <>{only}</>;
   }
-  if (parts.length === 0) return <>{t`Checking how they run`}</>;
   return <>{parts.join(" · ")}</>;
 }
 

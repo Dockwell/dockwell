@@ -6269,6 +6269,9 @@ msgstr "已复制 {text}"
 msgid "Adding up what takes the disk"
 msgstr "正在统计磁盘占用"
 
+msgid "Adding up what takes the disk Docker keeps its data on."
+msgstr "正在统计 Docker 数据所在磁盘的占用。"
+
 msgid "Containers"
 msgstr "容器"
 
@@ -6279,6 +6282,11 @@ msgstr "磁盘占用"
 #. placeholder {1}: bytes(size)
 msgid "Disk usage of {0}: {summary}, of {1}"
 msgstr "{0} 的磁盘占用：{summary}，共 {1}"
+
+#. placeholder {0}: bytes(counted)
+#. placeholder {1}: bytes(used)
+msgid "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
+msgstr "Docker 统计其镜像、卷、容器和日志共占 {0}，超过此磁盘已用的 {1}，因为其中一部分在另一块磁盘上。因此这里只显示已用和可用。"
 
 msgid "Free"
 msgstr "可用"
@@ -6356,9 +6364,6 @@ msgstr "添加一个，用你自己的域名访问应用"
 
 msgid "Can't read them now"
 msgstr "现在无法读取"
-
-msgid "Checking how they run"
-msgstr "正在检查运行状况"
 
 msgid "Deploy one from an image or the catalog"
 msgstr "从镜像或应用目录部署一个"

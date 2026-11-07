@@ -7,7 +7,7 @@ import type { ServerStats } from "@dockwell/api";
 // internal/control/fleet: how often agents send a sample, and how many
 // samples each server keeps.
 
-/** How often an agent sends a sample while anyone watches; every 15 s while nobody does. */
+/** How often an agent sends a sample while anyone watches; every 10 s while nobody does. */
 export const STATS_INTERVAL_MS = 5_000;
 /** How many samples each server keeps for sparklines. */
 export const HISTORY_LENGTH = 60;
@@ -49,8 +49,8 @@ function intervalOf(s: ServerStats): number {
  * The part of a history a trend can draw, on an even clock: one point for every
  * STATS_INTERVAL_MS back from the newest sample, each the sample that covers it,
  * since the agent last stopped reporting. Agents sample every 5 s while anyone
- * watches and every 15 s while nobody does, so a history holds both, and drawn one
- * point to a sample the slower part would look three times as quick. Before a gap
+ * watches and every 10 s while nobody does, so a history holds both, and drawn one
+ * point to a sample the slower part would look twice as quick. Before a gap
  * the line would join numbers either side of it as if they were continuous.
  */
 export function trend(history: readonly ServerStats[]): RecentRun {
