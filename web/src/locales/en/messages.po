@@ -1327,6 +1327,7 @@ msgstr "Activity"
 msgid "Actor"
 msgstr "Actor"
 
+#: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
 msgstr "Add"
@@ -1918,6 +1919,7 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -4828,6 +4830,7 @@ msgid "Offline"
 msgstr "Offline"
 
 #: src/features/auth/TotpPanel.tsx
+#: src/features/backups/PolicySheet.tsx
 msgid "On"
 msgstr "On"
 
@@ -5778,6 +5781,7 @@ msgstr "Revealed the secret {name}"
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -5988,6 +5992,7 @@ msgstr "Run this on the server over SSH. It prints a sign-in link that works onc
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/backups/PoliciesPanel.tsx
 #: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/servers/containers.ts
@@ -7871,6 +7876,7 @@ msgstr "volume"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/PolicySheet.tsx
 msgid "Volume"
 msgstr "Volume"
 

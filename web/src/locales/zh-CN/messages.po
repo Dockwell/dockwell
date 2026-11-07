@@ -1327,6 +1327,7 @@ msgstr "动态"
 msgid "Actor"
 msgstr "执行者"
 
+#: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
 msgstr "添加"
@@ -1918,6 +1919,7 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -4828,6 +4830,7 @@ msgid "Offline"
 msgstr "离线"
 
 #: src/features/auth/TotpPanel.tsx
+#: src/features/backups/PolicySheet.tsx
 msgid "On"
 msgstr "开启"
 
@@ -5778,6 +5781,7 @@ msgstr "显示了密钥 {name}"
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
@@ -5988,6 +5992,7 @@ msgstr "请通过 SSH 在服务器上运行这条命令。它会打印一个只�
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/backups/PoliciesPanel.tsx
 #: src/features/backups/words.ts
 #: src/features/changes/words.ts
 #: src/features/servers/containers.ts
@@ -7871,6 +7876,7 @@ msgstr "卷"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/backups/PolicySheet.tsx
 msgid "Volume"
 msgstr "卷"
 
