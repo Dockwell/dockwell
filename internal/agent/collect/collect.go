@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/mounts"
 )
 
 // Collector samples one server. It is not safe for concurrent use: Stats
@@ -190,7 +191,7 @@ func (c *Collector) mounts() []mount {
 		if len(f) < 3 || !dataFilesystems[f[2]] {
 			continue
 		}
-		m := mount{device: f[0], point: UnescapeMount(f[1]), fstype: f[2]}
+		m := mount{device: f[0], point: mounts.Unescape(f[1]), fstype: f[2]}
 		if have, ok := byDevice[m.device]; !ok || len(m.point) < len(have.point) {
 			byDevice[m.device] = m
 		}
@@ -201,26 +202,6 @@ func (c *Collector) mounts() []mount {
 	}
 	slices.SortFunc(out, func(a, b mount) int { return strings.Compare(a.point, b.point) })
 	return out
-}
-
-// UnescapeMount undoes the octal escapes /proc/self/mounts uses for spaces
-// and other odd characters in paths.
-func UnescapeMount(s string) string {
-	if !strings.Contains(s, `\`) {
-		return s
-	}
-	var b strings.Builder
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\\' && i+3 < len(s) {
-			if v, err := strconv.ParseUint(s[i+1:i+4], 8, 8); err == nil {
-				b.WriteByte(byte(v))
-				i += 3
-				continue
-			}
-		}
-		b.WriteByte(s[i])
-	}
-	return b.String()
 }
 
 // cpuTimes reads the aggregate "cpu" line of /proc/stat: busy is total

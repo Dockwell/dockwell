@@ -73,6 +73,11 @@ type Config struct {
 	Health HealthReporter
 	// Files reads this server's disk for a person. Nil reads nothing.
 	Files *files.Server
+	// CallGrace is how long a call gets to end once its time is up or its stream is
+	// going, before it's left behind. Zero means DefaultCallGrace.
+	CallGrace time.Duration
+	// unfinished is what outlives its call, across this agent's streams.
+	unfinished *unfinished
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
@@ -244,6 +249,8 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}
+	cfg.unfinished = newUnfinished()
+	defer resource.OnPathBack(cfg.unfinished.wake)()
 	id := cfg.Identity
 	cfg.Logger = cfg.Logger.With(slog.String("server", id.ServerID))
 	cfg.Logger.Info("agent running", slog.String("name", id.ServerName), slog.String("control_plane", id.ControlURL),
@@ -530,6 +537,10 @@ func session(ctx context.Context, cfg Config) (err error) {
 				return err
 			}
 			return errRenewed
+		case <-cfg.unfinished.back:
+			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Unstuck{Unstuck: &agentv1.Unstuck{}}}); err != nil {
+				return err
+			}
 		case err := <-recvErr:
 			return err
 		case <-ticker.C:

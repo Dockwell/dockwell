@@ -6,13 +6,16 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -398,4 +401,203 @@ func TestResultsWaitingToSendAreBounded(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	c.stop()
+}
+
+// deafFirewall is a driver stuck as a plan's Lstat is on a dead mount: no context
+// reaches it, so it comes back only when the mount does.
+type deafFirewall struct {
+	*firewall.Fake
+	started chan struct{}
+	gone    chan struct{}
+	once    sync.Once
+}
+
+// answer lets what's stuck come back.
+func (f *deafFirewall) answer() { f.once.Do(func() { close(f.gone) }) }
+
+func (f *deafFirewall) Put(context.Context, string, *resourcev1.FirewallRule) error {
+	f.started <- struct{}{}
+	<-f.gone
+	return nil
+}
+
+func newDeafFirewall(t *testing.T) *deafFirewall {
+	t.Helper()
+	f := &deafFirewall{Fake: firewall.NewFake(), started: make(chan struct{}, 32), gone: make(chan struct{})}
+	t.Cleanup(f.answer)
+	return f
+}
+
+// stops says whether a stream's calls let it end within a bound.
+func stops(c *calls) bool {
+	stopped := make(chan struct{})
+	go func() { c.stop(); close(stopped) }()
+	select {
+	case <-stopped:
+		return true
+	case <-time.After(3 * time.Second):
+		return false
+	}
+}
+
+// Whatever a call is stuck on, the stream ends, and the agent goes on to its next.
+func TestACallThatNeverReturnsDoesntHoldUpTheStream(t *testing.T) {
+	fw := newDeafFirewall(t)
+	var log strings.Builder
+	s := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{
+		Logger:    slog.New(slog.NewTextHandler(&syncWriter{w: &log}, nil)),
+		Drivers:   resource.NewRegistry(&firewall.Driver{Backend: fw}),
+		CallGrace: 50 * time.Millisecond,
+	}, s.send, nil)
+	c.start(applyCall(t, 1, "stuck"))
+	<-fw.started
+	if !stops(c) {
+		t.Fatal("stop is waiting on a call that will never return, so this agent would never reconnect")
+	}
+	if !strings.Contains(log.String(), "left it behind") || !strings.Contains(log.String(), "call=apply") {
+		t.Errorf("the log doesn't say what was left behind: %s", log.String())
+	}
+}
+
+// One that runs out its time is left behind with nothing said: the control plane
+// stopped at the same deadline, and said so itself, before the grace has passed.
+func TestACallThatRunsOutOfTimeIsLeftBehind(t *testing.T) {
+	fw := newDeafFirewall(t)
+	s := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{
+		Logger:    slog.New(slog.DiscardHandler),
+		Drivers:   resource.NewRegistry(&firewall.Driver{Backend: fw}),
+		CallGrace: 20 * time.Millisecond,
+	}, s.send, nil)
+	call := applyCall(t, 1, "stuck")
+	call.Timeout = durationpb.New(20 * time.Millisecond)
+	c.start(call)
+	<-fw.started
+	waitFor(t, "it to be left behind", func() bool { return c.unfinished.left.Load() == 1 })
+	c.wg.Wait()
+	if got := s.result(1); got != nil {
+		t.Errorf("it answered a control plane that has gone on: %v", got)
+	}
+	fw.answer()
+	waitFor(t, "a call that came back to stop counting", func() bool { return c.unfinished.left.Load() == 0 })
+	c.stop()
+}
+
+// What's left behind can't be stopped, so it's bounded across streams, as each holds
+// a thread for as long as whatever it touches is down.
+func TestWhatsLeftBehindIsBoundedAcrossStreams(t *testing.T) {
+	fw := newDeafFirewall(t)
+	cfg := Config{
+		Logger:     slog.New(slog.DiscardHandler),
+		Drivers:    resource.NewRegistry(&firewall.Driver{Backend: fw}),
+		CallGrace:  time.Millisecond,
+		unfinished: newUnfinished(),
+	}
+	for i := range maxLeftBehind {
+		s := &sent{results: map[uint64]*agentv1.CallResult{}}
+		c := newCalls(context.Background(), cfg, s.send, nil)
+		c.start(applyCall(t, uint64(i+1), "stuck-"+strconv.Itoa(i)))
+		<-fw.started
+		if !stops(c) {
+			t.Fatal("stop hung")
+		}
+	}
+	if n := cfg.unfinished.left.Load(); n != maxLeftBehind {
+		t.Fatalf("%d calls left behind", n)
+	}
+	s := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), cfg, s.send, nil)
+	c.start(applyCall(t, 99, "another"))
+	deadline := time.Now().Add(3 * time.Second)
+	for s.result(99) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("no answer past the limit")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := s.result(99).GetError().GetMessage(); !strings.Contains(got, "never came back") {
+		t.Errorf("past the limit a call says %q", got)
+	}
+	select {
+	case <-fw.started:
+		t.Error("a call ran past the limit")
+	default:
+	}
+	// Nothing else tells what was refused that it can go.
+	fw.answer()
+	waitFor(t, "the calls to come back", func() bool { return cfg.unfinished.left.Load() == 0 })
+	select {
+	case <-cfg.unfinished.back:
+	case <-time.After(3 * time.Second):
+		t.Error("what was refused at the limit never hears that it can go")
+	}
+	c.stop()
+}
+
+// A send that never returns is as stuck as a call, and the stream still ends.
+func TestASendThatNeverReturnsDoesntHoldUpTheStream(t *testing.T) {
+	gone := make(chan struct{})
+	t.Cleanup(func() { close(gone) })
+	var log strings.Builder
+	sending := make(chan struct{}, 1)
+	disk := files.New(t.TempDir(), nil, nil)
+	c := newCalls(context.Background(), Config{
+		Logger: slog.New(slog.NewTextHandler(&syncWriter{w: &log}, nil)), Files: disk, CallGrace: 20 * time.Millisecond,
+	}, func(*agentv1.ConnectRequest) error { sending <- struct{}{}; <-gone; return nil }, nil)
+	c.start(listCall(1, t.TempDir(), time.Minute))
+	<-sending
+	if !stops(c) {
+		t.Fatal("stop is waiting on a send that will never return")
+	}
+	if !strings.Contains(log.String(), "stream ended") {
+		t.Errorf("the log says nothing of it: %s", log.String())
+	}
+}
+
+// A root that can't be saved holds the save's call, and nothing else.
+func TestARootThatWontSaveDoesntHoldUpTheStream(t *testing.T) {
+	dir := t.TempDir()
+	data := filepath.Join(dir, "data")
+	if err := os.MkdirAll(filepath.Join(data, "agent"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Writing to a FIFO no one reads blocks in a real system call, as a stalled disk does.
+	fifo := filepath.Join(data, "agent", "docker-roots.new")
+	if err := unix.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if fd, err := unix.Open(fifo, unix.O_RDONLY|unix.O_NONBLOCK, 0); err == nil {
+			time.Sleep(100 * time.Millisecond)
+			_ = unix.Close(fd)
+		}
+	})
+	disk := files.New(data, nil, func(context.Context) (string, error) { return "/data/docker", nil })
+	disk.AnswerWithin = 100 * time.Millisecond
+	s := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{Logger: slog.New(slog.DiscardHandler), Files: disk, CallGrace: 50 * time.Millisecond}, s.send, nil)
+	c.start(listCall(1, dir, time.Minute))
+	deadline := time.Now().Add(3 * time.Second)
+	for s.result(1) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("the listing never answered")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !stops(c) {
+		t.Fatal("a stalled save of Docker's root stopped the stream ending")
+	}
+}
+
+// syncWriter lets a test read a log calls write from their own goroutines.
+type syncWriter struct {
+	mu sync.Mutex
+	w  *strings.Builder
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
 }

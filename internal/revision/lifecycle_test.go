@@ -1276,6 +1276,57 @@ func testARollbackWaitsWhenItsStreamDrops(t *testing.T, backend store.Backend) {
 	}
 }
 
+// A rollback the agent refuses, as the step it follows is still going there, waits
+// and doesn't fail, whether that's at its plan or at its step: nothing ran, and
+// Resume goes on once that step ends.
+func TestARollbackWaitsForAStepThatHasntEnded(t *testing.T) {
+	for name, at := range map[string]string{"at its plan": "plan", "at its step": "step"} {
+		t.Run(name, func(t *testing.T) {
+			storetest.Each(t, func(t *testing.T, backend store.Backend) {
+				e, f, db := setup(t, backend, "srv_A")
+				var going atomic.Bool
+				refused := fmt.Errorf("the last step on boom hasn't ended on this server: %w", resource.ErrUnfinished)
+				f["srv_A"].agent = hooked{
+					Agent: f["srv_A"].agent,
+					plan: func(context.Context, []resource.Desired) error {
+						if at == "plan" && going.Load() {
+							return refused
+						}
+						return nil
+					},
+					apply: func(_ context.Context, step resource.Step, _ proto.Message) error {
+						switch {
+						case step.Ref.Name == "boom":
+							going.Store(true)
+							return errors.New("boom can't be opened")
+						case at == "step" && step.Action == resource.ActionDelete && going.Load():
+							return refused
+						}
+						return nil
+					},
+				}
+				p := propose(t, e, "Open http and boom", rule("srv_A", "http", 80), rule("srv_A", "boom", 9))
+				var failed *FailedError
+				if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) || failed.Rollback == "" || !errors.Is(failed.RollbackErr, ErrPending) {
+					t.Fatalf("apply = %v, want it failed, with a rollback that waits", err)
+				}
+				e.Wait()
+				if c := stored(t, db, failed.Rollback); c.State != store.ChangeApplying {
+					t.Fatalf("the rollback is %s while the step it follows goes on, want it to wait", c.State)
+				}
+				going.Store(false)
+				if err := e.Resume(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				e.Wait()
+				if c := stored(t, db, failed.Rollback); c.State != store.ChangeApplied || f["srv_A"].firewall.Len() != 0 {
+					t.Errorf("the rollback is %s, with %d rules on srv_A; want it applied, with none", c.State, f["srv_A"].firewall.Len())
+				}
+			})
+		})
+	}
+}
+
 // A retried apply that loses the race to the first try reads that the
 // change is applied: its plan isn't to blame, and proposing the edits again
 // would only make another change. Here the retry reaches a second engine

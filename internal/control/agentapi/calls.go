@@ -242,8 +242,9 @@ func (a *Agents) CheckNaming(naming Naming) {
 }
 
 // OnConnect calls fn, in its own goroutine, each time a server's agent
-// connects, and each time it can run a kind it couldn't, as when Docker
-// starts after it, such as to resume what waits for it.
+// connects, each time it can run a kind it couldn't, as when Docker starts
+// after it, and each time what held calls up there ended, such as to resume
+// what waits for it.
 func (a *Agents) OnConnect(fn func(server string)) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -350,9 +351,9 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 }
 
 // connected runs the OnConnect hooks for server, each in its own
-// goroutine: when its agent connects, and when it can run more kinds than
-// it could, as when Docker starts after the agent, so what waited for
-// them, such as a rollback, goes on.
+// goroutine: when its agent connects, when it can run more kinds than it
+// could, as when Docker starts after the agent, and when what held calls
+// up there ended, so what waited for them, such as a rollback, goes on.
 func (a *Agents) connected(server string) {
 	a.mu.Lock()
 	hooks := slices.Clone(a.onConnect)
@@ -606,7 +607,9 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 // faster, so what the agent said counts as well as the call's own deadline.
 func (s *Session) timedOut(err error, timeout time.Duration) error {
 	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		return fmt.Errorf("%s's agent didn't answer within %s: %w", s.name, human.Duration(timeout.Round(time.Second)), err)
+		return fault.New(err, "%s's agent didn't answer within %s, so Dockwell stopped waiting. What it was asked may still be running, "+
+			"or stuck on something on the server, such as Docker or a network mount. Check those on %s, then try again",
+			s.name, human.Duration(timeout.Round(time.Second)), s.name)
 	}
 	return err
 }
@@ -617,6 +620,14 @@ type outOfTime struct{ message string }
 func (e outOfTime) Error() string { return e.message }
 
 func (outOfTime) Unwrap() error { return context.DeadlineExceeded }
+
+// unfinished is what an agent said of a call it didn't run, as the last step on a
+// resource hasn't ended there.
+type unfinished struct{ message string }
+
+func (e unfinished) Error() string { return e.message }
+
+func (unfinished) Unwrap() error { return resource.ErrUnfinished }
 
 // callOnce sends c on this stream and waits for its result.
 func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallResult, error) {
@@ -692,8 +703,11 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 		return nil, ErrMoving
 	default:
 		reason := errors.New(e.GetMessage())
-		if e.GetOutOfTime() {
+		switch {
+		case e.GetOutOfTime():
 			reason = outOfTime{e.GetMessage()}
+		case e.GetUnfinished():
+			reason = unfinished{e.GetMessage()}
 		}
 		if plain := e.GetPlain(); plain != "" {
 			reason = resource.PlainlyBecause(e.GetReason(), plain, reason)

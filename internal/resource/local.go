@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -57,6 +58,12 @@ var (
 	// ErrNotConnected means the server's agent isn't connected, so the
 	// call never reached it and didn't run.
 	ErrNotConnected = errors.New("the server's agent isn't connected")
+	// ErrPathNotAnswering means a path on the server stopped answering, as a
+	// network mount does when its far end is down.
+	ErrPathNotAnswering = errors.New("a server path isn't answering")
+	// ErrUnfinished means the agent didn't run the call, as the last step on the
+	// resource hasn't ended, though that step's call has.
+	ErrUnfinished = errors.New("the last step on this resource hasn't ended")
 )
 
 // ServerError is a call that a server's agent ran and failed, with the
@@ -499,4 +506,35 @@ func Observe(ctx context.Context, d Driver, ref Ref) (proto.Message, error) {
 		n.Normalize(actual)
 	}
 	return actual, nil
+}
+
+// pathsBack hears of server paths that answer again.
+var pathsBack struct {
+	sync.Mutex
+	hear map[*func()]struct{}
+}
+
+// OnPathBack calls fn each time a server path that stopped answering answers
+// again, as what was refused for it can go on, until the returned stop is called.
+func OnPathBack(fn func()) (stop func()) {
+	pathsBack.Lock()
+	defer pathsBack.Unlock()
+	if pathsBack.hear == nil {
+		pathsBack.hear = map[*func()]struct{}{}
+	}
+	pathsBack.hear[&fn] = struct{}{}
+	return func() {
+		pathsBack.Lock()
+		defer pathsBack.Unlock()
+		delete(pathsBack.hear, &fn)
+	}
+}
+
+// PathBack says a server path that stopped answering answers again.
+func PathBack() {
+	pathsBack.Lock()
+	defer pathsBack.Unlock()
+	for fn := range pathsBack.hear {
+		(*fn)()
+	}
 }

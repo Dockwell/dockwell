@@ -31,6 +31,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/mounts"
 )
 
 const (
@@ -62,12 +63,15 @@ type Server struct {
 	dockerRoot func(context.Context) (string, error)
 	slots      chan struct{}
 
+	// mu is never held across anything that touches a disk.
 	mu    sync.Mutex
 	roots []string // where Docker has said it keeps its data, oldest first
 	// stuck holds where each call left behind stopped: see stuck.go.
 	stuck map[*trail]string
 	// mounts reads what's mounted, as /proc/self/mountinfo has it.
 	mounts func() string
+	// saving keeps saves of roots to one at a time.
+	saving sync.Mutex
 }
 
 // New returns a Server. dataDir is Dockwell's data directory, and dockerRoot says
@@ -78,7 +82,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 	}
 	s := &Server{
 		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
-		stuck: map[*trail]string{}, mounts: readMounts,
+		stuck: map[*trail]string{}, mounts: mounts.Read,
 	}
 	s.roots = s.loadRoots()
 	return s

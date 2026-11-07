@@ -470,8 +470,16 @@ func (d *Docker) resolvePath(p string) (string, error) {
 	if d.ResolvePath != nil {
 		return d.ResolvePath(p)
 	}
+	return followWithin(p, evalLinks)
+}
+
+// evalLinks follows a path's links as far as there is anything there.
+func evalLinks(p string, touch func(string) error) (string, error) {
 	rest := ""
 	for at := filepath.Clean(p); ; {
+		if err := touch(at); err != nil {
+			return "", err
+		}
 		resolved, err := filepath.EvalSymlinks(at)
 		switch {
 		case err == nil:
@@ -903,7 +911,7 @@ func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance) error 
 // its own time, and an agent carries on serving with nothing to tell it what to do.
 // What it can't do, the next step to this service finds marked, and finishes.
 func (d *Docker) takeBack(ctx context.Context, t Target, o *instance, made func(error) error, cause error) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishWait+stopGrace(o.Container))
+	ctx, cancel := resource.Finishing(ctx, finishWait+stopGrace(o.Container))
 	defer cancel()
 	// What this step made hasn't run, and has nothing to say a mark doesn't.
 	_ = made(nil)
@@ -1021,7 +1029,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 	d.Points.Reach(PointSwapGone)
 	// The old one is gone: finish the swap even if the caller stops waiting. If
 	// the new one can't take the name, the next run finishes it.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finishWait)
+	ctx, cancel := resource.Finishing(ctx, finishWait)
 	defer cancel()
 	// What this step keeps is what a rollout that stopped partway marked: Docker
 	// may still be stopping it.

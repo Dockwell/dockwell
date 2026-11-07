@@ -3,10 +3,14 @@
 package container_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -527,5 +531,200 @@ func TestACheckOnANetworkTheServerHasIsHeldToTheSameReach(t *testing.T) {
 				t.Errorf("it says %v, want it refused with %q", err, want)
 			}
 		})
+	}
+}
+
+// deadPath stands in for a mount that stopped answering: what asks the disk about a
+// path under it doesn't come back until the test lets it.
+func deadPath(t *testing.T, under string) (release func(), asked *atomic.Int32) {
+	t.Helper()
+	gone := make(chan struct{})
+	var once sync.Once
+	release = func() { once.Do(func() { close(gone) }) }
+	asked = &atomic.Int32{}
+	restore := container.StopAnswering(50*time.Millisecond, func(p string) {
+		if p == under || strings.HasPrefix(p, under+"/") {
+			asked.Add(1)
+			<-gone
+		}
+	})
+	t.Cleanup(func() { release(); restore() })
+	return release, asked
+}
+
+func TestAPlanOnAPathThatStopsAnsweringSaysWhichWithinItsBound(t *testing.T) {
+	dir := t.TempDir()
+	dead := filepath.Join(dir, "nfs")
+	if err := os.Mkdir(dead, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mounted := filepath.Join(dead, "uploads")
+	release, asked := deadPath(t, dead)
+	h := container.Host{Resolve: container.Resolve}
+
+	check := func() error {
+		t.Helper()
+		done := make(chan error, 1)
+		go func() { done <- h.CheckPath(mounted, "the server path "+mounted+" mounted at /data") }()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(3 * time.Second):
+			t.Fatal("the check is stuck on a path that won't answer")
+			return nil
+		}
+	}
+	err := check()
+	if !errors.Is(err, resource.ErrPathNotAnswering) || !strings.Contains(err.Error(), mounted+" isn't answering") || !strings.Contains(err.Error(), "Check the mount") {
+		t.Fatalf("got %v", err)
+	}
+	// The next plan hears at once, and holds nothing more.
+	if err := check(); !errors.Is(err, resource.ErrPathNotAnswering) {
+		t.Fatalf("again: %v", err)
+	}
+	if n := asked.Load(); n != 1 {
+		t.Errorf("the disk was asked %d times, each holding a thread", n)
+	}
+	// Once it answers, so do plans, with nothing to restart.
+	release()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if err := check(); err == nil {
+			break
+		} else if time.Now().After(deadline) {
+			t.Fatalf("it answers again, and the plan says %v", err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// A rollout's own way of following a path is bounded the same.
+func TestARolloutOnAPathThatStopsAnsweringSaysWhich(t *testing.T) {
+	dir := t.TempDir()
+	dead := filepath.Join(dir, "nfs")
+	if err := os.Mkdir(dead, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	deadPath(t, dead)
+	done := make(chan error, 1)
+	go func() {
+		_, err := container.ResolveForRollout(&container.Docker{}, filepath.Join(dead, "uploads"))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, resource.ErrPathNotAnswering) {
+			t.Fatalf("got %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("following a path for a rollout is stuck")
+	}
+}
+
+// A path that stops answering on a mount that can, takes the mount with it: every
+// other path there is told at once, with no thread held and no wait claimed, however
+// many there are, and a path that only leads there is too. Anywhere else, plans go on.
+func TestADeadMountCostsOneWaitAndStopsNothingElse(t *testing.T) {
+	dir := t.TempDir()
+	dead := filepath.Join(dir, "nfs")
+	if err := os.Mkdir(dead, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(filepath.Join(dead, "through"), link); err != nil {
+		t.Fatal(err)
+	}
+	gone := make(chan struct{})
+	var asked atomic.Int32
+	var once sync.Once
+	release := func() { once.Do(func() { close(gone) }) }
+	restore := container.StopAnswering(50*time.Millisecond, func(p string) {
+		if strings.HasPrefix(p, dead+"/") {
+			asked.Add(1)
+			<-gone
+		}
+	})
+	t.Cleanup(func() { release(); restore() })
+	container.PretendMounts("22 1 8:1 / / rw - ext4 /dev/sda1 rw\n40 22 0:50 / " + dead + " rw - nfs4 filer:/export rw\n")
+
+	if _, err := container.Resolve(filepath.Join(dead, "first")); !errors.Is(err, resource.ErrPathNotAnswering) || !strings.Contains(err.Error(), "after") {
+		t.Fatalf("the first path: %v", err)
+	}
+	for i := range container.MaxStuckPaths + 5 {
+		p := filepath.Join(dead, strconv.Itoa(i))
+		start := time.Now()
+		_, err := container.Resolve(p)
+		if !errors.Is(err, resource.ErrPathNotAnswering) {
+			t.Fatalf("%d: %v", i, err)
+		}
+		if took := time.Since(start); took >= 50*time.Millisecond {
+			t.Errorf("%s waited %s on a mount known not to answer", p, took)
+		}
+		if strings.Contains(err.Error(), "after") || !strings.Contains(err.Error(), dead+" isn't answering") || !strings.Contains(err.Error(), p) {
+			t.Fatalf("a path nobody asked says %v", err)
+		}
+	}
+	if _, err := container.Resolve(link); !errors.Is(err, resource.ErrPathNotAnswering) {
+		t.Fatalf("a link into the dead mount: %v", err)
+	}
+	if n := asked.Load(); n != 1 {
+		t.Errorf("the mount was asked %d times, each holding a thread", n)
+	}
+	local := filepath.Join(dir, "local")
+	if to, err := container.Resolve(local); err != nil || to != local {
+		t.Errorf("a path elsewhere = %q, %v, with one mount down", to, err)
+	}
+}
+
+// Past the limit no path is followed, as each left behind holds a thread. Paths apart
+// on mounts that can't be told to be remote are what gets it there.
+func TestWhatsLeftBehindOfPathsIsBounded(t *testing.T) {
+	dir := t.TempDir()
+	gone := make(chan struct{})
+	var asked atomic.Int32
+	restore := container.StopAnswering(5*time.Millisecond, func(p string) {
+		if strings.HasPrefix(p, dir+"/") {
+			asked.Add(1)
+			<-gone
+		}
+	})
+	t.Cleanup(func() { close(gone); restore() })
+	for i := range container.MaxStuckPaths + 5 {
+		if _, err := container.Resolve(filepath.Join(dir, strconv.Itoa(i), "x")); !errors.Is(err, resource.ErrPathNotAnswering) {
+			t.Fatalf("%d: %v", i, err)
+		}
+	}
+	if n := int(asked.Load()); n != container.MaxStuckPaths {
+		t.Errorf("%d paths left behind, want %d", n, container.MaxStuckPaths)
+	}
+	_, err := container.Resolve(filepath.Join(dir, "another"))
+	if !errors.Is(err, resource.ErrPathNotAnswering) || strings.Contains(err.Error(), "after") || !strings.Contains(err.Error(), "aren't answering") {
+		t.Errorf("past the limit, a path nobody asked says %v", err)
+	}
+}
+
+// What was refused for a path hears when it answers, as nothing else would wake it.
+func TestAPathThatAnswersAgainSaysSo(t *testing.T) {
+	dir := t.TempDir()
+	dead := filepath.Join(dir, "nfs")
+	if err := os.Mkdir(dead, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	release, _ := deadPath(t, dead)
+	back := make(chan struct{}, 1)
+	defer resource.OnPathBack(func() { back <- struct{}{} })()
+	if _, err := container.Resolve(dead); !errors.Is(err, resource.ErrPathNotAnswering) {
+		t.Fatal(err)
+	}
+	select {
+	case <-back:
+		t.Fatal("it says it's back before it is")
+	default:
+	}
+	release()
+	select {
+	case <-back:
+	case <-time.After(3 * time.Second):
+		t.Fatal("nothing heard that the path answers again")
 	}
 }
