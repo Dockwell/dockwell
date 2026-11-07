@@ -288,9 +288,13 @@ func (*Driver) ImageOf(spec proto.Message) string {
 	return spec.(*resourcev1.Service).GetApp().GetImage()
 }
 
-// CodeOf is what a service's app runs in its image, to compare.
-func (*Driver) CodeOf(spec proto.Message) []string {
-	return container.Code(spec.(*resourcev1.Service).GetApp())
+// WhatRuns is a copy of a service's spec without its app's limits.
+func (*Driver) WhatRuns(spec proto.Message) proto.Message {
+	s := proto.Clone(spec).(*resourcev1.Service)
+	if app := s.GetApp(); app != nil {
+		app.Resources = nil
+	}
+	return s
 }
 
 // SetImage changes the image a service's app runs.

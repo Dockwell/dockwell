@@ -638,7 +638,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if plan.Empty() {
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
-	p.Notes = sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, e.newCodeNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))))
+	p.Notes = sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -1557,16 +1557,6 @@ func (e *Engine) NewProject(ctx context.Context, tx *store.Tx, org, name, enviro
 	}, environmentID, nil
 }
 
-// newCode says the item runs other code where it runs now: another image, whatever
-// its tag points at by now, or another command, entrypoint or health check.
-func (e *Engine) newCode(it *item) bool {
-	n, ok := e.imageNamer(it.ref.Kind)
-	if !ok || it.spec == nil || it.current == nil {
-		return false
-	}
-	return it.pull || n.ImageOf(it.current) != n.ImageOf(it.spec) || !slices.Equal(n.CodeOf(it.current), n.CodeOf(it.spec))
-}
-
 // ManagedElsewhere is what a plan says of a container from a Compose project, as
 // something else may run that yet, and Dockwell taking it on doesn't stop that. It
 // says it when it's taken on and on the first plan that replaces it, which is when it
@@ -1626,25 +1616,6 @@ func sharedNameNotes(plan *Plan, notes []Note) []Note {
 					Message: fmt.Sprintf("More than one container answers to %s on the network %s, as they do now: this one and %s. What asks for %s there can reach either, so point what uses it at a name only one of them has",
 						n.Name, n.Network, human.List(n.Others), n.Name),
 				})
-			}
-		}
-	}
-	return out
-}
-
-// newCodeNotes are a plan's notes, saying why new code alone needs a person.
-func (e *Engine) newCodeNotes(plan *Plan, items []item, notes []Note) []Note {
-	out := slices.Clone(notes)
-	for i := range items {
-		it := &items[i]
-		if !e.newCode(it) {
-			continue
-		}
-		for j := range plan.Resources {
-			r := &plan.Resources[j]
-			if r.Ref == it.ref && slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot) {
-				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: it.ref.Name +
-					" reaches what's as good as root on its server, so a new image, command or health check is any code at all with that reach. A person approves it, as no token may"})
 			}
 		}
 	}
@@ -1959,11 +1930,6 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				if it.adopt != "" {
 					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
 				}
-				// New code is anything at all with what the service reaches, so where
-				// that's as good as root, it's as much as reaching it anew.
-				if e.newCode(it) {
-					gained = append(gained, resource.NewAccess(gained, asRoot(e.reach(it.ref, it.desiredOn(server), after), leads))...)
-				}
 				reaches := e.reach(it.ref, desired, after)
 				// What runs has all a resource reaches, so where that's as good as
 				// root, running something else is as much as reaching it anew.
@@ -2162,21 +2128,22 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 }
 
 // runsSomethingElse says an item changes what runs in a resource that's there on
-// server: anything in its spec, other than another tag or digest of the same image
-// repository, which is how CI deploys. That one is the same code by the same hand,
-// and everything else can be any code at all, with whatever the resource reaches: a
-// command, an entrypoint, a health check, a user or an environment.
+// server: anything in its spec but a limit, which runs nothing, other than another
+// tag or digest of the same image repository, which is how CI deploys. That one is the
+// same code by the same hand, and everything else can be any code at all, with
+// whatever the resource reaches: a command, an entrypoint, a health check, a user or
+// an environment.
 func (e *Engine) runsSomethingElse(it *item, server string) bool {
 	n, ok := e.imageNamer(it.ref.Kind)
 	current, desired := it.currentOn(server), it.desiredOn(server)
 	if !ok || current == nil || desired == nil {
 		return false
 	}
+	before, after := n.WhatRuns(current), n.WhatRuns(desired)
 	if now := n.ImageOf(desired); docker.Repository(n.ImageOf(current)) == docker.Repository(now) {
-		current = proto.Clone(current)
-		n.SetImage(current, now)
+		n.SetImage(before, now)
 	}
-	return !proto.Equal(current, desired)
+	return !proto.Equal(before, after)
 }
 
 // movedOff is what of list is a server path that doesn't lead where it did.
