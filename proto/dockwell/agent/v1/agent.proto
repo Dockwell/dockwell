@@ -450,12 +450,13 @@ message Call {
     // 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
     // next of either takes 54.
     ListUpdatesCall list_updates = 53;
-    // Start a shell. Numbered apart, as open work adds to this message.
-    OpenTerminalCall open_terminal = 30;
+    // Start a shell. Numbered apart, as open work adds to this message: 30 is
+    // the databases'.
+    OpenTerminalCall open_terminal = 40;
     // Carry a terminal's bytes over Terminal, until the attachment ends.
-    AttachTerminalCall attach_terminal = 31;
+    AttachTerminalCall attach_terminal = 41;
     // Hang up a terminal's shell.
-    CloseTerminalCall close_terminal = 32;
+    CloseTerminalCall close_terminal = 42;
   }
 }
 
@@ -1009,12 +1010,13 @@ message CallResult {
     // What send_backup sent.
     SendBackupResult send_backup = 24;
     ListUpdatesResult list_updates = 53;
-    // The terminal, running. Numbered apart, as open work adds to this message.
-    OpenTerminalResult open_terminal = 30;
+    // The terminal, running. Numbered apart, as open work adds to this message:
+    // 30 is the databases'.
+    OpenTerminalResult open_terminal = 40;
     // The attachment ended.
-    AttachTerminalResult attach_terminal = 31;
+    AttachTerminalResult attach_terminal = 41;
     // How the terminal ended.
-    CloseTerminalResult close_terminal = 32;
+    CloseTerminalResult close_terminal = 42;
   }
 }
 

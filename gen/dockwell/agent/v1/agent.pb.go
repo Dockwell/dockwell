@@ -2324,18 +2324,19 @@ type Call_ListUpdates struct {
 }
 
 type Call_OpenTerminal struct {
-	// Start a shell. Numbered apart, as open work adds to this message.
-	OpenTerminal *OpenTerminalCall `protobuf:"bytes,30,opt,name=open_terminal,json=openTerminal,proto3,oneof"`
+	// Start a shell. Numbered apart, as open work adds to this message: 30 is
+	// the databases'.
+	OpenTerminal *OpenTerminalCall `protobuf:"bytes,40,opt,name=open_terminal,json=openTerminal,proto3,oneof"`
 }
 
 type Call_AttachTerminal struct {
 	// Carry a terminal's bytes over Terminal, until the attachment ends.
-	AttachTerminal *AttachTerminalCall `protobuf:"bytes,31,opt,name=attach_terminal,json=attachTerminal,proto3,oneof"`
+	AttachTerminal *AttachTerminalCall `protobuf:"bytes,41,opt,name=attach_terminal,json=attachTerminal,proto3,oneof"`
 }
 
 type Call_CloseTerminal struct {
 	// Hang up a terminal's shell.
-	CloseTerminal *CloseTerminalCall `protobuf:"bytes,32,opt,name=close_terminal,json=closeTerminal,proto3,oneof"`
+	CloseTerminal *CloseTerminalCall `protobuf:"bytes,42,opt,name=close_terminal,json=closeTerminal,proto3,oneof"`
 }
 
 func (*Call_Plan) isCall_Call() {}
@@ -5499,18 +5500,19 @@ type CallResult_ListUpdates struct {
 }
 
 type CallResult_OpenTerminal struct {
-	// The terminal, running. Numbered apart, as open work adds to this message.
-	OpenTerminal *OpenTerminalResult `protobuf:"bytes,30,opt,name=open_terminal,json=openTerminal,proto3,oneof"`
+	// The terminal, running. Numbered apart, as open work adds to this message:
+	// 30 is the databases'.
+	OpenTerminal *OpenTerminalResult `protobuf:"bytes,40,opt,name=open_terminal,json=openTerminal,proto3,oneof"`
 }
 
 type CallResult_AttachTerminal struct {
 	// The attachment ended.
-	AttachTerminal *AttachTerminalResult `protobuf:"bytes,31,opt,name=attach_terminal,json=attachTerminal,proto3,oneof"`
+	AttachTerminal *AttachTerminalResult `protobuf:"bytes,41,opt,name=attach_terminal,json=attachTerminal,proto3,oneof"`
 }
 
 type CallResult_CloseTerminal struct {
 	// How the terminal ended.
-	CloseTerminal *CloseTerminalResult `protobuf:"bytes,32,opt,name=close_terminal,json=closeTerminal,proto3,oneof"`
+	CloseTerminal *CloseTerminalResult `protobuf:"bytes,42,opt,name=close_terminal,json=closeTerminal,proto3,oneof"`
 }
 
 func (*CallResult_Error) isCallResult_Result() {}
@@ -6665,9 +6667,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\vsend_backup\x18\x18 \x01(\v2!.dockwell.agent.v1.SendBackupCallH\x00R\n" +
 	"sendBackup\x12G\n" +
 	"\flist_updates\x185 \x01(\v2\".dockwell.agent.v1.ListUpdatesCallH\x00R\vlistUpdates\x12J\n" +
-	"\ropen_terminal\x18\x1e \x01(\v2#.dockwell.agent.v1.OpenTerminalCallH\x00R\fopenTerminal\x12P\n" +
-	"\x0fattach_terminal\x18\x1f \x01(\v2%.dockwell.agent.v1.AttachTerminalCallH\x00R\x0eattachTerminal\x12M\n" +
-	"\x0eclose_terminal\x18  \x01(\v2$.dockwell.agent.v1.CloseTerminalCallH\x00R\rcloseTerminalB\x06\n" +
+	"\ropen_terminal\x18( \x01(\v2#.dockwell.agent.v1.OpenTerminalCallH\x00R\fopenTerminal\x12P\n" +
+	"\x0fattach_terminal\x18) \x01(\v2%.dockwell.agent.v1.AttachTerminalCallH\x00R\x0eattachTerminal\x12M\n" +
+	"\x0eclose_terminal\x18* \x01(\v2$.dockwell.agent.v1.CloseTerminalCallH\x00R\rcloseTerminalB\x06\n" +
 	"\x04call\"h\n" +
 	"\x10OpenTerminalCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
@@ -6895,9 +6897,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\vsend_backup\x18\x18 \x01(\v2#.dockwell.agent.v1.SendBackupResultH\x00R\n" +
 	"sendBackup\x12I\n" +
 	"\flist_updates\x185 \x01(\v2$.dockwell.agent.v1.ListUpdatesResultH\x00R\vlistUpdates\x12L\n" +
-	"\ropen_terminal\x18\x1e \x01(\v2%.dockwell.agent.v1.OpenTerminalResultH\x00R\fopenTerminal\x12R\n" +
-	"\x0fattach_terminal\x18\x1f \x01(\v2'.dockwell.agent.v1.AttachTerminalResultH\x00R\x0eattachTerminal\x12O\n" +
-	"\x0eclose_terminal\x18  \x01(\v2&.dockwell.agent.v1.CloseTerminalResultH\x00R\rcloseTerminalB\b\n" +
+	"\ropen_terminal\x18( \x01(\v2%.dockwell.agent.v1.OpenTerminalResultH\x00R\fopenTerminal\x12R\n" +
+	"\x0fattach_terminal\x18) \x01(\v2'.dockwell.agent.v1.AttachTerminalResultH\x00R\x0eattachTerminal\x12O\n" +
+	"\x0eclose_terminal\x18* \x01(\v2&.dockwell.agent.v1.CloseTerminalResultH\x00R\rcloseTerminalB\b\n" +
 	"\x06result\"\xbd\x01\n" +
 	"\x0eAdoptionResult\x12\x12\n" +
 	"\x04spec\x18\x01 \x01(\fR\x04spec\x12\x18\n" +
