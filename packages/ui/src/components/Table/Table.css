@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 .dw-table-wrap {
+  /* Contains what is positioned inside, such as screen-reader text, so a table
+     that scrolls in a pane of its own never makes the page scroll too. */
+  position: relative;
   overflow: auto;
   background: var(--surface);
   border: 1px solid var(--line);

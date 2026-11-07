@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /* Import once, at the root of an app: tokens, then the global foundations.
-   Each component brings its own stylesheet. */
+   Each component brings its own stylesheet, except Panel: pages put dw-panel on
+   their own elements too, as the mocks do, so its rules come with the foundations
+   rather than with whichever screen first draws a Panel. */
 @import "./tokens.css";
 @import "./base.css";
+@import "../components/Panel/Panel.css";

@@ -105,7 +105,12 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
       ) : (
         <div className="catalog-grid">
           {shown.map((entry) => (
-            <Card key={entry.id} entry={entry} installs={(installs ?? []).filter((i) => i.pin?.entry === entry.id)} />
+            <Card
+              key={entry.id}
+              entry={entry}
+              category={words(entry.category)}
+              installs={(installs ?? []).filter((i) => i.pin?.entry === entry.id)}
+            />
           ))}
         </div>
       )}
@@ -132,7 +137,16 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 /** One app: what it is and its version. Installed, it leads to the app rather than its install sheet. */
-function Card({ entry, installs }: { entry: Entry; installs: readonly CatalogInstall[] }) {
+function Card({
+  entry,
+  category,
+  installs,
+}: {
+  entry: Entry;
+  /** Its category, in words, under its name as Catalog has it. */
+  category: string;
+  installs: readonly CatalogInstall[];
+}) {
   const { t } = useLingui();
   const [first] = installs;
   const count = installs.length;
@@ -148,6 +162,7 @@ function Card({ entry, installs }: { entry: Entry; installs: readonly CatalogIns
         </span>
         <span className="catalog-card-title">
           <span className="catalog-card-name">{entry.name}</span>
+          {category ? <span className="catalog-card-category">{category}</span> : null}
         </span>
         {behind ? (
           <span className="catalog-installed is-behind">{sameVersion ? t`Update out` : t`Upgrade to ${latest}`}</span>

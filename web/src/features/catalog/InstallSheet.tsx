@@ -14,6 +14,8 @@ import { portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
 import { RunsOnField } from "../apps/NewAppSheet";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
+// The form is New app's, so its fields sit apart the same way, however the sheet is reached.
+import "../apps/Apps.css";
 
 /** Whether a person gives an input: Dockwell makes one that generates. */
 const asked = (input: Input) => input.generate === 0;
