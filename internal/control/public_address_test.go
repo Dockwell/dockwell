@@ -105,3 +105,31 @@ func testAPublicAddressIsSetThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Errorf("POST: %d %s", code, body)
 	}
 }
+
+func TestADomainIsCheckedAgainstAServerBeforeItHasARoute(t *testing.T) {
+	storetest.Each(t, testADomainIsChecked)
+}
+
+func testADomainIsChecked(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	s := f.addNamedServer(t, "oci-1", false)
+	domains := dockwellv1connect.NewDomainServiceClient(b, b.origin)
+
+	// A name nothing resolves, on a resolver that may not answer here, is at worst unknown.
+	res, err := domains.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.id.ServerID, Domain: "nothing-here.example.com"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Msg.GetCheck().GetDomain() != "nothing-here.example.com" || res.Msg.GetCheck().GetState() == dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_POINTS_HERE {
+		t.Errorf("it reads %v", res.Msg.GetCheck())
+	}
+	_, err = domains.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.id.ServerID, Domain: "not a domain"}))
+	if reasonOf(err) != "invalid" {
+		t.Errorf("a bad name: %v", err)
+	}
+	_, err = domains.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: "srv_nobody", Domain: "app.example.com"}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("an unknown server: %v", err)
+	}
+}

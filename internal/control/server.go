@@ -241,7 +241,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 			handle(dockwellv1connect.NewVariableServiceHandler(
 				variables.New(cfg.Changes.Kinds(), cfg.Store, cfg.Secrets, cfg.Auth, cfg.Logger), opts...))
 		}
-		handle(dockwellv1connect.NewDomainServiceHandler(domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewDomainServiceHandler(domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, fleetOf(cfg), cfg.Logger), opts...))
 		// A person's, so it needs sign-in; the agent decides what it reads.
 		if cfg.Fleet != nil && cfg.Auth != nil {
 			handle(dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
@@ -533,4 +533,13 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	stopAgents()
 	agents.Wait()
 	return errors.Join(errs...)
+}
+
+// fleetOf is the fleet a handler reads servers from, as the interface it takes, which
+// a nil *fleet.Hub wouldn't read as nil.
+func fleetOf(cfg Config) domains.Servers {
+	if cfg.Fleet == nil {
+		return nil
+	}
+	return cfg.Fleet
 }

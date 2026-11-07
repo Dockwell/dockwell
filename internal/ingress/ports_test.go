@@ -688,3 +688,58 @@ func TestANewCertificateHasItsDomainReadAtOnce(t *testing.T) {
 		t.Errorf("a renewal read %d times in all", reads)
 	}
 }
+
+// Cloudflare's ranges are known, so a record that points there says so, and the
+// words lead to what's wrong instead of to a record that's already made.
+func TestARecordOnCloudflaresProxySaysSo(t *testing.T) {
+	d := &DNS{
+		Lookup: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("104.16.0.1")}, nil
+		},
+		Addrs: func() ([]netip.Addr, error) { return []netip.Addr{netip.MustParseAddr("203.0.113.9")}, nil },
+	}
+	check := d.Check(t.Context(), "app.example.com")
+	if !check.Proxied {
+		t.Fatalf("it reads %+v", check)
+	}
+	msg := routeCertMessage("app.example.com", CertState{Phase: CertPending}, check)
+	for _, want := range []string{"Cloudflare's proxy", "blocks the certificate authority's check", "DNS only", "set tls to off"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("%q doesn't say %q", msg, want)
+		}
+	}
+	d.Lookup = func(context.Context, string) ([]netip.Addr, error) {
+		return []netip.Addr{netip.MustParseAddr("203.0.113.9")}, nil
+	}
+	if check := d.Check(t.Context(), "app.example.com"); check.Proxied {
+		t.Errorf("a record of its own reads as proxied: %+v", check)
+	}
+}
+
+// A connection failing names what's likely in the way, by the provider where
+// metadata told it, as Oracle's two firewalls catch most people out.
+func TestAFailedConnectionNamesTheFirewalls(t *testing.T) {
+	failed := CertState{Phase: CertFailed, Problem: ProblemConnection}
+	oracle := &DNS{
+		Lookup: func(context.Context, string) ([]netip.Addr, error) { return nil, nil },
+		Addrs:  func() ([]netip.Addr, error) { return []netip.Addr{netip.MustParseAddr("10.0.0.25")}, nil },
+	}
+	oracle.Know(&agentv1.PublicAddress{Addresses: []*agentv1.KnownAddress{{Address: "203.0.113.50", WayIn: true}}, Provider: dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE})
+	msg := certMessage("app.example.com", failed, oracle.Check(t.Context(), "app.example.com"))
+	for _, want := range []string{"VCN's security list", "machine's own iptables", "most people only open one"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("%q doesn't say %q", msg, want)
+		}
+	}
+	for provider, want := range map[dockwellv1.CloudProvider]string{
+		dockwellv1.CloudProvider_CLOUD_PROVIDER_AWS:          "security group",
+		dockwellv1.CloudProvider_CLOUD_PROVIDER_GCP:          "firewall rules",
+		dockwellv1.CloudProvider_CLOUD_PROVIDER_AZURE:        "network security group",
+		dockwellv1.CloudProvider_CLOUD_PROVIDER_DIGITALOCEAN: "Cloud Firewall",
+		dockwellv1.CloudProvider_CLOUD_PROVIDER_HETZNER:      "Cloud Firewall",
+	} {
+		if !strings.Contains(firewallWords[provider], want) {
+			t.Errorf("%v says %q", provider, firewallWords[provider])
+		}
+	}
+}

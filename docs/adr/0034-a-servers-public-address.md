@@ -96,6 +96,10 @@ The owner decided this, and nothing else asks one: another lookup needs the same
 
 [The threat model](../security/public-address.md) says what's sent and what an answer can do. Metadata services are link-local, and reading them is no third party.
 
+### What the domain form says
+
+It says what to do by the shape, and a way in leads with its record whatever the shape is, as someone has proved or said so. There's one record for each family, and a way out is offered as what it is: on a cloud a record to check against the provider's console, at home the router's address behind a tunnel, and behind carrier NAT not at all. `DomainService.CheckDomain` reads DNS for a name as it's typed and until the record is there, with no route yet, on the control plane's resolver. It uses what's known of the server, so it says what a plan would. A record that points at Cloudflare's ranges reads as `proxied`, as that blocks a certificate over HTTP-01 or TLS-ALPN, and works with a route that takes none. With no address known and no shape to go by, it asks how traffic reaches the server.
+
 ## Consequences
 
 - Every word about DNS has one source of truth, on the agent, so a change to what's known changes what a domain says within seconds.

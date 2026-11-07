@@ -613,7 +613,11 @@ func TestAPublicAddressGoesRoundThroughARealStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(5 * time.Second)
-	for !proto.Equal(heard.last(), &agentv1.PublicAddress{Addresses: []*agentv1.KnownAddress{{Address: "203.0.113.50", WayIn: true}}}) {
+	want := &agentv1.PublicAddress{
+		Addresses: []*agentv1.KnownAddress{{Address: "203.0.113.50", WayIn: true}},
+		Provider:  dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE,
+	}
+	for !proto.Equal(heard.last(), want) {
 		if time.Now().After(deadline) {
 			t.Fatalf("the agent heard %v", heard.last())
 		}

@@ -11,15 +11,21 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/netip"
 	"slices"
+	"strings"
 
 	"connectrpc.com/connect"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -30,20 +36,58 @@ type Reports interface {
 	Ingress(server string) *dockwellv1.IngressStatus
 }
 
+// Servers is what's known of each server.
+type Servers interface {
+	Get(id string) (*dockwellv1.Server, error)
+	PublicAddress(server string) *agentv1.PublicAddress
+}
+
 // Handler implements DomainService.
 type Handler struct {
 	kinds   *resource.Registry
 	db      *store.DB
 	reports Reports
+	servers Servers
 	logger  *slog.Logger
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
 
-// New returns a handler that reads routes from db, with kinds, and what their
-// servers say from reports.
-func New(kinds *resource.Registry, db *store.DB, reports Reports, logger *slog.Logger) *Handler {
-	return &Handler{kinds: kinds, db: db, reports: reports, logger: logger}
+// New returns a handler that reads routes from db, with kinds, what their servers
+// say from reports, and what's known of a server from servers.
+func New(kinds *resource.Registry, db *store.DB, reports Reports, servers Servers, logger *slog.Logger) *Handler {
+	return &Handler{kinds: kinds, db: db, reports: reports, servers: servers, logger: logger}
+}
+
+// CheckDomain reads DNS for a name against what's known of a server. It's a read a
+// form makes as someone waits for a record, so it needs no route, and no agent: it
+// goes by the control plane's resolver.
+func (h *Handler) CheckDomain(ctx context.Context, req *connect.Request[dockwellv1.CheckDomainRequest]) (*connect.Response[dockwellv1.CheckDomainResponse], error) {
+	domain := strings.ToLower(strings.TrimSpace(req.Msg.GetDomain()))
+	if err := route.CheckDomain(domain); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	if h.servers == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("the control plane has no servers to check a domain against yet"))
+	}
+	srv, err := h.servers.Get(req.Msg.GetServerId())
+	if errors.Is(err, fleet.ErrNotFound) {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("there's no server "+req.Msg.GetServerId()+". List them with ListServers"))
+	}
+	if err != nil {
+		return nil, err
+	}
+	dns := &ingress.DNS{Addrs: func() ([]netip.Addr, error) {
+		var own []netip.Addr
+		for _, s := range srv.GetInventory().GetAddresses() {
+			if a, err := netip.ParseAddr(s); err == nil {
+				own = append(own, a.Unmap())
+			}
+		}
+		return own, nil
+	}}
+	dns.Know(h.servers.PublicAddress(srv.GetId()))
+	return connect.NewResponse(&dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(dns.Check(ctx, domain))}), nil
 }
 
 // ListDomains returns the domains of the routes that exist now.

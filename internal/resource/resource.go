@@ -548,6 +548,12 @@ type DomainCheck struct {
 	Carrier bool `json:",omitempty"`
 	// ReadAt is when DNS was read. A proof by a domain is only as good as this.
 	ReadAt time.Time `json:"-"`
+	// Proxied says a record points at Cloudflare's proxy, which blocks a certificate
+	// over HTTP-01 or TLS-ALPN.
+	Proxied bool `json:",omitempty"`
+	// Firewalls says which of them to open, on a cloud whose provider is known. It's
+	// for what the agent says as a certificate fails, so it stays on the agent.
+	Firewalls string `json:"-"`
 }
 
 // Own is the addresses on the server's own interfaces, leaving out the public ones

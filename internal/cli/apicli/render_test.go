@@ -883,6 +883,11 @@ func TestDNSWordsSayWhatsKnownOfTheAddress(t *testing.T) {
 			"Point an AAAA record at this server, 2001:db8::5. Point an A record at 203.0.113.7, which is how this server reaches the internet.",
 		},
 		{
+			"on Cloudflare's proxy",
+			&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, Found: []string{"104.16.0.1"}, Proxied: true, Here: []string{"203.0.113.9"}},
+			"points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come. Set the record to DNS only.",
+		},
+		{
 			"another address, with only a way out known",
 			&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_CANT_TELL, Found: []string{"198.51.100.1"}, PublicAddresses: []string{"203.0.113.7"}, UnprovenAddresses: []string{"203.0.113.7"}, Here: []string{"192.168.1.20", "203.0.113.7"}},
 			"This server goes out from 203.0.113.7, which may not be its way in, so the agent can't tell",

@@ -655,6 +655,10 @@ msgstr "{name} 在 {server} 上挂载卷 {path}"
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "{name} points at Cloudflare's proxy, which blocks the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
+msgstr "{name} 指向 Cloudflare 的代理，这会阻止证书验证。请打开“{tunnelName}”，或将该记录设为仅 DNS。"
+
 #: src/features/changes/notices.tsx
 msgid "{name} reaches {path} on {server}"
 msgstr "{name} 可访问 {server} 上的 {path}"
@@ -1963,6 +1967,10 @@ msgstr "无法连接到控制平面"
 msgid "Can't reach this server"
 msgstr "无法连接这台服务器"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "Can't read DNS"
+msgstr "无法读取 DNS"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
 #: src/features/shell/Topbar.tsx
@@ -2389,6 +2397,10 @@ msgstr "之前的目的地加密的副本，只能用它当时的密码短语打
 #: src/features/logs/LogsPage.tsx
 msgid "Copy"
 msgstr "复制"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Copy {address}"
+msgstr "复制 {address}"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Copy {at}"
@@ -2852,6 +2864,10 @@ msgstr "详细信息"
 msgid "Developer tools"
 msgstr "开发者工具"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "Directly"
+msgstr "直接访问"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Directory"
 msgstr "目录"
@@ -2905,6 +2921,22 @@ msgstr "{domain} 的 DNS 指向 {found}。此服务器从 {goesOut} 出站，这
 #: src/features/changes/words.ts
 msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
 msgstr "{domain} 的 DNS 指向 {found}。此服务器自身的地址都是私有地址（{here}），因此 Agent 无法判断它是否指向此服务器。如果不是，在指向此服务器之前无法获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
+
+#: src/features/changes/words.ts
+msgid "DNS for {domain} points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 Cloudflare 的代理，这会阻止证书颁发机构的验证，因此无法获取证书。请将该记录设为仅 DNS。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS has this record"
+msgstr "DNS 已有此记录"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS points at {found}"
+msgstr "DNS 指向 {found}"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS points at {found}, and Dockwell can't tell whether that's this server"
+msgstr "DNS 指向 {found}，Dockwell 无法判断那是否就是此服务器"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
@@ -2998,6 +3030,14 @@ msgstr "该网络不是 Dockwell 创建的。网络上的其他内容（包括�
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 msgstr "该卷不是 Dockwell 创建的，Dockwell 也不会删除它。其他挂载它的容器会共享其中的内容。"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
+msgstr "Dockwell 不知道此服务器的公网地址。{provider} 控制台会显示它。请添加指向该地址的 A 记录，并在此服务器页面的“网络”中设置它。"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
+msgstr "Dockwell 不知道此服务器的公网地址。服务商控制台会显示它。请添加指向该地址的 A 记录，并在此服务器页面的“网络”中设置它。"
 
 #: src/features/files/FilesPage.tsx
 msgid "Dockwell doesn't open this"
@@ -3679,6 +3719,10 @@ msgstr "方式"
 msgid "How often"
 msgstr "频率"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "How traffic reaches this server"
+msgstr "流量如何到达此服务器"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS 自动配置。你的通行密钥在这个地址可用。"
@@ -3794,6 +3838,10 @@ msgstr "信息"
 #: src/features/catalog/InstallSheet.tsx
 msgid "Install {app}"
 msgstr "安装 {app}"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Install Cloudflare Tunnel from the Catalog"
+msgstr "从目录安装 Cloudflare Tunnel"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
@@ -4072,6 +4120,10 @@ msgstr "它的代理最后一次上报于 {seen}，此处显示的是当时的�
 #: src/features/apps/NewAppSheet.tsx
 msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
 msgstr "其中的应用会以这个名称显示为一行，并使用独立的网络。再次以此名称导入会更新它们。"
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Its certificate comes by itself once its DNS points at this server, before or after."
+msgstr "DNS 指向此服务器后证书会自动获取，先后都可以。"
 
 #: src/features/apps/Health.tsx
 msgid "Its check hasn't finished yet."
@@ -4464,6 +4516,14 @@ msgstr "将 {trimmed} 改为变量"
 #: src/features/auth/TotpPanel.tsx
 msgid "Make new recovery codes"
 msgstr "生成新的恢复码"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Make these records at your DNS provider."
+msgstr "请在 DNS 服务商处添加这些记录。"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Make this record at your DNS provider."
+msgstr "请在 DNS 服务商处添加这条记录。"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
@@ -5197,6 +5257,34 @@ msgstr "打开 {where}"
 msgid "Open plan"
 msgstr "打开计划"
 
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall."
+msgstr "请在 DigitalOcean 的云防火墙（如果此 Droplet 有）和这台机器自己的防火墙中开放 80 和 443 端口。"
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in Hetzner's Cloud Firewall, if the server has one, and in the machine's own firewall."
+msgstr "请在 Hetzner 的云防火墙（如果此服务器有）和这台机器自己的防火墙中开放 80 和 443 端口。"
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in the instance's security group and in the machine's own firewall."
+msgstr "请在实例的安全组和这台机器自己的防火墙中开放 80 和 443 端口。"
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in the network security group and in the machine's own firewall."
+msgstr "请在网络安全组和这台机器自己的防火墙中开放 80 和 443 端口。"
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in the VCN's security list and in the machine's own iptables. Most people only open one."
+msgstr "请在 VCN 的安全列表和这台机器自己的 iptables 中开放 80 和 443 端口。大多数人只开放了其中一处。"
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in the VPC's firewall rules and in the machine's own firewall."
+msgstr "请在 VPC 的防火墙规则和这台机器自己的防火墙中开放 80 和 443 端口。"
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in your provider's firewall and in the machine's own."
+msgstr "请在服务商的防火墙和这台机器自己的防火墙中开放 80 和 443 端口。"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the activity"
 msgstr "打开动态"
@@ -5282,6 +5370,10 @@ msgstr "选项"
 #: src/app/Providers.tsx
 msgid "Optional"
 msgstr "可选"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
+msgstr "或者在路由器上将 80 和 443 端口转发到此服务器，并添加这条记录。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
@@ -5490,9 +5582,9 @@ msgstr "请添加指向此服务器公网地址的 A 记录。Dockwell 在这里
 msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which is private, so the internet can't reach it"
 msgstr "请添加指向此服务器公网地址的 A 记录。Dockwell 在这里只能看到 {here}，这是私有地址，互联网无法访问"
 
-#: src/features/apps/AddDomainSheet.tsx
-msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
-msgstr "将它的 DNS 指向这台服务器，之前或之后都可以。指向后证书会自动获取。"
+#: src/features/apps/DomainRecord.tsx
+msgid "Point an A record at your router's public address."
+msgstr "请添加指向路由器公网地址的 A 记录。"
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Point its DNS at this server."
@@ -5871,6 +5963,10 @@ msgstr "最近部署"
 #: src/features/apps/AppOverview.tsx
 msgid "Recent health"
 msgstr "最近的健康情况"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Recommended. It needs no public address and no forwarded port."
+msgstr "推荐。无需公网地址，也无需端口转发。"
 
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
@@ -7067,9 +7163,21 @@ msgstr "这是最后一次尝试。输错 5 次验证码已结束此次设置，
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "这样你将无法登录。请先添加另一个通行密钥或身份验证器应用。"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
+msgstr "这是此服务器访问互联网所用的地址，不一定是入站地址。请在 {provider} 的控制台中核对。"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
+msgstr "这是此服务器访问互联网所用的地址，不一定是入站地址。请在服务商的控制台中核对。"
+
 #: src/features/changes/notices.tsx
 msgid "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。卷中现有内容会存为副本，服务器保留 7 天。"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "That's your router's address, as far as Dockwell can tell."
+msgstr "据 Dockwell 判断，这是你路由器的地址。"
 
 #: src/features/changes/notices.tsx
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
@@ -7670,6 +7778,10 @@ msgstr "这不是文本文件"
 msgid "This isn't the file you opened"
 msgstr "这不是你打开的文件"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "This looks like a home or office network, so the internet can't reach this server by itself."
+msgstr "这看起来是家庭或办公网络，互联网无法直接访问此服务器。"
+
 #. placeholder {0}: server.serverName
 #: src/features/changes/notices.tsx
 msgid "This may cut off access to {0}"
@@ -7772,6 +7884,10 @@ msgstr "这台服务器"
 msgid "This server is behind carrier NAT ({here}), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither"
 msgstr "此服务器位于运营商级 NAT 之后（{here}），DNS 记录和端口转发都无法到达它。请使用隧道，两者都不需要"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
+msgstr "此服务器位于运营商级 NAT 之后，DNS 记录和端口转发都无法到达它。隧道两者都不需要。"
+
 #: src/features/logs/LogFoot.tsx
 msgid "this server shares what it carries live between everyone reading it."
 msgstr "这台服务器的实时带宽由所有读者分享。"
@@ -7812,6 +7928,10 @@ msgstr "这会在数据库运行时使用 {0} 自带的转储，不会停止任�
 #: src/features/logs/LogsPage.tsx
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Through a tunnel or a proxy"
+msgstr "通过隧道或代理"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Time"
@@ -8343,6 +8463,10 @@ msgstr "卷"
 msgid "Waiting"
 msgstr "等待中"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "Waiting for DNS"
+msgstr "正在等待 DNS"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "等待代理连接"
@@ -8672,6 +8796,10 @@ msgstr "你尚未登录。请登录后重试。"
 #: src/features/servers/FleetNotes.tsx
 msgid "You're offline"
 msgstr "你已离线"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "your domain"
+msgstr "你的域名"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Your domain gets a certificate automatically."

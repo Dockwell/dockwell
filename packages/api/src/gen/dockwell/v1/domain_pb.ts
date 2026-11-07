@@ -18,7 +18,56 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/domain.proto.
  */
 export const file_dockwell_v1_domain: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjoKEkxpc3REb21haW5zUmVxdWVzdBITCgtlbnZpcm9ubWVudBgBIAEoCRIPCgdzZXJ2aWNlGAIgASgJIjsKE0xpc3REb21haW5zUmVzcG9uc2USJAoHZG9tYWlucxgBIAMoCzITLmRvY2t3ZWxsLnYxLkRvbWFpbiKRAQoGRG9tYWluEgwKBG5hbWUYASABKAkSFgoOZW52aXJvbm1lbnRfaWQYAiABKAkSCwoDdXJsGAMgASgJEigKBnJvdXRlcxgEIAMoCzIYLmRvY2t3ZWxsLnYxLkRvbWFpblJvdXRlEioKB3NlcnZlcnMYBSADKAsyGS5kb2Nrd2VsbC52MS5Eb21haW5TZXJ2ZXIimwEKC0RvbWFpblJvdXRlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEcGF0aBgDIAEoCRIPCgdzZXJ2aWNlGAQgASgJEgwKBHBvcnQYBSABKA0SCwoDdXJsGAYgASgJEgsKA3RscxgHIAEoCRIRCglob3N0X3BvcnQYCCABKA0SGAoQcGxhaW5fZm9yX2FueW9uZRgJIAEoCCKdAQoMRG9tYWluU2VydmVyEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRIpCgZzdGF0dXMYAyABKAsyGS5kb2Nrd2VsbC52MS5Eb21haW5TdGF0dXMSDQoFc3RhbGUYBCABKAgSKwoHaW5ncmVzcxgFIAEoCzIaLmRvY2t3ZWxsLnYxLkluZ3Jlc3NTdGF0dXMiugEKDUluZ3Jlc3NTdGF0dXMSDQoFcHJveHkYASABKAkSDwoHcnVubmluZxgCIAEoCBIsCgdwcm9ibGVtGAMgASgOMhsuZG9ja3dlbGwudjEuSW5ncmVzc1Byb2JsZW0SDwoHbWVzc2FnZRgEIAEoCRIPCgdob2xkZXJzGAUgAygJEg8KB3ZlcnNpb24YBiABKAkSFgoOcGlubmVkX3ZlcnNpb24YByABKAkSEAoIb3V0ZGF0ZWQYCCABKAgidAoMRG9tYWluU3RhdHVzEg4KBmRvbWFpbhgBIAEoCRItCgtjZXJ0aWZpY2F0ZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlEiUKA2RucxgDIAEoCzIYLmRvY2t3ZWxsLnYxLkRvbWFpbkNoZWNrIq8BCgtDZXJ0aWZpY2F0ZRIsCgVzdGF0ZRgBIAEoDjIdLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlU3RhdGUSMAoHcHJvYmxlbRgCIAEoDjIfLmRvY2t3ZWxsLnYxLkNlcnRpZmljYXRlUHJvYmxlbRIPCgdtZXNzYWdlGAMgASgJEi8KC2V4cGlyZV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCqVAQoOSW5ncmVzc1Byb2JsZW0SHwobSU5HUkVTU19QUk9CTEVNX1VOU1BFQ0lGSUVEEAASHwobSU5HUkVTU19QUk9CTEVNX1BPUlRTX1RBS0VOEAESIAocSU5HUkVTU19QUk9CTEVNX1NVQk5FVF9UQUtFThACEh8KG0lOR1JFU1NfUFJPQkxFTV9OT1RfUlVOTklORxADKqwBChBDZXJ0aWZpY2F0ZVN0YXRlEiEKHUNFUlRJRklDQVRFX1NUQVRFX1VOU1BFQ0lGSUVEEAASHQoZQ0VSVElGSUNBVEVfU1RBVEVfUEVORElORxABEhwKGENFUlRJRklDQVRFX1NUQVRFX0lTU1VFRBACEhwKGENFUlRJRklDQVRFX1NUQVRFX0ZBSUxFRBADEhoKFkNFUlRJRklDQVRFX1NUQVRFX05PTkUQBCrKAgoSQ2VydGlmaWNhdGVQcm9ibGVtEiMKH0NFUlRJRklDQVRFX1BST0JMRU1fVU5TUEVDSUZJRUQQABIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0ROUxABEiIKHkNFUlRJRklDQVRFX1BST0JMRU1fQ09OTkVDVElPThACEiQKIENFUlRJRklDQVRFX1BST0JMRU1fV1JPTkdfU0VSVkVSEAMSJAogQ0VSVElGSUNBVEVfUFJPQkxFTV9SQVRFX0xJTUlURUQQBBIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0NBQRAFEh8KG0NFUlRJRklDQVRFX1BST0JMRU1fUkVGVVNFRBAGEh0KGUNFUlRJRklDQVRFX1BST0JMRU1fT1RIRVIQBxIlCiFDRVJUSUZJQ0FURV9QUk9CTEVNX0NBTlRfUkVBQ0hfQ0EQCDJ9Cg1Eb21haW5TZXJ2aWNlEmwKC0xpc3REb21haW5zEh8uZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXNwb25zZSIakAIBoLsYAYLT5JMCDRILL3YxL2RvbWFpbnNCpAEKD2NvbS5kb2Nrd2VsbC52MUILRG9tYWluUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjcKEkNoZWNrRG9tYWluUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDgoGZG9tYWluGAIgASgJIj4KE0NoZWNrRG9tYWluUmVzcG9uc2USJwoFY2hlY2sYASABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayI6ChJMaXN0RG9tYWluc1JlcXVlc3QSEwoLZW52aXJvbm1lbnQYASABKAkSDwoHc2VydmljZRgCIAEoCSI7ChNMaXN0RG9tYWluc1Jlc3BvbnNlEiQKB2RvbWFpbnMYASADKAsyEy5kb2Nrd2VsbC52MS5Eb21haW4ikQEKBkRvbWFpbhIMCgRuYW1lGAEgASgJEhYKDmVudmlyb25tZW50X2lkGAIgASgJEgsKA3VybBgDIAEoCRIoCgZyb3V0ZXMYBCADKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5Sb3V0ZRIqCgdzZXJ2ZXJzGAUgAygLMhkuZG9ja3dlbGwudjEuRG9tYWluU2VydmVyIpsBCgtEb21haW5Sb3V0ZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHBhdGgYAyABKAkSDwoHc2VydmljZRgEIAEoCRIMCgRwb3J0GAUgASgNEgsKA3VybBgGIAEoCRILCgN0bHMYByABKAkSEQoJaG9zdF9wb3J0GAggASgNEhgKEHBsYWluX2Zvcl9hbnlvbmUYCSABKAginQEKDERvbWFpblNlcnZlchIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKQoGc3RhdHVzGAMgASgLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEg0KBXN0YWxlGAQgASgIEisKB2luZ3Jlc3MYBSABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIroBCg1JbmdyZXNzU3RhdHVzEg0KBXByb3h5GAEgASgJEg8KB3J1bm5pbmcYAiABKAgSLAoHcHJvYmxlbRgDIAEoDjIbLmRvY2t3ZWxsLnYxLkluZ3Jlc3NQcm9ibGVtEg8KB21lc3NhZ2UYBCABKAkSDwoHaG9sZGVycxgFIAMoCRIPCgd2ZXJzaW9uGAYgASgJEhYKDnBpbm5lZF92ZXJzaW9uGAcgASgJEhAKCG91dGRhdGVkGAggASgIInQKDERvbWFpblN0YXR1cxIOCgZkb21haW4YASABKAkSLQoLY2VydGlmaWNhdGUYAiABKAsyGC5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZRIlCgNkbnMYAyABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayKvAQoLQ2VydGlmaWNhdGUSLAoFc3RhdGUYASABKA4yHS5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVN0YXRlEjAKB3Byb2JsZW0YAiABKA4yHy5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVByb2JsZW0SDwoHbWVzc2FnZRgDIAEoCRIvCgtleHBpcmVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAqlQEKDkluZ3Jlc3NQcm9ibGVtEh8KG0lOR1JFU1NfUFJPQkxFTV9VTlNQRUNJRklFRBAAEh8KG0lOR1JFU1NfUFJPQkxFTV9QT1JUU19UQUtFThABEiAKHElOR1JFU1NfUFJPQkxFTV9TVUJORVRfVEFLRU4QAhIfChtJTkdSRVNTX1BST0JMRU1fTk9UX1JVTk5JTkcQAyqsAQoQQ2VydGlmaWNhdGVTdGF0ZRIhCh1DRVJUSUZJQ0FURV9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUNFUlRJRklDQVRFX1NUQVRFX1BFTkRJTkcQARIcChhDRVJUSUZJQ0FURV9TVEFURV9JU1NVRUQQAhIcChhDRVJUSUZJQ0FURV9TVEFURV9GQUlMRUQQAxIaChZDRVJUSUZJQ0FURV9TVEFURV9OT05FEAQqygIKEkNlcnRpZmljYXRlUHJvYmxlbRIjCh9DRVJUSUZJQ0FURV9QUk9CTEVNX1VOU1BFQ0lGSUVEEAASGwoXQ0VSVElGSUNBVEVfUFJPQkxFTV9ETlMQARIiCh5DRVJUSUZJQ0FURV9QUk9CTEVNX0NPTk5FQ1RJT04QAhIkCiBDRVJUSUZJQ0FURV9QUk9CTEVNX1dST05HX1NFUlZFUhADEiQKIENFUlRJRklDQVRFX1BST0JMRU1fUkFURV9MSU1JVEVEEAQSGwoXQ0VSVElGSUNBVEVfUFJPQkxFTV9DQUEQBRIfChtDRVJUSUZJQ0FURV9QUk9CTEVNX1JFRlVTRUQQBhIdChlDRVJUSUZJQ0FURV9QUk9CTEVNX09USEVSEAcSJQohQ0VSVElGSUNBVEVfUFJPQkxFTV9DQU5UX1JFQUNIX0NBEAgy8QEKDURvbWFpblNlcnZpY2USbAoLTGlzdERvbWFpbnMSHy5kb2Nrd2VsbC52MS5MaXN0RG9tYWluc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5MaXN0RG9tYWluc1Jlc3BvbnNlIhqQAgGguxgBgtPkkwINEgsvdjEvZG9tYWlucxJyCgtDaGVja0RvbWFpbhIfLmRvY2t3ZWxsLnYxLkNoZWNrRG9tYWluUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkNoZWNrRG9tYWluUmVzcG9uc2UiIJACAaC7GAGC0+STAhMSES92MS9kb21haW5zOmNoZWNrQqQBCg9jb20uZG9ja3dlbGwudjFCC0RvbWFpblByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * CheckDomainRequest names a domain and the server it's meant to reach.
+ *
+ * @generated from message dockwell.v1.CheckDomainRequest
+ */
+export type CheckDomainRequest = Message<"dockwell.v1.CheckDomainRequest"> & {
+  /**
+   * The server, by ID.
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The domain, such as "app.example.com".
+   *
+   * @generated from field: string domain = 2;
+   */
+  domain: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckDomainRequest.
+ * Use `create(CheckDomainRequestSchema)` to create a new message.
+ */
+export const CheckDomainRequestSchema: GenMessage<CheckDomainRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 0);
+
+/**
+ * CheckDomainResponse says what DNS says of it.
+ *
+ * @generated from message dockwell.v1.CheckDomainResponse
+ */
+export type CheckDomainResponse = Message<"dockwell.v1.CheckDomainResponse"> & {
+  /**
+   * What DNS says, as the control plane reads it.
+   *
+   * @generated from field: dockwell.v1.DomainCheck check = 1;
+   */
+  check?: DomainCheck | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckDomainResponse.
+ * Use `create(CheckDomainResponseSchema)` to create a new message.
+ */
+export const CheckDomainResponseSchema: GenMessage<CheckDomainResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 1);
 
 /**
  * ListDomainsRequest says which domains to return.
@@ -48,7 +97,7 @@ export type ListDomainsRequest = Message<"dockwell.v1.ListDomainsRequest"> & {
  * Use `create(ListDomainsRequestSchema)` to create a new message.
  */
 export const ListDomainsRequestSchema: GenMessage<ListDomainsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 0);
+  messageDesc(file_dockwell_v1_domain, 2);
 
 /**
  * ListDomainsResponse lists domains.
@@ -69,7 +118,7 @@ export type ListDomainsResponse = Message<"dockwell.v1.ListDomainsResponse"> & {
  * Use `create(ListDomainsResponseSchema)` to create a new message.
  */
 export const ListDomainsResponseSchema: GenMessage<ListDomainsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 1);
+  messageDesc(file_dockwell_v1_domain, 3);
 
 /**
  * Domain is one domain the routes of an environment serve.
@@ -120,7 +169,7 @@ export type Domain = Message<"dockwell.v1.Domain"> & {
  * Use `create(DomainSchema)` to create a new message.
  */
 export const DomainSchema: GenMessage<Domain> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 2);
+  messageDesc(file_dockwell_v1_domain, 4);
 
 /**
  * DomainRoute is one route of a domain.
@@ -198,7 +247,7 @@ export type DomainRoute = Message<"dockwell.v1.DomainRoute"> & {
  * Use `create(DomainRouteSchema)` to create a new message.
  */
 export const DomainRouteSchema: GenMessage<DomainRoute> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 3);
+  messageDesc(file_dockwell_v1_domain, 5);
 
 /**
  * DomainServer is where a domain stands on one server.
@@ -249,7 +298,7 @@ export type DomainServer = Message<"dockwell.v1.DomainServer"> & {
  * Use `create(DomainServerSchema)` to create a new message.
  */
 export const DomainServerSchema: GenMessage<DomainServer> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 4);
+  messageDesc(file_dockwell_v1_domain, 6);
 
 /**
  * IngressStatus is where a server's ingress stands, on a server with routes.
@@ -323,7 +372,7 @@ export type IngressStatus = Message<"dockwell.v1.IngressStatus"> & {
  * Use `create(IngressStatusSchema)` to create a new message.
  */
 export const IngressStatusSchema: GenMessage<IngressStatus> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 5);
+  messageDesc(file_dockwell_v1_domain, 7);
 
 /**
  * DomainStatus is where one domain's certificate and DNS stand on a server.
@@ -358,7 +407,7 @@ export type DomainStatus = Message<"dockwell.v1.DomainStatus"> & {
  * Use `create(DomainStatusSchema)` to create a new message.
  */
 export const DomainStatusSchema: GenMessage<DomainStatus> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 6);
+  messageDesc(file_dockwell_v1_domain, 8);
 
 /**
  * Certificate is where a domain's certificate stands on a server.
@@ -402,7 +451,7 @@ export type Certificate = Message<"dockwell.v1.Certificate"> & {
  * Use `create(CertificateSchema)` to create a new message.
  */
 export const CertificateSchema: GenMessage<Certificate> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 7);
+  messageDesc(file_dockwell_v1_domain, 9);
 
 /**
  * IngressProblem is why a server's routes aren't being served.
@@ -594,6 +643,18 @@ export const DomainService: GenService<{
     methodKind: "unary";
     input: typeof ListDomainsRequestSchema;
     output: typeof ListDomainsResponseSchema;
+  },
+  /**
+   * CheckDomain says what DNS says of a name now, against what's known of a
+   * server, whether or not any route has the name yet. Read it again to see a
+   * record arrive.
+   *
+   * @generated from rpc dockwell.v1.DomainService.CheckDomain
+   */
+  checkDomain: {
+    methodKind: "unary";
+    input: typeof CheckDomainRequestSchema;
+    output: typeof CheckDomainResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_domain, 0);

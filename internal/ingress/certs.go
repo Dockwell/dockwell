@@ -160,6 +160,9 @@ func certMessage(domain string, st CertState, check *resource.DomainCheck) strin
 		return fmt.Sprintf("Renewing the certificate for %s failed, though the one it has still serves until %s. %s %s",
 			domain, st.NotAfter.UTC().Format("2 January 2006"), upperFirst(problemWords(domain, st, check)), retry)
 	case st.Phase == CertPending:
+		if check != nil && check.Proxied {
+			return fmt.Sprintf("DNS for %s points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come and it doesn't answer over HTTPS here. Set the record to DNS only, and Dockwell tries as soon as it sees it.", domain)
+		}
 		if check != nil && check.State == resource.DomainNoRecord {
 			return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come and it doesn't answer over HTTPS. %s Dockwell tries as soon as it sees the record.", domain, pointHere(check))
 		}
@@ -204,6 +207,8 @@ func connectionWords(domain string, check *resource.DomainCheck) string {
 	lead := fmt.Sprintf("the certificate authority couldn't reach this server for %s on port 80 or 443", domain)
 	own := check.Own()
 	switch {
+	case check != nil && check.Firewalls != "":
+		return lead + ". " + check.Firewalls
 	case check != nil && check.Carrier, resource.BehindCarrierNAT(own):
 		return lead + ". It's behind carrier-grade NAT, so no forwarded port can reach it, and a tunnel is the way."
 	case check.BehindNAT():
@@ -230,7 +235,7 @@ func routeCertMessage(domain string, st CertState, check *resource.DomainCheck) 
 	case st.None, msg == "":
 		return msg
 	case st.Phase == CertPending:
-		if check == nil || check.State != resource.DomainElsewhere {
+		if check == nil || (check.State != resource.DomainElsewhere && !check.Proxied) {
 			return msg
 		}
 	case st.Problem == ProblemRateLimited, st.Problem == ProblemCAA, st.Problem == ProblemRefused:

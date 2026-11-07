@@ -118,3 +118,67 @@ export function useNetworkWords() {
     },
   };
 }
+
+/** What the domain form leads with, for a server of each shape. */
+/** One record to point at a server, and whether what it names is only known as a way out. */
+export interface DomainRecordToMake {
+  address: string;
+  unproven: boolean;
+}
+
+export type DomainAdvice =
+  /** Make these records, one for each family, as a way in is known, or a cloud's NAT may be one. */
+  | { lead: "record"; records: DomainRecordToMake[]; provider: CloudProvider | undefined }
+  /** A tunnel first, and a record at the router second, which needs a forwarded port. */
+  | { lead: "tunnel"; router: string | undefined }
+  /** A tunnel and nothing else, as a forwarded port can't work behind carrier NAT. */
+  | { lead: "tunnel-only" }
+  /** Nothing says, so a person does: directly, or through a tunnel or a proxy. */
+  | { lead: "ask"; provider: CloudProvider | undefined };
+
+/**
+ * How a domain should reach a server, from what's known of it (ADR 0034). A way in leads
+ * with its record whatever the shape, as someone has proved or said so. A way out is only
+ * ever offered as what it is: on a cloud as a record with the caveat, at home as the
+ * router's address behind a tunnel, and behind carrier NAT not at all.
+ */
+export function domainAdviceOf(network: ServerNetwork | undefined): DomainAdvice {
+  const known = publicAddressesOf(network).map(({ address, unproven }) => ({ address, unproven }));
+  const ways = known.filter((record) => !record.unproven);
+  const provider = network?.provider === CloudProvider.UNSPECIFIED ? undefined : network?.provider;
+  const carrier = network?.shape === NetworkShape.CARRIER_NAT;
+  if (ways.length > 0) return { lead: "record", records: carrier ? ways : known, provider };
+  switch (network?.shape) {
+    case NetworkShape.CARRIER_NAT:
+      return { lead: "tunnel-only" };
+    case NetworkShape.LOCAL_NAT:
+      return { lead: "tunnel", router: known[0]?.address };
+    case NetworkShape.CLOUD_NAT:
+      return known.length === 0 ? { lead: "ask", provider } : { lead: "record", records: known, provider };
+    default:
+      return { lead: "ask", provider };
+  }
+}
+
+/** Which firewalls stand in the way on a provider's cloud, beside the machine's own. */
+export function useFirewallWords(): (provider: CloudProvider | undefined) => string {
+  const { t } = useLingui();
+  return (provider) => {
+    switch (provider) {
+      case CloudProvider.ORACLE:
+        return t`Open ports 80 and 443 in the VCN's security list and in the machine's own iptables. Most people only open one.`;
+      case CloudProvider.AWS:
+        return t`Open ports 80 and 443 in the instance's security group and in the machine's own firewall.`;
+      case CloudProvider.GCP:
+        return t`Open ports 80 and 443 in the VPC's firewall rules and in the machine's own firewall.`;
+      case CloudProvider.AZURE:
+        return t`Open ports 80 and 443 in the network security group and in the machine's own firewall.`;
+      case CloudProvider.DIGITALOCEAN:
+        return t`Open ports 80 and 443 in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall.`;
+      case CloudProvider.HETZNER:
+        return t`Open ports 80 and 443 in Hetzner's Cloud Firewall, if the server has one, and in the machine's own firewall.`;
+      default:
+        return t`Open ports 80 and 443 in your provider's firewall and in the machine's own.`;
+    }
+  };
+}
