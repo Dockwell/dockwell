@@ -1973,15 +1973,17 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		leads := map[string]string{}
 		moved := map[string]bool{}
 		var alongside []resource.Unmanaged
+		via := map[string][]string{}
 		for i := range steps {
 			maps.Copy(leads, steps[i].Leads)
+			maps.Copy(via, steps[i].Via)
 			for _, p := range steps[i].LeadsMoved {
 				moved[p] = true
 			}
 			if alongside == nil {
 				alongside = steps[i].Alongside
 			}
-			steps[i].Leads, steps[i].LeadsMoved, steps[i].Alongside = nil, nil, nil
+			steps[i].Leads, steps[i].LeadsMoved, steps[i].Alongside, steps[i].Via = nil, nil, nil, nil
 		}
 		// A person approves the plan as a whole, so each step goes by where every path
 		// in it leads: a service and the bind volume it mounts are two steps.
@@ -1994,7 +1996,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		// specs: the control plane decides it, whatever the agent says. What a
 		// backup says it came from is the agent's, and can only make a plan louder.
 		gains := map[resource.Ref][]resource.Access{}
-		mounts, err := e.holdingsOn(ctx, server, its, before, after, leads, alongside)
+		mounts, err := e.holdingsOn(ctx, server, its, before, after, paths{leads: leads, via: via}, alongside)
 		if err != nil {
 			return nil, err
 		}

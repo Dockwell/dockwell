@@ -990,6 +990,17 @@ message PlanResult {
   // paths they mount, for a plan that mounts or may mount one. The control
   // plane counts what something it plans can write around as held by it.
   repeated UnmanagedMounts unmanaged = 100;
+  // The links each server path on this server passes through on the way to where
+  // it leads, for a plan that mounts or may mount one: what moves the path if
+  // something rewrites one of them.
+  repeated PathVia via = 103;
+}
+
+// PathVia is a server path and the links its walk passed through, each by its
+// own path in its folder, resolved.
+message PathVia {
+  string path = 103;
+  repeated string links = 104;
 }
 
 // UnmanagedMounts is a container Dockwell didn't make and the server paths it

@@ -160,6 +160,96 @@ func TestAHoldWrittenThroughALinkIsCounted(t *testing.T) {
 	}
 }
 
+// A link on the way to a source moves it wherever the link is rewritten to, so what
+// can write the folder that link is in holds the source, even where the source ends up
+// outside that folder. Here /srv leads to /disk, the holder writes /disk/app, and
+// /disk/app/y leads to /b, so a source written /srv/app/y/conf ends up at /b/conf,
+// by way of a link the holder can rewrite. The narrow check's case, in both orders,
+// with the held app out of the plan for the holder's new code.
+func TestAHoldOfALinkOnTheWayToASourceIsCounted(t *testing.T) {
+	for name, heldFirst := range map[string]bool{"the holder first": false, "the held first": true} {
+		t.Run(name, func(t *testing.T) {
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			disk, srv, b := filepath.Join(dir, "disk"), filepath.Join(dir, "srv"), filepath.Join(dir, "b")
+			for _, d := range []string{filepath.Join(disk, "app"), filepath.Join(b, "conf")} {
+				if err := os.MkdirAll(d, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Symlink(disk, srv); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(b, filepath.Join(disk, "app", "y")); err != nil {
+				t.Fatal(err)
+			}
+			e, db, _ := followingPaths(t, filepath.Join(dir, "dockwell"))
+			env := production(t, db)
+			serve := func(name, p string, command ...string) Edit {
+				return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: name}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+					Image: "nginx:1.27", Command: command, Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/m"}},
+				}}}}
+			}
+			holder, held := serve("holder", filepath.Join(disk, "app")), serve("held", filepath.Join(srv, "app", "y", "conf"))
+			first, then := holder, held
+			if heldFirst {
+				first, then = held, holder
+			}
+			apply(t, e, propose(t, e, "First", first))
+			layout := propose(t, e, "Then", then)
+			if !layout.AsGoodAsRoot() {
+				t.Fatalf("the layout reads as ordinary: %+v", layout.Resources)
+			}
+			apply(t, e, layout)
+			if newCode := propose(t, e, "New code", serve("holder", filepath.Join(disk, "app"), "sh")); !newCode.AsGoodAsRoot() {
+				t.Errorf("new code in the holder asks nothing: %+v", newCode.Resources)
+			}
+		})
+	}
+}
+
+// A link on the way to what a container someone ran by hand mounts counts as one on
+// the way to what Dockwell made: the agent walks every path on its server.
+func TestALinkOnTheWayToWhatsRunByHandCounts(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	disk, srv, b := filepath.Join(dir, "disk"), filepath.Join(dir, "srv"), filepath.Join(dir, "b")
+	for _, d := range []string{filepath.Join(disk, "app"), filepath.Join(b, "conf")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(disk, srv); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(b, filepath.Join(disk, "app", "y")); err != nil {
+		t.Fatal(err)
+	}
+	e, db, engine := followingPaths(t, filepath.Join(dir, "dockwell"))
+	env := production(t, db)
+	engine.AddLocalImage("alpine:3", dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}})
+	c := engine.Client()
+	source := filepath.Join(srv, "app", "y", "conf")
+	id, err := c.CreateContainer(t.Context(), "by-hand", &docker.CreateRequest{Config: docker.Config{Image: "alpine:3"}, HostConfig: docker.HostConfig{Binds: []string{source + ":/conf"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	plan := propose(t, e, "Files", Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "files"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: filepath.Join(disk, "app")}, Target: "/app"}},
+	}}}})
+	want := resource.Access{Kind: resource.AccessPath, Path: filepath.Join(disk, "app"), Holds: source, HoldsFor: "by-hand", SameAsRoot: true}
+	if !plan.AsGoodAsRoot() || !slices.Contains(plan.Resources[0].HostAccess, want) {
+		t.Errorf("it says %+v, want %+v", plan.Resources[0].HostAccess, want)
+	}
+}
+
 // What Dockwell didn't make can be what's held too: a container someone ran by hand
 // follows its source when Docker restarts it, as any does. It's named on the plan, by
 // its name in Docker, beside what Dockwell made, which isn't named again. It never

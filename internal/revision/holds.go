@@ -67,7 +67,8 @@ const unmanagedKind resource.Kind = "unmanaged"
 
 // holdingsOn works out what holds what on server. Most changes mount no server path,
 // and those read nothing more.
-func (e *Engine) holdingsOn(ctx context.Context, server string, its []*item, before, after map[resource.Ref]proto.Message, leads map[string]string, alongside []resource.Unmanaged) (pathHolds, error) {
+func (e *Engine) holdingsOn(ctx context.Context, server string, its []*item, before, after map[resource.Ref]proto.Message, walked paths, alongside []resource.Unmanaged) (pathHolds, error) {
+	leads := walked.leads
 	var was, is []serverMount
 	for _, it := range its {
 		was = append(was, mountsOf(it.ref, e.reach(it.ref, it.currentOn(server), before), leads)...)
@@ -102,7 +103,7 @@ func (e *Engine) holdingsOn(ctx context.Context, server string, its []*item, bef
 			was, is = append(was, m), append(is, m)
 		}
 	}
-	return pathHolds{before: holdingsIn(was, leads), after: holdingsIn(is, leads)}, nil
+	return pathHolds{before: holdingsIn(was, walked), after: holdingsIn(is, walked)}, nil
 }
 
 // othersOn reads every service and container on server that the change leaves alone.
@@ -162,7 +163,8 @@ func mountsOf(ref resource.Ref, list []resource.Access, leads map[string]string)
 // point can't be replaced from inside, so a source at the very path is no pair. A
 // holder that's as good as root already asks for everything, and what's held that is
 // gains nothing by being moved, so neither makes one.
-func holdingsIn(list []serverMount, leads map[string]string) []pathHold {
+func holdingsIn(list []serverMount, walked paths) []pathHold {
+	leads := walked.leads
 	var out []pathHold
 	for i := range list {
 		h := &list[i]
@@ -171,7 +173,7 @@ func holdingsIn(list []serverMount, leads map[string]string) []pathHold {
 		}
 		for j := range list {
 			s := &list[j]
-			if !s.root && strictlyInside(h.access.Path, s.access.Path, leads) {
+			if !s.root && strictlyInside(h.access.Path, s.access.Path, walked) {
 				out = append(out, pathHold{holder: h.ref, source: s.ref, in: h.access.Path, at: s.access.Path})
 			}
 		}
@@ -179,11 +181,22 @@ func holdingsIn(list []serverMount, leads map[string]string) []pathHold {
 	return out
 }
 
+// paths is what the agent says of the server's paths: where each leads, and the links
+// each passes through on the way.
+type paths struct {
+	leads map[string]string
+	via   map[string][]string
+}
+
 // strictlyInside reports source inside holder, as either is written or where it leads.
-// What a holder can replace is the source's last part, in whatever folder that's in,
-// even where the source itself leads elsewhere already.
-func strictlyInside(holder, source string, leads map[string]string) bool {
-	sources := []string{source, leads[source]}
+// What a holder can replace is any link on the way to the source, as well as where it
+// ends: a link inside the holder's folder moves the source wherever it's rewritten to,
+// even where the source ends up outside it. That's the source's last part in its
+// resolved folder, where the source itself is a link, and every link the walk to it
+// passed through.
+func strictlyInside(holder, source string, walked paths) bool {
+	leads := walked.leads
+	sources := append([]string{source, leads[source]}, walked.via[path.Clean(source)]...)
 	if dir := leads[path.Dir(path.Clean(source))]; dir != "" {
 		sources = append(sources, path.Join(dir, path.Base(source)))
 	}

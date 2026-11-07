@@ -46,6 +46,8 @@ type Host struct {
 	// Resolve follows a path's symlinks on the server. Nil takes paths as
 	// written, as the control plane does, which can't see the server.
 	Resolve func(string) (string, error)
+	// Walk is Resolve, and the links it passed through on the way. Nil says none.
+	Walk func(string) (string, []string, error)
 }
 
 // DefaultHost is what the control plane checks, with the system service's
@@ -752,15 +754,23 @@ func (d *Docker) Survey(ctx context.Context, paths []string) (resource.Surveyed,
 	if err != nil || h.Resolve == nil {
 		return resource.Surveyed{}, err
 	}
-	out := resource.Surveyed{Leads: map[string]string{}}
+	out := resource.Surveyed{Leads: map[string]string{}, Via: map[string][]string{}}
 	seen := map[string]bool{}
 	for _, p := range paths {
-		for _, at := range []string{path.Clean(p), path.Dir(path.Clean(p))} {
+		for i, at := range []string{path.Clean(p), path.Dir(path.Clean(p))} {
 			if seen[at] || !path.IsAbs(at) {
 				continue
 			}
 			seen[at] = true
-			if to, err := h.Resolve(at); err == nil && to != at {
+			to, err := h.Resolve(at)
+			// For a path itself, every link on the way: rewriting any of them moves it.
+			if i == 0 && h.Walk != nil {
+				var via []string
+				if to, via, err = h.Walk(at); err == nil && len(via) > 0 {
+					out.Via[at] = via
+				}
+			}
+			if err == nil && to != at {
 				out.Leads[at] = to
 			}
 		}
@@ -865,7 +875,7 @@ func (p *Paths) Host(ctx context.Context) (Host, error) {
 	if err != nil {
 		return Host{}, fmt.Errorf("can't ask Docker where it keeps its data: %w", err)
 	}
-	h := Host{Resolve: resolve}
+	h := Host{Resolve: resolve, Walk: resolveVia}
 	add := func(list *[]string, dirs ...string) {
 		for _, d := range dirs {
 			if d == "" {
@@ -893,11 +903,35 @@ func Resolve(p string) (string, error) { return resolve(p) }
 // stopped answering (followWithin).
 func resolve(p string) (string, error) { return followWithin(p, walkLinks) }
 
+// resolveVia is resolve, and the links the walk passed through on the way, each by
+// its own path in the folder it's in, resolved: what moves the path where it leads
+// if something rewrites it. They're read only once the walk is back, which the
+// walk's own answer says.
+func resolveVia(p string) (string, []string, error) {
+	var via []string
+	to, err := followWithin(p, func(p string, touch func(string) error) (string, error) {
+		to, links, err := walkLinksVia(p, touch)
+		via = links
+		return to, err
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	return to, via, nil
+}
+
 // walkLinks follows an absolute path on this server part by part, as the
 // kernel does: .. goes up from where a symlink led, not from how the path
 // is spelled. Docker makes a server path that isn't there, so what doesn't
 // exist yet is taken as it is: it holds no symlinks.
 func walkLinks(p string, touch func(string) error) (string, error) {
+	to, _, err := walkLinksVia(p, touch)
+	return to, err
+}
+
+// walkLinksVia is walkLinks, and the links it passed through, by their own paths.
+func walkLinksVia(p string, touch func(string) error) (string, []string, error) {
+	var via []string
 	at := "/"
 	rest := strings.Split(p, "/")
 	for links := 0; len(rest) > 0; {
@@ -912,7 +946,7 @@ func walkLinks(p string, touch func(string) error) (string, error) {
 		}
 		next := filepath.Join(at, part)
 		if err := touch(next); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		fi, err := os.Lstat(next)
 		switch {
@@ -920,25 +954,26 @@ func walkLinks(p string, touch func(string) error) (string, error) {
 			at = next
 			continue
 		case err != nil:
-			return "", err
+			return "", nil, err
 		case fi.Mode()&fs.ModeSymlink == 0:
 			at = next
 			continue
 		}
 		links++
 		if links > maxLinks {
-			return "", fmt.Errorf("%s leads through more than %d symlinks", p, maxLinks)
+			return "", nil, fmt.Errorf("%s leads through more than %d symlinks", p, maxLinks)
 		}
 		to, err := os.Readlink(next)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
+		via = append(via, next)
 		if filepath.IsAbs(to) {
 			at = "/"
 		}
 		rest = append(strings.Split(to, "/"), rest...)
 	}
-	return at, nil
+	return at, via, nil
 }
 
 // Planned is what a plan wants of a container on this server, for checking what

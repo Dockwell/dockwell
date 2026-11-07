@@ -183,6 +183,9 @@ type Decision struct {
 	// Alongside is what containers Dockwell didn't make mount on the step's server,
 	// as its agent surveyed it for the plan. It isn't kept with the plan.
 	Alongside []Unmanaged `json:"-"`
+	// Via is the links each server path there passes through on the way to where it
+	// leads, by their own paths, as its agent surveyed them. It isn't kept either.
+	Via map[string][]string `json:"-"`
 	// Pull is true when the step asks the server for its image again first. With
 	// no Changes, it replaces what runs only if that finds a newer image. With
 	// nothing but a restart policy to change, it changes that in place otherwise.

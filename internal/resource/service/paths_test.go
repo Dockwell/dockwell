@@ -300,3 +300,53 @@ func TestPuttingBackWhatRanSaysWhatToDoAboutAPath(t *testing.T) {
 		t.Error("what ran was started over the link")
 	}
 }
+
+// A start refused over a moved path leaves the container kept from starting by itself.
+// Once the path is put back, a planned start runs it with its spec's restart policy
+// again, whichever way the rollout goes: the narrow check's case.
+func TestAStartOnAPathPutBackRunsWithItsPolicy(t *testing.T) {
+	for name, tt := range map[string]struct {
+		order resourcev1.RolloutOrder
+		point string
+	}{
+		"the new one first": {order: resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST, point: container.PointStarting},
+		"the old one first": {order: resourcev1.RolloutOrder_ROLLOUT_ORDER_STOP_FIRST, point: container.PointSwapNamed},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, spec, conf, toEtc := aServiceOnAFolder(t, tt.order)
+			s.deploy(t, webRef, proto.Clone(spec).(*resourcev1.Service))
+			s.engine.Stop(strings.TrimPrefix(s.engine.Newest(project, "web").Name, "/"))
+			plan := func() resource.Step {
+				t.Helper()
+				steps, err := s.local.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: proto.Clone(spec), Run: true}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return steps[0]
+			}
+			step := plan()
+			s.rt.Points = func(at string) {
+				if at == tt.point {
+					toEtc()
+				}
+			}
+			if err := s.local.Apply(t.Context(), step, spec); err == nil {
+				t.Fatal("a start over a link made right before it went ahead")
+			}
+			s.rt.Points = nil
+			if err := os.Remove(conf); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(conf, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.local.Apply(t.Context(), plan(), spec); err != nil {
+				t.Fatalf("a start once the path is back: %v", err)
+			}
+			now := s.engine.Newest(project, "web")
+			if now == nil || !now.State.Running || now.HostConfig.RestartPolicy.Name == "no" {
+				t.Errorf("it is %+v, want it running with its spec's restart policy", now)
+			}
+		})
+	}
+}

@@ -5317,7 +5317,11 @@ type PlanResult struct {
 	// The containers on this server that Dockwell didn't make, with the server
 	// paths they mount, for a plan that mounts or may mount one. The control
 	// plane counts what something it plans can write around as held by it.
-	Unmanaged     []*UnmanagedMounts `protobuf:"bytes,100,rep,name=unmanaged,proto3" json:"unmanaged,omitempty"`
+	Unmanaged []*UnmanagedMounts `protobuf:"bytes,100,rep,name=unmanaged,proto3" json:"unmanaged,omitempty"`
+	// The links each server path on this server passes through on the way to where
+	// it leads, for a plan that mounts or may mount one: what moves the path if
+	// something rewrites one of them.
+	Via           []*PathVia `protobuf:"bytes,103,rep,name=via,proto3" json:"via,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5366,6 +5370,67 @@ func (x *PlanResult) GetUnmanaged() []*UnmanagedMounts {
 	return nil
 }
 
+func (x *PlanResult) GetVia() []*PathVia {
+	if x != nil {
+		return x.Via
+	}
+	return nil
+}
+
+// PathVia is a server path and the links its walk passed through, each by its
+// own path in its folder, resolved.
+type PathVia struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,103,opt,name=path,proto3" json:"path,omitempty"`
+	Links         []string               `protobuf:"bytes,104,rep,name=links,proto3" json:"links,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PathVia) Reset() {
+	*x = PathVia{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PathVia) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PathVia) ProtoMessage() {}
+
+func (x *PathVia) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PathVia.ProtoReflect.Descriptor instead.
+func (*PathVia) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *PathVia) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *PathVia) GetLinks() []string {
+	if x != nil {
+		return x.Links
+	}
+	return nil
+}
+
 // UnmanagedMounts is a container Dockwell didn't make and the server paths it
 // mounts, as written.
 type UnmanagedMounts struct {
@@ -5382,7 +5447,7 @@ type UnmanagedMounts struct {
 
 func (x *UnmanagedMounts) Reset() {
 	*x = UnmanagedMounts{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[65]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5394,7 +5459,7 @@ func (x *UnmanagedMounts) String() string {
 func (*UnmanagedMounts) ProtoMessage() {}
 
 func (x *UnmanagedMounts) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[65]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5407,7 +5472,7 @@ func (x *UnmanagedMounts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnmanagedMounts.ProtoReflect.Descriptor instead.
 func (*UnmanagedMounts) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{65}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *UnmanagedMounts) GetName() string {
@@ -5440,7 +5505,7 @@ type ApplyResult struct {
 
 func (x *ApplyResult) Reset() {
 	*x = ApplyResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[66]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5452,7 +5517,7 @@ func (x *ApplyResult) String() string {
 func (*ApplyResult) ProtoMessage() {}
 
 func (x *ApplyResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[66]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5465,7 +5530,7 @@ func (x *ApplyResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyResult.ProtoReflect.Descriptor instead.
 func (*ApplyResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{66}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{67}
 }
 
 // ObserveResult carries an observe call's resources.
@@ -5479,7 +5544,7 @@ type ObserveResult struct {
 
 func (x *ObserveResult) Reset() {
 	*x = ObserveResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[67]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5491,7 +5556,7 @@ func (x *ObserveResult) String() string {
 func (*ObserveResult) ProtoMessage() {}
 
 func (x *ObserveResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[67]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5504,7 +5569,7 @@ func (x *ObserveResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ObserveResult.ProtoReflect.Descriptor instead.
 func (*ObserveResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{67}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ObserveResult) GetResources() []*ObservedResource {
@@ -5526,7 +5591,7 @@ type ObservedResource struct {
 
 func (x *ObservedResource) Reset() {
 	*x = ObservedResource{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[68]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5538,7 +5603,7 @@ func (x *ObservedResource) String() string {
 func (*ObservedResource) ProtoMessage() {}
 
 func (x *ObservedResource) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[68]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5551,7 +5616,7 @@ func (x *ObservedResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ObservedResource.ProtoReflect.Descriptor instead.
 func (*ObservedResource) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{68}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ObservedResource) GetSpec() []byte {
@@ -5939,11 +6004,15 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06reason\x18\x05 \x01(\tR\x06reason\x12\x1e\n" +
 	"\n" +
 	"unfinished\x18\x06 \x01(\bR\n" +
-	"unfinished\"{\n" +
+	"unfinished\"\xa9\x01\n" +
 	"\n" +
 	"PlanResult\x12+\n" +
 	"\x05steps\x18\x01 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12@\n" +
-	"\tunmanaged\x18d \x03(\v2\".dockwell.agent.v1.UnmanagedMountsR\tunmanaged\"O\n" +
+	"\tunmanaged\x18d \x03(\v2\".dockwell.agent.v1.UnmanagedMountsR\tunmanaged\x12,\n" +
+	"\x03via\x18g \x03(\v2\x1a.dockwell.agent.v1.PathViaR\x03via\"3\n" +
+	"\aPathVia\x12\x12\n" +
+	"\x04path\x18g \x01(\tR\x04path\x12\x14\n" +
+	"\x05links\x18h \x03(\tR\x05links\"O\n" +
 	"\x0fUnmanagedMounts\x12\x12\n" +
 	"\x04name\x18d \x01(\tR\x04name\x12\x14\n" +
 	"\x05paths\x18e \x03(\tR\x05paths\x12\x12\n" +
@@ -5975,7 +6044,7 @@ func file_dockwell_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 71)
+var file_dockwell_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 72)
 var file_dockwell_agent_v1_agent_proto_goTypes = []any{
 	(FileRefusal_Kind)(0),            // 0: dockwell.agent.v1.FileRefusal.Kind
 	(*ConnectRequest)(nil),           // 1: dockwell.agent.v1.ConnectRequest
@@ -6043,36 +6112,37 @@ var file_dockwell_agent_v1_agent_proto_goTypes = []any{
 	(*LogsResult)(nil),               // 63: dockwell.agent.v1.LogsResult
 	(*CallError)(nil),                // 64: dockwell.agent.v1.CallError
 	(*PlanResult)(nil),               // 65: dockwell.agent.v1.PlanResult
-	(*UnmanagedMounts)(nil),          // 66: dockwell.agent.v1.UnmanagedMounts
-	(*ApplyResult)(nil),              // 67: dockwell.agent.v1.ApplyResult
-	(*ObserveResult)(nil),            // 68: dockwell.agent.v1.ObserveResult
-	(*ObservedResource)(nil),         // 69: dockwell.agent.v1.ObservedResource
-	nil,                              // 70: dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
-	nil,                              // 71: dockwell.agent.v1.Values.ValuesEntry
-	(*v1.ServerStats)(nil),           // 72: dockwell.v1.ServerStats
-	(v1.CloudProvider)(0),            // 73: dockwell.v1.CloudProvider
-	(*timestamppb.Timestamp)(nil),    // 74: google.protobuf.Timestamp
-	(*v1.InstanceHealth)(nil),        // 75: dockwell.v1.InstanceHealth
-	(*v1.DomainStatus)(nil),          // 76: dockwell.v1.DomainStatus
-	(*v1.IngressStatus)(nil),         // 77: dockwell.v1.IngressStatus
-	(v1.PlanAction)(0),               // 78: dockwell.v1.PlanAction
-	(*v1.BuildInfo)(nil),             // 79: dockwell.v1.BuildInfo
-	(*v1.ServerInventory)(nil),       // 80: dockwell.v1.ServerInventory
-	(*durationpb.Duration)(nil),      // 81: google.protobuf.Duration
-	(*v1.ResourceRef)(nil),           // 82: dockwell.v1.ResourceRef
-	(*v1.ListFilesResponse)(nil),     // 83: dockwell.v1.ListFilesResponse
-	(*v1.ReadFileResponse)(nil),      // 84: dockwell.v1.ReadFileResponse
-	(*v1.SaveFileResponse)(nil),      // 85: dockwell.v1.SaveFileResponse
-	(v1.LogLevel)(0),                 // 86: dockwell.v1.LogLevel
-	(*v1.LogSource)(nil),             // 87: dockwell.v1.LogSource
-	(*v1.LogChunk)(nil),              // 88: dockwell.v1.LogChunk
-	(*v1.PlanStep)(nil),              // 89: dockwell.v1.PlanStep
-	(v1.BackupMethod)(0),             // 90: dockwell.v1.BackupMethod
-	(*v1.ServerContainer)(nil),       // 91: dockwell.v1.ServerContainer
+	(*PathVia)(nil),                  // 66: dockwell.agent.v1.PathVia
+	(*UnmanagedMounts)(nil),          // 67: dockwell.agent.v1.UnmanagedMounts
+	(*ApplyResult)(nil),              // 68: dockwell.agent.v1.ApplyResult
+	(*ObserveResult)(nil),            // 69: dockwell.agent.v1.ObserveResult
+	(*ObservedResource)(nil),         // 70: dockwell.agent.v1.ObservedResource
+	nil,                              // 71: dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
+	nil,                              // 72: dockwell.agent.v1.Values.ValuesEntry
+	(*v1.ServerStats)(nil),           // 73: dockwell.v1.ServerStats
+	(v1.CloudProvider)(0),            // 74: dockwell.v1.CloudProvider
+	(*timestamppb.Timestamp)(nil),    // 75: google.protobuf.Timestamp
+	(*v1.InstanceHealth)(nil),        // 76: dockwell.v1.InstanceHealth
+	(*v1.DomainStatus)(nil),          // 77: dockwell.v1.DomainStatus
+	(*v1.IngressStatus)(nil),         // 78: dockwell.v1.IngressStatus
+	(v1.PlanAction)(0),               // 79: dockwell.v1.PlanAction
+	(*v1.BuildInfo)(nil),             // 80: dockwell.v1.BuildInfo
+	(*v1.ServerInventory)(nil),       // 81: dockwell.v1.ServerInventory
+	(*durationpb.Duration)(nil),      // 82: google.protobuf.Duration
+	(*v1.ResourceRef)(nil),           // 83: dockwell.v1.ResourceRef
+	(*v1.ListFilesResponse)(nil),     // 84: dockwell.v1.ListFilesResponse
+	(*v1.ReadFileResponse)(nil),      // 85: dockwell.v1.ReadFileResponse
+	(*v1.SaveFileResponse)(nil),      // 86: dockwell.v1.SaveFileResponse
+	(v1.LogLevel)(0),                 // 87: dockwell.v1.LogLevel
+	(*v1.LogSource)(nil),             // 88: dockwell.v1.LogSource
+	(*v1.LogChunk)(nil),              // 89: dockwell.v1.LogChunk
+	(*v1.PlanStep)(nil),              // 90: dockwell.v1.PlanStep
+	(v1.BackupMethod)(0),             // 91: dockwell.v1.BackupMethod
+	(*v1.ServerContainer)(nil),       // 92: dockwell.v1.ServerContainer
 }
 var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	12,  // 0: dockwell.agent.v1.ConnectRequest.hello:type_name -> dockwell.agent.v1.Hello
-	72,  // 1: dockwell.agent.v1.ConnectRequest.stats:type_name -> dockwell.v1.ServerStats
+	73,  // 1: dockwell.agent.v1.ConnectRequest.stats:type_name -> dockwell.v1.ServerStats
 	55,  // 2: dockwell.agent.v1.ConnectRequest.result:type_name -> dockwell.agent.v1.CallResult
 	11,  // 3: dockwell.agent.v1.ConnectRequest.draining:type_name -> dockwell.agent.v1.Draining
 	7,   // 4: dockwell.agent.v1.ConnectRequest.progress:type_name -> dockwell.agent.v1.CallProgress
@@ -6082,21 +6152,21 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	2,   // 8: dockwell.agent.v1.ConnectRequest.unstuck:type_name -> dockwell.agent.v1.Unstuck
 	3,   // 9: dockwell.agent.v1.ConnectRequest.save_ended:type_name -> dockwell.agent.v1.SaveEnded
 	4,   // 10: dockwell.agent.v1.ConnectRequest.network:type_name -> dockwell.agent.v1.Network
-	73,  // 11: dockwell.agent.v1.Network.provider:type_name -> dockwell.v1.CloudProvider
-	74,  // 12: dockwell.agent.v1.Network.looked_up_time:type_name -> google.protobuf.Timestamp
-	73,  // 13: dockwell.agent.v1.Network.machine_provider:type_name -> dockwell.v1.CloudProvider
-	75,  // 14: dockwell.agent.v1.Health.instances:type_name -> dockwell.v1.InstanceHealth
-	74,  // 15: dockwell.agent.v1.Health.scanned_at:type_name -> google.protobuf.Timestamp
-	74,  // 16: dockwell.agent.v1.Health.reported_at:type_name -> google.protobuf.Timestamp
-	74,  // 17: dockwell.agent.v1.Health.docker_unreadable_since:type_name -> google.protobuf.Timestamp
-	76,  // 18: dockwell.agent.v1.Domains.domains:type_name -> dockwell.v1.DomainStatus
-	77,  // 19: dockwell.agent.v1.Domains.ingress:type_name -> dockwell.v1.IngressStatus
+	74,  // 11: dockwell.agent.v1.Network.provider:type_name -> dockwell.v1.CloudProvider
+	75,  // 12: dockwell.agent.v1.Network.looked_up_time:type_name -> google.protobuf.Timestamp
+	74,  // 13: dockwell.agent.v1.Network.machine_provider:type_name -> dockwell.v1.CloudProvider
+	76,  // 14: dockwell.agent.v1.Health.instances:type_name -> dockwell.v1.InstanceHealth
+	75,  // 15: dockwell.agent.v1.Health.scanned_at:type_name -> google.protobuf.Timestamp
+	75,  // 16: dockwell.agent.v1.Health.reported_at:type_name -> google.protobuf.Timestamp
+	75,  // 17: dockwell.agent.v1.Health.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	77,  // 18: dockwell.agent.v1.Domains.domains:type_name -> dockwell.v1.DomainStatus
+	78,  // 19: dockwell.agent.v1.Domains.ingress:type_name -> dockwell.v1.IngressStatus
 	8,   // 20: dockwell.agent.v1.CallProgress.outcome:type_name -> dockwell.agent.v1.StepOutcome
-	78,  // 21: dockwell.agent.v1.StepOutcome.did:type_name -> dockwell.v1.PlanAction
+	79,  // 21: dockwell.agent.v1.StepOutcome.did:type_name -> dockwell.v1.PlanAction
 	58,  // 22: dockwell.agent.v1.StepOutcome.backup:type_name -> dockwell.agent.v1.BackupResult
 	10,  // 23: dockwell.agent.v1.Kinds.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
-	79,  // 24: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
-	80,  // 25: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
+	80,  // 24: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
+	81,  // 25: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
 	10,  // 26: dockwell.agent.v1.Hello.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
 	17,  // 27: dockwell.agent.v1.ConnectResponse.welcome:type_name -> dockwell.agent.v1.Welcome
 	23,  // 28: dockwell.agent.v1.ConnectResponse.call:type_name -> dockwell.agent.v1.Call
@@ -6104,10 +6174,10 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	16,  // 30: dockwell.agent.v1.ConnectResponse.drained:type_name -> dockwell.agent.v1.Drained
 	14,  // 31: dockwell.agent.v1.ConnectResponse.public_address:type_name -> dockwell.agent.v1.PublicAddress
 	15,  // 32: dockwell.agent.v1.PublicAddress.addresses:type_name -> dockwell.agent.v1.KnownAddress
-	73,  // 33: dockwell.agent.v1.PublicAddress.provider:type_name -> dockwell.v1.CloudProvider
-	81,  // 34: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
-	79,  // 35: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
-	81,  // 36: dockwell.agent.v1.Call.timeout:type_name -> google.protobuf.Duration
+	74,  // 33: dockwell.agent.v1.PublicAddress.provider:type_name -> dockwell.v1.CloudProvider
+	82,  // 34: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
+	80,  // 35: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
+	82,  // 36: dockwell.agent.v1.Call.timeout:type_name -> google.protobuf.Duration
 	48,  // 37: dockwell.agent.v1.Call.plan:type_name -> dockwell.agent.v1.PlanCall
 	49,  // 38: dockwell.agent.v1.Call.apply:type_name -> dockwell.agent.v1.ApplyCall
 	52,  // 39: dockwell.agent.v1.Call.observe:type_name -> dockwell.agent.v1.ObserveCall
@@ -6124,49 +6194,49 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	29,  // 50: dockwell.agent.v1.Call.delete_backup:type_name -> dockwell.agent.v1.DeleteBackupCall
 	28,  // 51: dockwell.agent.v1.Call.fetch_backup:type_name -> dockwell.agent.v1.FetchBackupCall
 	27,  // 52: dockwell.agent.v1.Call.send_backup:type_name -> dockwell.agent.v1.SendBackupCall
-	82,  // 53: dockwell.agent.v1.AdoptionCall.resource:type_name -> dockwell.v1.ResourceRef
-	82,  // 54: dockwell.agent.v1.BackupPreviewCall.volume:type_name -> dockwell.v1.ResourceRef
-	82,  // 55: dockwell.agent.v1.BackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	82,  // 56: dockwell.agent.v1.SendBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	82,  // 57: dockwell.agent.v1.FetchBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	82,  // 58: dockwell.agent.v1.DeleteBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	83,  // 53: dockwell.agent.v1.AdoptionCall.resource:type_name -> dockwell.v1.ResourceRef
+	83,  // 54: dockwell.agent.v1.BackupPreviewCall.volume:type_name -> dockwell.v1.ResourceRef
+	83,  // 55: dockwell.agent.v1.BackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	83,  // 56: dockwell.agent.v1.SendBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	83,  // 57: dockwell.agent.v1.FetchBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	83,  // 58: dockwell.agent.v1.DeleteBackupCall.volume:type_name -> dockwell.v1.ResourceRef
 	0,   // 59: dockwell.agent.v1.FileRefusal.kind:type_name -> dockwell.agent.v1.FileRefusal.Kind
-	83,  // 60: dockwell.agent.v1.ListFilesResult.listing:type_name -> dockwell.v1.ListFilesResponse
+	84,  // 60: dockwell.agent.v1.ListFilesResult.listing:type_name -> dockwell.v1.ListFilesResponse
 	35,  // 61: dockwell.agent.v1.ListFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	84,  // 62: dockwell.agent.v1.ReadFileResult.file:type_name -> dockwell.v1.ReadFileResponse
+	85,  // 62: dockwell.agent.v1.ReadFileResult.file:type_name -> dockwell.v1.ReadFileResponse
 	35,  // 63: dockwell.agent.v1.ReadFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	85,  // 64: dockwell.agent.v1.SaveFileResult.saved:type_name -> dockwell.v1.SaveFileResponse
+	86,  // 64: dockwell.agent.v1.SaveFileResult.saved:type_name -> dockwell.v1.SaveFileResponse
 	35,  // 65: dockwell.agent.v1.SaveFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	82,  // 66: dockwell.agent.v1.LogSourcesCall.resource:type_name -> dockwell.v1.ResourceRef
+	83,  // 66: dockwell.agent.v1.LogSourcesCall.resource:type_name -> dockwell.v1.ResourceRef
 	41,  // 67: dockwell.agent.v1.ForgottenCall.services:type_name -> dockwell.agent.v1.ForgottenService
-	82,  // 68: dockwell.agent.v1.ForgottenService.resource:type_name -> dockwell.v1.ResourceRef
-	82,  // 69: dockwell.agent.v1.LogsCall.resource:type_name -> dockwell.v1.ResourceRef
-	74,  // 70: dockwell.agent.v1.LogsCall.since:type_name -> google.protobuf.Timestamp
-	74,  // 71: dockwell.agent.v1.LogsCall.until:type_name -> google.protobuf.Timestamp
-	86,  // 72: dockwell.agent.v1.LogsCall.levels:type_name -> dockwell.v1.LogLevel
+	83,  // 68: dockwell.agent.v1.ForgottenService.resource:type_name -> dockwell.v1.ResourceRef
+	83,  // 69: dockwell.agent.v1.LogsCall.resource:type_name -> dockwell.v1.ResourceRef
+	75,  // 70: dockwell.agent.v1.LogsCall.since:type_name -> google.protobuf.Timestamp
+	75,  // 71: dockwell.agent.v1.LogsCall.until:type_name -> google.protobuf.Timestamp
+	87,  // 72: dockwell.agent.v1.LogsCall.levels:type_name -> dockwell.v1.LogLevel
 	44,  // 73: dockwell.agent.v1.LogsCall.after:type_name -> dockwell.agent.v1.LogCursor
 	44,  // 74: dockwell.agent.v1.LogsCall.before:type_name -> dockwell.agent.v1.LogCursor
-	74,  // 75: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
-	81,  // 76: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
-	74,  // 77: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
-	74,  // 78: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
-	87,  // 79: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
-	88,  // 80: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
+	75,  // 75: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
+	82,  // 76: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
+	75,  // 77: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
+	75,  // 78: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
+	88,  // 79: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
+	89,  // 80: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
 	45,  // 81: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
-	74,  // 82: dockwell.agent.v1.SendLogsRequest.started:type_name -> google.protobuf.Timestamp
+	75,  // 82: dockwell.agent.v1.SendLogsRequest.started:type_name -> google.protobuf.Timestamp
 	53,  // 83: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	89,  // 84: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
+	90,  // 84: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
 	53,  // 85: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
 	50,  // 86: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
-	70,  // 87: dockwell.agent.v1.ApplyCall.planned_leads:type_name -> dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
-	71,  // 88: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
-	82,  // 89: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
-	82,  // 90: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
+	71,  // 87: dockwell.agent.v1.ApplyCall.planned_leads:type_name -> dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
+	72,  // 88: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
+	83,  // 89: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
+	83,  // 90: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
 	30,  // 91: dockwell.agent.v1.DesiredResource.restore:type_name -> dockwell.agent.v1.RestoreSource
 	64,  // 92: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
 	65,  // 93: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
-	67,  // 94: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
-	68,  // 95: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
+	68,  // 94: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
+	69,  // 95: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
 	62,  // 96: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
 	63,  // 97: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
 	42,  // 98: dockwell.agent.v1.CallResult.forgotten:type_name -> dockwell.agent.v1.ForgottenResult
@@ -6180,26 +6250,27 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	60,  // 106: dockwell.agent.v1.CallResult.delete_backup:type_name -> dockwell.agent.v1.DeleteBackupResult
 	58,  // 107: dockwell.agent.v1.CallResult.fetch_backup:type_name -> dockwell.agent.v1.BackupResult
 	59,  // 108: dockwell.agent.v1.CallResult.send_backup:type_name -> dockwell.agent.v1.SendBackupResult
-	90,  // 109: dockwell.agent.v1.BackupPreviewResult.method:type_name -> dockwell.v1.BackupMethod
-	90,  // 110: dockwell.agent.v1.BackupResult.method:type_name -> dockwell.v1.BackupMethod
-	91,  // 111: dockwell.agent.v1.ContainersResult.containers:type_name -> dockwell.v1.ServerContainer
-	87,  // 112: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
-	89,  // 113: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
-	66,  // 114: dockwell.agent.v1.PlanResult.unmanaged:type_name -> dockwell.agent.v1.UnmanagedMounts
-	69,  // 115: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
-	19,  // 116: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
-	21,  // 117: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
-	1,   // 118: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
-	46,  // 119: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
-	20,  // 120: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
-	22,  // 121: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
-	13,  // 122: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
-	47,  // 123: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
-	120, // [120:124] is the sub-list for method output_type
-	116, // [116:120] is the sub-list for method input_type
-	116, // [116:116] is the sub-list for extension type_name
-	116, // [116:116] is the sub-list for extension extendee
-	0,   // [0:116] is the sub-list for field type_name
+	91,  // 109: dockwell.agent.v1.BackupPreviewResult.method:type_name -> dockwell.v1.BackupMethod
+	91,  // 110: dockwell.agent.v1.BackupResult.method:type_name -> dockwell.v1.BackupMethod
+	92,  // 111: dockwell.agent.v1.ContainersResult.containers:type_name -> dockwell.v1.ServerContainer
+	88,  // 112: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
+	90,  // 113: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
+	67,  // 114: dockwell.agent.v1.PlanResult.unmanaged:type_name -> dockwell.agent.v1.UnmanagedMounts
+	66,  // 115: dockwell.agent.v1.PlanResult.via:type_name -> dockwell.agent.v1.PathVia
+	70,  // 116: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
+	19,  // 117: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
+	21,  // 118: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
+	1,   // 119: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
+	46,  // 120: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
+	20,  // 121: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
+	22,  // 122: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
+	13,  // 123: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
+	47,  // 124: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
+	121, // [121:125] is the sub-list for method output_type
+	117, // [117:121] is the sub-list for method input_type
+	117, // [117:117] is the sub-list for extension type_name
+	117, // [117:117] is the sub-list for extension extendee
+	0,   // [0:117] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_agent_v1_agent_proto_init() }
@@ -6265,14 +6336,14 @@ func file_dockwell_agent_v1_agent_proto_init() {
 		(*CallResult_FetchBackup)(nil),
 		(*CallResult_SendBackup)(nil),
 	}
-	file_dockwell_agent_v1_agent_proto_msgTypes[68].OneofWrappers = []any{}
+	file_dockwell_agent_v1_agent_proto_msgTypes[69].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_agent_v1_agent_proto_rawDesc), len(file_dockwell_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   71,
+			NumMessages:   72,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -159,7 +159,10 @@ type Surveyor interface {
 // Surveyed is what a Surveyor found: where paths lead, for those that lead elsewhere,
 // and what containers Dockwell didn't make mount.
 type Surveyed struct {
-	Leads     map[string]string
+	Leads map[string]string
+	// Via is the links each path's walk passed through, by their own paths in their
+	// folders, resolved: what moves it if something rewrites one.
+	Via       map[string][]string
 	Unmanaged []Unmanaged
 }
 
@@ -472,7 +475,7 @@ func (l Local) survey(ctx context.Context, desired []Desired, steps []Step) erro
 	}
 	all := surveyed.Leads
 	for _, i := range mounting {
-		steps[i].Alongside = surveyed.Unmanaged
+		steps[i].Alongside, steps[i].Via = surveyed.Unmanaged, surveyed.Via
 		for p, to := range all {
 			if _, ok := steps[i].Leads[p]; ok {
 				continue

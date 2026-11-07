@@ -561,3 +561,46 @@ func TestWhatDockwellDidntMakeIsHeldThroughTheAgent(t *testing.T) {
 		t.Errorf("with no passkey = %v", err)
 	}
 }
+
+// The links on the way to a source come from the agent too: what can write a folder
+// one of them is in holds the source, through the agent as in the engine.
+func TestAHoldOfALinkOnTheWayCountsThroughTheAgent(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	registerImages(f.addDockerServer(t))
+	c := changeClient(b, b.origin)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	disk, srv, other := filepath.Join(dir, "disk"), filepath.Join(dir, "srv"), filepath.Join(dir, "b")
+	for _, d := range []string{filepath.Join(disk, "app"), filepath.Join(other, "conf")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(disk, srv); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, filepath.Join(disk, "app", "y")); err != nil {
+		t.Fatal(err)
+	}
+	serve := func(name, image, from string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image: image, Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: from}, Target: "/m"}},
+			}}}}},
+		}
+	}
+	applyConfirmed(t, c, proposeEdit(t, c, serve("api", "ghcr.io/acme/ops:1.0", filepath.Join(srv, "app", "y", "conf"))))
+	planned := proposeEdit(t, c, serve("files", "ghcr.io/acme/web:1.0", filepath.Join(disk, "app")))
+	if !slices.ContainsFunc(planned.GetPlan().GetResources()[0].GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+		return a.GetHoldsFor() == "api" && a.GetSameAsRoot()
+	}) {
+		t.Fatalf("the plan says %v", planned.GetPlan().GetResources()[0].GetHostAccess())
+	}
+	if err := askedBy(t, c, planned, planned.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
+		t.Errorf("with no passkey = %v", err)
+	}
+}
