@@ -2,7 +2,11 @@
 
 package container
 
-import "time"
+import (
+	"time"
+
+	"github.com/dockwell/dockwell/internal/mounts"
+)
 
 // MaxStuckPaths is maxStuckPaths, for a test to fill.
 const MaxStuckPaths = maxStuckPaths
@@ -18,9 +22,13 @@ func StopAnswering(wait time.Duration, touch func(string)) (restore func()) {
 		touching.Store(nil)
 		stuckMu.Lock()
 		defer stuckMu.Unlock()
-		clear(stuckPaths)
+		clear(leftFollows)
+		readMounts = mounts.Read
 	}
 }
+
+// PretendMounts stands info in for what's mounted here, until StopAnswering restores.
+func PretendMounts(info string) { readMounts = func() string { return info } }
 
 // ResolveForRollout is how a rollout follows a server path.
 func ResolveForRollout(d *Docker, p string) (string, error) { return d.resolvePath(p) }

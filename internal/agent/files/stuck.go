@@ -6,14 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"sync/atomic"
 	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
-	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/mounts"
 )
 
 // A network mount whose far end is down can hold a system call for as long as it
@@ -63,7 +61,7 @@ func (s *Server) stalledAt(path string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, at := range s.stuck {
-		if path == at || strings.HasPrefix(path, strings.TrimSuffix(at, "/")+"/") {
+		if mounts.Holds(at, path) {
 			return at
 		}
 	}
@@ -126,7 +124,7 @@ func attempt[T any](parent context.Context, s *Server, p string, work func(conte
 // leave notes a call left behind, and says where it stopped.
 func (s *Server) leave(t *trail) string {
 	at := *t.at.Load()
-	place := passOver(s.mounts(), at)
+	place := mounts.PassOver(s.mounts(), at)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !t.done {
@@ -141,50 +139,6 @@ func (s *Server) returned(t *trail) {
 	defer s.mu.Unlock()
 	t.done = true
 	delete(s.stuck, t)
-}
-
-// readMounts reads what's mounted here. It's the kernel's own list, which no
-// mount can hold up.
-func readMounts() string {
-	info, err := os.ReadFile("/proc/self/mountinfo")
-	if err != nil {
-		return ""
-	}
-	return string(info)
-}
-
-// remoteFilesystem reports a mount that can stop answering because something else
-// did: a network file system, or FUSE, which is a process on this server that can
-// hang the same way.
-func remoteFilesystem(fstype string) bool {
-	switch fstype {
-	case "nfs", "nfs4", "cifs", "smb3", "smbfs", "9p", "ceph", "glusterfs", "lustre", "afs", "ncpfs", "fuse", "fuseblk":
-		return true
-	}
-	return strings.HasPrefix(fstype, "fuse.")
-}
-
-// passOver says what the next call should keep away from, given where one stopped:
-// the whole mount, for one that can stop answering, as everything on it is down
-// together. Elsewhere it's that path alone, as a local disk that's slow in one
-// place isn't down.
-func passOver(mountinfo, at string) string {
-	best, remote := "", false
-	for line := range strings.Lines(mountinfo) {
-		before, after, ok := strings.Cut(line, " - ")
-		fields, fstype := strings.Fields(before), strings.Fields(after)
-		if !ok || len(fields) < 5 || len(fstype) == 0 {
-			continue
-		}
-		point := collect.UnescapeMount(fields[4])
-		if (at == point || strings.HasPrefix(at, strings.TrimSuffix(point, "/")+"/")) && len(point) >= len(best) {
-			best, remote = point, remoteFilesystem(fstype[0])
-		}
-	}
-	if remote {
-		return best
-	}
-	return at
 }
 
 // notAnswering is a path a call stopped waiting for.

@@ -51,6 +51,7 @@ var agentPackages = []string{
 	"internal/ingress", // what runs a server's routes on a proxy (ADR 0024)
 	"internal/ingress/caddy",
 	"internal/logging",
+	"internal/mounts", // what's mounted, to keep away from a mount that stopped answering
 	"internal/pki",
 	"internal/resource",
 	"internal/resource/binding",   // a service's environment and label, from what it uses

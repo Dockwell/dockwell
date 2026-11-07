@@ -551,7 +551,7 @@ func resolve(p string) (string, error) { return followWithin(p, walkLinks) }
 // kernel does: .. goes up from where a symlink led, not from how the path
 // is spelled. Docker makes a server path that isn't there, so what doesn't
 // exist yet is taken as it is: it holds no symlinks.
-func walkLinks(p string) (string, error) {
+func walkLinks(p string, touch func(string) error) (string, error) {
 	at := "/"
 	rest := strings.Split(p, "/")
 	for links := 0; len(rest) > 0; {
@@ -565,7 +565,9 @@ func walkLinks(p string) (string, error) {
 			continue
 		}
 		next := filepath.Join(at, part)
-		touchPath(next)
+		if err := touch(next); err != nil {
+			return "", err
+		}
 		fi, err := os.Lstat(next)
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
