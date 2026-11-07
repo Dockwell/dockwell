@@ -767,7 +767,7 @@ func TestAScopeWaitsForWhatsApplyingInIt(t *testing.T) {
 		e, f, db := setup(t, b, "srv_A")
 		org := tree(t, db).Organization.ID
 		apply(t, e, propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "shop"}, Spec: &resourcev1.Project{}}))
-		shop, prod, err := tree(t, db).Resolve("shop", "")
+		shop, _, err := tree(t, db).Resolve("shop", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -802,7 +802,9 @@ func TestAScopeWaitsForWhatsApplyingInIt(t *testing.T) {
 		apply(t, e, propose(t, e, "Retire qa", del(scope.EnvironmentKind, shop.ID, "qa")))
 
 		close(fd.release)
-		<-done
+		if err := <-done; err == nil {
+			t.Error("the step that fails didn't")
+		}
 		e.Wait()
 		if _, err := tree(t, db).Project("shop"); err != nil {
 			t.Fatalf("shop went: %v", err)
@@ -823,7 +825,6 @@ func TestAScopeWaitsForWhatsApplyingInIt(t *testing.T) {
 		if got := list(); len(got) != 1 || got[0].Name != "web" {
 			t.Errorf("the rollback didn't put web back: %+v", got)
 		}
-		_ = prod
 	})
 }
 

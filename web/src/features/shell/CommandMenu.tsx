@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
-import { EventKind, EventService, type Resource, ResourceService, SystemService } from "@dockwell/api";
+import { createClient, type Transport } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
+import { ChangeService, EventKind, EventService, type Resource, ResourceService, SystemService } from "@dockwell/api";
 import { CommandBar, type CommandItem, type ThemePreference, useThemePreference, useUIStrings } from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
@@ -96,6 +97,31 @@ type Prompt =
   | { kind: "environment"; project?: Resource | undefined }
   | { kind: "delete-project" };
 
+/**
+ * Plans deleting a project, with the volumes and networks left in it, as nothing else
+ * in the panel deletes those, and "Delete this app" keeps its volumes. So the plan names
+ * each, and a volume going needs a person's confirmation, as any data loss does.
+ * Whatever else is left keeps the project, and the API says what.
+ */
+async function planDeletingProject(
+  transport: Transport,
+  project: Resource,
+  environments: readonly Resource[],
+  summary: string,
+) {
+  const inside = new Set(environments.filter((e) => e.resource?.scope === project.id).map((e) => e.id));
+  const resources = createClient(ResourceService, transport);
+  const lists = await Promise.all(["volume", "network"].map((kind) => resources.listResources({ kind })));
+  const left = lists.flatMap((list) => list.resources).filter((r) => inside.has(r.resource?.scope ?? ""));
+  return createClient(ChangeService, transport).proposeChange({
+    summary,
+    edits: [
+      ...left.map((r) => ({ resource: r.resource, delete: true })),
+      { resource: { kind: "project", name: project.resource?.name ?? project.id }, delete: true },
+    ],
+  });
+}
+
 /** The project a new environment is for: the one chosen, or the only one there is. */
 function projectFor(prompt: Prompt, projects: readonly Resource[] | undefined): Resource | undefined {
   if (prompt.kind !== "environment") return undefined;
@@ -107,6 +133,7 @@ function Commands({ onClose }: { onClose: () => void }) {
   const strings = useUIStrings();
   const navigate = useNavigate();
   const sheet = useChangeSheet();
+  const transport = useTransport();
   // The view keeps its identity between samples, so the list isn't rebuilt while you type.
   const { servers, fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
@@ -123,10 +150,18 @@ function Commands({ onClose }: { onClose: () => void }) {
   const commands = useMemo(() => {
     const list: Command[] = [];
     if (prompt)
-      return promptItems(prompt, query.trim(), projects, i18n, setPrompt, (opening) => {
-        onClose();
-        sheet.open(opening);
-      });
+      return promptItems(
+        prompt,
+        query.trim(),
+        projects,
+        i18n,
+        setPrompt,
+        (opening) => {
+          onClose();
+          sheet.open(opening);
+        },
+        (project, summary) => planDeletingProject(transport, project, environments ?? [], summary),
+      );
     const pages = t`Pages`;
     list.push({
       id: "overview",
@@ -354,6 +389,7 @@ function Commands({ onClose }: { onClose: () => void }) {
     query,
     sheet,
     onClose,
+    transport,
   ]);
 
   const project = prompt ? projectFor(prompt, projects) : undefined;
@@ -401,6 +437,7 @@ function promptItems(
   i18n: I18n,
   setPrompt: (p: Prompt) => void,
   propose: (opening: Opening) => void,
+  planDeleting: (project: Resource, summary: string) => ReturnType<typeof planDeletingProject>,
 ): Command[] {
   const projects = loaded ?? [];
   if (prompt.kind === "delete-project") {
@@ -413,12 +450,7 @@ function promptItems(
         icon: "trash",
         label,
         hint: i18n._(msg`Opens a plan`),
-        run: () =>
-          propose({
-            kind: "propose",
-            summary: label,
-            edits: [{ resource: { kind: "project", name: projectName }, delete: true }],
-          }),
+        run: () => propose({ kind: "plan", make: () => planDeleting(project, label) }),
       };
     });
   }

@@ -6,9 +6,13 @@ import type { ReactNode } from "react";
 
 import { factAndRest, withoutIds } from "./plan";
 
-/** A path, an image, a revision or a port in a sentence: "/srv/uploads", "acme/web:1.0", "nginx:1.27", "r12", "port 8080". */
+/**
+ * A path, an image, a revision, a port or a command in a sentence: "/srv/uploads",
+ * "acme/web:1.0", "nginx:1.27", "r12", "port 8080", "dockwell volumes delete data",
+ * "--project". The panel's font joins "--" into a dash, so a command in it can't be read.
+ */
 const MACHINE =
-  "(?<![\\w/.-])(?:/[\\w.-]+(?:/[\\w.-]+)*|[\\w.-]+/[\\w./-]+(?::[\\w.-]+)?|[a-z][\\w.-]*:[\\w.-]*\\w|r\\d+(?![\\w.:-])|(?<=(?:port|端口) )\\d+)(?![\\w/-])";
+  "(?<![\\w/.-])(?:dockwell(?: (?!and )[^\\s,]*[^\\s,.])+|--[a-z][\\w-]*|/[\\w.-]+(?:/[\\w.-]+)*|[\\w.-]+/[\\w./-]+(?::[\\w.-]+)?|[a-z][\\w.-]*:[\\w.-]*\\w|r\\d+(?![\\w.:-])|(?<=(?:port|端口) )\\d+)(?![\\w/-])";
 
 const escaped = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

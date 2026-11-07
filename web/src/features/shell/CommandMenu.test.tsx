@@ -166,6 +166,49 @@ describe("the command bar", () => {
     expect(proposals[0]?.edits[0]?.delete).toBe(true);
   });
 
+  it("offers to delete the volumes and networks a project still has, in the one plan", async () => {
+    const proposals: ProposeChangeRequest[] = [];
+    const shopProduction = resource("env_shop", "environment", "prj_shop", "production");
+    const { user, bar } = await openBar({
+      resources: {
+        listResources: (req) => ({
+          resources:
+            req.kind === "project"
+              ? [defaultProject, shopProject]
+              : req.kind === "environment"
+                ? [production, shopProduction]
+                : req.kind === "volume"
+                  ? [
+                      resource("vol_data", "volume", "env_shop", "data"),
+                      resource("vol_other", "volume", "env_prod", "elsewhere"),
+                    ]
+                  : [resource("net_default", "network", "env_shop", "default")],
+        }),
+      },
+      changes: {
+        proposeChange: (req) => {
+          proposals.push(req);
+          return { change: shopPlanned() };
+        },
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+    await user.click(await within(bar).findByRole("option", { name: "Delete a project Opens a plan" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("option", {
+        name: "Delete the project shop Opens a plan",
+      }),
+    );
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.summary).toBe("Delete the project shop");
+    expect(proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.scope, e.resource?.name, e.delete])).toEqual([
+      ["volume", "env_shop", "data", true],
+      ["network", "env_shop", "default", true],
+      ["project", "", "shop", true],
+    ]);
+  });
+
   it("says what keeps a project, as the API does", async () => {
     const { user, bar } = await openBar({
       resources: {

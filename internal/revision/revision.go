@@ -464,8 +464,8 @@ type item struct {
 	// reverses says this item undoes a change, so it takes what that change made
 	// and no more.
 	reverses bool
-	ref   resource.Ref
-	level resource.Level
+	ref      resource.Ref
+	level    resource.Level
 	// runs says the item's kind runs on servers: a host-level or
 	// environment-level kind that isn't a valuer, such as a service.
 	runs bool

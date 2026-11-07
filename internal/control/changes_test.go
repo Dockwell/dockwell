@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -1326,5 +1327,125 @@ func testHostAccessNeedsAPerson(t *testing.T, backend store.Backend) {
 	_, err = script.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Mount the server", Edits: []*dockwellv1.Edit{web("nginx:1.28", root)}}))
 	if err == nil || !strings.Contains(err.Error(), "the server path / mounted at /host is the server's whole file system") {
 		t.Errorf("proposing a mount of / = %v, want it refused", err)
+	}
+}
+
+// What a Compose file leaves once its services go keeps its project, and the panel
+// offers to delete that in one plan. A volume going is data going, so that needs a
+// person and their confirmation, as any data loss does, and one change takes it all.
+func TestAProjectGoesWithWhatsLeftInOneChange(t *testing.T) {
+	storetest.Each(t, testAProjectGoesWithWhatsLeft)
+}
+
+func testAProjectGoesWithWhatsLeft(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
+	c := changeClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	res, err := imports.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{
+		Compose: "name: shop\nservices:\n  web:\n    image: nginx:1.27\n    volumes: [\"data:/data\"]\nvolumes:\n  data: {}\n",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, res.Msg.GetChange())
+	var env string
+	for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "service" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	applyConfirmed(t, c, propose(t, c, "Delete web", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: env, Name: "web"}, Delete: true}))
+
+	// Alone, it's refused by what's left, as a token or the CLI meets it.
+	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete shop", Edits: []*dockwellv1.Edit{
+		{Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "shop"}, Delete: true},
+	}}))
+	for _, says := range []string{"volume data in production", "dockwell volumes delete data --project shop", "dockwell networks delete default --project shop"} {
+		if err == nil || !strings.Contains(err.Error(), says) {
+			t.Errorf("deleting what still holds a volume: %v, want it to say %q", err, says)
+		}
+	}
+
+	all := propose(t, c, "Delete the project shop",
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "volume", Scope: env, Name: "data"}, Delete: true},
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "network", Scope: env, Name: "default"}, Delete: true},
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "shop"}, Delete: true},
+	)
+	var named []string
+	for _, r := range all.GetPlan().GetResources() {
+		named = append(named, r.GetResource().GetKind()+" "+r.GetResource().GetName())
+	}
+	slices.Sort(named)
+	if want := []string{"environment production", "network default", "project shop", "volume data"}; !slices.Equal(named, want) {
+		t.Errorf("the plan names %v, want %v", named, want)
+	}
+	if !all.GetPlan().GetDestructive() {
+		t.Errorf("a plan that deletes a volume isn't destructive: %v", all.GetPlan())
+	}
+	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
+	if _, err := script.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: all.GetId(), Fingerprint: all.GetPlan().GetFingerprint()})); reasonOf(err) != authapi.ReasonNeedsSession {
+		t.Errorf("a token applying what destroys data = %v", err)
+	}
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: all.GetId()})); err == nil {
+		t.Error("a plan that destroys data applied with nothing confirming it")
+	}
+	projects := func() []string {
+		t.Helper()
+		var out []string
+		if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+			tree, err := scope.Load(t.Context(), tx)
+			for _, p := range tree.Projects {
+				out = append(out, p.Name)
+			}
+			slices.Sort(out)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	// A step that fails puts everything back: the project isn't left half gone.
+	e.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/networks/") {
+			return errors.New("the engine won't do it")
+		}
+		return nil
+	})
+	w := watch(t, c, all.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: all.GetId(), Fingerprint: all.GetPlan().GetFingerprint()})); err == nil {
+		waitWatch(t, w)
+	}
+	e.Intercept(nil)
+	for range 200 {
+		if slices.Equal(projects(), []string{"default", "shop"}) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := projects(); !slices.Equal(got, []string{"default", "shop"}) {
+		t.Fatalf("after a failed step the projects are %v, want shop put back", got)
+	}
+
+	// Planned again, it goes, and undo brings back all of it, as a deleted volume is kept.
+	again := propose(t, c, "Delete the project shop",
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "volume", Scope: env, Name: "data"}, Delete: true},
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "network", Scope: env, Name: "default"}, Delete: true},
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "shop"}, Delete: true},
+	)
+	applyConfirmed(t, c, again)
+	if got := projects(); !slices.Equal(got, []string{"default"}) {
+		t.Fatalf("the projects are %v", got)
+	}
+	back, err := c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: again.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyConfirmed(t, c, back.Msg.GetChange())
+	if got := projects(); !slices.Equal(got, []string{"default", "shop"}) {
+		t.Errorf("after undoing it the projects are %v", got)
 	}
 }
