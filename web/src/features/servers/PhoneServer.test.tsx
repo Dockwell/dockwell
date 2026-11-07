@@ -61,7 +61,11 @@ async function renderPhone(server = hz1, api: Api = {}) {
   events.push(joined);
   const rendered = renderAt("/servers/srv_1", {
     servers: { watchServers: servers.stream, getServerDiskUse: () => ({}) },
-    events: { watchEvents: events.stream, listEvents: () => ({}) },
+    events: {
+      watchEvents: events.stream,
+      // A timeline of one server reads its own page, which the control plane filters.
+      listEvents: (req) => (req.serverId === server.id ? { events: joined.events } : {}),
+    },
     ...api,
   });
   await screen.findByRole("heading", { level: 1, name: "hz-1" });
