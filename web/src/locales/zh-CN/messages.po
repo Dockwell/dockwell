@@ -5291,7 +5291,7 @@ msgstr "请添加指向此服务器公网地址的 A 或 AAAA 记录"
 
 #: src/features/changes/words.ts
 msgid "Point an A record at {either}, which is how this server reaches the internet. If it's behind a router, that record won't reach it without a forwarded port, and a tunnel needs neither"
-msgstr ""
+msgstr "请添加指向 {either} 的 A 记录，这是此服务器访问互联网所用的地址。如果它在路由器之后，没有端口转发时该记录无法到达它，而隧道两者都不需要"
 
 #: src/features/changes/words.ts
 msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which are private, so the internet can't reach it"
