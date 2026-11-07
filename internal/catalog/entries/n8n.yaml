@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# 2.45.5 goes in ahead of its 14 days, as it fixes published advisories that 2.44.6 has,
-# among them GHSA-gx3v-3x3v-f8r5 and GHSA-f2cw-9483-7vcp, which are high.
+# 2.45.5 goes in ahead of its 14 days, as the lowest release that fixes the published
+# advisories 2.44.6 has: GHSA-gx3v-3x3v-f8r5 and GHSA-f2cw-9483-7vcp, which are high,
+# and GHSA-4v22-g448-h4rg, GHSA-426f-xmcv-g8pg, GHSA-rc3w-8jc8-7x3w,
+# GHSA-9qx8-fhxv-w794, GHSA-prmc-fg87-r4gh, GHSA-pwj5-wwm6-g83j and GHSA-jmcg-c7p5-q69g.
 id: n8n
 name: n8n
 summary: Automate workflows across your tools
@@ -18,14 +20,15 @@ web:
   service: n8n
 firstSteps: >-
   n8n answers only on this server until you add a domain, as the first person to open
-  it makes its owner account, and it signs you in only over HTTPS or from this server
-  itself. Add a domain on its page, over HTTPS, then set WEBHOOK_URL on the n8n
-  service to that address, so the webhooks it shows use it, and N8N_PROXY_HOPS to 1,
-  so it reads who's calling from the proxy in front. Open it there and make your
-  account. To open it before that, use an SSH tunnel from your computer: ssh -N -L
-  5678:127.0.0.1:5678 you@your-server, using the port you gave it, then open
-  http://localhost:5678. n8n keeps the key that encrypts your credentials on its
-  volume, so a backup of the volume holds both.
+  it makes its owner account. So make yours first, through an SSH tunnel from your
+  computer: ssh -N -L 5678:127.0.0.1:5678 you@your-server, using the port you gave
+  it, then open http://localhost:5678 in Chrome or Firefox: n8n signs you in only
+  over HTTPS or on localhost, and Safari doesn't take localhost for that. Add a
+  domain on its page only after that, over HTTPS, as a new domain's certificate shows
+  in public logs within minutes. Then set WEBHOOK_URL on the n8n service to that
+  address, so the webhooks it shows use it, and N8N_PROXY_HOPS to 1, so it reads
+  who's calling from the proxy in front. n8n keeps the key that encrypts your
+  credentials on its volume, so a backup of the volume holds both.
 inputs:
   - name: PORT
     label: Port on this server

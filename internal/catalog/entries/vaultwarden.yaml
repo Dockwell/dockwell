@@ -15,13 +15,14 @@ web:
   service: vaultwarden
 firstSteps: >-
   Vaultwarden answers only on this server until you add a domain, as anyone who
-  reaches it can make an account until you stop that, and its web vault signs in only
-  over HTTPS. Add a domain on its page, over HTTPS, set DOMAIN on the vaultwarden
-  service to its address, such as https://vault.example.com, and open it there. To
-  open it before that, use an SSH tunnel from your computer: ssh -N -L
-  8222:127.0.0.1:8222 you@your-server, using the port you gave it, then open
-  http://localhost:8222. Make your account, then set SIGNUPS_ALLOWED to false on the
-  vaultwarden service, so no one else can. Bitwarden's apps sign in at the same
+  reaches it can make an account until you stop that. So make yours first, through an
+  SSH tunnel from your computer: ssh -N -L 8222:127.0.0.1:8222 you@your-server, using
+  the port you gave it, then open http://localhost:8222, which its web vault takes as
+  secure. Then set SIGNUPS_ALLOWED to false on the vaultwarden service, so no one
+  else can make one. Add a domain on its page only after that, over HTTPS, as its web
+  vault signs in only over HTTPS elsewhere and a new domain's certificate shows in
+  public logs within minutes, and set DOMAIN on the vaultwarden service to its
+  address, such as https://vault.example.com. Bitwarden's apps sign in at the same
   address. To use its /admin page, add ADMIN_TOKEN to the service as a secret, never
   as a plain variable.
 inputs:
