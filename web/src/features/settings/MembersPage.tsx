@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { type Member, MemberService, Role } from "@dockwell/api";
+import { type Member, MemberService, Role, SignInKind } from "@dockwell/api";
 import { Button, Callout, Icon, Panel, PHONE_QUERY, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -28,7 +28,7 @@ export function MembersPage() {
   const phone = useMediaQuery(PHONE_QUERY);
   const members = list.data?.members ?? [];
   const count = members.length;
-  const withPasskeys = members.filter((m) => m.passkeys > 0).length;
+  const withPasskeys = members.filter((m) => m.signIn.includes(SignInKind.PASSKEY)).length;
 
   let people: ReactNode;
   if (list.error && !list.data) {
@@ -69,9 +69,12 @@ export function MembersPage() {
     <Page
       title={t`Members`}
       lead={
-        count === 1
-          ? t`1 person signs in to this install, its owner · inviting others comes later`
-          : t`${count} people sign in to this install`
+        // Said once the list is read, never as nobody while it loads or can't be read.
+        list.data
+          ? count === 1
+            ? t`1 person signs in to this install, its owner · inviting others comes later`
+            : t`${count} people sign in to this install`
+          : undefined
       }
       back="/settings"
     >
@@ -138,12 +141,24 @@ function Person({ member }: { member: Member }) {
   );
 }
 
-/** How a person signs in, in a few words. */
+/**
+ * How a person signs in, in a few words: yours in full, as it's yours to see, and
+ * anyone else's by its kinds alone (ADR 0048).
+ */
 function useSignInWords(): (member: Member) => string {
   const { t } = useLingui();
   return (m) => {
-    const keys = m.passkeys === 1 ? t`1 passkey` : t`${m.passkeys} passkeys`;
-    return m.authenticator ? t`${keys} and an authenticator app` : keys;
+    if (m.you) {
+      const keys = m.passkeys === 1 ? t`1 passkey` : t`${m.passkeys} passkeys`;
+      if (m.codesLocked) return t`${keys}, with codes locked`;
+      return m.authenticator ? t`${keys} and an authenticator app` : keys;
+    }
+    const passkey = m.signIn.includes(SignInKind.PASSKEY);
+    const app = m.signIn.includes(SignInKind.AUTHENTICATOR_APP);
+    if (passkey && app) return t`Passkey and authenticator app`;
+    if (passkey) return t`Passkey`;
+    if (app) return t`Authenticator app`;
+    return t`No way in that works now`;
   };
 }
 
@@ -240,7 +255,7 @@ function OwnerCan() {
   const { t } = useLingui();
   const rows = [
     t`Deploy, and apply any plan`,
-    t`Manage servers, their files and their terminals`,
+    t`Manage servers and their files`,
     t`Make and revoke API tokens`,
     t`Read the audit log`,
     t`Change the install's settings`,
@@ -306,11 +321,13 @@ function SignIn({ member }: { member: Member | undefined }) {
         <dt>{t`Authenticator app`}</dt>
         <dd>
           {member
-            ? member.authenticator
-              ? member.recoveryCodesLeft === 1
-                ? t`On, 1 recovery code left`
-                : t`On, ${member.recoveryCodesLeft} recovery codes left`
-              : t`Off`
+            ? member.codesLocked
+              ? t`Locked after too many wrong codes, until you lift it in Profile and security`
+              : member.authenticator
+                ? member.recoveryCodesLeft === 1
+                  ? t`On, 1 recovery code left`
+                  : t`On, ${member.recoveryCodesLeft} recovery codes left`
+                : t`Off`
             : "–"}
         </dd>
         <dt>{t`Signed in on`}</dt>

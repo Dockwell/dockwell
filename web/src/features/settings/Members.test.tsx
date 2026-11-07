@@ -3,7 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { MemberSchema, Role } from "@dockwell/api";
+import { MemberSchema, Role, SignInKind } from "@dockwell/api";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
@@ -21,6 +21,14 @@ const owner = create(MemberSchema, {
   recoveryCodesLeft: 7,
   sessions: 2,
   lastActiveTime: timestampFromDate(new Date()),
+  signIn: [SignInKind.PASSKEY, SignInKind.AUTHENTICATOR_APP],
+});
+// Someone else, as the list gives them: who they are, the kinds of sign-in they
+// have and when they were last active, and nothing more of how they sign in.
+const other = create(MemberSchema, {
+  user: { id: "usr_2", name: "Ada Park", email: "ada@example.com", role: Role.OWNER },
+  signIn: [SignInKind.PASSKEY],
+  lastActiveTime: timestampFromDate(new Date(Date.now() - 3 * 3_600_000)),
 });
 
 afterEach(async () => {
@@ -58,6 +66,39 @@ describe("Members", () => {
     await expectAccessible(container);
   });
 
+  it("says how anyone else signs in by its kinds alone, and how many sign in once it knows", async () => {
+    let answer: (v: { members: (typeof owner)[] }) => void = () => {};
+    renderAt("/settings/members", {
+      members: { listMembers: () => new Promise((resolve) => (answer = resolve)) },
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "Members" })).toBeVisible();
+    // Never "0 people" while it reads.
+    expect(screen.queryByText(/people sign in to this install|1 person signs in/)).toBeNull();
+    answer({ members: [owner, other] });
+    expect(await screen.findByText("2 people sign in to this install")).toBeVisible();
+    const table = screen.getByRole("table", { name: "Who signs in to this install" });
+    const [, , row] = within(table).getAllByRole("row");
+    expect(row).toHaveTextContent("Ada Park");
+    expect(row).toHaveTextContent("Passkey");
+    expect(row).not.toHaveTextContent("passkeys");
+    expect(row).toHaveTextContent("3 h ago");
+    expect(screen.getByText("all sign in with a passkey")).toBeVisible();
+  });
+
+  it("says when your code sign-in is locked, and where to lift it", async () => {
+    const locked = create(MemberSchema, {
+      ...owner,
+      authenticator: false,
+      codesLocked: true,
+      signIn: [SignInKind.PASSKEY],
+    });
+    renderAt("/settings/members", { members: { listMembers: () => ({ members: [locked] }) } });
+    expect(await screen.findByText("2 passkeys, with codes locked")).toBeVisible();
+    expect(screen.getByRole("region", { name: "How you sign in" })).toHaveTextContent(
+      "Locked after too many wrong codes, until you lift it in Profile and security",
+    );
+  });
+
   it("says when it can't say who signs in, and tries again", async () => {
     const user = userEvent.setup();
     let fail = true;
@@ -70,6 +111,7 @@ describe("Members", () => {
       },
     });
     expect(await screen.findByText("Dockwell can't say who signs in")).toBeVisible();
+    expect(screen.queryByText(/sign in to this install|signs in to this install/)).toBeNull();
     fail = false;
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("mira@example.com")).toBeVisible();

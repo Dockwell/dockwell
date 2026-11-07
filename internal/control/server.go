@@ -272,7 +272,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		// For a person signed in alone, as its events name where people signed in from.
 		if cfg.Auth != nil {
 			handle(dockwellv1connect.NewAuditServiceHandler(audit.New(cfg.Store, cfg.Changes, cfg.Logger), opts...))
-			handle(dockwellv1connect.NewMemberServiceHandler(members.New(cfg.Store, cfg.Logger), opts...))
+			handle(dockwellv1connect.NewMemberServiceHandler(members.New(cfg.Store, cfg.Auth, cfg.Logger), opts...))
 		}
 	}
 	if cfg.Auth != nil {

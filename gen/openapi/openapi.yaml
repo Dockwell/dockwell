@@ -7431,8 +7431,9 @@ components:
                 passkeys:
                     type: integer
                     description: |-
-                        How many passkeys they have that still sign in: one flagged as copied
-                         doesn't.
+                        How many passkeys sign in at the panel's addresses now: one flagged as
+                         copied, or for an address the panel no longer has, doesn't. Only for the
+                         person asking.
                     format: int32
                 passkeyAddresses:
                     type: array
@@ -7440,25 +7441,47 @@ components:
                         type: string
                     description: |-
                         The addresses those passkeys work at, such as "localhost" or
-                         "panel.example.com", each once.
+                         "panel.example.com", each once. Only for the person asking.
                 authenticator:
                     type: boolean
-                    description: True when they can sign in with codes from an authenticator app.
+                    description: |-
+                        True when they can sign in with codes from an authenticator app now: on,
+                         and not locked. Only for the person asking.
                 recoveryCodesLeft:
                     type: integer
                     description: |-
                         How many of their recovery codes are left. Zero without an
-                         authenticator app.
+                         authenticator app. Only for the person asking.
                     format: int32
                 sessions:
                     type: integer
-                    description: How many browsers they're signed in on now.
+                    description: How many browsers they're signed in on now. Only for the person asking.
                     format: int32
                 lastActiveTime:
                     type: string
-                    description: When one of those browsers was last used. Unset with none.
+                    description: When one of their browsers was last used. Unset with none.
                     format: date-time
-            description: Member is a person who can sign in, and how.
+                signIn:
+                    type: array
+                    items:
+                        enum:
+                            - SIGN_IN_KIND_UNSPECIFIED
+                            - SIGN_IN_KIND_PASSKEY
+                            - SIGN_IN_KIND_AUTHENTICATOR_APP
+                        type: string
+                        format: enum
+                    description: |-
+                        The kinds of sign-in that work for them now, as the members list shows
+                         them for everyone.
+                codesLocked:
+                    type: boolean
+                    description: |-
+                        True when code sign-in is locked after too many wrong codes, until the
+                         owner lifts it. Only for the person asking.
+            description: |-
+                Member is a person who can sign in, and how. The details of how are the
+                 person asking's alone: for anyone else, only the kinds of sign-in they have
+                 and when they were last active are set.
         Mount:
             type: object
             properties:
@@ -10931,7 +10954,9 @@ tags:
          docs/adr/0048-members-as-far-as-one-owner-goes.md.
 
          It names people and their emails, so only a person signed in reads it, never
-         an API token.
+         an API token. How each person signs in is theirs: everyone sees the kinds of
+         sign-in each member has, and only the person asking sees their own passkeys'
+         addresses, codes and browsers.
     - name: ProcessService
       description: |-
         ProcessService shows what runs on a server, process by process, and ends one.

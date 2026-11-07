@@ -37,6 +37,9 @@ func TestMembersAreTheOwnerAlone(t *testing.T) {
 		if m.GetPasskeys() != 1 || !slices.Equal(m.GetPasskeyAddresses(), []string{"localhost"}) || m.GetAuthenticator() || m.GetRecoveryCodesLeft() != 0 {
 			t.Errorf("the owner signs in with %d passkeys at %v, authenticator %v, %d codes", m.GetPasskeys(), m.GetPasskeyAddresses(), m.GetAuthenticator(), m.GetRecoveryCodesLeft())
 		}
+		if !slices.Equal(m.GetSignIn(), []dockwellv1.SignInKind{dockwellv1.SignInKind_SIGN_IN_KIND_PASSKEY}) || m.GetCodesLocked() {
+			t.Errorf("the owner's kinds of sign-in are %v, codes locked %v, want a passkey", m.GetSignIn(), m.GetCodesLocked())
+		}
 		if m.GetSessions() != 1 || m.GetLastActiveTime() == nil {
 			t.Errorf("the owner has %d sessions, last active %v", m.GetSessions(), m.GetLastActiveTime())
 		}

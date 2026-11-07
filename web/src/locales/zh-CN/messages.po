@@ -7467,17 +7467,23 @@ msgstr "最后手段"
 msgid "Loading who signs in"
 msgstr "正在加载可以登录的人"
 
+msgid "Locked after too many wrong codes, until you lift it in Profile and security"
+msgstr "错误验证码过多，已锁定，可在“个人资料与安全”中解除"
+
 msgid "Make and revoke API tokens"
 msgstr "创建和撤销 API 令牌"
 
-msgid "Manage servers, their files and their terminals"
-msgstr "管理服务器及其文件和终端"
+msgid "Manage servers and their files"
+msgstr "管理服务器及其文件"
 
 msgid "Member"
 msgstr "成员"
 
 msgid "Members"
 msgstr "成员"
+
+msgid "No way in that works now"
+msgstr "当前没有可用的登录方式"
 
 msgid "Now"
 msgstr "现在"
@@ -7491,6 +7497,9 @@ msgstr "已开启，剩余 1 个恢复码"
 #. placeholder {0}: member.recoveryCodesLeft
 msgid "On, {0} recovery codes left"
 msgstr "已开启，剩余 {0} 个恢复码"
+
+msgid "Passkey and authenticator app"
+msgstr "通行密钥和身份验证器应用"
 
 msgid "Permission"
 msgstr "权限"
@@ -7535,6 +7544,9 @@ msgstr "{count} 人可以登录这个安装"
 
 msgid "{keys} and an authenticator app"
 msgstr "{keys}和一个身份验证器应用"
+
+msgid "{keys}, with codes locked"
+msgstr "{keys}，验证码登录已锁定"
 
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
