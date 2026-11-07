@@ -33,8 +33,10 @@ const CATEGORIES: Readonly<Record<string, MessageDescriptor>> = {
   cms: msg`CMS`,
   databases: msg`Databases`,
   "developer tools": msg`Developer tools`,
+  media: msg`Media`,
   monitoring: msg`Monitoring`,
   networking: msg`Networking`,
+  notes: msg`Notes`,
   security: msg`Security`,
   storage: msg`Storage`,
 };

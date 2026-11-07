@@ -3437,11 +3437,17 @@ msgstr "Databases"
 msgid "Developer tools"
 msgstr "Developer tools"
 
+msgid "Media"
+msgstr "Media"
+
 msgid "Monitoring"
 msgstr "Monitoring"
 
 msgid "Networking"
 msgstr "Networking"
+
+msgid "Notes"
+msgstr "Notes"
 
 msgid "Security"
 msgstr "Security"

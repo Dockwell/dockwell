@@ -3437,11 +3437,17 @@ msgstr "数据库"
 msgid "Developer tools"
 msgstr "开发者工具"
 
+msgid "Media"
+msgstr "媒体"
+
 msgid "Monitoring"
 msgstr "监控"
 
 msgid "Networking"
 msgstr "网络"
+
+msgid "Notes"
+msgstr "笔记"
 
 msgid "Security"
 msgstr "安全"
