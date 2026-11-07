@@ -30,6 +30,14 @@ inputs:
     hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "2368"
+  - name: URL
+    label: Site address
+    hint: >-
+      Ghost sends every visit here, your SSH tunnel's too. Leave it empty to make your
+      account through the tunnel first, then set url on the ghost service once its
+      domain is added.
+    type: INPUT_TYPE_TEXT
+    optional: true
   - name: MYSQL_ROOT_PASSWORD
     label: Database root password
     type: INPUT_TYPE_SECRET
@@ -47,7 +55,7 @@ compose: |
         db:
           condition: service_healthy
       environment:
-        url: http://localhost:${PORT}
+        url: ${URL:-http://localhost:${PORT}}
         database__client: mysql
         database__connection__host: db
         database__connection__user: ghost

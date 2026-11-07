@@ -312,6 +312,19 @@ func TestAnAppsOwnAddressFollowsItsPort(t *testing.T) {
 			t.Errorf("%s's %s is %q on port 7444", id, env, got)
 		}
 	}
+	// Ghost takes its address at install too, in place of its port's.
+	e, _ := c.Entry("ghost")
+	filled, err := catalog.Fill(e, map[string]string{"PORT": "7444", "URL": "https://blog.example.com"}, catalog.Suggest(e, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := stack.Services[slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == "ghost" })].Spec.GetApp().GetEnv()["url"]; got != "https://blog.example.com" {
+		t.Errorf("Ghost's url is %q when it's given https://blog.example.com", got)
+	}
 }
 
 // Ghost sends an http request to its https address, out of its container, once its url
