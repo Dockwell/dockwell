@@ -302,6 +302,10 @@ export function useChangeWords(): ChangeWords {
         const reads = access.readOnly ? t`read-only` : t`read-write`;
         switch (access.kind) {
           case HostAccessKind.SERVER_PATH: {
+            const held = plain(access.holds);
+            if (held !== "") {
+              return t`the server path ${path}, which holds ${held}, another mount's source, so what writes there can make that lead anywhere, as good as root`;
+            }
             let how = reads;
             if (access.relabel === "z") how = t`${reads}, relabelled for SELinux as shared`;
             if (access.relabel === "Z") how = t`${reads}, relabelled for SELinux as private`;

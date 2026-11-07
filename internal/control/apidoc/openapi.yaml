@@ -5208,6 +5208,12 @@ components:
                         True when that isn't where the path led when what runs now was made, as its
                          server's agent reads it. An agent sets it, for the control plane to decide
                          what a plan gains by, and plans don't carry it.
+                holds:
+                    type: string
+                    description: |-
+                        Another mount's source inside path, a read-write server path. What writes path
+                         can turn it into a link to anywhere on the server, which what mounts it follows
+                         the next time it starts, so this is as good as root.
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.

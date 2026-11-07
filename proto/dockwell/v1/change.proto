@@ -828,6 +828,10 @@ message HostAccess {
   // server's agent reads it. An agent sets it, for the control plane to decide
   // what a plan gains by, and plans don't carry it.
   bool leads_moved = 11;
+  // Another mount's source inside path, a read-write server path. What writes path
+  // can turn it into a link to anywhere on the server, which what mounts it follows
+  // the next time it starts, so this is as good as root.
+  string holds = 12;
 }
 
 // HostAccessKind is what a resource reaches on its server.

@@ -470,6 +470,10 @@ msgstr "{name} answers plain HTTP on {path} on {server}"
 msgid "{name} believes the proxy {path} on {server}"
 msgstr "{name} believes the proxy {path} on {server}"
 
+#: src/features/changes/notices.tsx
+msgid "{name} can move what {held} leads to on {server}"
+msgstr "{name} can move what {held} leads to on {server}"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
@@ -3893,6 +3897,10 @@ msgstr "It can read that path on the server."
 #: src/features/changes/notices.tsx
 msgid "It can take half the server's memory. Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "It can take half the server's memory. Give it one, such as {target}:size=64m, or give {name} a memory limit."
+
+#: src/features/changes/notices.tsx
+msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, so it can turn that into a link to anywhere on the server, which what mounts it follows when it next starts. That's as good as root."
+msgstr "It can write to <0>{holder}</0>, which holds <1>{held}</1>, so it can turn that into a link to anywhere on the server, which what mounts it follows when it next starts. That's as good as root."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
@@ -7542,6 +7550,10 @@ msgstr "The server may be left between the two. Check it, then apply what should
 #: src/features/changes/words.ts
 msgid "the server path {path} ({how})"
 msgstr "the server path {path} ({how})"
+
+#: src/features/changes/words.ts
+msgid "the server path {path}, which holds {held}, another mount's source, so what writes there can make that lead anywhere, as good as root"
+msgstr "the server path {path}, which holds {held}, another mount's source, so what writes there can make that lead anywhere, as good as root"
 
 #: src/features/changes/words.ts
 msgid "the server path {path}, which leads to {leadsTo} ({how})"
