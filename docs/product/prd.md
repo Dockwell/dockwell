@@ -333,6 +333,8 @@ Everything needed to operate your own machines is free and open source; revenue 
 | Organization | Teams with compliance or scale needs, self-hosted | Everything in Community, plus SAML and SCIM, custom roles and policy rules, approvals and deploy windows, unlimited audit retention and export, HA control plane, federation, air-gapped bundles, white-label, support SLA | Per node per year, with a minimum |
 | Cloud | Anyone who doesn't want to run the control plane | Hosted, HA control plane for your own nodes; managed upgrades; off-site config backups; Organization features as add-ons | First 3 nodes free, then per node per month |
 
+**Roles by edition:** Community has the four built-in roles, scoped by project, with protected environments where a developer's plan waits for an admin or the owner to approve it with a passkey. Organization adds approval counts, approver rules and deploy windows on top ([ADR 0049](../adr/0049-roles-and-invites-by-project.md)).
+
 **Why this split holds:** the free tier is strictly more generous than 1Panel OSS (multi-node, website backups and alerts included) and than Portainer's 3-node Business allowance, which makes solo users advocates. Paid features are the ones procurement asks for, so revenue scales with organizations that have budget, not with hobbyists' server counts.
 
 **Reference points:** 1Panel Pro is $80/yr or $200 perpetual per license; Dokploy's hosted control plane starts at $4.50/mo with extra servers at $4.50 each; Portainer Business is free to 3 nodes, then from $1,045/yr.

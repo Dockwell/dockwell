@@ -5,7 +5,12 @@
 
 ## Context
 
-The PRD makes roles a launch requirement: "owner, admin, developer, viewer roles scoped by project" (Access, P0), with "four built-in roles" in the free edition. [ADR 0048](0048-members-as-far-as-one-owner-goes.md) set the frame for #263: roles are grants of a role in a place, the install or a project. Project scope is held by the interceptor, by `internal/revision` and by one resolver. Install-wide power is an admin's, and the ADR settles invites, removal, the owner and refusals.
+The PRD makes roles a launch requirement: "owner, admin, developer, viewer roles scoped by project" (Access, P0), with "four built-in roles" in the free edition. [ADR 0048](0048-members-as-far-as-one-owner-goes.md) set the frame for #263:
+
+- roles are grants of a role in a place, the install or a project;
+- a project's scope is held by the interceptor, by `internal/revision` and by one resolver;
+- install-wide power is an admin's;
+- it settles invites, removal, the owner and refusals.
 
 What ADR 0048 left to this record:
 
@@ -18,56 +23,121 @@ What ADR 0048 left to this record:
 
 ### What each role may do
 
-A role holds in the places its grants cover (ADR 0048). Every method says the lowest role it needs, in a new method option, `min_role`, beside its `effect`. A test fails the build on a method without one, as it does for `effect`.
+A role holds in the places its grants cover (ADR 0048): a grant on a project, or on the install, which covers every project.
 
 | | Viewer | Developer | Admin | Owner |
 | --- | --- | --- | --- | --- |
 | Read apps, plans, activity, logs and backups | Their projects | Their projects | Everything | Everything |
+| See the servers, destinations and domains their projects name, by name and state | Yes | Yes | Everything | Everything |
 | Plan a change | No | Their projects | Everything | Everything |
-| Apply or undo a change, restart, make a backup | No | Their projects, outside protected environments | Everything | Everything |
-| Apply in a protected environment | No | No: it waits for an admin or the owner | Yes | Yes |
-| Remove data: delete a backup, a service with its volumes, a project | No | Their projects, outside protected environments | Yes | Yes |
-| Reveal a secret's value | No | Their projects, outside protected environments | Yes | Yes |
-| Bind a variable, secret or connection to a service | No | Their projects; in a protected environment it's a plan that waits | Yes | Yes |
-| What ADR 0048 calls install-wide: root-equivalent plans, files, terminals, servers, firewall, destinations, install-wide values, settings, the audit log | No | No | Yes | Yes |
-| Invite, change roles, remove people | No | No | Up to admin, never the owner | Everyone |
+| Apply or undo a change, restart, make a backup | No | Their projects, in open environments | Everything | Everything |
+| Apply in a protected environment | No | No: it waits for an admin or the owner | Their own, or someone else's with a passkey | Same as admin |
+| Remove data: delete a backup, a service with its volumes | No | Their projects, in open environments | Yes | Yes |
+| Reveal a secret's value | No | Their projects, in open environments | Yes | Yes |
+| Bind a variable, secret or connection to a service | No | Their projects; in a protected environment a plan that waits | Yes | Yes |
+| Make a project | No | No | Yes | Yes |
+| What ADR 0048 calls install-wide: root-equivalent plans, `host_port` routes, websites from a server folder, files, terminals, servers' inventory, firewall, destinations, install-wide values, settings, the audit log | No | No | Yes | Yes |
+| Invite, change roles, remove people | No | No | Up to admin, never the owner | Everyone but themselves |
 | Transfer ownership | No | No | No | Yes |
 
-- **Everyone reads logs in their projects,** as the mock says. A token still needs the logs grant (ADR 0025), as logs hold what apps print.
-- **"Their projects" means a grant on the project, or on the install,** which covers every project.
+**Everyone reads logs in their projects,** as the mock says, production's included. A token still needs the logs grant (ADR 0025), as logs hold what apps print.
+
+### Three classes of object
+
+The resolver (ADR 0048) says where each object a call names belongs: **(project, environment, protected)**. An object falls in one of three classes:
+
+1. **A project's own:** a service and its revisions, a change, a backup and its volume, a variable or a secret, a route, a Compose project, a deployment's logs, an event. Its project's grants decide.
+2. **Install-level, but named by projects:** servers, as placement, a backup's `server`, `CheckDomain` and log filters name them; backup destinations, as a policy names them; and domains held by a project. A project role sees these **by name and state only**: a server's name, whether it's up, and its public address; a destination's name. Inventory, containers, processes, files and terminals stay an admin's.
+3. **Install-level only:** everything else in no project, as ADR 0048 lists it. An admin's or the owner's.
+
+**Placement is any server,** for a developer as for an admin, until an admin can choose each project's servers or pool. That's the PRD Team tier's "client and project isolation".
+
+### Every method says who may call it, in open and protected places
+
+Every method declares two roles, as method options beside `effect`:
+
+- **`min_role`**, the lowest role it needs where its objects are in an open environment, or in no environment;
+- **`min_role_protected`**, the lowest it needs where any of its objects is in a protected environment. It defaults to admin for any effect but read, and for `RevealSecret`.
+
+The interceptor checks `min_role` against the person's highest grant anywhere, as a first gate (ADR 0048, check 1). The resolver then checks both against the grants on each object's place (check 3). `internal/revision` checks each item of a change (check 2). Each check uses the stricter of an item's place before and after the change.
+
+**The descriptor test fails the build on:**
+
+- a method without `min_role`, or without `min_role_protected` where its effect isn't read;
+- `min_role` viewer with any effect but read;
+- any write below developer;
+- any method that touches no project with a role below admin, unless it reads only class 2 by name and state;
+- a method that names an object by an ID field, or in a list of them, without the resolver (ADR 0048). `BeginStepUpRequest.target` counts as an ID field.
 
 ### Protected environments
 
-- **An environment is protected or open.** `Environment` gains `protection`: protected, open, or unset. Unset reads as protected for an environment named `production` and as open for any other, so every install's existing production is protected from the start, with no revision rewritten.
-- **In a protected environment, a developer proposes and an admin or the owner applies.** The change waits as planned, on Activity and in the plan sheet, as "waiting for an admin". This is the mock's "Plans for production wait for an owner or admin", built on what Dockwell has: one person proposes, another applies, as the CLI's plans already do. It isn't the Organization edition's approvals and deploy windows, which add rules and policies on top.
-- **Changing an environment's protection is an admin's,** checked by `internal/revision` as an item of its own.
+- **An environment is protected or open.** `Environment` gains `protection`: protected, open, or unset.
+- **Unset reads as protected for an environment named `production`,** and open for any other. That rule is only for environments that exist today, so no revision is rewritten.
+- **From now on, every environment is created with its protection written,** protected for `production`, open otherwise. So an import's `prod`, `live` or `main` doesn't fall to a rule by name. Creating one with other than that default is an admin's, as is changing it later. A rename, if one comes, writes the old protection explicitly.
+- **A name isn't protection.** `display_name` can make `staging` read "Production", so the panel marks protection on its own, beside the name.
+- **The first invite lists each environment's protection,** for the owner to confirm before anyone else signs in.
+
+**Enforcement is where every other check is:**
+
+- `internal/revision` checks each item's protection, at propose, apply, discard, undo and rollback, by the stricter of before and after. A change with any item in a protected environment waits as a whole.
+- The resolver gives every other call its object's protection, for `min_role_protected`. That covers revealing a secret, and making, fetching or deleting a backup.
+
+### Waiting for an admin in production
+
+- **A developer proposes in a protected environment, and the change waits** as planned, on Activity and in the plan sheet, as "waiting for an admin".
+- **An admin or the owner applies it** in a session, with the fingerprint of the plan they reviewed, which is required there, and a passkey step-up bound to the change and that fingerprint: `STEP_UP_ACTION_APPROVE_CHANGE` (114). That's the PRD's "approve with a passkey". The method that does it needs a session (`needs_session`), so no token approves anyone else's change.
+- **An admin's or the owner's own change** in a protected environment applies as any change does, in a session or with a read-write token they made, so CI can deploy production with an admin's token.
+- **Discarding someone else's plan** is the proposer's, a developer's of the project in an open environment, or an admin's in a protected one.
+
+This is the mock's "Plans for production wait for an owner or admin", built on what Dockwell has: one person proposes, another applies, as the CLI's plans already do. It isn't the Organization edition's approval counts, approver rules and deploy windows.
 
 ### Bind is not read
 
 - **A developer binds without reading.** A service names the variables and secrets it uses by reference (`specs.proto`), so binding a production secret is a plan that names it, and never shows its value. Setting a secret's value is the same: write only.
-- **Revealing a value needs the role and a passkey,** and lands in the audit log. In a protected environment that is an admin's or the owner's.
+- **Revealing a value needs the role and a passkey,** and lands in the audit log. In a protected environment that is an admin's or the owner's (`min_role_protected`).
 
 ### Roles and tokens
 
-- **A token acts with the smaller of its scope and its maker's role,** read on each call, as ADR 0048 says. A read-only token of an admin reads; a read-write token of a developer plans and applies in that developer's projects, outside protected environments.
-- **A protected environment's plan is applied by an admin or the owner,** in a session or with a read-write token they made. A developer's token proposes it, and it waits, as the developer's own would.
-- **What needs a session still does** (`needs_session`), whatever the role.
+**A token may make a call when all four hold,** checked on every call, and for each project the call touches:
+
+1. its maker's grants allow the call there, as they stand now;
+2. its scope allows the call's effect (ADR 0016);
+3. the call isn't `needs_session`;
+4. the token has any grant the call needs, such as reading logs.
+
+So a token never does more than its maker could at that moment, and loses what its maker loses. Nobody makes a token for someone else.
 
 ### Roles and step-ups
 
 A step-up proves who is there; a role says what they may do. Both are checked, and neither stands in for the other:
 
 - an admin opening a file on a server still steps up (ADR 0032), and a developer who steps up still can't open one;
-- inviting, changing a role, removing someone and transferring ownership each take a passkey step-up of their own: `STEP_UP_ACTION_INVITE` (110), `_CHANGE_ROLE` (111), `_REMOVE_MEMBER` (112) and `_TRANSFER_OWNERSHIP` (113).
+- inviting, changing a role, removing someone, transferring ownership and approving someone else's protected change each take a passkey step-up of their own: `STEP_UP_ACTION_INVITE` (110), `_CHANGE_ROLE` (111), `_REMOVE_MEMBER` (112), `_TRANSFER_OWNERSHIP` (113) and `_APPROVE_CHANGE` (114);
+- **each is bound to what it's for.** An invite's proof names the email, role and place, a role change's names the member, role and place, and an approval's names the change and its fingerprint, so a proof can't be spent on anything else.
+
+### The owner, and people with no grant
+
+- **The owner can't remove or demote themselves:** they transfer ownership first, and then become an admin (ADR 0048).
+- **The owner's grant changes only in a transfer's transaction,** held by a check in the store as well as the unique index. Admins can't touch the owner's passkeys, codes, sessions or tokens.
+- **A transfer revokes the local token** the CLI made for the old owner ([ADR 0019](0019-a-cli-generated-from-the-schema.md)), as it acted for them.
+- **Removing someone** turns off their sign-in, and deletes their passkeys, codes and sessions, besides revoking their tokens. Their pending changes are listed in the removal plan, and discarded.
+- **A project's grants go with it** when it's deleted ([ADR 0036](0036-deleting-a-project-takes-its-environments.md)). Its plan names who loses their last grant.
+- **Someone with no grant left can only sign out.**
 
 ### Invites
 
 As ADR 0048 says, with these specifics:
 
-- **The link is `/invite#<secret>`,** with the secret after `#`, so it never reaches a log, a proxy or a referrer. It works once and lasts 7 days.
+- **The link is `/invite#<secret>`,** with the secret after `#`, so it never reaches a log, a proxy or a referrer. The page clears it from the address bar with `history.replaceState` as soon as it reads it. It works once.
+- **It lasts 7 days for a developer or a viewer, and 24 hours for an admin,** whose link is a bearer credential to the install.
+- **Opening the page never spends it.** Only finishing the passkey does.
 - **Making one shows the link once,** to copy and send. Mail comes once alerts bring SMTP (#242).
-- **The page it opens says who invited them, with what role, where,** and asks for their name and a passkey. That's the claim flow (ADR 0011) for someone else.
-- **Pending invites are listed in Members,** with who made them and when they expire, and can be revoked.
+- **Invites need the panel's domain,** and the link always uses it. The invite sheet says so on an install without one.
+- **The page says who invited them, with what role, where,** and asks for their name and a passkey. That's the claim flow (ADR 0011) for someone else.
+- **Accepting only ever makes a new person.** The page refuses while someone is signed in: "You're signed in as Mira. Sign out, or open the link in a private window". An invite to an existing member's email is refused, pointing to Members.
+- **The email is kept as unverified,** and Dockwell never links an OIDC identity to an account by an unverified email.
+- **Members lists pending invites,** with who made them and when they expire, and each can be revoked. A `member.join` shows the address it came from, with Remove beside it.
+- **Nobody is invited as owner,** though the mock's invite form offers Owner: ownership moves by transfer (ADR 0048).
 
 ### Who did what
 
@@ -80,14 +150,28 @@ Members' events are access events, on Activity and in the audit log, with a type
 - `member.remove`;
 - `owner.transfer`.
 
+**Role refusals go in the audit log** at most once an hour for each person or token and method, as ADR 0016 does for refused tokens, with a count of the rest.
+
+**A change reads as not found** unless every one of its items is in the reader's scope.
+
 ### One person
 
-With one person and no pending invite, Members shows them as today, with an "Invite someone" button. The role, the place and the permissions table appear in the invite sheet. Members shows them once there is a second person or an invite, as the PRD's scaling rules say. A place to choose from shows only once there's more than one project, and otherwise reads "this install".
+- **With one person and no pending invite, Members shows them as today,** with an "Invite someone" button. The role, the place and the permissions table appear in the invite sheet. Members shows them once there is a second person or an invite, as the PRD's scaling rules say.
+- **Settings' Protection column hides until there's a second person** too.
+- **A place to choose from shows only once there's more than one project,** and otherwise reads "this install".
+
+### What roles don't fence
+
+Roles fence what Dockwell does for a person. They don't change what servers share:
+
+- **Viewers read production's logs,** which hold whatever its apps print.
+- **Projects on one server share its kernel,** and can reach each other's published ports through the server's address. Projects that mustn't touch belong on servers of their own.
+- **Once developers build images,** the builder that runs privileged on a server is a trust boundary of its own (#292).
 
 ## Consequences
 
 - A teammate gets an account of their own, so Activity says who did what, and a developer can ship to staging alone and to production with an admin.
-- Every method gains `min_role`, and the descriptor test checks it with `effect` and the resolver (ADR 0048).
-- `Environment` gains `protection`, read with a default by name, so nothing existing changes until someone changes it.
-- A developer's production change waits for someone else. An install that wants developers to apply in production marks it open, as an admin's change.
-- Custom roles, policy rules, deploy windows, SAML and SCIM stay in the Organization edition (PRD, P2). OIDC sign-in maps onto these roles when it comes (P1).
+- Every method gains `min_role` and `min_role_protected`, and the descriptor test checks both, with the class an object is in and the resolver (ADR 0048).
+- `Environment` gains `protection`, written on every new environment and read with a default by name only for the ones that exist.
+- A developer's production change waits for someone else, who approves it with a passkey. An install that wants developers to apply in production marks it open, as an admin's change.
+- Custom roles, policy rules, approval counts, approver rules, deploy windows, SAML and SCIM stay in the Organization edition (PRD, P2). OIDC sign-in maps onto these roles when it comes (P1).
