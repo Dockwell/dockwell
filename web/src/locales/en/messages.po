@@ -398,9 +398,6 @@ msgstr "Show earlier events"
 msgid "Size"
 msgstr "Size"
 
-msgid "Someone"
-msgstr "Someone"
-
 msgid "State"
 msgstr "State"
 
@@ -445,6 +442,18 @@ msgstr "the server filter"
 
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
 msgstr "{count, plural, one {{long} · # event} other {{long} · # events}}"
+
+msgid "CLI on {host}"
+msgstr "CLI on {host}"
+
+msgid "Local access token, read-only, {id}, made by {account}"
+msgstr "Local access token, read-only, {id}, made by {account}"
+
+msgid "Local access token, read-write, {id}, made by {account}"
+msgstr "Local access token, read-write, {id}, made by {account}"
+
+msgid "Someone"
+msgstr "Someone"
 
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
@@ -7008,14 +7017,14 @@ msgstr "Action"
 msgid "All sources"
 msgstr "All sources"
 
+msgid "Applied by"
+msgstr "Applied by"
+
 msgid "Audit log"
 msgstr "Audit log"
 
 msgid "CLI"
 msgstr "CLI"
-
-msgid "Cleared, which was {previous}"
-msgstr "Cleared, which was {previous}"
 
 msgid "Detail"
 msgstr "Detail"
@@ -7029,8 +7038,8 @@ msgstr "Dockwell can't read the audit log"
 msgid "Events"
 msgstr "Events"
 
-msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
-msgstr "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
+msgstr "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
 
 msgid "Everything"
 msgstr "Everything"
@@ -7063,6 +7072,9 @@ msgstr "Last 7 days"
 msgid "Loading the audit log"
 msgstr "Loading the audit log"
 
+msgid "Loading the change"
+msgstr "Loading the change"
+
 msgid "Not signed in"
 msgstr "Not signed in"
 
@@ -7071,9 +7083,6 @@ msgstr "Nothing happened in this range. Pick a longer one to see more."
 
 msgid "Nothing matches. Pick a longer range, or clear the filters."
 msgstr "Nothing matches. Pick a longer range, or clear the filters."
-
-msgid "Nothing more"
-msgstr "Nothing more"
 
 msgid "Open in Activity"
 msgstr "Open in Activity"
@@ -7087,14 +7096,14 @@ msgstr "People"
 msgid "Pick a longer range to see more."
 msgstr "Pick a longer range to see more."
 
-msgid "Said"
-msgstr "Said"
+msgid "Recorded"
+msgstr "Recorded"
 
 msgid "Saved 1 event."
 msgstr "Saved 1 event."
 
-msgid "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
-msgstr "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
+msgid "Saved the newest {most} events. Narrow the filters to save the rest."
+msgstr "Saved the newest {most} events. Narrow the filters to save the rest."
 
 #. placeholder {0}: events.length
 msgid "Saved {0} events."
@@ -7119,6 +7128,9 @@ msgstr "The newest {count} events. Show more for older ones."
 msgid "Today · {day}"
 msgstr "Today · {day}"
 
+msgid "What happened"
+msgstr "What happened"
+
 msgid "Yesterday · {day}"
 msgstr "Yesterday · {day}"
 
@@ -7134,8 +7146,8 @@ msgstr "{count} events in the last 7 days."
 msgid "{count} events, all there are."
 msgstr "{count} events, all there are."
 
-msgid "{value}, which was {previous}"
-msgstr "{value}, which was {previous}"
+msgid "{name} and {more} more"
+msgstr "{name} and {more} more"
 
 msgid "A file beside the control plane, for one control plane"
 msgstr "A file beside the control plane, for one control plane"
@@ -7580,6 +7592,72 @@ msgstr "{acting}."
 
 msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
 msgstr "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
+
+msgid "A change failed"
+msgstr "A change failed"
+
+msgid "A passkey may have been copied"
+msgstr "A passkey may have been copied"
+
+msgid "Applied a change"
+msgstr "Applied a change"
+
+msgid "Applied {summary}"
+msgstr "Applied {summary}"
+
+msgid "Confirmed with a passkey"
+msgstr "Confirmed with a passkey"
+
+msgid "Couldn't apply {summary}"
+msgstr "Couldn't apply {summary}"
+
+msgid "Couldn't confirm with a passkey"
+msgstr "Couldn't confirm with a passkey"
+
+msgid "Couldn't sign in"
+msgstr "Couldn't sign in"
+
+msgid "Discarded a change"
+msgstr "Discarded a change"
+
+msgid "Discarded {summary}"
+msgstr "Discarded {summary}"
+
+msgid "Planned a change"
+msgstr "Planned a change"
+
+msgid "Planned {summary}"
+msgstr "Planned {summary}"
+
+msgid "Refused a call this token can't make"
+msgstr "Refused a call this token can't make"
+
+msgid "Refused to renew a server's certificate"
+msgstr "Refused to renew a server's certificate"
+
+msgid "Refused to renew the certificate of {name}"
+msgstr "Refused to renew the certificate of {name}"
+
+msgid "Saving {path}"
+msgstr "Saving {path}"
+
+msgid "Saving {path} on {name}"
+msgstr "Saving {path} on {name}"
+
+msgid "Set up this install"
+msgstr "Set up this install"
+
+msgid "Signed out"
+msgstr "Signed out"
+
+msgid "Stopped sign-in with codes after too many wrong ones"
+msgstr "Stopped sign-in with codes after too many wrong ones"
+
+msgid "The passkey {name} may have been copied"
+msgstr "The passkey {name} may have been copied"
+
+msgid "Used from a new address"
+msgstr "Used from a new address"
 
 msgid "Check the control plane's status"
 msgstr "Check the control plane's status"

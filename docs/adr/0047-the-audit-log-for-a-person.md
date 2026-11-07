@@ -25,8 +25,11 @@ Two things have no place in the store yet: an IP address of its own for each eve
   - where it came from;
   - what it acted on, by ID and by its name where Dockwell still has one;
   - the ID it is about;
-  - its words for people.
+  - what it recorded, as it was recorded: words for people, or facts for a program, such as a setting's value as JSON;
+  - the same event as the timeline has it (`Event`, built by `events.FromAudit`), with the facts its kind carries: a health check's state, a backup's volume and destination, a setting's value and what it replaced, a public address, a file's path. A change's events carry the change as it is now, with its plan in brief.
 - **Someone who wasn't signed in has no actor.** Their address, which the store keeps in the actor's name (`anonymous:203.0.113.9`), is a field of its own. Every other address is in the event's words, as it was recorded. The screen shows those words where the mock has an IP column, rather than an address parsed out of them: nothing reads those words to find what an event is about (ADR 0020), and this doesn't start to.
+- **The screen says each event in a sentence,** as Activity does from those facts, in the reader's language, and words of its own for what only the audit log keeps: refusals, step-ups, a change at each step. A change's row names its service and environment, and opens to who proposed and applied it, its state, its servers and its plan, read when it opens. What was recorded stays in the opened row, and in the JSON export.
+- **A token the CLI made for local access says so by what made it.** The token records the shell account that asked for it, as `mira@hz-1`, and `Actor.local_access` carries that and its scope. The screen shows it as "CLI on hz-1". A token's name is free text, so nothing reads it to decide who acted: anyone can name a token "Local access on prod-1". Activity and an app's deployments say it the same way, from one hook.
 - **No API token reads it, of any scope.** Its words name where people signed in from and were refused from. A read-only token reads the state of what an install runs (ADR 0016), and who signs in from where is not that. Exporting to a SIEM with a token can come later as a grant, as reading logs did (`TOKEN_GRANT_LOGS`, [ADR 0025](0025-logs-per-deploy.md)). Until then the CLI can't read it either, as its token is a token.
 
 ### Filters
@@ -42,15 +45,21 @@ Each filter that is set must hold:
   - the event's words;
   - the names people, tokens and servers have now.
 
-  It's a `LIKE` scan over the time-ordered index, which an install's log serves easily. A search index can come if a log outgrows it.
+  It's a `LIKE` scan over the time-ordered index, which an install's log serves easily. A search index can come if a log outgrows it. A query holds 200 characters at most, as each one is matched against several columns. SQLite's `lower()` folds only ASCII letters, so on SQLite "Ä" doesn't match "ä"; Postgres folds every letter.
 
 ### Export
 
 The panel exports what the filters keep. It pages through the API and saves the result as CSV, or as JSON lines in the API's own shape. There is no export endpoint: the API is the export. A browser holds 10,000 events at most, and the screen says so when there were more.
 
+- The CSV's detail is the sentence the screen says. The JSON lines keep what was recorded, beside the typed event.
+- A CSV field a spreadsheet would run as a formula, one starting `=`, `+`, `-`, `@`, a tab or a carriage return, gets a `'` before it and is quoted, so it reads as text. Names of tokens, people and servers are free text, and land in the CSV.
+- The file is dated in the browser's time zone, as the screen shows times.
+
 ### Retention
 
 The log keeps every event for as long as the install exists, as it always has. Choosing how long, as the mock's retention row does, is a later setting with its own record.
+
+The PRD's packaging gives Community a 30-day audit log, and Organization unlimited audit retention and export. Nothing in this build is held back by edition: the open-source build keeps every event and exports all of it. How long Community keeps events, and what it can export, follows the packaging decision, which hasn't been made, and then gets a record of its own. Until then, nothing here builds a limit.
 
 ## Consequences
 

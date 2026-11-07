@@ -98,11 +98,17 @@ message AuditEvent {
   // The ID it is about, such as a change's for a change's events, or the
   // person's for signing in. Empty when it is about nothing more.
   string subject = 7;
-  // What Dockwell wrote of it for people, such as "passkey on localhost from
-  // 203.0.113.9, session ses_…" for a sign-in. It may name addresses. Empty
-  // when there was nothing more to say.
+  // What Dockwell recorded with it, as it was recorded: words for people,
+  // such as "passkey on localhost from 203.0.113.9, session ses_…" for a
+  // sign-in, or facts for a program, such as a setting's value and the one it
+  // replaced. It may name addresses. Empty when there was nothing more. To say
+  // the event in words, read event.
   string detail = 8;
   // The address someone who wasn't signed in came from, such as
   // "203.0.113.9". Empty for everyone else.
   string address = 9;
+  // The same event as Activity has it, with the facts it carries, such as a
+  // backup's volume, a health check's state, a setting's value, or a change
+  // with its plan, as it is now, for saying the event in words.
+  Event event = 10;
 }

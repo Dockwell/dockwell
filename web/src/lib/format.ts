@@ -24,6 +24,25 @@ export function formatDateTime(date: Date, locale: string, timeZone?: string): s
   }).format(date);
 }
 
+/** A moment to the second, with its time zone named: "7 Nov 2026, 14:03:07 CET". */
+export function formatMoment(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(dateLocale(locale), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+/** The day as a file name has it, in the browser's own time zone, as the screen shows times: "2026-11-07". */
+export function fileDay(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"] as const;
 
 /**

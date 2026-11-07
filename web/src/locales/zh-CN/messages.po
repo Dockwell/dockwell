@@ -398,9 +398,6 @@ msgstr "显示更早的事件"
 msgid "Size"
 msgstr "大小"
 
-msgid "Someone"
-msgstr "某人"
-
 msgid "State"
 msgstr "状态"
 
@@ -445,6 +442,18 @@ msgstr "服务器筛选"
 
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
 msgstr "{count, plural, other {{long} · # 个事件}}"
+
+msgid "CLI on {host}"
+msgstr "{host} 上的 CLI"
+
+msgid "Local access token, read-only, {id}, made by {account}"
+msgstr "本地访问令牌，只读，{id}，由 {account} 创建"
+
+msgid "Local access token, read-write, {id}, made by {account}"
+msgstr "本地访问令牌，读写，{id}，由 {account} 创建"
+
+msgid "Someone"
+msgstr "某人"
 
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
@@ -7008,14 +7017,14 @@ msgstr "操作"
 msgid "All sources"
 msgstr "所有来源"
 
+msgid "Applied by"
+msgstr "应用者"
+
 msgid "Audit log"
 msgstr "审计日志"
 
 msgid "CLI"
 msgstr "CLI"
-
-msgid "Cleared, which was {previous}"
-msgstr "已清除（原为 {previous}）"
 
 msgid "Detail"
 msgstr "详情"
@@ -7029,8 +7038,8 @@ msgstr "Dockwell 无法读取审计日志"
 msgid "Events"
 msgstr "事件"
 
-msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
-msgstr "人员、令牌、服务器和 Dockwell 的每一次变更和每一次访问 · 与这个安装一样长久保留"
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
+msgstr "人员、令牌、服务器和 Dockwell 的每一次变更与每一次访问 · 只要此安装存在就会一直保留"
 
 msgid "Everything"
 msgstr "全部"
@@ -7063,6 +7072,9 @@ msgstr "最近 7 天"
 msgid "Loading the audit log"
 msgstr "正在加载审计日志"
 
+msgid "Loading the change"
+msgstr "正在加载变更"
+
 msgid "Not signed in"
 msgstr "未登录"
 
@@ -7071,9 +7083,6 @@ msgstr "这个时间范围内没有发生任何事。选择更长的范围以查
 
 msgid "Nothing matches. Pick a longer range, or clear the filters."
 msgstr "没有匹配的事件。请选择更长的范围，或清除筛选条件。"
-
-msgid "Nothing more"
-msgstr "没有更多内容"
 
 msgid "Open in Activity"
 msgstr "在动态中打开"
@@ -7087,14 +7096,14 @@ msgstr "人员"
 msgid "Pick a longer range to see more."
 msgstr "选择更长的范围以查看更多。"
 
-msgid "Said"
+msgid "Recorded"
 msgstr "记录内容"
 
 msgid "Saved 1 event."
 msgstr "已保存 1 个事件。"
 
-msgid "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
-msgstr "已保存最新的 {MOST_EXPORTED} 个事件。缩小筛选范围以保存其余事件。"
+msgid "Saved the newest {most} events. Narrow the filters to save the rest."
+msgstr "已保存最新的 {most} 条事件。缩小筛选范围以保存其余事件。"
 
 #. placeholder {0}: events.length
 msgid "Saved {0} events."
@@ -7119,6 +7128,9 @@ msgstr "最新的 {count} 个事件。显示更多以查看更早的事件。"
 msgid "Today · {day}"
 msgstr "今天 · {day}"
 
+msgid "What happened"
+msgstr "发生了什么"
+
 msgid "Yesterday · {day}"
 msgstr "昨天 · {day}"
 
@@ -7134,8 +7146,8 @@ msgstr "最近 7 天内有 {count} 个事件。"
 msgid "{count} events, all there are."
 msgstr "共 {count} 个事件，这是全部。"
 
-msgid "{value}, which was {previous}"
-msgstr "{value}（原为 {previous}）"
+msgid "{name} and {more} more"
+msgstr "{name} 等 {more} 项"
 
 msgid "A file beside the control plane, for one control plane"
 msgstr "控制平面旁的一个文件，适用于单个控制平面"
@@ -7580,6 +7592,72 @@ msgstr "{acting}。"
 
 msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
 msgstr "{soon, plural, other {# 个将在两周内过期}}"
+
+msgid "A change failed"
+msgstr "一项变更失败"
+
+msgid "A passkey may have been copied"
+msgstr "某个通行密钥可能已被复制"
+
+msgid "Applied a change"
+msgstr "应用了一项变更"
+
+msgid "Applied {summary}"
+msgstr "已应用 {summary}"
+
+msgid "Confirmed with a passkey"
+msgstr "已用通行密钥确认"
+
+msgid "Couldn't apply {summary}"
+msgstr "无法应用 {summary}"
+
+msgid "Couldn't confirm with a passkey"
+msgstr "无法用通行密钥确认"
+
+msgid "Couldn't sign in"
+msgstr "登录失败"
+
+msgid "Discarded a change"
+msgstr "舍弃了一项变更"
+
+msgid "Discarded {summary}"
+msgstr "已舍弃 {summary}"
+
+msgid "Planned a change"
+msgstr "规划了一项变更"
+
+msgid "Planned {summary}"
+msgstr "已规划 {summary}"
+
+msgid "Refused a call this token can't make"
+msgstr "拒绝了此令牌无权发起的调用"
+
+msgid "Refused to renew a server's certificate"
+msgstr "拒绝续签某台服务器的证书"
+
+msgid "Refused to renew the certificate of {name}"
+msgstr "拒绝续签 {name} 的证书"
+
+msgid "Saving {path}"
+msgstr "正在保存 {path}"
+
+msgid "Saving {path} on {name}"
+msgstr "正在保存 {name} 上的 {path}"
+
+msgid "Set up this install"
+msgstr "创建了此安装"
+
+msgid "Signed out"
+msgstr "已退出登录"
+
+msgid "Stopped sign-in with codes after too many wrong ones"
+msgstr "错误次数过多，已停止使用验证码登录"
+
+msgid "The passkey {name} may have been copied"
+msgstr "通行密钥 {name} 可能已被复制"
+
+msgid "Used from a new address"
+msgstr "从新地址使用"
 
 msgid "Check the control plane's status"
 msgstr "查看控制平面状态"

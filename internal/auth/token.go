@@ -153,7 +153,7 @@ func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope stri
 	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
 	}
-	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, grants, expires,
+	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), "", name, scope, grants, expires,
 		func() error { return s.confirmed(p, proof, StepUpCreateToken) })
 }
 
@@ -178,7 +178,7 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 			return u, errors.New("this install has no owner yet, so local access has nobody to act for. Claim it with the link from dockwell claim")
 		}
 		return u, err
-	}, actor, name, scope, []string{store.GrantLogs}, &expires, nil)
+	}, actor, strings.TrimPrefix(actor, "cli:"), name, scope, []string{store.GrantLogs}, &expires, nil)
 }
 
 // RevokeLocalToken revokes a token CreateLocalToken made, for whoever can
@@ -217,7 +217,9 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 // that stores it. confirm, when set, is called once nothing else refuses
 // it, the most tokens included, and before anything is stored, to check it
 // may be made: it may spend a step-up's proof.
-func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, grants []string, expires *time.Time,
+// local is the shell account a token for the CLI's local access is for, or
+// empty for any other token.
+func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, local, name, scope string, grants []string, expires *time.Time,
 	confirm func() error,
 ) (NewToken, error) {
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
@@ -251,6 +253,8 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		Grants:    slices.Compact(slices.Sorted(slices.Values(grants))),
 		CreatedAt: now,
 		ExpiresAt: expires,
+
+		LocalAccount: local,
 	}
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		user, err := who(tx)

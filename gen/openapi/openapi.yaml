@@ -3274,6 +3274,13 @@ components:
                     description: |-
                         The name to show, such as "Mira Chen", a token's name, such as
                          "GitHub Actions deploy", or a server's, such as "hz-2".
+                localAccess:
+                    allOf:
+                        - $ref: '#/components/schemas/LocalAccess'
+                    description: |-
+                        For a token the CLI made for local access on the control server, who
+                         asked for it there. Unset for every other actor: a token's name is
+                         whatever its maker typed, so only this says a token is local access's.
             description: Actor is who made a change, or applied it, or did what an event records.
         AddServicePortRequest:
             type: object
@@ -3495,14 +3502,23 @@ components:
                 detail:
                     type: string
                     description: |-
-                        What Dockwell wrote of it for people, such as "passkey on localhost from
-                         203.0.113.9, session ses_…" for a sign-in. It may name addresses. Empty
-                         when there was nothing more to say.
+                        What Dockwell recorded with it, as it was recorded: words for people,
+                         such as "passkey on localhost from 203.0.113.9, session ses_…" for a
+                         sign-in, or facts for a program, such as a setting's value and the one it
+                         replaced. It may name addresses. Empty when there was nothing more. To say
+                         the event in words, read event.
                 address:
                     type: string
                     description: |-
                         The address someone who wasn't signed in came from, such as
                          "203.0.113.9". Empty for everyone else.
+                event:
+                    allOf:
+                        - $ref: '#/components/schemas/Event'
+                    description: |-
+                        The same event as Activity has it, with the facts it carries, such as a
+                         backup's volume, a health check's state, a setting's value, or a change
+                         with its plan, as it is now, for saying the event in words.
             description: AuditEvent is one event of the audit log, as it was recorded.
         AutomaticUpdates:
             type: object
@@ -7138,6 +7154,25 @@ components:
                         $ref: '#/components/schemas/WebsiteInfo'
                     description: The websites, sorted by domain.
             description: ListWebsitesResponse lists the websites.
+        LocalAccess:
+            type: object
+            properties:
+                account:
+                    type: string
+                    description: |-
+                        The shell account that asked for it, and the server's host name, as
+                         "mira@hz-1".
+                scope:
+                    enum:
+                        - TOKEN_SCOPE_UNSPECIFIED
+                        - TOKEN_SCOPE_READ_ONLY
+                        - TOKEN_SCOPE_READ_WRITE
+                    type: string
+                    description: What the token may do.
+                    format: enum
+            description: |-
+                LocalAccess is how the CLI came by a token on the control server, by
+                 reading the control plane's data directory, without signing in.
         LogChunk:
             type: object
             properties:

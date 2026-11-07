@@ -7,8 +7,11 @@ package audit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -18,7 +21,10 @@ import (
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -44,14 +50,17 @@ var actorPrefixes = map[dockwellv1.AuditActor][]string{
 // Handler implements AuditService.
 type Handler struct {
 	db     *store.DB
+	engine *revision.Engine
 	logger *slog.Logger
 }
 
 var _ dockwellv1connect.AuditServiceHandler = (*Handler)(nil)
 
-// New returns a handler that reads the audit log from db.
-func New(db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{db: db, logger: logger}
+// New returns a handler that reads the audit log from db, and the changes
+// its change events are about from engine. Without an engine, those events
+// come without their change.
+func New(db *store.DB, engine *revision.Engine, logger *slog.Logger) *Handler {
+	return &Handler{db: db, engine: engine, logger: logger}
 }
 
 // ListAuditEvents returns a page of the audit log, newest first.
@@ -64,6 +73,9 @@ func (h *Handler) ListAuditEvents(ctx context.Context, req *connect.Request[dock
 	cursor, _, err := paging.Read(m.GetPageToken(), "ListAuditEvents")
 	if err != nil {
 		return nil, err
+	}
+	if n := utf8.RuneCountInString(m.GetQuery()); n > store.MaxAuditQuery {
+		return nil, authapi.Invalid(fmt.Errorf("query is %d characters, and holds %d at most. Shorten it", n, store.MaxAuditQuery))
 	}
 	f := store.AuditFilter{ActorPrefixes: actorPrefixes[m.GetActor()], Query: m.GetQuery()}
 	if _, ok := actorPrefixes[m.GetActor()]; !ok && m.GetActor() != dockwellv1.AuditActor_AUDIT_ACTOR_UNSPECIFIED {
@@ -86,18 +98,22 @@ func (h *Handler) ListAuditEvents(ctx context.Context, req *connect.Request[dock
 	names := actors.New()
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		// One more than the page, to know whether another comes after it.
-		events, err := tx.AuditEvents(ctx, f, store.TimelineCursor{At: cursor.At, ID: cursor.ID}, size+1)
+		found, err := tx.AuditEvents(ctx, f, store.TimelineCursor{At: cursor.At, ID: cursor.ID}, size+1)
 		if err != nil {
 			return err
 		}
-		if len(events) > size {
-			last := events[size-1]
-			events = events[:size]
+		if len(found) > size {
+			last := found[size-1]
+			found = found[:size]
 			out.NextPageToken = paging.Token(paging.Cursor{At: last.At, ID: last.ID})
 		}
 		lookup := names.In(ctx, tx)
-		for i := range events {
-			out.Events = append(out.Events, event(lookup, &events[i]))
+		about, err := h.changes(ctx, tx, found, lookup)
+		if err != nil {
+			return err
+		}
+		for i := range found {
+			out.Events = append(out.Events, event(lookup, &found[i], about))
 		}
 		return nil
 	})
@@ -108,11 +124,49 @@ func (h *Handler) ListAuditEvents(ctx context.Context, req *connect.Request[dock
 	return connect.NewResponse(out), nil
 }
 
-// event is one audit event for the API, with its actor and target named.
-func event(lookup actors.Lookup, e *store.Event) *dockwellv1.AuditEvent {
+// changes reads the changes a page's change events are about, as they are
+// now, each with its plan in brief, by ID.
+func (h *Handler) changes(ctx context.Context, tx *store.Tx, page []store.Event, look actors.Lookup) (map[string]*dockwellv1.Change, error) {
+	if h.engine == nil {
+		return nil, nil
+	}
+	var ids []string
+	for i := range page {
+		if strings.HasPrefix(page[i].Action, "change.") && strings.HasPrefix(page[i].Subject, id.Change+"_") {
+			ids = append(ids, page[i].Subject)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	found, err := tx.GetChanges(ctx, slices.Compact(slices.Sorted(slices.Values(ids))))
+	if err != nil {
+		return nil, err
+	}
+	cs := make([]store.Change, 0, len(found))
+	for changeID := range found {
+		cs = append(cs, found[changeID])
+	}
+	records, err := h.engine.Records(ctx, tx, cs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]*dockwellv1.Change, len(records))
+	for _, r := range records {
+		out[r.ID] = changes.Proto(r, look.Actor)
+	}
+	return out, nil
+}
+
+// event is one audit event for the API, with its actor and target named,
+// and the event as the timeline has it, with the change it's about, if any.
+func event(lookup actors.Lookup, e *store.Event, about map[string]*dockwellv1.Change) *dockwellv1.AuditEvent {
 	out := &dockwellv1.AuditEvent{
 		Id: e.ID, Time: timestamppb.New(e.At), Action: e.Action, Surface: changes.Surfaces[e.Surface],
-		Subject: e.Subject, Detail: e.Detail,
+		Subject: e.Subject, Detail: e.Detail, Event: events.FromAudit(e, lookup),
+	}
+	if c, ok := about[e.Subject]; ok && strings.HasPrefix(e.Action, "change.") {
+		out.Event.Change = c
 	}
 	if address, ok := strings.CutPrefix(e.Actor, stranger); ok {
 		out.Address = address

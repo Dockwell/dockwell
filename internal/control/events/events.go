@@ -471,7 +471,7 @@ func (h *Handler) render(ctx context.Context, tx *store.Tx, names *actors.Names,
 		if e.Change != nil {
 			out[i] = changeEvent(e.At, records[e.Change.ID], look)
 		} else {
-			out[i] = auditEvent(e.Event, look)
+			out[i] = FromAudit(e.Event, look)
 		}
 	}
 	return out, nil
@@ -494,9 +494,10 @@ func changeEvent(at time.Time, r *revision.Record, look actors.Lookup) *dockwell
 	return e
 }
 
-// auditEvent is an event from the audit log, as its writer recorded it:
-// where it came from, and who or what it acted on.
-func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
+// FromAudit is an event from the audit log, as its writer recorded it:
+// where it came from, and who or what it acted on, with the facts its kind
+// carries. The timeline and the audit log both say events this way.
+func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	e := &dockwellv1.Event{
 		Id: a.ID, Kind: dockwellv1.EventKind_EVENT_KIND_ACCESS, Action: a.Action, Time: timestamppb.New(a.At),
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
