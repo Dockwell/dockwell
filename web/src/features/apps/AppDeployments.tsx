@@ -551,9 +551,10 @@ function DiffValue({ value }: { value: PlanValue | undefined }) {
 }
 
 /**
- * What a revision changed, in the plan's words, with each value whole and the
- * old one above the new, so a long value never breaks in the middle of a word.
- * An image reads by what moved, and its full name is the Image fact below.
+ * What a revision changed, in the plan's words: each field's old value, then
+ * the new, read across as App-Deployments has them. Each value stays whole,
+ * and the new one wraps under the old rather than break in the middle of a
+ * word. An image reads by what moved, and its full name is the Image fact below.
  */
 function RevisionDiff({ rev }: { rev: ServiceRevision }) {
   const { t } = useLingui();
@@ -576,6 +577,9 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
                 <del className={cx("deploy-diff-from", isValidElement(from) && "is-words")}>
                   <DiffValue value={from} />
                 </del>
+              ) : null}
+              {from !== undefined && from !== "" && to !== undefined && to !== "" && !secret ? (
+                <Icon name="arrow-right" size={12} className="deploy-diff-arrow" />
               ) : null}
               {to !== undefined && to !== "" && !secret ? (
                 row.tone === "change" ? (
