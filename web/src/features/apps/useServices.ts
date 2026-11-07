@@ -5,18 +5,17 @@ import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery as useConnectQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ChangeState,
+  DomainService,
   EventKind,
-  EventService,
   ListServicesResponseSchema,
   ResourceService,
   type ServiceInfo,
   ServiceService,
 } from "@dockwell/api";
 import { type QueryClient, type QueryKey, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 
-import { isSessionEnded } from "../../lib/errors";
-import { keepTrying } from "../../lib/retry";
+import { useEventsHub } from "../activity/EventsHub";
 import { readHealthSoon } from "./health";
 
 /** The most ListServices returns at once. */
@@ -86,8 +85,6 @@ export async function readServicesAgain(queryClient: QueryClient): Promise<void>
   });
 }
 
-const BACKOFF = { minMs: 1_000, maxMs: 15_000 };
-
 /** How long a burst of moves waits before the list is read again, so it is read once for them. */
 const SETTLE_MS = 150;
 
@@ -122,10 +119,12 @@ function wentUnwatched(queryClient: QueryClient, list: QueryKey): boolean {
 export function useServicesLive(): { reconnecting: boolean } {
   const transport = useTransport();
   const queryClient = useQueryClient();
-  const [reconnecting, setReconnecting] = useState(false);
+  const hub = useEventsHub();
+  const reconnecting = useSyncExternalStore(
+    (onChange) => hub.watch(onChange),
+    () => hub.status.kind === "reconnecting",
+  );
   useEffect(() => {
-    const abort = new AbortController();
-    const client = createClient(EventService, transport);
     const list = createConnectQueryKey({
       schema: ServiceService.method.listServices,
       input: {},
@@ -137,56 +136,42 @@ export function useServicesLive(): { reconnecting: boolean } {
       clearTimeout(timer);
       timer = setTimeout(() => {
         void readServicesAgain(queryClient);
-        // What runs is what a change changes.
+        // What runs is what a change changes, and where it answers.
         readHealthSoon(queryClient);
+        void queryClient.invalidateQueries({
+          queryKey: createConnectQueryKey({ schema: DomainService.method.listDomains, cardinality: undefined }),
+        });
       }, SETTLE_MS);
     };
     // Where each change stood when last seen: its state, and each step's.
     const seen = new Map<string, string>();
-    let dropped = false;
-    void keepTrying(
-      abort.signal,
-      BACKOFF,
-      async (connected, attempt) => {
-        for await (const msg of client.watchEvents({ kinds: [EventKind.CHANGE], pageSize: 1 }, { signal: attempt })) {
-          connected();
-          setReconnecting(false);
-          let moved = false;
-          for (const event of msg.events) {
-            const change = event.change;
-            // A plan someone is still reviewing changes nothing that runs.
-            if (!change || change.state === ChangeState.PLANNED) continue;
-            const mark = `${change.state}/${change.steps.map((s) => s.state).join(",")}`;
-            if (seen.get(change.id) !== mark) moved = true;
-            seen.set(change.id, mark);
-          }
-          // A first snapshot says nothing the first read didn't, unless that
-          // read is older than the watch. After a drop, anything may have
-          // happened.
-          if (msg.snapshot ? dropped || wentUnwatched(queryClient, list) : moved) read();
-          dropped = false;
-        }
-        // A stream that ends with no error, as when the control plane stops,
-        // is as much a drop as one that fails.
-        if (!abort.signal.aborted) {
-          dropped = true;
-          setReconnecting(true);
-        }
-        return undefined;
-      },
-      (err) => {
-        if (isSessionEnded(err)) return "done";
-        dropped = true;
-        setReconnecting(true);
-        return undefined;
-      },
-    );
+    let first = true;
+    const unsubscribe = hub.subscribe((msg) => {
+      let moved = false;
+      for (const event of msg.events) {
+        const change = event.change;
+        // A plan someone is still reviewing changes nothing that runs.
+        if (event.kind !== EventKind.CHANGE || !change || change.state === ChangeState.PLANNED) continue;
+        const mark = `${change.state}/${change.steps.map((s) => s.state).join(",")}`;
+        if (seen.get(change.id) !== mark) moved = true;
+        seen.set(change.id, mark);
+      }
+      // A first snapshot says nothing the first read didn't, unless that read is
+      // older than the watch. A later one says the stream was away, so anything
+      // may have happened.
+      if (msg.snapshot) {
+        if (!first || wentUnwatched(queryClient, list)) read();
+        first = false;
+      } else if (moved) {
+        read();
+      }
+    });
     return () => {
-      abort.abort();
+      unsubscribe();
       clearTimeout(timer);
       lastWatched.set(queryClient, Date.now());
     };
-  }, [transport, queryClient]);
+  }, [hub, transport, queryClient]);
   return { reconnecting };
 }
 

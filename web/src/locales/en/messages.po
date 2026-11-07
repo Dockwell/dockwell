@@ -226,6 +226,12 @@ msgstr "{0} vCPU"
 msgid "{0}, {zone}"
 msgstr "{0}, {zone}"
 
+#. placeholder {0}: formatDateTime(timestampDate(next.nextRun), i18n.locale, zone)
+#. placeholder {1}: next.spec?.volume ?? ""
+#: src/features/overview/OverviewBackups.tsx
+msgid "{0}, {zone} · {1}"
+msgstr "{0}, {zone} · {1}"
+
 #. placeholder {0}: first.summary
 #: src/features/apps/AppOverview.tsx
 msgid "{0}. It was proposed with an API token, and its plan is one only a signed-in person may apply. Nothing changes until someone does."
@@ -256,6 +262,7 @@ msgid "{count, plural, one {# app in {where}} other {# apps in {where}}}"
 msgstr "{count, plural, one {# app in {where}} other {# apps in {where}}}"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 msgid "{count, plural, one {# app} other {# apps}}"
 msgstr "{count, plural, one {# app} other {# apps}}"
 
@@ -1054,6 +1061,10 @@ msgstr "{writtenBy} wrote these files, and {runsOn} runs on them now"
 msgid "+{left}"
 msgstr "+{left}"
 
+#: src/features/overview/OverviewApps.tsx
+msgid "+{others}"
+msgstr "+{others}"
+
 #. placeholder {0}: window.location.host
 #: src/features/auth/SignInPage.tsx
 msgid "<0>{0}</0> · the panel for {name}"
@@ -1232,6 +1243,7 @@ msgid "a {type} mount ({reads})"
 msgstr "a {type} mount ({reads})"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "A backup is of a volume. Add one to an app, or install a database from the catalog."
 
@@ -1411,6 +1423,7 @@ msgid "Actions"
 msgstr "Actions"
 
 #: src/features/activity/ActivityPage.tsx
+#: src/features/overview/RecentChanges.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Activity"
@@ -1753,6 +1766,7 @@ msgstr "app"
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 msgid "App"
 msgstr "App"
 
@@ -1792,11 +1806,16 @@ msgstr "Applying this asks for your passkey"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
 msgid "Apps"
 msgstr "Apps"
+
+#: src/features/overview/OverviewApps.tsx
+msgid "Apps on this server"
+msgstr "Apps on this server"
 
 #: src/features/servers/ContainersPanel.tsx
 msgid "Apps you run with Dockwell are under <0>Apps</0>."
@@ -1884,6 +1903,7 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Back up now"
 msgstr "Back up now"
 
@@ -1902,6 +1922,7 @@ msgstr "backup"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/overview/OverviewBackups.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
@@ -1993,6 +2014,7 @@ msgid "Can't load the activity yet"
 msgstr "Can't load the activity yet"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 msgid "Can't load the apps"
 msgstr "Can't load the apps"
 
@@ -2855,6 +2877,7 @@ msgstr "Deploy your first app"
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
+#: src/features/overview/OverviewApps.tsx
 msgid "Deployed"
 msgstr "Deployed"
 
@@ -3048,6 +3071,7 @@ msgid "Dockwell can't reach what this would back up"
 msgstr "Dockwell can't reach what this would back up"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell can't read its backups"
 
@@ -3244,6 +3268,7 @@ msgstr "domain"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/domains/DomainsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 msgid "Domain"
 msgstr "Domain"
 
@@ -3513,6 +3538,7 @@ msgstr "Fetch this backup of {0}"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
+#: src/features/overview/Overview.tsx
 #: src/features/servers/ServerFrame.tsx
 msgid "Files"
 msgstr "Files"
@@ -3708,6 +3734,7 @@ msgid "Go up to {0}"
 msgstr "Go up to {0}"
 
 #: src/features/backups/PoliciesPanel.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Hasn't run yet"
 msgstr "Hasn't run yet"
 
@@ -4349,6 +4376,10 @@ msgstr "Keeping {count} takes about {0} while the next is taken, and the disk ha
 msgid "Keeps {0}, holding {1} now ({2})"
 msgstr "Keeps {0}, holding {1} now ({2})"
 
+#: src/features/overview/OverviewBackups.tsx
+msgid "Kept"
+msgstr "Kept"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Kernel"
 msgstr "Kernel"
@@ -4386,7 +4417,12 @@ msgstr "Last 15 min"
 msgid "Last 24 h"
 msgstr "Last 24 h"
 
+#: src/features/overview/OverviewBackups.tsx
+msgid "Last backup"
+msgstr "Last backup"
+
 #: src/features/backups/PoliciesPanel.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Last copy failed"
 msgstr "Last copy failed"
 
@@ -4395,6 +4431,7 @@ msgid "Last heartbeat"
 msgstr "Last heartbeat"
 
 #: src/features/backups/PoliciesPanel.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Last run failed"
 msgstr "Last run failed"
 
@@ -4496,8 +4533,17 @@ msgid "Loading activity"
 msgstr "Loading activity"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 msgid "Loading apps"
 msgstr "Loading apps"
+
+#: src/features/overview/OverviewBackups.tsx
+msgid "Loading backups"
+msgstr "Loading backups"
+
+#: src/features/overview/RecentChanges.tsx
+msgid "Loading changes"
+msgstr "Loading changes"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Loading deployments"
@@ -4818,6 +4864,7 @@ msgstr "New"
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/domains/DomainsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "New app"
 msgstr "New app"
@@ -4833,6 +4880,10 @@ msgstr "New value"
 #: src/features/logs/LogsPage.tsx
 msgid "Next error"
 msgstr "Next error"
+
+#: src/features/overview/OverviewBackups.tsx
+msgid "Next run"
+msgstr "Next run"
 
 #: src/features/backups/PoliciesPanel.tsx
 msgid "Next run {next}"
@@ -4881,6 +4932,10 @@ msgstr "No app with this ID"
 #: src/features/apps/AppsPage.tsx
 msgid "No apps yet"
 msgstr "No apps yet"
+
+#: src/features/overview/OverviewApps.tsx
+msgid "No apps yet. Run an image, a Compose file or an app from the catalog."
+msgstr "No apps yet. Run an image, a Compose file or an app from the catalog."
 
 #: src/features/changes/notices.tsx
 msgid "No backup is taken first"
@@ -4947,6 +5002,10 @@ msgstr "No report"
 msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 msgstr "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 
+#: src/features/overview/OverviewBackups.tsx
+msgid "No schedule"
+msgstr "No schedule"
+
 #: src/features/backups/PoliciesPanel.tsx
 msgid "No schedules yet. A backup you take by hand stays until you delete it."
 msgstr "No schedules yet. A backup you take by hand stays until you delete it."
@@ -5003,6 +5062,10 @@ msgstr "Nobody can say how {name} runs now."
 msgid "None reported"
 msgstr "None reported"
 
+#: src/features/overview/OverviewBackups.tsx
+msgid "None scheduled"
+msgstr "None scheduled"
+
 #: src/features/apps/AppOverview.tsx
 msgid "None set"
 msgstr "None set"
@@ -5010,6 +5073,10 @@ msgstr "None set"
 #: src/features/apps/AppOverview.tsx
 msgid "None set here. The image may have one."
 msgstr "None set here. The image may have one."
+
+#: src/features/overview/OverviewBackups.tsx
+msgid "None yet"
+msgstr "None yet"
 
 #: src/features/apps/AppOverview.tsx
 msgid "None. Without one, Running only means it started."
@@ -5130,6 +5197,10 @@ msgstr "Nothing checks it, so this only means it started."
 #: src/features/logs/LogContext.tsx
 msgid "Nothing else was written around this line."
 msgstr "Nothing else was written around this line."
+
+#: src/features/overview/RecentChanges.tsx
+msgid "Nothing has changed yet. Each change you make shows here."
+msgstr "Nothing has changed yet. Each change you make shows here."
 
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
@@ -5296,6 +5367,7 @@ msgid "on port {0}"
 msgstr "on port {0}"
 
 #: src/features/backups/PoliciesPanel.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "On schedule"
 msgstr "On schedule"
 
@@ -5307,6 +5379,14 @@ msgstr "On the internet"
 #: src/features/apps/NewAppSheet.tsx
 msgid "On the server"
 msgstr "On the server"
+
+#: src/features/overview/OverviewBackups.tsx
+msgid "On the server, and on {kept}"
+msgstr "On the server, and on {kept}"
+
+#: src/features/overview/OverviewBackups.tsx
+msgid "On the server's own disk only"
+msgstr "On the server's own disk only"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Once <0>{servers}</0> reconnect, Dockwell puts things back as they were"
@@ -6100,6 +6180,7 @@ msgstr "Reads servers and their state. Changes nothing."
 msgid "Receiving"
 msgstr "Receiving"
 
+#: src/features/overview/RecentChanges.tsx
 #: src/features/shell/CommandMenu.tsx
 msgid "Recent changes"
 msgstr "Recent changes"
@@ -6298,6 +6379,7 @@ msgid "Restarts"
 msgstr "Restarts"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Restore"
 msgstr "Restore"
 
@@ -6556,6 +6638,7 @@ msgstr "Run this on the server over SSH. It prints a sign-in link that works onc
 #: src/features/backups/PoliciesPanel.tsx
 #: src/features/backups/words.ts
 #: src/features/changes/words.ts
+#: src/features/overview/OverviewBackups.tsx
 #: src/features/servers/containers.ts
 msgid "Running"
 msgstr "Running"
@@ -7162,6 +7245,7 @@ msgstr "State"
 #: src/features/apps/AppsPage.tsx
 #: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 #: src/features/servers/ContainerPage.tsx
 msgid "Status"
 msgstr "Status"
@@ -8275,6 +8359,8 @@ msgstr "trend"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/overview/OverviewApps.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Try again"
 msgstr "Try again"
 
@@ -8640,6 +8726,10 @@ msgstr "Version {version}"
 msgid "Version <0>{0}</0>"
 msgstr "Version <0>{0}</0>"
 
+#: src/features/overview/OverviewApps.tsx
+msgid "View all"
+msgstr "View all"
+
 #. placeholder {0}: going.length
 #: src/features/changes/ChangeSheet.tsx
 msgid "visitors lose {0} addresses"
@@ -8783,6 +8873,7 @@ msgid "what runs on {server} itself"
 msgstr "what runs on {server} itself"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/overview/OverviewApps.tsx
 msgid "What runs on your servers isn't affected."
 msgstr "What runs on your servers isn't affected."
 

@@ -35,17 +35,35 @@ export interface VolumeChoice {
   environment: string;
 }
 
-/** Every volume there is, by name. */
-export function useVolumes(): VolumeChoice[] {
+/** Every volume there is, by name, with whether that's known yet and why not. */
+export function useVolumesRead(): {
+  volumes: VolumeChoice[];
+  isPending: boolean;
+  isFetching: boolean;
+  error: Error | null;
+  refetch: () => void;
+} {
   const query = useQuery(ResourceService.method.listResources, { kind: "volume" });
   const resources = query.data?.resources;
-  return useMemo(
+  const volumes = useMemo(
     () =>
       (resources ?? [])
         .map((r) => ({ id: r.id, name: r.resource?.name ?? r.id, environment: r.resource?.scope ?? "" }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [resources],
   );
+  return {
+    volumes,
+    isPending: query.isPending,
+    isFetching: query.isFetching,
+    error: query.error,
+    refetch: () => void query.refetch(),
+  };
+}
+
+/** Every volume there is, by name: none while they load or can't be read. */
+export function useVolumes(): VolumeChoice[] {
+  return useVolumesRead().volumes;
 }
 
 /** What a list of volumes offers: each by its name, and where that's not enough, its app too. */

@@ -50,12 +50,13 @@ import {
   sortGroups,
 } from "./app";
 import { ExportSheet } from "./ExportSheet";
-import { HealthBadge, useHealthWords } from "./Health";
+import { HealthBadge, phoneWordClass, useHealthWords } from "./Health";
 import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
 import { ImageName } from "./ImageName";
-import { usePlaces, useServices, useServicesLive } from "./useServices";
+import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
+import { useServicesWatch } from "./ServicesLive";
 
 /** The list's place, in its URL: its filters. */
 export interface AppsSearch {
@@ -153,7 +154,7 @@ export function AppsPage({
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const services = useServices();
-  const { reconnecting } = useServicesLive();
+  const { reconnecting } = useServicesWatch();
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
   const health = useHealth();
@@ -262,7 +263,11 @@ export function AppsPage({
   }, [all]);
   const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM;
   const elsewhere = count - shown.length;
-  const { lead, total, going, trouble, needing } = useLead(shown, environment ? places.label(environment) : "", health);
+  const { lead, total, going, trouble, needing } = useAppsLead(
+    shown,
+    environment ? places.label(environment) : "",
+    health,
+  );
   const later = useLaterTrouble(needing, trouble, settled);
   const showFirst = outOfPlace ? (
     <Button variant="ghost" size="sm" className="apps-show-first" onClick={bringUp}>
@@ -478,8 +483,8 @@ function UnreadNote({ why, heard }: { why: Unread; heard: Date | undefined }) {
   );
 }
 
-/** The line under the title: how many, and what is going on with them. */
-function useLead(
+/** The line under the title: how many, and what is going on with them. The overview's apps say it too. */
+export function useAppsLead(
   services: readonly ServiceInfo[],
   where: string,
   health: HealthView,
@@ -753,15 +758,11 @@ function PhoneList({
               <span className="apps-phone-text">
                 <span className="apps-phone-name">{row.group.name}</span>
                 <span className="apps-phone-sub">
-                  <span className={`apps-phone-word dw-tone-${STATUS[runs.status].tone}`}>
-                    {healthWords.word(runs)}
-                  </span>
+                  <span className={phoneWordClass(STATUS[runs.status].tone)}>{healthWords.word(runs)}</span>
                   {recordSaysMore(state) ? (
                     <>
                       <span aria-hidden="true">·</span>
-                      <span className={`apps-phone-word dw-tone-${STATUS[state.status].tone}`}>
-                        {words.state(state)}
-                      </span>
+                      <span className={phoneWordClass(STATUS[state.status].tone)}>{words.state(state)}</span>
                     </>
                   ) : null}
                   <span aria-hidden="true">·</span>
@@ -792,11 +793,11 @@ function PhoneList({
                 {row.kind === "app" && row.group.name ? row.group.name : nameOf(service)}
               </span>
               <span className="apps-phone-sub">
-                <span className={`apps-phone-word dw-tone-${STATUS[runs.status].tone}`}>{healthWords.word(runs)}</span>
+                <span className={phoneWordClass(STATUS[runs.status].tone)}>{healthWords.word(runs)}</span>
                 {recordSaysMore(state) ? (
                   <>
                     <span aria-hidden="true">·</span>
-                    <span className={`apps-phone-word dw-tone-${STATUS[state.status].tone}`}>{words.state(state)}</span>
+                    <span className={phoneWordClass(STATUS[state.status].tone)}>{words.state(state)}</span>
                   </>
                 ) : null}
                 <span aria-hidden="true">·</span>

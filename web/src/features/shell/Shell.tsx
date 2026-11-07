@@ -12,6 +12,8 @@ import { Rail } from "./Rail";
 import { TabBar } from "./TabBar";
 import { Topbar } from "./Topbar";
 import "./Shell.css";
+import { EventsHubProvider } from "../activity/EventsHub";
+import { ServicesLive } from "../apps/ServicesLive";
 
 /**
  * The frame every screen sits in: the rail and the top bar on wide screens,
@@ -21,11 +23,15 @@ import "./Shell.css";
 export function Shell({ children }: { children: ReactNode }) {
   return (
     <FleetProvider>
-      <ChangeSheetProvider>
-        <CommandMenu>
-          <Frame>{children}</Frame>
-        </CommandMenu>
-      </ChangeSheetProvider>
+      <EventsHubProvider>
+        <ServicesLive>
+          <ChangeSheetProvider>
+            <CommandMenu>
+              <Frame>{children}</Frame>
+            </CommandMenu>
+          </ChangeSheetProvider>
+        </ServicesLive>
+      </EventsHubProvider>
     </FleetProvider>
   );
 }

@@ -9,14 +9,14 @@ import {
   type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aProject, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
-import { changeEvent, moved, shopPlanned, since, snapshot } from "../../test/changes";
+import { applied, changeEvent, moved, shopPlanned, since, snapshot, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -540,9 +540,19 @@ describe("the apps list", () => {
     await waitFor(() => expect(screen.queryByText("Reconnecting")).not.toBeInTheDocument());
   }, 10_000);
 
-  it("reads again on coming back to it, as a deploy may have finished with nothing watching", async () => {
+  it("reads again on coming back once a change applied while it was away, as the shell watches everywhere", async () => {
     const list = vi.fn(() => ({ services: [anApp("web", "nginx")] }));
-    const events = { watchEvents: snapshotWatch, listEvents: () => ({}) };
+    let apply = () => {};
+    const applying = new Promise<void>((resolve) => (apply = resolve));
+    const events = {
+      watchEvents: async function* (_req: unknown, ctx: HandlerContext): AsyncGenerator<WatchEventsResponse> {
+        yield snapshot([]);
+        await applying;
+        yield since([changeEvent(applied(webPlanned()))]);
+        await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+      },
+      listEvents: () => ({}),
+    };
     // As the panel's own cache has it: a list stays fresh for 30 s.
     const { router } = renderAt(
       "/apps",
@@ -550,12 +560,21 @@ describe("the apps list", () => {
       { staleTime: 30_000 },
     );
     await screen.findByRole("link", { name: "web" });
-    const before = list.mock.calls.length;
 
+    // Away and back with nothing applied in between: the list is still fresh, and the watch saw nothing.
     await router.navigate({ to: "/servers" });
     await screen.findByRole("heading", { level: 1, name: "Servers" });
-    // The list is still within its 30 s when you come back.
-    await new Promise((r) => setTimeout(r, 1600));
+    const before = list.mock.calls.length;
+    await router.navigate({ to: "/apps" });
+    await screen.findByRole("link", { name: "web" });
+    await new Promise((r) => setTimeout(r, 300));
+    expect(list.mock.calls.length).toBe(before);
+
+    // A deploy finishes while Servers is open: the shell's watch marks the list old, and coming back reads it.
+    await router.navigate({ to: "/servers" });
+    await screen.findByRole("heading", { level: 1, name: "Servers" });
+    act(() => apply());
+    await new Promise((r) => setTimeout(r, 300));
     await router.navigate({ to: "/apps" });
     await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(before));
   });

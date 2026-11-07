@@ -418,9 +418,10 @@
   white-space: nowrap;
 }
 
+/* With no tone, as a healthy state has none, it reads in the line's own quiet ink. */
 .apps-phone-word {
   flex: none;
-  color: var(--tone);
+  color: var(--tone, var(--ink-muted));
 }
 
 .apps-phone-rev {

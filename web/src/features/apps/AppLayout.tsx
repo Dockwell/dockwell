@@ -35,9 +35,10 @@ import { HealthBadge, useHealthTitle, useHealthWords } from "./Health";
 import { useHealth } from "./health";
 import { WholeImage } from "./ImageName";
 import { useWhoWords } from "./revision";
-import { usePlaces, useServices, useServicesLive } from "./useServices";
+import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
+import { useServicesWatch } from "./ServicesLive";
 
 /**
  * One app's frame, whichever tab is open: where it sits, its name and state,
@@ -48,7 +49,7 @@ import "./Apps.css";
 export function AppLayout({ serviceId, children }: { serviceId: string; children: ReactNode }) {
   const { t } = useLingui();
   const query = useServices();
-  const { reconnecting } = useServicesLive();
+  const { reconnecting } = useServicesWatch();
   const { servers } = useFleetView();
   const healthView = useHealth();
   const service = query.data?.find((s) => s.id === serviceId);

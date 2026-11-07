@@ -45,7 +45,7 @@ import {
   useAllDomains,
   visitorUrl,
 } from "../apps/domains";
-import { usePlaces, useServices, useServicesLive } from "../apps/useServices";
+import { usePlaces, useServices } from "../apps/useServices";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -53,6 +53,8 @@ import { Page } from "../shell/Page";
 // The add sheet's form and the list's filters are the apps' own, and this page can be where you land.
 import "../apps/Apps.css";
 import "./Domains.css";
+import { phoneWordClass } from "../apps/Health";
+import { useServicesWatch } from "../apps/ServicesLive";
 
 /** The list's place, in its URL: its filters. */
 export interface DomainsSearch {
@@ -109,7 +111,7 @@ export function DomainsPage({
   const phone = useMediaQuery(PHONE_QUERY);
   const domains = useAllDomains();
   const services = useServices();
-  const { reconnecting } = useServicesLive();
+  const { reconnecting } = useServicesWatch();
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
   const navigate = useNavigate();
@@ -658,7 +660,7 @@ function PhoneRow({
       </span>
       <span className="apps-phone-text">
         <code className="apps-phone-name domains-at">{routeWhere(row.domain, row.route)}</code>
-        <span className={`apps-phone-word dw-tone-${tone} domains-phone-word`}>{word}</span>
+        <span className={`${phoneWordClass(tone)} domains-phone-word`}>{word}</span>
         {/* Lines of their own, as what it reaches is half of what a row is for, and a clipped name says neither. */}
         <span className="domains-phone-target">{target}</span>
         {says ? (
