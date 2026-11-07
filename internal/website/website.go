@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/netip"
 	"net/url"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -52,7 +53,12 @@ const (
 	ProxyToURL Kind = "proxy_url"
 	// ProxyToPort sends them to a port on the server itself.
 	ProxyToPort Kind = "proxy_port"
+	// Folder serves the files in a folder on the server.
+	Folder Kind = "folder"
 )
+
+// FolderTarget is where a website's folder is in its web server's container.
+const FolderTarget = "/srv"
 
 // KindOf says what a website does. Empty for one that says nothing.
 func KindOf(w *resourcev1.Website) Kind {
@@ -61,6 +67,9 @@ func KindOf(w *resourcev1.Website) Kind {
 			return ProxyToPort
 		}
 		return ProxyToURL
+	}
+	if w.GetFolder() != nil {
+		return Folder
 	}
 	return ""
 }
@@ -74,8 +83,60 @@ func Check(w *resourcev1.Website) error {
 		return errors.New("a website needs to say what it serves, such as a URL to send its requests to")
 	case w.GetProxy() != nil:
 		return checkProxy(w.GetProxy())
+	case w.GetFolder() != nil:
+		return checkFolder(w.GetFolder())
 	}
 	return errors.New("a website needs to say what it serves, such as a URL to send its requests to")
+}
+
+// indexRE is a file name an index can have: nothing that could leave its place in
+// a config, or lead out of the folder.
+var indexRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+
+// folderRE is what a folder's path may hold, as it goes into a mount and a plan.
+var folderRE = regexp.MustCompile(`^(/[A-Za-z0-9._@+~-]+)+/?$`)
+
+func checkFolder(f *resourcev1.WebsiteFolder) error {
+	root := strings.TrimSpace(f.GetRoot())
+	switch {
+	case root == "":
+		return errors.New("a website that serves a folder needs the folder, as an absolute path on the server, such as /var/www/blog")
+	case !strings.HasPrefix(root, "/"):
+		return fmt.Errorf("%s isn't an absolute path. Start it with /, such as /var/www/blog", root)
+	case root == "/":
+		return errors.New("a website can't serve the whole server. Give the folder that holds its files, such as /var/www/blog")
+	case !folderRE.MatchString(root):
+		return fmt.Errorf("%q has a character a folder's path can't hold here. Use letters, digits, -, ., _, @, +, ~ and /", root)
+	}
+	for _, part := range strings.Split(strings.Trim(root, "/"), "/") {
+		if part == "." || part == ".." {
+			return fmt.Errorf("%s has a %s in it. Give the folder it leads to", root, part)
+		}
+	}
+	f.Root = path.Clean(root)
+	seen := map[string]bool{}
+	var index []string
+	for _, name := range f.GetIndex() {
+		name = strings.TrimSpace(name)
+		switch {
+		case name == "" || seen[name]:
+			continue
+		case !indexRE.MatchString(name):
+			return fmt.Errorf("%q isn't a file name an index can have. Give a name such as index.html, with no folder in it", name)
+		}
+		seen[name] = true
+		index = append(index, name)
+	}
+	f.Index = index
+	return nil
+}
+
+// Index is the files a folder's website looks for in a folder, in order.
+func Index(f *resourcev1.WebsiteFolder) []string {
+	if len(f.GetIndex()) > 0 {
+		return f.GetIndex()
+	}
+	return []string{"index.html", "index.htm"}
 }
 
 func checkProxy(p *resourcev1.WebsiteProxy) error {
@@ -144,12 +205,12 @@ func checkURL(raw string) (string, error) {
 			return "", fmt.Errorf("%q has the port %s, which isn't one. Use one from 1 to 65535", raw, port)
 		}
 	}
-	path := strings.TrimRight(u.EscapedPath(), "/")
-	if path != "" {
-		if !pathRE.MatchString(path) {
+	under := strings.TrimRight(u.EscapedPath(), "/")
+	if under != "" {
+		if !pathRE.MatchString(under) {
 			return "", fmt.Errorf("the path %s has a character a website can't send on. Use letters, digits, -, ., _, ~ and /", u.EscapedPath())
 		}
-		for _, seg := range strings.Split(path[1:], "/") {
+		for _, seg := range strings.Split(under[1:], "/") {
 			if seg == "." || seg == ".." {
 				return "", fmt.Errorf("the path %s has a %s in it. Give the path it leads to", u.EscapedPath(), seg)
 			}
@@ -157,7 +218,7 @@ func checkURL(raw string) (string, error) {
 	}
 	u.Host = strings.ToLower(u.Host)
 	u.Path, u.RawPath = "", ""
-	return u.Scheme + "://" + u.Host + path, nil
+	return u.Scheme + "://" + u.Host + under, nil
 }
 
 // checkHost takes a DNS name or an address, but not this container's own loopback,
@@ -213,6 +274,17 @@ func Resources(w *resourcev1.Website, domain string, front Front) Serving {
 	case ProxyToURL:
 		r.Service, r.Port = WebService, Port
 		out.Services[WebService] = webService(proxyConfig(w.GetProxy()))
+	case Folder:
+		r.Service, r.Port = WebService, Port
+		web := webService(folderConfig(w.GetFolder()))
+		// Read-only, as serving a site writes nothing, and what's served can't be
+		// changed through it.
+		web.GetApp().Mounts = []*resourcev1.Mount{{
+			Source:   &resourcev1.Mount_HostPath{HostPath: w.GetFolder().GetRoot()},
+			Target:   FolderTarget,
+			ReadOnly: true,
+		}}
+		out.Services[WebService] = web
 	}
 	return out
 }
@@ -244,10 +316,34 @@ func webService(config string) *resourcev1.Service {
 // Config is the web server's config for a website, as its service runs it. Empty
 // for a website that needs no web server.
 func Config(w *resourcev1.Website) string {
-	if KindOf(w) == ProxyToURL {
+	switch KindOf(w) {
+	case ProxyToURL:
 		return proxyConfig(w.GetProxy())
+	case Folder:
+		return folderConfig(w.GetFolder())
+	case ProxyToPort:
+		// The ingress sends it straight to the port.
 	}
 	return ""
+}
+
+// folderConfig serves the folder as it is, with its index for a folder, and for a
+// single-page app, the top index for a path with no file.
+func folderConfig(f *resourcev1.WebsiteFolder) string {
+	var b strings.Builder
+	b.WriteString(globals)
+	fmt.Fprintf(&b, "\n:%d {\n", Port)
+	b.WriteString("\tlog {\n\t\toutput stderr\n\t\tformat console\n\t}\n")
+	fmt.Fprintf(&b, "\troot * %s\n", FolderTarget)
+	b.WriteString("\tencode zstd gzip\n")
+	index := Index(f)
+	if f.GetSinglePageApp() {
+		fmt.Fprintf(&b, "\ttry_files {path} {path}/ /%s\n", index[0])
+	}
+	// What starts with a dot, such as .git and .env, is never a site's to serve.
+	fmt.Fprintf(&b, "\tfile_server {\n\t\tindex %s\n\t\thide .*\n\t}\n", strings.Join(index, " "))
+	b.WriteString("}\n")
+	return b.String()
 }
 
 // globals is what every website's web server says first: no admin API, as nothing

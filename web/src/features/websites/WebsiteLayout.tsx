@@ -90,13 +90,20 @@ export function WebsiteLayout({ websiteId, children }: { websiteId: string; chil
   const name = site.domain || site.name;
   const kind = kindOf(site.spec);
   const port = site.spec?.serves.case === "proxy" ? site.spec.serves.value.port : 0;
+  const root = targetOf(site.spec);
   const what =
-    kind === "port"
-      ? t`Reverse proxy to port ${port} on the server`
-      : kind === "url"
-        ? t`Reverse proxy to ${targetOf(site.spec)}`
-        : t`Dockwell can't read what this website serves`;
-  const lead = [what, kind === "url" ? "Caddy" : "", row.look && domain ? certificate(domain, row.look, read) : ""]
+    kind === "folder"
+      ? t`Static files from ${root}`
+      : kind === "port"
+        ? t`Reverse proxy to port ${port} on the server`
+        : kind === "url"
+          ? t`Reverse proxy to ${root}`
+          : t`Dockwell can't read what this website serves`;
+  const lead = [
+    what,
+    kind === "url" || kind === "folder" ? "Caddy" : "",
+    row.look && domain ? certificate(domain, row.look, read) : "",
+  ]
     .filter(Boolean)
     .join(" · ");
   const visit = domain ? visitorUrl(domain) : site.domain ? `https://${site.domain}` : "";
@@ -115,11 +122,24 @@ export function WebsiteLayout({ websiteId, children }: { websiteId: string; chil
         lead={lead}
         phoneSub={what}
         actions={
-          visit ? (
-            <ButtonLink href={visit} target="_blank" rel="noreferrer" iconAfter="external">
-              <Trans>Visit site</Trans>
-            </ButtonLink>
-          ) : null
+          <>
+            {/* A folder's files are edited where every file on its server is, at the folder. */}
+            {kind === "folder" && site.serverId ? (
+              <RouterButtonLink
+                to="/servers/$serverId/files"
+                params={{ serverId: site.serverId }}
+                search={{ path: root }}
+                icon="folder"
+              >
+                <Trans>Edit files</Trans>
+              </RouterButtonLink>
+            ) : null}
+            {visit ? (
+              <ButtonLink href={visit} target="_blank" rel="noreferrer" iconAfter="external">
+                <Trans>Visit site</Trans>
+              </ButtonLink>
+            ) : null}
+          </>
         }
         className={phone ? "website-page is-phone" : "website-page"}
       >

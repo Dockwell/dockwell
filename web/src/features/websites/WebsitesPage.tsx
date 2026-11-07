@@ -135,7 +135,16 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
 /** What a website is, in a word or two, as the list's Type column has it. */
 function useTypeWord(): (site: WebsiteInfo) => string {
   const { t } = useLingui();
-  return (site) => (kindOf(site.spec) === "unknown" ? t`Unknown` : t`Reverse proxy`);
+  return (site) => {
+    switch (kindOf(site.spec)) {
+      case "folder":
+        return t`Static files`;
+      case "unknown":
+        return t`Unknown`;
+      default:
+        return t`Reverse proxy`;
+    }
+  };
 }
 
 /** Where a website sends, as the line under its domain says it. */

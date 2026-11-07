@@ -320,3 +320,15 @@
 .website-config-title h2.is-words {
   font: 550 14px / 20px var(--font-sans);
 }
+
+.website-folder-holds {
+  margin-top: calc(-1 * var(--space-2));
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.website-folder-holds a,
+.website-folder-note a {
+  color: var(--link);
+}
