@@ -6,12 +6,17 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   BackupMethod,
   BackupState,
+  ChangeSchema,
+  ChangeState,
   ContainerState,
+  type CreateDatabaseUserRequest,
   type Database,
+  DatabaseAccountSchema,
   DatabaseEngine,
   DatabaseSchema,
   EntrySchema,
   EventKind,
+  type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -292,7 +297,9 @@ describe("a database's page", () => {
     renderAt("/databases/svc_db", api([aDatabase()]));
     const users = await screen.findByRole("table", { name: "Users of db" });
     const rows = within(users).getAllByRole("row").slice(1);
-    expect(rows.map((r) => r.textContent)).toEqual(["postgresCan do anythingpostgres", "shopSigns inshop"]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent(/^postgresCan do anythingpostgres/);
+    expect(rows[1]).toHaveTextContent(/^shopSigns inshop/);
     const schemas = screen.getByRole("table", { name: "Databases in db" });
     expect(within(schemas).getAllByRole("row")[1]).toHaveTextContent("postgresIts own");
     expect(screen.getByRole("link", { name: /Users/ })).toHaveTextContent("2");
@@ -345,5 +352,76 @@ describe("what's a database", () => {
     expect(internalURL(aDatabase({ readings: [] }), undefined, false)).toBe("postgres://postgres@db:5432/postgres");
     expect(internalURL(cache())).toBe("redis://cache:6379");
     expect(internalURL(aDatabase({ engine: DatabaseEngine.VALKEY, port: 6379 }))).toBe("redis://:••••@db:6379");
+  });
+});
+
+describe("adding a user", () => {
+  const planned = create(ChangeSchema, {
+    id: "chg_user",
+    summary: "Add the user orders to db, with the database orders",
+    state: ChangeState.PLANNED,
+    plan: { fingerprint: "abc", resources: [] },
+  });
+
+  it("asks only for a name, and plans a user with a database and a password of their own", async () => {
+    const user = userEvent.setup();
+    const asked = vi.fn((req: CreateDatabaseUserRequest) => {
+      void req;
+      return { change: planned };
+    });
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], {
+        databases: {
+          listDatabases: () => ({ databases: [aDatabase()] }),
+          getDatabase: () => ({ database: aDatabase() }),
+          createDatabaseUser: asked,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "Orders");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(await within(sheet).findByText(/Use up to 32 lowercase letters/)).toBeVisible();
+    expect(asked).not.toHaveBeenCalled();
+    await user.clear(within(sheet).getByLabelText("User"));
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAttribute(
+      "placeholder",
+      "ORDERS_DATABASE_PASSWORD",
+    );
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "svc_db", user: "orders", database: "", secret: "" }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("says which secret a user Dockwell made signs in with, and which apps use it", async () => {
+    const db = aDatabase();
+    const reading = db.readings[0];
+    if (reading) {
+      reading.users.push(
+        create(DatabaseAccountSchema, {
+          name: "orders",
+          canSignIn: true,
+          databases: ["orders"],
+          secret: "ORDERS_DATABASE_PASSWORD",
+          usedBy: ["api"],
+        }),
+      );
+    }
+    renderAt("/databases/svc_db/users", api([db]));
+    const table = await screen.findByRole("table", { name: "Users of db" });
+    const row = within(table).getByText("orders", { selector: ".databases-name" }).closest("tr") as HTMLElement;
+    expect(row).toHaveTextContent("ORDERS_DATABASE_PASSWORD");
+    expect(row).toHaveTextContent("api");
+    expect(within(table).getByText("shop", { selector: ".databases-name" }).closest("tr")).toHaveTextContent(
+      "Not one of Dockwell's",
+    );
   });
 });

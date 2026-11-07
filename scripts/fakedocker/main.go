@@ -26,6 +26,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +34,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -75,8 +78,13 @@ func postgres(x dockertest.Exec) int {
 		if err != nil {
 			return 1
 		}
-		if strings.Contains(string(data), "json_build_object") {
+		switch sql := string(data); {
+		case strings.Contains(sql, "pg_roles WHERE rolname = '"):
+			return postgresUserThere(x, filepath.Dir(file), sql)
+		case strings.Contains(sql, "json_build_object"):
 			return postgresReading(x, file)
+		case strings.Contains(sql, "CREATE ROLE") || strings.Contains(sql, "ALTER ROLE") || strings.Contains(sql, "DROP ROLE"):
+			return postgresUsers(x, filepath.Dir(file), sql)
 		}
 		if os.WriteFile(file, data, 0o600) != nil {
 			return 1
@@ -85,19 +93,90 @@ func postgres(x dockertest.Exec) int {
 	return 0
 }
 
+// postgresRoles is the users a fake PostgreSQL made, beside its data: each user's
+// password, as it was set, and the database each owns.
+type postgresRoles struct {
+	Passwords map[string]string `json:"passwords"`
+	Owns      map[string]string `json:"owns"`
+}
+
+func readRoles(dir string) postgresRoles {
+	r := postgresRoles{Passwords: map[string]string{}, Owns: map[string]string{}}
+	if b, err := os.ReadFile(filepath.Join(dir, "roles.json")); err == nil { //nolint:gosec // a directory of this fake's own
+		_ = json.Unmarshal(b, &r)
+	}
+	return r
+}
+
+var (
+	madeRole    = regexp.MustCompile(`(CREATE|ALTER) ROLE "([a-z0-9_]+)" LOGIN PASSWORD '([^']*)'`)
+	madeDB      = regexp.MustCompile(`CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"`)
+	droppedRole = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
+	askedRole   = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+)
+
+// postgresUsers makes, changes and drops users as psql would.
+func postgresUsers(x dockertest.Exec, dir, sql string) int {
+	r := readRoles(dir)
+	for _, m := range madeRole.FindAllStringSubmatch(sql, -1) {
+		if _, has := r.Passwords[m[2]]; has && m[1] == "CREATE" {
+			_, _ = fmt.Fprintf(x.Stderr, "psql:<stdin>:1: ERROR:  role %q already exists\n", m[2])
+			return 3
+		}
+		r.Passwords[m[2]] = m[3]
+	}
+	for _, m := range madeDB.FindAllStringSubmatch(sql, -1) {
+		r.Owns[m[1]] = m[2]
+	}
+	for _, m := range droppedRole.FindAllStringSubmatch(sql, -1) {
+		delete(r.Passwords, m[1])
+		for db, owner := range r.Owns {
+			if owner == m[1] {
+				delete(r.Owns, db)
+			}
+		}
+	}
+	b, err := json.Marshal(r)
+	if err != nil || os.WriteFile(filepath.Join(dir, "roles.json"), b, 0o600) != nil {
+		return 1
+	}
+	return 0
+}
+
+// postgresUserThere answers whether a user and a database are there.
+func postgresUserThere(x dockertest.Exec, dir, sql string) int {
+	m := askedRole.FindStringSubmatch(sql)
+	if m == nil {
+		return 1
+	}
+	r := readRoles(dir)
+	_, has := r.Passwords[m[1]]
+	_, _ = fmt.Fprintf(x.Stdout, "{\"user\":%t,\"owner\":%q}\n", has, r.Owns[m[2]])
+	return 0
+}
+
 // postgresReading says what PostgreSQL would of itself, as one line of JSON: the
-// file of its data is its one database of its own.
+// file of its data is its one database of its own, beside what users it made own.
 func postgresReading(x dockertest.Exec, file string) int {
 	var size int64
 	if info, err := os.Stat(file); err == nil {
 		size = info.Size()
 	}
 	const own = 7_512_000 // what an empty server's postgres database takes
+	r := readRoles(filepath.Dir(file))
+	databases := []string{fmt.Sprintf(`{"name":"app","owner":"app","size":%d}`, size+8_192), fmt.Sprintf(`{"name":"postgres","owner":"postgres","size":%d}`, own)}
+	users := []string{`{"name":"app","super":false,"login":true}`, `{"name":"postgres","super":true,"login":true}`}
+	for name := range r.Passwords {
+		users = append(users, fmt.Sprintf(`{"name":%q,"super":false,"login":true}`, name))
+	}
+	for db, owner := range r.Owns {
+		databases = append(databases, fmt.Sprintf(`{"name":%q,"owner":%q,"size":8192}`, db, owner))
+	}
+	slices.Sort(databases)
+	slices.Sort(users)
 	_, _ = fmt.Fprintf(x.Stdout, `{"version":"17.11 (Debian 17.11-1.pgdg120+1)","user":"postgres","connections":3,"max_connections":100,`+
-		`"uptime":5400,"hit":9920,"read":80,"size":%d,"database_count":2,"user_count":2,`+
-		`"databases":[{"name":"app","owner":"app","size":%d},{"name":"postgres","owner":"postgres","size":%d}],`+
-		`"users":[{"name":"app","super":false,"login":true},{"name":"postgres","super":true,"login":true}]}`+"\n",
-		own+size+8_192, size+8_192, own)
+		`"uptime":5400,"hit":9920,"read":80,"size":%d,"database_count":%d,"user_count":%d,"databases":[%s],"users":[%s]}`+"\n",
+		own+size+8_192, len(databases), len(users), strings.Join(databases, ","), strings.Join(users, ","))
 	return 0
 }
 

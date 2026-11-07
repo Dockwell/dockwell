@@ -32,6 +32,21 @@ What was settled already:
 - **What a database says when it fails keeps its first line, without what it quotes,** as in ADR 0033, as a reading is there for anyone who can read the database. A sign-in it refuses says which variables Dockwell signed in with, which is what to check.
 - **The agent build links `internal/database`,** which holds the engines, the queries and what reads their answers, and nothing else new (ADR 0023).
 
+### A database and its user
+
+*Added with the second slice of #207.*
+
+- **A database and the user who owns it are a resource,** of kind `database.user`, in the environment of the service that runs their database server. Its name is the user's, and its spec names the service, the database, which takes the user's name unless it says another, and the secret the password is in. So making one is a change with a plan, it has revisions, history and an undo, and the engine already refuses what would leave one naming a service that isn't there, or isn't on its servers. A step that runs once with no revision, as a restore does, would have none of that, and nothing would say a user was Dockwell's.
+- **It's made in the database server's own container,** as a reading is, with the same tools signing in the same way, on each server the service runs on. PostgreSQL makes a role that signs in and owns a new database; MySQL and MariaDB make a user at `%` with every privilege on its database. Names are lowercase letters, digits and underscores, starting with a letter, at most 32, which every engine takes as they are, so nothing a person types is quoted into SQL.
+- **The password is generated and kept as a secret,** by `DatabaseService.CreateDatabaseUser`: 32 characters from 62, which every engine, URL and shell takes as they are. One change makes the secret and the user, so nobody types the password or sees it unless they reveal the secret, which takes a passkey (ADR 0022). An app uses it by name, as any secret.
+- **The user uses the secret as a service does** (`resource.Binder`), so the agent gets its value sealed to its stream, for the step alone, and only on a server the user is placed on (ADR 0022). Setting the secret anew is a plan that takes the user in with every service that uses it, and gives the user the new password, which the catalog's own passwords can't do (ADR 0029).
+- **The password never goes in as it is where a server could keep it.** PostgreSQL gets a SCRAM-SHA-256 verifier, made by the agent as PostgreSQL's own clients make one, so its log, if it logs statements, holds no password. MariaDB gets its own hash of it. MySQL takes the password as it is, over the tool's stdin, and leaves it out of every log it keeps.
+- **Nothing in a database says what Dockwell gave a user,** so the agent keeps that beside its other state, in `database-users.json`, as it keeps what it took on (ADR 0031): the service, the database, the secret and its revision. A user that's gone from its server reads as gone, which is drift. One that's there with no record, as when the agent's data was lost, is refused by name as one Dockwell didn't make.
+- **A user that's there already is refused,** as is a database, by name, before anything is made: a plan never takes over what someone else made.
+- **Deleting one drops the user and their database,** with everything in it. The plan says it destroys data, so only a person applies it, with the plan's fingerprint. It isn't kept for 7 days, as a volume is: back the database server up first, which its page offers.
+- **Redis and Valkey have no users of their own** here, so the page offers none.
+- **The agent build links nothing new for it:** `crypto/pbkdf2`, `crypto/hmac` and `crypto/sha1` are there already, for backups and TLS.
+
 ### The panel
 
 The Databases section is built to `Databases-List` and `Database-Detail`, at `/databases` and `/databases/<service ID>`. A database shows its connection string with the password masked, and names the secret that holds it, where there is one. The page reads the database again every 15 seconds while it shows. Where it differs from the mocks:
@@ -46,4 +61,5 @@ The Databases section is built to `Databases-List` and `Database-Detail`, at `/d
 - A database taken on from another panel, or installed from the catalog, is listed with nothing more to do.
 - A database on an image Dockwell doesn't know is a service, and isn't listed. That's the same line ADR 0033 draws for a dump, so a listed database is one Dockwell can back up with its own dump.
 - Reading a database runs its client in its container, which costs a process for a moment on each read, at most once in 10 seconds for each.
+- Setting a user's secret anew restarts the apps that use it in the same change, and nothing orders the user's step before theirs, so an app can come up a moment before its user has the new password, and connect once it has.
 - A database whose image keeps its password somewhere other than these variables, as a Redis with `requirepass` in a config file does, reads as refusing the sign-in, and says which variables Dockwell tried.

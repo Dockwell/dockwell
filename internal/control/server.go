@@ -267,7 +267,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
-		handle(dockwellv1connect.NewDatabaseServiceHandler(databases.New(cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewDatabaseServiceHandler(databases.New(ch, cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
 	}
 	restPaths, err := restHandler(rest)
 	if err != nil {
