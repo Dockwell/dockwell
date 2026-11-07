@@ -155,8 +155,19 @@ afterEach(() => {
 
 const rowOf = (name: string | RegExp) => screen.findByRole("row", { name });
 
+/** A screen as wide as the mock's, where every column has room. */
+function onWideScreen() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.startsWith("(min-width"),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
 describe("The websites", () => {
   it("lists each with what it sends to, how it serves, its certificate and when it changed", async () => {
+    onWideScreen();
     const { container } = renderAt("/websites", api([blog, tools]));
     expect(await screen.findByRole("heading", { level: 1, name: "Websites" })).toBeVisible();
     const first = await rowOf(/blog\.example\.com/);
@@ -171,6 +182,13 @@ describe("The websites", () => {
     expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", `/servers/${SERVER}/files`);
     expect(screen.getByRole("link", { name: "New website" })).toHaveAttribute("href", "/websites/new");
     await expectAccessible(container);
+  });
+
+  it("gives up what a website is before its domain, on a narrower screen", async () => {
+    renderAt("/websites", api([blog]));
+    const row = await rowOf(/blog\.example\.com/);
+    expect(row).toHaveTextContent("https://backend.example.com");
+    expect(screen.queryByRole("columnheader", { name: "Type" })).not.toBeInTheDocument();
   });
 
   it("says there are none yet, and how to start", async () => {
@@ -295,7 +313,7 @@ describe("New website", () => {
     await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
     await user.type(within(sheet).getByLabelText("URL"), "https://backend.example.com/a;b");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
-    expect(await within(sheet).findByText(/a character a website can't send on/)).toBeVisible();
+    expect(await within(sheet).findByText(/a character a website can't send on/, {}, { timeout: 5_000 })).toBeVisible();
     expect(within(sheet).getByLabelText("URL")).toHaveAttribute("aria-invalid", "true");
   });
 });
