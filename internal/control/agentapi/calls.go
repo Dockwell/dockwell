@@ -1239,6 +1239,18 @@ func (s *Session) Containers(ctx context.Context, container string) (*agentv1.Co
 	return r.GetContainers(), nil
 }
 
+// Firewall asks the agent what filters the server's inbound traffic.
+func (s *Session) Firewall(ctx context.Context) (*dockwellv1.ServerFirewall, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Firewall{Firewall: &agentv1.FirewallCall{}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetFirewall() == nil {
+		return nil, errors.New("its agent is older than the control plane, and can't read its firewall. Upgrade it by running the install script on the server again")
+	}
+	return r.GetFirewall(), nil
+}
+
 // backupTaken reads what a step took.
 func backupTaken(b *agentv1.BackupResult) *resource.BackupTaken {
 	if b == nil {

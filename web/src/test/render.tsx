@@ -13,6 +13,7 @@ import {
   DomainService,
   EventService,
   FileService,
+  FirewallService,
   GetVersionResponseSchema,
   HealthService,
   LogService,
@@ -56,6 +57,7 @@ export type Api = {
   logs?: Partial<ServiceImpl<typeof LogService>>;
   health?: Partial<ServiceImpl<typeof HealthService>>;
   containers?: Partial<ServiceImpl<typeof ContainerService>>;
+  firewall?: Partial<ServiceImpl<typeof FirewallService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
   settings?: Partial<ServiceImpl<typeof SettingsService>>;
@@ -107,6 +109,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
+      service(FirewallService, { getServerFirewall: () => ({ firewall: {} }), ...api.firewall });
       service(FileService, api.files ?? {});
       service(SettingsService, { getSettings: () => ({ settings: { timeZone: "UTC" } }), ...api.settings });
       service(UpdateService, api.updates ?? {});
