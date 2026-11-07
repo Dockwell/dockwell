@@ -117,6 +117,10 @@ describe("the backups page", () => {
     expect(rows[2]).toHaveTextContent("2 files changed while it copied");
     expect(rows[3]).toHaveTextContent("The disk is full.");
     expect(within(rows[3] as HTMLElement).queryByRole("button", { name: "Restore" })).toBeNull();
+    // Under a heading of their own, with how many and how many failed, as Backups has its runs.
+    const runs = screen.getByRole("region", { name: "Recent runs" });
+    expect(within(runs).getByText("4 backups · 1 failed")).toBeVisible();
+    expect(runs).toContainElement(table);
     await expectAccessible(container);
   });
 
@@ -127,7 +131,9 @@ describe("the backups page", () => {
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.getByRole("button", { name: "Restore" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/more");
-    expect(screen.getByRole("button", { name: "Back up now" })).toBeVisible();
+    // With the count of what it took, as New app sits with the count on Apps.
+    const runs = screen.getByRole("region", { name: "Recent runs" });
+    expect(within(runs).getByRole("button", { name: "Back up now" })).toBeVisible();
     expect(screen.getByText(/unencrypted, so they go if the server does/)).toBeVisible();
   });
 
