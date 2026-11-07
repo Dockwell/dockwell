@@ -66,6 +66,10 @@ type SettingsServiceClient interface {
 	// GetControlPlane returns what serves the panel and API: its build, where it
 	// keeps its state, the addresses it answers on, and how it's doing. Most of
 	// it comes from how dockwell run was started, and changes there.
+	//
+	// A call with an API token gets no paths, no state store location and no
+	// agent URLs: they say where the key and the store are, and the panel needs
+	// them only for a person signed in, to say how to back the control plane up.
 	GetControlPlane(context.Context, *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error)
 }
 
@@ -154,6 +158,10 @@ type SettingsServiceHandler interface {
 	// GetControlPlane returns what serves the panel and API: its build, where it
 	// keeps its state, the addresses it answers on, and how it's doing. Most of
 	// it comes from how dockwell run was started, and changes there.
+	//
+	// A call with an API token gets no paths, no state store location and no
+	// agent URLs: they say where the key and the store are, and the panel needs
+	// them only for a person signed in, to say how to back the control plane up.
 	GetControlPlane(context.Context, *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error)
 }
 

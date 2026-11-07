@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/settings.proto.
  */
 export const file_dockwell_v1_settings: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9zZXR0aW5ncy5wcm90bxILZG9ja3dlbGwudjEiFAoSR2V0U2V0dGluZ3NSZXF1ZXN0Ij4KE0dldFNldHRpbmdzUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyKGAQoIU2V0dGluZ3MSDAoEbmFtZRgBIAEoCRIRCgl0aW1lX3pvbmUYAiABKAkSKAoFcGFuZWwYAyABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIp8BCgxQYW5lbFNlcnZpbmcSDgoGbGlzdGVuGAEgASgJEg4KBmRvbWFpbhgCIAEoCRItCglzZXJ2ZWRfYnkYAyABKA4yGi5kb2Nrd2VsbC52MS5QYW5lbFNlcnZlZEJ5EhQKDGh0dHBzX2xpc3RlbhgEIAEoCRILCgN1cmwYBSABKAkSHQoVY2VydGlmaWNhdGVfYXV0aG9yaXR5GAYgASgJIiUKFVNldEluc3RhbGxOYW1lUmVxdWVzdBIMCgRuYW1lGAEgASgJIkEKFlNldEluc3RhbGxOYW1lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyInChJTZXRUaW1lWm9uZVJlcXVlc3QSEQoJdGltZV96b25lGAEgASgJIj4KE1NldFRpbWVab25lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyIYChZHZXRDb250cm9sUGxhbmVSZXF1ZXN0IksKF0dldENvbnRyb2xQbGFuZVJlc3BvbnNlEjAKDWNvbnRyb2xfcGxhbmUYASABKAsyGS5kb2Nrd2VsbC52MS5Db250cm9sUGxhbmUinQIKDENvbnRyb2xQbGFuZRIlCgVidWlsZBgBIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIuCgpzdGFydF90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghkYXRhX2RpchgDIAEoCRIQCghrZXlfZmlsZRgEIAEoCRImCgVzdG9yZRgFIAEoCzIXLmRvY2t3ZWxsLnYxLlN0YXRlU3RvcmUSKAoFcGFuZWwYBiABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSKgoGYWdlbnRzGAcgASgLMhouZG9ja3dlbGwudjEuQWdlbnRMaXN0ZW5lchIUCgxtZW1vcnlfYnl0ZXMYCCABKAMioQEKClN0YXRlU3RvcmUSLQoGZW5naW5lGAEgASgOMh0uZG9ja3dlbGwudjEuU3RhdGVTdG9yZUVuZ2luZRIQCghsb2NhdGlvbhgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAMSLQoKcm91bmRfdHJpcBgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiJBCg1BZ2VudExpc3RlbmVyEg4KBmxpc3RlbhgBIAEoCRILCgN1cmwYAiABKAkSEwoLcHVibGljX3VybHMYAyADKAkqhQEKDVBhbmVsU2VydmVkQnkSHwobUEFORUxfU0VSVkVEX0JZX1VOU1BFQ0lGSUVEEAASGAoUUEFORUxfU0VSVkVEX0JZX05PTkUQARIcChhQQU5FTF9TRVJWRURfQllfRE9DS1dFTEwQAhIbChdQQU5FTF9TRVJWRURfQllfSU5HUkVTUxADKnYKEFN0YXRlU3RvcmVFbmdpbmUSIgoeU1RBVEVfU1RPUkVfRU5HSU5FX1VOU1BFQ0lGSUVEEAASHQoZU1RBVEVfU1RPUkVfRU5HSU5FX1NRTElURRABEh8KG1NUQVRFX1NUT1JFX0VOR0lORV9QT1NUR1JFUxACMpcJCg9TZXR0aW5nc1NlcnZpY2USgAEKC0dldFNldHRpbmdzEh8uZG9ja3dlbGwudjEuR2V0U2V0dGluZ3NSZXF1ZXN0GiAuZG9ja3dlbGwudjEuR2V0U2V0dGluZ3NSZXNwb25zZSIukAIBoLsYAaq7GA8KCHNldHRpbmdzEgNnZXSC0+STAg4SDC92MS9zZXR0aW5ncxKaAQoOU2V0SW5zdGFsbE5hbWUSIi5kb2Nrd2VsbC52MS5TZXRJbnN0YWxsTmFtZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5TZXRJbnN0YWxsTmFtZVJlc3BvbnNlIj+guxgDqrsYFAoIc2V0dGluZ3MSCHNldC1uYW1lsLsYAYLT5JMCGToBKiIUL3YxL3NldHRpbmdzOnNldE5hbWUSlgEKC1NldFRpbWVab25lEh8uZG9ja3dlbGwudjEuU2V0VGltZVpvbmVSZXF1ZXN0GiAuZG9ja3dlbGwudjEuU2V0VGltZVpvbmVSZXNwb25zZSJEoLsYA6q7GBkKCHNldHRpbmdzEg1zZXQtdGltZS16b25lgtPkkwIdOgEqIhgvdjEvc2V0dGluZ3M6c2V0VGltZVpvbmUSlQEKD0dldENvbnRyb2xQbGFuZRIjLmRvY2t3ZWxsLnYxLkdldENvbnRyb2xQbGFuZVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDb250cm9sUGxhbmVSZXNwb25zZSI3kAIBoLsYAaq7GBQKDWNvbnRyb2wtcGxhbmUSA2dldILT5JMCEhIQL3YxL2NvbnRyb2xQbGFuZRqyBKK7GIoCCghzZXR0aW5ncxL9AVRoZSBpbnN0YWxsJ3Mgc2V0dGluZ3MgYXJlIHdoYXQgaXQncyBjYWxsZWQsIHRoZSB0aW1lIHpvbmUgbmV3IHNjaGVkdWxlcyBzdGFydCBpbiwgYW5kIGhvdyBpdHMgcGFuZWwgaXMgc2VydmVkLiBUaGV5IGNoYW5nZSB3aGF0IERvY2t3ZWxsIHNheXMgYW5kIHN1Z2dlc3RzLCBub3Qgd2hhdCBydW5zLCBzbyBhIGNoYW5nZSBuZWVkcyBubyBwbGFuLCBhbmQgZWFjaCBpcyBvbiB0aGUgYWN0aXZpdHkgbG9nIHdpdGggd2hhdCBpdCByZXBsYWNlZC6iuxieAgoNY29udHJvbC1wbGFuZRKMAlRoZSBjb250cm9sIHBsYW5lIHNlcnZlcyB0aGUgcGFuZWwgYW5kIEFQSSwgYmVzaWRlIGFuIGFnZW50IG9mIGl0cyBvd24uIEl0IHNheXMgdGhlIGJ1aWxkIGl0IHJ1bnMsIHdoZXJlIGl0IGtlZXBzIGl0cyBzdGF0ZSBhbmQgdGhlIGluc3RhbGwncyBrZXksIHRoZSBhZGRyZXNzZXMgaXQgYW5zd2VycyBvbiwgYW5kIGhvdyBpdCdzIGRvaW5nLiBNb3N0IG9mIHRoYXQgY29tZXMgZnJvbSBob3cgZG9ja3dlbGwgcnVuIHdhcyBzdGFydGVkLCBhbmQgY2hhbmdlcyB0aGVyZS5CpgEKD2NvbS5kb2Nrd2VsbC52MUINU2V0dGluZ3NQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9zZXR0aW5ncy5wcm90bxILZG9ja3dlbGwudjEiFAoSR2V0U2V0dGluZ3NSZXF1ZXN0Ij4KE0dldFNldHRpbmdzUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyKGAQoIU2V0dGluZ3MSDAoEbmFtZRgBIAEoCRIRCgl0aW1lX3pvbmUYAiABKAkSKAoFcGFuZWwYAyABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIp8BCgxQYW5lbFNlcnZpbmcSDgoGbGlzdGVuGAEgASgJEg4KBmRvbWFpbhgCIAEoCRItCglzZXJ2ZWRfYnkYAyABKA4yGi5kb2Nrd2VsbC52MS5QYW5lbFNlcnZlZEJ5EhQKDGh0dHBzX2xpc3RlbhgEIAEoCRILCgN1cmwYBSABKAkSHQoVY2VydGlmaWNhdGVfYXV0aG9yaXR5GAYgASgJIiUKFVNldEluc3RhbGxOYW1lUmVxdWVzdBIMCgRuYW1lGAEgASgJIkEKFlNldEluc3RhbGxOYW1lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyInChJTZXRUaW1lWm9uZVJlcXVlc3QSEQoJdGltZV96b25lGAEgASgJIj4KE1NldFRpbWVab25lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyIYChZHZXRDb250cm9sUGxhbmVSZXF1ZXN0IksKF0dldENvbnRyb2xQbGFuZVJlc3BvbnNlEjAKDWNvbnRyb2xfcGxhbmUYASABKAsyGS5kb2Nrd2VsbC52MS5Db250cm9sUGxhbmUi0wIKDENvbnRyb2xQbGFuZRIlCgVidWlsZBgBIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIuCgpzdGFydF90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghkYXRhX2RpchgDIAEoCRIQCghrZXlfZmlsZRgEIAEoCRImCgVzdG9yZRgFIAEoCzIXLmRvY2t3ZWxsLnYxLlN0YXRlU3RvcmUSKAoFcGFuZWwYBiABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSKgoGYWdlbnRzGAcgASgLMhouZG9ja3dlbGwudjEuQWdlbnRMaXN0ZW5lchIUCgxtZW1vcnlfYnl0ZXMYCCABKAMSNAoPc2VydmljZV9tYW5hZ2VyGAkgASgOMhsuZG9ja3dlbGwudjEuU2VydmljZU1hbmFnZXIioQEKClN0YXRlU3RvcmUSLQoGZW5naW5lGAEgASgOMh0uZG9ja3dlbGwudjEuU3RhdGVTdG9yZUVuZ2luZRIQCghsb2NhdGlvbhgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAMSLQoKcm91bmRfdHJpcBgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiJBCg1BZ2VudExpc3RlbmVyEg4KBmxpc3RlbhgBIAEoCRILCgN1cmwYAiABKAkSEwoLcHVibGljX3VybHMYAyADKAkqhQEKDVBhbmVsU2VydmVkQnkSHwobUEFORUxfU0VSVkVEX0JZX1VOU1BFQ0lGSUVEEAASGAoUUEFORUxfU0VSVkVEX0JZX05PTkUQARIcChhQQU5FTF9TRVJWRURfQllfRE9DS1dFTEwQAhIbChdQQU5FTF9TRVJWRURfQllfSU5HUkVTUxADKoQBCg5TZXJ2aWNlTWFuYWdlchIfChtTRVJWSUNFX01BTkFHRVJfVU5TUEVDSUZJRUQQABIYChRTRVJWSUNFX01BTkFHRVJfTk9ORRABEhsKF1NFUlZJQ0VfTUFOQUdFUl9TWVNURU1EEAISGgoWU0VSVklDRV9NQU5BR0VSX09QRU5SQxADKnYKEFN0YXRlU3RvcmVFbmdpbmUSIgoeU1RBVEVfU1RPUkVfRU5HSU5FX1VOU1BFQ0lGSUVEEAASHQoZU1RBVEVfU1RPUkVfRU5HSU5FX1NRTElURRABEh8KG1NUQVRFX1NUT1JFX0VOR0lORV9QT1NUR1JFUxACMpcJCg9TZXR0aW5nc1NlcnZpY2USgAEKC0dldFNldHRpbmdzEh8uZG9ja3dlbGwudjEuR2V0U2V0dGluZ3NSZXF1ZXN0GiAuZG9ja3dlbGwudjEuR2V0U2V0dGluZ3NSZXNwb25zZSIukAIBoLsYAaq7GA8KCHNldHRpbmdzEgNnZXSC0+STAg4SDC92MS9zZXR0aW5ncxKaAQoOU2V0SW5zdGFsbE5hbWUSIi5kb2Nrd2VsbC52MS5TZXRJbnN0YWxsTmFtZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5TZXRJbnN0YWxsTmFtZVJlc3BvbnNlIj+guxgDqrsYFAoIc2V0dGluZ3MSCHNldC1uYW1lsLsYAYLT5JMCGToBKiIUL3YxL3NldHRpbmdzOnNldE5hbWUSlgEKC1NldFRpbWVab25lEh8uZG9ja3dlbGwudjEuU2V0VGltZVpvbmVSZXF1ZXN0GiAuZG9ja3dlbGwudjEuU2V0VGltZVpvbmVSZXNwb25zZSJEoLsYA6q7GBkKCHNldHRpbmdzEg1zZXQtdGltZS16b25lgtPkkwIdOgEqIhgvdjEvc2V0dGluZ3M6c2V0VGltZVpvbmUSlQEKD0dldENvbnRyb2xQbGFuZRIjLmRvY2t3ZWxsLnYxLkdldENvbnRyb2xQbGFuZVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDb250cm9sUGxhbmVSZXNwb25zZSI3kAIBoLsYAaq7GBQKDWNvbnRyb2wtcGxhbmUSA2dldILT5JMCEhIQL3YxL2NvbnRyb2xQbGFuZRqyBKK7GIoCCghzZXR0aW5ncxL9AVRoZSBpbnN0YWxsJ3Mgc2V0dGluZ3MgYXJlIHdoYXQgaXQncyBjYWxsZWQsIHRoZSB0aW1lIHpvbmUgbmV3IHNjaGVkdWxlcyBzdGFydCBpbiwgYW5kIGhvdyBpdHMgcGFuZWwgaXMgc2VydmVkLiBUaGV5IGNoYW5nZSB3aGF0IERvY2t3ZWxsIHNheXMgYW5kIHN1Z2dlc3RzLCBub3Qgd2hhdCBydW5zLCBzbyBhIGNoYW5nZSBuZWVkcyBubyBwbGFuLCBhbmQgZWFjaCBpcyBvbiB0aGUgYWN0aXZpdHkgbG9nIHdpdGggd2hhdCBpdCByZXBsYWNlZC6iuxieAgoNY29udHJvbC1wbGFuZRKMAlRoZSBjb250cm9sIHBsYW5lIHNlcnZlcyB0aGUgcGFuZWwgYW5kIEFQSSwgYmVzaWRlIGFuIGFnZW50IG9mIGl0cyBvd24uIEl0IHNheXMgdGhlIGJ1aWxkIGl0IHJ1bnMsIHdoZXJlIGl0IGtlZXBzIGl0cyBzdGF0ZSBhbmQgdGhlIGluc3RhbGwncyBrZXksIHRoZSBhZGRyZXNzZXMgaXQgYW5zd2VycyBvbiwgYW5kIGhvdyBpdCdzIGRvaW5nLiBNb3N0IG9mIHRoYXQgY29tZXMgZnJvbSBob3cgZG9ja3dlbGwgcnVuIHdhcyBzdGFydGVkLCBhbmQgY2hhbmdlcyB0aGVyZS5CpgEKD2NvbS5kb2Nrd2VsbC52MUINU2V0dGluZ3NQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * GetSettingsRequest takes no parameters.
@@ -307,7 +307,8 @@ export type ControlPlane = Message<"dockwell.v1.ControlPlane"> & {
   startTime?: Timestamp | undefined;
 
   /**
-   * The directory it keeps its files in, such as "/var/lib/dockwell".
+   * The directory it keeps its files in, such as "/var/lib/dockwell". Empty
+   * for an API token.
    *
    * @generated from field: string data_dir = 3;
    */
@@ -316,7 +317,7 @@ export type ControlPlane = Message<"dockwell.v1.ControlPlane"> & {
   /**
    * The install's key, which opens every secret the state store keeps, such
    * as "/var/lib/dockwell/control/key". A backup of the store needs it too,
-   * kept apart.
+   * kept apart. Empty for an API token.
    *
    * @generated from field: string key_file = 4;
    */
@@ -350,6 +351,13 @@ export type ControlPlane = Message<"dockwell.v1.ControlPlane"> & {
    * @generated from field: int64 memory_bytes = 8;
    */
   memoryBytes: bigint;
+
+  /**
+   * What runs it as a service, and so stops and starts it.
+   *
+   * @generated from field: dockwell.v1.ServiceManager service_manager = 9;
+   */
+  serviceManager: ServiceManager;
 };
 
 /**
@@ -374,7 +382,7 @@ export type StateStore = Message<"dockwell.v1.StateStore"> & {
 
   /**
    * Where it is: a SQLite file's path, or a Postgres URL without its
-   * password.
+   * password. Empty for an API token.
    *
    * @generated from field: string location = 2;
    */
@@ -424,7 +432,8 @@ export type AgentListener = Message<"dockwell.v1.AgentListener"> & {
 
   /**
    * The URL a server on the control server's own network reaches it at, as
-   * a join ticket names it, such as "https://192.0.2.10:7443".
+   * a join ticket names it, such as "https://192.0.2.10:7443". Empty for an
+   * API token.
    *
    * @generated from field: string url = 2;
    */
@@ -432,7 +441,7 @@ export type AgentListener = Message<"dockwell.v1.AgentListener"> & {
 
   /**
    * The URLs a server elsewhere reaches it at, in the order a ticket tries
-   * them. Empty when that isn't known.
+   * them. Empty when that isn't known, and for an API token.
    *
    * @generated from field: repeated string public_urls = 3;
    */
@@ -489,6 +498,46 @@ export const PanelServedBySchema: GenEnum<PanelServedBy> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_settings, 0);
 
 /**
+ * ServiceManager is what runs dockwell run as a service on the control server.
+ *
+ * @generated from enum dockwell.v1.ServiceManager
+ */
+export enum ServiceManager {
+  /**
+   * @generated from enum value: SERVICE_MANAGER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Nothing: it was started by hand, or in a container, and stops as it was
+   * started.
+   *
+   * @generated from enum value: SERVICE_MANAGER_NONE = 1;
+   */
+  NONE = 1,
+
+  /**
+   * systemd, as the dockwell unit: systemctl stop dockwell.
+   *
+   * @generated from enum value: SERVICE_MANAGER_SYSTEMD = 2;
+   */
+  SYSTEMD = 2,
+
+  /**
+   * OpenRC, as the dockwell service: rc-service dockwell stop.
+   *
+   * @generated from enum value: SERVICE_MANAGER_OPENRC = 3;
+   */
+  OPENRC = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.ServiceManager.
+ */
+export const ServiceManagerSchema: GenEnum<ServiceManager> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_settings, 1);
+
+/**
  * StateStoreEngine is a kind of database the control plane can keep its state in.
  *
  * @generated from enum dockwell.v1.StateStoreEngine
@@ -518,7 +567,7 @@ export enum StateStoreEngine {
  * Describes the enum dockwell.v1.StateStoreEngine.
  */
 export const StateStoreEngineSchema: GenEnum<StateStoreEngine> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_settings, 1);
+  enumDesc(file_dockwell_v1_settings, 2);
 
 /**
  * SettingsService reads and changes the install's own settings: what it's
@@ -573,6 +622,10 @@ export const SettingsService: GenService<{
    * GetControlPlane returns what serves the panel and API: its build, where it
    * keeps its state, the addresses it answers on, and how it's doing. Most of
    * it comes from how dockwell run was started, and changes there.
+   *
+   * A call with an API token gets no paths, no state store location and no
+   * agent URLs: they say where the key and the store are, and the panel needs
+   * them only for a person signed in, to say how to back the control plane up.
    *
    * @generated from rpc dockwell.v1.SettingsService.GetControlPlane
    */

@@ -7,6 +7,7 @@ import {
   Connection,
   type ControlPlane,
   type Server,
+  ServiceManager,
   SettingsService,
   StateStoreEngine,
 } from "@dockwell/api";
@@ -209,7 +210,8 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
   const { t } = useLingui();
   const store = cp?.store;
   const postgres = store?.engine === StateStoreEngine.POSTGRES;
-  const copy = cp?.dataDir && cp.keyFile ? copyCommand(cp.dataDir, cp.keyFile) : "";
+  const manager = cp?.serviceManager ?? ServiceManager.UNSPECIFIED;
+  const copy = cp?.dataDir && cp.keyFile ? copyCommand(cp.dataDir, cp.keyFile, manager) : "";
   return (
     <Panel title={t`Backups`} actions={<span className="settings-meta">{t`By hand, for now`}</span>}>
       <div className="cp-body" aria-busy={cp === undefined}>
@@ -230,10 +232,22 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
         {copy ? (
           <>
             <p className="cp-text">
-              <Trans>
-                Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and
-                servers reconnect when it's back.
-              </Trans>
+              {manager === ServiceManager.SYSTEMD ? (
+                <Trans>
+                  This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps
+                  keep serving while it's stopped, and servers reconnect when it's back.
+                </Trans>
+              ) : manager === ServiceManager.OPENRC ? (
+                <Trans>
+                  Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it
+                  can't. Your apps keep serving while it's stopped, and servers reconnect when it's back.
+                </Trans>
+              ) : (
+                <Trans>
+                  Dockwell doesn't run as a service here, so stop <code>dockwell run</code> first: the store is whole
+                  only while nothing writes to it. Then run this as root, and start Dockwell again after.
+                </Trans>
+              )}
             </p>
             <CopyCommand command={copy} className="cp-commands" />
             <p className="cp-note">
@@ -264,19 +278,27 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
 }
 
 /**
- * Stops Dockwell, packs the control plane's folder and its own agent's beside
- * root's home, the key apart from them, and starts it again whatever the copy
- * did, as docs/install.md says: a line each, which a shell runs one after another.
+ * Packs the control plane's folder and its own agent's in root's home, with
+ * the key apart from them, as docs/install.md says. Under a service manager it
+ * stops Dockwell first and copies only once that worked, so a store still
+ * being written is never copied, then starts it again whatever the copy did.
+ * Started by hand, Dockwell is stopped by hand, and the command only copies.
  */
-export function copyCommand(dataDir: string, keyFile: string): string {
+export function copyCommand(dataDir: string, keyFile: string, manager: ServiceManager): string {
   const key = keyFile.startsWith(`${dataDir}/`) ? keyFile.slice(dataDir.length + 1) : "";
-  const exclude = key ? ` --exclude ${key}` : "";
-  return [
-    "sudo systemctl stop dockwell",
-    `sudo tar -C ${dataDir}${exclude} -czf /root/dockwell-control.tgz control agent`,
-    `sudo cp -p ${keyFile} /root/dockwell-key`,
-    "sudo systemctl start dockwell",
-  ].join("\n");
+  // With what a first start can leave beside the key, such as key.new.
+  const exclude = key ? ` --exclude '${key}*'` : "";
+  const sudo = manager === ServiceManager.SYSTEMD ? "sudo " : "";
+  const tar = `${sudo}tar -C ${dataDir}${exclude} -czf /root/dockwell-control.tgz control agent`;
+  const cp = `${sudo}cp -p ${keyFile} /root/dockwell-key`;
+  switch (manager) {
+    case ServiceManager.SYSTEMD:
+      return ["sudo systemctl stop dockwell &&", `  ${tar} &&`, `  ${cp}`, "sudo systemctl start dockwell"].join("\n");
+    case ServiceManager.OPENRC:
+      return ["rc-service dockwell stop &&", `  ${tar} &&`, `  ${cp}`, "rc-service dockwell start"].join("\n");
+    default:
+      return [`${tar} &&`, `  ${cp}`].join("\n");
+  }
 }
 
 /** What it runs, and how to upgrade it. */

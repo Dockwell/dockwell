@@ -7132,6 +7132,9 @@ msgstr "Dockwell doesn't back up its own state yet. Copy it off this server, wit
 msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
 msgstr "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
 
+msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
+msgstr "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
+
 msgid "Engine"
 msgstr "Engine"
 
@@ -7189,6 +7192,9 @@ msgstr "Releases"
 msgid "Replicas"
 msgstr "Replicas"
 
+msgid "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+
 msgid "SQLite, on this server"
 msgstr "SQLite, on this server"
 
@@ -7198,9 +7204,6 @@ msgstr "Size"
 
 msgid "State store"
 msgstr "State store"
-
-msgid "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 
 msgid "The version that runs here is unknown"
 msgstr "The version that runs here is unknown"
@@ -7213,6 +7216,9 @@ msgstr "These come from how Dockwell was started. The panel's domain is under <0
 
 msgid "This control plane"
 msgstr "This control plane"
+
+msgid "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 
 msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
 msgstr "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."

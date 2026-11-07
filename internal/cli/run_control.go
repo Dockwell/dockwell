@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/auth"
@@ -301,6 +303,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		PanelHandsOver: handsOver,
 		DataDir:        dir.Root,
 		KeyFile:        dir.SealKey(),
+		ServiceManager: serviceManager(os.Getenv, os.ReadFile),
 		AgentListen:    ls.Agents.Addr().String(),
 		PublicAddress:  addr.dnsAddress(),
 		ClaimCommand:   claim,
@@ -841,4 +844,23 @@ func releasesURL(stdio IO) string {
 		return stdio.Getenv(envReleasesURL)
 	}
 	return cmp.Or(stdio.Getenv(envMirror), stdio.Getenv(envReleasesURL), updates.GitHubReleases)
+}
+
+// serviceManager says what runs this dockwell run as a service: systemd when
+// it runs in the dockwell unit's own cgroup, OpenRC when it was started as the
+// dockwell service. Anything else, such as a hand run beside an installed
+// unit, is none, as stopping the service wouldn't stop it.
+func serviceManager(getenv func(string) string, readFile func(string) ([]byte, error)) dockwellv1.ServiceManager {
+	if getenv("RC_SVCNAME") == "dockwell" {
+		return dockwellv1.ServiceManager_SERVICE_MANAGER_OPENRC
+	}
+	// One line per hierarchy, such as "0::/system.slice/dockwell.service".
+	if cgroups, err := readFile("/proc/self/cgroup"); err == nil {
+		for line := range strings.Lines(string(cgroups)) {
+			if strings.HasSuffix(strings.TrimSpace(line), "/dockwell.service") {
+				return dockwellv1.ServiceManager_SERVICE_MANAGER_SYSTEMD
+			}
+		}
+	}
+	return dockwellv1.ServiceManager_SERVICE_MANAGER_NONE
 }

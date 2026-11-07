@@ -8,6 +8,7 @@ import {
   ControlPlaneSchema,
   GetControlPlaneResponseSchema,
   PanelServedBy,
+  ServiceManager,
   StateStoreEngine,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -42,6 +43,7 @@ function plane(init: Plane = {}) {
       panel: { listen: "127.0.0.1:7600", servedBy: PanelServedBy.NONE },
       agents: { listen: ":7443", url: "https://192.0.2.10:7443", publicUrls: ["https://203.0.113.7:7443"] },
       memoryBytes: BigInt(96 * MiB),
+      serviceManager: ServiceManager.SYSTEMD,
       ...init,
     } as Plane),
   });
@@ -114,11 +116,9 @@ describe("Control plane", () => {
     renderPlane();
     const backups = await panel("Backups");
     expect(within(backups).getByText("By hand, for now")).toBeVisible();
-    expect(
-      within(backups).getByText(
-        copyCommand("/var/lib/dockwell", "/var/lib/dockwell/control/key").replaceAll("\n", " "),
-      ),
-    ).toBeVisible();
+    const command = copyCommand("/var/lib/dockwell", "/var/lib/dockwell/control/key", ServiceManager.SYSTEMD);
+    expect(within(backups).getByText((_, el) => el?.tagName === "CODE" && el.textContent === command)).toBeVisible();
+    expect(backups).toHaveTextContent("copies nothing if it can't");
     expect(within(backups).getByRole("link", { name: "How to back it up and restore it" })).toHaveAttribute(
       "href",
       "https://github.com/Dockwell/dockwell/blob/main/docs/install.md#back-up-the-control-plane",
@@ -202,12 +202,52 @@ describe("Control plane", () => {
 });
 
 describe("copyCommand", () => {
-  it("stops Dockwell, packs its folders with the key apart, and starts it whatever the copy did, a line each", () => {
-    expect(copyCommand("/var/lib/dockwell", "/var/lib/dockwell/control/key")).toBe(
-      "sudo systemctl stop dockwell\n" +
-        "sudo tar -C /var/lib/dockwell --exclude control/key -czf /root/dockwell-control.tgz control agent\n" +
-        "sudo cp -p /var/lib/dockwell/control/key /root/dockwell-key\n" +
+  // A stop that fails copies nothing, as SQLite writes beside a store that still runs.
+  it("under systemd, copies only once Dockwell has stopped, with the key apart, and starts it whatever the copy did", () => {
+    expect(copyCommand("/var/lib/dockwell", "/var/lib/dockwell/control/key", ServiceManager.SYSTEMD)).toBe(
+      "sudo systemctl stop dockwell &&\n" +
+        "  sudo tar -C /var/lib/dockwell --exclude 'control/key*' -czf /root/dockwell-control.tgz control agent &&\n" +
+        "  sudo cp -p /var/lib/dockwell/control/key /root/dockwell-key\n" +
         "sudo systemctl start dockwell",
     );
+  });
+
+  it("under OpenRC, stops it with rc-service, as root, where sudo may not be", () => {
+    expect(copyCommand("/var/lib/dockwell", "/var/lib/dockwell/control/key", ServiceManager.OPENRC)).toBe(
+      "rc-service dockwell stop &&\n" +
+        "  tar -C /var/lib/dockwell --exclude 'control/key*' -czf /root/dockwell-control.tgz control agent &&\n" +
+        "  cp -p /var/lib/dockwell/control/key /root/dockwell-key\n" +
+        "rc-service dockwell start",
+    );
+  });
+
+  it("started by hand, only copies, as nothing it could name would stop it", () => {
+    for (const manager of [ServiceManager.NONE, ServiceManager.UNSPECIFIED]) {
+      expect(copyCommand("/srv/dw", "/srv/dw/control/key", manager)).toBe(
+        "tar -C /srv/dw --exclude 'control/key*' -czf /root/dockwell-control.tgz control agent &&\n" +
+          "  cp -p /srv/dw/control/key /root/dockwell-key",
+      );
+    }
+  });
+
+  it("excludes nothing when the key is kept elsewhere", () => {
+    expect(copyCommand("/var/lib/dockwell", "/etc/dockwell/key", ServiceManager.SYSTEMD)).toContain(
+      "sudo tar -C /var/lib/dockwell -czf",
+    );
+  });
+});
+
+describe("the backup's words", () => {
+  it("say to run it as root under OpenRC, and to stop a hand-started Dockwell first", async () => {
+    renderPlane({ serviceManager: ServiceManager.OPENRC });
+    expect(await panel("Backups")).toHaveTextContent("Run this as root.");
+    expect(within(await panel("Backups")).getByText(/rc-service dockwell stop &&/)).toBeVisible();
+  });
+
+  it("say to stop dockwell run first when nothing runs it as a service", async () => {
+    renderPlane({ serviceManager: ServiceManager.NONE });
+    const backups = await panel("Backups");
+    expect(backups).toHaveTextContent("Dockwell doesn't run as a service here, so stop dockwell run first");
+    expect(backups).not.toHaveTextContent("systemctl");
   });
 });
