@@ -1420,12 +1420,11 @@ func testAProjectGoesWithWhatsLeft(t *testing.T, backend store.Backend) {
 		waitWatch(t, w)
 	}
 	e.Intercept(nil)
-	for range 200 {
-		if slices.Equal(projects(), []string{"default", "shop"}) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	// The project is back before its rollback ends, and a change on what's in it
+	// waits for that, so this waits for the rollback, as a person sees it end.
+	waitChange(t, c, all.GetId(), "its rollback to end", func(ch *dockwellv1.Change) bool {
+		return ch.GetRolledBackBy() != "" && ch.GetRollbackStatus().GetState() == dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED
+	})
 	if got := projects(); !slices.Equal(got, []string{"default", "shop"}) {
 		t.Fatalf("after a failed step the projects are %v, want shop put back", got)
 	}
