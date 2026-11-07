@@ -51,8 +51,11 @@ type DomainServiceClient interface {
 	// once it's issued; poll this to follow it.
 	ListDomains(context.Context, *connect.Request[v1.ListDomainsRequest]) (*connect.Response[v1.ListDomainsResponse], error)
 	// CheckDomain says what DNS says of a name now, against what's known of a
-	// server, whether or not any route has the name yet. Read it again to see a
-	// record arrive.
+	// server, whether or not any route has the name yet, as adding a domain does.
+	// Read it again to see a record arrive. It resolves the name through the
+	// control server, so it needs a token that can make changes, a caller can
+	// check 60 names a minute, and an answer that's a private address is only
+	// shown when it's the server's own.
 	CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error)
 }
 
@@ -108,8 +111,11 @@ type DomainServiceHandler interface {
 	// once it's issued; poll this to follow it.
 	ListDomains(context.Context, *connect.Request[v1.ListDomainsRequest]) (*connect.Response[v1.ListDomainsResponse], error)
 	// CheckDomain says what DNS says of a name now, against what's known of a
-	// server, whether or not any route has the name yet. Read it again to see a
-	// record arrive.
+	// server, whether or not any route has the name yet, as adding a domain does.
+	// Read it again to see a record arrive. It resolves the name through the
+	// control server, so it needs a token that can make changes, a caller can
+	// check 60 names a minute, and an answer that's a private address is only
+	// shown when it's the server's own.
 	CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error)
 }
 

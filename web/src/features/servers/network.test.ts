@@ -11,7 +11,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { aServer } from "../../test/servers";
-import { domainAdviceOf, publicAddressOf } from "./network";
+import { domainAdviceOf, forwardToOf, publicAddressOf } from "./network";
 
 const network = (init: MessageInitShape<typeof ServerNetworkSchema>) => create(Schema, init);
 const looked = {
@@ -40,12 +40,22 @@ describe("domainAdviceOf", () => {
     });
   });
 
-  it("names each family by what's known of it", () => {
+  it("names each family by what's known of it, on a cloud", () => {
     const ipv6 = { address: "2001:db8::5", source: PublicAddressSource.ON_INTERFACE };
-    expect(domainAdviceOf(network({ ...looked, ipv6, shape: NetworkShape.LOCAL_NAT }))).toEqual({
+    expect(domainAdviceOf(network({ ...looked, ipv6, shape: NetworkShape.CLOUD_NAT }))).toEqual({
       lead: "record",
       records: [asRecord, { address: "2001:db8::5", unproven: false }],
       provider: undefined,
+    });
+  });
+
+  it("at home, leads with a tunnel, offers IPv6 as its own record, and puts the router behind a forwarded port", () => {
+    const ipv6 = { address: "2001:db8::5", source: PublicAddressSource.ON_INTERFACE };
+    expect(domainAdviceOf(network({ ...looked, ipv6, shape: NetworkShape.LOCAL_NAT }), "192.168.1.20")).toEqual({
+      lead: "tunnel",
+      records: [{ address: "2001:db8::5", unproven: false }],
+      router: "203.0.113.7",
+      forwardTo: "192.168.1.20",
     });
   });
 
@@ -66,9 +76,16 @@ describe("domainAdviceOf", () => {
   it("leads with a tunnel on a home or office network, and offers the router's address second", () => {
     expect(domainAdviceOf(network({ ...looked, shape: NetworkShape.LOCAL_NAT }))).toEqual({
       lead: "tunnel",
+      records: [],
       router: "203.0.113.7",
+      forwardTo: undefined,
     });
-    expect(domainAdviceOf(network({ shape: NetworkShape.LOCAL_NAT }))).toEqual({ lead: "tunnel", router: undefined });
+    expect(domainAdviceOf(network({ shape: NetworkShape.LOCAL_NAT }))).toEqual({
+      lead: "tunnel",
+      records: [],
+      router: undefined,
+      forwardTo: undefined,
+    });
   });
 
   it("offers only a tunnel behind carrier NAT", () => {
@@ -86,6 +103,21 @@ describe("domainAdviceOf", () => {
   it("asks while nothing is known", () => {
     expect(domainAdviceOf(undefined)).toEqual({ lead: "ask", provider: undefined });
     expect(domainAdviceOf(network({ ...looked }))).toEqual({ lead: "ask", provider: undefined });
+  });
+});
+
+describe("forwardToOf", () => {
+  const at = (outboundAddress: string) => aServer({ inventory: { outboundAddress } });
+
+  it("is the private IPv4 address the server reaches the internet from", () => {
+    expect(forwardToOf(at("192.168.1.20"))).toBe("192.168.1.20");
+  });
+
+  it("is nothing for a VPN's shared address, a public one, IPv6 or none", () => {
+    for (const out of ["100.72.1.2", "203.0.113.9", "fd00::5", ""]) {
+      expect(forwardToOf(at(out))).toBeUndefined();
+    }
+    expect(forwardToOf(undefined)).toBeUndefined();
   });
 });
 

@@ -11,6 +11,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
+  container-type: inline-size;
 }
 
 .domain-record-lead,
@@ -32,9 +33,37 @@
   width: 100%;
 }
 
-.domain-record-name {
+.domain-record-name,
+.domain-record-address {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* On a narrow screen the name has a line to itself, and the address the next. */
+@container (max-width: 480px) {
+  .domain-record-row {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-areas:
+      "kind name name"
+      "address address copy";
+    row-gap: var(--space-1);
+  }
+
+  .domain-record-kind {
+    grid-area: kind;
+  }
+
+  .domain-record-name {
+    grid-area: name;
+  }
+
+  .domain-record-address {
+    grid-area: address;
+  }
+
+  .domain-record-row > :last-child {
+    grid-area: copy;
+  }
 }
 
 .domain-record-link {

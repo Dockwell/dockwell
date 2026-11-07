@@ -656,8 +656,8 @@ msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing 
 msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 
 #: src/features/apps/DomainRecord.tsx
-msgid "{name} points at Cloudflare's proxy, which blocks the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
-msgstr "{name} points at Cloudflare's proxy, which blocks the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
+msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
+msgstr "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
 
 #: src/features/changes/notices.tsx
 msgid "{name} reaches {path} on {server}"
@@ -2864,10 +2864,6 @@ msgstr "Details"
 msgid "Developer tools"
 msgstr "Developer tools"
 
-#: src/features/apps/DomainRecord.tsx
-msgid "Directly"
-msgstr "Directly"
-
 #: src/features/apps/AppOverview.tsx
 msgid "Directory"
 msgstr "Directory"
@@ -2923,8 +2919,8 @@ msgid "DNS for {domain} points at {found}. This server's own addresses are priva
 msgstr "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
-msgstr "DNS for {domain} points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgid "DNS for {domain} points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "DNS for {domain} points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
 
 #: src/features/apps/DomainRecord.tsx
 msgid "DNS has this record"
@@ -2937,6 +2933,10 @@ msgstr "DNS points at {found}"
 #: src/features/apps/DomainRecord.tsx
 msgid "DNS points at {found}, and Dockwell can't tell whether that's this server"
 msgstr "DNS points at {found}, and Dockwell can't tell whether that's this server"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS points at a private address that isn't this server's"
+msgstr "DNS points at a private address that isn't this server's"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
@@ -3719,10 +3719,6 @@ msgstr "How"
 msgid "How often"
 msgstr "How often"
 
-#: src/features/apps/DomainRecord.tsx
-msgid "How traffic reaches this server"
-msgstr "How traffic reaches this server"
-
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS is automatic. Your passkey works at this address."
@@ -4122,8 +4118,8 @@ msgid "Its apps show as one row with this name, on a network of their own. Impor
 msgstr "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
 
 #: src/features/apps/AddDomainSheet.tsx
-msgid "Its certificate comes by itself once its DNS points at this server, before or after."
-msgstr "Its certificate comes by itself once its DNS points at this server, before or after."
+msgid "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
+msgstr "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
 
 #: src/features/apps/Health.tsx
 msgid "Its check hasn't finished yet."
@@ -5270,16 +5266,12 @@ msgid "Open ports 80 and 443 in the instance's security group and in the machine
 msgstr "Open ports 80 and 443 in the instance's security group and in the machine's own firewall."
 
 #: src/features/servers/network.ts
-msgid "Open ports 80 and 443 in the network security group and in the machine's own firewall."
-msgstr "Open ports 80 and 443 in the network security group and in the machine's own firewall."
+msgid "Open ports 80 and 443 in the network security group on the VM's network interface and in the one on its subnet, as either can block them, and in the machine's own firewall."
+msgstr "Open ports 80 and 443 in the network security group on the VM's network interface and in the one on its subnet, as either can block them, and in the machine's own firewall."
 
 #: src/features/servers/network.ts
-msgid "Open ports 80 and 443 in the VCN's security list and in the machine's own iptables. Most people only open one."
-msgstr "Open ports 80 and 443 in the VCN's security list and in the machine's own iptables. Most people only open one."
-
-#: src/features/servers/network.ts
-msgid "Open ports 80 and 443 in the VPC's firewall rules and in the machine's own firewall."
-msgstr "Open ports 80 and 443 in the VPC's firewall rules and in the machine's own firewall."
+msgid "Open ports 80 and 443 in the VPC's firewall rules, or tick Allow HTTP traffic and Allow HTTPS traffic on the VM, and in the machine's own firewall."
+msgstr "Open ports 80 and 443 in the VPC's firewall rules, or tick Allow HTTP traffic and Allow HTTPS traffic on the VM, and in the machine's own firewall."
 
 #: src/features/servers/network.ts
 msgid "Open ports 80 and 443 in your provider's firewall and in the machine's own."
@@ -5374,6 +5366,18 @@ msgstr "Optional"
 #: src/features/apps/DomainRecord.tsx
 msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
 msgstr "Or forward ports 80 and 443 on your router to this server, and make this record."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
+msgstr "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
+msgstr "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
+
+#: src/features/servers/network.ts
+msgid "Oracle has two firewalls, and most people only open one: the VCN's security list, or a network security group in its place, and the machine's own. On Oracle's Ubuntu images, insert the rule before the REJECT one with iptables -I, as one appended with -A comes after it and does nothing. On Oracle Linux, open ports 80 and 443 with firewall-cmd."
+msgstr "Oracle has two firewalls, and most people only open one: the VCN's security list, or a network security group in its place, and the machine's own. On Oracle's Ubuntu images, insert the rule before the REJECT one with iptables -I, as one appended with -A comes after it and does nothing. On Oracle Linux, open ports 80 and 443 with firewall-cmd."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
@@ -7928,10 +7932,6 @@ msgstr "This uses {0}'s own dump, with the database running, so nothing stops. A
 #: src/features/logs/LogsPage.tsx
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
-
-#: src/features/apps/DomainRecord.tsx
-msgid "Through a tunnel or a proxy"
-msgstr "Through a tunnel or a proxy"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Time"

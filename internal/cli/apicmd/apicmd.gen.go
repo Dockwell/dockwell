@@ -526,12 +526,12 @@ func Methods() []*apicli.Method {
 		{
 			Name:      "dockwell.v1.DomainService.CheckDomain",
 			Procedure: dockwellv1connect.DomainServiceCheckDomainProcedure,
-			HTTP:      "GET /v1/domains:check",
+			HTTP:      "POST /v1/domains:check",
 			Noun:      "domains",
 			Verb:      "check",
 			Short:     "Say what DNS says of a name now",
-			Long:      "Say what DNS says of a name now, against what's known of a server, whether or\nnot any route has the name yet. Read it again to see a record arrive.",
-			Effect:    v1.Effect_EFFECT_READ,
+			Long:      "Say what DNS says of a name now, against what's known of a server, whether or\nnot any route has the name yet, as adding a domain does. Read it again to see a\nrecord arrive. It resolves the name through the control server, so it needs a\ntoken that can make changes, a caller can check 60 names a minute, and an answer\nthat's a private address is only shown when it's the server's own.",
+			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server, by ID."},
 				{Path: "domain", Help: "The domain, such as \"app.example.com\"."},

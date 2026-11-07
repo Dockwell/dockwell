@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/netip"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -59,7 +60,33 @@ import (
 )
 
 // fullServer is a control plane with sign-in, as dockwell run starts it.
+// fakeNames is what DNS says of each name, for a test, as one never asks the world.
+type fakeNames struct {
+	mu sync.Mutex
+	m  map[string][]netip.Addr
+}
+
+func (n *fakeNames) set(name string, addresses ...string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.m[name] = nil
+	for _, s := range addresses {
+		n.m[name] = append(n.m[name], netip.MustParseAddr(s))
+	}
+}
+
+func (n *fakeNames) lookup(_ context.Context, name string) ([]netip.Addr, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if found, ok := n.m[name]; ok {
+		return found, nil
+	}
+	return nil, &net.DNSError{Err: "no such host", Name: name, IsNotFound: true}
+}
+
 type fullServer struct {
+	// names is what DNS says of each name.
+	names *fakeNames
 	// config is what it was started with, and kinds what it runs, for a restart.
 	config Config
 	kinds  *resource.Registry
@@ -143,8 +170,11 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	engine := revision.New(db, kinds, agents, keeper, logger)
 	agents.OnConnect(func(string) { _ = engine.Resume(context.Background()) })
 	t.Cleanup(engine.Wait)
+	// No test resolves a real name: what each says is a name's is set on f.names.
+	names := &fakeNames{m: map[string][]netip.Addr{}}
 	config := Config{
-		Logger: logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
+		DNSLookup: names.lookup,
+		Logger:    logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
 		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
 		EventPoll: 200 * time.Millisecond, Logs: logs,
 	}
@@ -162,7 +192,8 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	}
 	ls := Listeners{API: listen(), Agents: listen(), Ingress: ingress}
 	f := &fullServer{
-		auth: people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
+		names: names,
+		auth:  people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,
 		api: ls.API.Addr().String(), agentAddr: ls.Agents.Addr().String(), server: srv, config: config, kinds: kinds,
 	}
 	if public != nil {

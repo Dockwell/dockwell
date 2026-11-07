@@ -2,13 +2,13 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { type DomainCheck, DomainCheckState, DomainService, type Server } from "@dockwell/api";
-import { Callout, SegmentedControl, type Status, StatusBadge } from "@dockwell/ui";
+import { Callout, type Status, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useState } from "react";
 
 import { CopyButton } from "../servers/CopyButton";
-import { domainAdviceOf, providerName, useFirewallWords } from "../servers/network";
+import { domainAdviceOf, forwardToOf, providerName, useFirewallWords } from "../servers/network";
 
 import "./DomainRecord.css";
 
@@ -26,8 +26,11 @@ function useSettled(value: string): string {
   return settled === value && value.includes(".") ? value : "";
 }
 
-/** What DNS says of a name, read again until it points here, so a record shows as it arrives. */
-function useDomainCheck(server: string, domain: string): DomainCheck | undefined {
+/**
+ * What DNS says of a name, read again until it has every record wanted, so each shows as
+ * it arrives. With none wanted, until it points here.
+ */
+function useDomainCheck(server: string, domain: string, wanted: readonly string[]): DomainCheck | undefined {
   const asked = useSettled(domain);
   const read = useQuery(
     DomainService.method.checkDomain,
@@ -35,37 +38,54 @@ function useDomainCheck(server: string, domain: string): DomainCheck | undefined
     {
       enabled: server !== "" && asked !== "",
       retry: false,
-      refetchInterval: (query) =>
-        query.state.data?.check?.state === DomainCheckState.POINTS_HERE ? false : READ_EVERY_MS,
+      refetchInterval: (query) => {
+        const check = query.state.data?.check;
+        const done =
+          wanted.length > 0
+            ? wanted.every((address) => check?.found.includes(address))
+            : check?.state === DomainCheckState.POINTS_HERE;
+        return done ? false : READ_EVERY_MS;
+      },
     },
   );
   return asked === "" ? undefined : read.data?.check;
 }
 
-/** Whether DNS has the record, as a state's shape and word. */
-function useDnsWord(check: DomainCheck | undefined): [Status, string] | undefined {
+/**
+ * Whether DNS has one record, as a state's shape and word: its own address among what DNS
+ * found, as an A record says nothing of an AAAA one.
+ */
+function useRecordWord(): (check: DomainCheck | undefined, address: string) => [Status, string] | undefined {
   const { t } = useLingui();
-  if (!check) return undefined;
-  const found = check.found.join(", ");
-  switch (check.state) {
-    case DomainCheckState.POINTS_HERE:
-      return ["healthy", t`DNS has this record`];
-    case DomainCheckState.NO_RECORD:
-      return ["deploying", t`Waiting for DNS`];
-    case DomainCheckState.ELSEWHERE:
-      return ["degraded", t`DNS points at ${found}`];
-    case DomainCheckState.CANT_TELL:
-      return ["unknown", t`DNS points at ${found}, and Dockwell can't tell whether that's this server`];
-    default:
-      return ["unknown", t`Can't read DNS`];
-  }
+  return (check, address) => {
+    if (!check) return undefined;
+    if (check.found.includes(address)) return ["healthy", t`DNS has this record`];
+    const six = address.includes(":");
+    const family = check.found.filter((ip) => ip.includes(":") === six);
+    const found = family.join(", ");
+    if (family.length > 0) {
+      return check.state === DomainCheckState.CANT_TELL
+        ? ["unknown", t`DNS points at ${found}, and Dockwell can't tell whether that's this server`]
+        : ["degraded", t`DNS points at ${found}`];
+    }
+    switch (check.state) {
+      case DomainCheckState.UNSPECIFIED:
+        return ["unknown", t`Can't read DNS`];
+      case DomainCheckState.ELSEWHERE:
+        return check.found.length === 0
+          ? ["degraded", t`DNS points at a private address that isn't this server's`]
+          : ["deploying", t`Waiting for DNS`];
+      default:
+        return ["deploying", t`Waiting for DNS`];
+    }
+  };
 }
 
 /** One DNS record to make, ready to copy, with whether DNS has it yet. */
 function RecordRow({ domain, address, check }: { domain: string; address: string; check: DomainCheck | undefined }) {
   const { t } = useLingui();
   const kind = address.includes(":") ? "AAAA" : "A";
-  const word = useDnsWord(check);
+  const word = useRecordWord()(check, address);
   return (
     <>
       <div className="domain-record-row">
@@ -99,7 +119,6 @@ export function DomainRecord({
   domain,
   tunnel,
   tunnelName,
-  onTunnel,
   onLeave,
 }: {
   server: Server | undefined;
@@ -109,21 +128,26 @@ export function DomainRecord({
   tunnel: boolean;
   /** That switch, by name. */
   tunnelName: string;
-  onTunnel: (on: boolean) => void;
   /** Closes the form, for a link that goes elsewhere. */
   onLeave: () => void;
 }) {
   const { t } = useLingui();
   const firewall = useFirewallWords();
-  const check = useDomainCheck(server?.id ?? "", domain);
-  const advice = domainAdviceOf(server?.network);
+  const advice = domainAdviceOf(server?.network, forwardToOf(server));
+  const wanted =
+    advice.lead === "record"
+      ? advice.records.map((record) => record.address)
+      : advice.lead === "tunnel"
+        ? [...advice.records.map((record) => record.address), ...(advice.router ? [advice.router] : [])]
+        : [];
+  const check = useDomainCheck(server?.id ?? "", domain, wanted);
   const name = domain === "" ? t`your domain` : domain;
   if (!server) return null;
 
   const proxied = check?.proxied ? (
     <Callout tone="warning">
       <Trans>
-        {name} points at Cloudflare's proxy, which blocks the certificate check. Turn on "{tunnelName}", or set the
+        {name} points at Cloudflare's proxy, which can block the certificate check. Turn on "{tunnelName}", or set the
         record to DNS only.
       </Trans>
     </Callout>
@@ -144,7 +168,7 @@ export function DomainRecord({
   }
 
   if (advice.lead === "tunnel") {
-    const router = advice.router;
+    const { router, forwardTo, records } = advice;
     return (
       <div className="domain-record">
         <p className="domain-record-lead">
@@ -156,8 +180,27 @@ export function DomainRecord({
         </p>
         {tunnel ? null : (
           <>
+            {records.length > 0 ? (
+              <>
+                <p className="domain-record-lead">
+                  <Trans>
+                    Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6
+                    reach it this way.
+                  </Trans>
+                </p>
+                {records.map((record) => (
+                  <RecordRow key={record.address} domain={name} address={record.address} check={check} />
+                ))}
+              </>
+            ) : null}
             <p className="domain-record-lead">
-              <Trans>Or forward ports 80 and 443 on your router to this server, and make this record.</Trans>
+              {forwardTo ? (
+                <Trans>
+                  Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record.
+                </Trans>
+              ) : (
+                <Trans>Or forward ports 80 and 443 on your router to this server, and make this record.</Trans>
+              )}
             </p>
             {router ? (
               <>
@@ -182,15 +225,6 @@ export function DomainRecord({
     const provider = providerName(advice.provider);
     return (
       <div className="domain-record">
-        <SegmentedControl
-          label={t`How traffic reaches this server`}
-          value={tunnel ? "tunnel" : "direct"}
-          options={[
-            { value: "direct", label: t`Directly` },
-            { value: "tunnel", label: t`Through a tunnel or a proxy` },
-          ]}
-          onChange={(how) => onTunnel(how === "tunnel")}
-        />
         {tunnel ? (
           <CatalogLink onLeave={onLeave} />
         ) : (
@@ -226,10 +260,9 @@ export function DomainRecord({
           <Trans>Make this record at your DNS provider.</Trans>
         )}
       </p>
-      {records.map((record, at) => (
+      {records.map((record) => (
         <Fragment key={record.address}>
-          {/* What DNS says goes under the last, as one read says it of them all. */}
-          <RecordRow domain={name} address={record.address} check={at === records.length - 1 ? check : undefined} />
+          <RecordRow domain={name} address={record.address} check={check} />
           {record.unproven ? (
             <p className="domain-record-hint">
               {provider ? (

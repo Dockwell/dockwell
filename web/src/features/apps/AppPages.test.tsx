@@ -2259,10 +2259,15 @@ describe("an app's overview", () => {
       servers: [{ serverId: SERVER, serverName: "hz-1" }],
     });
     describe("what the form says to do", () => {
-      const open = async (network: Parameters<typeof aServer>[0]["network"], check: () => object) => {
+      const open = async (network: Parameters<typeof aServer>[0]["network"], check: () => object, outbound = "") => {
         const user = userEvent.setup();
         const app = anApp("web", "nginx:1.5", {}, {});
-        const server = aServer({ id: SERVER, name: "hz-1", inventory: { addresses: ["10.0.0.25"] }, network });
+        const server = aServer({
+          id: SERVER,
+          name: "hz-1",
+          inventory: { addresses: ["10.0.0.25"], outboundAddress: outbound },
+          network,
+        });
         renderAt(
           "/apps/svc_web",
           api(
@@ -2289,12 +2294,17 @@ describe("an app's overview", () => {
         let state = DomainCheckState.NO_RECORD;
         vi.useFakeTimers({ shouldAdvanceTime: true });
         try {
-          const { sheet } = await open(cloud, () => ({ domain: "app.example.com", state }));
+          const { sheet } = await open(cloud, () => ({
+            domain: "app.example.com",
+            state,
+            found: state === DomainCheckState.POINTS_HERE ? ["203.0.113.50"] : [],
+          }));
           const row = sheet.querySelector(".domain-record-row");
           expect(row).toHaveTextContent("Aapp.example.com203.0.113.50");
           expect(within(sheet).getByRole("button", { name: "Copy 203.0.113.50" })).toBeVisible();
           expect(await within(sheet).findByText("Waiting for DNS")).toBeVisible();
-          expect(sheet).toHaveTextContent("VCN's security list and in the machine's own iptables");
+          expect(sheet).toHaveTextContent("the VCN's security list, or a network security group in its place");
+          expect(sheet).toHaveTextContent("insert the rule before the REJECT one with iptables -I");
           state = DomainCheckState.POINTS_HERE;
           await vi.advanceTimersByTimeAsync(5500);
           expect(await within(sheet).findByText("DNS has this record")).toBeVisible();
@@ -2311,7 +2321,7 @@ describe("an app's overview", () => {
           proxied: true,
         }));
         expect(
-          await within(sheet).findByText(/points at Cloudflare's proxy, which blocks the certificate check/),
+          await within(sheet).findByText(/points at Cloudflare's proxy, which can block the certificate check/),
         ).toHaveTextContent('Turn on "A tunnel or a proxy in front handles HTTPS", or set the record to DNS only.');
       });
 
@@ -2348,7 +2358,68 @@ describe("an app's overview", () => {
         expect(sheet).toHaveTextContent(
           "That's how this server reaches the internet, which may not be its way in. Check it against Azure's console.",
         );
-        expect(await within(sheet).findAllByText("Waiting for DNS")).toHaveLength(1);
+        // Each row says whether DNS has its own record.
+        expect(await within(sheet).findAllByText("Waiting for DNS")).toHaveLength(2);
+      });
+
+      it("says of each record whether DNS has it, as an A record says nothing of an AAAA one", async () => {
+        const { sheet } = await open(
+          {
+            ipv4: { address: "203.0.113.50", source: PublicAddressSource.SET_BY_PERSON },
+            ipv6: { address: "2001:db8::5", source: PublicAddressSource.ON_INTERFACE },
+            provider: CloudProvider.AWS,
+            shape: NetworkShape.CLOUD_NAT,
+          },
+          () => ({ domain: "app.example.com", state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] }),
+        );
+        expect(await within(sheet).findByText("DNS has this record")).toBeVisible();
+        expect(within(sheet).getAllByText("DNS has this record")).toHaveLength(1);
+        expect(within(sheet).getByText("Waiting for DNS")).toBeVisible();
+      });
+
+      it("reads DNS again until it has every record, not just the first", async () => {
+        let found = ["203.0.113.50"];
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+          const { sheet } = await open(
+            {
+              ipv4: { address: "203.0.113.50", source: PublicAddressSource.SET_BY_PERSON },
+              ipv6: { address: "2001:db8::5", source: PublicAddressSource.ON_INTERFACE },
+              provider: CloudProvider.AWS,
+              shape: NetworkShape.CLOUD_NAT,
+            },
+            () => ({ domain: "app.example.com", state: DomainCheckState.POINTS_HERE, found }),
+          );
+          expect(await within(sheet).findByText("Waiting for DNS")).toBeVisible();
+          found = ["203.0.113.50", "2001:db8::5"];
+          await vi.advanceTimersByTimeAsync(5500);
+          await waitFor(() => expect(within(sheet).getAllByText("DNS has this record")).toHaveLength(2));
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it("at home with IPv6, leads with a tunnel, offers the AAAA record, and puts the router behind a forwarded port", async () => {
+        const { sheet } = await open(
+          {
+            ipv4: { address: "203.0.113.7", source: PublicAddressSource.LOOKED_UP, unproven: true },
+            ipv6: { address: "2001:db8::5", source: PublicAddressSource.ON_INTERFACE },
+            shape: NetworkShape.LOCAL_NAT,
+          },
+          () => ({ domain: "app.example.com", state: DomainCheckState.NO_RECORD }),
+          "192.168.1.20",
+        );
+        expect(within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" })).toBeVisible();
+        expect(sheet).toHaveTextContent("Or make this record, as this server has a public IPv6 address of its own.");
+        expect(sheet).toHaveTextContent(
+          "Or forward ports 80 and 443 on your router to this server, at 192.168.1.20, and make this record.",
+        );
+        const rows = sheet.querySelectorAll(".domain-record-row");
+        expect(rows[0]).toHaveTextContent("AAAAapp.example.com2001:db8::5");
+        expect(rows[1]).toHaveTextContent("Aapp.example.com203.0.113.7");
+        expect(sheet).not.toHaveTextContent("Make these records");
+        expect(sheet).not.toHaveTextContent("may not be its way in");
+        expect(sheet).toHaveTextContent("Its certificate comes by itself once the domain reaches this server");
       });
 
       it("offers only a tunnel behind carrier NAT", async () => {
@@ -2358,13 +2429,14 @@ describe("an app's overview", () => {
         expect(sheet.querySelector(".domain-record-row")).toBeNull();
       });
 
-      it("asks how traffic reaches the server with no address known, and moves the form on", async () => {
+      it("says where the address is with none known, and offers a tunnel once the form's switch says so", async () => {
         const { user, sheet } = await open({ provider: CloudProvider.ORACLE, shape: NetworkShape.CLOUD_NAT }, () => ({
           domain: "app.example.com",
         }));
         expect(sheet).toHaveTextContent("Oracle Cloud's console shows it");
-        await user.click(within(sheet).getByRole("radio", { name: "Through a tunnel or a proxy" }));
-        expect(within(sheet).getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ })).toBeChecked();
+        // The form's own switch is the one question, with no second control asking it again.
+        expect(within(sheet).queryByRole("radio", { name: "Through a tunnel or a proxy" })).toBeNull();
+        await user.click(within(sheet).getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }));
         expect(within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" })).toBeVisible();
       });
     });

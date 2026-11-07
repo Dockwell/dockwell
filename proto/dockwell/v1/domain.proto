@@ -25,12 +25,18 @@ service DomainService {
   }
 
   // CheckDomain says what DNS says of a name now, against what's known of a
-  // server, whether or not any route has the name yet. Read it again to see a
-  // record arrive.
+  // server, whether or not any route has the name yet, as adding a domain does.
+  // Read it again to see a record arrive. It resolves the name through the
+  // control server, so it needs a token that can make changes, a caller can
+  // check 60 names a minute, and an answer that's a private address is only
+  // shown when it's the server's own.
   rpc CheckDomain(CheckDomainRequest) returns (CheckDomainResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
-    option (dockwell.v1.effect) = EFFECT_READ;
-    option (google.api.http) = {get: "/v1/domains:check"};
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/domains:check"
+      body: "*"
+    };
   }
 }
 

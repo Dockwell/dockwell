@@ -38,10 +38,11 @@ type DNS struct {
 
 // firewallWords say where a provider's own firewall is, beside the machine's.
 var firewallWords = map[dockwellv1.CloudProvider]string{
-	dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE:       "Oracle has two, and most people only open one: the VCN's security list, and the machine's own iptables. Open both ports in both.",
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE: "Oracle has two firewalls, and most people only open one: the VCN's security list, or a network security group in its place, and the machine's own. " +
+		"On Oracle's Ubuntu images, insert the rule before the REJECT one with iptables -I, as one appended with -A comes after it and does nothing. On Oracle Linux, open both ports with firewall-cmd.",
 	dockwellv1.CloudProvider_CLOUD_PROVIDER_AWS:          "Open both ports in the instance's security group, and in the machine's own firewall.",
-	dockwellv1.CloudProvider_CLOUD_PROVIDER_GCP:          "Open both ports in the VPC's firewall rules, and in the machine's own firewall.",
-	dockwellv1.CloudProvider_CLOUD_PROVIDER_AZURE:        "Open both ports in the network security group, and in the machine's own firewall.",
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_GCP:          "Open both ports in the VPC's firewall rules, or tick Allow HTTP traffic and Allow HTTPS traffic on the VM, and in the machine's own firewall.",
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_AZURE:        "Open both ports in the network security group on the VM's network interface and in the one on its subnet, as either can block them, and in the machine's own firewall.",
 	dockwellv1.CloudProvider_CLOUD_PROVIDER_DIGITALOCEAN: "Open both ports in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall.",
 	dockwellv1.CloudProvider_CLOUD_PROVIDER_HETZNER:      "Open both ports in Hetzner's Cloud Firewall, if the server has one, and in the machine's own firewall.",
 }

@@ -376,7 +376,7 @@ export function AddDomainSheet({
           error={domainError}
           hint={
             !noCertificate
-              ? t`Its certificate comes by itself once its DNS points at this server, before or after.`
+              ? t`Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after.`
               : inFront === "anyone"
                 ? t`Point its DNS at this server.`
                 : t`Point its DNS at your tunnel or proxy.`
@@ -403,7 +403,6 @@ export function AddDomainSheet({
           domain={typed}
           tunnel={noCertificate}
           tunnelName={switchName}
-          onTunnel={setNoCertificate}
           onLeave={onClose}
         />
         {leaves ? (

@@ -2176,6 +2176,27 @@ describe("the plan sheet, once it runs", () => {
       expect(done).not.toHaveTextContent("10.0.0.9");
     });
 
+    it("says a record on Cloudflare's proxy can block the certificate, and what to do", async () => {
+      const change = applied(aServicePlan());
+      const step = change.plan?.servers[0]?.steps[0];
+      if (step) {
+        step.domainCheck = create(DomainCheckSchema, {
+          domain: "app.example.com",
+          state: DomainCheckState.ELSEWHERE,
+          found: ["104.16.0.1"],
+          proxied: true,
+          here: ["10.0.0.25"],
+        });
+      }
+      arrivedWith([aDomain("app.example.com", CertificateState.PENDING, "Asking")], [], change);
+      const done = await screen.findByRole("dialog", { name: "web is deployed" });
+      await within(done).findByText("Asking");
+      expect(done).toHaveTextContent(
+        "DNS for app.example.com points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only",
+      );
+      expect(done).not.toHaveTextContent("Point an A record");
+    });
+
     it("keeps saying what DNS said while it hasn't served", async () => {
       const change = applied(aServicePlan());
       const step = change.plan?.servers[0]?.steps[0];

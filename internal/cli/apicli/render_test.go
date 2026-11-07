@@ -885,7 +885,7 @@ func TestDNSWordsSayWhatsKnownOfTheAddress(t *testing.T) {
 		{
 			"on Cloudflare's proxy",
 			&dockwellv1.DomainCheck{Domain: "a.example.com", State: dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_ELSEWHERE, Found: []string{"104.16.0.1"}, Proxied: true, Here: []string{"203.0.113.9"}},
-			"points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come. Set the record to DNS only.",
+			"points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only.",
 		},
 		{
 			"another address, with only a way out known",

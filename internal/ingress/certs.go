@@ -161,7 +161,7 @@ func certMessage(domain string, st CertState, check *resource.DomainCheck) strin
 			domain, st.NotAfter.UTC().Format("2 January 2006"), upperFirst(problemWords(domain, st, check)), retry)
 	case st.Phase == CertPending:
 		if check != nil && check.Proxied {
-			return fmt.Sprintf("DNS for %s points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come and it doesn't answer over HTTPS here. Set the record to DNS only, and Dockwell tries as soon as it sees it.", domain)
+			return fmt.Sprintf("DNS for %s points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come and it may not answer over HTTPS here. Set the record to DNS only, and Dockwell tries as soon as it sees it.", domain)
 		}
 		if check != nil && check.State == resource.DomainNoRecord {
 			return fmt.Sprintf("%s has no DNS record yet, so its certificate can't come and it doesn't answer over HTTPS. %s Dockwell tries as soon as it sees the record.", domain, pointHere(check))

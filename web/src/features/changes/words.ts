@@ -465,7 +465,7 @@ export function useChangeWords(): ChangeWords {
                     : t`Point an A record at this server's public address. Dockwell only sees ${here} here, which are private, so the internet can't reach it`;
         const plainly = proved.length > 0 && unproven.length === 0;
         if (check.proxied) {
-          return t`DNS for ${domain} points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
+          return t`DNS for ${domain} points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`;
         }
         switch (check.state) {
           case DomainCheckState.NO_RECORD:

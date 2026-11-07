@@ -10,6 +10,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/netip"
 	"slices"
@@ -49,6 +50,9 @@ type Handler struct {
 	reports Reports
 	servers Servers
 	logger  *slog.Logger
+	// Lookup resolves a name for CheckDomain. Nil means the control server's resolver.
+	Lookup  func(ctx context.Context, name string) ([]netip.Addr, error)
+	callers *callers
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
@@ -56,7 +60,7 @@ var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
 // New returns a handler that reads routes from db, with kinds, what their servers
 // say from reports, and what's known of a server from servers.
 func New(kinds *resource.Registry, db *store.DB, reports Reports, servers Servers, logger *slog.Logger) *Handler {
-	return &Handler{kinds: kinds, db: db, reports: reports, servers: servers, logger: logger}
+	return &Handler{kinds: kinds, db: db, reports: reports, servers: servers, logger: logger, callers: newCallers(checksPerMinute)}
 }
 
 // CheckDomain reads DNS for a name against what's known of a server. It's a read a
@@ -77,17 +81,33 @@ func (h *Handler) CheckDomain(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return nil, err
 	}
-	dns := &ingress.DNS{Addrs: func() ([]netip.Addr, error) {
-		var own []netip.Addr
-		for _, s := range srv.GetInventory().GetAddresses() {
-			if a, err := netip.ParseAddr(s); err == nil {
-				own = append(own, a.Unmap())
-			}
+	caller := "someone"
+	if p, ok := authapi.PrincipalFrom(ctx); ok {
+		caller = p.Actor()
+	}
+	if !h.callers.allow(caller) {
+		err := connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("you've checked %d domains in the last minute. Wait a minute, then check again", checksPerMinute))
+		err.Meta().Set(authapi.ReasonKey, "too_many_requests")
+		return nil, err
+	}
+	own := srv.GetInventory().GetAddresses()
+	// Only what the internet can reach is where a record can lead to this server: a
+	// private address, a bridge's or a TUN's on it never is.
+	dns := &ingress.DNS{Lookup: h.Lookup, Addrs: func() ([]netip.Addr, error) {
+		var public []netip.Addr
+		for _, s := range resource.PublicAddresses(own) {
+			public = append(public, netip.MustParseAddr(s).Unmap())
 		}
-		return own, nil
+		return public, nil
 	}}
 	dns.Know(h.servers.PublicAddress(srv.GetId()))
-	return connect.NewResponse(&dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(dns.Check(ctx, domain))}), nil
+	check := dns.Check(ctx, domain)
+	// What a name inside some network resolves to is no business of anyone who can only
+	// reach this API, so a private answer is shown only when it's the server's own.
+	check.Found = slices.DeleteFunc(check.Found, func(s string) bool {
+		return len(resource.PublicAddresses([]string{s})) == 0 && !slices.Contains(own, s)
+	})
+	return connect.NewResponse(&dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(check)}), nil
 }
 
 // ListDomains returns the domains of the routes that exist now.

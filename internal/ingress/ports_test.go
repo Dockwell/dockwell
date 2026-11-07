@@ -703,7 +703,7 @@ func TestARecordOnCloudflaresProxySaysSo(t *testing.T) {
 		t.Fatalf("it reads %+v", check)
 	}
 	msg := routeCertMessage("app.example.com", CertState{Phase: CertPending}, check)
-	for _, want := range []string{"Cloudflare's proxy", "blocks the certificate authority's check", "DNS only", "set tls to off"} {
+	for _, want := range []string{"Cloudflare's proxy", "can block the certificate authority's check", "DNS only", "set tls to off"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("%q doesn't say %q", msg, want)
 		}
@@ -726,15 +726,15 @@ func TestAFailedConnectionNamesTheFirewalls(t *testing.T) {
 	}
 	oracle.Know(&agentv1.PublicAddress{Addresses: []*agentv1.KnownAddress{{Address: "203.0.113.50", WayIn: true}}, Provider: dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE})
 	msg := certMessage("app.example.com", failed, oracle.Check(t.Context(), "app.example.com"))
-	for _, want := range []string{"VCN's security list", "machine's own iptables", "most people only open one"} {
+	for _, want := range []string{"two firewalls", "VCN's security list", "network security group in its place", "iptables -I", "firewall-cmd", "most people only open one"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("%q doesn't say %q", msg, want)
 		}
 	}
 	for provider, want := range map[dockwellv1.CloudProvider]string{
 		dockwellv1.CloudProvider_CLOUD_PROVIDER_AWS:          "security group",
-		dockwellv1.CloudProvider_CLOUD_PROVIDER_GCP:          "firewall rules",
-		dockwellv1.CloudProvider_CLOUD_PROVIDER_AZURE:        "network security group",
+		dockwellv1.CloudProvider_CLOUD_PROVIDER_GCP:          "Allow HTTP traffic and Allow HTTPS traffic",
+		dockwellv1.CloudProvider_CLOUD_PROVIDER_AZURE:        "on the VM's network interface and in the one on its subnet",
 		dockwellv1.CloudProvider_CLOUD_PROVIDER_DIGITALOCEAN: "Cloud Firewall",
 		dockwellv1.CloudProvider_CLOUD_PROVIDER_HETZNER:      "Cloud Firewall",
 	} {

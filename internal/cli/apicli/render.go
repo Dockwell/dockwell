@@ -1122,7 +1122,7 @@ func domainWords(c *dockwellv1.DomainCheck) string {
 	}
 	point := (&resource.DomainCheck{Public: told, Here: c.GetHere(), Unproven: c.GetUnprovenAddresses(), Carrier: c.GetCarrierNat()}).PointHere()
 	if c.GetProxied() {
-		return fmt.Sprintf("DNS for %s points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain())
+		return fmt.Sprintf("DNS for %s points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead.", c.GetDomain())
 	}
 	switch c.GetState() {
 	case dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD:

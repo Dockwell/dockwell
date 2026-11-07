@@ -656,8 +656,8 @@ msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing 
 msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
 
 #: src/features/apps/DomainRecord.tsx
-msgid "{name} points at Cloudflare's proxy, which blocks the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
-msgstr "{name} 指向 Cloudflare 的代理，这会阻止证书验证。请打开“{tunnelName}”，或将该记录设为仅 DNS。"
+msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
+msgstr "{name} 指向 Cloudflare 的代理，这可能会阻止证书验证。请打开“{tunnelName}”，或将该记录设为仅 DNS。"
 
 #: src/features/changes/notices.tsx
 msgid "{name} reaches {path} on {server}"
@@ -2864,10 +2864,6 @@ msgstr "详细信息"
 msgid "Developer tools"
 msgstr "开发者工具"
 
-#: src/features/apps/DomainRecord.tsx
-msgid "Directly"
-msgstr "直接访问"
-
 #: src/features/apps/AppOverview.tsx
 msgid "Directory"
 msgstr "目录"
@@ -2923,8 +2919,8 @@ msgid "DNS for {domain} points at {found}. This server's own addresses are priva
 msgstr "{domain} 的 DNS 指向 {found}。此服务器自身的地址都是私有地址（{here}），因此 Agent 无法判断它是否指向此服务器。如果不是，在指向此服务器之前无法获取证书。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/changes/words.ts
-msgid "DNS for {domain} points at Cloudflare's proxy, which blocks the certificate authority's check, so its certificate can't come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
-msgstr "{domain} 的 DNS 指向 Cloudflare 的代理，这会阻止证书颁发机构的验证，因此无法获取证书。请将该记录设为仅 DNS。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
+msgid "DNS for {domain} points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "{domain} 的 DNS 指向 Cloudflare 的代理，这可能会阻止证书颁发机构的验证，因此可能无法获取证书。请将该记录设为仅 DNS。如果前面有隧道或代理负责终止 TLS，请改为把此路由的 tls 设为 off"
 
 #: src/features/apps/DomainRecord.tsx
 msgid "DNS has this record"
@@ -2937,6 +2933,10 @@ msgstr "DNS 指向 {found}"
 #: src/features/apps/DomainRecord.tsx
 msgid "DNS points at {found}, and Dockwell can't tell whether that's this server"
 msgstr "DNS 指向 {found}，Dockwell 无法判断那是否就是此服务器"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS points at a private address that isn't this server's"
+msgstr "DNS 指向一个不属于此服务器的私有地址"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
@@ -3719,10 +3719,6 @@ msgstr "方式"
 msgid "How often"
 msgstr "频率"
 
-#: src/features/apps/DomainRecord.tsx
-msgid "How traffic reaches this server"
-msgstr "流量如何到达此服务器"
-
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS 自动配置。你的通行密钥在这个地址可用。"
@@ -4122,8 +4118,8 @@ msgid "Its apps show as one row with this name, on a network of their own. Impor
 msgstr "其中的应用会以这个名称显示为一行，并使用独立的网络。再次以此名称导入会更新它们。"
 
 #: src/features/apps/AddDomainSheet.tsx
-msgid "Its certificate comes by itself once its DNS points at this server, before or after."
-msgstr "DNS 指向此服务器后证书会自动获取，先后都可以。"
+msgid "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
+msgstr "域名能到达此服务器后，证书会自动获取。DNS 在添加之前或之后设置都可以。"
 
 #: src/features/apps/Health.tsx
 msgid "Its check hasn't finished yet."
@@ -5270,16 +5266,12 @@ msgid "Open ports 80 and 443 in the instance's security group and in the machine
 msgstr "请在实例的安全组和这台机器自己的防火墙中开放 80 和 443 端口。"
 
 #: src/features/servers/network.ts
-msgid "Open ports 80 and 443 in the network security group and in the machine's own firewall."
-msgstr "请在网络安全组和这台机器自己的防火墙中开放 80 和 443 端口。"
+msgid "Open ports 80 and 443 in the network security group on the VM's network interface and in the one on its subnet, as either can block them, and in the machine's own firewall."
+msgstr "请在虚拟机网卡上的网络安全组、其子网上的网络安全组（任何一个都可能阻止访问），以及这台机器自己的防火墙中开放 80 和 443 端口。"
 
 #: src/features/servers/network.ts
-msgid "Open ports 80 and 443 in the VCN's security list and in the machine's own iptables. Most people only open one."
-msgstr "请在 VCN 的安全列表和这台机器自己的 iptables 中开放 80 和 443 端口。大多数人只开放了其中一处。"
-
-#: src/features/servers/network.ts
-msgid "Open ports 80 and 443 in the VPC's firewall rules and in the machine's own firewall."
-msgstr "请在 VPC 的防火墙规则和这台机器自己的防火墙中开放 80 和 443 端口。"
+msgid "Open ports 80 and 443 in the VPC's firewall rules, or tick Allow HTTP traffic and Allow HTTPS traffic on the VM, and in the machine's own firewall."
+msgstr "请在 VPC 的防火墙规则中开放 80 和 443 端口，或在虚拟机上勾选“允许 HTTP 流量”和“允许 HTTPS 流量”，并在这台机器自己的防火墙中开放。"
 
 #: src/features/servers/network.ts
 msgid "Open ports 80 and 443 in your provider's firewall and in the machine's own."
@@ -5374,6 +5366,18 @@ msgstr "可选"
 #: src/features/apps/DomainRecord.tsx
 msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
 msgstr "或者在路由器上将 80 和 443 端口转发到此服务器，并添加这条记录。"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
+msgstr "或者在路由器上将 80 和 443 端口转发到此服务器的 {forwardTo}，并添加这条记录。"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
+msgstr "或者添加这条记录，因为此服务器自己有公网 IPv6 地址。只有使用 IPv6 的访问者能通过这种方式访问。"
+
+#: src/features/servers/network.ts
+msgid "Oracle has two firewalls, and most people only open one: the VCN's security list, or a network security group in its place, and the machine's own. On Oracle's Ubuntu images, insert the rule before the REJECT one with iptables -I, as one appended with -A comes after it and does nothing. On Oracle Linux, open ports 80 and 443 with firewall-cmd."
+msgstr "Oracle 有两道防火墙，大多数人只开放了其中一道：VCN 的安全列表（或代替它的网络安全组），以及这台机器自己的防火墙。在 Oracle 的 Ubuntu 镜像上，请用 iptables -I 把规则插入到 REJECT 规则之前，用 -A 追加的规则会排在它后面，不起作用。在 Oracle Linux 上，请用 firewall-cmd 开放 80 和 443 端口。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
@@ -7928,10 +7932,6 @@ msgstr "这会在数据库运行时使用 {0} 自带的转储，不会停止任�
 #: src/features/logs/LogsPage.tsx
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
-
-#: src/features/apps/DomainRecord.tsx
-msgid "Through a tunnel or a proxy"
-msgstr "通过隧道或代理"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Time"
