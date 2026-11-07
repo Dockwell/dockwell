@@ -780,6 +780,25 @@ describe("the plan sheet", () => {
     expect(sheet.textContent).not.toMatch(/keep its data|Stop it in|or remove it there/);
   });
 
+  it("sets the commands in a refusal apart, as the panel's font joins their dashes", async () => {
+    const refusal =
+      "project shop still holds volume data and network default in production, so it stays. Delete them first, with dockwell volumes delete data --project shop and dockwell networks delete default --project shop --environment production, or in the same change";
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => {
+          throw new ConnectError(refusal, Code.InvalidArgument);
+        },
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "The plan didn't work" });
+    await within(sheet).findByText(/still holds volume data/);
+    expect([...sheet.querySelectorAll("code")].map((c) => c.textContent)).toEqual([
+      "dockwell volumes delete data --project shop",
+      "dockwell networks delete default --project shop --environment production",
+    ]);
+  });
+
   it("says what a server's note means in its own words, so they translate", async () => {
     await activateLocale("zh-CN");
     try {

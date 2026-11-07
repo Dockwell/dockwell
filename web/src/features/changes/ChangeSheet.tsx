@@ -948,7 +948,9 @@ function PlanBody({
   if (phase === "unplanned") {
     return (
       <div className="plan-body">
-        <Callout tone="critical">{sentence(failure)}</Callout>
+        <Callout tone="critical">
+          <MachineWords>{sentence(failure)}</MachineWords>
+        </Callout>
       </div>
     );
   }

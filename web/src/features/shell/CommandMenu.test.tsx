@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ChangeState,
   type ProposeChangeRequest,
@@ -97,6 +98,8 @@ describe("the command bar", () => {
     await within(bar).findByRole("option", { name: /Create a project/ });
     expect(within(bar).queryByRole("group", { name: "Projects" })).toBeNull();
     expect(within(bar).queryByRole("group", { name: "Environments" })).toBeNull();
+    // The organization keeps a project, so the only one isn't offered for deleting.
+    expect(within(bar).queryByRole("option", { name: /Delete a project/ })).toBeNull();
   });
 
   it("creates a project: it asks for the name, then opens the plan", async () => {
@@ -125,6 +128,111 @@ describe("the command bar", () => {
     expect(proposals[0]?.summary).toBe("Create the project shop");
     expect(proposals[0]?.edits[0]?.resource).toMatchObject({ kind: "project", name: "shop" });
     expect(proposals[0]?.edits[0]?.spec?.kind.case).toBe("project");
+  });
+
+  it("deletes a project: it asks which, then opens the plan", async () => {
+    const proposals: ProposeChangeRequest[] = [];
+    const { user, bar } = await openBar({
+      resources: {
+        listResources: (req) => ({
+          resources: req.kind === "project" ? [defaultProject, shopProject] : [production, staging],
+        }),
+      },
+      changes: {
+        proposeChange: (req) => {
+          proposals.push(req);
+          return { change: shopPlanned() };
+        },
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+    await user.click(await within(bar).findByRole("option", { name: "Delete a project Opens a plan" }));
+    const ask = screen.getByRole("dialog", { name: "Command bar" });
+    const input = within(ask).getByRole("combobox", { name: "Which project do you want to delete?" });
+    expect(input).toHaveValue("");
+    expect(
+      within(ask)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Delete the project default Opens a plan", "Delete the project shop Opens a plan"]);
+    await expectAccessible(document.body);
+    await user.click(within(ask).getByRole("option", { name: "Delete the project shop Opens a plan" }));
+
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.summary).toBe("Delete the project shop");
+    expect(proposals[0]?.edits).toHaveLength(1);
+    expect(proposals[0]?.edits[0]?.resource).toMatchObject({ kind: "project", name: "shop" });
+    expect(proposals[0]?.edits[0]?.delete).toBe(true);
+  });
+
+  it("offers to delete the volumes and networks a project still has, in the one plan", async () => {
+    const proposals: ProposeChangeRequest[] = [];
+    const shopProduction = resource("env_shop", "environment", "prj_shop", "production");
+    const { user, bar } = await openBar({
+      resources: {
+        listResources: (req) => ({
+          resources:
+            req.kind === "project"
+              ? [defaultProject, shopProject]
+              : req.kind === "environment"
+                ? [production, shopProduction]
+                : req.kind === "volume"
+                  ? [
+                      resource("vol_data", "volume", "env_shop", "data"),
+                      resource("vol_other", "volume", "env_prod", "elsewhere"),
+                    ]
+                  : [resource("net_default", "network", "env_shop", "default")],
+        }),
+      },
+      changes: {
+        proposeChange: (req) => {
+          proposals.push(req);
+          return { change: shopPlanned() };
+        },
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+    await user.click(await within(bar).findByRole("option", { name: "Delete a project Opens a plan" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("option", {
+        name: "Delete the project shop Opens a plan",
+      }),
+    );
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.summary).toBe("Delete the project shop");
+    expect(proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.scope, e.resource?.name, e.delete])).toEqual([
+      ["volume", "env_shop", "data", true],
+      ["network", "env_shop", "default", true],
+      ["project", "", "shop", true],
+    ]);
+  });
+
+  it("says what keeps a project, as the API does", async () => {
+    const { user, bar } = await openBar({
+      resources: {
+        listResources: (req) => ({
+          resources: req.kind === "project" ? [defaultProject, shopProject] : [production, staging],
+        }),
+      },
+      changes: {
+        proposeChange: () => {
+          throw new ConnectError(
+            "project shop still holds service web in production, so it stays. Delete them first, or in the same change",
+            Code.InvalidArgument,
+          );
+        },
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+    await user.click(await within(bar).findByRole("option", { name: "Delete a project Opens a plan" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("option", {
+        name: "Delete the project shop Opens a plan",
+      }),
+    );
+    expect(await screen.findByText(/Project shop still holds service web in production/)).toBeVisible();
   });
 
   it("keeps what you typed when you choose the note that it can't be a name", async () => {

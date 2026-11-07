@@ -1159,8 +1159,9 @@ type Edit struct {
 	// What the resource should be. Every field is set as given: an edit
 	// replaces the whole spec. Unset only with delete.
 	Spec *v1alpha1.Spec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
-	// Deletes the resource. A project or environment goes only once what
-	// lives in it has gone, in this change or an earlier one.
+	// Deletes the resource. An environment goes only once what lives in it has
+	// gone, in this change or an earlier one. A project takes its environments
+	// with it, and goes only once what lives in them has gone too.
 	Delete bool `protobuf:"varint,3,opt,name=delete,proto3" json:"delete,omitempty"`
 	// Where a service, volume, network or route runs, by server ID. Empty keeps it
 	// where it runs now; a new one runs on the only server, and must name its

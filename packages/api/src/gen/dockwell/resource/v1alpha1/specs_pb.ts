@@ -670,7 +670,8 @@ export const FirewallRuleSchema: GenMessage<FirewallRule> = /*@__PURE__*/
  * Project is a product or client in the organization. It holds
  * environments, and scopes members, secrets and domains. An install starts
  * with one, named "default", which stays out of sight until there is a
- * second.
+ * second. Deleting one takes its environments with it, once nothing lives in
+ * them.
  *
  * @generated from message dockwell.resource.v1alpha1.Project
  */

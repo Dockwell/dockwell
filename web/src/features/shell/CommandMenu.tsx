@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
-import { EventKind, EventService, type Resource, ResourceService, SystemService } from "@dockwell/api";
+import { createClient, type Transport } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
+import { ChangeService, EventKind, EventService, type Resource, ResourceService, SystemService } from "@dockwell/api";
 import { CommandBar, type CommandItem, type ThemePreference, useThemePreference, useUIStrings } from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
@@ -88,10 +89,38 @@ type Command = CommandItem & { run: Run; keepOpen?: "step" | "note" };
 const NAME = /^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /**
- * What the bar is asking for, after an action that takes a name. An
+ * What the bar is asking for, after an action that takes a name or a project. An
  * environment's project is asked for only once there is a choice.
  */
-type Prompt = { kind: "project" } | { kind: "environment"; project?: Resource | undefined };
+type Prompt =
+  | { kind: "project" }
+  | { kind: "environment"; project?: Resource | undefined }
+  | { kind: "delete-project" };
+
+/**
+ * Plans deleting a project, with the volumes and networks left in it, as nothing else
+ * in the panel deletes those, and "Delete this app" keeps its volumes. So the plan names
+ * each, and a volume going needs a person's confirmation, as any data loss does.
+ * Whatever else is left keeps the project, and the API says what.
+ */
+async function planDeletingProject(
+  transport: Transport,
+  project: Resource,
+  environments: readonly Resource[],
+  summary: string,
+) {
+  const inside = new Set(environments.filter((e) => e.resource?.scope === project.id).map((e) => e.id));
+  const resources = createClient(ResourceService, transport);
+  const lists = await Promise.all(["volume", "network"].map((kind) => resources.listResources({ kind })));
+  const left = lists.flatMap((list) => list.resources).filter((r) => inside.has(r.resource?.scope ?? ""));
+  return createClient(ChangeService, transport).proposeChange({
+    summary,
+    edits: [
+      ...left.map((r) => ({ resource: r.resource, delete: true })),
+      { resource: { kind: "project", name: project.resource?.name ?? project.id }, delete: true },
+    ],
+  });
+}
 
 /** The project a new environment is for: the one chosen, or the only one there is. */
 function projectFor(prompt: Prompt, projects: readonly Resource[] | undefined): Resource | undefined {
@@ -104,6 +133,7 @@ function Commands({ onClose }: { onClose: () => void }) {
   const strings = useUIStrings();
   const navigate = useNavigate();
   const sheet = useChangeSheet();
+  const transport = useTransport();
   // The view keeps its identity between samples, so the list isn't rebuilt while you type.
   const { servers, fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
@@ -120,10 +150,18 @@ function Commands({ onClose }: { onClose: () => void }) {
   const commands = useMemo(() => {
     const list: Command[] = [];
     if (prompt)
-      return promptItems(prompt, query.trim(), projects, i18n, setPrompt, (opening) => {
-        onClose();
-        sheet.open(opening);
-      });
+      return promptItems(
+        prompt,
+        query.trim(),
+        projects,
+        i18n,
+        setPrompt,
+        (opening) => {
+          onClose();
+          sheet.open(opening);
+        },
+        (project, summary) => planDeletingProject(transport, project, environments ?? [], summary),
+      );
     const pages = t`Pages`;
     list.push({
       id: "overview",
@@ -302,6 +340,18 @@ function Commands({ onClose }: { onClose: () => void }) {
       // Which project it is for is asked once the projects are in, and only if there is a choice.
       run: () => setPrompt({ kind: "environment" }),
     });
+    // The organization keeps a project, so the only one has nothing to offer.
+    if ((projects?.length ?? 0) > 1) {
+      list.push({
+        id: "delete-project",
+        group: actions,
+        icon: "trash",
+        label: t`Delete a project`,
+        hint: t`Opens a plan`,
+        keepOpen: "step",
+        run: () => setPrompt({ kind: "delete-project" }),
+      });
+    }
 
     const themes: { id: ThemePreference; label: string; icon: CommandItem["icon"] }[] = [
       { id: "light", label: t`Use the light theme`, icon: "sun" },
@@ -339,6 +389,7 @@ function Commands({ onClose }: { onClose: () => void }) {
     query,
     sheet,
     onClose,
+    transport,
   ]);
 
   const project = prompt ? projectFor(prompt, projects) : undefined;
@@ -346,11 +397,13 @@ function Commands({ onClose }: { onClose: () => void }) {
     ? undefined
     : prompt.kind === "project"
       ? t`Name the new project, such as shop`
-      : project
-        ? t`Name the new environment, such as staging`
-        : projects
-          ? t`Which project is it for?`
-          : t`Finding your projects`;
+      : prompt.kind === "delete-project"
+        ? t`Which project do you want to delete?`
+        : project
+          ? t`Name the new environment, such as staging`
+          : projects
+            ? t`Which project is it for?`
+            : t`Finding your projects`;
 
   // Each question has a bar of its own, which starts empty.
   const question = prompt ? `${prompt.kind}:${project?.id ?? (projects ? "choose" : "loading")}` : "commands";
@@ -376,7 +429,7 @@ function Commands({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** The items while the bar asks for a name, or which project, for a new project or environment. */
+/** The items while the bar asks for a name, or which project, for a new project or environment, or one to delete. */
 function promptItems(
   prompt: Prompt,
   name: string,
@@ -384,8 +437,23 @@ function promptItems(
   i18n: I18n,
   setPrompt: (p: Prompt) => void,
   propose: (opening: Opening) => void,
+  planDeleting: (project: Resource, summary: string) => ReturnType<typeof planDeletingProject>,
 ): Command[] {
   const projects = loaded ?? [];
+  if (prompt.kind === "delete-project") {
+    // Its plan says what goes with it, and the API says what keeps it, by name.
+    return projects.map((project) => {
+      const projectName = project.resource?.name ?? project.id;
+      const label = i18n._(msg`Delete the project ${projectName}`);
+      return {
+        id: `prompt:delete:${project.id}`,
+        icon: "trash",
+        label,
+        hint: i18n._(msg`Opens a plan`),
+        run: () => propose({ kind: "plan", make: () => planDeleting(project, label) }),
+      };
+    });
+  }
   if (prompt.kind === "environment" && !projectFor(prompt, loaded)) {
     // Until the projects are in, there is nothing to choose from yet.
     if (!loaded) return [];

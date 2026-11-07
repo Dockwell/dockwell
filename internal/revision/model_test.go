@@ -3,6 +3,7 @@
 package revision
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"slices"
@@ -10,7 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -314,7 +318,7 @@ func TestScopesGoOnlyOnceEmptyAndNeverTheLast(t *testing.T) {
 		}
 		refuse("deleting the only environment", "production is the last environment in project default",
 			del(scope.EnvironmentKind, project, "production"))
-		refuse("deleting the only project", "default still holds production",
+		refuse("deleting the only project", "default is the last project in the organization",
 			del(scope.ProjectKind, org, "default"))
 		refuse("deleting the only project and its environment", "default is the last project in the organization",
 			del(scope.ProjectKind, org, "default"), del(scope.EnvironmentKind, project, "production"))
@@ -382,6 +386,114 @@ func TestApplyRefusesAServiceWhoseEnvironmentWent(t *testing.T) {
 		apply(t, e, propose(t, e, "Retire staging", Edit{Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: project, Name: "staging"}}))
 		if err := e.Apply(t.Context(), later.Change); !errors.Is(err, ErrInvalid) {
 			t.Errorf("applying into a deleted environment = %v, want ErrInvalid", err)
+		}
+	})
+}
+
+// Deleting a project is one edit: its environments go with it, in the plan and in an
+// undo, as a project can't be left without one and an environment can't go alone.
+func TestDeletingAProjectTakesItsEnvironments(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setup(t, b, "srv_A")
+		org := tree(t, db).Organization.ID
+		deleted := func(p *Plan) []string {
+			t.Helper()
+			var out []string
+			for i := range p.Resources {
+				if r := &p.Resources[i]; r.Action != resource.ActionDelete {
+					t.Errorf("%s plans %s, want it deleted", r.Ref, r.Action)
+				} else {
+					out = append(out, string(r.Ref.Kind)+" "+r.Ref.Name)
+				}
+			}
+			slices.Sort(out)
+			return out
+		}
+
+		apply(t, e, propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "shop"}, Spec: &resourcev1.Project{}}))
+		shop, _, err := tree(t, db).Resolve("shop", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		retire := propose(t, e, "Retire shop", del(scope.ProjectKind, org, "shop"))
+		if got, want := deleted(retire), []string{"environment production", "project shop"}; !slices.Equal(got, want) {
+			t.Errorf("deleting a project with one environment plans %v, want %v", got, want)
+		}
+		apply(t, e, retire)
+		if _, err := tree(t, db).Project("shop"); err == nil {
+			t.Error("after deleting it, shop is still there")
+		}
+		if s := tree(t, db).Shown(""); s.Project {
+			t.Error("with one project again, it hides again")
+		}
+		apply(t, e, undo(t, e, retire))
+		back, prod, err := tree(t, db).Resolve("shop", "")
+		if err != nil || back.ID != shop.ID {
+			t.Fatalf("after undoing it, shop = %+v, %v; want it back with its environment", back, err)
+		}
+
+		// Every environment goes, not only the last, however the edit names them.
+		apply(t, e, propose(t, e, "Add staging", environment(shop.ID, "staging")))
+		both := propose(t, e, "Retire shop", del(scope.ProjectKind, org, "shop"))
+		if got, want := deleted(both), []string{"environment production", "environment staging", "project shop"}; !slices.Equal(got, want) {
+			t.Errorf("deleting a project with two environments plans %v, want %v", got, want)
+		}
+		if err := e.Discard(t.Context(), both.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+		byName := propose(t, e, "Retire shop by name", del(scope.EnvironmentKind, shop.ID, "staging"), del(scope.ProjectKind, org, "shop"))
+		if got, want := deleted(byName), []string{"environment production", "environment staging", "project shop"}; !slices.Equal(got, want) {
+			t.Errorf("naming one of its environments as well plans %v, want %v", got, want)
+		}
+		if err := e.Discard(t.Context(), byName.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+
+		// What it holds keeps it, and the refusal says what and where, as deleting
+		// each takes its own command.
+		_, staging, err := tree(t, db).Resolve("shop", "staging")
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, e, propose(t, e, "Run web and api", named("web", prod.ID, "nginx:1.27"), named("api", prod.ID, "nginx:1.27"), named("db", staging.ID, "nginx:1.27")))
+		refuseProposal(t, e, "deleting a project that runs something", ErrInvalid,
+			"project shop still holds service api and service web in production and service db in staging, so it stays. Delete them first, with dockwell services delete api --project shop --environment production, dockwell services delete web --project shop --environment production and dockwell services delete db --project shop --environment staging, or in the same change",
+			del(scope.ProjectKind, org, "shop"))
+		// Deleting them in the same change is enough.
+		apply(t, e, propose(t, e, "Stop web and api", del(service.Kind, prod.ID, "web"), del(service.Kind, prod.ID, "api")))
+		apply(t, e, propose(t, e, "Retire shop with what's left", del(service.Kind, staging.ID, "db"), del(scope.ProjectKind, org, "shop")))
+		if _, err := tree(t, db).Project("shop"); err == nil {
+			t.Error("after deleting it with its last service, shop is still there")
+		}
+	})
+}
+
+// A plan to delete a project is checked again as it applies, so what arrived after
+// it was planned isn't left with nowhere to live.
+func TestDeletingAProjectThatFilledSincePlanningIsRefused(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setup(t, b, "srv_A")
+		org := tree(t, db).Organization.ID
+		apply(t, e, propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "shop"}, Spec: &resourcev1.Project{}}))
+		shop, prod, err := tree(t, db).Resolve("shop", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		retire := propose(t, e, "Retire shop", del(scope.ProjectKind, org, "shop"))
+		apply(t, e, propose(t, e, "Run web", app(prod.ID, "nginx:1.27")))
+		if err := e.Apply(t.Context(), retire.Change); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "still holds service web in production") {
+			t.Errorf("applying with a service arrived = %v, want a refusal naming it", err)
+		}
+
+		// So is an environment made since, which the plan never named.
+		apply(t, e, propose(t, e, "Stop web", del(service.Kind, prod.ID, "web")))
+		again := propose(t, e, "Retire shop again", del(scope.ProjectKind, org, "shop"))
+		apply(t, e, propose(t, e, "Add staging", environment(shop.ID, "staging")))
+		if err := e.Apply(t.Context(), again.Change); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "still holds environment staging") {
+			t.Errorf("applying with an environment arrived = %v, want a refusal naming it", err)
+		}
+		if _, err := tree(t, db).Project("shop"); err != nil {
+			t.Errorf("a refused delete took shop anyway: %v", err)
 		}
 	})
 }
@@ -628,5 +740,186 @@ func TestARollbackStopsWaitingForARemovedServer(t *testing.T) {
 			}
 			return nil
 		})
+	})
+}
+
+// failingDelete holds a step that deletes a kind until it's released, then fails it.
+type failingDelete struct {
+	resource.Agent
+	kind             resource.Kind
+	reached, release chan struct{}
+}
+
+func (f *failingDelete) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	if step.Ref.Kind == f.kind && step.Action == resource.ActionDelete {
+		close(f.reached)
+		<-f.release
+		return errors.New("the engine won't do it")
+	}
+	return f.Agent.Apply(ctx, step, desired)
+}
+
+// A scope can't go while a change to what's in it is still applying: that change may
+// fail, and its rollback would have nowhere to put things back, so what it was
+// deleting would stay on the server with nothing managing it. It says which change.
+func TestAScopeWaitsForWhatsApplyingInIt(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, f, db := setup(t, b, "srv_A")
+		org := tree(t, db).Organization.ID
+		apply(t, e, propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "shop"}, Spec: &resourcev1.Project{}}))
+		shop, _, err := tree(t, db).Resolve("shop", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, e, propose(t, e, "Add staging", environment(shop.ID, "staging")))
+		_, staging, err := tree(t, db).Resolve("shop", "staging")
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, e, propose(t, e, "Run web", app(staging.ID, "nginx:1.27", "srv_A")))
+		fd := &failingDelete{Agent: f["srv_A"].agent, kind: service.Kind, reached: make(chan struct{}), release: make(chan struct{})}
+		f["srv_A"].agent = fd
+		// Planned before, so what's refused at apply is held to it as well.
+		retire := propose(t, e, "Retire shop", del(service.Kind, staging.ID, "web"), del(scope.ProjectKind, org, "shop"))
+		if err := e.Discard(t.Context(), retire.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+		stop := propose(t, e, "Stop web", del(service.Kind, staging.ID, "web"))
+		done := make(chan error, 1)
+		go func() { done <- e.Apply(t.Context(), stop.Change) }()
+		select {
+		case <-fd.reached:
+		case <-time.After(10 * time.Second):
+			t.Fatal("the delete step never began")
+		}
+		says := "chg_"
+		refuseProposal(t, e, "deleting a project while a change in it applies", ErrBusy, "Stop web", del(scope.ProjectKind, org, "shop"))
+		refuseProposal(t, e, "deleting a project while a change in it applies", ErrBusy, says, del(scope.ProjectKind, org, "shop"))
+		refuseProposal(t, e, "deleting an environment while a change in it applies", ErrBusy, "Stop web", del(scope.EnvironmentKind, shop.ID, "staging"))
+		// An environment beside it isn't what's applying.
+		other := propose(t, e, "Add qa", environment(shop.ID, "qa"))
+		apply(t, e, other)
+		apply(t, e, propose(t, e, "Retire qa", del(scope.EnvironmentKind, shop.ID, "qa")))
+
+		close(fd.release)
+		if err := <-done; err == nil {
+			t.Error("the step that fails didn't")
+		}
+		e.Wait()
+		if _, err := tree(t, db).Project("shop"); err != nil {
+			t.Fatalf("shop went: %v", err)
+		}
+		if _, env, err := tree(t, db).Resolve("shop", "staging"); err != nil || env.ID != staging.ID {
+			t.Fatalf("after the failure, staging is %+v, %v", env, err)
+		}
+		list := func() []store.Resource {
+			var out []store.Resource
+			if err := db.View(t.Context(), func(tx *store.Tx) (err error) {
+				out, err = tx.ListResources(t.Context(), staging.ID, string(service.Kind))
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return out
+		}
+		if got := list(); len(got) != 1 || got[0].Name != "web" {
+			t.Errorf("the rollback didn't put web back: %+v", got)
+		}
+	})
+}
+
+// What a failed change made goes with its rollback, the project too: that rollback
+// isn't held up by the change it's undoing, which is still applying when it plans.
+func TestARollbackTakesTheProjectItsChangeMade(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, f, db := setup(t, b, "srv_A")
+		org := tree(t, db).Organization.ID
+		shopID := id.New(id.Project)
+		envID := id.New(id.Environment)
+		f["srv_A"].agent = &failingCreate{Agent: f["srv_A"].agent}
+		p := propose(t, e, "Add shop with web",
+			Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "shop"}, Spec: &resourcev1.Project{}, ID: shopID},
+			Edit{Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: shopID, Name: "production"}, Spec: &resourcev1.Environment{}, ID: envID},
+			app(envID, "nginx:1.27", "srv_A"))
+		if err := e.Apply(t.Context(), p.Change); err == nil {
+			t.Fatal("the step that fails didn't")
+		}
+		e.Wait()
+		if _, err := tree(t, db).Project("shop"); err == nil {
+			t.Error("the rollback left the project its change made")
+		}
+	})
+}
+
+type failingCreate struct{ resource.Agent }
+
+func (f *failingCreate) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	if step.Ref.Kind == service.Kind && step.Action == resource.ActionCreate {
+		return errors.New("the engine won't do it")
+	}
+	return f.Agent.Apply(ctx, step, desired)
+}
+
+// An earlier deletion can't come back once its project has gone, as what it lived in
+// hasn't. That's said by name, with what brings it back, as undo is how what a deletion
+// kept comes back.
+func TestUndoingADeletionInAProjectThatWentSaysWhatToUndo(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setup(t, b, "srv_A")
+		org := tree(t, db).Organization.ID
+		apply(t, e, propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "shop"}, Spec: &resourcev1.Project{}}))
+		_, prod, err := tree(t, db).Resolve("shop", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, e, propose(t, e, "Run web", app(prod.ID, "nginx:1.27", "srv_A")))
+		stop := propose(t, e, "Stop web", del(service.Kind, prod.ID, "web"))
+		apply(t, e, stop)
+		retire := propose(t, e, "Retire shop", del(scope.ProjectKind, org, "shop"))
+		apply(t, e, retire)
+
+		_, err = e.Undo(t.Context(), stop.Change, By{Actor: "usr_test"})
+		if err == nil {
+			t.Fatal("undo was planned")
+		}
+		if strings.Contains(err.Error(), prod.ID) {
+			t.Errorf("it names the environment by its ID: %v", err)
+		}
+		for _, says := range []string{"environment production of project shop went in " + retire.Change, "Undo " + retire.Change + " first"} {
+			if !strings.Contains(err.Error(), says) {
+				t.Errorf("%v doesn't say %q", err, says)
+			}
+		}
+		// What it says works.
+		apply(t, e, undo(t, e, retire))
+		apply(t, e, undo(t, e, stop))
+	})
+}
+
+// An undo takes what its change made and no more, so what a later change made in the
+// project keeps it, and the refusal says what and how to deal with it.
+func TestUndoingAProjectLeavesWhatALaterChangeMade(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setup(t, b, "srv_A")
+		org := tree(t, db).Organization.ID
+		add := propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "shop"}, Spec: &resourcev1.Project{}})
+		apply(t, e, add)
+		shop, _, err := tree(t, db).Resolve("shop", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, e, propose(t, e, "Add staging", environment(shop.ID, "staging")))
+		_, err = e.Undo(t.Context(), add.Change, By{Actor: "usr_test"})
+		if err == nil {
+			t.Fatal("undoing Add shop took what a later change made")
+		}
+		for _, says := range []string{"project shop still holds environment staging, so it stays", "Delete it first, with dockwell environments delete staging --project shop"} {
+			if !strings.Contains(err.Error(), says) {
+				t.Errorf("%v doesn't say %q", err, says)
+			}
+		}
+		if _, env, err := tree(t, db).Resolve("shop", "staging"); err != nil || env.Name != "staging" {
+			t.Errorf("staging is %+v, %v", env, err)
+		}
 	})
 }

@@ -2560,9 +2560,17 @@ msgstr "删除 {name}"
 msgid "Delete {subject}"
 msgstr "删除 {subject}"
 
+#: src/features/shell/CommandMenu.tsx
+msgid "Delete a project"
+msgstr "删除项目"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "Delete it"
 msgstr "删除"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Delete the project {projectName}"
+msgstr "删除项目 {projectName}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Delete this app"
@@ -8047,6 +8055,10 @@ msgstr "在启用 SELinux 的服务器上，Docker 会重新标记那里的所�
 #: src/features/apps/NewAppSheet.tsx
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
 msgstr "文件所在的位置，例如 <0>/opt/shop</0>。相对于它的路径（例如 <1>./data</1>）从这里开始，每个都是你在计划中批准的服务器路径。"
+
+#: src/features/shell/CommandMenu.tsx
+msgid "Which project do you want to delete?"
+msgstr "要删除哪个项目？"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Which project is it for?"

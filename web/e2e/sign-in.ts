@@ -636,6 +636,37 @@ async function main() {
   await shoot(page, "activity");
   step("  planned, applied and undone in the panel; Activity followed it live and stopped offering undo");
 
+  step("the panel: delete a project from the command bar, and its environment goes with it");
+  await page.keyboard.press("Control+k");
+  await bar.getByRole("option", { name: /^Create a project/ }).click();
+  await bar.getByRole("combobox").fill("orchard");
+  await bar.getByRole("option", { name: /^Create the project orchard/ }).click();
+  await page
+    .getByRole("dialog", { name: "Review plan" })
+    .getByRole("button", { name: /^Apply plan/ })
+    .click();
+  await page.getByRole("dialog", { name: "Applied" }).getByRole("button", { name: "Done" }).click();
+  await page.keyboard.press("Control+k");
+  await bar.getByRole("option", { name: /^Delete a project/ }).click();
+  await bar.getByRole("option", { name: /^Delete the project orchard/ }).click();
+  const leaving = page.getByRole("dialog", { name: "Review plan" });
+  await leaving.waitFor();
+  await expectText(leaving, "Delete the project orchard");
+  await leaving.getByText("2", { exact: true }).first().waitFor();
+  const leavingText = await leaving.innerText();
+  if (!/2\s*to delete/.test(leavingText) || !leavingText.includes("production")) {
+    fail(`the plan to delete a project shows ${JSON.stringify(leavingText)}`);
+  }
+  await leaving.getByRole("button", { name: /^Delete 2 resources/ }).click();
+  await page.getByRole("dialog", { name: "2 resources are deleted" }).getByRole("button", { name: "Done" }).click();
+  await page.getByRole("row", { name: /Delete the project orchard/ }).waitFor();
+  await page.keyboard.press("Control+k");
+  await bar.getByRole("option", { name: /^Create a project/ }).waitFor();
+  // The bar opens on what it read last, then reads the projects again.
+  await bar.getByRole("option", { name: /^Delete a project/ }).waitFor({ state: "detached" });
+  await page.keyboard.press("Escape");
+  step("  planned and applied in the panel, and the only project left isn't offered");
+
   step("the CLI: local access plans a project, and the panel applies it at the address the CLI gives a person");
   const cli = (...args: string[]) =>
     execFileSync(bin, [...args, "--data-dir", data, "--log-format", "json"], {

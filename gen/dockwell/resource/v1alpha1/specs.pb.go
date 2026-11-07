@@ -1385,7 +1385,8 @@ func (x *FirewallRule) GetComment() string {
 // Project is a product or client in the organization. It holds
 // environments, and scopes members, secrets and domains. An install starts
 // with one, named "default", which stays out of sight until there is a
-// second.
+// second. Deleting one takes its environments with it, once nothing lives in
+// them.
 type Project struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// How the panel shows it, such as "Acme web". Empty shows its name, which
