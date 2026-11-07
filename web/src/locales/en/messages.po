@@ -2831,8 +2831,8 @@ msgstr "{name} has no owner yet"
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
 
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
 
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
