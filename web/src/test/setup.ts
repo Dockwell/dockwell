@@ -5,6 +5,7 @@ import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
 import { activateLocale } from "../app/i18n";
+import { settleRouters } from "./routers";
 
 // The default of 1 s is shorter than a first render takes on a busy machine:
 // Go's and the panel's tests run side by side, and a cold run under load has
@@ -17,6 +18,7 @@ beforeEach(async () => {
   await activateLocale("en");
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await settleRouters();
   cleanup();
 });
