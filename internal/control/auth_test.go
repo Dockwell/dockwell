@@ -189,8 +189,9 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 		DataDir: dir, KeyFile: filepath.Join(dir, "key"), AgentListen: ls.Agents.Addr().String(),
 	}
 	if public != nil {
-		// As dockwell run says it of a domain on the public ports, which the ingress takes while there are routes.
-		config.HTTPSListen, config.PanelURL, config.PanelCA, config.PanelHandsOver = "[::]:443", "https://"+public.Domain(), "Let's Encrypt", true
+		// As dockwell run says it of a domain with plain HTTP on port 80 and HTTPS on 8443: the ingress takes the
+		// public ports while there are routes, and serves the domain on 443.
+		config.PanelURL, config.PanelCA, config.PanelHandsOver = "https://"+public.Domain()+":8443", "Let's Encrypt", true
 	}
 	srv, err := New(config)
 	if err != nil {
