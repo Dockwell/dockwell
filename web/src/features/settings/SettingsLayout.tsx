@@ -9,7 +9,7 @@ import "./Settings.css";
 
 /** A section of Settings, where it is, and the group it's in. */
 interface Section {
-  to: "/settings/general" | "/profile";
+  to: "/settings/general" | "/settings/control-plane" | "/profile";
   label: string;
   icon: IconName;
 }
@@ -19,6 +19,7 @@ function useSections(): { label: string; sections: Section[] }[] {
   const { t } = useLingui();
   return [
     { label: t`Install`, sections: [{ to: "/settings/general", label: t`General`, icon: "settings" }] },
+    { label: t`Platform`, sections: [{ to: "/settings/control-plane", label: t`Control plane`, icon: "server" }] },
     { label: t`Account`, sections: [{ to: "/profile", label: t`Profile and security`, icon: "user" }] },
   ];
 }

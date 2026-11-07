@@ -172,16 +172,6 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	t.Cleanup(engine.Wait)
 	// No test resolves a real name: what each says is a name's is set on f.names.
 	names := &fakeNames{m: map[string][]netip.Addr{}}
-	config := Config{
-		DNSLookup: names.lookup,
-		Logger:    logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
-		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
-		EventPoll: 200 * time.Millisecond, Logs: logs,
-	}
-	srv, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
 	listen := func() net.Listener {
 		var lc net.ListenConfig
 		ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
@@ -191,6 +181,17 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 		return ln
 	}
 	ls := Listeners{API: listen(), Agents: listen(), Ingress: ingress}
+	config := Config{
+		DNSLookup: names.lookup,
+		Logger:    logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
+		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
+		EventPoll: 200 * time.Millisecond, Logs: logs,
+		DataDir: dir, KeyFile: filepath.Join(dir, "key"), AgentListen: ls.Agents.Addr().String(),
+	}
+	srv, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
 	f := &fullServer{
 		names: names,
 		auth:  people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,

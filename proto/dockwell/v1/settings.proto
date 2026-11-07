@@ -6,16 +6,28 @@ package dockwell.v1;
 
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
+import "dockwell/v1/system.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // SettingsService reads and changes the install's own settings: what it's
 // called, the time zone its schedules start in, and how its panel is served.
+// It also says what the control plane is, and how it's doing.
 //
 // None of these is managed state: they change what Dockwell says and suggests,
 // not what runs on a server, so a change needs no plan. Each is on the activity
 // log, with what it replaced. How the panel is served comes from how dockwell
 // run was started, and changes there. See docs/adr/0042-the-installs-settings.md.
 service SettingsService {
+  option (dockwell.v1.nouns) = {
+    name: "settings"
+    help: "The install's settings are what it's called, the time zone new schedules start in, and how its panel is served. They change what Dockwell says and suggests, not what runs, so a change needs no plan, and each is on the activity log with what it replaced."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "control-plane"
+    help: "The control plane serves the panel and API, beside an agent of its own. It says the build it runs, where it keeps its state and the install's key, the addresses it answers on, and how it's doing. Most of that comes from how dockwell run was started, and changes there."
+  };
+
   // GetSettings returns the install's settings, and how its panel is served.
   rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -54,6 +66,19 @@ service SettingsService {
       post: "/v1/settings:setTimeZone"
       body: "*"
     };
+  }
+
+  // GetControlPlane returns what serves the panel and API: its build, where it
+  // keeps its state, the addresses it answers on, and how it's doing. Most of
+  // it comes from how dockwell run was started, and changes there.
+  rpc GetControlPlane(GetControlPlaneRequest) returns (GetControlPlaneResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.command) = {
+      noun: "control-plane"
+      verb: "get"
+    };
+    option (google.api.http) = {get: "/v1/controlPlane"};
   }
 }
 
@@ -132,4 +157,73 @@ message SetTimeZoneRequest {
 message SetTimeZoneResponse {
   // The settings.
   Settings settings = 1;
+}
+
+// GetControlPlaneRequest takes no parameters.
+message GetControlPlaneRequest {}
+
+// GetControlPlaneResponse describes the control plane that answers.
+message GetControlPlaneResponse {
+  // The control plane.
+  ControlPlane control_plane = 1;
+}
+
+// ControlPlane is the dockwell run that serves the panel and API, with the
+// agent it runs beside them.
+message ControlPlane {
+  // The build it runs.
+  BuildInfo build = 1;
+  // When it started.
+  google.protobuf.Timestamp start_time = 2;
+  // The directory it keeps its files in, such as "/var/lib/dockwell".
+  string data_dir = 3;
+  // The install's key, which opens every secret the state store keeps, such
+  // as "/var/lib/dockwell/control/key". A backup of the store needs it too,
+  // kept apart.
+  string key_file = 4;
+  // Where it keeps its state.
+  StateStore store = 5;
+  // How the panel is served.
+  PanelServing panel = 6;
+  // Where servers' agents reach it.
+  AgentListener agents = 7;
+  // The memory it holds, with its own agent's, in bytes: its resident set.
+  // Zero where the system doesn't say.
+  int64 memory_bytes = 8;
+}
+
+// StateStore is the database the control plane keeps its state in.
+message StateStore {
+  // What kind of database it is.
+  StateStoreEngine engine = 1;
+  // Where it is: a SQLite file's path, or a Postgres URL without its
+  // password.
+  string location = 2;
+  // The database's own version, such as "3.50.4" or "17.2".
+  string version = 3;
+  // Its size on disk, in bytes.
+  int64 size_bytes = 4;
+  // How long a query that reads nothing took, just now.
+  google.protobuf.Duration round_trip = 5;
+}
+
+// StateStoreEngine is a kind of database the control plane can keep its state in.
+enum StateStoreEngine {
+  STATE_STORE_ENGINE_UNSPECIFIED = 0;
+  // A SQLite file beside the control plane, for one control plane.
+  STATE_STORE_ENGINE_SQLITE = 1;
+  // A Postgres database, ahead of running more than one.
+  STATE_STORE_ENGINE_POSTGRES = 2;
+}
+
+// AgentListener is where servers' agents reach the control plane.
+message AgentListener {
+  // The address it listens on, such as ":7443".
+  string listen = 1;
+  // The URL a server on the control server's own network reaches it at, as
+  // a join ticket names it, such as "https://10.0.0.5:7443".
+  string url = 2;
+  // The URLs a server elsewhere reaches it at, in the order a ticket tries
+  // them. Empty when that isn't known.
+  repeated string public_urls = 3;
 }

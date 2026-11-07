@@ -31,6 +31,7 @@ import { Route as ShellCatalogEntryIdRouteImport } from './routes/_shell/catalog
 import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellSettingsSettingsIndexRouteImport } from './routes/_shell/_settings/settings.index'
+import { Route as ShellSettingsSettingsControlPlaneRouteImport } from './routes/_shell/_settings/settings.control-plane'
 import { Route as ShellSettingsSettingsGeneralRouteImport } from './routes/_shell/_settings/settings.general'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
 import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_shell/apps.$serviceId.deployments'
@@ -149,6 +150,12 @@ const ShellSettingsSettingsIndexRoute =
     path: '/settings/',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
+const ShellSettingsSettingsControlPlaneRoute =
+  ShellSettingsSettingsControlPlaneRouteImport.update({
+    id: '/settings/control-plane',
+    path: '/settings/control-plane',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
 const ShellSettingsSettingsGeneralRoute =
   ShellSettingsSettingsGeneralRouteImport.update({
     id: '/settings/general',
@@ -216,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/apps/': typeof ShellAppsIndexRoute
   '/catalog/': typeof ShellCatalogIndexRoute
   '/servers/': typeof ShellServersIndexRoute
+  '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -245,6 +253,7 @@ export interface FileRoutesByTo {
   '/apps': typeof ShellAppsIndexRoute
   '/catalog': typeof ShellCatalogIndexRoute
   '/servers': typeof ShellServersIndexRoute
+  '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -278,6 +287,7 @@ export interface FileRoutesById {
   '/_shell/apps/': typeof ShellAppsIndexRoute
   '/_shell/catalog/': typeof ShellCatalogIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
+  '/_shell/_settings/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/_shell/_settings/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/apps/'
     | '/catalog/'
     | '/servers/'
+    | '/settings/control-plane'
     | '/settings/general'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/apps'
     | '/catalog'
     | '/servers'
+    | '/settings/control-plane'
     | '/settings/general'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
@@ -371,6 +383,7 @@ export interface FileRouteTypes {
     | '/_shell/apps/'
     | '/_shell/catalog/'
     | '/_shell/servers/'
+    | '/_shell/_settings/settings/control-plane'
     | '/_shell/_settings/settings/general'
     | '/_shell/apps/$serviceId/deployments'
     | '/_shell/apps/$serviceId/environment'
@@ -546,6 +559,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsIndexRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
+    '/_shell/_settings/settings/control-plane': {
+      id: '/_shell/_settings/settings/control-plane'
+      path: '/settings/control-plane'
+      fullPath: '/settings/control-plane'
+      preLoaderRoute: typeof ShellSettingsSettingsControlPlaneRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
     '/_shell/_settings/settings/general': {
       id: '/_shell/_settings/settings/general'
       path: '/settings/general'
@@ -607,12 +627,15 @@ declare module '@tanstack/react-router' {
 
 interface ShellSettingsRouteChildren {
   ShellSettingsProfileRoute: typeof ShellSettingsProfileRoute
+  ShellSettingsSettingsControlPlaneRoute: typeof ShellSettingsSettingsControlPlaneRoute
   ShellSettingsSettingsGeneralRoute: typeof ShellSettingsSettingsGeneralRoute
   ShellSettingsSettingsIndexRoute: typeof ShellSettingsSettingsIndexRoute
 }
 
 const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
   ShellSettingsProfileRoute: ShellSettingsProfileRoute,
+  ShellSettingsSettingsControlPlaneRoute:
+    ShellSettingsSettingsControlPlaneRoute,
   ShellSettingsSettingsGeneralRoute: ShellSettingsSettingsGeneralRoute,
   ShellSettingsSettingsIndexRoute: ShellSettingsSettingsIndexRoute,
 }
