@@ -192,6 +192,11 @@ logs-load: build-go build-agent ## Measure an agent's memory while a container f
 docker-e2e: build-go build-agent ## Run, change, undo and export a service through the CLI on this machine's Docker, import a Compose file, and run a container through the agent build
 	scripts/docker-e2e.sh $(BIN) $(AGENT_BIN)
 
+.PHONY: catalog-e2e
+catalog-e2e: build-go ## Install, check, upgrade and remove catalog apps on this machine's Docker, as APPS="pgadmin redis" names them
+	@test -n "$(APPS)" || { echo 'catalog-e2e: name the apps to try, such as make catalog-e2e APPS="pgadmin redis"' >&2; exit 1; }
+	scripts/catalog-e2e.sh $(BIN) $(APPS)
+
 .PHONY: budgets
 budgets: build build-agent ## Fail if the builds are over their idle memory budgets; BASELINE=other/dockwell and BASELINE_AGENT=other/dockwell-agent measure those too (about 7 minutes)
 	scripts/budgets.sh $(BIN) $(AGENT_BIN)

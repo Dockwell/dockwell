@@ -137,6 +137,21 @@ An upgrade is a plan: `CatalogService.UpgradeCatalogInstall` reads the install's
 
 Choosing to stay on a version, skipping one, and upgrading a whole fleet in one go are later work. A release that adds an input needs its value from `dockwell catalog upgrade --values`, as the panel has no form for it yet.
 
+### The second set, each tried on real Docker
+
+*Added 7 Nov 2026, with #221.*
+
+People moving off 1Panel need the apps they already run there. So the built-in set grows by about twenty, starting with what the two real servers run today: pgAdmin, Redis, MariaDB and Coder. The rest are what people self-host most. They're still ours, in the same format, and the index takes over from them as above.
+
+- **Each pins the newest version that's been out for 14 days,** as the repository holds back every other dependency, by the digest of its multi-architecture index, so the ARM server pulls its own. Each uses the project's official image.
+- **Each has a health check that proves the app answers,** not just that its process runs, as an install and an upgrade wait for it.
+- **An app that needs a database brings its own,** in its own project, as PostgreSQL's entry runs it: the same pinned image, a password generated and sealed, a volume, and no port. The app gets the password as a whole value, never inside a connection URL, which a rotation couldn't reach. Coder reads it as `PGPASSWORD`, which its PostgreSQL driver takes from the environment.
+- **A database with no admin tool is published on loopback alone.** Redis has nothing like Adminer to stand in front of it, so `127.0.0.1` is the sensible default, and a person adds a port on its page to reach it from elsewhere.
+- **Coder reaches Docker's socket, as root in its container,** to start workspaces as containers on the server. The socket's group has a different number on each server, which no form can know, and root in the container gives no more than the socket already does. Its entry says so, and the plan takes a passkey.
+- **An app under the AGPL is open source,** as Redis 8 and Coder are, so the page's words still hold.
+
+Each entry is tried in CI on real Docker. `scripts/catalog-e2e.sh` installs it as a person would, at the version before the one it pins, checks every container turns healthy and that the app answers and signs in with what Dockwell generated, upgrades it in one plan that backs its volumes up first, checks its data and secrets stayed, and removes it, with its volumes kept for an undo. The *Catalog on Docker* jobs run it in groups side by side, so each group adds its own few minutes rather than all of them to one job, and a test holds every entry to a group or to `scripts/docker-e2e.sh`. That makes each of these a *tested* entry, as above.
+
 ### The converter
 
 *Added 7 Nov 2026, with #298.*
