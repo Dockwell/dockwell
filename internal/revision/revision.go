@@ -218,6 +218,9 @@ type Edit struct {
 	// latest the edit is stale, as it would quietly undo what came between.
 	// Zero is an edit that says the whole spec itself.
 	Base int
+	// KeepEnv names a service's own environment variables to keep as they are,
+	// for a client that can't read their values back (resource.EnvKeeper).
+	KeepEnv []string
 	// Pull asks the server for the resource's image again as this applies, as a
 	// deploy of the tag it already names does: the plan can't know what the tag
 	// points at now, so a revision comes only if it finds a newer image.
@@ -1110,6 +1113,12 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return err
 				}
 				it.spec = proto.Clone(ed.Spec)
+				// What the edit keeps is in the spec before anything checks it.
+				if len(ed.KeepEnv) > 0 {
+					if it.kept, err = e.keepEnv(it, ed.KeepEnv); err != nil {
+						return err
+					}
+				}
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
@@ -1158,6 +1167,26 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		return items, err
 	}
 	return items, e.checkKept(ctx, items)
+}
+
+// keepEnv puts the values an edit names to keep into its spec, from what's there.
+func (e *Engine) keepEnv(it item, names []string) (resource.Kept, error) {
+	t, err := e.kinds.Type(it.ref.Kind)
+	if err != nil {
+		return resource.Kept{}, fault.New(ErrInvalid, "%w", err)
+	}
+	k, ok := t.(resource.EnvKeeper)
+	switch {
+	case !ok:
+		return resource.Kept{}, fault.New(ErrInvalid, "%s keeps environment variables, which only a service has. Leave keep_env out", it.ref)
+	case it.current == nil:
+		return resource.Kept{}, fault.New(ErrInvalid, "%s keeps environment variables, but there's no %s yet to keep them from. Set them in the spec", it.ref, it.ref.Kind)
+	}
+	kept, err := k.KeepEnv(it.current, it.spec, names)
+	if err != nil {
+		return resource.Kept{}, fault.New(ErrInvalid, "%s: %w", it.ref, err)
+	}
+	return kept, nil
 }
 
 // checkKept refuses an edit that would take what it kept to a server that hasn't got

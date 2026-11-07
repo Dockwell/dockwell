@@ -1180,7 +1180,20 @@ type Edit struct {
 	// environment's ID; once there are several, an environment named
 	// without its project is an error that names the projects. Other kinds
 	// name their project, if they live in one, in resource.scope.
-	Project       string `protobuf:"bytes,5,opt,name=project,proto3" json:"project,omitempty"`
+	Project string `protobuf:"bytes,5,opt,name=project,proto3" json:"project,omitempty"`
+	// The revision of the resource the spec was made from, as a list gave it,
+	// for an edit that read the spec and changed part of it. If the resource has
+	// changed since, the edit is stale, an error with the reason "plan_stale", as
+	// planning it would quietly undo what came between: read it again, and edit
+	// that. 0 checks nothing, for an edit that says the whole spec itself.
+	BaseRevision int64 `protobuf:"varint,6,opt,name=base_revision,json=baseRevision,proto3" json:"base_revision,omitempty"`
+	// A service's own environment variables to keep as they are, by name, for a
+	// client that can't read their values back, as no response carries them:
+	// it sends the rest of the spec, and names these instead of setting them.
+	// Each must be one the service has now, and not one the spec sets too. Only
+	// an edit of a service that's there takes it. A value kept goes nowhere it
+	// hasn't been, so the edit can't place the service on another server.
+	KeepEnv       []string `protobuf:"bytes,7,rep,name=keep_env,json=keepEnv,proto3" json:"keep_env,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1248,6 +1261,20 @@ func (x *Edit) GetProject() string {
 		return x.Project
 	}
 	return ""
+}
+
+func (x *Edit) GetBaseRevision() int64 {
+	if x != nil {
+		return x.BaseRevision
+	}
+	return 0
+}
+
+func (x *Edit) GetKeepEnv() []string {
+	if x != nil {
+		return x.KeepEnv
+	}
+	return nil
 }
 
 // ResourceRef names a resource.
@@ -5810,13 +5837,15 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x18dockwell/v1/change.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"Y\n" +
 	"\x14ProposeChangeRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12'\n" +
-	"\x05edits\x18\x02 \x03(\v2\x11.dockwell.v1.EditR\x05edits\"\xbe\x01\n" +
+	"\x05edits\x18\x02 \x03(\v2\x11.dockwell.v1.EditR\x05edits\"\xfe\x01\n" +
 	"\x04Edit\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x124\n" +
 	"\x04spec\x18\x02 \x01(\v2 .dockwell.resource.v1alpha1.SpecR\x04spec\x12\x16\n" +
 	"\x06delete\x18\x03 \x01(\bR\x06delete\x12\x18\n" +
 	"\aservers\x18\x04 \x03(\tR\aservers\x12\x18\n" +
-	"\aproject\x18\x05 \x01(\tR\aproject\"K\n" +
+	"\aproject\x18\x05 \x01(\tR\aproject\x12#\n" +
+	"\rbase_revision\x18\x06 \x01(\x03R\fbaseRevision\x12\x19\n" +
+	"\bkeep_env\x18\a \x03(\tR\akeepEnv\"K\n" +
 	"\vResourceRef\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
 	"\x05scope\x18\x02 \x01(\tR\x05scope\x12\x12\n" +

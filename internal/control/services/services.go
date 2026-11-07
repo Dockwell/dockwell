@@ -143,6 +143,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 					return err
 				}
 				info.Spec = Blanked(spec)
+				info.HostAccess = resourcepb.HostAccess(h.engine.Kinds().HostAccess(resource.Kind(r.Kind), spec))
 			}
 			var err error
 			if info.Deployments, err = names.deployments(ctx, deployments[r.ID]); err != nil {

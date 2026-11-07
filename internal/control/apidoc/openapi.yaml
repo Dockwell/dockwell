@@ -4553,6 +4553,25 @@ components:
                          environment's ID; once there are several, an environment named
                          without its project is an error that names the projects. Other kinds
                          name their project, if they live in one, in resource.scope.
+                baseRevision:
+                    type: string
+                    description: |-
+                        The revision of the resource the spec was made from, as a list gave it,
+                         for an edit that read the spec and changed part of it. If the resource has
+                         changed since, the edit is stale, an error with the reason "plan_stale", as
+                         planning it would quietly undo what came between: read it again, and edit
+                         that. 0 checks nothing, for an edit that says the whole spec itself.
+                keepEnv:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        A service's own environment variables to keep as they are, by name, for a
+                         client that can't read their values back, as no response carries them:
+                         it sends the rest of the spec, and names these instead of setting them.
+                         Each must be one the service has now, and not one the spec sets too. Only
+                         an edit of a service that's there takes it. A value kept goes nowhere it
+                         hasn't been, so the edit can't place the service on another server.
             description: Edit sets one resource's desired spec, or deletes it.
         Entry:
             type: object
@@ -8568,6 +8587,17 @@ components:
                          do: it was changed, moved to another row, or sealed with keys this install
                          hasn't got. Then spec is unset, and the rest of this message and the rest of
                          the list stand.
+                hostAccess:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostAccess'
+                    description: |-
+                        What its latest revision reaches on its servers beyond its own containers,
+                         as its spec says: a server path, Docker's socket, the server's network, a
+                         capability. A path is as written, as no agent says here where it leads, so a
+                         plan can say more. One that is same_as_root means changing anything but its
+                         image's tag and its limits asks for a passkey, which an editor can say
+                         before it plans. Empty when it reaches nothing, or its spec can't be read.
             description: |-
                 ServiceInfo is what a service runs now and how that went, as its latest
                  revision has it.

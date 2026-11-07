@@ -28,6 +28,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
@@ -158,6 +159,49 @@ func (*Driver) KeptData(spec proto.Message) []string {
 		}
 	}
 	return out
+}
+
+// KeepEnv puts the values of the app's own environment variables named into
+// desired, from current, for an edit by a client that can't read them back, as
+// no response carries them (resource.EnvKeeper).
+func (*Driver) KeepEnv(current, desired proto.Message, names []string) (resource.Kept, error) {
+	if len(names) == 0 {
+		return resource.Kept{}, nil
+	}
+	cur, _ := current.(*resourcev1.Service)
+	want, _ := desired.(*resourcev1.Service)
+	app := want.GetApp()
+	if cur == nil || app == nil {
+		return resource.Kept{}, errors.New("it keeps environment variables, but runs no image to give them to. Leave keep_env out")
+	}
+	have := cur.GetApp().GetEnv()
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		v, ok := have[name]
+		switch {
+		case seen[name]:
+			return resource.Kept{}, fmt.Errorf("keep_env names %s twice. Name it once", name)
+		case !ok:
+			return resource.Kept{}, fmt.Errorf("it has no environment variable %s of its own to keep, as it changed after it was read. Read it again, and set %s or leave it out", name, name)
+		}
+		if _, set := app.GetEnv()[name]; set {
+			return resource.Kept{}, fmt.Errorf("the edit both sets and keeps %s. Set it, or keep it", name)
+		}
+		seen[name] = true
+		if app.Env == nil {
+			app.Env = make(map[string]string, len(names))
+		}
+		app.Env[name] = v
+	}
+	words := "keeps the value of " + names[0] + " as it is, as nobody read it back"
+	if len(names) > 1 {
+		words = "keeps the values of " + human.List(names) + " as they are, as nobody read them back"
+	}
+	return resource.Kept{
+		Reason: "keeps_env",
+		Words:  words,
+		Stays:  "the values it keeps go only to the servers that have them. Set them again in the edit, or place it in a change of its own",
+	}, nil
 }
 
 // Target is where a service runs on a server: in its environment's

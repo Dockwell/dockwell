@@ -140,6 +140,13 @@ message ServiceInfo {
   // hasn't got. Then spec is unset, and the rest of this message and the rest of
   // the list stand.
   string spec_unreadable = 10;
+  // What its latest revision reaches on its servers beyond its own containers,
+  // as its spec says: a server path, Docker's socket, the server's network, a
+  // capability. A path is as written, as no agent says here where it leads, so a
+  // plan can say more. One that is same_as_root means changing anything but its
+  // image's tag and its limits asks for a passkey, which an editor can say
+  // before it plans. Empty when it reaches nothing, or its spec can't be read.
+  repeated HostAccess host_access = 11;
 }
 
 // ServiceDeployment is one revision of a service placed on one server.
