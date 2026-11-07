@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { ActorKind, Connection, EventKind, type Server } from "@dockwell/api";
-import { Icon, Metric, StatusBadge, Timeline, type TimelineEvent } from "@dockwell/ui";
+import { ActorKind, Connection, DeploymentState, EventKind, type Server } from "@dockwell/api";
+import { Icon, Metric, type Status, StatusBadge, Timeline, type TimelineEvent } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import { formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useDescribe } from "../activity/describe";
 import { useEvents } from "../activity/useEvents";
-import { appState, nameOf, revisionName } from "../apps/app";
+import { nameOf, revisionName } from "../apps/app";
 import { useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
-import { publicAddressOf } from "./network";
-import { isPrivateAddress, serverStatus, useServerWords } from "./server";
-import { useControlPlaneNow, useFleetView } from "./useFleet";
+import { useCopy } from "./CopyButton";
+import { forwardToOf, publicAddressOf } from "./network";
+import { serverStatus, useServerWords } from "./server";
+import { useControlPlaneNow } from "./useFleet";
 import "./PhoneServer.css";
 
 /** Past this share, CPU or memory reads as a warning: the state the mock gives it. */
@@ -31,10 +32,10 @@ const RECENT = 3;
  * line, its CPU and memory, its addresses to copy, what runs on it, and what
  * happened lately. The rest of its Overview follows, for whoever scrolls.
  */
-export function PhoneServer({ server }: { server: Server }) {
+export function PhoneServer({ server, unread = false }: { server: Server; unread?: boolean }) {
   return (
     <>
-      <PhoneStatus server={server} />
+      <PhoneStatus server={server} unread={unread} />
       <PhoneRunsHere server={server} />
       <PhoneRecent server={server} />
     </>
@@ -45,8 +46,12 @@ function share(part: bigint, whole: bigint): number {
   return whole > 0n ? (Number(part) / Number(whole)) * 100 : 0;
 }
 
-/** How the server is: its state in a word, a line on what matters most, its CPU and memory, and its addresses. */
-function PhoneStatus({ server }: { server: Server }) {
+/**
+ * How the server is: its state in a word, a line on what matters most, what to do
+ * when that's something, its CPU and memory, and its addresses. While the panel
+ * can't hear the control plane, it says it can't say, as the rest of the page does.
+ */
+function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   const now = useControlPlaneNow();
@@ -55,21 +60,38 @@ function PhoneStatus({ server }: { server: Server }) {
   const stats = server.connection === Connection.CONNECTED ? server.stats : undefined;
   const cpu = stats?.cpuPercent ?? 0;
   const memory = stats ? share(stats.memoryUsedBytes, stats.memoryTotalBytes) : 0;
-  const name = server.name;
+  const lasted = (since: Parameters<typeof timestampDate>[0]) =>
+    words.span(Math.max(0, now - timestampDate(since).getTime()));
 
+  // The line is a phrase, as the mock's is; what to do, when there's something, a sentence.
+  let status: Status = serverStatus(server);
   let line: string;
-  if (server.connection === Connection.UNREACHABLE) {
-    const seen = server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : "";
-    line = seen ? t`${name} isn't reporting. It last did ${seen}.` : t`${name} isn't reporting.`;
+  let fix: ReactNode = null;
+  if (unread) {
+    status = "unknown";
+    line = t`Can't say how it is now`;
+  } else if (server.connection === Connection.UNREACHABLE) {
+    line = server.lastSeenTime ? t`Not reporting for ${lasted(server.lastSeenTime)}` : t`Not reporting`;
+    fix = (
+      <Trans>
+        Check that <code>dockwell run</code> is still running on the server.
+      </Trans>
+    );
   } else if (server.connection === Connection.PENDING) {
-    line = t`${name} is waiting for its agent.`;
+    line = t`Waiting for its agent`;
+    fix = (
+      <Trans>
+        Start it with <code>dockwell run</code> on the server.
+      </Trans>
+    );
   } else if (server.dockerUnreadableSince) {
-    const since = words.ago(timestampDate(server.dockerUnreadableSince), now);
-    line = t`Docker hasn't answered since ${since}.`;
+    line = t`Docker hasn't answered for ${lasted(server.dockerUnreadableSince)}`;
   } else if (memory >= HIGH) {
     line = t`Memory above ${HIGH}%`;
+    if (status === "healthy") status = "degraded";
   } else if (cpu >= HIGH) {
     line = t`CPU above ${HIGH}%`;
+    if (status === "healthy") status = "degraded";
   } else {
     line = uptime ? t`Up ${uptime}` : t`Reporting`;
   }
@@ -77,15 +99,18 @@ function PhoneStatus({ server }: { server: Server }) {
   const [used, total] = stats ? formatLiveBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, locale) : ["–", ""];
   const cpuValue = stats ? formatFixed(cpu, 0, locale) : "–";
   const publicIp = publicAddressOf(server);
-  const privateIp = server.inventory?.addresses.find(isPrivateAddress);
+  // The address its route out leaves from, when that's private: never a bridge of
+  // Docker's, which a server's interfaces list too.
+  const privateIp = forwardToOf(server);
 
   return (
     <section className="dw-panel phone-status" aria-label={t`Status`}>
       <div className="phone-status-head">
         <div>
-          <StatusBadge status={serverStatus(server)} variant="pill" />
+          <StatusBadge status={status} variant="pill" />
         </div>
         <span className="phone-status-line">{line}</span>
+        {fix ? <p className="phone-status-fix">{fix}</p> : null}
       </div>
       <div className="phone-status-grid">
         <div className="phone-status-cell">
@@ -98,8 +123,8 @@ function PhoneStatus({ server }: { server: Server }) {
         </div>
       </div>
       <div className="phone-status-grid">
-        <CopyCell label={t`Public IP`} address={publicIp} />
-        <CopyCell label={t`Private IP`} address={privateIp} />
+        <CopyCell label={t`Public IP`} address={publicIp} none={t`Not known`} />
+        <CopyCell label={t`Private IP`} address={privateIp} none={t`None`} />
       </div>
     </section>
   );
@@ -123,43 +148,42 @@ function Meter({ label, share: value, text }: { label: string; share: number; te
   );
 }
 
-/** Half a row that copies an address, the whole of it a target for a thumb. */
-function CopyCell({ label, address }: { label: string; address: string | undefined }) {
+/**
+ * Half a row that copies an address, the whole of it a target for a thumb. A
+ * browser that won't copy, as one on plain HTTP has no clipboard, leaves the
+ * address on screen to select.
+ */
+function CopyCell({ label, address, none }: { label: string; address: string | undefined; none: string }) {
   const { t } = useLingui();
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
+  const { copied, copy } = useCopy(address ?? "");
   if (!address) {
     return (
       <div className="phone-copy is-empty">
         <span className="phone-copy-text">
           <span className="phone-copy-label">{label}</span>
-          <span className="phone-copy-none">{t`Not known`}</span>
+          <span className="phone-copy-none">{none}</span>
         </span>
       </div>
     );
   }
   return (
-    <button
-      type="button"
-      className="phone-copy"
-      aria-label={copied ? t`Copied ${address}` : t`Copy ${label} ${address}`}
-      onClick={() => {
-        void navigator.clipboard.writeText(address).then(
-          () => setCopied(true),
-          () => {},
-        );
-      }}
-    >
-      <span className="phone-copy-text">
-        <span className="phone-copy-label">{label}</span>
-        <code className="phone-copy-value">{address}</code>
+    <>
+      <button
+        type="button"
+        className="phone-copy"
+        aria-label={copied ? t`Copied ${address}` : t`Copy ${label} ${address}`}
+        onClick={copy}
+      >
+        <span className="phone-copy-text">
+          <span className="phone-copy-label">{label}</span>
+          <code className="phone-copy-value">{address}</code>
+        </span>
+        <Icon name={copied ? "check" : "copy"} size={16} />
+      </button>
+      <span className="dw-sr" aria-live="polite">
+        {copied ? t`Copied ${address}` : ""}
       </span>
-      <Icon name={copied ? "check" : "copy"} size={16} />
-    </button>
+    </>
   );
 }
 
@@ -168,7 +192,6 @@ function PhoneRunsHere({ server }: { server: Server }) {
   const { t } = useLingui();
   const services = useServices();
   const health = useHealth();
-  const { servers } = useFleetView();
   const here = useMemo(
     () => (services.data ?? []).filter((s) => s.deployments.some((d) => d.serverId === server.id)),
     [services.data, server.id],
@@ -176,11 +199,12 @@ function PhoneRunsHere({ server }: { server: Server }) {
   const rows = here.map((service) => {
     const read = health.of(service);
     const on = read.servers.find((s) => s.serverId === server.id);
-    const record = appState(service, servers);
-    const moving = record.kind === "deploying" || record.kind === "waiting";
-    const failed = record.kind === "failed" || record.kind === "rollback-failed";
-    const status = moving ? "deploying" : failed ? "down" : (on?.status ?? read.status);
-    return { service, replicas: on?.containers ?? 0, status };
+    // How its deployment went here, not on another server, then how it runs here.
+    const state = service.deployments.find((d) => d.serverId === server.id)?.state;
+    const failed = state === DeploymentState.FAILED;
+    const status: Status =
+      state === DeploymentState.PENDING ? "deploying" : failed ? "down" : (on?.status ?? read.status);
+    return { service, replicas: on?.containers ?? 0, status, failed };
   });
   const replicas = rows.reduce((n, r) => n + r.replicas, 0);
   return (
@@ -211,7 +235,7 @@ function PhoneRunsHere({ server }: { server: Server }) {
         </div>
       ) : (
         <ul className="dw-panel phone-list">
-          {rows.map(({ service, replicas: count, status }) => (
+          {rows.map(({ service, replicas: count, status, failed }) => (
             <li key={service.id}>
               <Link to="/apps/$serviceId" params={{ serviceId: service.id }} className="phone-row">
                 <Icon name="service" size={16} />
@@ -219,7 +243,7 @@ function PhoneRunsHere({ server }: { server: Server }) {
                 {count > 0 ? <span className="phone-row-count">×{count}</span> : null}
                 <code className="phone-row-rev">{revisionName(service.revision)}</code>
                 <span className="phone-row-spacer" />
-                <StatusBadge status={status} />
+                <StatusBadge status={status} {...(failed ? { label: t`Failed`, labelIsState: true } : {})} />
               </Link>
             </li>
           ))}

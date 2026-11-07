@@ -33,7 +33,7 @@ export function ServerOverview({ id }: { id: string }) {
           )}
           {/* A phone leads with M-Server.dc.html's: how it is, what runs, and what happened. */}
           {phone ? (
-            <PhoneServer server={server} />
+            <PhoneServer server={server} unread={unread !== undefined} />
           ) : (
             <>
               <ServerMetrics server={server} fourth="load" />

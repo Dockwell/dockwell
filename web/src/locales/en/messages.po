@@ -658,10 +658,6 @@ msgstr "{name} is still deploying. You can review this plan once that ends."
 msgid "{name} is waiting for its agent"
 msgstr "{name} is waiting for its agent"
 
-#: src/features/servers/PhoneServer.tsx
-msgid "{name} is waiting for its agent."
-msgstr "{name} is waiting for its agent."
-
 #: src/features/files/FileViewer.tsx
 msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
 msgstr "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
@@ -673,14 +669,6 @@ msgstr "{name} isn't a text file under 1 MB any more, so it can't be saved here.
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} isn't reporting"
 msgstr "{name} isn't reporting"
-
-#: src/features/servers/PhoneServer.tsx
-msgid "{name} isn't reporting."
-msgstr "{name} isn't reporting."
-
-#: src/features/servers/PhoneServer.tsx
-msgid "{name} isn't reporting. It last did {seen}."
-msgstr "{name} isn't reporting. It last did {seen}."
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2214,6 +2202,10 @@ msgstr "Can't read your apps"
 msgid "Can't save this file"
 msgstr "Can't save this file"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Can't say how it is now"
+msgstr "Can't say how it is now"
+
 #. placeholder {0}: groupSecret(setup.secret)
 #: src/features/auth/TotpPanel.tsx
 msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
@@ -2306,6 +2298,10 @@ msgstr "Check"
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
 msgstr "Check it from a terminal"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Check that <0>dockwell run</0> is still running on the server."
+msgstr "Check that <0>dockwell run</0> is still running on the server."
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Check that the server and its agent are up."
@@ -3192,9 +3188,10 @@ msgstr "Docker"
 msgid "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
 msgstr "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
 
+#. placeholder {0}: lasted(server.dockerUnreadableSince)
 #: src/features/servers/PhoneServer.tsx
-msgid "Docker hasn't answered since {since}."
-msgstr "Docker hasn't answered since {since}."
+msgid "Docker hasn't answered for {0}"
+msgstr "Docker hasn't answered for {0}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
@@ -3684,6 +3681,7 @@ msgstr "failed"
 #: src/features/apps/words.ts
 #: src/features/backups/words.ts
 #: src/features/changes/words.ts
+#: src/features/servers/PhoneServer.tsx
 msgid "Failed"
 msgstr "Failed"
 
@@ -5208,6 +5206,7 @@ msgstr "Nobody can say how {name} runs"
 msgid "Nobody can say how {name} runs now."
 msgstr "Nobody can say how {name} runs now."
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "None"
 msgstr "None"
@@ -5274,6 +5273,15 @@ msgstr "Not loaded"
 #: src/features/apps/words.ts
 msgid "Not placed"
 msgstr "Not placed"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Not reporting"
+msgstr "Not reporting"
+
+#. placeholder {0}: lasted(server.lastSeenTime)
+#: src/features/servers/PhoneServer.tsx
+msgid "Not reporting for {0}"
+msgstr "Not reporting for {0}"
 
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
@@ -7376,6 +7384,10 @@ msgstr "Source"
 msgid "sources"
 msgstr "sources"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Start it with <0>dockwell run</0> on the server."
+msgstr "Start it with <0>dockwell run</0> on the server."
+
 #: src/features/logs/LogsPage.tsx
 msgid "Start of the log"
 msgstr "Start of the log"
@@ -8945,6 +8957,7 @@ msgstr "Waiting"
 msgid "Waiting for DNS"
 msgstr "Waiting for DNS"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"

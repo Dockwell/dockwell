@@ -658,10 +658,6 @@ msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
 msgid "{name} is waiting for its agent"
 msgstr "{name} 正在等待代理连接"
 
-#: src/features/servers/PhoneServer.tsx
-msgid "{name} is waiting for its agent."
-msgstr "{name} 正在等待它的代理。"
-
 #: src/features/files/FileViewer.tsx
 msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
 msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里加载。"
@@ -673,14 +669,6 @@ msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里�
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} isn't reporting"
 msgstr "{name} 没有上报数据"
-
-#: src/features/servers/PhoneServer.tsx
-msgid "{name} isn't reporting."
-msgstr "{name} 没有上报。"
-
-#: src/features/servers/PhoneServer.tsx
-msgid "{name} isn't reporting. It last did {seen}."
-msgstr "{name} 没有上报。它上次上报是在{seen}。"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2214,6 +2202,10 @@ msgstr "无法读取你的应用"
 msgid "Can't save this file"
 msgstr "无法保存这个文件"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Can't say how it is now"
+msgstr "目前无法判断其状态"
+
 #. placeholder {0}: groupSecret(setup.secret)
 #: src/features/auth/TotpPanel.tsx
 msgid "Can't scan it? Enter this key instead: <0>{0}</0>"
@@ -2306,6 +2298,10 @@ msgstr "检查"
 #: src/features/system/StatusPage.tsx
 msgid "Check it from a terminal"
 msgstr "在终端中检查"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Check that <0>dockwell run</0> is still running on the server."
+msgstr "请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Check that the server and its agent are up."
@@ -3192,9 +3188,10 @@ msgstr "Docker"
 msgid "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
 msgstr "Docker 统计其镜像、卷、容器和日志共占 {0}，超过此磁盘已用的 {1}，因为其中一部分在另一块磁盘上。因此这里只显示已用和可用。"
 
+#. placeholder {0}: lasted(server.dockerUnreadableSince)
 #: src/features/servers/PhoneServer.tsx
-msgid "Docker hasn't answered since {since}."
-msgstr "Docker 自{since}起没有响应。"
+msgid "Docker hasn't answered for {0}"
+msgstr "Docker 已 {0} 未响应"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
@@ -3684,6 +3681,7 @@ msgstr "失败"
 #: src/features/apps/words.ts
 #: src/features/backups/words.ts
 #: src/features/changes/words.ts
+#: src/features/servers/PhoneServer.tsx
 msgid "Failed"
 msgstr "失败"
 
@@ -5208,6 +5206,7 @@ msgstr "无法确定 {name} 的运行情况"
 msgid "Nobody can say how {name} runs now."
 msgstr "现在无法确定 {name} 的运行情况。"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "None"
 msgstr "无"
@@ -5274,6 +5273,15 @@ msgstr "未加载"
 #: src/features/apps/words.ts
 msgid "Not placed"
 msgstr "未部署"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Not reporting"
+msgstr "未在上报"
+
+#. placeholder {0}: lasted(server.lastSeenTime)
+#: src/features/servers/PhoneServer.tsx
+msgid "Not reporting for {0}"
+msgstr "已 {0} 未上报"
 
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
@@ -7376,6 +7384,10 @@ msgstr "来源"
 msgid "sources"
 msgstr "来源"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Start it with <0>dockwell run</0> on the server."
+msgstr "请在服务器上用 <0>dockwell run</0> 启动它。"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Start of the log"
 msgstr "日志开头"
@@ -8945,6 +8957,7 @@ msgstr "等待中"
 msgid "Waiting for DNS"
 msgstr "正在等待 DNS"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "等待代理连接"
