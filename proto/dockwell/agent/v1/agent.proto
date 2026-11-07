@@ -261,7 +261,20 @@ message ConnectResponse {
     // The server's public address as the control plane knows it: as the
     // stream opens and whenever that changes.
     PublicAddress public_address = 5;
+    // How often to send stats from now on, as whether anyone is watching
+    // changes. Numbered apart, as open work adds to this message. An agent
+    // from before this goes on at the pace its welcome said.
+    Pace pace = 40;
   }
+}
+
+// Pace says how often the agent sends stats: often while someone watches, and
+// only as often as its stream needs to stay open while nobody does. See
+// docs/adr/0040-a-servers-live-use.md.
+message Pace {
+  // How often to send stats. The agent sends one at once when this is sooner
+  // than it was, so whoever just started watching sees a new sample.
+  google.protobuf.Duration stats_interval = 1;
 }
 
 // PublicAddress is what the control plane knows of a server's public addresses,
@@ -294,7 +307,7 @@ message Drained {}
 message Welcome {
   // The name the control plane knows the server by.
   string server_name = 1;
-  // How often the agent should send stats.
+  // How often the agent should send stats, until a Pace says otherwise.
   google.protobuf.Duration stats_interval = 2;
 }
 
@@ -406,8 +419,15 @@ message Call {
     FetchBackupCall fetch_backup = 23;
     // Send a backup that's on the server to its destination.
     SendBackupCall send_backup = 24;
+    // Say what takes the room on the disk that holds Docker's data. Numbered
+    // apart, as open work adds to this message.
+    DiskUseCall disk_use = 40;
   }
 }
+
+// DiskUseCall asks what takes the room on the disk that holds Docker's data.
+// An agent answers from what it added up in the last 30 s, if it did.
+message DiskUseCall {}
 
 // AdoptionCall asks what a container would be as a service. It reads the
 // container, environment and all, and changes nothing.
@@ -859,6 +879,9 @@ message CallResult {
     BackupResult fetch_backup = 23;
     // What send_backup sent.
     SendBackupResult send_backup = 24;
+    // What a disk use call added up. Numbered apart, as open work adds to this
+    // message.
+    dockwell.v1.ServerDiskUse disk_use = 40;
   }
 }
 
