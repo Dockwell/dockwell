@@ -744,6 +744,11 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				return fault.New(revision.ErrInvalid, "edit %d's base_revision is %d. Pass the revision the spec was read at, or 0 to check nothing", i+1, e.GetBaseRevision())
 			case len(e.GetKeepEnv()) > 0 && spec == nil:
 				return fault.New(revision.ErrInvalid, "edit %d deletes, and keeps environment variables too. Leave keep_env out", i+1)
+			case len(e.GetKeepEnv()) > 0 && e.GetBaseRevision() == 0:
+				// What it keeps comes from what's there now, and the rest from what it read: from
+				// no revision, a change between the two would be undone with nothing to say so.
+				return fault.New(revision.ErrInvalid, "edit %d keeps environment variables, but says no base_revision, so a change since the spec was read would be undone. "+
+					"Pass the revision ListServices gave as base_revision", i+1)
 			}
 			out = append(out, revision.Edit{
 				Ref: ref, Spec: spec, Servers: servers, Base: int(e.GetBaseRevision()), KeepEnv: e.GetKeepEnv(),

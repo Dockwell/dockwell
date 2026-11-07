@@ -674,7 +674,8 @@ func TestEditingAServiceWithoutReadingItBack(t *testing.T) {
 		}
 		other := serviceEdit("cart", "ghcr.io/acme/cart:1", nil)
 		other.KeepEnv = []string{"API_KEY"}
-		if _, err := propose(other); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "no service yet") {
+		// There's nothing to have read it from, so no revision to name.
+		if _, err := propose(other); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "says no base_revision") {
 			t.Errorf("keeping on a new service = %v", err)
 		}
 
@@ -714,6 +715,114 @@ func TestEditingAServiceWithoutReadingItBack(t *testing.T) {
 		bad.BaseRevision = -1
 		if _, err := propose(bad); reasonOf(err) != "invalid" {
 			t.Errorf("a base revision of -1 = %v", err)
+		}
+		// Keeping from no revision would undo whatever changed since the read.
+		unread := edited("API_KEY")
+		unread.BaseRevision = 0
+		if _, err := propose(unread); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "Pass the revision ListServices gave as base_revision") {
+			t.Errorf("keeping with no base revision = %v", err)
+		}
+		gone := &dockwellv1.Edit{Resource: info.GetResource(), Delete: true, KeepEnv: []string{"API_KEY"}}
+		if _, err := propose(gone); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "deletes, and keeps environment variables too") {
+			t.Errorf("keeping on a delete = %v", err)
+		}
+	})
+}
+
+// A value an edit keeps goes nowhere it hasn't been (ADR 0022): it can't take the
+// service to another server, on a plan alone. Set again in the edit, it can.
+func TestAKeptValueGoesToNoNewServer(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		const secret = "kept-s3cret-9Qz"
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addServerNamed(t, "hz-1", nil, nil)
+		one := f.lastDocker.id.ServerID
+		f.addServerNamed(t, "hz-2", nil, nil)
+		two := f.lastDocker.id.ServerID
+		c := changeClient(b, b.origin)
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+
+		first := serviceEdit("shop", "ghcr.io/acme/shop:1.4", map[string]string{"API_KEY": secret})
+		first.Servers = []string{one}
+		made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Run the shop", Edits: []*dockwellv1.Edit{first}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := applied(t, c, made.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the first deploy ended %v: %s", got.GetState(), got.GetError())
+		}
+		info := onlyService(t, s)
+		move := func(keep bool, servers ...string) error {
+			spec := proto.Clone(info.GetSpec()).(*resourcev1.Service)
+			spec.GetApp().Env = map[string]string{"API_KEY": "set-again"}
+			edit := &dockwellv1.Edit{
+				Resource:     info.GetResource(),
+				Spec:         &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
+				BaseRevision: info.GetRevision(),
+				Servers:      servers,
+			}
+			if keep {
+				spec.GetApp().Env = nil
+				edit.KeepEnv = []string{"API_KEY"}
+			}
+			_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Move the shop", Edits: []*dockwellv1.Edit{edit}}))
+			return err
+		}
+		for _, servers := range [][]string{{one, two}, {two}} {
+			err := move(true, servers...)
+			if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "can't go on hz-2") || !strings.Contains(err.Error(), "Set them again in the edit to run it there") {
+				t.Errorf("keeping it, onto %v = %v, want it refused, saying what to do", servers, err)
+			}
+			if err != nil && strings.Contains(err.Error(), secret) {
+				t.Errorf("the refusal holds the value: %v", err)
+			}
+		}
+		if err := move(true, one); err != nil {
+			t.Errorf("keeping it where it runs = %v", err)
+		}
+		if err := move(false, one, two); err != nil {
+			t.Errorf("setting it again, onto both = %v", err)
+		}
+	})
+}
+
+// ListServices says what a service reaches as its plan does: through a volume it
+// mounts too, so an editor never says no passkey is coming when one is.
+func TestListServicesSaysWhatAMountedVolumeReaches(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addDockerServer(t)
+		c := changeClient(b, b.origin)
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+		volume := &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "host-etc"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{
+				Options: map[string]string{"type": "none", "o": "bind", "device": "/etc"},
+			}}},
+		}
+		reader := serviceEdit("reader", "ghcr.io/acme/shop:1.4", nil)
+		reader.GetSpec().GetService().GetApp().Mounts = []*resourcev1.Mount{
+			{Source: &resourcev1.Mount_Volume{Volume: "host-etc"}, Target: "/host-etc", ReadOnly: true},
+		}
+		made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Read the host", Edits: []*dockwellv1.Edit{volume, reader}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !made.Msg.GetChange().GetPlan().GetHostAccess() {
+			t.Fatal("the plan doesn't say it reaches the server")
+		}
+		applyAsRoot(t, b, made.Msg.GetChange())
+		info := onlyService(t, s)
+		var root []string
+		for _, a := range info.GetHostAccess() {
+			if a.GetSameAsRoot() {
+				root = append(root, a.GetPath())
+			}
+		}
+		if !slices.Equal(root, []string{"/etc"}) {
+			t.Errorf("ListServices says it reaches %v as root, want /etc, through the volume it mounts", info.GetHostAccess())
 		}
 	})
 }

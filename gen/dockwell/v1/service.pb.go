@@ -254,11 +254,13 @@ type ServiceInfo struct {
 	// the list stand.
 	SpecUnreadable string `protobuf:"bytes,10,opt,name=spec_unreadable,json=specUnreadable,proto3" json:"spec_unreadable,omitempty"`
 	// What its latest revision reaches on its servers beyond its own containers,
-	// as its spec says: a server path, Docker's socket, the server's network, a
-	// capability. A path is as written, as no agent says here where it leads, so a
-	// plan can say more. One that is same_as_root means changing anything but its
-	// image's tag and its limits asks for a passkey, which an editor can say
-	// before it plans. Empty when it reaches nothing, or its spec can't be read.
+	// as its spec says and through the volumes it mounts, as a plan reads it: a
+	// server path, Docker's socket, the server's network, a capability. A path is
+	// as written, as no agent says here where it leads, so a plan can say more.
+	// While one is same_as_root, a change that keeps it, other than another tag
+	// of its image or a limit, asks for a passkey, which an editor can say before
+	// it plans; one that takes it away asks for none. Empty when it reaches
+	// nothing, or its spec can't be read.
 	HostAccess    []*HostAccess `protobuf:"bytes,11,rep,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

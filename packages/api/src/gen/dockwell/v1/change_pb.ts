@@ -125,8 +125,11 @@ export type Edit = Message<"dockwell.v1.Edit"> & {
    * client that can't read their values back, as no response carries them:
    * it sends the rest of the spec, and names these instead of setting them.
    * Each must be one the service has now, and not one the spec sets too. Only
-   * an edit of a service that's there takes it. A value kept goes nowhere it
-   * hasn't been, so the edit can't place the service on another server.
+   * an edit of a service that's there takes it, and only with base_revision,
+   * the revision the rest was read at: without one the edit is refused, as a
+   * change since the read would be undone. A value kept goes nowhere it hasn't
+   * been, so the edit can't place the service on another server: set the value
+   * again in the edit to run it there.
    *
    * @generated from field: repeated string keep_env = 7;
    */
