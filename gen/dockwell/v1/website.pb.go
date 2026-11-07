@@ -750,10 +750,10 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\"D\n" +
 	"\x15DeleteWebsiteResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\xfd\x04\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\xf9\x04\n" +
 	"\x0eWebsiteService\x12p\n" +
-	"\fListWebsites\x12 .dockwell.v1.ListWebsitesRequest\x1a!.dockwell.v1.ListWebsitesResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/websites\x90\x02\x01\x12\x81\x01\n" +
-	"\x0ePreviewWebsite\x12\".dockwell.v1.PreviewWebsiteRequest\x1a#.dockwell.v1.PreviewWebsiteResponse\"&\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/websites:preview\x90\x02\x01\x12s\n" +
+	"\fListWebsites\x12 .dockwell.v1.ListWebsitesRequest\x1a!.dockwell.v1.ListWebsitesResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/websites\x90\x02\x01\x12~\n" +
+	"\x0ePreviewWebsite\x12\".dockwell.v1.PreviewWebsiteRequest\x1a#.dockwell.v1.PreviewWebsiteResponse\"#\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/websites:preview\x12s\n" +
 	"\rCreateWebsite\x12!.dockwell.v1.CreateWebsiteRequest\x1a\".dockwell.v1.CreateWebsiteResponse\"\x1b\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/websites\x12\x7f\n" +
 	"\rUpdateWebsite\x12!.dockwell.v1.UpdateWebsiteRequest\x1a\".dockwell.v1.UpdateWebsiteResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/websites/{id}:update\x12\x7f\n" +
 	"\rDeleteWebsite\x12!.dockwell.v1.DeleteWebsiteRequest\x1a\".dockwell.v1.DeleteWebsiteResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/websites/{id}:deleteB\xa5\x01\n" +
