@@ -3,10 +3,13 @@
 package files
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/unix"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 )
@@ -121,21 +124,63 @@ func TestAHardLinkToAListedFileIsOne(t *testing.T) {
 	}
 }
 
-// A home on a network mount isn't stat'ed, as that holds every call while it's down.
-func TestAHomeOnADeadMountHoldsNothingUp(t *testing.T) {
+// A home on a network mount isn't stat'ed, as that holds every call while it's down,
+// so what's in it is only known by its path. One on a local disk is read as it is.
+func TestAHomeOnANetworkMountIsntAsked(t *testing.T) {
 	d := newDisk(t)
+	share := filepath.Join(d.root, "nfs")
+	home := filepath.Join(share, "root")
+	write(t, filepath.Join(home, ".bashrc"), "x\n")
+	local := filepath.Join(d.root, "local")
+	write(t, filepath.Join(local, ".bashrc"), "x\n")
 	d.server.accounts = func() (string, string) {
-		return "root:x:0:0::/mnt/nfs/root:/bin/sh\n", ""
+		return "root:x:0:0::" + home + ":/bin/sh\nops:x:0:0::" + local + ":/bin/sh\n", ""
 	}
 	d.server.mounts = func() string {
-		return "22 1 8:1 / / rw - ext4 /dev/sda1 rw\n40 22 0:50 / /mnt/nfs rw - nfs4 filer:/export rw\n"
+		return "22 1 8:1 / / rw - ext4 /dev/sda1 rw\n40 22 0:50 / " + share + " rw - nfs4 filer:/export rw\n"
 	}
 	ways := d.server.waysIn()
-	if len(ways.homes) != 1 {
+	if len(ways.homes) != 2 {
 		t.Fatalf("homes = %v", ways.homes)
 	}
+	at := func(p string) identity {
+		t.Helper()
+		var st unix.Stat_t
+		if err := unix.Stat(p, &st); err != nil {
+			t.Fatal(err)
+		}
+		return identify(&st)
+	}
+	if ways.files[at(filepath.Join(home, ".bashrc"))] {
+		t.Error("it asked a network mount what's in a home there")
+	}
+	if !ways.files[at(filepath.Join(local, ".bashrc"))] {
+		t.Error("it didn't read a home on a local disk")
+	}
 	// A listed name there still counts, by its path, which asks nothing of the mount.
-	if !listedPath("/mnt/nfs/root/.bashrc", "", ways.homes, false) {
+	if !listedPath(filepath.Join(home, ".bashrc"), "", ways.homes, false) {
 		t.Error("a shell file in that home isn't a way back in")
+	}
+}
+
+// A volume's files are an app's, though Docker's own data is listed, so what's above
+// a volume doesn't count. What's in it does, as its data can really be somewhere else.
+func TestAVolumeAsksNothingUnlessItsDataIsListed(t *testing.T) {
+	d := newDisk(t)
+	root := filepath.Join(d.root, "docker")
+	if err := os.MkdirAll(filepath.Join(root, "containers"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := filepath.Join(root, "volumes", "app", "_data")
+	file := filepath.Join(data, "app.env")
+	write(t, file, "x\n")
+	d.server = New(d.data, nil, func(context.Context) (string, error) { return root, nil })
+	d.server.systemPlaces = func() []string { return []string{root, filepath.Join(root, "volumes")} }
+	if got := d.read(t, file).GetFile(); got.GetContent() == "" || got.GetWayBackIn() {
+		t.Fatalf("a file in a volume reads %v", got)
+	}
+	d.server.systemPlaces = func() []string { return []string{data} }
+	if got := d.read(t, file).GetFile(); !got.GetWayBackIn() {
+		t.Fatalf("a volume whose data is somewhere listed reads %v", got)
 	}
 }
