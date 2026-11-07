@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: uptime-kuma
+name: Uptime Kuma
+summary: Uptime checks and status pages
+category: monitoring
+version: "2.5.7"
+release: 1
+homepage: https://uptime.kuma.pet
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/uptime-kuma.yaml
+web:
+  service: uptime-kuma
+firstSteps: >-
+  Uptime Kuma answers over plain HTTP, so signing in from outside this server sends
+  your password in clear, and the first person to open it makes its admin account.
+  Add a domain first, or reach it another way, such as a VPN or an SSH tunnel. Then
+  open it and make your account.
+inputs:
+  - name: PORT
+    label: Uptime Kuma port
+    hint: You open Uptime Kuma on this port of the server.
+    type: INPUT_TYPE_PORT
+    defaultValue: "3001"
+compose: |
+  services:
+    uptime-kuma:
+      image: louislam/uptime-kuma:2.5.7@sha256:4b95dbe7ac5343b768f8e04e3035ccd59997872b1a35ab9b0f082d2cc279070e
+      restart: unless-stopped
+      environment:
+        UPTIME_KUMA_DB_TYPE: sqlite
+      ports:
+        - "${PORT}:3001"
+      volumes:
+        - data:/app/data
+      healthcheck:
+        test: ["CMD-SHELL", "extra/healthcheck"]
+        interval: 10s
+        timeout: 10s
+        retries: 18
+        start_period: 30s
+  volumes:
+    data: {}

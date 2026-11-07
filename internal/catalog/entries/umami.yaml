@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: umami
+name: Umami
+summary: Simple, fast website analytics
+category: analytics
+version: "3.4.1"
+release: 1
+homepage: https://umami.is
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/umami.yaml
+web:
+  service: umami
+firstSteps: >-
+  Umami makes the account admin with the password umami on first start, which anyone
+  who reaches it could sign in with, so it answers only on this server at first.
+  Reach it through an SSH tunnel to its port, sign in, and change the password under
+  Settings, Profile. Then add a domain, which your sites load its tracker from. Leave
+  the POSTGRES_PASSWORD secret as it is: its database keeps the password it started
+  with, and Umami would then use one it doesn't take.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once you change its password.
+    type: INPUT_TYPE_PORT
+    defaultValue: "3000"
+  - name: APP_SECRET
+    label: App secret
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: POSTGRES_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    umami:
+      image: ghcr.io/umami-software/umami:3.4.1@sha256:e69d1a7932e9dab0fc523edc7be1f3a53f3c261f57856fc2167ae74a8fc022e8
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      # Its migrations read the database's password from the URL alone, so a shell
+      # writes that from the secret as it starts, and a rotation reaches it.
+      command: ["sh", "-c", "export DATABASE_URL=\"postgresql://umami:$$POSTGRES_PASSWORD@db:5432/umami\" && exec sh scripts/start-docker.sh"]
+      environment:
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        APP_SECRET: ${APP_SECRET}
+      ports:
+        - "127.0.0.1:${PORT}:3000"
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/heartbeat"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 30s
+    db:
+      image: postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3
+      restart: unless-stopped
+      environment:
+        POSTGRES_USER: umami
+        POSTGRES_DB: umami
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      volumes:
+        - data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD", "pg_isready", "-U", "umami", "-d", "umami"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    data: {}
