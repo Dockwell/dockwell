@@ -8,7 +8,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/netip"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -54,18 +58,19 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 				return err
 			}
 			defer closeDB()
+			var others []string
 			if controlURL == "" {
-				if controlURL, err = auth.AgentURL(ctx); err != nil {
+				if controlURL, others, err = auth.JoinURLs(ctx); err != nil {
 					return err
 				}
 			}
-			tk, err := auth.CreateTicket(ctx, controlURL, actor(), ttl)
+			tk, err := auth.CreateTicket(ctx, controlURL, actor(), ttl, others...)
 			if err != nil {
 				return usageError{err}
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Run this on the server you're adding, as root:\n\n  dockwell join %s\n\n"+
-				"The ticket adds one server through %s. It works once and expires in %s, at %s.\n",
-				tk.Value, controlURL, human.Duration(ttl), tk.ExpiresAt.UTC().Format("15:04 MST on 2 Jan"))
+				"The ticket adds one server through %s. It works once and expires in %s, at %s.\n%s",
+				tk.Value, strings.Join(append([]string{controlURL}, others...), ", or else "), human.Duration(ttl), tk.ExpiresAt.UTC().Format("15:04 MST on 2 Jan"), joinWords(controlURL))
 			return nil
 		},
 	}
@@ -73,6 +78,26 @@ func newTokenCmd(stdio IO, g *globalFlags) *cobra.Command {
 	create.Flags().StringVar(&controlURL, "control-url", "", "the control plane's agent URL to put in the ticket; defaults to what dockwell run advertises")
 	cmd.AddCommand(create)
 	return cmd
+}
+
+// joinWords says who a ticket's address can reach. A private address only reaches
+// its own network, and nothing else says so until a join fails. A public one needs
+// its port open, and a name can be anything.
+func joinWords(controlURL string) string {
+	u, err := url.Parse(controlURL)
+	if err != nil {
+		return ""
+	}
+	host, port := u.Hostname(), u.Port()
+	ip, err := netip.ParseAddr(host)
+	switch {
+	case err != nil:
+		return ""
+	case resource.IsPublicAddress(ip):
+		return fmt.Sprintf("\nA server on another network reaches this one on port %[1]s, so open that at your provider and on this machine, or forward it if this server is behind a router.\n", port)
+	}
+	return fmt.Sprintf("\n%[1]s is a private address, so only a server on the same network can use this ticket. "+
+		"For a server elsewhere, set --advertise-url on dockwell run to an address it can reach, or open port %[2]s from that network.\n", host, port)
 }
 
 // actor names who ran a command, for the audit log.

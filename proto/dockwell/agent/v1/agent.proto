@@ -311,6 +311,10 @@ message JoinTicket {
   string token_id = 3;
   // The token's secret. Only its hash is stored on the control plane.
   bytes secret = 4;
+  // Where else to try, in order, when control_url can't be reached: the control
+  // server's private address, for a server on its own network, behind a public
+  // address it can't come back in on.
+  repeated string other_urls = 5;
 }
 
 // JoinRequest asks to join with a join token.

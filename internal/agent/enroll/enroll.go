@@ -136,28 +136,26 @@ func Join(ctx context.Context, ticketString, hostname string, build buildinfo.In
 	if err != nil {
 		return nil, err
 	}
-	u, err := url.Parse(tk.GetControlUrl())
-	if err != nil {
-		return nil, err
+	// A ticket spent stays spent, so only what never reached the control plane goes
+	// on to the next address. That's how a server on the control server's own network
+	// joins when its public address can't be come back in on.
+	req := &agentv1.JoinRequest{TokenId: tk.GetTokenId(), Secret: tk.GetSecret(), Csr: csr, Hostname: hostname, Build: build.Proto()}
+	addresses := append([]string{tk.GetControlUrl()}, tk.GetOtherUrls()...)
+	var res *connect.Response[agentv1.JoinResponse]
+	var controlURL string
+	var unreached []error
+	for i, at := range addresses {
+		controlURL = at
+		if res, err = joinAt(ctx, tk.GetCaPin(), at, req, i < len(addresses)-1); !neverArrived(err) {
+			break
+		}
+		unreached = append(unreached, rpcError(at, "joining", err))
 	}
-	hc := httpClient(&tls.Config{
-		MinVersion:         tls.VersionTLS13,
-		ServerName:         u.Hostname(),
-		InsecureSkipVerify: true, //nolint:gosec // VerifyConnection checks the chain against the ticket's CA pin
-		VerifyConnection:   pki.VerifyPinned(tk.GetCaPin()),
-	})
-	defer hc.CloseIdleConnections()
-	client := agentv1connect.NewAgentServiceClient(hc, tk.GetControlUrl(), connect.WithGRPC())
-
-	res, err := client.Join(ctx, connect.NewRequest(&agentv1.JoinRequest{
-		TokenId:  tk.GetTokenId(),
-		Secret:   tk.GetSecret(),
-		Csr:      csr,
-		Hostname: hostname,
-		Build:    build.Proto(),
-	}))
+	if neverArrived(err) {
+		return nil, errors.Join(unreached...)
+	}
 	if err != nil {
-		return nil, rpcError(tk.GetControlUrl(), "joining", err)
+		return nil, rpcError(controlURL, "joining", err)
 	}
 	ca, err := x509.ParseCertificate(res.Msg.GetCaCertificate())
 	if err != nil {
@@ -170,7 +168,38 @@ func Join(ctx context.Context, ticketString, hostname string, build buildinfo.In
 	if err != nil {
 		return nil, err
 	}
-	return New(res.Msg.GetServerId(), res.Msg.GetServerName(), tk.GetControlUrl(), key, cert, ca), nil
+	return New(res.Msg.GetServerId(), res.Msg.GetServerName(), controlURL, key, cert, ca), nil
+}
+
+// joinTry bounds trying one of a ticket's addresses when there's another to go on to,
+// as a firewall that drops packets otherwise holds the join for minutes.
+const joinTry = 15 * time.Second
+
+// joinAt asks the control plane at controlURL to sign a joining server's key.
+func joinAt(ctx context.Context, pin, controlURL string, req *agentv1.JoinRequest, more bool) (*connect.Response[agentv1.JoinResponse], error) {
+	u, err := url.Parse(controlURL)
+	if err != nil {
+		return nil, err
+	}
+	hc := httpClient(&tls.Config{
+		MinVersion:         tls.VersionTLS13,
+		ServerName:         u.Hostname(),
+		InsecureSkipVerify: true, //nolint:gosec // VerifyConnection checks the chain against the ticket's CA pin
+		VerifyConnection:   pki.VerifyPinned(pin),
+	})
+	defer hc.CloseIdleConnections()
+	if more {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, joinTry)
+		defer cancel()
+	}
+	return agentv1connect.NewAgentServiceClient(hc, controlURL, connect.WithGRPC()).Join(ctx, connect.NewRequest(req))
+}
+
+// neverArrived reports a join that didn't reach the control plane at that address.
+func neverArrived(err error) bool {
+	code := connect.CodeOf(err)
+	return err != nil && (code == connect.CodeUnavailable || code == connect.CodeDeadlineExceeded)
 }
 
 // checkIssued verifies a certificate the control plane issued: it must be

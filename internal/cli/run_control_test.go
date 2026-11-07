@@ -10,14 +10,23 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/seal"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 func TestHelp(t *testing.T) {
@@ -208,4 +217,108 @@ func TestLoopbackURL(t *testing.T) {
 			t.Errorf("loopbackURL(%v) = %q, want %q", tt.addr, got, tt.want)
 		}
 	}
+}
+
+func TestJoinWordsSayWhoATicketsAddressReaches(t *testing.T) {
+	for url, want := range map[string]string{
+		"https://10.0.0.25:7443":         "10.0.0.25 is a private address, so only a server on the same network can use this ticket. For a server elsewhere, set --advertise-url on dockwell run to an address it can reach, or open port 7443 from that network.",
+		"https://100.72.1.2:7443":        "100.72.1.2 is a private address",
+		"https://127.0.0.1:7443":         "127.0.0.1 is a private address",
+		"https://[fd00::5]:7443":         "fd00::5 is a private address",
+		"https://203.0.113.50:7443":      "A server on another network reaches this one on port 7443, so open that at your provider and on this machine, or forward it if this server is behind a router.",
+		"https://agents.example.com:443": "",
+	} {
+		got := joinWords(url)
+		if !strings.Contains(got, want) || (want == "") != (got == "") {
+			t.Errorf("%s says %q", url, got)
+		}
+	}
+}
+
+func TestACertificateCoversEachAddressATicketCanHold(t *testing.T) {
+	hosts := agentHosts("https://10.0.0.25:7443", "https://203.0.113.50:7443")
+	for _, want := range []string{"10.0.0.25", "203.0.113.50", "127.0.0.1", "localhost"} {
+		if !slices.Contains(hosts, want) {
+			t.Errorf("%v doesn't have %s", hosts, want)
+		}
+	}
+	if got := agentHosts("https://10.0.0.25:7443", ""); slices.Contains(got, "") {
+		t.Errorf("an unknown address went in as %v", got)
+	}
+}
+
+// What a ticket leads with follows the control server's public address as it's
+// found, with its own address behind it, for a server on the same network. The
+// certificate has it first, so no ticket names what it doesn't cover.
+func TestJoinTicketsFollowThePublicAddress(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	dir := t.TempDir()
+	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(ctx, filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	logger := slog.New(slog.DiscardHandler)
+	authority, err := identity.Bootstrap(ctx, db, key, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := authority.SetAgentURL(ctx, "https://10.0.0.25:7443"); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if err := db.Update(ctx, func(tx *store.Tx) error {
+		return tx.CreateServer(ctx, store.Server{ID: "srv_A", Name: "oci-1", CreatedAt: now, CertSerial: "s", CertNotAfter: now})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	hub, err := fleet.New(ctx, db, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub.SetControlServer("srv_A")
+
+	first, others, err := authority.JoinURLs(ctx)
+	if err != nil || first != "https://10.0.0.25:7443" || others != nil {
+		t.Fatalf("before anything's found: %q, %v, %v", first, others, err)
+	}
+	covered := make(chan string, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		followPublicAddress(ctx, logger, hub, func(host string) { covered <- host }, authority, "7443")
+	}()
+	if _, err := hub.Attach(ctx, store.Server{ID: "srv_A"}, &dockwellv1.ServerInventory{Addresses: []string{"10.0.0.25"}}, &dockwellv1.BuildInfo{}); err != nil {
+		t.Fatal(err)
+	}
+	hub.RecordNetwork("srv_A", &agentv1.Network{Provider: dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE, LookedUpAddress: "203.0.113.50"})
+	select {
+	case host := <-covered:
+		if host != "203.0.113.50" {
+			t.Errorf("the certificate names %q", host)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the address never reached the certificate")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		first, others, err = authority.JoinURLs(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first == "https://203.0.113.50:7443" && slices.Equal(others, []string{"https://10.0.0.25:7443"}) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("tickets lead with %q, then %v", first, others)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
 }

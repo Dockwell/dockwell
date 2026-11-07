@@ -1507,7 +1507,11 @@ type JoinTicket struct {
 	// The join token to spend.
 	TokenId string `protobuf:"bytes,3,opt,name=token_id,json=tokenId,proto3" json:"token_id,omitempty"`
 	// The token's secret. Only its hash is stored on the control plane.
-	Secret        []byte `protobuf:"bytes,4,opt,name=secret,proto3" json:"secret,omitempty"`
+	Secret []byte `protobuf:"bytes,4,opt,name=secret,proto3" json:"secret,omitempty"`
+	// Where else to try, in order, when control_url can't be reached: the control
+	// server's private address, for a server on its own network, behind a public
+	// address it can't come back in on.
+	OtherUrls     []string `protobuf:"bytes,5,rep,name=other_urls,json=otherUrls,proto3" json:"other_urls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1566,6 +1570,13 @@ func (x *JoinTicket) GetTokenId() string {
 func (x *JoinTicket) GetSecret() []byte {
 	if x != nil {
 		return x.Secret
+	}
+	return nil
+}
+
+func (x *JoinTicket) GetOtherUrls() []string {
+	if x != nil {
+		return x.OtherUrls
 	}
 	return nil
 }
@@ -5564,14 +5575,16 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\aWelcome\x12\x1f\n" +
 	"\vserver_name\x18\x01 \x01(\tR\n" +
 	"serverName\x12@\n" +
-	"\x0estats_interval\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\rstatsInterval\"w\n" +
+	"\x0estats_interval\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\rstatsInterval\"\x96\x01\n" +
 	"\n" +
 	"JoinTicket\x12\x1f\n" +
 	"\vcontrol_url\x18\x01 \x01(\tR\n" +
 	"controlUrl\x12\x15\n" +
 	"\x06ca_pin\x18\x02 \x01(\tR\x05caPin\x12\x19\n" +
 	"\btoken_id\x18\x03 \x01(\tR\atokenId\x12\x16\n" +
-	"\x06secret\x18\x04 \x01(\fR\x06secret\"\x9c\x01\n" +
+	"\x06secret\x18\x04 \x01(\fR\x06secret\x12\x1d\n" +
+	"\n" +
+	"other_urls\x18\x05 \x03(\tR\totherUrls\"\x9c\x01\n" +
 	"\vJoinRequest\x12\x19\n" +
 	"\btoken_id\x18\x01 \x01(\tR\atokenId\x12\x16\n" +
 	"\x06secret\x18\x02 \x01(\fR\x06secret\x12\x10\n" +

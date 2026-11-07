@@ -102,6 +102,15 @@ It says what to do by the shape, and a way in leads with its record whatever the
 
 `DomainService.CheckDomain` reads DNS for a name as it's typed and until each record is there, with no route yet, on the control plane's resolver. It uses what's known of the server, so it says what a plan would, and only the server's public addresses count as where a record leads to it, as a private one, a bridge's or a TUN's never is. As it resolves names through the control server, it needs a token that can make changes, a caller can check 60 names a minute, and a private answer is shown only when it's the server's own, so it can't be used to read what names resolve to inside a network. A record that points at Cloudflare's ranges reads as `proxied`, as the proxy can block a certificate over HTTP-01 or TLS-ALPN, and works with a route that takes none. With no address known and no shape to go by, it says where the address is shown, and the form's switch for a tunnel or a proxy is the one question it asks.
 
+### Joining a server
+
+`advertiseURL` falls back to the outbound interface, so a server behind NAT would hand out a private address. Now, on a listener that takes every address, and with no `--advertise-url` given:
+
+- **The certificate comes first.** A joining server checks the listener's certificate against the address it dials, and the address is found after the listener starts. So the listener's certificate is issued again to name it, and only then does a ticket lead with it.
+- **A ticket names both.** It leads with a way in, of either family, or failing that a way out, and `other_urls` holds the private one. A server tries the next only when it never reached the control plane at this one, as a ticket spent stays spent, and it stays with the address that worked. So a server on the same network joins when its port isn't open to the world, or the network can't come back in on its own public address. An agent from before this reads `control_url` alone.
+- **A private address says so.** `dockwell token create` says who an address can reach, and what to do: `--advertise-url`, or a port opened from that network. It's the only way to add a server for now, so the panel has nothing to warn on.
+- **Carrier NAT offers no address,** as nothing comes in there. `--advertise-url` is taken as it's given, and a server that already joined goes on using the address it joined through.
+
 ## Consequences
 
 - Every word about DNS has one source of truth, on the agent, so a change to what's known changes what a domain says within seconds.

@@ -315,6 +315,9 @@ func (h *Hub) refreshNetworkLocked(server string, l *live) {
 		return
 	}
 	l.network = next
+	if server == h.control && controlAddress(was) != controlAddress(next) {
+		h.controlMovedLocked()
+	}
 	if !proto.Equal(tellOf(was), tellOf(next)) {
 		for told := range l.told {
 			select {
@@ -325,6 +328,49 @@ func (h *Hub) refreshNetworkLocked(server string, l *live) {
 	}
 	h.notifyLocked(server, false)
 }
+
+func (h *Hub) controlMovedLocked() {
+	select {
+	case h.controlMoved <- struct{}{}:
+	default:
+	}
+}
+
+// ControlAddress is the address other networks reach the control server at, or
+// empty when that isn't known.
+func (h *Hub) ControlAddress() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	l, ok := h.servers[h.control]
+	if !ok {
+		return ""
+	}
+	return controlAddress(l.network)
+}
+
+// controlAddress picks the address a join ticket leads with: a way in, and failing
+// that a way out, which may well work and has the private address behind it in the
+// ticket. Behind carrier-grade NAT, a way out is none.
+func controlAddress(n *dockwellv1.ServerNetwork) string {
+	known := []*dockwellv1.PublicAddress{n.GetIpv4(), n.GetIpv6()}
+	for _, a := range known {
+		if a != nil && !a.GetUnproven() {
+			return a.GetAddress()
+		}
+	}
+	if n.GetShape() == dockwellv1.NetworkShape_NETWORK_SHAPE_CARRIER_NAT {
+		return ""
+	}
+	for _, a := range known {
+		if a != nil {
+			return a.GetAddress()
+		}
+	}
+	return ""
+}
+
+// ControlAddressMoved signals when ControlAddress may say something new.
+func (h *Hub) ControlAddressMoved() <-chan struct{} { return h.controlMoved }
 
 // tellOf is what a server's agent should go by. An address on an interface isn't
 // its to be told: it has that, with any others, and picks by what a record needs.

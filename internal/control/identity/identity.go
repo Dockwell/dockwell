@@ -42,7 +42,10 @@ const (
 	settingCACert    = "ca.cert"
 	settingCAKey     = "ca.key"
 	settingAgentURL  = "agent.url"
-	purposeCAKey     = "ca-key"
+	// settingPublicAgentURL is where agents reach the control plane from elsewhere,
+	// as the running control plane last worked out from its public address.
+	settingPublicAgentURL = "agent.public_url"
+	purposeCAKey          = "ca-key"
 )
 
 // Errors for callers to map to API codes.
@@ -170,6 +173,44 @@ func (a *Authority) AgentURL(ctx context.Context) (string, error) {
 	return string(u), err
 }
 
+// SetPublicAgentURL records where agents on other networks reach the control
+// plane, or that nothing does with an empty one.
+func (a *Authority) SetPublicAgentURL(ctx context.Context, u string) error {
+	return a.db.Update(ctx, func(tx *store.Tx) error { return tx.PutSetting(ctx, settingPublicAgentURL, []byte(u)) })
+}
+
+// PublicAgentURL returns where agents on other networks reach the control plane,
+// or empty when that isn't known.
+func (a *Authority) PublicAgentURL(ctx context.Context) (string, error) {
+	var u []byte
+	err := a.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		u, err = tx.GetSetting(ctx, settingPublicAgentURL)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return "", nil
+	}
+	return string(u), err
+}
+
+// JoinURLs returns the address a ticket leads with, and the others to try: the
+// public one when that's known, then the one a server on the same network reaches.
+func (a *Authority) JoinURLs(ctx context.Context) (string, []string, error) {
+	local, err := a.AgentURL(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+	public, err := a.PublicAgentURL(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+	if public == "" || public == local {
+		return local, nil, nil
+	}
+	return public, []string{local}, nil
+}
+
 // InstallID identifies this install.
 func (a *Authority) InstallID() string { return a.installID }
 
@@ -184,8 +225,8 @@ type Ticket struct {
 }
 
 // CreateTicket makes a single-use join ticket for the control plane at
-// controlURL, valid for ttl.
-func (a *Authority) CreateTicket(ctx context.Context, controlURL, actor string, ttl time.Duration) (Ticket, error) {
+// controlURL, and otherURLs for a joining server to try after it, valid for ttl.
+func (a *Authority) CreateTicket(ctx context.Context, controlURL, actor string, ttl time.Duration, otherURLs ...string) (Ticket, error) {
 	if ttl < time.Second || ttl > MaxTicketTTL {
 		return Ticket{}, fmt.Errorf("a join ticket can last from 1 s to %s, not %s", human.Duration(MaxTicketTTL), human.Duration(ttl))
 	}
@@ -205,6 +246,7 @@ func (a *Authority) CreateTicket(ctx context.Context, controlURL, actor string, 
 		CaPin:      a.ca.Pin(),
 		TokenId:    tok.ID,
 		Secret:     secret,
+		OtherUrls:  otherURLs,
 	})
 	if _, err := ticket.Decode(value); err != nil {
 		return Ticket{}, fmt.Errorf("can't make a ticket for %q: %w", controlURL, err)

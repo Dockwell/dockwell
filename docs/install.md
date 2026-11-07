@@ -38,6 +38,8 @@ Then run the install on the new server with that ticket. The new server joins an
 curl -fsSL https://get.dockwell.dev | sh -s -- --join <ticket>
 ```
 
+A ticket leads with the control server's public address once it's known, and holds its private one too, for a server on the same network. If all it has is a private address, `dockwell token create` says so, and only a server on that network can use it. For a server elsewhere, set `DOCKWELL_ADVERTISE_URL`, as in [Change settings](#change-settings), or open the port from that network.
+
 The `sh -s --` passes the options to the script. You can set `DOCKWELL_JOIN` instead, as long as it is set for `sh` rather than for `curl`: `curl -fsSL https://get.dockwell.dev | DOCKWELL_JOIN=<ticket> sh`. A ticket works once and expires after an hour by default, so it does little harm in your shell history.
 
 ## Two builds

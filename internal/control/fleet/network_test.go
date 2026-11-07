@@ -869,3 +869,51 @@ func TestAnUnreadableSettingLeavesTheAddressUnset(t *testing.T) {
 		t.Errorf("it reads %v", got)
 	}
 }
+
+func TestTheControlServersAddressIsWhatOtherNetworksReach(t *testing.T) {
+	h, _ := newHub(t, "oci-1", "home-1", "lte-1")
+	h.SetControlServer("srv_A")
+	select {
+	case <-h.ControlAddressMoved():
+	default:
+		t.Error("becoming the control server didn't signal")
+	}
+	attached(t, h, "10.0.0.25")
+	if got := h.ControlAddress(); got != "" {
+		t.Errorf("with nothing known: %q", got)
+	}
+	h.RecordNetwork("srv_A", &agentv1.Network{Provider: oracle, MachineProvider: oracle, LookedUpAddress: "203.0.113.50"})
+	select {
+	case <-h.ControlAddressMoved():
+	default:
+		t.Error("an address arriving didn't signal")
+	}
+	if got := h.ControlAddress(); got != "203.0.113.50" {
+		t.Errorf("once found: %q", got)
+	}
+	attached(t, h, "100.72.1.2")
+	h.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: "203.0.113.7"})
+	if got := h.ControlAddress(); got != "" {
+		t.Errorf("behind carrier NAT, a way out reads as %q", got)
+	}
+	attached(t, h, "203.0.113.52")
+	if got := h.ControlAddress(); got != "203.0.113.52" {
+		t.Errorf("on an interface: %q", got)
+	}
+}
+
+// Rule 5 of ADR 0034: what's known of each family is told apart, so a way in of either
+// goes ahead of a way out of the other.
+func TestATicketLeadsWithAWayInOfEitherFamily(t *testing.T) {
+	h, _ := newHub(t, "home-1")
+	h.SetControlServer("srv_A")
+	attached(t, h, "10.0.0.5", "2001:db8::5")
+	h.RecordNetwork("srv_A", &agentv1.Network{LookedUpAddress: "203.0.113.7"})
+	if got := h.ControlAddress(); got != "2001:db8::5" {
+		t.Errorf("it leads with %q", got)
+	}
+	attached(t, h, "100.72.1.2", "2001:db8::5")
+	if got := h.ControlAddress(); got != "2001:db8::5" {
+		t.Errorf("behind carrier NAT, a way in of the other family reads as %q", got)
+	}
+}

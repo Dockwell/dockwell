@@ -4,6 +4,7 @@ package agentapi_test
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -97,9 +98,10 @@ func startStackWith(t *testing.T, silence time.Duration, logger *slog.Logger, wi
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
+	listenerTLS, _ := agentapi.TLSConfig(auth, []string{"127.0.0.1"})
 	go func() {
 		done <- serve.Serve(ctx, ln, h, serve.Options{
-			Name: "agent listener", Logger: logger, TLS: agentapi.TLSConfig(auth, []string{"127.0.0.1"}),
+			Name: "agent listener", Logger: logger, TLS: listenerTLS,
 			StreamGrace: 10 * time.Millisecond,
 		})
 	}()
@@ -622,5 +624,75 @@ func TestAPublicAddressGoesRoundThroughARealStream(t *testing.T) {
 			t.Fatalf("the agent heard %v", heard.last())
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A ticket can name where else to go, and a server that can't get through the
+// first goes on: that's how one on the control server's own network joins when a
+// public address doesn't come back in. It joins for good through the one that worked.
+func TestATicketGoesOnToItsNextAddress(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	refused, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dead := "https://" + refused.Addr().String()
+	_ = refused.Close()
+
+	tk, err := s.auth.CreateTicket(t.Context(), dead, "cli:test", time.Hour, s.url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined, err := enroll.Join(t.Context(), tk.Value, "hz-2", buildinfo.Read())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if joined.ControlURL != s.url {
+		t.Errorf("it joined through %s, want %s", joined.ControlURL, s.url)
+	}
+
+	// Spent, it's refused, and that's no reason to try anywhere else.
+	_, err = enroll.Join(t.Context(), tk.Value, "hz-3", buildinfo.Read())
+	if err == nil || !strings.Contains(err.Error(), "already used") {
+		t.Errorf("spending it again: %v", err)
+	}
+
+	nowhere, err := s.auth.CreateTicket(t.Context(), dead, "cli:test", time.Hour, dead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = enroll.Join(t.Context(), nowhere.Value, "hz-4", buildinfo.Read())
+	if err == nil || !strings.Contains(err.Error(), "can't reach the control plane at "+dead) || !strings.Contains(err.Error(), "Check that its port is open") {
+		t.Errorf("with nowhere to go: %v", err)
+	}
+}
+
+// A server joining checks the listener's certificate against the address it
+// dials, and a public address is found after the listener starts.
+func TestTheAgentListenerNamesAnAddressFoundLater(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	cfg, addHost := agentapi.TLSConfig(s.auth, []string{"127.0.0.1"})
+	leaf := func() *x509.Certificate {
+		t.Helper()
+		cert, err := cfg.GetCertificate(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return parsed
+	}
+	if err := leaf().VerifyHostname("203.0.113.50"); err == nil {
+		t.Fatal("it names an address it was never given")
+	}
+	addHost("203.0.113.50")
+	got := leaf()
+	if err := got.VerifyHostname("203.0.113.50"); err != nil {
+		t.Errorf("after adding it: %v", err)
+	}
+	if err := got.VerifyHostname("127.0.0.1"); err != nil {
+		t.Errorf("it lost what it had: %v", err)
 	}
 }

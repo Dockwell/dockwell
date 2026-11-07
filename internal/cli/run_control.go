@@ -199,6 +199,18 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	}
 	logger.Info("other servers join through the agent listener",
 		slog.String("url", agentURL), slog.String("install", authority.InstallID()), slog.String("ca_pin", authority.CA().Pin()))
+	// What the last run found, so a ticket made before it's found again still
+	// reaches this listener, and what's given by hand isn't second-guessed.
+	publicURL := ""
+	if f.advertise == "" {
+		publicURL, err = authority.PublicAgentURL(ctx)
+	} else {
+		err = authority.SetPublicAgentURL(ctx, "")
+	}
+	if err != nil {
+		closeAll()
+		return err
+	}
 
 	own, err := localIdentity(ctx, authority, dir, ls.Agents.Addr())
 	if err != nil {
@@ -282,7 +294,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		Build:         build,
 		Identity:      authority,
 		Fleet:         hub,
-		AgentHosts:    agentHosts(agentURL),
+		AgentHosts:    agentHosts(agentURL, publicURL),
 		Auth:          people,
 		Public:        public,
 		PublicAddress: addr.dnsAddress(),
@@ -314,6 +326,9 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		stopAgent()
 	})
 	wg.Go(func() { recorder.Run(ctx) })
+	if listensEverywhere(ls.Agents.Addr()) && f.advertise == "" {
+		wg.Go(func() { followPublicAddress(ctx, logger, hub, srv.AddAgentHost, authority, portOf(ls.Agents.Addr())) })
+	}
 	var panel *ingress.Panel
 	if f.domain != "" {
 		panel = &ingress.Panel{Domain: f.domain}
@@ -664,16 +679,52 @@ func outboundIP(ctx context.Context) string {
 }
 
 // agentHosts are the names the agent listener's certificate covers: the
-// advertised host, loopback, and this server's hostname.
-func agentHosts(agentURL string) []string {
+// advertised hosts, loopback, and this server's hostname. A server joining checks
+// the certificate against the address it dials, so each address a ticket can hold
+// has to be here. followPublicAddress adds what's found once it's running.
+func agentHosts(agentURLs ...string) []string {
 	hosts := []string{"127.0.0.1", "::1", "localhost"}
-	if u, err := url.Parse(agentURL); err == nil && u.Hostname() != "" {
-		hosts = append(hosts, u.Hostname())
+	for _, agentURL := range agentURLs {
+		if u, err := url.Parse(agentURL); err == nil && u.Hostname() != "" {
+			hosts = append(hosts, u.Hostname())
+		}
 	}
 	if h, err := os.Hostname(); err == nil {
 		hosts = append(hosts, h)
 	}
 	return hosts
+}
+
+// listensEverywhere reports a listener on every address, so its public address
+// reaches it. One bound to an address is only there.
+func listensEverywhere(addr net.Addr) bool {
+	tcp, ok := addr.(*net.TCPAddr)
+	return ok && tcp.IP.IsUnspecified()
+}
+
+// followPublicAddress keeps what join tickets hold up with the control server's
+// public address, for as long as it runs. The certificate goes first, so no ticket
+// names an address it doesn't cover. Nothing changes for a server that already
+// joined, which goes on using the address it joined through.
+func followPublicAddress(ctx context.Context, logger *slog.Logger, hub *fleet.Hub, addHost func(string), authority *identity.Authority, port string) {
+	last := ""
+	for {
+		if address := hub.ControlAddress(); address != "" && address != last {
+			agentURL := "https://" + net.JoinHostPort(address, port)
+			addHost(address)
+			if err := authority.SetPublicAgentURL(ctx, agentURL); err != nil {
+				logger.Warn("can't record where other networks reach the control plane; join tickets stay as they were", slog.String("error", err.Error()))
+			} else {
+				last = address
+				logger.Info("join tickets now lead with this server's public address", slog.String("url", agentURL))
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-hub.ControlAddressMoved():
+		}
+	}
 }
 
 // withListenHint adds the fix to listen errors an operator can resolve.
