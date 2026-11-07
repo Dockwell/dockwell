@@ -8,7 +8,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { sentence } from "../../lib/errors";
+import { reasonOf, sentence } from "../../lib/errors";
 import { nameOf, parentOf } from "../files/paths";
 import { indexOf, type Missing, type Serves, type Settings } from "./settings";
 
@@ -214,14 +214,16 @@ export function FolderNote({ server, root, index }: { server: string; root: stri
     { serverId: server, path },
     { enabled: asked && folder, retry: false, refetchOnWindowFocus: false },
   );
-  // What can't be read of the folder above says nothing of this one, so it says nothing.
-  if (!asked || above.isPending || above.error) return null;
+  // The folder above not being there either means the same, as Docker makes both. What
+  // else can't be read of it says nothing of this one, so this says nothing.
+  const aboveMissing = above.error !== null && reasonOf(above.error) === "not_found";
+  if (!asked || above.isPending || (above.error && !aboveMissing)) return null;
   const files = (
     <Link to="/servers/$serverId/files" params={{ serverId: server }} search={{ path }}>
       <Trans>Open in Files</Trans>
     </Link>
   );
-  if (!there) {
+  if (aboveMissing || !there) {
     return (
       <Callout tone="info" className="website-folder-note">
         <Trans>
