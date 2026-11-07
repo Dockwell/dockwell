@@ -19,7 +19,7 @@ What was settled already:
 
 ### Where a backup lives, and what it is called
 
-- **On the server that has the volume,** at `<data>/agent/backups/<environment ID>/<volume>/<backup ID>.<format>`, with `<backup ID>.json` beside it saying what it is. Directories are 0700 and files 0600.
+- **On the server that has the volume,** at `<data>/agent/backups/<environment ID>/<volume>/<backup ID>.<format>`, with `<backup ID>.json` beside it saying what it is, and what its volume reached that's as good as root. Directories are 0700 and files 0600.
 - **A backup's ID is `bkp_…`,** like every other ID. Its environment and volume are in its path, and its time in its record and its `.json`.
 - **Plain formats.** A copy of a volume is `.tar.gz`, with numeric owners, modes, times, hard links, device nodes and extended attributes, so POSIX ACLs and capabilities too. A dump is `.sql.gz`. Each opens by hand with `tar --numeric-owner -xzpf` or `gunzip | psql`, with nothing of Dockwell's installed.
 - **Not encrypted.** A backup on the server's disk is as readable as the volume it came from, to whoever is root there. The directory modes keep other users out, and nothing more. The panel says so. Only a copy sent to S3-compatible storage is sealed.
@@ -82,7 +82,7 @@ What was settled already:
 | Delete a backup | No | No | Yes |
 | Download a backup | No | No | With a passkey, once downloads exist |
 
-- **A restore needs a person** because it replaces data, as ADR 0016 has it for every plan that destroys data. Where the volume reaches what's as good as root, such as a bind of `/etc`, it takes a passkey too ([ADR 0032](0032-files-on-a-server.md)). An ordinary volume doesn't.
+- **A restore needs a person** because it replaces data, as ADR 0016 has it for every plan that destroys data. Where the volume reaches what's as good as root, such as a bind of `/etc`, or the backup's volume did, it takes a passkey too ([ADR 0032](0032-files-on-a-server.md)). An ordinary volume doesn't.
 - **Deleting a backup needs a person** too, as nothing brings one back, and it is what a person relies on after something goes wrong.
 - **A download will need what revealing a secret needs.** A backup holds an app's secrets in its data, with a database's password hashes and whatever the app stored. So a download will need a session and a passkey step-up for that backup, as `RevealSecret` does, no token will be able to make one, and each will be in the audit log. This slice has no download at all. You can fetch a file from the server as root.
 
