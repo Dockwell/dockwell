@@ -5,13 +5,20 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   BackupMethod,
+  BackupSchema,
   BackupState,
+  ChangeSchema,
+  ChangeState,
   ContainerState,
   type Database,
   DatabaseEngine,
   DatabaseSchema,
   EntrySchema,
   EventKind,
+  type ListBackupsRequest,
+  type RestoreBackupRequest,
+  type UpgradeCatalogInstallRequest,
+  type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -345,5 +352,121 @@ describe("what's a database", () => {
     expect(internalURL(aDatabase({ readings: [] }), undefined, false)).toBe("postgres://postgres@db:5432/postgres");
     expect(internalURL(cache())).toBe("redis://cache:6379");
     expect(internalURL(aDatabase({ engine: DatabaseEngine.VALKEY, port: 6379 }))).toBe("redis://:••••@db:6379");
+  });
+});
+
+describe("a database's backups and upgrades", () => {
+  const backup = create(BackupSchema, {
+    id: "bkp_7",
+    environmentId: ENV,
+    volume: "data",
+    volumeId: "vol_data",
+    serverId: SERVER,
+    serverName: "hz-1",
+    state: BackupState.DONE,
+    onServer: true,
+    method: BackupMethod.DUMP,
+    database: "PostgreSQL",
+    sizeBytes: 2_400_000n,
+    startedAt: timestampFromDate(new Date(now - 3_600_000)),
+    finishedAt: timestampFromDate(new Date(now - 3_600_000 + 4_000)),
+  });
+  const planned = create(ChangeSchema, {
+    id: "chg_restore",
+    summary: "Restore data",
+    state: ChangeState.PLANNED,
+    plan: { fingerprint: "abc", resources: [] },
+  });
+
+  it("lists its volume's backups, each of which restores through a plan", async () => {
+    const user = userEvent.setup();
+    const asked = vi.fn((req: ListBackupsRequest) => {
+      void req;
+      return { backups: [backup] };
+    });
+    const restored = vi.fn((req: RestoreBackupRequest) => {
+      void req;
+      return { change: planned };
+    });
+    const { container } = renderAt(
+      "/databases/svc_db/backups",
+      api([aDatabase()], {
+        backups: { listBackups: asked, restoreBackup: restored },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Backups of db, newest first" });
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("PostgreSQL dump");
+    expect(asked.mock.calls.some(([req]) => req.volumeId === "vol_data")).toBe(true);
+    expect(screen.getByText(/PostgreSQL's own dump of everything in it/)).toBeVisible();
+    await expectAccessible(container);
+    await user.click(within(table).getByRole("button", { name: "Restore" }));
+    await waitFor(() =>
+      expect(restored).toHaveBeenCalledWith(expect.objectContaining({ id: "bkp_7" }), expect.anything()),
+    );
+  });
+
+  it("restores its newest backup from the overview", async () => {
+    const user = userEvent.setup();
+    const restored = vi.fn((req: RestoreBackupRequest) => {
+      void req;
+      return { change: planned };
+    });
+    const db = aDatabase();
+    if (db.newestBackup) db.newestBackup.onServer = true;
+    renderAt(
+      "/databases/svc_db",
+      api([db], {
+        backups: { restoreBackup: restored },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore the newest" }));
+    await waitFor(() =>
+      expect(restored).toHaveBeenCalledWith(expect.objectContaining({ id: "bkp_1" }), expect.anything()),
+    );
+  });
+
+  it("offers the catalog's newer release, as a plan that backs up first", async () => {
+    const user = userEvent.setup();
+    const upgraded = vi.fn((req: UpgradeCatalogInstallRequest) => {
+      void req;
+      return { change: planned };
+    });
+    renderAt(
+      "/databases/svc_db",
+      api([aDatabase()], {
+        catalog: {
+          listCatalogEntries: () => ({ entries: [postgres] }),
+          listCatalogInstalls: () => ({
+            installs: [
+              {
+                projectId: "prj_pg",
+                project: "postgres",
+                environmentId: ENV,
+                name: "PostgreSQL",
+                pin: { entry: "postgres", version: "17.11", release: 1 },
+                upgrade: { version: "17.12", release: 2 },
+              },
+            ],
+          }),
+          upgradeCatalogInstall: upgraded,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    expect(await screen.findByText("PostgreSQL 17.12 is out")).toBeVisible();
+    expect(screen.getByText(/backs up its data with PostgreSQL's own dump before anything else/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Upgrade to 17.12" }));
+    await waitFor(() =>
+      expect(upgraded).toHaveBeenCalledWith(expect.objectContaining({ id: "prj_pg" }), expect.anything()),
+    );
+  });
+
+  it("has no backups tab when its data isn't in a volume", async () => {
+    renderAt("/databases/svc_cache", api([cache()]));
+    await screen.findByRole("heading", { level: 1, name: "cache" });
+    const tabs = screen.getByRole("navigation", { name: "Database sections" });
+    expect(within(tabs).queryByRole("link", { name: "Backups" })).toBeNull();
   });
 });

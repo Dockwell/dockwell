@@ -854,7 +854,7 @@ async function main() {
     });
     await catalogFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), catalogDir });
     await backupsFlow(page, { origin, step, shoot });
-    await databasesFlow(page, { origin, step, shoot });
+    await databasesFlow(page, { origin, step, shoot, catalogDir });
     await domainsFlow(page, { origin, step, shoot });
     await containersFlow(page, {
       origin,

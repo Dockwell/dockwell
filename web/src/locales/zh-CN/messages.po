@@ -432,6 +432,10 @@ msgid "{elsewhere, plural, one {# more app lives outside this view} other {# mor
 msgstr "{elsewhere, plural, other {此视图之外还有 # 个应用}}"
 
 #: src/features/databases/DatabaseOverview.tsx
+msgid "{engine} {next} is out"
+msgstr "{engine} {next} 已发布"
+
+#: src/features/databases/DatabaseOverview.tsx
 msgid "{engine} didn't say how it is"
 msgstr "{engine} 没有报告它的状况"
 
@@ -1278,6 +1282,10 @@ msgstr "无法从 {destination} 取回 {volume} 的备份"
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "{domain} 的证书已通过 80 或 443 端口签发，截至{when}"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "A change to how {engine} {now} runs is out"
+msgstr "{engine} {now} 的运行方式有更新"
+
 #: src/features/catalog/InstalledPanel.tsx
 msgid "A change to how {version} runs is out."
 msgstr "{version} 的运行方式有更新。"
@@ -1590,7 +1598,6 @@ msgid "All actors"
 msgstr "所有执行者"
 
 #: src/features/backups/AppBackups.tsx
-#: src/features/databases/DatabaseOverview.tsx
 msgid "All backups"
 msgstr "全部备份"
 
@@ -1609,6 +1616,10 @@ msgstr "所有环境"
 #: src/features/shell/Topbar.tsx
 msgid "All healthy"
 msgstr "全部健康"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "All its backups"
+msgstr "它的全部备份"
 
 #: src/features/logs/LogsPage.tsx
 msgid "All levels"
@@ -1862,6 +1873,10 @@ msgstr "自动化"
 msgid "Back"
 msgstr "返回"
 
+#: src/features/databases/DatabaseBackups.tsx
+msgid "Back it up before you change what's in it, or upgrade it."
+msgstr "在修改其中内容或升级之前，先备份它。"
+
 #: src/features/files/FilesPage.tsx
 msgid "Back to {folder}"
 msgstr "返回 {folder}"
@@ -1902,12 +1917,14 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseBackups.tsx
 #: src/features/databases/DatabaseOverview.tsx
 #: src/features/databases/DatabasesPage.tsx
 msgid "Back up now"
 msgstr "立即备份"
 
 #: src/features/backups/PolicySheet.tsx
+#: src/features/databases/DatabaseBackups.tsx
 msgid "Back up on a schedule"
 msgstr "按计划备份"
 
@@ -1926,11 +1943,16 @@ msgstr "备份"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseLayout.tsx
 #: src/features/databases/DatabaseOverview.tsx
 #: src/features/databases/DatabasesPage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "备份"
+
+#: src/features/databases/DatabaseBackups.tsx
+msgid "Backups of {name}, newest first"
+msgstr "{name} 的备份，最新在前"
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
@@ -3139,6 +3161,10 @@ msgstr "Dockwell 无法读取备份"
 msgid "Dockwell can't read its databases"
 msgstr "Dockwell 无法读取数据库"
 
+#: src/features/databases/DatabaseBackups.tsx
+msgid "Dockwell can't read the backups of {name}"
+msgstr "Dockwell 无法读取 {name} 的备份"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell 无法读取 {name} 运行的内容"
@@ -3369,6 +3395,10 @@ msgstr "驱动选项"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "如果失败，每个应用都会回滚到当前运行的版本"
+
+#: src/features/databases/DatabaseBackups.tsx
+msgid "Each backup is {engine}'s own dump of everything in it, taken while it runs, so nothing stops. A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
+msgstr "每次备份都是 {engine} 自带的全量转储，在运行中进行，不会停止任何服务。恢复会通过说明清楚的计划替换现有内容，并把被替换的内容保留 7 天。"
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Each backup is encrypted with this before it leaves its server, so your storage provider can't read it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open what's in the bucket."
@@ -3896,6 +3926,10 @@ msgstr "悬停或聚焦一台服务器以查看详情。"
 #: src/features/databases/DatabaseOverview.tsx
 msgid "How"
 msgstr "方式"
+
+#: src/features/databases/DatabaseBackups.tsx
+msgid "How it's backed up"
+msgstr "备份方式"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "How often"
@@ -5014,6 +5048,10 @@ msgstr "升级前不会创建备份"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "没有做过备份,数据保持现状"
 
+#: src/features/databases/DatabaseBackups.tsx
+msgid "No backups of {name} yet"
+msgstr "{name} 还没有备份"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "No backups yet"
 msgstr "还没有备份"
@@ -5539,6 +5577,7 @@ msgstr "这里只显示了其中 {count} 项，你要找的可能不在其中。
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
 
+#: src/features/databases/DatabaseBackups.tsx
 #: src/features/databases/DatabaseOverview.tsx
 #: src/features/databases/DatabasesPage.tsx
 msgid "Only by hand"
@@ -6519,6 +6558,10 @@ msgstr "重启策略"
 msgid "Restore"
 msgstr "恢复"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Restore the newest"
+msgstr "恢复最新备份"
+
 #: src/app/Providers.tsx
 msgid "Results"
 msgstr "结果"
@@ -6566,6 +6609,10 @@ msgstr "审查计划"
 #: src/features/catalog/InstalledPanel.tsx
 msgid "Review the change"
 msgstr "查看更改"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Review the change to {next}"
+msgstr "查看 {next} 的更新"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
@@ -8703,8 +8750,13 @@ msgid "Upgrade to {latest}"
 msgstr "升级到 {latest}"
 
 #: src/features/catalog/InstalledPanel.tsx
+#: src/features/databases/DatabaseLayout.tsx
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Upgrading is a plan that backs up its data with {engine}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
+msgstr "升级是一个计划：它会先用 {engine} 自带的转储备份数据，并说明数据保存在哪份备份中。撤销升级会换回当前版本，数据则保持新版本留下的样子。"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Use 24-hour HH:MM, such as 03:00."
