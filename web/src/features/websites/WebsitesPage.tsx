@@ -159,28 +159,44 @@ interface TableProps {
   onOpen: (id: string) => void;
 }
 
-/** The columns' heads, which the list and its skeleton share, so nothing moves when it lands. */
+/** From this wide, what a website is has a column of its own. */
+const TYPE_COLUMN_QUERY = "(min-width: 1100px)";
+
+/** From this wide, on a fleet, so has where it runs; below, it's in the line under its domain. */
+const SERVER_COLUMN_QUERY = "(min-width: 1280px)";
+
+/**
+ * The columns' heads, which the list and its skeleton share, so nothing moves when it
+ * lands. Narrower, the columns of fixed width give way, so the domain always has room.
+ */
 function useColumnHeads(fleet: boolean) {
   const { t } = useLingui();
+  const typed = useMediaQuery(TYPE_COLUMN_QUERY);
+  const placed = useMediaQuery(SERVER_COLUMN_QUERY) && fleet;
   return useMemo(() => {
     const heads: { key: string; header: string; width?: number | string; align?: "right" }[] = [
       { key: "website", header: t`Website` },
-      { key: "type", header: t`Type`, width: 200 },
+    ];
+    if (typed) heads.push({ key: "type", header: t`Type`, width: 200 });
+    heads.push(
       { key: "status", header: t`Status`, width: 128 },
       { key: "certificate", header: t`Certificate`, width: 184 },
-    ];
-    if (fleet) heads.push({ key: "server", header: t`Runs on`, width: 140 });
+    );
+    if (placed) heads.push({ key: "server", header: t`Runs on`, width: 140 });
     heads.push({ key: "changed", header: t`Changed`, width: 104, align: "right" });
-    return heads;
-  }, [t, fleet]);
+    return { heads, placed };
+  }, [t, typed, placed]);
 }
 
 function WebsitesTable({ rows, caption, fleet, health, read, onOpen }: TableProps) {
   const { i18n } = useLingui();
   const typeWord = useTypeWord();
   const target = useTargetWords();
-  const heads = useColumnHeads(fleet);
+  const { heads, placed } = useColumnHeads(fleet);
   const columns = useMemo<TableColumn<Row>[]>(() => {
+    // Where it runs goes under its domain, on a fleet, when it has no column of its own.
+    const sub = (row: Row) =>
+      fleet && !placed && row.site.serverName ? `${target(row.site)} · ${row.site.serverName}` : target(row.site);
     const render: Record<string, (row: Row) => ReactNode> = {
       website: (row) => (
         <span className="dw-cell">
@@ -194,8 +210,8 @@ function WebsitesTable({ rows, caption, fleet, health, read, onOpen }: TableProp
           >
             {row.site.domain || row.site.name}
           </Link>
-          <span className="dw-cell-sub websites-target apps-clip" title={target(row.site)}>
-            {target(row.site)}
+          <span className="dw-cell-sub websites-target apps-clip" title={sub(row)}>
+            {sub(row)}
           </span>
         </span>
       ),
@@ -218,7 +234,7 @@ function WebsitesTable({ rows, caption, fleet, health, read, onOpen }: TableProp
       ...(head.key === "changed" || head.key === "server" ? { muted: true } : {}),
       render: render[head.key] as (row: Row) => ReactNode,
     }));
-  }, [heads, health, read, i18n, typeWord, target]);
+  }, [heads, placed, fleet, health, read, i18n, typeWord, target]);
   return (
     <Table<Row>
       className="websites-table"
@@ -233,7 +249,7 @@ function WebsitesTable({ rows, caption, fleet, health, read, onOpen }: TableProp
 /** While the list is on its way: the table with its heads, so nothing moves when it lands. */
 function WebsitesSkeleton({ label }: { label: string }) {
   const { fleet } = useFleetView();
-  const heads = useColumnHeads(fleet);
+  const { heads } = useColumnHeads(fleet);
   const columns = useMemo<TableColumn<{ id: string }>[]>(
     () =>
       heads.map((head) => ({
