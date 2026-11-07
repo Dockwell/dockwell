@@ -25,7 +25,7 @@ fetch() {
   local name=$1 url=$2 sum=$3 member=$4 tmp
   [[ -x "$dir/$name" ]] && return 0
   tmp=$(mktemp -d)
-  if ! curl -fsSL --retry 6 --retry-delay 15 --retry-max-time 120 -o "$tmp/archive.tar.gz" "$url"; then
+  if ! curl -fsSL --retry 6 --retry-delay 15 --retry-max-time 120 --retry-all-errors -o "$tmp/archive.tar.gz" "$url"; then
     rm -rf "$tmp"
     echo "ingress-tools: can't download $url" >&2
     return 1
