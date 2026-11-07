@@ -84,20 +84,40 @@ msgstr "{0, plural, one {# app stops, and you can undo this until {deadline}.} o
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, one {# app stops.} other {# apps stop.}}"
 
+#. placeholder {0}: here.length
+#: src/features/servers/RunsHere.tsx
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, one {# app} other {# apps}}"
+
 #. placeholder {0}: waiting.length
 #: src/features/apps/AppOverview.tsx
 msgid "{0, plural, one {# change to this app needs your approval} other {# changes to this app need your approval}}"
 msgstr "{0, plural, one {# change to this app needs your approval} other {# changes to this app need your approval}}"
+
+#. placeholder {0}: here.length
+#: src/features/servers/RunsHere.tsx
+msgid "{0, plural, one {# domain} other {# domains}}"
+msgstr "{0, plural, one {# domain} other {# domains}}"
 
 #. placeholder {0}: Number(b.filesChanged)
 #: src/features/backups/BackupsPage.tsx
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 
+#. placeholder {0}: use.images
+#: src/features/servers/DiskUse.tsx
+msgid "{0, plural, one {# image} other {# images}}"
+msgstr "{0, plural, one {# image} other {# images}}"
+
 #. placeholder {0}: lineCount(draft)
 #: src/features/files/FileViewer.tsx
 msgid "{0, plural, one {# line} other {# lines}}"
 msgstr "{0, plural, one {# line} other {# lines}}"
+
+#. placeholder {0}: looks.length
+#: src/features/servers/RunsHere.tsx
+msgid "{0, plural, one {# needs a look} other {# need a look}}"
+msgstr "{0, plural, one {# needs a look} other {# need a look}}"
 
 #. placeholder {0}: all.length
 #: src/features/changes/ChangeSheet.tsx
@@ -118,6 +138,11 @@ msgstr "{0, plural, one {# revision · newest first} other {# revisions · newes
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, one {# server} other {# servers}}"
+
+#. placeholder {0}: use.volumes
+#: src/features/servers/DiskUse.tsx
+msgid "{0, plural, one {# volume} other {# volumes}}"
+msgstr "{0, plural, one {# volume} other {# volumes}}"
 
 #. placeholder {0}: optional.length
 #: src/features/apps/NewAppSheet.tsx
@@ -154,6 +179,11 @@ msgstr "{0, plural, one {Volume} other {Volumes}}"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "{0} backups, {1}"
 msgstr "{0} backups, {1}"
+
+#. placeholder {0}: bytes(use.buildCacheBytes)
+#: src/features/servers/DiskUse.tsx
+msgid "{0} build cache"
+msgstr "{0} build cache"
 
 #. placeholder {0}: failing.serverName
 #: src/features/logs/LogNote.tsx
@@ -216,6 +246,12 @@ msgstr "{0} to restart"
 msgid "{0} to update"
 msgstr "{0} to update"
 
+#. placeholder {0}: bytes(use.imagesUnusedBytes)
+#. placeholder {0}: bytes(use.volumesUnusedBytes)
+#: src/features/servers/DiskUse.tsx
+msgid "{0} unused"
+msgstr "{0} unused"
+
 #. placeholder {0}: inv.cpuCount
 #: src/features/auth/ClaimPage.tsx
 msgid "{0} vCPU"
@@ -225,6 +261,11 @@ msgstr "{0} vCPU"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "{0}, {zone}"
 msgstr "{0}, {zone}"
+
+#. placeholder {0}: formatBytes(server.stats.agentMemoryBytes, i18n.locale)
+#: src/features/servers/ServerPanels.tsx
+msgid "{0}, with the control plane"
+msgstr "{0}, with the control plane"
 
 #. placeholder {0}: first.summary
 #: src/features/apps/AppOverview.tsx
@@ -368,6 +409,10 @@ msgstr "{count} stopped"
 msgid "{count} unknown"
 msgstr "{count} unknown"
 
+#: src/features/servers/ServerMetrics.tsx
+msgid "{cpuAverage} on average over the last {span}"
+msgstr "{cpuAverage} on average over the last {span}"
+
 #: src/features/overview/Overview.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "{cpus} vCPU"
@@ -421,6 +466,14 @@ msgstr "{first} couldn't be searched"
 msgid "{free} free"
 msgstr "{free} free"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{healthy, plural, one {# healthy} other {# healthy}}"
+msgstr "{healthy, plural, one {# healthy} other {# healthy}}"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "{inTotal} in · {outTotal} out"
+msgstr "{inTotal} in · {outTotal} out"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
@@ -450,7 +503,11 @@ msgstr "{minutes} min"
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} min {seconds} s"
 
-#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/RunsHere.tsx
+msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
+msgstr "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
+
+#: src/features/servers/DiskUse.tsx
 msgid "{mount}: {used} used, {free} free, of {size}"
 msgstr "{mount}: {used} used, {free} free, of {size}"
 
@@ -477,6 +534,14 @@ msgstr "{name} can't be a name. Use lowercase letters, digits and dashes, starti
 #: src/features/files/FileViewer.tsx
 msgid "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
 msgstr "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
+
+#: src/features/servers/RunsHere.tsx
+msgid "{name} deploying"
+msgstr "{name} deploying"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{name} failed"
+msgstr "{name} failed"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -651,9 +716,17 @@ msgstr "{name} may take longer to be healthy, as its image isn't on the server y
 msgid "{name} mounts the volume {path} on {server}"
 msgstr "{name} mounts the volume {path} on {server}"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{name} not running"
+msgstr "{name} not running"
+
 #: src/features/files/FileViewer.tsx
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
+
+#: src/features/servers/RunsHere.tsx
+msgid "{name} paused"
+msgstr "{name} paused"
 
 #: src/features/apps/DomainRecord.tsx
 msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
@@ -687,6 +760,10 @@ msgstr "{name} runs with the latest value of {names}"
 msgid "{name} shares {server}'s own network"
 msgstr "{name} shares {server}'s own network"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{name} starting"
+msgstr "{name} starting"
+
 #: src/features/activity/describe.ts
 msgid "{name} stopped running on {server}"
 msgstr "{name} stopped running on {server}"
@@ -702,6 +779,10 @@ msgstr "{name} takes on the container {path} on {server}"
 #: src/features/activity/describe.ts
 msgid "{name} turned unhealthy on {server}"
 msgstr "{name} turned unhealthy on {server}"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{name} unhealthy"
+msgstr "{name} unhealthy"
 
 #: src/features/activity/describe.ts
 msgid "{name} was paused on {server}"
@@ -765,6 +846,18 @@ msgstr "{now} now"
 #: src/features/logs/LogsPage.tsx
 msgid "{number} of {count}"
 msgstr "{number} of {count}"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{only}, healthy"
+msgstr "{only}, healthy"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{only}, running"
+msgstr "{only}, running"
+
+#: src/features/servers/RunsHere.tsx
+msgid "{only}, unknown"
+msgstr "{only}, unknown"
 
 #: src/features/changes/words.ts
 msgid "{out}, which reaches past the server's firewall"
@@ -839,11 +932,16 @@ msgstr "{revision} rolled back by Dockwell {when}"
 msgid "{revision} started deploying {when}"
 msgstr "{revision} started deploying {when}"
 
+#: src/features/servers/RunsHere.tsx
+msgid "{running, plural, one {# running} other {# running}}"
+msgstr "{running, plural, one {# running} other {# running}}"
+
 #: src/features/logs/LogsPage.tsx
 msgid "{runningNow, plural, one {# container} other {# containers}}"
 msgstr "{runningNow, plural, one {# container} other {# containers}}"
 
 #: src/features/servers/ServerMetrics.tsx
+#: src/features/servers/ServerPanels.tsx
 msgid "{rx} in · {tx} out"
 msgstr "{rx} in · {tx} out"
 
@@ -900,13 +998,25 @@ msgstr "{server} went offline during this rollback"
 msgid "{servers} offline"
 msgstr "{servers} offline"
 
-#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
+
+#: src/features/servers/DiskUse.tsx
+msgid "{share} of the disk"
+msgstr "{share} of the disk"
 
 #: src/features/apps/AppDeployments.tsx
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
+
+#: src/features/servers/ServerPanels.tsx
+msgid "{size} · {inUse} in use"
+msgstr "{size} · {inUse} in use"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "{size} · none in use"
+msgstr "{size} · none in use"
 
 #: src/app/Providers.tsx
 msgid "{size} more not kept"
@@ -972,6 +1082,10 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 #: src/features/apps/AddDomainSheet.tsx
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
 msgstr "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
+
+#: src/features/servers/RunsHere.tsx
+msgid "{unknown, plural, one {# unknown} other {# unknown}}"
+msgstr "{unknown, plural, one {# unknown} other {# unknown}}"
 
 #: src/features/shell/Topbar.tsx
 msgid "{unknown} in an unknown state"
@@ -1424,6 +1538,10 @@ msgstr "Add a variable or secret to {envName}"
 msgid "Add an .env file"
 msgstr "Add an .env file"
 
+#: src/features/servers/RunsHere.tsx
+msgid "Add one to reach an app at a name of yours"
+msgstr "Add one to reach an app at a name of yours"
+
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/auth/ProfilePage.tsx
 msgid "Add passkey"
@@ -1480,6 +1598,10 @@ msgstr "Added the passkey {name} after signing in with an authenticator code"
 #: src/features/auth/messages.ts
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
+
+#: src/features/servers/DiskUse.tsx
+msgid "Adding up what takes the disk"
+msgstr "Adding up what takes the disk"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
@@ -1740,6 +1862,7 @@ msgstr "Applying this asks for your passkey"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/apps/AppsPage.tsx
+#: src/features/servers/RunsHere.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
@@ -1985,6 +2108,10 @@ msgstr "Can't read the file yet"
 msgid "Can't read the lines around it"
 msgstr "Can't read the lines around it"
 
+#: src/features/servers/RunsHere.tsx
+msgid "Can't read them now"
+msgstr "Can't read them now"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Can't read these logs now"
 msgstr "Can't read these logs now"
@@ -2139,6 +2266,10 @@ msgstr "Checking"
 #: src/features/auth/AuthGate.tsx
 msgid "Checking again."
 msgstr "Checking again."
+
+#: src/features/servers/RunsHere.tsx
+msgid "Checking how they run"
+msgstr "Checking how they run"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -2342,6 +2473,10 @@ msgstr "container"
 #: src/features/logs/LogsPage.tsx
 msgid "Container"
 msgstr "Container"
+
+#: src/features/servers/DiskUse.tsx
+msgid "Containers"
+msgstr "Containers"
 
 #: src/features/servers/ContainersPanel.tsx
 msgid "Containers Dockwell didn't make"
@@ -2779,6 +2914,10 @@ msgstr "Deploy {wanted} to {name}"
 msgid "Deploy it, and its logs show here as it starts."
 msgstr "Deploy it, and its logs show here as it starts."
 
+#: src/features/servers/RunsHere.tsx
+msgid "Deploy one from an image or the catalog"
+msgstr "Deploy one from an image or the catalog"
+
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/RollbackLine.tsx
 msgid "Deploy what should run, or fix it on the server."
@@ -2890,9 +3029,15 @@ msgstr "Discarded"
 msgid "Disk"
 msgstr "Disk"
 
-#: src/features/servers/ServerPanels.tsx
-msgid "Disks"
-msgstr "Disks"
+#: src/features/servers/DiskUse.tsx
+msgid "Disk usage"
+msgstr "Disk usage"
+
+#. placeholder {0}: use.mountPoint
+#. placeholder {1}: bytes(size)
+#: src/features/servers/DiskUse.tsx
+msgid "Disk usage of {0}: {summary}, of {1}"
+msgstr "Disk usage of {0}: {summary}, of {1}"
 
 #: src/app/Providers.tsx
 msgid "Dismiss"
@@ -3180,6 +3325,7 @@ msgid "Domain"
 msgstr "Domain"
 
 #: src/features/domains/DomainsPage.tsx
+#: src/features/servers/RunsHere.tsx
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
 msgid "Domains"
@@ -3557,7 +3703,7 @@ msgstr "For a script, the CLI or an integration"
 msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
 msgstr "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
 
-#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "Free"
 msgstr "Free"
 
@@ -3772,6 +3918,10 @@ msgstr "image"
 #: src/features/servers/ContainersPanel.tsx
 msgid "Image"
 msgstr "Image"
+
+#: src/features/servers/DiskUse.tsx
+msgid "Images"
+msgstr "Images"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "in {hours} h"
@@ -4265,10 +4415,6 @@ msgstr "label"
 msgid "labels"
 msgstr "labels"
 
-#: src/features/servers/ServerMetrics.tsx
-msgid "last {span}"
-msgstr "last {span}"
-
 #: src/features/logs/LogsPage.tsx
 msgid "Last 1 h"
 msgstr "Last 1 h"
@@ -4441,6 +4587,7 @@ msgstr "Log filters"
 #: src/features/apps/AppLayout.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "Logs"
 msgstr "Logs"
 
@@ -4752,6 +4899,10 @@ msgstr "No app matches that. Try another word, or all categories."
 msgid "No app with this ID"
 msgstr "No app with this ID"
 
+#: src/features/servers/RunsHere.tsx
+msgid "No apps"
+msgstr "No apps"
+
 #: src/features/apps/AppsPage.tsx
 msgid "No apps yet"
 msgstr "No apps yet"
@@ -4775,6 +4926,10 @@ msgstr "No container matches this filter."
 #: src/features/domains/DomainsPage.tsx
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "No domain here matches what you've chosen. Try part of a name, or another state."
+
+#: src/features/servers/RunsHere.tsx
+msgid "No domains"
+msgstr "No domains"
 
 #: src/features/domains/DomainsPage.tsx
 msgid "No domains yet"
@@ -4872,6 +5027,10 @@ msgstr "Nobody can say how {name} runs"
 #: src/features/apps/Health.tsx
 msgid "Nobody can say how {name} runs now."
 msgstr "Nobody can say how {name} runs now."
+
+#: src/features/servers/ServerPanels.tsx
+msgid "None"
+msgstr "None"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -5386,6 +5545,10 @@ msgstr "Other apps are here, so it needs a name of its own, such as <0>shop</0>.
 #: src/features/apps/NewAppSheet.tsx
 msgid "Other apps on its network reach it by this name."
 msgstr "Other apps on its network reach it by this name."
+
+#: src/features/servers/DiskUse.tsx
+msgid "Other files"
+msgstr "Other files"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
@@ -5951,10 +6114,6 @@ msgstr "Reads logs"
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
 msgstr "Reads servers and their state. Changes nothing."
-
-#: src/features/servers/ServerPanels.tsx
-msgid "Receiving"
-msgstr "Receiving"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Recent changes"
@@ -6608,10 +6767,6 @@ msgstr "Send a domain to one of your apps. You review a plan before anything cha
 msgid "Send backups to {name}"
 msgstr "Send backups to {name}"
 
-#: src/features/servers/ServerPanels.tsx
-msgid "Sending"
-msgstr "Sending"
-
 #. placeholder {0}: b.destination
 #: src/features/backups/BackupsPage.tsx
 msgid "Sending to {0}"
@@ -6893,6 +7048,10 @@ msgstr "Signing out everywhere else keeps this browser signed in. A session ends
 msgid "Signing you in with a one-time link"
 msgstr "Signing you in with a one-time link"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Since boot"
+msgstr "Since boot"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/backups/BackupsPage.tsx
@@ -7044,6 +7203,10 @@ msgstr "Such as 8080 on the server, to 80 in the app."
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
 msgstr "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Swap"
+msgstr "Swap"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Synced"
@@ -7568,6 +7731,10 @@ msgstr "The server's security rests on what that reaches, so it is as good as ro
 msgid "The servers have no lines of this app."
 msgstr "The servers have no lines of this app."
 
+#: src/features/servers/DiskUse.tsx
+msgid "The system and anything outside Docker"
+msgstr "The system and anything outside Docker"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
 msgstr "The token wasn't created"
@@ -8044,9 +8211,17 @@ msgstr "Took it off {left}"
 msgid "Took on"
 msgstr "Took on"
 
+#: src/features/servers/ServerPanels.tsx
+msgid "Traffic"
+msgstr "Traffic"
+
 #: src/features/changes/words.ts
 msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
 msgstr "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
+
+#: src/features/servers/ServerPanels.tsx
+msgid "Traffic over the last few minutes, now {rx} in and {tx} out"
+msgstr "Traffic over the last few minutes, now {rx} in and {tx} out"
 
 #. Read after a metric's name to name its chart, as in “CPU trend”.
 #: src/app/Providers.tsx
@@ -8334,7 +8509,7 @@ msgstr "Use the dark theme"
 msgid "Use the light theme"
 msgstr "Use the light theme"
 
-#: src/features/servers/ServerPanels.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "Used"
 msgstr "Used"
 
@@ -8454,6 +8629,7 @@ msgstr "Volume or server path"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ContainersPanel.tsx
+#: src/features/servers/DiskUse.tsx
 msgid "Volumes"
 msgstr "Volumes"
 
@@ -8514,6 +8690,10 @@ msgstr "What changed"
 msgid "What connects to this server"
 msgstr "What connects to this server"
 
+#: src/features/servers/DiskUse.tsx
+msgid "What Docker keeps of what they print"
+msgstr "What Docker keeps of what they print"
+
 #: src/features/servers/ContainerPage.tsx
 msgid "What Docker says of it"
 msgstr "What Docker says of it"
@@ -8553,6 +8733,10 @@ msgstr "What ran before this failed may have changed the data, such as with a mi
 #: src/features/apps/AppOverview.tsx
 msgid "What runs"
 msgstr "What runs"
+
+#: src/features/servers/RunsHere.tsx
+msgid "What runs here"
+msgstr "What runs here"
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "What runs keeps running, and the backup says it was copied running."
@@ -8602,6 +8786,10 @@ msgstr "What the servers keep goes back further than what is loaded here."
 #: src/features/variables/VariablesPage.tsx
 msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
 msgstr "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
+
+#: src/features/servers/DiskUse.tsx
+msgid "What they wrote outside volumes"
+msgstr "What they wrote outside volumes"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "What this file makes"

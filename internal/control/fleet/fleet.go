@@ -4,7 +4,10 @@
 // connected, what the server is, and its recent stats. Agents' streams
 // write to it, and the API reads and watches it.
 //
-// Stats live only in memory, in a short ring per server for sparklines.
+// Stats live only in memory, in a short ring per server for sparklines, and
+// come often only while someone watches: agents sample every StatsInterval
+// while a watch is open, and every IdleInterval, which is only what their
+// streams need to stay open, while none is (ADR 0040).
 // What a server is (its inventory and agent build) is also written to the
 // store, so an offline server still shows its OS and hardware after a
 // restart.
@@ -29,9 +32,19 @@ import (
 
 // Tuning.
 const (
-	// StatsInterval is how often agents send stats.
+	// StatsInterval is how often agents send stats while anyone watches the
+	// fleet.
 	StatsInterval = 5 * time.Second
-	// HistoryLength is how many samples are kept per server.
+	// IdleInterval is how often agents send stats while nobody watches: what
+	// their streams need to stay open, as the control plane closes one that says
+	// nothing for 30 s, and no more.
+	IdleInterval = 15 * time.Second
+	// IdleAfter is how long agents go on at StatsInterval once the last watch
+	// has closed, so a page that reloads, or a phone that locks for a moment,
+	// doesn't slow them down and speed them up again.
+	IdleAfter = 30 * time.Second
+	// HistoryLength is how many samples are kept per server: 5 min of them at
+	// StatsInterval.
 	HistoryLength = 60
 	// HistoryWindow is how far back the samples kept go: 5 min. A server
 	// that stops reporting keeps its last samples, but once it reports
@@ -118,11 +131,22 @@ type Hub struct {
 	watchers map[chan Update]struct{}
 	// controlMoved signals that the control server's public address may have changed.
 	controlMoved chan struct{}
+
+	// watched is whether agents should sample at StatsInterval: while a watch is
+	// open, and for idleAfter after the last closes. idleGen tells the timer that
+	// slows them down whether a watch has opened since it was set.
+	watched   bool
+	idleAfter time.Duration
+	idleGen   uint64
+	// pacing keeps what hears the pace hearing each change in order, each with
+	// the pace as it then stands, so the last word is always the latest.
+	pacing sync.Mutex
+	onPace []func(time.Duration)
 }
 
 // New loads the servers the store knows.
 func New(ctx context.Context, db *store.DB, logger *slog.Logger) (*Hub, error) {
-	h := &Hub{db: db, logger: logger, now: time.Now, servers: map[string]*live{}, watchers: map[chan Update]struct{}{}, controlMoved: make(chan struct{}, 1)}
+	h := &Hub{db: db, logger: logger, now: time.Now, servers: map[string]*live{}, watchers: map[chan Update]struct{}{}, controlMoved: make(chan struct{}, 1), idleAfter: IdleAfter}
 	err := db.View(ctx, func(tx *store.Tx) error {
 		servers, err := tx.ListServers(ctx)
 		if err != nil {
@@ -377,13 +401,20 @@ func (h *Hub) Get(id string) (*dockwellv1.Server, error) {
 
 // Watch returns every server with history, and a channel of changes from
 // then on. The channel closes when ctx is done, or if the watcher falls so
-// far behind that it should start again from a fresh snapshot.
+// far behind that it should start again from a fresh snapshot. While any
+// watch is open, agents sample at StatsInterval.
 func (h *Hub) Watch(ctx context.Context) ([]*dockwellv1.Server, <-chan Update) {
 	ch := make(chan Update, watcherBuffer)
 	h.mu.Lock()
 	snapshot := h.snapshotLocked(true)
 	h.watchers[ch] = struct{}{}
+	h.idleGen++ // a timer set to slow agents down no longer should
+	quicken := !h.watched
+	h.watched = true
 	h.mu.Unlock()
+	if quicken {
+		h.tellPace()
+	}
 	go func() {
 		<-ctx.Done()
 		h.mu.Lock()
@@ -391,9 +422,64 @@ func (h *Hub) Watch(ctx context.Context) ([]*dockwellv1.Server, <-chan Update) {
 		if _, ok := h.watchers[ch]; ok {
 			delete(h.watchers, ch)
 			close(ch)
+			h.unwatchedLocked()
 		}
 	}()
 	return snapshot, ch
+}
+
+// Pace is how often agents should send stats now: StatsInterval while anyone
+// watches, IdleInterval while nobody does.
+func (h *Hub) Pace() time.Duration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.paceLocked()
+}
+
+func (h *Hub) paceLocked() time.Duration {
+	if h.watched {
+		return StatsInterval
+	}
+	return IdleInterval
+}
+
+// OnPace has fn hear the pace each time it changes, with the pace as it stands
+// when fn runs, so what fn hears last is always the latest. fn mustn't block.
+func (h *Hub) OnPace(fn func(time.Duration)) {
+	h.pacing.Lock()
+	defer h.pacing.Unlock()
+	h.onPace = append(h.onPace, fn)
+}
+
+// tellPace tells what hears the pace how it stands now.
+func (h *Hub) tellPace() {
+	h.pacing.Lock()
+	defer h.pacing.Unlock()
+	pace := h.Pace()
+	for _, fn := range h.onPace {
+		fn(pace)
+	}
+}
+
+// unwatchedLocked notes a watch has gone. Once the last has, agents slow down
+// after idleAfter, unless one opens in the meantime.
+func (h *Hub) unwatchedLocked() {
+	if len(h.watchers) > 0 || !h.watched {
+		return
+	}
+	h.idleGen++
+	gen := h.idleGen
+	time.AfterFunc(h.idleAfter, func() {
+		h.mu.Lock()
+		slow := h.idleGen == gen && len(h.watchers) == 0 && h.watched
+		if slow {
+			h.watched = false
+		}
+		h.mu.Unlock()
+		if slow {
+			h.tellPace()
+		}
+	})
 }
 
 func (h *Hub) snapshotLocked(history bool) []*dockwellv1.Server {
@@ -427,6 +513,7 @@ func (h *Hub) broadcastLocked(u Update) {
 			// Too far behind: drop it, and it starts again from a snapshot.
 			delete(h.watchers, ch)
 			close(ch)
+			h.unwatchedLocked()
 		}
 	}
 }
