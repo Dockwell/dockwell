@@ -18,13 +18,13 @@ hostAccess: >-
   and change nothing.
 firstSteps: >-
   Jellyfin answers only on this server until you add a domain, as the first person to
-  open it sets up its admin account. Add a domain on its page, over HTTPS or behind
-  your tunnel, and open it there. To open it before that, use an SSH tunnel from your
-  computer: ssh -N -L 8096:127.0.0.1:8096 you@your-server, using the port you gave
-  it, then open http://localhost:8096. Set up your account, and add a library from
-  /media, which is the folder you gave. It transcodes on the server's CPU, as it
-  reaches no graphics card, so a film it has to convert plays slower than one it
-  streams as it is.
+  open it sets up its admin account. So set it up first, through an SSH tunnel from
+  your computer: ssh -N -L 8096:127.0.0.1:8096 you@your-server, using the port you
+  gave it, then open http://localhost:8096, and add a library from /media, which is
+  the folder you gave. Add a domain on its page only after that, over HTTPS or behind
+  your tunnel, as a new domain's certificate shows in public logs within minutes. It
+  transcodes on the server's CPU, as it reaches no graphics card, so a film it has to
+  convert plays slower than one it streams as it is.
 inputs:
   - name: PORT
     label: Port on this server

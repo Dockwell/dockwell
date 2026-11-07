@@ -15,15 +15,16 @@ web:
   service: home-assistant
 firstSteps: >-
   Home Assistant answers only on this server until you add a domain, as the first
-  person to open it makes its owner account. Add a domain on its page, over HTTPS or
-  behind your tunnel, and open it there. To open it before that, use an SSH tunnel
-  from your computer: ssh -N -L 8123:127.0.0.1:8123 you@your-server, using the port
-  you gave it, then open http://localhost:8123. Make your account. On its first start
-  it writes a configuration.yaml that trusts Dockwell's proxy, from the ranges Docker
-  gives its networks, so it answers through a domain. It runs on a network of its own
-  rather than the server's, so it doesn't find devices on yours by itself: add each
-  by its address. It reaches no USB or Bluetooth radio, so Zigbee, Z-Wave and
-  Bluetooth devices need a hub on the network.
+  person to open it makes its owner account. So make yours first, through an SSH
+  tunnel from your computer: ssh -N -L 8123:127.0.0.1:8123 you@your-server, using the
+  port you gave it, then open http://localhost:8123. Add a domain on its page only
+  after that, over HTTPS or behind your tunnel, as a new domain's certificate shows
+  in public logs within minutes. On its first start it writes a configuration.yaml
+  that trusts Dockwell's proxy, from the ranges Docker gives its networks, so it
+  answers through a domain. It runs on a network of its own rather than the server's,
+  so it doesn't find devices on yours by itself: add each by its address. It reaches
+  no USB or Bluetooth radio, so Zigbee, Z-Wave and Bluetooth devices need a hub on
+  the network.
 inputs:
   - name: PORT
     label: Port on this server

@@ -180,7 +180,10 @@ func TestAnAppAnswersOnlyOnThisServerUntilItHasADomain(t *testing.T) {
 // certificate shows in public logs within minutes, where scanners look for new ones,
 // so each one's first steps make the account through the SSH tunnel first, and add the
 // domain only after that.
-var firstVisitor = []string{"coder", "uptime-kuma", "n8n", "gitea", "vaultwarden", "umami"}
+var firstVisitor = []string{
+	"coder", "uptime-kuma", "n8n", "gitea", "vaultwarden", "umami",
+	"plausible", "ghost", "wordpress", "memos", "jellyfin", "home-assistant",
+}
 
 func TestAFirstVisitorAppMakesItsAccountBeforeItsDomain(t *testing.T) {
 	c, err := catalog.Load("")
