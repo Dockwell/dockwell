@@ -3,13 +3,16 @@
 import { create, type MessageInitShape, toJsonString } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
-import { useInfiniteQuery, useTransport } from "@connectrpc/connect-query";
+import { useInfiniteQuery, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ActorKind,
   AuditActor,
   type AuditEvent,
   AuditEventSchema,
   AuditService,
+  type Change,
+  ChangeService,
+  ChangeState,
   ListAuditEventsRequestSchema,
   Surface,
 } from "@dockwell/api";
@@ -21,6 +24,7 @@ import {
   type IconName,
   PHONE_QUERY,
   SelectField,
+  StatusBadge,
   TextField,
   useMediaQuery,
 } from "@dockwell/ui";
@@ -29,9 +33,15 @@ import { Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useId, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatClock, formatDateTime, formatWeekday } from "../../lib/format";
-import { useControlPlaneNow } from "../servers/useFleet";
+import { fileDay, formatClock, formatMoment, formatWeekday } from "../../lib/format";
+import { useActorWords } from "../activity/actor";
+import { RecordedPlan } from "../activity/RecordedPlan";
+import { useFieldRows } from "../changes/fields";
+import { changing } from "../changes/plan";
+import { useChangeWords } from "../changes/words";
+import { useControlPlaneClock, useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
+import { useAuditWords } from "./auditWords";
 import "./Settings.css";
 
 const HOUR = 3_600_000;
@@ -85,8 +95,10 @@ export function AuditLogPage() {
     actor: AuditActor.UNSPECIFIED,
     surface: Surface.UNSPECIFIED,
   });
-  // The range runs back from when it was chosen, so pages read on from one place.
-  const [from, setFrom] = useState(() => Date.now());
+  // The range runs back from when it was chosen, on the control plane's clock, which
+  // the times it records are on, so pages read on from one place.
+  const clock = useControlPlaneClock();
+  const [from, setFrom] = useState(clock);
   // Words narrow the log a moment after typing stops, not on each key.
   useEffect(() => {
     const timer = setTimeout(() => setFilters((f) => (f.query === typed ? f : { ...f, query: typed })), 300);
@@ -100,7 +112,7 @@ export function AuditLogPage() {
   );
   const events = useMemo(() => log.data?.pages.flatMap((page) => page.events) ?? [], [log.data]);
   const set = (next: Partial<Filters>) => {
-    setFrom(Date.now());
+    setFrom(clock());
     setFilters((f) => ({ ...f, ...next }));
   };
 
@@ -132,7 +144,7 @@ export function AuditLogPage() {
   return (
     <Page
       title={t`Audit log`}
-      lead={t`Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install`}
+      lead={t`Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists`}
       back="/settings"
       actions={<Export asked={asked} />}
     >
@@ -290,9 +302,10 @@ function Source({ surface }: { surface: Surface }) {
   );
 }
 
-/** Who did it: a person's initials, or a mark for a token, a server, a shell or Dockwell, and a name. */
+/** Who did it: a person's initials, or a mark for a token, a server, a shell or Dockwell, and a name, whole in its tooltip. */
 function ActorCell({ event }: { event: AuditEvent }) {
   const { t } = useLingui();
+  const actorWords = useActorWords();
   const actor = event.actor;
   if (!actor) {
     return (
@@ -304,25 +317,21 @@ function ActorCell({ event }: { event: AuditEvent }) {
       </span>
     );
   }
-  const icon: IconName | undefined = {
-    [ActorKind.TOKEN]: "key" as const,
-    [ActorKind.SERVER]: "server" as const,
-    [ActorKind.SHELL]: "terminal" as const,
-    [ActorKind.DOCKWELL]: "settings" as const,
-  }[actor.kind as number];
-  const name = actor.name || actor.id;
+  const who = actorWords(actor);
   return (
     <span className="audit-actor">
-      {icon ? (
+      {who.icon ? (
         <span className="audit-chip is-mark" aria-hidden="true">
-          <Icon name={icon} size={12} />
+          <Icon name={who.icon} size={12} />
         </span>
       ) : (
         <span className="audit-chip" aria-hidden="true">
-          {initialsOf(name)}
+          {initialsOf(who.name)}
         </span>
       )}
-      <span className={cx(actor.kind === ActorKind.SHELL && "audit-mono")}>{name}</span>
+      <span className={cx("audit-actor-name", who.machine && "audit-mono")} title={who.full}>
+        {who.name}
+      </span>
     </span>
   );
 }
@@ -333,29 +342,24 @@ function initialsOf(name: string): string {
   return (lead(words[0]) + (words.length > 1 ? lead(words[words.length - 1]) : "")).toLocaleUpperCase();
 }
 
-/**
- * What an event said, for people: as recorded, except a setting's, which records
- * its value and the one it replaced as JSON, worded here. An export keeps it as
- * recorded.
- */
-function useSaid(): (event: AuditEvent) => string {
+/** Where a change lands: its first service or route and its environment, "web · production". */
+function useChangeWhere(): (change: Change | undefined) => string {
   const { t } = useLingui();
-  return (event) => {
-    if (!event.action.startsWith("settings.") || !event.detail.startsWith("{")) return event.detail;
-    try {
-      const { value = "", previous = "" } = JSON.parse(event.detail) as { value?: string; previous?: string };
-      if (value && previous) return t`${value}, which was ${previous}`;
-      if (value) return value;
-      if (previous) return t`Cleared, which was ${previous}`;
-    } catch {
-      // Not what a setting records, so it's shown as it is.
-    }
-    return event.detail;
+  return (change) => {
+    const resources = changing(change?.plan);
+    const first = resources[0]?.resource;
+    if (!first) return "";
+    const more = new Set(resources.map((r) => r.resource?.name ?? "")).size - 1;
+    const { name } = first;
+    const what = more > 0 ? t`${name} and ${more} more` : name;
+    return first.scope ? `${what} · ${first.scope}` : what;
   };
 }
 
-/** What it acted on: a name where Dockwell has one, the ID otherwise. */
+/** What it acted on: a change's service and environment, a name where Dockwell has one, the ID otherwise. */
 function TargetCell({ event }: { event: AuditEvent }) {
+  const where = useChangeWhere()(event.event?.change);
+  if (where) return <span>{where}</span>;
   const target = event.target;
   if (!target) {
     return event.subject ? (
@@ -367,19 +371,49 @@ function TargetCell({ event }: { event: AuditEvent }) {
   return target.name ? <span>{target.name}</span> : <code className="audit-id">{target.id}</code>;
 }
 
-/** The detail an event opens to: everything it recorded, and where to go from it. */
+/** The sentence a row says, with the address of someone who wasn't signed in. */
+function Said({ event }: { event: AuditEvent }) {
+  const said = useAuditWords()(event);
+  return (
+    <>
+      {said.title}
+      {event.address ? (
+        <>
+          {" · "}
+          <code>{event.address}</code>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** What it recorded, where that's words for people; facts for a program are said in the sentence. */
+function recorded(event: AuditEvent): string {
+  if (event.detail.startsWith("{") || event.action.startsWith("change.")) return "";
+  return event.detail;
+}
+
+/** The detail an event opens to: what happened, all it recorded, and for a change, its plan as it is now. */
 function Detail({ event }: { event: AuditEvent }) {
   const { t, i18n } = useLingui();
-  const said = useSaid();
+  const said = useAuditWords()(event);
+  const who = useActorWords()(event.actor);
   const time = event.time ? timestampDate(event.time) : undefined;
   const change = event.action.startsWith("change.") && event.subject.startsWith("chg_") ? event.subject : "";
+  const words = recorded(event);
   return (
     <div className="audit-detail">
       <dl className="settings-facts">
-        <dt>{t`Said`}</dt>
-        <dd>{said(event) || <span className="settings-muted">{t`Nothing more`}</span>}</dd>
+        <dt>{t`What happened`}</dt>
+        <dd>{said.title}</dd>
+        {words ? (
+          <>
+            <dt>{t`Recorded`}</dt>
+            <dd>{words}</dd>
+          </>
+        ) : null}
         <dt>{t`When`}</dt>
-        <dd>{time ? formatDateTime(time, i18n.locale) : "–"}</dd>
+        <dd>{time ? formatMoment(time, i18n.locale) : "–"}</dd>
         {event.address ? (
           <>
             <dt>{t`From`}</dt>
@@ -392,11 +426,17 @@ function Detail({ event }: { event: AuditEvent }) {
           <>
             <dt>{t`Actor`}</dt>
             <dd>
-              <code>{event.actor.id}</code>
+              {event.actor.localAccess ? (
+                who.full
+              ) : (
+                <>
+                  {who.name} <code>{event.actor.id}</code>
+                </>
+              )}
             </dd>
           </>
         ) : null}
-        {event.target ? (
+        {event.target && !change ? (
           <>
             <dt>{t`Target`}</dt>
             <dd>
@@ -406,7 +446,7 @@ function Detail({ event }: { event: AuditEvent }) {
         ) : null}
         {event.subject && event.subject !== event.target?.id ? (
           <>
-            <dt>{t`About`}</dt>
+            <dt>{change ? t`Change` : t`About`}</dt>
             <dd>
               <code>{event.subject}</code>
             </dd>
@@ -417,16 +457,67 @@ function Detail({ event }: { event: AuditEvent }) {
           <code>{event.id}</code>
         </dd>
       </dl>
-      {change ? (
-        <div>
-          <Link to="/changes/$changeId" params={{ changeId: change }} className="dw-btn dw-btn-secondary dw-btn-sm">
-            <Icon name="activity" size={14} />
-            <span>
-              <Trans>Open in Activity</Trans>
-            </span>
-          </Link>
-        </div>
-      ) : null}
+      {change ? <ChangeFacts changeId={change} /> : null}
+    </div>
+  );
+}
+
+/** A change as it is now, read when its row opens, as Activity reads it: who proposed and applied it, its state, its servers and its plan. */
+function ChangeFacts({ changeId }: { changeId: string }) {
+  const { t } = useLingui();
+  const words = useChangeWords();
+  const actorWords = useActorWords();
+  const rows = useFieldRows();
+  const read = useQuery(ChangeService.method.getChange, { id: changeId });
+  const change = read.data?.change;
+  if (read.error && !change) {
+    return (
+      <p className="audit-note" role="alert">
+        {sentence(read.error)}
+      </p>
+    );
+  }
+  if (!change) {
+    return (
+      <p className="audit-note" aria-busy="true">
+        <Trans>Loading the change</Trans>
+      </p>
+    );
+  }
+  const look = words.state(change.state);
+  const servers = (change.plan?.servers ?? []).map((s) => s.serverName || s.serverId);
+  const by = (who: Change["proposedBy"], via: Surface) =>
+    [actorWords(who).full, words.via(via)].filter(Boolean).join(" · ");
+  return (
+    <div className="audit-change">
+      <dl className="settings-facts">
+        <dt>{t`Proposed by`}</dt>
+        <dd>{by(change.proposedBy, change.proposedVia)}</dd>
+        {change.appliedBy ? (
+          <>
+            <dt>{t`Applied by`}</dt>
+            <dd>{by(change.appliedBy, change.appliedVia)}</dd>
+          </>
+        ) : null}
+        <dt>{t`State`}</dt>
+        {/* As Activity has it: a badge for what's under way or went wrong, a word for what applied. */}
+        <dd>{look ? <StatusBadge status={look.status} label={look.word} /> : t`Applied`}</dd>
+        {servers.length > 0 ? (
+          <>
+            <dt>{t`Servers`}</dt>
+            <dd>{servers.join(", ")}</dd>
+          </>
+        ) : null}
+      </dl>
+      <RecordedPlan plan={change.plan} applied={change.state === ChangeState.APPLIED} rows={rows} />
+      <div>
+        <Link to="/changes/$changeId" params={{ changeId }} className="dw-btn dw-btn-secondary dw-btn-sm">
+          <Icon name="activity" size={14} />
+          <span>
+            <Trans>Open in Activity</Trans>
+          </span>
+        </Link>
+      </div>
     </div>
   );
 }
@@ -434,7 +525,7 @@ function Detail({ event }: { event: AuditEvent }) {
 /** The log as a table, a row each, grouped by day, as the mock draws it. */
 function LogTable({ events }: { events: readonly AuditEvent[] }) {
   const { t, i18n } = useLingui();
-  const said = useSaid();
+  const words = useAuditWords();
   const heading = useDayHeading();
   const [open, setOpen] = useState<string>();
   const detailId = useId();
@@ -490,7 +581,9 @@ function LogTable({ events }: { events: readonly AuditEvent[] }) {
                       <td>
                         <Source surface={event.surface} />
                       </td>
-                      <td className="audit-said">{event.address ? <code>{event.address}</code> : said(event)}</td>
+                      <td className="audit-said" title={words(event).title}>
+                        <Said event={event} />
+                      </td>
                       <td className="audit-toggle">
                         <Button
                           size="sm"
@@ -560,7 +653,10 @@ function PhoneLog({ events }: { events: readonly AuditEvent[] }) {
                       <ActorCell event={event} />
                       <Source surface={event.surface} />
                     </span>
-                    {event.target ? (
+                    <span className="audit-item-said">
+                      <Said event={event} />
+                    </span>
+                    {event.target || event.event?.change ? (
                       <span className="audit-item-line settings-muted">
                         <TargetCell event={event} />
                       </span>
@@ -577,13 +673,24 @@ function PhoneLog({ events }: { events: readonly AuditEvent[] }) {
   );
 }
 
-/** One line of CSV, each field quoted where it must be. */
-export function csvLine(fields: readonly string[]): string {
-  return fields.map((f) => (/[",\n\r]/.test(f) ? `"${f.replaceAll('"', '""')}"` : f)).join(",");
+/**
+ * One field of CSV, quoted where it must be. One a spreadsheet would read as a
+ * formula, starting =, +, -, @, a tab or a carriage return, as a token's name
+ * may, gets a ' before it, so it reads as text.
+ */
+export function csvField(f: string): string {
+  const formula = /^[=+\-@\t\r]/.test(f);
+  const safe = formula ? `'${f}` : f;
+  return formula || /[",\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
-/** The audit log as CSV, a line each, with a header. */
-export function auditCSV(events: readonly AuditEvent[]): string {
+/** One line of CSV. */
+export function csvLine(fields: readonly string[]): string {
+  return fields.map(csvField).join(",");
+}
+
+/** The audit log as CSV, a line each, with a header, each event's detail said as the screen says it. */
+export function auditCSV(events: readonly AuditEvent[], say: (event: AuditEvent) => string): string {
   const kinds: Readonly<Partial<Record<ActorKind, string>>> = {
     [ActorKind.USER]: "person",
     [ActorKind.TOKEN]: "token",
@@ -623,7 +730,7 @@ export function auditCSV(events: readonly AuditEvent[]): string {
       e.target?.id ?? "",
       e.target?.name ?? "",
       e.subject,
-      e.detail,
+      say(e),
       e.id,
     ]),
   );
@@ -643,7 +750,8 @@ function save(text: string, name: string, type: string) {
 
 /** Saves what the filters keep, read a page at a time, as CSV or as JSON lines in the API's shape. */
 function Export({ asked }: { asked: Asked }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
+  const words = useAuditWords();
   const transport = useTransport();
   const [busy, setBusy] = useState<"csv" | "json">();
   const [said, setSaid] = useState<string>();
@@ -662,17 +770,24 @@ function Export({ asked }: { asked: Asked }) {
         pageToken = page.nextPageToken;
       } while (pageToken && all.length < MOST_EXPORTED);
       const events = all.slice(0, MOST_EXPORTED);
-      const stamp = new Date().toISOString().slice(0, 10);
-      if (as === "csv") save(auditCSV(events), `dockwell-audit-${stamp}.csv`, "text/csv;charset=utf-8");
+      // Dated as the screen shows times, in this browser's time zone.
+      const stamp = fileDay(new Date());
+      if (as === "csv")
+        save(
+          auditCSV(events, (e) => words(e).title),
+          `dockwell-audit-${stamp}.csv`,
+          "text/csv;charset=utf-8",
+        );
       else
         save(
           `${events.map((e) => toJsonString(AuditEventSchema, e)).join("\n")}\n`,
           `dockwell-audit-${stamp}.jsonl`,
           "application/x-ndjson",
         );
+      const most = i18n.number(MOST_EXPORTED);
       setSaid(
         pageToken
-          ? t`Saved the newest ${MOST_EXPORTED} events. Narrow the filters to save the rest.`
+          ? t`Saved the newest ${most} events. Narrow the filters to save the rest.`
           : events.length === 1
             ? t`Saved 1 event.`
             : t`Saved ${events.length} events.`,

@@ -545,6 +545,10 @@ msgstr "{moving} deploying"
 msgid "{name} {version}"
 msgstr "{name} {version}"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "{name} and {more} more"
+msgstr "{name} and {more} more"
+
 #: src/features/changes/notices.tsx
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} answers plain HTTP on {path} on {server}"
@@ -1100,10 +1104,6 @@ msgstr "{value, plural, one {{count} line not shown} other {{count} lines not sh
 msgid "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
 msgstr "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
 
-#: src/features/settings/AuditLogPage.tsx
-msgid "{value}, which was {previous}"
-msgstr "{value}, which was {previous}"
-
 #: src/features/changes/ChangeSheet.tsx
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
@@ -1350,6 +1350,10 @@ msgstr "a backup of a volume that reached {path}, which can hold what's there, a
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "A certificate came for {domain} on port 80 or 443, as of {when}"
 
+#: src/features/settings/auditWords.ts
+msgid "A change failed"
+msgstr "A change failed"
+
 #: src/features/settings/GeneralPage.tsx
 msgid "A change goes on Activity, with what it replaced."
 msgstr "A change goes on Activity, with what it replaced."
@@ -1410,6 +1414,10 @@ msgstr "A new container takes over once it has been healthy for {soak}, and what
 #: src/features/settings/GeneralPage.tsx
 msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
 msgstr "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
+
+#: src/features/settings/auditWords.ts
+msgid "A passkey may have been copied"
+msgstr "A passkey may have been copied"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "A restart has no undo, as it changes nothing to go back to."
@@ -1929,8 +1937,13 @@ msgstr "App sections"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Applied"
 msgstr "Applied"
+
+#: src/features/settings/auditWords.ts
+msgid "Applied {summary}"
+msgstr "Applied {summary}"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Applied {when} by {by}, and undone since."
@@ -1939,6 +1952,14 @@ msgstr "Applied {when} by {by}, and undone since."
 #: src/features/changes/ChangeSheet.tsx
 msgid "Applied {when} by {by}."
 msgstr "Applied {when} by {by}."
+
+#: src/features/settings/auditWords.ts
+msgid "Applied a change"
+msgstr "Applied a change"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Applied by"
+msgstr "Applied by"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Apply plan"
@@ -2284,6 +2305,7 @@ msgid "Categories"
 msgstr "Categories"
 
 #: src/features/servers/ServerPanels.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Change"
 msgstr "Change"
 
@@ -2458,10 +2480,6 @@ msgstr "Cleared the time zone for new schedules, which was {previous}, so they s
 msgid "Cleared this install's name, which was {previous}"
 msgstr "Cleared this install's name, which was {previous}"
 
-#: src/features/settings/AuditLogPage.tsx
-msgid "Cleared, which was {previous}"
-msgstr "Cleared, which was {previous}"
-
 #: src/features/changes/RollbackLine.tsx
 msgid "Clearing this away failed too"
 msgstr "Clearing this away failed too"
@@ -2469,6 +2487,10 @@ msgstr "Clearing this away failed too"
 #: src/features/settings/AuditLogPage.tsx
 msgid "CLI"
 msgstr "CLI"
+
+#: src/features/activity/actor.ts
+msgid "CLI on {host}"
+msgstr "CLI on {host}"
 
 #: src/app/Providers.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2569,6 +2591,10 @@ msgstr "Configuration"
 #: src/features/auth/ClaimPage.tsx
 msgid "Confirm with Touch ID, Windows Hello or a security key."
 msgstr "Confirm with Touch ID, Windows Hello or a security key."
+
+#: src/features/settings/auditWords.ts
+msgid "Confirmed with a passkey"
+msgstr "Confirmed with a passkey"
 
 #: src/features/auth/messages.ts
 msgid "Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again."
@@ -2721,6 +2747,10 @@ msgstr "Copy this token now. It won't be shown again."
 msgid "Copy token"
 msgstr "Copy token"
 
+#: src/features/settings/auditWords.ts
+msgid "Couldn't apply {summary}"
+msgstr "Couldn't apply {summary}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't change {field}"
 msgstr "Couldn't change {field}"
@@ -2732,6 +2762,10 @@ msgstr "Couldn't change {field} and {more} more"
 #: src/features/changes/words.ts
 msgid "Couldn't check"
 msgstr "Couldn't check"
+
+#: src/features/settings/auditWords.ts
+msgid "Couldn't confirm with a passkey"
+msgstr "Couldn't confirm with a passkey"
 
 #: src/features/changes/words.ts
 msgid "Couldn't create"
@@ -2812,6 +2846,10 @@ msgstr "Couldn't roll back to {revision}"
 #: src/features/activity/describe.ts
 msgid "Couldn't save {path} on {server}"
 msgstr "Couldn't save {path} on {server}"
+
+#: src/features/settings/auditWords.ts
+msgid "Couldn't sign in"
+msgstr "Couldn't sign in"
 
 #: src/features/apps/revision.ts
 msgid "Couldn't take it off {left}"
@@ -3154,6 +3192,14 @@ msgstr "Discard them"
 #: src/features/changes/words.ts
 msgid "Discarded"
 msgstr "Discarded"
+
+#: src/features/settings/auditWords.ts
+msgid "Discarded {summary}"
+msgstr "Discarded {summary}"
+
+#: src/features/settings/auditWords.ts
+msgid "Discarded a change"
+msgstr "Discarded a change"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Disk"
@@ -3665,8 +3711,8 @@ msgid "Events: {caption}"
 msgstr "Events: {caption}"
 
 #: src/features/settings/AuditLogPage.tsx
-msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
-msgstr "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
+msgstr "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Every change, server event, access grant, change of health and backup, newest first"
@@ -4843,6 +4889,10 @@ msgstr "Loading the app"
 msgid "Loading the audit log"
 msgstr "Loading the audit log"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Loading the change"
+msgstr "Loading the change"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Loading the plan"
 msgstr "Loading the plan"
@@ -4854,6 +4904,14 @@ msgstr "Loading tokens"
 #: src/features/variables/VariablesPage.tsx
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
+
+#: src/features/activity/actor.ts
+msgid "Local access token, read-only, {id}, made by {account}"
+msgstr "Local access token, read-only, {id}, made by {account}"
+
+#: src/features/activity/actor.ts
+msgid "Local access token, read-write, {id}, made by {account}"
+msgstr "Local access token, read-write, {id}, made by {account}"
 
 #: src/features/settings/ControlPlanePage.tsx
 msgid "Location"
@@ -5520,10 +5578,6 @@ msgstr "Nothing matches these filters. Clear them to see everything."
 msgid "Nothing matches. Pick a longer range, or clear the filters."
 msgstr "Nothing matches. Pick a longer range, or clear the filters."
 
-#: src/features/settings/AuditLogPage.tsx
-msgid "Nothing more"
-msgstr "Nothing more"
-
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing outside {server} reaches {name} yet."
 msgstr "Nothing outside {server} reaches {name} yet."
@@ -6091,6 +6145,14 @@ msgstr "Plan taking on all {inProject} of {project}"
 msgid "Planned"
 msgstr "Planned"
 
+#: src/features/settings/auditWords.ts
+msgid "Planned {summary}"
+msgstr "Planned {summary}"
+
+#: src/features/settings/auditWords.ts
+msgid "Planned a change"
+msgstr "Planned a change"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Planning"
 msgstr "Planning"
@@ -6255,6 +6317,7 @@ msgstr "Projects"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Proposed by"
 msgstr "Proposed by"
 
@@ -6531,6 +6594,10 @@ msgstr "Reconnecting"
 msgid "Reconnecting to the control server"
 msgstr "Reconnecting to the control server"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Recorded"
+msgstr "Recorded"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Recorded and applied. Nothing had to run on a server."
 msgstr "Recorded and applied. Nothing had to run on a server."
@@ -6546,6 +6613,18 @@ msgstr "Recreates its container"
 #: src/features/auth/AuthGate.tsx
 msgid "Refused"
 msgstr "Refused"
+
+#: src/features/settings/auditWords.ts
+msgid "Refused a call this token can't make"
+msgstr "Refused a call this token can't make"
+
+#: src/features/settings/auditWords.ts
+msgid "Refused to renew a server's certificate"
+msgstr "Refused to renew a server's certificate"
+
+#: src/features/settings/auditWords.ts
+msgid "Refused to renew the certificate of {name}"
+msgstr "Refused to renew the certificate of {name}"
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Region"
@@ -7015,10 +7094,6 @@ msgstr "Runs the control plane"
 msgid "Runs with"
 msgstr "Runs with"
 
-#: src/features/settings/AuditLogPage.tsx
-msgid "Said"
-msgstr "Said"
-
 #: src/features/servers/ServerPanels.tsx
 msgid "same as the control plane"
 msgstr "same as the control plane"
@@ -7063,8 +7138,8 @@ msgid "Saved 1 event."
 msgstr "Saved 1 event."
 
 #: src/features/settings/AuditLogPage.tsx
-msgid "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
-msgstr "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
+msgid "Saved the newest {most} events. Narrow the filters to save the rest."
+msgstr "Saved the newest {most} events. Narrow the filters to save the rest."
 
 #: src/features/settings/GeneralPage.tsx
 msgid "Saved. It's on Activity."
@@ -7073,6 +7148,14 @@ msgstr "Saved. It's on Activity."
 #: src/features/files/FileViewer.tsx
 msgid "Saving"
 msgstr "Saving"
+
+#: src/features/settings/auditWords.ts
+msgid "Saving {path}"
+msgstr "Saving {path}"
+
+#: src/features/settings/auditWords.ts
+msgid "Saving {path} on {name}"
+msgstr "Saving {path} on {name}"
 
 #: src/features/files/FileViewer.tsx
 msgid "Saving {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
@@ -7338,6 +7421,10 @@ msgstr "Set up"
 msgid "Set up an authenticator app"
 msgstr "Set up an authenticator app"
 
+#: src/features/settings/auditWords.ts
+msgid "Set up this install"
+msgstr "Set up this install"
+
 #: src/features/settings/SettingsLayout.tsx
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
@@ -7513,6 +7600,10 @@ msgstr "signed in with a recovery code"
 msgid "signed in with an authenticator code"
 msgstr "signed in with an authenticator code"
 
+#: src/features/settings/auditWords.ts
+msgid "Signed out"
+msgstr "Signed out"
+
 #: src/features/activity/describe.ts
 msgid "Signed out other sessions"
 msgstr "Signed out other sessions"
@@ -7558,7 +7649,7 @@ msgstr "Some lines from {source} are missing here."
 msgid "Some of this may be down until that finishes."
 msgstr "Some of this may be down until that finishes."
 
-#: src/features/activity/ActivityPage.tsx
+#: src/features/activity/actor.ts
 #: src/features/apps/AppDeployments.tsx
 msgid "Someone"
 msgstr "Someone"
@@ -7623,6 +7714,7 @@ msgstr "Starting"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainersPanel.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "State"
 msgstr "State"
 
@@ -7679,6 +7771,10 @@ msgstr "Stop what uses it on this server, then deploy again."
 #: src/features/servers/containers.ts
 msgid "Stopped"
 msgstr "Stopped"
+
+#: src/features/settings/auditWords.ts
+msgid "Stopped sign-in with codes after too many wrong ones"
+msgstr "Stopped sign-in with codes after too many wrong ones"
 
 #: src/features/catalog/useCatalog.ts
 msgid "Storage"
@@ -8146,6 +8242,10 @@ msgstr "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, pa
 #: src/features/changes/words.ts
 msgid "the panel's domain, {path}, which moves behind {detail}"
 msgstr "the panel's domain, {path}, which moves behind {detail}"
+
+#: src/features/settings/auditWords.ts
+msgid "The passkey {name} may have been copied"
+msgstr "The passkey {name} may have been copied"
 
 #: src/features/auth/messages.ts
 msgid "The passkey prompt closed before it finished. Try again when you're ready."
@@ -9098,6 +9198,10 @@ msgstr "used {0}"
 msgid "Used by"
 msgstr "Used by"
 
+#: src/features/settings/auditWords.ts
+msgid "Used from a new address"
+msgstr "Used from a new address"
+
 #: src/features/apps/words.ts
 #: src/features/changes/fields.tsx
 msgid "user"
@@ -9265,6 +9369,10 @@ msgstr "What connects to this server"
 #: src/features/servers/ContainerPage.tsx
 msgid "What Docker says of it"
 msgstr "What Docker says of it"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "What happened"
+msgstr "What happened"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "What happens next"

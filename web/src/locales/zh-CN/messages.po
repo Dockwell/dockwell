@@ -545,6 +545,10 @@ msgstr "{moving} 个正在部署"
 msgid "{name} {version}"
 msgstr "{name} {version}"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "{name} and {more} more"
+msgstr "{name} 等 {more} 项"
+
 #: src/features/changes/notices.tsx
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} 在 {server} 上以明文 HTTP 响应 {path}"
@@ -1100,10 +1104,6 @@ msgstr "{value, plural, other {{count} 行未显示}}"
 msgid "{value, plural, one {About {count} line not shown} other {About {count} lines not shown}}"
 msgstr "{value, plural, other {约 {count} 行未显示}}"
 
-#: src/features/settings/AuditLogPage.tsx
-msgid "{value}, which was {previous}"
-msgstr "{value}（原为 {previous}）"
-
 #: src/features/changes/ChangeSheet.tsx
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
@@ -1350,6 +1350,10 @@ msgstr "一个曾可访问 {path} 的卷的备份，可能含有那里的内容�
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "{domain} 的证书已通过 80 或 443 端口签发，截至{when}"
 
+#: src/features/settings/auditWords.ts
+msgid "A change failed"
+msgstr "一项变更失败"
+
 #: src/features/settings/GeneralPage.tsx
 msgid "A change goes on Activity, with what it replaced."
 msgstr "每次更改都会连同被替换的值记入动态。"
@@ -1410,6 +1414,10 @@ msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容�
 #: src/features/settings/GeneralPage.tsx
 msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
 msgstr "新的计划（例如备份计划）除非指定了自己的时区，否则都使用这个时区，无论来自面板、CLI 还是 API。每个计划保留创建时的时区。"
+
+#: src/features/settings/auditWords.ts
+msgid "A passkey may have been copied"
+msgstr "某个通行密钥可能已被复制"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "A restart has no undo, as it changes nothing to go back to."
@@ -1929,8 +1937,13 @@ msgstr "应用分区"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Applied"
 msgstr "已应用"
+
+#: src/features/settings/auditWords.ts
+msgid "Applied {summary}"
+msgstr "已应用 {summary}"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Applied {when} by {by}, and undone since."
@@ -1939,6 +1952,14 @@ msgstr "由 {by} 于 {when} 应用，之后已撤销。"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Applied {when} by {by}."
 msgstr "由 {by} 于 {when} 应用。"
+
+#: src/features/settings/auditWords.ts
+msgid "Applied a change"
+msgstr "应用了一项变更"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "Applied by"
+msgstr "应用者"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Apply plan"
@@ -2284,6 +2305,7 @@ msgid "Categories"
 msgstr "分类"
 
 #: src/features/servers/ServerPanels.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Change"
 msgstr "更改"
 
@@ -2458,10 +2480,6 @@ msgstr "清除了新计划的时区（原为 {previous}），新计划改用 UTC
 msgid "Cleared this install's name, which was {previous}"
 msgstr "清除了这个安装的名称（原为 {previous}）"
 
-#: src/features/settings/AuditLogPage.tsx
-msgid "Cleared, which was {previous}"
-msgstr "已清除（原为 {previous}）"
-
 #: src/features/changes/RollbackLine.tsx
 msgid "Clearing this away failed too"
 msgstr "清理此次变更也失败了"
@@ -2469,6 +2487,10 @@ msgstr "清理此次变更也失败了"
 #: src/features/settings/AuditLogPage.tsx
 msgid "CLI"
 msgstr "CLI"
+
+#: src/features/activity/actor.ts
+msgid "CLI on {host}"
+msgstr "{host} 上的 CLI"
 
 #: src/app/Providers.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -2569,6 +2591,10 @@ msgstr "配置"
 #: src/features/auth/ClaimPage.tsx
 msgid "Confirm with Touch ID, Windows Hello or a security key."
 msgstr "用 Touch ID、Windows Hello 或安全密钥确认。"
+
+#: src/features/settings/auditWords.ts
+msgid "Confirmed with a passkey"
+msgstr "已用通行密钥确认"
 
 #: src/features/auth/messages.ts
 msgid "Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again."
@@ -2721,6 +2747,10 @@ msgstr "请立即复制这个令牌。它不会再次显示。"
 msgid "Copy token"
 msgstr "复制令牌"
 
+#: src/features/settings/auditWords.ts
+msgid "Couldn't apply {summary}"
+msgstr "无法应用 {summary}"
+
 #: src/features/apps/revision.ts
 msgid "Couldn't change {field}"
 msgstr "无法更改 {field}"
@@ -2732,6 +2762,10 @@ msgstr "无法更改 {field} 等 {more} 项"
 #: src/features/changes/words.ts
 msgid "Couldn't check"
 msgstr "无法检查"
+
+#: src/features/settings/auditWords.ts
+msgid "Couldn't confirm with a passkey"
+msgstr "无法用通行密钥确认"
 
 #: src/features/changes/words.ts
 msgid "Couldn't create"
@@ -2812,6 +2846,10 @@ msgstr "无法回滚到 {revision}"
 #: src/features/activity/describe.ts
 msgid "Couldn't save {path} on {server}"
 msgstr "无法保存 {server} 上的 {path}"
+
+#: src/features/settings/auditWords.ts
+msgid "Couldn't sign in"
+msgstr "登录失败"
 
 #: src/features/apps/revision.ts
 msgid "Couldn't take it off {left}"
@@ -3154,6 +3192,14 @@ msgstr "丢弃这些更改"
 #: src/features/changes/words.ts
 msgid "Discarded"
 msgstr "已丢弃"
+
+#: src/features/settings/auditWords.ts
+msgid "Discarded {summary}"
+msgstr "已舍弃 {summary}"
+
+#: src/features/settings/auditWords.ts
+msgid "Discarded a change"
+msgstr "舍弃了一项变更"
 
 #: src/features/servers/ServerMetrics.tsx
 msgid "Disk"
@@ -3665,8 +3711,8 @@ msgid "Events: {caption}"
 msgstr "事件：{caption}"
 
 #: src/features/settings/AuditLogPage.tsx
-msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
-msgstr "人员、令牌、服务器和 Dockwell 的每一次变更和每一次访问 · 与这个安装一样长久保留"
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
+msgstr "人员、令牌、服务器和 Dockwell 的每一次变更与每一次访问 · 只要此安装存在就会一直保留"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Every change, server event, access grant, change of health and backup, newest first"
@@ -4843,6 +4889,10 @@ msgstr "正在加载应用"
 msgid "Loading the audit log"
 msgstr "正在加载审计日志"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Loading the change"
+msgstr "正在加载变更"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Loading the plan"
 msgstr "正在加载计划"
@@ -4854,6 +4904,14 @@ msgstr "正在加载令牌"
 #: src/features/variables/VariablesPage.tsx
 msgid "Loading variables and secrets"
 msgstr "正在加载变量和密钥"
+
+#: src/features/activity/actor.ts
+msgid "Local access token, read-only, {id}, made by {account}"
+msgstr "本地访问令牌，只读，{id}，由 {account} 创建"
+
+#: src/features/activity/actor.ts
+msgid "Local access token, read-write, {id}, made by {account}"
+msgstr "本地访问令牌，读写，{id}，由 {account} 创建"
 
 #: src/features/settings/ControlPlanePage.tsx
 msgid "Location"
@@ -5520,10 +5578,6 @@ msgstr "没有符合这些筛选条件的内容。清除筛选即可查看全部
 msgid "Nothing matches. Pick a longer range, or clear the filters."
 msgstr "没有匹配的事件。请选择更长的范围，或清除筛选条件。"
 
-#: src/features/settings/AuditLogPage.tsx
-msgid "Nothing more"
-msgstr "没有更多内容"
-
 #: src/features/changes/ChangeSheet.tsx
 msgid "Nothing outside {server} reaches {name} yet."
 msgstr "{server} 之外还无法访问 {name}。"
@@ -6091,6 +6145,14 @@ msgstr "计划接管 {project} 的全部 {inProject} 个容器"
 msgid "Planned"
 msgstr "已计划"
 
+#: src/features/settings/auditWords.ts
+msgid "Planned {summary}"
+msgstr "已规划 {summary}"
+
+#: src/features/settings/auditWords.ts
+msgid "Planned a change"
+msgstr "规划了一项变更"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Planning"
 msgstr "正在计划"
@@ -6255,6 +6317,7 @@ msgstr "项目"
 
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "Proposed by"
 msgstr "提议者"
 
@@ -6531,6 +6594,10 @@ msgstr "正在重新连接"
 msgid "Reconnecting to the control server"
 msgstr "正在重新连接控制服务器"
 
+#: src/features/settings/AuditLogPage.tsx
+msgid "Recorded"
+msgstr "记录内容"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "Recorded and applied. Nothing had to run on a server."
 msgstr "已记录并应用。无需在服务器上运行任何内容。"
@@ -6546,6 +6613,18 @@ msgstr "重建它的容器"
 #: src/features/auth/AuthGate.tsx
 msgid "Refused"
 msgstr "已拒绝"
+
+#: src/features/settings/auditWords.ts
+msgid "Refused a call this token can't make"
+msgstr "拒绝了此令牌无权发起的调用"
+
+#: src/features/settings/auditWords.ts
+msgid "Refused to renew a server's certificate"
+msgstr "拒绝续签某台服务器的证书"
+
+#: src/features/settings/auditWords.ts
+msgid "Refused to renew the certificate of {name}"
+msgstr "拒绝续签 {name} 的证书"
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Region"
@@ -7015,10 +7094,6 @@ msgstr "运行控制平面"
 msgid "Runs with"
 msgstr "一同运行的应用"
 
-#: src/features/settings/AuditLogPage.tsx
-msgid "Said"
-msgstr "记录内容"
-
 #: src/features/servers/ServerPanels.tsx
 msgid "same as the control plane"
 msgstr "与控制平面相同"
@@ -7063,8 +7138,8 @@ msgid "Saved 1 event."
 msgstr "已保存 1 个事件。"
 
 #: src/features/settings/AuditLogPage.tsx
-msgid "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
-msgstr "已保存最新的 {MOST_EXPORTED} 个事件。缩小筛选范围以保存其余事件。"
+msgid "Saved the newest {most} events. Narrow the filters to save the rest."
+msgstr "已保存最新的 {most} 条事件。缩小筛选范围以保存其余事件。"
 
 #: src/features/settings/GeneralPage.tsx
 msgid "Saved. It's on Activity."
@@ -7073,6 +7148,14 @@ msgstr "已保存，并已记入动态。"
 #: src/features/files/FileViewer.tsx
 msgid "Saving"
 msgstr "正在保存"
+
+#: src/features/settings/auditWords.ts
+msgid "Saving {path}"
+msgstr "正在保存 {path}"
+
+#: src/features/settings/auditWords.ts
+msgid "Saving {path} on {name}"
+msgstr "正在保存 {name} 上的 {path}"
 
 #: src/features/files/FileViewer.tsx
 msgid "Saving {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
@@ -7338,6 +7421,10 @@ msgstr "设置"
 msgid "Set up an authenticator app"
 msgstr "设置身份验证器应用"
 
+#: src/features/settings/auditWords.ts
+msgid "Set up this install"
+msgstr "创建了此安装"
+
 #: src/features/settings/SettingsLayout.tsx
 #: src/features/shell/MorePage.tsx
 #: src/features/shell/Rail.tsx
@@ -7513,6 +7600,10 @@ msgstr "通过恢复码登录"
 msgid "signed in with an authenticator code"
 msgstr "通过身份验证器验证码登录"
 
+#: src/features/settings/auditWords.ts
+msgid "Signed out"
+msgstr "已退出登录"
+
 #: src/features/activity/describe.ts
 msgid "Signed out other sessions"
 msgstr "退出了其他会话"
@@ -7558,7 +7649,7 @@ msgstr "此处缺少 {source} 的部分日志。"
 msgid "Some of this may be down until that finishes."
 msgstr "在此完成之前，部分内容可能处于中断状态。"
 
-#: src/features/activity/ActivityPage.tsx
+#: src/features/activity/actor.ts
 #: src/features/apps/AppDeployments.tsx
 msgid "Someone"
 msgstr "某人"
@@ -7623,6 +7714,7 @@ msgstr "正在启动"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainersPanel.tsx
+#: src/features/settings/AuditLogPage.tsx
 msgid "State"
 msgstr "状态"
 
@@ -7679,6 +7771,10 @@ msgstr "请停止此服务器上占用它的程序，然后重新部署。"
 #: src/features/servers/containers.ts
 msgid "Stopped"
 msgstr "已停止"
+
+#: src/features/settings/auditWords.ts
+msgid "Stopped sign-in with codes after too many wrong ones"
+msgstr "错误次数过多，已停止使用验证码登录"
 
 #: src/features/catalog/useCatalog.ts
 msgid "Storage"
@@ -8146,6 +8242,10 @@ msgstr "面板的域名 {panelDomain} 将转到 {proxy} 之后。它的地址、
 #: src/features/changes/words.ts
 msgid "the panel's domain, {path}, which moves behind {detail}"
 msgstr "面板的域名 {path}，它将转到 {detail} 之后"
+
+#: src/features/settings/auditWords.ts
+msgid "The passkey {name} may have been copied"
+msgstr "通行密钥 {name} 可能已被复制"
 
 #: src/features/auth/messages.ts
 msgid "The passkey prompt closed before it finished. Try again when you're ready."
@@ -9098,6 +9198,10 @@ msgstr "{0}使用过"
 msgid "Used by"
 msgstr "使用者"
 
+#: src/features/settings/auditWords.ts
+msgid "Used from a new address"
+msgstr "从新地址使用"
+
 #: src/features/apps/words.ts
 #: src/features/changes/fields.tsx
 msgid "user"
@@ -9265,6 +9369,10 @@ msgstr "连接此服务器的来源"
 #: src/features/servers/ContainerPage.tsx
 msgid "What Docker says of it"
 msgstr "Docker 显示的信息"
+
+#: src/features/settings/AuditLogPage.tsx
+msgid "What happened"
+msgstr "发生了什么"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "What happens next"

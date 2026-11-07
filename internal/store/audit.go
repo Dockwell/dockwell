@@ -10,7 +10,7 @@ import (
 )
 
 // AuditFilter narrows the audit log as a person reads it. Each part that is
-// set must hold. See docs/adr/0043-the-audit-log-for-a-person.md.
+// set must hold. See docs/adr/0047-the-audit-log-for-a-person.md.
 type AuditFilter struct {
 	// Since keeps what happened at or after it. Zero keeps everything.
 	Since time.Time
@@ -22,9 +22,15 @@ type AuditFilter struct {
 	Surface string
 	// Query keeps the events it is in, whatever its case: in the action, the
 	// actor and what the event acted on, by ID or by the name of the person,
-	// token or server, and in the event's words for people.
+	// token or server, and in the event's words for people. Each event is
+	// matched with LIKE across several columns, so callers keep it short, as
+	// MaxAuditQuery says. On SQLite, whose lower() folds only ASCII, "Ä"
+	// matches "Ä" but not "ä"; Postgres folds every letter.
 	Query string
 }
+
+// MaxAuditQuery is the most characters AuditFilter.Query holds.
+const MaxAuditQuery = 200
 
 // AuditEvents returns a page of the audit log, newest first: at most limit
 // events from before cursor, or from the newest with a zero cursor.

@@ -8,7 +8,7 @@ import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobu
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Actor, Surface } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
-import type { EventSubject } from "./event_pb";
+import type { Event, EventSubject } from "./event_pb";
 import { file_dockwell_v1_event } from "./event_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/audit.proto.
  */
 export const file_dockwell_v1_audit: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS9hdWRpdC5wcm90bxILZG9ja3dlbGwudjEiyAEKFkxpc3RBdWRpdEV2ZW50c1JlcXVlc3QSEQoJcGFnZV9zaXplGAEgASgFEhIKCnBhZ2VfdG9rZW4YAiABKAkSKQoFc2luY2UYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiYKBWFjdG9yGAQgASgOMhcuZG9ja3dlbGwudjEuQXVkaXRBY3RvchIlCgdzdXJmYWNlGAUgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRINCgVxdWVyeRgGIAEoCSJbChdMaXN0QXVkaXRFdmVudHNSZXNwb25zZRInCgZldmVudHMYASADKAsyFy5kb2Nrd2VsbC52MS5BdWRpdEV2ZW50EhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSL5AQoKQXVkaXRFdmVudBIKCgJpZBgBIAEoCRIoCgR0aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIhCgVhY3RvchgDIAEoCzISLmRvY2t3ZWxsLnYxLkFjdG9yEg4KBmFjdGlvbhgEIAEoCRIlCgdzdXJmYWNlGAUgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIpCgZ0YXJnZXQYBiABKAsyGS5kb2Nrd2VsbC52MS5FdmVudFN1YmplY3QSDwoHc3ViamVjdBgHIAEoCRIOCgZkZXRhaWwYCCABKAkSDwoHYWRkcmVzcxgJIAEoCSq7AQoKQXVkaXRBY3RvchIbChdBVURJVF9BQ1RPUl9VTlNQRUNJRklFRBAAEhYKEkFVRElUX0FDVE9SX1BFUlNPThABEhUKEUFVRElUX0FDVE9SX1RPS0VOEAISGAoUQVVESVRfQUNUT1JfRE9DS1dFTEwQAxIWChJBVURJVF9BQ1RPUl9TRVJWRVIQBBIVChFBVURJVF9BQ1RPUl9TSEVMTBAFEhgKFEFVRElUX0FDVE9SX1NUUkFOR0VSEAYykQEKDEF1ZGl0U2VydmljZRKAAQoPTGlzdEF1ZGl0RXZlbnRzEiMuZG9ja3dlbGwudjEuTGlzdEF1ZGl0RXZlbnRzUmVxdWVzdBokLmRvY2t3ZWxsLnYxLkxpc3RBdWRpdEV2ZW50c1Jlc3BvbnNlIiKQAgGguxgBsLsYAYLT5JMCERIPL3YxL2F1ZGl0RXZlbnRzQqMBCg9jb20uZG9ja3dlbGwudjFCCkF1ZGl0UHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_event, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS9hdWRpdC5wcm90bxILZG9ja3dlbGwudjEiyAEKFkxpc3RBdWRpdEV2ZW50c1JlcXVlc3QSEQoJcGFnZV9zaXplGAEgASgFEhIKCnBhZ2VfdG9rZW4YAiABKAkSKQoFc2luY2UYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiYKBWFjdG9yGAQgASgOMhcuZG9ja3dlbGwudjEuQXVkaXRBY3RvchIlCgdzdXJmYWNlGAUgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRINCgVxdWVyeRgGIAEoCSJbChdMaXN0QXVkaXRFdmVudHNSZXNwb25zZRInCgZldmVudHMYASADKAsyFy5kb2Nrd2VsbC52MS5BdWRpdEV2ZW50EhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSKcAgoKQXVkaXRFdmVudBIKCgJpZBgBIAEoCRIoCgR0aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIhCgVhY3RvchgDIAEoCzISLmRvY2t3ZWxsLnYxLkFjdG9yEg4KBmFjdGlvbhgEIAEoCRIlCgdzdXJmYWNlGAUgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIpCgZ0YXJnZXQYBiABKAsyGS5kb2Nrd2VsbC52MS5FdmVudFN1YmplY3QSDwoHc3ViamVjdBgHIAEoCRIOCgZkZXRhaWwYCCABKAkSDwoHYWRkcmVzcxgJIAEoCRIhCgVldmVudBgKIAEoCzISLmRvY2t3ZWxsLnYxLkV2ZW50KrsBCgpBdWRpdEFjdG9yEhsKF0FVRElUX0FDVE9SX1VOU1BFQ0lGSUVEEAASFgoSQVVESVRfQUNUT1JfUEVSU09OEAESFQoRQVVESVRfQUNUT1JfVE9LRU4QAhIYChRBVURJVF9BQ1RPUl9ET0NLV0VMTBADEhYKEkFVRElUX0FDVE9SX1NFUlZFUhAEEhUKEUFVRElUX0FDVE9SX1NIRUxMEAUSGAoUQVVESVRfQUNUT1JfU1RSQU5HRVIQBjKRAQoMQXVkaXRTZXJ2aWNlEoABCg9MaXN0QXVkaXRFdmVudHMSIy5kb2Nrd2VsbC52MS5MaXN0QXVkaXRFdmVudHNSZXF1ZXN0GiQuZG9ja3dlbGwudjEuTGlzdEF1ZGl0RXZlbnRzUmVzcG9uc2UiIpACAaC7GAGwuxgBgtPkkwIREg8vdjEvYXVkaXRFdmVudHNCowEKD2NvbS5kb2Nrd2VsbC52MUIKQXVkaXRQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_event, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListAuditEventsRequest asks for a page of the audit log.
@@ -171,9 +171,11 @@ export type AuditEvent = Message<"dockwell.v1.AuditEvent"> & {
   subject: string;
 
   /**
-   * What Dockwell wrote of it for people, such as "passkey on localhost from
-   * 203.0.113.9, session ses_…" for a sign-in. It may name addresses. Empty
-   * when there was nothing more to say.
+   * What Dockwell recorded with it, as it was recorded: words for people,
+   * such as "passkey on localhost from 203.0.113.9, session ses_…" for a
+   * sign-in, or facts for a program, such as a setting's value and the one it
+   * replaced. It may name addresses. Empty when there was nothing more. To say
+   * the event in words, read event.
    *
    * @generated from field: string detail = 8;
    */
@@ -186,6 +188,15 @@ export type AuditEvent = Message<"dockwell.v1.AuditEvent"> & {
    * @generated from field: string address = 9;
    */
   address: string;
+
+  /**
+   * The same event as Activity has it, with the facts it carries, such as a
+   * backup's volume, a health check's state, a setting's value, or a change
+   * with its plan, as it is now, for saying the event in words.
+   *
+   * @generated from field: dockwell.v1.Event event = 10;
+   */
+  event?: Event | undefined;
 };
 
 /**

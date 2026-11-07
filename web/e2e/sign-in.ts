@@ -715,7 +715,8 @@ async function main() {
   await expectText(tools, "Proposed by");
   await expectText(tools, "Mira Chen");
   await expectText(tools, "From the CLI");
-  await expectText(tools, "Local access on");
+  // Named by what made its token, the CLI on the control server, never by the token's name.
+  await expectText(tools, "CLI on ");
   await shoot(page, "activity-from-cli");
   // Local access's token, on the timeline as the shell account that made it.
   await page

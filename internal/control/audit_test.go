@@ -6,8 +6,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
@@ -106,6 +108,96 @@ func TestTheAuditLogIsForAPerson(t *testing.T) {
 			if connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != "needs_session" {
 				t.Errorf("a token reading the audit log = %v, want needs_session", err)
 			}
+		}
+	})
+}
+
+// Each event carries what Activity says of it, typed, so the panel says it in
+// words: a setting's value, a change and its plan, and who a token the CLI made
+// for local access stands for, by what made it rather than by what it's called.
+// Nothing in it holds a token's secret.
+func TestTheAuditLogSaysWhatHappened(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		settings := func(secret string) dockwellv1connect.SettingsServiceClient {
+			return dockwellv1connect.NewSettingsServiceClient(bearer{token: secret, rt: b.client.Transport}, b.origin, connect.WithProtoJSON())
+		}
+		local, err := f.auth.CreateLocalToken(t.Context(), "cli:mira@web-1", "Local access on web-1, read-write", store.ScopeReadWrite, time.Time{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := settings(local.Secret).SetTimeZone(t.Context(), connect.NewRequest(&dockwellv1.SetTimeZoneRequest{TimeZone: "Europe/Amsterdam"})); err != nil {
+			t.Fatal(err)
+		}
+		// Anyone can call a token what local access calls its own.
+		res, err := dockwellv1connect.NewTokenServiceClient(b, b.origin, connect.WithProtoJSON()).CreateToken(t.Context(),
+			connect.NewRequest(&dockwellv1.CreateTokenRequest{
+				Name: "Local access on prod-1, read-write", Scope: dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE,
+				Proof: stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+			}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lookalike := res.Msg.GetSecret()
+		if _, err := settings(lookalike).SetTimeZone(t.Context(), connect.NewRequest(&dockwellv1.SetTimeZoneRequest{TimeZone: "Asia/Kolkata"})); err != nil {
+			t.Fatal(err)
+		}
+		f.addDockerServer(t)
+		changes := changeClient(b, b.origin)
+		planned := propose(t, changes, "Run web", runImage("ghcr.io/acme/shop:1.4"))
+		discard(t, changes, planned)
+
+		audit := dockwellv1connect.NewAuditServiceClient(b, b.origin, connect.WithProtoJSON())
+		read, err := audit.ListAuditEvents(t.Context(), connect.NewRequest(&dockwellv1.ListAuditEventsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		zones := map[string]*dockwellv1.AuditEvent{}
+		var discarded *dockwellv1.AuditEvent
+		for _, e := range read.Msg.GetEvents() {
+			switch e.GetAction() {
+			case "settings.time_zone":
+				zones[e.GetEvent().GetSetting().GetValue()] = e
+			case "change.discarded":
+				discarded = e
+			}
+		}
+		byCLI := zones["Europe/Amsterdam"]
+		if l := byCLI.GetActor().GetLocalAccess(); l.GetAccount() != "mira@web-1" || l.GetScope() != dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE {
+			t.Errorf("the CLI's token setting the zone reads as %v, want local access for mira@web-1, read-write", byCLI.GetActor())
+		}
+		if byCLI.GetEvent().GetSetting().GetPrevious() != "" || byCLI.GetEvent().GetKind() != dockwellv1.EventKind_EVENT_KIND_SETTINGS {
+			t.Errorf("the zone's first setting reads as %v, want a setting with nothing before it", byCLI.GetEvent())
+		}
+		named := zones["Asia/Kolkata"]
+		if named.GetActor().GetLocalAccess() != nil || named.GetActor().GetName() != "Local access on prod-1, read-write" {
+			t.Errorf("a token only named like local access reads as %v, want a token like any other", named.GetActor())
+		}
+		if named.GetEvent().GetSetting().GetPrevious() != "Europe/Amsterdam" {
+			t.Errorf("the zone's second setting reads as %v, want what it replaced", named.GetEvent().GetSetting())
+		}
+		if c := discarded.GetEvent().GetChange(); c.GetId() != planned.GetId() || c.GetSummary() != "Run web" ||
+			c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED || c.GetPlan() == nil {
+			t.Errorf("a discarded change reads as %v, want the change, with its plan", discarded.GetEvent())
+		}
+
+		whole, err := protojson.Marshal(read.Msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, secret := range []string{local.Secret, lookalike} {
+			if strings.Contains(string(whole), secret) {
+				t.Error("the audit log holds a token's secret")
+			}
+		}
+
+		long := strings.Repeat("a", store.MaxAuditQuery+1)
+		if _, err := audit.ListAuditEvents(t.Context(), connect.NewRequest(&dockwellv1.ListAuditEventsRequest{Query: long})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("a query of %d characters = %v, want InvalidArgument", len(long), err)
+		}
+		if _, err := audit.ListAuditEvents(t.Context(), connect.NewRequest(&dockwellv1.ListAuditEventsRequest{Query: long[1:]})); err != nil {
+			t.Errorf("a query of %d characters: %v", len(long)-1, err)
 		}
 	})
 }

@@ -84,6 +84,13 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByRole("heading", { level: 1, name: "Audit log" }).waitFor();
   const log = page.getByRole("table", { name: "The audit log, newest first" });
   await log.getByRole("cell", { name: "settings.name", exact: true }).first().waitFor();
+  // Each says what happened in a sentence, as Activity does, never the JSON it records.
+  await log
+    .getByRole("row")
+    .filter({ hasText: "settings.name" })
+    .filter({ hasText: "Named this install" })
+    .first()
+    .waitFor();
   await page.getByRole("combobox", { name: "Time range" }).selectOption("all");
   await page.getByRole("textbox", { name: "Filter events" }).fill("owner.claim");
   await log.getByRole("cell", { name: "owner.claim", exact: true }).waitFor();
@@ -101,6 +108,8 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   if (
     !csv.startsWith("time,action,actor_kind,") ||
     !csv.includes(",settings.time_zone,") ||
+    !csv.includes("time zone for new schedules") ||
+    csv.includes('""previous""') ||
     csv.includes(",owner.claim,")
   ) {
     fail(`the audit log's CSV reads ${JSON.stringify(csv.slice(0, 200))}`);
