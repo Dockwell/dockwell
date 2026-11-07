@@ -303,10 +303,21 @@ func (h *Handler) Terminal(ctx context.Context, stream *connect.BidiStream[agent
 		return connect.NewError(connect.CodeNotFound, errors.New("nobody is waiting for this terminal"))
 	}
 	defer l.goneOnce.Do(func() { close(l.gone) })
+	// What's typed goes down from other calls' goroutines, so none sends once this
+	// returns, as the stream is closing then.
 	var sendMu sync.Mutex
+	closed := false
+	defer func() {
+		sendMu.Lock()
+		closed = true
+		sendMu.Unlock()
+	}()
 	l.down = func(m *agentv1.TerminalResponse) error {
 		sendMu.Lock()
 		defer sendMu.Unlock()
+		if closed {
+			return io.EOF
+		}
 		return stream.Send(m)
 	}
 	close(l.ready)
