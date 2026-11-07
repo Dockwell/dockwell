@@ -266,13 +266,19 @@ type AuditEvent struct {
 	// The ID it is about, such as a change's for a change's events, or the
 	// person's for signing in. Empty when it is about nothing more.
 	Subject string `protobuf:"bytes,7,opt,name=subject,proto3" json:"subject,omitempty"`
-	// What Dockwell wrote of it for people, such as "passkey on localhost from
-	// 203.0.113.9, session ses_…" for a sign-in. It may name addresses. Empty
-	// when there was nothing more to say.
+	// What Dockwell recorded with it, as it was recorded: words for people,
+	// such as "passkey on localhost from 203.0.113.9, session ses_…" for a
+	// sign-in, or facts for a program, such as a setting's value and the one it
+	// replaced. It may name addresses. Empty when there was nothing more. To say
+	// the event in words, read event.
 	Detail string `protobuf:"bytes,8,opt,name=detail,proto3" json:"detail,omitempty"`
 	// The address someone who wasn't signed in came from, such as
 	// "203.0.113.9". Empty for everyone else.
-	Address       string `protobuf:"bytes,9,opt,name=address,proto3" json:"address,omitempty"`
+	Address string `protobuf:"bytes,9,opt,name=address,proto3" json:"address,omitempty"`
+	// The same event as Activity has it, with the facts it carries, such as a
+	// backup's volume, a health check's state, a setting's value, or a change
+	// with its plan, as it is now, for saying the event in words.
+	Event         *Event `protobuf:"bytes,10,opt,name=event,proto3" json:"event,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -370,6 +376,13 @@ func (x *AuditEvent) GetAddress() string {
 	return ""
 }
 
+func (x *AuditEvent) GetEvent() *Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
 var File_dockwell_v1_audit_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_audit_proto_rawDesc = "" +
@@ -385,7 +398,7 @@ const file_dockwell_v1_audit_proto_rawDesc = "" +
 	"\x05query\x18\x06 \x01(\tR\x05query\"r\n" +
 	"\x17ListAuditEventsResponse\x12/\n" +
 	"\x06events\x18\x01 \x03(\v2\x17.dockwell.v1.AuditEventR\x06events\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xbd\x02\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xe7\x02\n" +
 	"\n" +
 	"AuditEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12.\n" +
@@ -396,7 +409,9 @@ const file_dockwell_v1_audit_proto_rawDesc = "" +
 	"\x06target\x18\x06 \x01(\v2\x19.dockwell.v1.EventSubjectR\x06target\x12\x18\n" +
 	"\asubject\x18\a \x01(\tR\asubject\x12\x16\n" +
 	"\x06detail\x18\b \x01(\tR\x06detail\x12\x18\n" +
-	"\aaddress\x18\t \x01(\tR\aaddress*\xbb\x01\n" +
+	"\aaddress\x18\t \x01(\tR\aaddress\x12(\n" +
+	"\x05event\x18\n" +
+	" \x01(\v2\x12.dockwell.v1.EventR\x05event*\xbb\x01\n" +
 	"\n" +
 	"AuditActor\x12\x1b\n" +
 	"\x17AUDIT_ACTOR_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -434,23 +449,25 @@ var file_dockwell_v1_audit_proto_goTypes = []any{
 	(Surface)(0),                    // 5: dockwell.v1.Surface
 	(*Actor)(nil),                   // 6: dockwell.v1.Actor
 	(*EventSubject)(nil),            // 7: dockwell.v1.EventSubject
+	(*Event)(nil),                   // 8: dockwell.v1.Event
 }
 var file_dockwell_v1_audit_proto_depIdxs = []int32{
-	4, // 0: dockwell.v1.ListAuditEventsRequest.since:type_name -> google.protobuf.Timestamp
-	0, // 1: dockwell.v1.ListAuditEventsRequest.actor:type_name -> dockwell.v1.AuditActor
-	5, // 2: dockwell.v1.ListAuditEventsRequest.surface:type_name -> dockwell.v1.Surface
-	3, // 3: dockwell.v1.ListAuditEventsResponse.events:type_name -> dockwell.v1.AuditEvent
-	4, // 4: dockwell.v1.AuditEvent.time:type_name -> google.protobuf.Timestamp
-	6, // 5: dockwell.v1.AuditEvent.actor:type_name -> dockwell.v1.Actor
-	5, // 6: dockwell.v1.AuditEvent.surface:type_name -> dockwell.v1.Surface
-	7, // 7: dockwell.v1.AuditEvent.target:type_name -> dockwell.v1.EventSubject
-	1, // 8: dockwell.v1.AuditService.ListAuditEvents:input_type -> dockwell.v1.ListAuditEventsRequest
-	2, // 9: dockwell.v1.AuditService.ListAuditEvents:output_type -> dockwell.v1.ListAuditEventsResponse
-	9, // [9:10] is the sub-list for method output_type
-	8, // [8:9] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	4,  // 0: dockwell.v1.ListAuditEventsRequest.since:type_name -> google.protobuf.Timestamp
+	0,  // 1: dockwell.v1.ListAuditEventsRequest.actor:type_name -> dockwell.v1.AuditActor
+	5,  // 2: dockwell.v1.ListAuditEventsRequest.surface:type_name -> dockwell.v1.Surface
+	3,  // 3: dockwell.v1.ListAuditEventsResponse.events:type_name -> dockwell.v1.AuditEvent
+	4,  // 4: dockwell.v1.AuditEvent.time:type_name -> google.protobuf.Timestamp
+	6,  // 5: dockwell.v1.AuditEvent.actor:type_name -> dockwell.v1.Actor
+	5,  // 6: dockwell.v1.AuditEvent.surface:type_name -> dockwell.v1.Surface
+	7,  // 7: dockwell.v1.AuditEvent.target:type_name -> dockwell.v1.EventSubject
+	8,  // 8: dockwell.v1.AuditEvent.event:type_name -> dockwell.v1.Event
+	1,  // 9: dockwell.v1.AuditService.ListAuditEvents:input_type -> dockwell.v1.ListAuditEventsRequest
+	2,  // 10: dockwell.v1.AuditService.ListAuditEvents:output_type -> dockwell.v1.ListAuditEventsResponse
+	10, // [10:11] is the sub-list for method output_type
+	9,  // [9:10] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_audit_proto_init() }

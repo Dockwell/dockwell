@@ -4,7 +4,16 @@ import { type Timestamp, timestampMs } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { Connection, type Server, ServerService } from "@dockwell/api";
-import { createContext, createElement, type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  createElement,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { isSessionEnded } from "../../lib/errors";
 import { type Unread, useOnline } from "../../lib/online";
@@ -116,6 +125,15 @@ export function useFleetUnread(): { why: Unread; heard: Date } | undefined {
  */
 export function useControlPlaneNow(interval?: number): number {
   return useNow(interval) - useContext(SkewContext);
+}
+
+/**
+ * Reads now on the control plane's clock when called, for a moment someone
+ * chose, such as the start of a time range asked of it.
+ */
+export function useControlPlaneClock(): () => number {
+  const skew = useContext(SkewContext);
+  return useCallback(() => Date.now() - skew, [skew]);
 }
 
 /**
