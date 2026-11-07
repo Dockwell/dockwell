@@ -117,6 +117,19 @@ func (s *Server) unclaim(id string) {
 	delete(s.claimed, id)
 }
 
+// canKeep reports what st is on the same filesystem as Recently deleted, which a
+// rename into it needs. Another mount of the same one can still refuse, which keep
+// finds.
+func (s *Server) canKeep(st *unix.Stat_t) bool {
+	root, err := s.openDeleted()
+	if err != nil {
+		return false
+	}
+	defer unix.Close(root)
+	var here unix.Stat_t
+	return unix.Fstat(root, &here) == nil && here.Dev == st.Dev
+}
+
 // kick has what's waiting removed now, rather than within the hour.
 func (s *Server) kick() {
 	select {
@@ -135,7 +148,10 @@ func (s *Server) keep(tg *target, st *unix.Stat_t, forGood bool) (*dockwellv1.De
 		return nil, nil
 	}
 	defer unix.Close(root)
+	// Claimed until it's what it says, so a prune doesn't take it as it's made.
 	id := rand.Text()
+	s.claim(id)
+	defer s.unclaim(id)
 	a := about{Path: tg.where, Type: typeOf(st.Mode), Deleted: s.now().UTC(), ForGood: forGood}
 	if a.Type == dockwellv1.FileType_FILE_TYPE_FILE {
 		a.Size = uint64(max(st.Size, 0))
@@ -145,7 +161,7 @@ func (s *Server) keep(tg *target, st *unix.Stat_t, forGood bool) (*dockwellv1.De
 		return nil, refusal
 	}
 	defer unix.Close(entryDir)
-	dropEntry := func() { _ = removeAll(root, id, 0, 0) }
+	dropEntry := func() { _ = removeAll(root, id, 0, 0, 0) }
 	if err := unix.Renameat2(tg.dir(), tg.name, entryDir, itemName, unix.RENAME_NOREPLACE); err != nil {
 		dropEntry()
 		if errors.Is(err, unix.EXDEV) {
@@ -187,7 +203,7 @@ func newEntry(root int, id string, a *about, where string) (int, *agentv1.FileRe
 		if dir >= 0 {
 			_ = unix.Close(dir)
 		}
-		_ = removeAll(root, id, 0, 0)
+		_ = removeAll(root, id, 0, 0, 0)
 		return -1, cant(err)
 	}
 	return dir, nil
@@ -238,8 +254,19 @@ func readAbout(root int, id string) (*about, error) {
 // Recently deleted or beside where it was, and is removed in the background, so its
 // path is free however large it is, and nothing reads it half removed.
 func (s *Server) forGood(tg *target, st *unix.Stat_t) *agentv1.FileRefusal {
-	if st.Mode&unix.S_IFMT != unix.S_IFDIR {
-		if err := unix.Unlinkat(tg.dir(), tg.name, 0); err != nil {
+	if !isDir(st) {
+		// Out of the way first, and checked, so what goes is what was checked.
+		aside := asidePrefix + rand.Text()
+		if err := unix.Renameat2(tg.dir(), tg.name, tg.dir(), aside, unix.RENAME_NOREPLACE); err != nil {
+			return undeleted(tg.where, err)
+		}
+		var moved unix.Stat_t
+		if err := unix.Fstatat(tg.dir(), aside, &moved, unix.AT_SYMLINK_NOFOLLOW); err != nil || identify(&moved) != identify(st) {
+			_ = unix.Renameat2(tg.dir(), aside, tg.dir(), tg.name, unix.RENAME_NOREPLACE)
+			return gone(tg.where)
+		}
+		if err := unix.Unlinkat(tg.dir(), aside, 0); err != nil {
+			_ = unix.Renameat2(tg.dir(), aside, tg.dir(), tg.name, unix.RENAME_NOREPLACE)
 			return undeleted(tg.where, err)
 		}
 		return nil
@@ -251,6 +278,8 @@ func (s *Server) forGood(tg *target, st *unix.Stat_t) *agentv1.FileRefusal {
 	// On another filesystem: beside where it was, with a note to finish the job if the
 	// agent stops first.
 	id := rand.Text()
+	s.claim(id)
+	defer s.unclaim(id)
 	aside := asidePrefix + id
 	if err := unix.Renameat2(tg.dir(), tg.name, tg.dir(), aside, unix.RENAME_NOREPLACE); err != nil {
 		return undeleted(tg.where, err)
@@ -271,7 +300,7 @@ func (s *Server) forGood(tg *target, st *unix.Stat_t) *agentv1.FileRefusal {
 		}
 	}
 	// With nowhere to note it, it goes now.
-	if err := removeAll(tg.dir(), aside, st.Dev, 0); err != nil {
+	if err := removeAll(tg.dir(), aside, st.Dev, st.Ino, 0); err != nil {
 		s.logger.Warn("a folder deleted for good was left in part", slog.String("path", joined(tg.w.path(), aside)), slog.String("error", err.Error()))
 	}
 	return nil
@@ -280,8 +309,21 @@ func (s *Server) forGood(tg *target, st *unix.Stat_t) *agentv1.FileRefusal {
 // removeAll removes name in dir, and all it holds, through descriptors and never by
 // path, so a link in it is removed, not followed. It stays on the filesystem dev,
 // leaving what's mounted in it, and goes maxDepth folders deep at most. A dev of 0
-// is the filesystem it's on. What it can't remove stays, and it says what.
-func removeAll(dir int, name string, dev uint64, depth int) error {
+// is the filesystem it's on. An ino other than 0 is what name has to be, so what
+// took its place since it was checked stays. What it can't remove stays, and it
+// says what.
+func removeAll(dir int, name string, dev, ino uint64, depth int) error {
+	if ino != 0 {
+		var st unix.Stat_t
+		switch err := unix.Fstatat(dir, name, &st, unix.AT_SYMLINK_NOFOLLOW); {
+		case errors.Is(err, unix.ENOENT):
+			return nil
+		case err != nil:
+			return fmt.Errorf("%s: %w", name, err)
+		case st.Ino != ino || dev != 0 && st.Dev != dev:
+			return fmt.Errorf("%s isn't what was deleted, so it was left", name)
+		}
+	}
 	err := unix.Unlinkat(dir, name, 0)
 	if err == nil || errors.Is(err, unix.ENOENT) {
 		return nil
@@ -308,6 +350,10 @@ func removeAll(dir int, name string, dev uint64, depth int) error {
 		_ = unix.Close(fd)
 		return fmt.Errorf("%s is another filesystem mounted there, so it was left", name)
 	}
+	if ino != 0 && st.Ino != ino {
+		_ = unix.Close(fd)
+		return fmt.Errorf("%s isn't what was deleted, so it was left", name)
+	}
 	f := os.NewFile(uintptr(fd), name)
 	var errs []error
 	// A pass can miss what moves as the folder is read, so a few go over it again.
@@ -319,7 +365,7 @@ func removeAll(dir int, name string, dev uint64, depth int) error {
 		for {
 			names, err := f.Readdirnames(256)
 			for _, n := range names {
-				if err := removeAll(fd, n, dev, depth+1); err != nil && len(errs) < 8 {
+				if err := removeAll(fd, n, dev, 0, depth+1); err != nil && len(errs) < 8 {
 					errs = append(errs, fmt.Errorf("%s/%w", name, err))
 				}
 			}
@@ -351,7 +397,8 @@ func (s *Server) ListDeleted() (*agentv1.ListDeletedResult, error) {
 	}
 	defer unix.Close(root)
 	for _, e := range s.entries(root) {
-		if !e.about.ForGood {
+		// One still being made, or that a stop left half made, says nothing yet.
+		if e.known && !e.about.ForGood {
 			out.Deleted = append(out.Deleted, e.about.file(e.id))
 		}
 	}
@@ -362,6 +409,10 @@ func (s *Server) ListDeleted() (*agentv1.ListDeletedResult, error) {
 type kept struct {
 	id    string
 	about *about
+	// known says it says what it is. One that doesn't is being made, or was left
+	// half made, as of made.
+	known bool
+	made  time.Time
 }
 
 // entries reads Recently deleted, newest first. What doesn't say what it is goes
@@ -378,11 +429,18 @@ func (s *Server) entries(root int) []kept {
 		if !deletedID.MatchString(name) {
 			continue
 		}
-		a, err := readAbout(root, name)
-		if err != nil {
-			a = &about{}
+		e := kept{id: name}
+		var err error
+		if e.about, err = readAbout(root, name); err == nil {
+			e.known = true
+		} else {
+			e.about = &about{}
+			var st unix.Stat_t
+			if unix.Fstatat(root, name, &st, unix.AT_SYMLINK_NOFOLLOW) == nil {
+				e.made = time.Unix(st.Mtim.Unix())
+			}
 		}
-		out = append(out, kept{name, a})
+		out = append(out, e)
 	}
 	slices.SortFunc(out, func(a, b kept) int {
 		return cmp.Or(b.about.Deleted.Compare(a.about.Deleted), strings.Compare(a.id, b.id))
@@ -432,6 +490,13 @@ func (s *Server) restore(ctx context.Context, t *trail, id, confirmed string, be
 		return refuse(notDeleted(id))
 	}
 	tg, refusal := s.targetOf(t, s.guard(ctx), a.Path)
+	if refusal.GetKind() == agentv1.FileRefusal_KIND_NOT_FOUND || refusal.GetKind() == agentv1.FileRefusal_KIND_NOT_A_DIRECTORY {
+		folder := path.Dir(a.Path)
+		return refuse(&agentv1.FileRefusal{
+			Kind: agentv1.FileRefusal_KIND_FOLDER_GONE, Path: a.Path,
+			Message: fmt.Sprintf("the folder %s is gone, so %s wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back", folder, path.Base(a.Path)),
+		})
+	}
 	if refusal != nil {
 		return refuse(refusal)
 	}
@@ -448,7 +513,7 @@ func (s *Server) restore(ctx context.Context, t *trail, id, confirmed string, be
 	if why := credentials(tg.where); why != "" {
 		return refuse(refused(tg.where, why))
 	}
-	wayIn := s.wayInAt(tg, &st)
+	wayIn := s.wayInAt(tg, &st, isDir(&st))
 	if wayIn && confirmed != tg.where {
 		return refuse(needsPasskey(tg.where, "putting it back"))
 	}
@@ -559,6 +624,10 @@ func (s *Server) prune(ctx context.Context) {
 		if !e.about.ForGood && !e.about.Deleted.Before(cutoff) && i < maxDeleted {
 			continue
 		}
+		// One that doesn't say what it is yet may be being made: it waits an hour.
+		if !e.known && s.now().Sub(e.made) < time.Hour {
+			continue
+		}
 		if !s.claim(e.id) {
 			continue
 		}
@@ -578,7 +647,7 @@ func (s *Server) prune(ctx context.Context) {
 		if a, err := readAbout(root, name); err == nil && a.Aside != "" && !s.removeAside(ctx, a) {
 			continue // its folder isn't there now: the next pass tries again
 		}
-		if err := removeAll(root, name, 0, 0); err != nil {
+		if err := removeAll(root, name, 0, 0, 0); err != nil {
 			s.logger.Warn("can't remove all of what was deleted from Recently deleted", slog.String("error", err.Error()))
 		}
 	}
@@ -607,7 +676,7 @@ func (s *Server) removeAside(ctx context.Context, a *about) bool {
 		s.logger.Warn("what was deleted for good isn't where it waited, so what's there now was left", slog.String("path", a.Aside))
 		return true
 	}
-	if err := removeAll(w.last().fd, name, st.Dev, 0); err != nil {
+	if err := removeAll(w.last().fd, name, st.Dev, a.Ino, 0); err != nil {
 		s.logger.Warn("can't remove all of a folder deleted for good", slog.String("path", a.Aside), slog.String("error", err.Error()))
 	}
 	return true

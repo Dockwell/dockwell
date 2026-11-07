@@ -82,6 +82,9 @@ type Server struct {
 	systemPlaces func() []string
 	listedFiles  []string
 	accounts     func() (passwd, group string)
+	// homeRoot is where people's homes are, as the rule for logins has it, which a
+	// server can have lead elsewhere.
+	homeRoot string
 	// saving keeps saves of roots to one at a time.
 	saving sync.Mutex
 	// claimed holds the entries of Recently deleted a call has. It's mu that guards it.
@@ -101,7 +104,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 	s := &Server{
 		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
-		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts,
+		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home",
 		claimed: map[string]bool{}, pruneNow: make(chan struct{}, 1), now: time.Now,
 	}
 	s.roots = s.loadRoots()

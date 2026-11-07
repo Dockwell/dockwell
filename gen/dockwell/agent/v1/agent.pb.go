@@ -63,6 +63,8 @@ const (
 	// A delete can't go to Recently deleted, as it's on another filesystem,
 	// so it can only be deleted for good, which the call didn't say.
 	FileRefusal_KIND_FOR_GOOD FileRefusal_Kind = 122
+	// What's put back has nowhere to go, as the folder it was in is gone.
+	FileRefusal_KIND_FOLDER_GONE FileRefusal_Kind = 123
 )
 
 // Enum value maps for FileRefusal_Kind.
@@ -81,6 +83,7 @@ var (
 		120: "KIND_EXISTS",
 		121: "KIND_OTHER_DISK",
 		122: "KIND_FOR_GOOD",
+		123: "KIND_FOLDER_GONE",
 	}
 	FileRefusal_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED":     0,
@@ -96,6 +99,7 @@ var (
 		"KIND_EXISTS":          120,
 		"KIND_OTHER_DISK":      121,
 		"KIND_FOR_GOOD":        122,
+		"KIND_FOLDER_GONE":     123,
 	}
 )
 
@@ -7241,11 +7245,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x16\n" +
 	"\x06record\x18\x04 \x01(\tR\x06record\x12%\n" +
-	"\x0econfirmed_path\x18\x05 \x01(\tR\rconfirmedPath\"\x87\x03\n" +
+	"\x0econfirmed_path\x18\x05 \x01(\tR\rconfirmedPath\"\x9d\x03\n" +
 	"\vFileRefusal\x127\n" +
 	"\x04kind\x18\x01 \x01(\x0e2#.dockwell.agent.v1.FileRefusal.KindR\x04kind\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\"\x90\x02\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\"\xa6\x02\n" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eKIND_NOT_FOUND\x10\x01\x12\x10\n" +
@@ -7259,7 +7263,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x12KIND_NEEDS_STEP_UP\x10\t\x12\x0f\n" +
 	"\vKIND_EXISTS\x10x\x12\x13\n" +
 	"\x0fKIND_OTHER_DISK\x10y\x12\x11\n" +
-	"\rKIND_FOR_GOOD\x10z\"t\n" +
+	"\rKIND_FOR_GOOD\x10z\x12\x14\n" +
+	"\x10KIND_FOLDER_GONE\x10{\"t\n" +
 	"\fMakeFileCall\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12%\n" +

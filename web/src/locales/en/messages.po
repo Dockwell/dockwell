@@ -5809,14 +5809,14 @@ msgstr "New folder in {0}"
 msgid "Nothing changed"
 msgstr "Nothing changed"
 
+msgid "Nothing is in Recently deleted."
+msgstr "Nothing is in Recently deleted."
+
 msgid "Nothing moved"
 msgstr "Nothing moved"
 
 msgid "Nothing was deleted"
 msgstr "Nothing was deleted"
-
-msgid "Nothing was deleted on this server in the last 7 days."
-msgstr "Nothing was deleted on this server in the last 7 days."
 
 msgid "On this server, and on the same disk. It keeps its name, and never replaces what's there."
 msgstr "On this server, and on the same disk. It keeps its name, and never replaces what's there."
@@ -5848,6 +5848,9 @@ msgstr "That name is too long for a server. Keep it under 255 bytes."
 
 msgid "That name stands for a folder already. Choose another."
 msgstr "That name stands for a folder already. Choose another."
+
+msgid "The folder {folder} is gone, so {name} wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back."
+msgstr "The folder {folder} is gone, so {name} wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back."
 
 msgid "The passkey prompt closed, so nothing changed. Try again when you're ready."
 msgstr "The passkey prompt closed, so nothing changed. Try again when you're ready."

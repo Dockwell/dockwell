@@ -302,35 +302,32 @@ func (h *Handler) ListDeletedFiles(ctx context.Context, req *connect.Request[doc
 // RestoreFile puts back what was deleted on a server.
 func (h *Handler) RestoreFile(ctx context.Context, req *connect.Request[dockwellv1.RestoreFileRequest]) (*connect.Response[dockwellv1.RestoreFileResponse], error) {
 	id, proof := req.Msg.GetId(), req.Msg.GetProof()
-	// Until the agent says where it goes, the record goes by the ID.
+	// Until the agent says what it is, the record goes by the ID.
 	w, err := h.start(ctx, req.Msg.GetServerId(), opRestore, id, func() error { return checkDeletedID(id) })
 	if err != nil {
 		return nil, err
 	}
-	// A proof is for where it goes, which only the list says, so the agent checks it
-	// against its own walk.
+	// Where it goes names it on record, and is what a proof is for, which the agent
+	// checks against its own walk.
+	at, err := w.deletedPath(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	confirmed := ""
 	if proof != "" {
-		deleted, err := w.session.ListDeleted(ctx)
-		if err != nil {
-			return nil, w.failedAt(ctx, id, h.rpcError(ctx, err))
-		}
-		for _, d := range deleted.GetDeleted() {
-			if d.GetId() == id {
-				confirmed = d.GetPath()
-			}
-		}
-		if err := w.hold(ctx, cmp.Or(confirmed, id), proof, confirmed); err != nil {
+		confirmed = at
+		if err := w.hold(ctx, cmp.Or(at, id), proof, at); err != nil {
 			return nil, err
 		}
 	}
+	at = cmp.Or(at, id)
 	ctx = context.WithoutCancel(ctx)
 	out, err := w.session.RestoreFile(ctx, id, confirmed)
 	if err != nil {
-		return nil, w.called(ctx, cmp.Or(confirmed, id), err)
+		return nil, w.called(ctx, at, err)
 	}
 	if r := out.GetRefusal(); r != nil {
-		return nil, w.refused(ctx, cmp.Or(confirmed, id), cmp.Or(r.GetPath(), confirmed), r)
+		return nil, w.refused(ctx, at, cmp.Or(r.GetPath(), at), r)
 	}
 	restored := out.GetRestored()
 	w.done(ctx, restored.GetPath(), Told{WayBackIn: restored.GetWayBackIn()})
@@ -345,17 +342,37 @@ func (h *Handler) PurgeDeletedFile(ctx context.Context, req *connect.Request[doc
 	if err != nil {
 		return nil, err
 	}
+	at, err := w.deletedPath(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	at = cmp.Or(at, id)
 	ctx = context.WithoutCancel(ctx)
 	out, err := w.session.PurgeDeleted(ctx, id)
 	if err != nil {
-		return nil, w.called(ctx, id, err)
+		return nil, w.called(ctx, at, err)
 	}
 	if r := out.GetRefusal(); r != nil {
-		return nil, w.refused(ctx, id, "", r)
+		return nil, w.refused(ctx, at, "", r)
 	}
 	purged := out.GetPurged()
 	w.done(ctx, purged.GetPath(), Told{ForGood: true})
 	return connect.NewResponse(&dockwellv1.PurgeDeletedFileResponse{Deleted: purged}), nil
+}
+
+// deletedPath is where what's in Recently deleted as id was deleted from, or nothing
+// for an ID that isn't there.
+func (w *writing) deletedPath(ctx context.Context, id string) (string, error) {
+	deleted, err := w.session.ListDeleted(ctx)
+	if err != nil {
+		return "", w.failedAt(ctx, id, w.h.rpcError(ctx, err))
+	}
+	for _, d := range deleted.GetDeleted() {
+		if d.GetId() == id {
+			return d.GetPath(), nil
+		}
+	}
+	return "", nil
 }
 
 // checkDeletedID refuses what can't be an ID in Recently deleted.

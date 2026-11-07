@@ -6,7 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -142,10 +145,12 @@ func (s *Server) mountIn(where string) string {
 }
 
 // wayInAt reports a write at tg that can let someone back onto the server, by the
-// rule a save goes by: where it is, and each folder the walk went through. For what's
-// there, st says what it is. A folder counts for every account's home it is or holds,
-// as a home holds its owner's way in, and so does a folder made where one is.
-func (s *Server) wayInAt(tg *target, st *unix.Stat_t) bool {
+// rule a save goes by: where it is, and each folder the walk went through, with a
+// start file in an admin's home by what that home is. For what's there, st says
+// what it is. A folder, dir, counts for every account's home it is or holds, as a
+// home holds its owner's way in, and for each of an admin's way-in folders it is or
+// holds, such as .ssh or their systemd units, wherever their home is.
+func (s *Server) wayInAt(tg *target, st *unix.Stat_t, dir bool) bool {
 	from, inVolume := 0, false
 	for i := range tg.w.steps {
 		if tg.w.steps[i].place == oneVolume {
@@ -153,7 +158,7 @@ func (s *Server) wayInAt(tg *target, st *unix.Stat_t) bool {
 		}
 	}
 	ways := s.waysIn()
-	if listedPath(tg.where, s.dataDir, ways.homes, inVolume) {
+	if ways.listed(tg.where, s.dataDir, inVolume) {
 		return true
 	}
 	for i := from; i < len(tg.w.steps); i++ {
@@ -161,22 +166,24 @@ func (s *Server) wayInAt(tg *target, st *unix.Stat_t) bool {
 			return true
 		}
 	}
+	if slices.Contains(startFiles, tg.name) && ways.adminHomes[tg.w.last().id] {
+		return true
+	}
 	if st != nil && ways.files[identify(st)] {
 		return true
 	}
-	if st != nil && st.Mode&unix.S_IFMT != unix.S_IFDIR {
+	if !dir {
 		return false
 	}
-	if st != nil && ways.dirs[identify(st)] {
+	if st != nil && (ways.dirs[identify(st)] || ways.everyoneIDs[identify(st)]) {
 		return true
 	}
-	for _, home := range ways.everyone {
-		if mounts.Holds(tg.where, home) {
-			return true
-		}
-	}
-	return false
+	holds := func(p string) bool { return mounts.Holds(tg.where, p) }
+	return slices.ContainsFunc(ways.everyone, holds) || slices.ContainsFunc(ways.adminDirs, holds)
 }
+
+// isDir reports what st says is a folder.
+func isDir(st *unix.Stat_t) bool { return st.Mode&unix.S_IFMT == unix.S_IFDIR }
 
 // needsPasskey is a write that can let someone back onto the server, with no passkey
 // for where it is.
@@ -246,7 +253,7 @@ func (s *Server) make(ctx context.Context, t *trail, p string, kind dockwellv1.F
 	if why := credentials(tg.where); why != "" {
 		return refuse(refused(tg.where, why))
 	}
-	wayIn := s.wayInAt(tg, nil)
+	wayIn := s.wayInAt(tg, nil, kind == dockwellv1.FileType_FILE_TYPE_DIRECTORY)
 	if wayIn && confirmed != tg.where {
 		return refuse(needsPasskey(tg.where, "making it"))
 	}
@@ -261,16 +268,52 @@ func (s *Server) make(ctx context.Context, t *trail, p string, kind dockwellv1.F
 	if err != nil {
 		return refuse(&agentv1.FileRefusal{
 			Kind: agentv1.FileRefusal_KIND_DENIED, Path: tg.where,
-			Message: fmt.Sprintf("the agent can't make %s: %v. Check the disk's free space, and how the folder is mounted", tg.where, err),
+			Message: fmt.Sprintf("the agent can't make %s: %v. %s", tg.where, err, fixFor(err)),
 		})
 	}
 	defer unix.Close(fd)
-	ownLike(fd, &tg.w.st, kind)
 	var st unix.Stat_t
 	if err := unix.Fstat(fd, &st); err != nil {
 		return refuse(denied(tg.where, err))
 	}
+	// A folder is opened by its name after it's made, so another can be in its place
+	// by then: only what's the agent's own, and empty, takes the folder's owner.
+	if kind == dockwellv1.FileType_FILE_TYPE_DIRECTORY && (st.Uid != uint32(unix.Geteuid()) || !emptyDir(fd)) { //nolint:gosec // a user ID fits
+		return refuse(&agentv1.FileRefusal{
+			Kind: agentv1.FileRefusal_KIND_CHANGED, Path: tg.where,
+			Message: tg.where + " changed as the agent made it, so its owner and mode were left as they are. Look at it again",
+		})
+	}
+	ownLike(fd, &tg.w.st, kind)
+	if err := unix.Fstat(fd, &st); err != nil {
+		return refuse(denied(tg.where, err))
+	}
 	return &agentv1.MakeFileResult{Made: &dockwellv1.MakeFileResponse{Path: tg.where, File: entry(tg.name, &st, owners{}), WayBackIn: wayIn}}
+}
+
+// emptyDir reports a folder, open as fd, that holds nothing.
+func emptyDir(fd int) bool {
+	dup, err := unix.Dup(fd)
+	if err != nil {
+		return false
+	}
+	f := os.NewFile(uintptr(dup), "")
+	defer f.Close()
+	names, err := f.Readdirnames(1)
+	return len(names) == 0 && errors.Is(err, io.EOF)
+}
+
+// fixFor is what to do about an error the kernel gave a write, by what it says.
+func fixFor(err error) string {
+	switch {
+	case errors.Is(err, unix.EACCES), errors.Is(err, unix.EPERM):
+		return "Check its permissions, and whether it's marked immutable with chattr"
+	case errors.Is(err, unix.ENOSPC), errors.Is(err, unix.EDQUOT):
+		return "Check the disk's free space, and the quota"
+	case errors.Is(err, unix.EROFS):
+		return "It's on a mount that's read-only. Mount it read-write to change it"
+	}
+	return "Check its permissions, and how it's mounted"
 }
 
 // makeAt makes name in dir, and returns it open.
@@ -353,7 +396,7 @@ func (s *Server) move(ctx context.Context, t *trail, from, to, confirmedFrom, co
 	case !errors.Is(err, unix.ENOENT):
 		return refuse(failed(dst.where, err))
 	}
-	wayIn := s.wayInAt(src, &st) || s.wayInAt(dst, &st)
+	wayIn := s.wayInAt(src, &st, isDir(&st)) || s.wayInAt(dst, &st, isDir(&st))
 	if wayIn && (confirmedFrom != src.where || confirmedTo != dst.where) {
 		r := needsPasskey(src.where, "moving it")
 		r.Message = fmt.Sprintf("moving %s to %s can let someone back onto this server, so it takes your passkey, and nothing moved. Confirm with it, then try again", src.where, dst.where)
@@ -413,7 +456,7 @@ func unmoved(src, dst *target, err error) *agentv1.FileRefusal {
 	}
 	return &agentv1.FileRefusal{
 		Kind: agentv1.FileRefusal_KIND_DENIED, Path: src.where,
-		Message: fmt.Sprintf("the agent can't move %s to %s: %v, so nothing moved. Check its permissions, and how the folders are mounted", src.where, dst.where, err),
+		Message: fmt.Sprintf("the agent can't move %s to %s: %v, so nothing moved. %s", src.where, dst.where, err, fixFor(err)),
 	}
 }
 
@@ -453,7 +496,12 @@ func (s *Server) delete(ctx context.Context, t *trail, p string, forGood bool, c
 	if refusal := s.changeable(g, tg, &st); refusal != nil {
 		return refuse(refusal)
 	}
-	wayIn := s.wayInAt(tg, &st)
+	// Said before a passkey is asked for, so a delete that can't be put back takes
+	// one passkey, for the delete that goes ahead.
+	if !forGood && !s.canKeep(&st) {
+		return refuse(cantKeep(tg.where))
+	}
+	wayIn := s.wayInAt(tg, &st, isDir(&st))
 	if wayIn && confirmed != tg.where {
 		return refuse(needsPasskey(tg.where, "deleting it"))
 	}
@@ -468,10 +516,7 @@ func (s *Server) delete(ctx context.Context, t *trail, p string, forGood bool, c
 		case refusal != nil:
 			return refuse(refusal)
 		case kept == nil:
-			return refuse(&agentv1.FileRefusal{
-				Kind: agentv1.FileRefusal_KIND_FOR_GOOD, Path: tg.where,
-				Message: tg.where + " is on another disk or mount than Dockwell's data, so a delete can't be put back, and nothing was deleted. Delete it for good to go on",
-			})
+			return refuse(cantKeep(tg.where))
 		}
 		out.Deleted = kept
 		return &agentv1.DeleteFileResult{Deleted: out}
@@ -480,6 +525,14 @@ func (s *Server) delete(ctx context.Context, t *trail, p string, forGood bool, c
 		return refuse(refusal)
 	}
 	return &agentv1.DeleteFileResult{Deleted: out}
+}
+
+// cantKeep is a delete Recently deleted can't take.
+func cantKeep(where string) *agentv1.FileRefusal {
+	return &agentv1.FileRefusal{
+		Kind: agentv1.FileRefusal_KIND_FOR_GOOD, Path: where,
+		Message: where + " is on another disk or mount than Dockwell's data, so a delete can't be put back, and nothing was deleted. Delete it for good to go on",
+	}
 }
 
 // gone is a delete that found what it checked replaced, and put it back.
@@ -500,6 +553,6 @@ func undeleted(where string, err error) *agentv1.FileRefusal {
 	}
 	return &agentv1.FileRefusal{
 		Kind: agentv1.FileRefusal_KIND_DENIED, Path: where,
-		Message: fmt.Sprintf("the agent can't delete %s: %v, so nothing was deleted. Check its permissions, and how its folder is mounted", where, err),
+		Message: fmt.Sprintf("the agent can't delete %s: %v, so nothing was deleted. %s", where, err, fixFor(err)),
 	}
 }

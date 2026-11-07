@@ -354,6 +354,9 @@ export function DeleteSheet({
   const [onlyForGood, setOnlyForGood] = useState<string>();
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
+  // A proof that came back unspent, as the delete couldn't be put back, which the
+  // delete for good that follows uses, so one delete takes one passkey.
+  const unspent = useRef("");
   const path = join(folder, entry.name);
   const name = entry.name;
   const isFolder = entry.type === FileType.DIRECTORY;
@@ -363,19 +366,28 @@ export function DeleteSheet({
     if (busy) return;
     setBusy(true);
     setFailure(undefined);
+    const call = (proof: string) => {
+      unspent.current = proof;
+      return client.deleteFile({ serverId, path, forGood: goesForGood, proof });
+    };
     try {
-      const deleted = await withStepUpIfAsked(
-        transport,
-        StepUpAction.DELETE_WAY_BACK_IN,
-        `${serverId}:${path}`,
-        (proof) => client.deleteFile({ serverId, path, forGood: goesForGood, proof }),
-      );
+      let deleted: Awaited<ReturnType<typeof call>> | undefined;
+      if (unspent.current) {
+        try {
+          deleted = await call(unspent.current);
+        } catch (err) {
+          // Spent or past its minute: ask again, as anything else would.
+          if (reasonOf(err) !== "needs_step_up") throw err;
+        }
+      }
+      deleted ??= await withStepUpIfAsked(transport, StepUpAction.DELETE_WAY_BACK_IN, `${serverId}:${path}`, call);
       await changed();
       onDone(deleted.path, deleted.deleted);
     } catch (err) {
       if (reasonOf(err) === "delete_for_good") {
         setOnlyForGood(sentence(err));
       } else {
+        unspent.current = "";
         setFailure(problem(err, path));
       }
       setBusy(false);
@@ -472,10 +484,17 @@ export function useRestore(serverId: string): (d: Pick<DeletedFile, "id" | "path
 export function useRestoreProblem(serverId: string): (err: unknown, path: string) => string {
   const { t } = useLingui();
   const { problem } = useFiles(serverId);
-  return (err, path) =>
-    reasonOf(err) === "file_exists"
-      ? t`Something is at ${path} now, so it wasn't put back. Move or rename that first.`
-      : problem(err, path);
+  return (err, path) => {
+    const folder = parentOf(path);
+    const name = nameOf(path);
+    switch (reasonOf(err)) {
+      case "file_exists":
+        return t`Something is at ${path} now, so it wasn't put back. Move or rename that first.`;
+      case "folder_gone":
+        return t`The folder ${folder} is gone, so ${name} wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back.`;
+    }
+    return problem(err, path);
+  };
 }
 
 /** What's in a server's Recently deleted, to put back or delete for good. */
@@ -547,7 +566,7 @@ export function DeletedSheet({
           </p>
         ) : deleted.length === 0 && !query.error ? (
           <p className="files-sheet-line">
-            <Trans>Nothing was deleted on this server in the last 7 days.</Trans>
+            <Trans>Nothing is in Recently deleted.</Trans>
           </p>
         ) : null}
         {deleted.length > 0 ? (

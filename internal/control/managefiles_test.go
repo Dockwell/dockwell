@@ -60,6 +60,15 @@ func testAPersonManagesAServersFiles(t *testing.T, backend store.Backend) {
 	if err != nil || len(listed.Msg.GetDeleted()) != 1 || listed.Msg.GetDeleted()[0].GetPath() != moved {
 		t.Fatalf("ListDeletedFiles = %v, %v", listed, err)
 	}
+	// Over what's there now, it fails, on record by its path.
+	writeFile(t, moved, "in the way")
+	if _, err := c.RestoreFile(t.Context(), connect.NewRequest(&dockwellv1.RestoreFileRequest{ServerId: id, Id: deleted.Msg.GetDeleted().GetId()})); reasonOf(err) != "file_exists" {
+		t.Fatalf("putting back over what's there = %v", err)
+	}
+	waitForFileEvent(t, b, id, "file.restore_failed", moved)
+	if err := os.Remove(moved); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := c.RestoreFile(t.Context(), connect.NewRequest(&dockwellv1.RestoreFileRequest{ServerId: id, Id: deleted.Msg.GetDeleted().GetId()})); err != nil {
 		t.Fatalf("RestoreFile = %v", err)
 	}

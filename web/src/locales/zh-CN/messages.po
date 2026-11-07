@@ -399,7 +399,7 @@ msgid "Show earlier events"
 msgstr "显示更早的事件"
 
 msgid "Size"
-msgstr "大小"
+msgstr "规格"
 
 msgid "Someone"
 msgstr "某人"
@@ -5809,14 +5809,14 @@ msgstr "在 {0} 中新建文件夹"
 msgid "Nothing changed"
 msgstr "没有做任何更改"
 
+msgid "Nothing is in Recently deleted."
+msgstr "“最近删除”中没有任何内容。"
+
 msgid "Nothing moved"
 msgstr "没有移动任何内容"
 
 msgid "Nothing was deleted"
 msgstr "没有删除任何内容"
-
-msgid "Nothing was deleted on this server in the last 7 days."
-msgstr "过去 7 天内这台服务器上没有删除任何内容。"
 
 msgid "On this server, and on the same disk. It keeps its name, and never replaces what's there."
 msgstr "须在这台服务器的同一块磁盘上。名称保持不变，也不会替换那里已有的内容。"
@@ -5848,6 +5848,9 @@ msgstr "名称太长，服务器无法接受。请控制在 255 字节以内。"
 
 msgid "That name stands for a folder already. Choose another."
 msgstr "这个名称已代表一个文件夹，请换一个。"
+
+msgid "The folder {folder} is gone, so {name} wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back."
+msgstr "文件夹 {folder} 已不存在，所以 {name} 没有放回原处，仍在“最近删除”中。请先重新创建该文件夹，再放回原处。"
 
 msgid "The passkey prompt closed, so nothing changed. Try again when you're ready."
 msgstr "通行密钥提示已关闭，所以没有做任何更改。准备好后请重试。"

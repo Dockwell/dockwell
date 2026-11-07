@@ -401,6 +401,8 @@ func refusal(r *agentv1.FileRefusal) error {
 		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "other_disk")
 	case agentv1.FileRefusal_KIND_FOR_GOOD:
 		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "delete_for_good")
+	case agentv1.FileRefusal_KIND_FOLDER_GONE:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "folder_gone")
 	case agentv1.FileRefusal_KIND_DENIED, agentv1.FileRefusal_KIND_UNSPECIFIED:
 	}
 	return authapi.ReasonError(connect.CodePermissionDenied, err, "file_denied")

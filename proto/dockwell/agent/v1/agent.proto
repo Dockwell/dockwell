@@ -635,6 +635,8 @@ message FileRefusal {
     // A delete can't go to Recently deleted, as it's on another filesystem,
     // so it can only be deleted for good, which the call didn't say.
     KIND_FOR_GOOD = 122;
+    // What's put back has nowhere to go, as the folder it was in is gone.
+    KIND_FOLDER_GONE = 123;
   }
 
   // What went wrong.

@@ -140,5 +140,7 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **A hard link to a refused file,** made by root, reads as what it is: a file somewhere else.
 - **Activity shows paths.** Anyone who can read events, a read-only token included, sees which files were read, saved and refused, not what's in them.
 - **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding `containers` and at least two more of Docker's own directories. A backup of `overlay2` alone, or of `containers` alone, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.
+- **A home on a network mount, behind a link.** Its links aren't followed, as that would hold every call while the mount is down, so it's compared as the accounts write it.
+- **Anyone signed in can put back or purge any entry** in a server's Recently deleted, until roles come (#263).
 - **Root inside a deleted folder.** Removing a folder for good, as root, removes what's in it whoever owns it. Someone who can write the folder can move a folder of root's into it as it's removed, as with any `rm -r` run by root in a folder others can write.
 - **A save has a moment in the open.** The file is read and written moments apart, so a writer that lands between them is lost. A reader can catch a file half written, as a save writes in place to keep what a container mounts. A power cut in that moment can leave it half written, and the copy of what was saved beside it, as `.dockwell-save-…`.

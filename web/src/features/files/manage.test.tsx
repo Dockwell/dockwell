@@ -263,6 +263,52 @@ describe("Managing files", () => {
   });
 });
 
+describe("Putting back and deleting for good", () => {
+  it("says a folder that's gone is gone, and to make it again", async () => {
+    const listed = create(ListDeletedFilesResponseSchema, { deleted: [kept("/var/www/old/a.php")] });
+    const restoreFile = vi.fn(() => {
+      throw refused("folder_gone", "the folder /var/www/old is gone");
+    });
+    await renderFiles({ listFiles: () => site, listDeletedFiles: () => listed, restoreFile });
+    await userEvent.click(screen.getByRole("button", { name: "Recently deleted" }));
+    const sheet = await screen.findByRole("dialog", { name: "Recently deleted" });
+    await userEvent.click(await within(sheet).findByRole("button", { name: "Put back" }));
+    expect(
+      await within(sheet).findByText(
+        "The folder /var/www/old is gone, so a.php wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("says when nothing is in Recently deleted", async () => {
+    await renderFiles({ listFiles: () => site, listDeletedFiles: () => create(ListDeletedFilesResponseSchema, {}) });
+    await userEvent.click(screen.getByRole("button", { name: "Recently deleted" }));
+    expect(await screen.findByText("Nothing is in Recently deleted.")).toBeVisible();
+  });
+
+  it("takes one passkey for a way back in that can only be deleted for good", async () => {
+    stubPasskeys();
+    const deleteFile = vi.fn((req: { path: string; forGood: boolean; proof: string }) => {
+      if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up", "deleting it can let someone back in");
+      if (!req.forGood) throw refused("delete_for_good", "it's on another disk, so a delete can't be put back");
+      return create(DeleteFileResponseSchema, { path: req.path });
+    });
+    const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
+    await renderFiles(
+      { listFiles: () => site, deleteFile: deleteFile as never },
+      { getAuthState: () => authState(), beginStepUp, finishStepUp: () => ({ proof: "proof_1" }) },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Delete index.php" }));
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Delete" }));
+    expect(await within(sheet).findByText("This can't be put back")).toBeVisible();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Delete for good" }));
+    expect(await screen.findByText("Deleted index.php for good")).toBeVisible();
+    expect(beginStepUp).toHaveBeenCalledTimes(1);
+    expect(deleteFile.mock.lastCall?.[0]).toMatchObject({ forGood: true, proof: "proof_1" });
+  });
+});
+
 describe("Managing files on a phone", () => {
   it("keeps a row's actions behind one button", async () => {
     onPhone();
