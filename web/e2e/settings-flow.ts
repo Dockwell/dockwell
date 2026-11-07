@@ -81,6 +81,18 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await replica.getByText(/with its agent, of a 250 MB budget$/).waitFor();
   await shoot(page, "settings-control-plane");
 
+  step("settings: Members says the owner signs in, with a passkey, and that inviting comes later");
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Members" }).click();
+  await page.getByRole("heading", { level: 1, name: "Members" }).waitFor();
+  await page.getByText("Inviting someone comes in a later release", { exact: true }).waitFor();
+  const people = page.getByRole("table", { name: "Who signs in to this install" });
+  await people
+    .getByRole("row")
+    .filter({ hasText: "Owner" })
+    .filter({ hasText: /passkey/ })
+    .waitFor();
+  await shoot(page, "settings-members");
+
   step("settings: the audit log lists every event, narrows to an action, and saves what it keeps as CSV");
   await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Audit log" }).click();
   await page.getByRole("heading", { level: 1, name: "Audit log" }).waitFor();

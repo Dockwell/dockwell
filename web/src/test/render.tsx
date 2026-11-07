@@ -17,6 +17,7 @@ import {
   GetVersionResponseSchema,
   HealthService,
   LogService,
+  MemberService,
   ProcessService,
   ResourceService,
   ServerService,
@@ -66,6 +67,7 @@ export type Api = {
   databases?: Partial<ServiceImpl<typeof DatabaseService>>;
   websites?: Partial<ServiceImpl<typeof WebsiteService>>;
   audit?: Partial<ServiceImpl<typeof AuditService>>;
+  members?: Partial<ServiceImpl<typeof MemberService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -114,6 +116,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(FileService, api.files ?? {});
       service(ProcessService, { watchProcesses: quietWatch, ...api.processes });
       service(AuditService, { listAuditEvents: () => ({}), ...api.audit });
+      service(MemberService, { listMembers: () => ({}), ...api.members });
       service(SettingsService, { getSettings: () => ({ settings: { timeZone: "UTC" } }), ...api.settings });
       service(UpdateService, api.updates ?? {});
       service(BackupService, {
