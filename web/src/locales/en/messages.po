@@ -5003,6 +5003,33 @@ msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} leaves {from}, and goes to {to}."
 
+msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
+msgstr "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
+
+msgid "Back it up before you change what's in it, or upgrade it."
+msgstr "Back it up before you change what's in it, or upgrade it."
+
+msgid "Backups of {name}, newest first"
+msgstr "Backups of {name}, newest first"
+
+msgid "Dockwell can't read the backups of {name}"
+msgstr "Dockwell can't read the backups of {name}"
+
+msgid "Each backup is a copy of its files, which stops {engine} for an exact copy unless you choose to copy it running."
+msgstr "Each backup is a copy of its files, which stops {engine} for an exact copy unless you choose to copy it running."
+
+msgid "Each backup is {dumpOf}'s own dump of everything in it, taken while it runs, so nothing stops."
+msgstr "Each backup is {dumpOf}'s own dump of everything in it, taken while it runs, so nothing stops."
+
+msgid "How it's backed up"
+msgstr "How it's backed up"
+
+msgid "No backups of {name} yet"
+msgstr "No backups of {name} yet"
+
+msgid "Only by hand"
+msgstr "Only by hand"
+
 msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
 msgstr "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
 
@@ -5030,6 +5057,9 @@ msgstr "Nothing changed on the server. The page tries again by itself."
 msgid "Open as an app"
 msgstr "Open as an app"
 
+msgid "Review the change to {next}"
+msgstr "Review the change to {next}"
+
 msgid "Users"
 msgstr "Users"
 
@@ -5048,8 +5078,14 @@ msgstr "not backed up yet"
 msgid "not in a volume"
 msgstr "not in a volume"
 
+msgid "A change to how {engine} {now} runs is out"
+msgstr "A change to how {engine} {now} runs is out"
+
 msgid "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
 msgstr "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
+
+msgid "All its backups"
+msgstr "All its backups"
 
 msgid "Asking its server"
 msgstr "Asking its server"
@@ -5123,11 +5159,11 @@ msgstr "On. Port {serverPort} of its server reaches it, on {where}. Change it on
 msgid "One is running now"
 msgstr "One is running now"
 
-msgid "Only by hand"
-msgstr "Only by hand"
-
 msgid "Reads served from memory"
 msgstr "Reads served from memory"
+
+msgid "Restore the newest"
+msgstr "Restore the newest"
 
 msgid "Services beside it reach it as <0>{host}</0>"
 msgstr "Services beside it reach it as <0>{host}</0>"
@@ -5163,6 +5199,15 @@ msgstr "This server's disk, unencrypted"
 msgid "Up for"
 msgstr "Up for"
 
+msgid "Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
+msgstr "Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
+
+msgid "Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
+msgstr "Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
+
+msgid "Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
+msgstr "Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
+
 msgid "When you ask"
 msgstr "When you ask"
 
@@ -5180,6 +5225,9 @@ msgstr "{dumpOf}'s own dump, while it runs: nothing stops"
 
 msgid "{engine} didn't say how it is"
 msgstr "{engine} didn't say how it is"
+
+msgid "{engine} {next} is out"
+msgstr "{engine} {next} is out"
 
 msgid "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
 msgstr "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"

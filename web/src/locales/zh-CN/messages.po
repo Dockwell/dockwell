@@ -5003,6 +5003,33 @@ msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} 离开 {from}，转到 {to}。"
 
+msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
+msgstr "恢复会通过一个说明此事的计划替换现有内容，并把被替换的内容保留 7 天。"
+
+msgid "Back it up before you change what's in it, or upgrade it."
+msgstr "在修改其中内容或升级之前，先备份它。"
+
+msgid "Backups of {name}, newest first"
+msgstr "{name} 的备份，最新在前"
+
+msgid "Dockwell can't read the backups of {name}"
+msgstr "Dockwell 无法读取 {name} 的备份"
+
+msgid "Each backup is a copy of its files, which stops {engine} for an exact copy unless you choose to copy it running."
+msgstr "每次备份都是它文件的副本：为得到精确副本会先停止 {engine}，除非你选择在运行中复制。"
+
+msgid "Each backup is {dumpOf}'s own dump of everything in it, taken while it runs, so nothing stops."
+msgstr "每次备份都是 {dumpOf} 自带的完整转储，在运行中进行，不会停止任何服务。"
+
+msgid "How it's backed up"
+msgstr "备份方式"
+
+msgid "No backups of {name} yet"
+msgstr "{name} 还没有备份"
+
+msgid "Only by hand"
+msgstr "仅手动"
+
 msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
 msgstr "<0>{serviceId}</0> 可能已被删除，或者它运行的已不是 Dockwell 认识的数据库。"
 
@@ -5030,6 +5057,9 @@ msgstr "服务器上没有任何改动。页面会自动重试。"
 msgid "Open as an app"
 msgstr "以应用打开"
 
+msgid "Review the change to {next}"
+msgstr "查看 {next} 的更新"
+
 msgid "Users"
 msgstr "用户"
 
@@ -5048,8 +5078,14 @@ msgstr "尚未备份"
 msgid "not in a volume"
 msgstr "不在卷中"
 
+msgid "A change to how {engine} {now} runs is out"
+msgstr "{engine} {now} 的运行方式有更新"
+
 msgid "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
 msgstr "复制它的文件：为得到精确副本会先停止它，除非你选择在运行中复制"
+
+msgid "All its backups"
+msgstr "它的全部备份"
 
 msgid "Asking its server"
 msgstr "正在询问它的服务器"
@@ -5123,11 +5159,11 @@ msgstr "已开启。可通过其服务器的 {serverPort} 端口在{where}上访
 msgid "One is running now"
 msgstr "正在进行一次备份"
 
-msgid "Only by hand"
-msgstr "仅手动"
-
 msgid "Reads served from memory"
 msgstr "从内存读取的比例"
+
+msgid "Restore the newest"
+msgstr "恢复最新备份"
 
 msgid "Services beside it reach it as <0>{host}</0>"
 msgstr "同环境的服务通过 <0>{host}</0> 访问它"
@@ -5163,6 +5199,15 @@ msgstr "本服务器磁盘，未加密"
 msgid "Up for"
 msgstr "已运行"
 
+msgid "Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
+msgstr "升级是一个计划：先用 {dumpOf} 自带的转储备份数据，并说明数据在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
+
+msgid "Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
+msgstr "升级是一个计划：先备份它的卷，并说明每个卷在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
+
+msgid "Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
+msgstr "升级是一个计划：先复制卷的文件来备份，这会让 {engine} 停止片刻，并说明每个卷在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
+
 msgid "When you ask"
 msgstr "手动发起时"
 
@@ -5180,6 +5225,9 @@ msgstr "{dumpOf} 自带的转储，运行中进行：不会停止任何服务"
 
 msgid "{engine} didn't say how it is"
 msgstr "{engine} 没有报告它的状况"
+
+msgid "{engine} {next} is out"
+msgstr "{engine} {next} 已发布"
 
 msgid "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
 msgstr "{keys, plural, other {内存占用，共 # 个键}}"
