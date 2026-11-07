@@ -85,6 +85,7 @@ msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, other {# 个应用将停止。}}"
 
 #. placeholder {0}: here.length
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/RunsHere.tsx
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, other {# 个应用}}"
@@ -641,6 +642,10 @@ msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
 msgid "{name} is waiting for its agent"
 msgstr "{name} 正在等待代理连接"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} is waiting for its agent."
+msgstr "{name} 正在等待它的代理。"
+
 #: src/features/files/FileViewer.tsx
 msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
 msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里加载。"
@@ -652,6 +657,14 @@ msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里�
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} isn't reporting"
 msgstr "{name} 没有上报数据"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} isn't reporting."
+msgstr "{name} 没有上报。"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} isn't reporting. It last did {seen}."
+msgstr "{name} 没有上报。它上次上报是在{seen}。"
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -912,6 +925,10 @@ msgstr "{reads}，按 SELinux 重新标记为私有"
 msgid "{reads}, relabelled for SELinux as shared"
 msgstr "{reads}，按 SELinux 重新标记为共享"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "{replicas, plural, one {# replica} other {# replicas}}"
+msgstr "{replicas, plural, other {# 个副本}}"
+
 #: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
 msgstr "{revision} 部署于 {when}"
@@ -1095,6 +1112,7 @@ msgstr "{unknown} 台状态未知"
 msgid "{unlisted, plural, one {This server has # more container than fit here.} other {This server has # more containers than fit here.}}"
 msgstr "{unlisted, plural, other {此服务器还有 # 个容器无法在此列出。}}"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
@@ -1638,6 +1656,10 @@ msgstr "告警"
 #: src/features/catalog/CatalogPage.tsx
 msgid "All"
 msgstr "全部"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "All activity"
+msgstr "全部动态"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "All actors"
@@ -2504,6 +2526,10 @@ msgstr "控制服务器"
 msgid "Copied"
 msgstr "已复制"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Copied {address}"
+msgstr "已复制 {address}"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "Copied {name}"
 msgstr "已复制 {name}"
@@ -2544,6 +2570,10 @@ msgstr "复制 {at}"
 #: src/features/servers/ServerPanels.tsx
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Copy {label} {address}"
+msgstr "复制{label} {address}"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Copy {name}"
@@ -2698,10 +2728,15 @@ msgid "Couldn't update"
 msgstr "无法更新"
 
 #: src/app/Providers.tsx
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "CPU"
 msgstr "CPU"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "CPU above {HIGH}%"
+msgstr "CPU 超过 {HIGH}%"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
@@ -3086,6 +3121,10 @@ msgstr "DNS 指向一个不属于此服务器的私有地址"
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
 msgstr "Docker"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Docker hasn't answered since {since}."
+msgstr "Docker 自{since}起没有响应。"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
@@ -4685,11 +4724,16 @@ msgid "May have saved {path} on {server}"
 msgstr "可能已保存 {server} 上的 {path}"
 
 #: src/app/Providers.tsx
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Memory"
 msgstr "内存"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Memory above {HIGH}%"
+msgstr "内存超过 {HIGH}%"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Minutes past the hour, as 00:MM"
@@ -4903,6 +4947,10 @@ msgstr "没有此 ID 的应用"
 msgid "No apps"
 msgstr "没有应用"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "No apps here yet. Deploy one from an image or the catalog."
+msgstr "这里还没有应用。从镜像或应用目录部署一个。"
+
 #: src/features/apps/AppsPage.tsx
 msgid "No apps yet"
 msgstr "还没有应用"
@@ -5078,6 +5126,7 @@ msgstr "此版本尚未提供"
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Not known"
 msgstr "未知"
@@ -5159,6 +5208,10 @@ msgstr "没有任何检查，因此这只表示它已启动。"
 #: src/features/logs/LogContext.tsx
 msgid "Nothing else was written around this line."
 msgstr "这一行前后没有其他日志。"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Nothing has happened here yet."
+msgstr "这里还没有发生任何事。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
@@ -5268,6 +5321,7 @@ msgstr "现在"
 msgid "Nowhere else"
 msgstr "不发送"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "/ {total}"
@@ -5829,6 +5883,10 @@ msgstr "私有"
 msgid "Private addresses"
 msgstr "私有地址"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Private IP"
+msgstr "私有 IP"
+
 #: src/features/changes/words.ts
 msgid "privileged mode, which gives it every device and capability on the server, the same as root"
 msgstr "特权模式，可使用服务器上的所有设备和能力，等同于 root"
@@ -5893,6 +5951,7 @@ msgid "Public address"
 msgstr "公网地址"
 
 #: src/features/auth/ClaimPage.tsx
+#: src/features/servers/PhoneServer.tsx
 msgid "Public IP"
 msgstr "公网 IP"
 
@@ -6107,6 +6166,10 @@ msgstr "正在读取这个文件夹"
 msgid "Reading what Docker runs here"
 msgstr "正在读取 Docker 在这里运行的内容"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Reading what happened here"
+msgstr "正在读取这里发生的事"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads logs"
 msgstr "可读取日志"
@@ -6114,6 +6177,10 @@ msgstr "可读取日志"
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
 msgstr "读取服务器及其状态，不做任何更改。"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Recent"
+msgstr "最近"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Recent changes"
@@ -6264,6 +6331,10 @@ msgstr "被替换，撤销后可恢复"
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "正在替换"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Reporting"
+msgstr "正在上报"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"
@@ -6570,6 +6641,10 @@ msgstr "正在运行"
 #: src/features/logs/LogsPage.tsx
 msgid "Running now"
 msgstr "正在运行"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Runs here"
+msgstr "在此运行"
 
 #: src/features/changes/fields.tsx
 msgid "runs no entrypoint"
@@ -7143,6 +7218,7 @@ msgstr "状态"
 #: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
+#: src/features/servers/PhoneServer.tsx
 msgid "Status"
 msgstr "状态"
 
@@ -8403,6 +8479,10 @@ msgstr "运行时间"
 
 #: src/features/servers/server.ts
 msgid "up {uptime}"
+msgstr "已运行 {uptime}"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Up {uptime}"
 msgstr "已运行 {uptime}"
 
 #: src/features/changes/PlanSteps.tsx
