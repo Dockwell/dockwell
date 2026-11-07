@@ -195,6 +195,8 @@ func TestAFolderOnRealCaddy(t *testing.T) {
 	write("index.html", "the blog")
 	write("post/index.html", "a post")
 	write("style.css", "body{}")
+	write(".env", "SECRET=1")
+	write(".git/config", "[core]")
 	// The container sees the folder at /srv, which the test can't make, so its root moves.
 	moved := func(w *resourcev1.Website) string {
 		return strings.Replace(Config(w), "root * "+FolderTarget, "root * "+root, 1)
@@ -210,6 +212,9 @@ func TestAFolderOnRealCaddy(t *testing.T) {
 		{"/post/", 200, "a post"},
 		{"/style.css", 200, "body{}"},
 		{"/missing", 404, ""},
+		// What starts with a dot is never served, as a site's folder often holds one.
+		{"/.env", 404, ""},
+		{"/.git/config", 404, ""},
 	} {
 		status, body := get(t, addr, tc.path)
 		if status != tc.status || (tc.body != "" && body != tc.body) {
