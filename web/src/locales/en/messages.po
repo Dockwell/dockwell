@@ -7032,11 +7032,18 @@ msgstr "What listens on the server itself, on 127.0.0.1 or every address. Port 8
 msgid "With a path, such as /app, each request goes under it."
 msgstr "With a path, such as /app, each request goes under it."
 
+msgid "Can't reach {host}"
+msgstr "Can't reach {host}"
+
 msgid "No domain"
 msgstr "No domain"
 
 msgid "Not serving"
 msgstr "Not serving"
+
+#. placeholder {0}: proxy.port
+msgid "Nothing listens on port {0}"
+msgstr "Nothing listens on port {0}"
 
 msgid "certificate expired"
 msgstr "certificate expired"
@@ -7062,6 +7069,9 @@ msgstr "{days, plural, one {# day left} other {# days left}}"
 msgid "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
 msgstr "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
 
+msgid "{host} answers {code}"
+msgstr "{host} answers {code}"
+
 msgid "A small web server of its own sends each request on"
 msgstr "A small web server of its own sends each request on"
 
@@ -7076,6 +7086,9 @@ msgstr "Delete this website"
 
 msgid "Delete website"
 msgstr "Delete website"
+
+msgid "Differs"
+msgstr "Differs"
 
 msgid "Go to the websites"
 msgstr "Go to the websites"
@@ -7144,6 +7157,9 @@ msgstr "Whatever listens there sees every visitor as local, so you approve it in
 
 msgid "Where it sends"
 msgstr "Where it sends"
+
+msgid "its web server runs a config these settings don't write, as a change edited it outside Websites. Review plan puts them back."
+msgstr "its web server runs a config these settings don't write, as a change edited it outside Websites. Review plan puts them back."
 
 msgid "written by Dockwell from these settings"
 msgstr "written by Dockwell from these settings"

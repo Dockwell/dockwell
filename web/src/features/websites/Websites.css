@@ -320,3 +320,21 @@
 .website-config-title h2.is-words {
   font: 550 14px / 20px var(--font-sans);
 }
+
+/* A long domain wraps in the list, as the whole name is what tells two apart. */
+.websites-table .websites-domain {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* On a phone, what's said under a domain ends in an ellipsis where it runs out. */
+.websites-phone .apps-phone-sub > * {
+  flex: none;
+}
+
+.websites-phone .apps-phone-sub > :last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

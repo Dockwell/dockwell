@@ -15,6 +15,7 @@ import {
   type WatchServersResponse,
   type WebsiteInfo,
   WebsiteInfoSchema,
+  WebsiteReachSchema,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -222,6 +223,74 @@ describe("The websites", () => {
     expect(screen.queryByRole("row", { name: /^web\b/ })).not.toBeInTheDocument();
   });
 
+  it("says it can't load the apps when it can't tell which are a website's own", async () => {
+    renderAt(
+      "/apps",
+      api([], {
+        websites: {
+          listWebsites: () => {
+            throw new ConnectError("the control plane couldn't complete the request", Code.Internal);
+          },
+        },
+      }),
+    );
+    expect(await screen.findByText("Can't load the apps")).toBeVisible();
+    expect(screen.queryByRole("row", { name: /^web\b/ })).not.toBeInTheDocument();
+  });
+
+  it("leads from a website's domain in Domains to the website, not its web server", async () => {
+    onWideScreen();
+    renderAt("/domains", api([blog]));
+    const row = await screen.findByRole("row", { name: /blog\.example\.com/ }, { timeout: 5_000 });
+    const links = within(row).getAllByRole("link");
+    expect(links.some((a) => a.getAttribute("href") === "/websites/prj_blog")).toBe(true);
+    expect(links.some((a) => a.getAttribute("href")?.startsWith("/apps/"))).toBe(false);
+  });
+
+  it("keeps a website's own services out of the command bar", async () => {
+    const user = userEvent.setup();
+    renderAt("/websites", api([blog]));
+    await rowOf(/blog\.example\.com/);
+    await user.keyboard("{Control>}k{/Control}");
+    const menu = await screen.findByRole("dialog");
+    expect(await within(menu).findByRole("option", { name: /Open shop/ })).toBeVisible();
+    expect(within(menu).queryByRole("option", { name: /^Open web\b/ })).not.toBeInTheDocument();
+    expect(within(menu).getByRole("option", { name: /Open the apps/ })).toHaveTextContent("1");
+  });
+
+  it("says whether what each sends to answers, and never Healthy before its server has", async () => {
+    onWideScreen();
+    const reach = (answered: boolean, said: string) =>
+      create(WebsiteReachSchema, { answered, said, checkTime: timestampFromDate(new Date()) });
+    const cases: [WebsiteInfo, RegExp, string][] = [
+      [create(WebsiteInfoSchema, { ...blog, reach: reach(true, "200 OK") }), /blog\.example\.com/, "Healthy"],
+      [blog, /blog\.example\.com/, "Running"],
+      [tools, /tools\.example\.com/, "Not checked"],
+      [
+        create(WebsiteInfoSchema, { ...blog, reach: reach(false, "connection refused") }),
+        /blog\.example\.com/,
+        "Can't reach backend.example.com",
+      ],
+      [
+        create(WebsiteInfoSchema, { ...blog, reach: reach(false, "503 Service Unavailable") }),
+        /blog\.example\.com/,
+        "backend.example.com answers 503",
+      ],
+      [
+        create(WebsiteInfoSchema, { ...tools, reach: reach(false, "nothing listens on port 3000") }),
+        /tools\.example\.com/,
+        "Nothing listens on port 3000",
+      ],
+    ];
+    for (const [site, name, says] of cases) {
+      const { unmount } = renderAt("/websites", api([site]));
+      const row = await screen.findByRole("row", { name }, { timeout: 5_000 });
+      await waitFor(() => expect(row).toHaveTextContent(says), { timeout: 5_000 });
+      if (says !== "Healthy") expect(row).not.toHaveTextContent("Healthy");
+      unmount();
+    }
+  }, 60_000);
+
   it("stacks on a phone, a row to each website", async () => {
     onPhone();
     renderAt("/websites", api([blog, tools]));
@@ -398,6 +467,37 @@ describe("A website's configuration", () => {
     await user.keyboard("{Escape}");
     await user.click(await screen.findByRole("button", { name: "Discard" }));
     expect(screen.getByLabelText("URL")).toHaveValue("https://backend.example.com");
+  });
+
+  it("shows what its web server really runs, and plans its settings back when that differs", async () => {
+    const user = userEvent.setup();
+    let asked: UpdateWebsiteRequest | undefined;
+    const odd = ':8080 {\n\trespond "elsewhere"\n}\n';
+    renderAt(
+      "/websites/prj_blog",
+      api([create(WebsiteInfoSchema, { ...blog, config: odd, configDiffers: true })], {
+        websites: {
+          updateWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const code = await screen.findByRole("region", { name: "The web server's config" });
+    await waitFor(() => expect(code).toHaveTextContent("reverse_proxy https://backend.example.com"));
+    expect(code.querySelectorAll(".is-changed").length).toBeGreaterThan(0);
+    expect(screen.getByText(/runs a config these settings don't write/)).toBeVisible();
+    const review = screen.getByRole("button", { name: /Review plan/ });
+    await waitFor(() => expect(review).toBeEnabled());
+    await user.click(review);
+    await waitFor(() =>
+      expect(asked?.website?.serves).toEqual({
+        case: "proxy",
+        value: expect.objectContaining({ url: "https://backend.example.com" }),
+      }),
+    );
   });
 
   it("says what won't do, as you type, and holds the plan back", async () => {

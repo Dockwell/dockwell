@@ -217,8 +217,8 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
     .waitFor();
   await shoot(page, "websites");
 
-  step("websites: at 800 px and on a phone it fits, with every domain whole");
-  for (const width of [800, 390]) {
+  step("websites: at 1440 px, 800 px and on a phone it fits, with every domain whole");
+  for (const width of [1440, 800, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await page
       .getByText(sites[2]?.domain ?? "")
@@ -226,7 +226,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
       .waitFor();
     const fits = await howItFits(page);
     if (fits.page > 0) fail(`at ${width} px the page is ${fits.page} px too wide`);
-    if (width === 390 && fits.clipped.length > 0) fail(`at ${width} px these are clipped: ${fits.clipped.join(", ")}`);
+    if (fits.clipped.length > 0) fail(`at ${width} px these domains are cut: ${fits.clipped.join(", ")}`);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
 

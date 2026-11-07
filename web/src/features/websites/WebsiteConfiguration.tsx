@@ -114,7 +114,10 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
     now.sendsTo === "port" && now.port !== was.port,
   ].filter(Boolean).length;
   const typing = JSON.stringify(now) !== JSON.stringify(settled);
-  const ready = changes > 0 && refusal === "" && !typing && preview.isSuccess;
+  // What its web server runs differs from what these settings write, as a change made
+  // outside Websites edited it: planning these settings puts them back in step.
+  const differs = site.configDiffers;
+  const ready = (changes > 0 || differs) && refusal === "" && !typing && preview.isSuccess;
 
   const review = () =>
     sheet.open({
@@ -210,10 +213,10 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
         <Panel className={cx("website-config")} flush>
           {now.sendsTo === "url" ? (
             <ConfigView
-              before={current.data?.config ?? ""}
-              after={preview.data?.config ?? (refusal ? "" : (current.data?.config ?? ""))}
-              showChanges={changes > 0}
-              loading={current.isPending && !!site.spec}
+              before={site.config || (current.data?.config ?? "")}
+              after={preview.data?.config ?? (refusal ? "" : site.config || (current.data?.config ?? ""))}
+              showChanges={changes > 0 || differs}
+              loading={!site.config && current.isPending && !!site.spec}
             />
           ) : (
             <RouteView port={now.port} />
@@ -229,6 +232,22 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
                     <Trans>Not valid</Trans>
                   </strong>
                   <span className="websites-muted">{refusal}</span>
+                </>
+              ) : differs && changes === 0 ? (
+                <>
+                  <span className="dw-tone-warning">
+                    <Glyph shape="triangle" size={10} />
+                  </span>
+                  <strong>
+                    <Trans>Differs</Trans>
+                  </strong>
+                  <span className="websites-muted">
+                    {" · "}
+                    <Trans>
+                      its web server runs a config these settings don't write, as a change edited it outside Websites.
+                      Review plan puts them back.
+                    </Trans>
+                  </span>
                 </>
               ) : (
                 <>

@@ -2,6 +2,7 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { type Website, type WebsiteInfo, WebsiteService } from "@dockwell/api";
+import { useMemo } from "react";
 
 /** What a website does, as its settings say. */
 export type WebsiteKind = "url" | "port" | "unknown";
@@ -24,6 +25,21 @@ export function targetOf(spec: Website | undefined): string {
  */
 export function useWebsites() {
   return useQuery(WebsiteService.method.listWebsites, {}, { select: (res) => res.websites });
+}
+
+/**
+ * Which website an environment is, by its ID, so what lists services can leave a
+ * website's own out, or lead to the website (ADR 0039). Undefined until the websites
+ * are read.
+ */
+export function useWebsiteOfEnvironment(): ((environmentId: string) => WebsiteInfo | undefined) | undefined {
+  const query = useWebsites();
+  const data = query.data;
+  return useMemo(() => {
+    if (!data) return undefined;
+    const byEnvironment = new Map(data.map((w) => [w.environmentId, w]));
+    return (environmentId: string) => byEnvironment.get(environmentId);
+  }, [data]);
 }
 
 /** One website, by its project's ID, from the list every website screen shares. */

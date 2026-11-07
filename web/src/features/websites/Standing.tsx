@@ -52,15 +52,39 @@ export function useWebsiteRows() {
   return { websites, rows, read: readOf(domains), health };
 }
 
-/** How a website stands, as a shape and a word. */
+/** How a website stands, as a shape and a word, and what more there is to say of it. */
 export interface Standing {
   status: Status;
   word: string;
+  detail?: string;
 }
 
 /**
- * How a website serves, as a shape and a word: its web server's health where it has
- * one, else its domain's state, as nothing else stands between a visitor and the port.
+ * Whether what a website sends to answers, as its server last found, when it doesn't:
+ * nothing listening on its port, or a URL that can't be reached or answers 5xx.
+ */
+function useUnreachable(site: WebsiteInfo): Standing | undefined {
+  const { t } = useLingui();
+  const reach = site.reach;
+  if (!reach || reach.answered) return undefined;
+  const proxy = site.spec?.serves.case === "proxy" ? site.spec.serves.value : undefined;
+  if (proxy?.port) return { status: "down", word: t`Nothing listens on port ${proxy.port}`, detail: reach.said };
+  let host = proxy?.url ?? "";
+  try {
+    host = new URL(host).host;
+  } catch {
+    // It's said whole, then.
+  }
+  const code = /^(5\d\d)\b/.exec(reach.said)?.[1];
+  if (code) return { status: "down", word: t`${host} answers ${code}`, detail: reach.said };
+  return { status: "down", word: t`Can't reach ${host}`, detail: reach.said };
+}
+
+/**
+ * How a website serves, as a shape and a word: whether what it sends to answers, when
+ * its server says it doesn't; else its web server's health where it has one, and its
+ * domain's state where it hasn't. "Healthy" says what it sends to answered: until its
+ * server has said so, a web server that runs is "Running", and a port is "Not checked".
  */
 export function SiteStanding({
   row,
@@ -74,42 +98,76 @@ export function SiteStanding({
   children: (standing: Standing) => ReactNode;
 }) {
   const { t } = useLingui();
+  const unreachable = useUnreachable(row.site);
+  const checked = !!row.site.reach;
   if (row.service || row.site.serviceId) {
-    return <ServiceStanding health={health.of(row.service ?? { id: row.site.serviceId })}>{children}</ServiceStanding>;
+    return (
+      <ServiceStanding
+        health={health.of(row.service ?? { id: row.site.serviceId })}
+        unreachable={unreachable}
+        checked={checked}
+      >
+        {children}
+      </ServiceStanding>
+    );
   }
   if (!row.domain || !row.look) return children({ status: "unknown", word: t`No domain` });
   return (
-    <DomainStanding domain={row.domain} look={row.look} read={read}>
+    <DomainStanding domain={row.domain} look={row.look} read={read} unreachable={unreachable} checked={checked}>
       {children}
     </DomainStanding>
   );
 }
 
-function ServiceStanding({ health, children }: { health: AppHealth; children: (standing: Standing) => ReactNode }) {
+function ServiceStanding({
+  health,
+  unreachable,
+  checked,
+  children,
+}: {
+  health: AppHealth;
+  unreachable: Standing | undefined;
+  checked: boolean;
+  children: (standing: Standing) => ReactNode;
+}) {
+  const { t } = useLingui();
   const words = useHealthWords();
-  return children({ status: health.status, word: words.word(health) });
+  // Its web server's own trouble comes first: then nothing is reached at all.
+  if (health.status !== "healthy") return children({ status: health.status, word: words.word(health) });
+  if (unreachable) return children(unreachable);
+  return children({ status: "healthy", word: checked ? t`Healthy` : t`Running` });
 }
 
 function DomainStanding({
   domain,
   look,
   read,
+  unreachable,
+  checked,
   children,
 }: {
   domain: Domain;
   look: DomainLook;
   read: DomainRead;
+  unreachable: Standing | undefined;
+  checked: boolean;
   children: (standing: Standing) => ReactNode;
 }) {
+  const { t } = useLingui();
   const silent = useSilent(domain, look);
   const [status] = useDomainState(domain, look, silent, read);
-  return children({ status, word: useServingWord(status) });
+  const word = useServingWord(status);
+  if (status !== "healthy") return children({ status, word });
+  if (unreachable) return children(unreachable);
+  return children(checked ? { status, word } : { status: "unknown", word: t`Not checked` });
 }
 
 export function SiteStatus({ row, health, read }: { row: Row; health: HealthView; read: DomainRead }) {
   return (
     <SiteStanding row={row} health={health} read={read}>
-      {({ status, word }) => <StatusBadge status={status} label={word} labelIsState title={word} />}
+      {({ status, word, detail }) => (
+        <StatusBadge status={status} label={word} labelIsState title={detail ? `${word}: ${detail}` : word} />
+      )}
     </SiteStanding>
   );
 }

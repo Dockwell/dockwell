@@ -204,7 +204,7 @@ function WebsitesTable({ rows, caption, fleet, health, read, onOpen }: TableProp
           <Link
             to="/websites/$websiteId"
             params={{ websiteId: row.id }}
-            className="dw-cell-title websites-domain apps-clip"
+            className="dw-cell-title websites-domain"
             title={row.site.domain || row.site.name}
             tabIndex={-1}
           >

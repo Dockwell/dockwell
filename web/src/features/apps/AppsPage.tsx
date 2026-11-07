@@ -293,18 +293,26 @@ export function AppsPage({
     body = (
       <AppsSkeleton label={t`Loading apps`} fleet={fleet} rows={Math.min(Math.max(all?.length ?? 3, 1), HELD_ROWS)} />
     );
-  } else if (services.error) {
+  } else if (services.error || sites.error) {
+    // Without the websites, a website's own web server would list as an app.
+    const error = services.error ?? sites.error;
     body = (
       <Callout
         tone="critical"
         title={t`Can't load the apps`}
         actions={
-          <Button onClick={() => void services.refetch()} loading={services.isFetching}>
+          <Button
+            onClick={() => {
+              if (services.error) void services.refetch();
+              if (sites.error) void sites.refetch();
+            }}
+            loading={services.isFetching || sites.isFetching}
+          >
             <Trans>Try again</Trans>
           </Button>
         }
       >
-        {sentence(services.error)} <Trans>What runs on your servers isn't affected.</Trans>
+        {error ? sentence(error) : null} <Trans>What runs on your servers isn't affected.</Trans>
       </Callout>
     );
   } else if ((all?.length ?? 0) === 0) {
