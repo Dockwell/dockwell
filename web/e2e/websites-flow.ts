@@ -295,7 +295,8 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await page.waitForURL(/\/websites\/prj_docs\/configuration$/);
   await page.getByText("Static files from /var/www/docs").first().waitFor();
   await code.getByText("root * /srv").waitFor({ timeout: 15_000 });
-  await code.getByText("file_server {").waitFor();
+  await code.getByText("handle /.well-known/* {").waitFor();
+  await code.getByText("file_server {").last().waitFor();
   await shoot(page, "website-folder");
   const edit = await page.getByRole("link", { name: "Edit files" }).getAttribute("href");
   if (edit !== `/servers/${server.id}/files?path=%2Fvar%2Fwww%2Fdocs`) fail(`Edit files goes to ${edit}`);
