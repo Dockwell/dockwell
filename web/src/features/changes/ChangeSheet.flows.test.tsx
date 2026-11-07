@@ -829,6 +829,23 @@ describe("what a plan asks of whoever applies it", () => {
       expect(passkeys.get).toHaveBeenCalledTimes(1);
     });
 
+    it("says why a plan for what keeps root asks again", async () => {
+      const change = root();
+      change.plan?.notes.push(
+        create(PlanNoteSchema, {
+          reason: "new_code_as_root",
+          message:
+            "web reaches what's as good as root on its server, so whatever else runs in it has that reach too. Applying this takes a person and their passkey",
+        }),
+      );
+      show(change);
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(
+        await within(sheet).findByText("whatever else runs in it has that reach too", { exact: false }),
+      ).toBeVisible();
+      expect(within(sheet).getByText("Applying this asks for your passkey")).toBeVisible();
+    });
+
     it("stays planned if you close the passkey prompt, and says so in words", async () => {
       stubPasskeys({ get: "NotAllowedError" });
       const change = root();
