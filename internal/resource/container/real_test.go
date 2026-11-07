@@ -3,8 +3,12 @@
 package container_test
 
 import (
+	"encoding/json"
+	"errors"
 	"maps"
 	"net"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -168,5 +172,66 @@ func references(t *testing.T, rt *container.Docker, scope string) {
 	}
 	if _, err := client.NetworkNamed(t.Context(), n.ID[:12]); !docker.IsNotFound(err) {
 		t.Errorf("looking up the network name %s, a prefix of an ID = %v, want none", n.ID[:12], err)
+	}
+}
+
+// LeadsAsMade compares what a container mounts with where that leads now, so it rests
+// on Docker reading a bind's source back as it was written, with the link still in it.
+// Read back resolved, a moved path would look as it always did and pass. Only a real
+// Docker Engine can say.
+func TestAMovedPathStopsAStartOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	project := docker.Project(dockertest.Scope(t))
+	dockertest.Cleanup(t, client, project)
+	const image = "nginx:1.27-alpine"
+	if err := client.PullImage(t.Context(), image, nil); err != nil {
+		t.Fatal(err)
+	}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf, other, via := filepath.Join(dir, "conf"), filepath.Join(dir, "other"), filepath.Join(dir, "via")
+	for _, p := range []string{conf, other} {
+		if err := os.Mkdir(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(conf, via); err != nil {
+		t.Fatal(err)
+	}
+	record, err := json.Marshal(map[string]string{via: conf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := client.CreateContainer(t.Context(), project+"-moved-1", &docker.CreateRequest{
+		Config: docker.Config{Image: image, Labels: map[string]string{
+			docker.LabelProject: project, docker.LabelService: "moved", container.LabelLeads: string(record),
+		}},
+		HostConfig: docker.HostConfig{Binds: []string{via + ":/conf"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := client.InspectContainer(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Type == "bind" && m.Source == via }) {
+		t.Fatalf("Docker reads the bind back as %+v, want its source as written, %s", c.Mounts, via)
+	}
+	paths := &container.Paths{Client: client, DataDir: filepath.Join(dir, "dockwell")}
+	if err := paths.LeadsAsMade(t.Context(), c, nil); err != nil {
+		t.Fatalf("a path that leads where it did: %v", err)
+	}
+	if err := os.Remove(via); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, via); err != nil {
+		t.Fatal(err)
+	}
+	var moved *container.PathMovedError
+	if err := paths.LeadsAsMade(t.Context(), c, nil); !errors.As(err, &moved) || moved.To != other {
+		t.Errorf("a path that moved = %v", err)
 	}
 }

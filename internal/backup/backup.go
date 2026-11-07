@@ -8,6 +8,7 @@
 package backup
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -26,8 +27,10 @@ import (
 	"sync"
 	"time"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
@@ -67,6 +70,10 @@ type Manifest struct {
 	// Unpacked is how large it is once it's out of its file, for a restore to know
 	// it fits.
 	Unpacked int64 `json:"unpacked,omitempty"`
+	// Reached is what its volume reached when it was taken that's as good as root.
+	// A backup is tied to a volume by name alone, so what it holds can come back into
+	// another of that name, and this is what says what it may hold.
+	Reached []string `json:"reached,omitempty"`
 }
 
 // Runner takes and restores backups on this server.
@@ -74,6 +81,9 @@ type Runner struct {
 	Client *docker.Client
 	// Root is where backups live, the agent's backups directory.
 	Root string
+	// Paths follows server paths, to check where they lead before a container
+	// starts again or a restore writes through one. Nil checks nothing.
+	Paths *container.Paths
 	// Binary is what runs in the helper; /proc/self/exe unless set, which stays
 	// right across an upgrade that replaces the file.
 	Binary string
@@ -207,8 +217,13 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 		return nil, err
 	}
 	defer release()
-	if _, err := r.Client.InspectVolume(ctx, t.Name); err != nil {
+	v, err := r.Client.InspectVolume(ctx, t.Name)
+	if err != nil {
 		return nil, r.noVolume(take.Ref, err)
+	}
+	reached, err := r.reached(ctx, v)
+	if err != nil {
+		return nil, err
 	}
 	users, err := r.users(ctx, t)
 	if err != nil {
@@ -217,18 +232,32 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	if err := r.roomFor(ctx, take, t); err != nil {
 		return nil, err
 	}
-	m := &Manifest{ID: take.ID, Environment: take.Ref.Scope, Volume: take.Ref.Name, Taken: r.now().UTC()}
+	m := &Manifest{ID: take.ID, Environment: take.Ref.Scope, Volume: take.Ref.Name, Taken: r.now().UTC(), Reached: reached}
+	// Again once it's read, before the manifest says so: a link made while the bytes
+	// were read is what they hold, and the backup holds whatever either says.
+	reachedAfter := func() error {
+		more, err := r.reached(ctx, v)
+		for _, p := range more {
+			if !slices.Contains(reached, p) {
+				reached = append(reached, p)
+			}
+		}
+		m.Reached = reached
+		return err
+	}
 	if err := os.MkdirAll(r.dir(take.Ref), 0o700); err != nil {
 		return nil, fmt.Errorf("can't make a place for the backup: %w", err)
 	}
 	if db := users.database(); db != nil && db.running {
 		m.Method, m.Format, m.Database, m.Image = resource.BackupDump, formatDump, db.kind.name, db.image
 		err = r.write(take.Ref, m, func(w io.Writer) (int64, error) {
-			m.Unpacked, err = r.dump(ctx, take.Ref, db, w)
-			return 0, err
+			if m.Unpacked, err = r.dump(ctx, take.Ref, db, w); err != nil {
+				return 0, err
+			}
+			return 0, reachedAfter()
 		}, verifyDump(db.kind))
 	} else {
-		err = r.copyVolume(ctx, take, t, users, m)
+		err = r.copyVolume(ctx, take, t, users, m, reachedAfter)
 	}
 	if err != nil {
 		return nil, err
@@ -236,10 +265,32 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	return m, nil
 }
 
+// reached says what a volume reaches that's as good as root, where its path leads
+// now, as a plan would have it.
+func (r *Runner) reached(ctx context.Context, v *docker.Volume) ([]string, error) {
+	var out []string
+	access := (&volume.Driver{}).HostAccess(&resourcev1.Volume{Driver: v.Driver, Options: v.Options})
+	for i := range access {
+		a := access[i]
+		// What a mount's device says, such as :/share on an NFS server, isn't a path here.
+		if a.Kind == resource.AccessPath || a.Kind == resource.AccessDocker {
+			leads, err := r.Paths.Follow(ctx, a.Path)
+			if err != nil {
+				return nil, err
+			}
+			a = a.Leading(leads[a.Path])
+		}
+		if a.AsGoodAsRoot() {
+			out = append(out, cmp.Or(a.LeadsTo, a.Path))
+		}
+	}
+	return out, nil
+}
+
 // copyVolume takes a copy of a volume's files, with what runs on it stopped if
 // that was asked for. What stopped starts again as soon as the copy ends, and
 // whatever became of it.
-func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, users *users, m *Manifest) (err error) {
+func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, users *users, m *Manifest, after func() error) (err error) {
 	m.Format = formatArchive
 	if db := users.database(); db != nil {
 		m.Image = db.image
@@ -266,6 +317,9 @@ func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, use
 	return r.write(take.Ref, m, func(w io.Writer) (int64, error) {
 		stats, err := r.tool(ctx, t, "pack", docker.Streams{Stdout: w})
 		m.Unpacked = stats.Bytes
+		if err == nil {
+			err = after()
+		}
 		// As soon as the copy ends: reading it back holds up nothing.
 		return stats.Changed, errors.Join(err, startAgain())
 	}, verifyArchive)
@@ -497,22 +551,44 @@ func (r *Runner) stop(ctx context.Context, run string, containers []*user, resto
 	return nil
 }
 
+// startContainer starts a container this stopped, as long as its server paths lead
+// where they did. Nothing plans this, so it's all that stands between a link made
+// meanwhile and what Docker would follow.
+func (r *Runner) startContainer(ctx context.Context, id string) error {
+	c, err := r.Client.InspectContainer(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := r.Paths.LeadsAsMade(ctx, c, nil); err != nil {
+		return err
+	}
+	return r.Client.StartContainer(ctx, id)
+}
+
 // start starts containers, and forgets them once all of them are.
 func (r *Runner) start(ctx context.Context, run string, containers []*user) error {
 	var down downList
 	for _, c := range containers {
 		resource.Progress(ctx, "Starting "+c.name)
-		if err := r.Client.StartContainer(ctx, c.id); err != nil && !docker.IsNotFound(err) {
+		if err := r.startContainer(ctx, c.id); err != nil && !docker.IsNotFound(err) {
 			down = append(down, stayedDown{user: c, err: err})
 		}
 	}
 	r.mu.Lock()
 	delete(r.running, run)
 	r.mu.Unlock()
+	// What a moved path keeps down stays down, kept from starting by itself, so a run
+	// with nothing else down is done: trying it again would only try that again.
+	if len(down) > 0 && !down.held() {
+		return down
+	}
+	if err := r.noteStopped(func(l stoppedFile) { delete(l, run) }); err != nil {
+		return err
+	}
 	if len(down) > 0 {
 		return down
 	}
-	return r.noteStopped(func(l stoppedFile) { delete(l, run) })
+	return nil
 }
 
 // stayedDown is something that wouldn't start again.
@@ -528,9 +604,25 @@ type downList []stayedDown
 func (d downList) Error() string {
 	out := make([]string, 0, len(d))
 	for _, c := range d {
+		var moved *container.PathMovedError
+		if errors.As(c.err, &moved) {
+			out = append(out, c.why())
+			continue
+		}
 		out = append(out, fmt.Sprintf("%s, so it's down. Start it with docker start %s", c.why(), c.dockerName()))
 	}
 	return strings.Join(out, ". ")
+}
+
+// held reports that only moved paths keep these down.
+func (d downList) held() bool {
+	for _, c := range d {
+		var moved *container.PathMovedError
+		if !errors.As(c.err, &moved) {
+			return false
+		}
+	}
+	return true
 }
 
 // why says what went wrong, for what doesn't go on to say what to do about it.
@@ -565,6 +657,7 @@ func (r *Runner) Recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var errs []error
 	for _, run := range slices.Sorted(maps.Keys(list)) {
 		if list[run].Restore || active[run] {
 			continue
@@ -574,11 +667,18 @@ func (r *Runner) Recover(ctx context.Context) error {
 			containers = append(containers, &user{id: id, name: shortID(id)})
 		}
 		r.logger().Warn("something stopped containers for a backup or restore, and they didn't start again, so the agent starts them now", slog.Int("containers", len(containers)))
-		if err := r.start(ctx, run, containers); err != nil {
-			return err
+		err := r.start(ctx, run, containers)
+		var down downList
+		switch {
+		case err == nil:
+		case errors.As(err, &down) && down.held():
+			// Each run on its own: what a moved path keeps down holds up no other run.
+			r.logger().Warn("what a backup or restore stopped stays down, as a server path it mounts leads somewhere nobody approved", slog.String("run", run), slog.String("error", err.Error()))
+		default:
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // clearLeftovers removes the helpers, images and unfinished files of a run that died.
@@ -654,9 +754,10 @@ func (r *Runner) Prune() error {
 // recoverEvery is how soon a Recover that couldn't reach Docker tries again.
 const recoverEvery = time.Minute
 
-// Keep recovers from what a run that died left, as soon as Docker answers, then
-// prunes every hour until ctx is done.
+// Keep recovers from what a run that died left, as soon as Docker answers, and prunes
+// every hour until ctx is done, whatever came of that.
 func (r *Runner) Keep(ctx context.Context) {
+	go r.keepPruned(ctx)
 	for ctx.Err() == nil {
 		err := r.Recover(ctx)
 		if err == nil {
@@ -671,6 +772,10 @@ func (r *Runner) Keep(ctx context.Context) {
 		case <-time.After(recoverEvery):
 		}
 	}
+}
+
+// keepPruned prunes every hour until ctx is done.
+func (r *Runner) keepPruned(ctx context.Context) {
 	t := time.NewTicker(volume.PruneEvery)
 	defer t.Stop()
 	for {

@@ -1149,7 +1149,8 @@ func accessWords(list []*dockwellv1.HostAccess) []string {
 	for _, a := range list {
 		out = append(out, resource.AccessWords(resource.Access{
 			Kind: accessKinds[a.GetKind()], Path: a.GetPath(), ReadOnly: a.GetReadOnly(), Type: a.GetType(),
-			Address: a.GetAddress(), Relabel: a.GetRelabel(), Driver: a.GetDriver(), Detail: a.GetDetail(), SameAsRoot: a.GetSameAsRoot(), LeadsTo: a.GetLeadsTo(),
+			Address: a.GetAddress(), Relabel: a.GetRelabel(), Driver: a.GetDriver(), Detail: a.GetDetail(), SameAsRoot: a.GetSameAsRoot(), LeadsTo: a.GetLeadsTo(), Holds: a.GetHolds(),
+			HoldsFor: a.GetHoldsFor(), HeldIn: a.GetHeldIn(), HeldBy: a.GetHeldBy(),
 		}))
 	}
 	return out
@@ -1167,6 +1168,7 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_NETWORK: resource.AccessExternalNetwork,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_VOLUME:  resource.AccessExternalVolume,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON:         resource.AccessTakesOn,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF:        resource.AccessBackupOf,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:       resource.AccessCapability,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP:            resource.AccessGroup,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED:       resource.AccessPrivileged,

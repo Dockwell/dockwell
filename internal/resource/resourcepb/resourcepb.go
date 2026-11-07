@@ -167,6 +167,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.Restore = &dockwellv1.RestorePlan{
 			BackupId: r.Backup, Undoes: r.Undoes, Method: BackupMethod(r.Method), Database: r.Database,
 			TakenAt: timestamppb.New(r.Taken), SizeBytes: r.Size, Stops: r.Stops, WrittenBy: r.WrittenBy, RunsOn: r.RunsOn,
+			Reached: r.Reached,
 		}
 	}
 	if b := s.BackupFirst; b != nil {
@@ -302,6 +303,7 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessTrustedProxy:   dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TRUSTED_PROXY,
 	resource.AccessPlainForAnyone: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PLAIN_FOR_ANYONE,
 	resource.AccessHTTPSOff:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF,
+	resource.AccessBackupOf:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF,
 }
 
 // HostAccess converts what a resource reaches on its server.
@@ -311,7 +313,8 @@ func HostAccess(list []resource.Access) []*dockwellv1.HostAccess {
 		a := &list[i]
 		out = append(out, &dockwellv1.HostAccess{
 			Kind: accessKinds[a.Kind], Path: a.Path, ReadOnly: a.ReadOnly, Type: a.Type,
-			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail, SameAsRoot: a.AsGoodAsRoot(), LeadsTo: a.LeadsTo,
+			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail, SameAsRoot: a.AsGoodAsRoot(), LeadsTo: a.LeadsTo, Holds: a.Holds,
+			HoldsFor: a.HoldsFor, HeldIn: a.HeldIn, HeldBy: a.HeldBy,
 		})
 	}
 	return out
@@ -420,6 +423,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.Restore = &resource.RestorePlan{
 			Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Method: BackupMethodFrom(r.GetMethod()), Database: r.GetDatabase(),
 			Taken: r.GetTakenAt().AsTime(), Size: r.GetSizeBytes(), Stops: r.GetStops(), WrittenBy: r.GetWrittenBy(), RunsOn: r.GetRunsOn(),
+			Reached: r.GetReached(),
 		}
 	}
 	if b := p.GetBackupFirst(); b != nil {

@@ -75,6 +75,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.EXTERNAL_NETWORK]: 3,
   [HostAccessKind.EXTERNAL_VOLUME]: 3,
   [HostAccessKind.TAKES_ON]: 3,
+  [HostAccessKind.BACKUP_OF]: 0,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
@@ -115,7 +116,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   const reaches: { name: string; server: string; access: HostAccess }[] = [];
   const seen = new Set<string>();
   const add = (name: string, server: string, access: HostAccess) => {
-    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}`;
+    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}`;
     if (seen.has(key)) return;
     seen.add(key);
     reaches.push({ name, server, access });
@@ -227,6 +228,18 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           title: t`${name} mounts the volume ${path} on ${server}`,
           detail: t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
         };
+      case HostAccessKind.BACKUP_OF:
+        return {
+          key,
+          title: t`${name} gets back what reached root on ${server}`,
+          detail: (
+            <Trans>
+              This backup was taken when the volume reached <code>{path}</code>, so whatever mounts it can read what
+              comes back.
+            </Trans>
+          ),
+          trust: true,
+        };
       case HostAccessKind.TAKES_ON:
         return {
           key,
@@ -271,7 +284,46 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           detail: t`It reaches what the server reaches, past Docker's network and the firewall.`,
           trust: true,
         };
-      case HostAccessKind.SERVER_PATH:
+      case HostAccessKind.SERVER_PATH: {
+        const [held, holdsFor, heldIn, heldBy] = [access.holds, access.holdsFor, access.heldIn, access.heldBy].map(
+          plain,
+        );
+        if (held !== "") {
+          const holder = path;
+          return {
+            key,
+            title: t`${name} can move what ${held} leads to on ${server}`,
+            detail:
+              holdsFor !== "" ? (
+                <Trans>
+                  It can write to <code>{holder}</code>, which holds <code>{held}</code>, which {holdsFor} mounts. So it
+                  can turn that into a link to anywhere on the server, which {holdsFor} follows when it next starts.
+                  That's as good as root, so from now on any change to {name} but another tag asks for a passkey.
+                </Trans>
+              ) : (
+                <Trans>
+                  It can write to <code>{holder}</code>, which holds <code>{held}</code>, which it mounts as well. So it
+                  can turn that into a link to anywhere on the server, which it follows when it next starts. That's as
+                  good as root, so from now on any change to {name} but another tag asks for a passkey.
+                </Trans>
+              ),
+            trust: true,
+          };
+        }
+        if (heldBy !== "") {
+          return {
+            key,
+            title: t`${heldBy} can move what ${path} leads to on ${server}`,
+            detail: (
+              <Trans>
+                {name} mounts <code>{path}</code>, inside <code>{heldIn}</code>, which {heldBy} can write. So {heldBy}{" "}
+                can turn it into a link to anywhere on the server, which {name} follows when it next starts. That's as
+                good as root, so from now on any change to {heldBy} but another tag asks for a passkey.
+              </Trans>
+            ),
+            trust: true,
+          };
+        }
         return asGoodAsRoot(access)
           ? {
               key,
@@ -309,6 +361,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
                 ),
               ),
             };
+      }
     }
     const reach = words.access(access);
     const isDomain = access.kind === HostAccessKind.DOMAIN || access.kind === HostAccessKind.PANEL_DOMAIN;

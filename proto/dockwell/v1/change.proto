@@ -828,6 +828,17 @@ message HostAccess {
   // server's agent reads it. An agent sets it, for the control plane to decide
   // what a plan gains by, and plans don't carry it.
   bool leads_moved = 11;
+  // Another mount's source inside path, a read-write server path. What writes path
+  // can turn it into a link to anywhere on the server, which what mounts it follows
+  // the next time it starts, so this is as good as root.
+  string holds = 12;
+  // What mounts holds, by name. Empty where that's this resource too.
+  string holds_for = 13;
+  // The other side of holds: a read-write server path that holds path, and what can
+  // write it, by name, which can make path lead anywhere. A change to that asks for a
+  // passkey from now on.
+  string held_in = 14;
+  string held_by = 15;
 }
 
 // HostAccessKind is what a resource reaches on its server.
@@ -885,6 +896,9 @@ enum HostAccessKind {
   // A container Dockwell didn't make, in path, whose environment comes into
   // Dockwell with it: a token mustn't be able to bring in what it couldn't read.
   HOST_ACCESS_KIND_TAKES_ON = 17;
+  // A backup of a volume that reached path, which is as good as root, coming back
+  // into a volume that doesn't. What it holds can be read from there.
+  HOST_ACCESS_KIND_BACKUP_OF = 18;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -1099,6 +1113,10 @@ message RestorePlan {
   // start on them.
   string written_by = 8;
   string runs_on = 9;
+  // What the backup's volume reached when it was taken that's as good as root. A
+  // backup is tied to a volume by name alone, so what it holds may be that, whatever
+  // the volume it comes back into reaches.
+  repeated string reached = 10;
 }
 
 // RouteMove is a route leaving one service for another.

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -449,6 +451,24 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		out := &agentv1.PlanResult{}
 		for i := range steps {
 			out.Steps = append(out.Steps, resourcepb.Step(steps[i], ""))
+		}
+		// What containers Dockwell didn't make mount, and the links on the way to each
+		// path, are the server's, so once.
+		for i := range steps {
+			if len(steps[i].Alongside) > 0 {
+				for _, u := range steps[i].Alongside {
+					out.Unmanaged = append(out.Unmanaged, &agentv1.UnmanagedMounts{Name: u.Name, Paths: u.Paths, Root: u.Root})
+				}
+				break
+			}
+		}
+		for i := range steps {
+			if len(steps[i].Via) > 0 {
+				for _, p := range slices.Sorted(maps.Keys(steps[i].Via)) {
+					out.Via = append(out.Via, &agentv1.PathVia{Path: p, Links: steps[i].Via[p]})
+				}
+				break
+			}
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Plan{Plan: out}}
 	case call.GetApply() != nil:

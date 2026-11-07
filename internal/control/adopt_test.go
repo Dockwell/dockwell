@@ -978,14 +978,12 @@ func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
 	} else {
 		apply(t, script, p)
 	}
-	// Not by the socket: what was taken on has no record of where a path led, so where
-	// it leads through a link, as /var/run does on many servers, that asks first.
-	if p := deploy("runs-privileged", "nginx:1.27"); p.GetPlan().GetHostAccess() {
-		t.Errorf("another tag of the image on runs-privileged needs a person: %v", p.GetPlan())
-	} else {
-		apply(t, script, p)
-	}
 	for _, name := range []string{"runs-docker", "runs-privileged"} {
+		if p := deploy(name, "nginx:1.27"); p.GetPlan().GetHostAccess() {
+			t.Errorf("another tag of the image on %s needs a person: %v", name, p.GetPlan())
+		} else {
+			apply(t, script, p)
+		}
 		p := deploy(name, "ghcr.io/stranger/ops:1.0")
 		if !p.GetPlan().GetHostAccess() {
 			t.Errorf("a new image on %s asks nothing of anyone: %v", name, p.GetPlan())
@@ -1004,6 +1002,8 @@ func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
 // as root needs a person for those as for an image: a token that holds the socket's
 // command runs what it likes as root. That holds for what Dockwell made as for what it
 // took on. So is the environment, as a variable such as LD_PRELOAD runs what it names.
+// A limit runs nothing, and Docker changes one in place, so what was taken on can go on
+// taking them: where its paths lead is on its record, wherever /var/run is a link.
 func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -1061,6 +1061,14 @@ func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
 		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: p.GetId()})); err != nil {
 			t.Fatal(err)
 		}
+	}
+	limit := plan("a limit", func(a *resourcev1.Container) { a.Resources = &resourcev1.Resources{Memory: "512M"} })
+	if limit.GetPlan().GetHostAccess() {
+		t.Fatalf("a limit on what holds the socket needs a person: %v", limit.GetPlan().GetResources())
+	}
+	apply(t, script, limit)
+	if p := plan("another limit", func(a *resourcev1.Container) { a.Resources = &resourcev1.Resources{Memory: "256M"} }); p.GetPlan().GetHostAccess() {
+		t.Errorf("a limit after a limit needs a person: %v", p.GetPlan().GetResources())
 	}
 }
 

@@ -844,6 +844,17 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		return nil, fmt.Errorf("%s's agent judged %d steps for %d resources", s.name, len(got), len(desired))
 	}
 	steps := make([]resource.Step, len(got))
+	var alongside []resource.Unmanaged
+	for _, u := range r.GetPlan().GetUnmanaged() {
+		alongside = append(alongside, resource.Unmanaged{Name: u.GetName(), Paths: u.GetPaths(), Root: u.GetRoot()})
+	}
+	var via map[string][]string
+	for _, v := range r.GetPlan().GetVia() {
+		if via == nil {
+			via = map[string][]string{}
+		}
+		via[v.GetPath()] = v.GetLinks()
+	}
 	for i, p := range got {
 		want := desired[i].Ref //nolint:gosec // got has as many as desired, as checked above
 		if steps[i], err = resourcepb.FromStep(p); err != nil {
@@ -853,7 +864,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 				"The agent is newer than the control plane, so upgrade the control plane to the agent's version", s.name, want, err)
 		}
 		// The step is about the resource asked for, whatever the agent says.
-		steps[i].Ref = want
+		steps[i].Ref, steps[i].Alongside, steps[i].Via = want, alongside, via
 		// A field the schema marks sensitive never shows its value, whatever
 		// the agent says of it: plans are kept, and an agent that got it
 		// wrong mustn't put a secret in one.

@@ -90,3 +90,6 @@ func inLogins(p string) bool {
 func within(p, base string) bool {
 	return p == base || strings.HasPrefix(p, strings.TrimSuffix(base, "/")+"/")
 }
+
+// Within reports whether the server path p is base or under it.
+func Within(p, base string) bool { return within(p, base) }

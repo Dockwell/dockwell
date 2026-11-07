@@ -421,6 +421,10 @@ msgstr "无法搜索 {first}"
 msgid "{free} free"
 msgstr "可用 {free}"
 
+#: src/features/changes/notices.tsx
+msgid "{heldBy} can move what {path} leads to on {server}"
+msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
+
 #: src/features/apps/AppsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
@@ -470,6 +474,10 @@ msgstr "{name} 在 {server} 上以明文 HTTP 响应 {path}"
 msgid "{name} believes the proxy {path} on {server}"
 msgstr "{name} 在 {server} 上信任代理 {path}"
 
+#: src/features/changes/notices.tsx
+msgid "{name} can move what {held} leads to on {server}"
+msgstr "{name} 可以改变 {server} 上 {held} 指向的位置"
+
 #: src/features/shell/CommandMenu.tsx
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符，并以字母开头"
@@ -490,6 +498,10 @@ msgstr "{name} 在 {where} 上未通过健康检查"
 #: src/features/changes/notices.tsx
 msgid "{name} gets back the data the server kept."
 msgstr "{name} 将取回服务器保留的数据。"
+
+#: src/features/changes/notices.tsx
+msgid "{name} gets back what reached root on {server}"
+msgstr "{name} 将恢复曾可访问 {server} root 级内容的备份"
 
 #: src/features/changes/notices.tsx
 msgid "{name} gets root on {server}"
@@ -646,6 +658,10 @@ msgstr "{name} 可能没有运行，也可能正在运行新版本。请检查�
 #: src/features/changes/notices.tsx
 msgid "{name} may take longer to be healthy, as its image isn't on the server yet."
 msgstr "{name} 可能需要更久才能恢复健康，因为它的镜像还不在服务器上。"
+
+#: src/features/changes/notices.tsx
+msgid "{name} mounts <0>{path}</0>, inside <1>{heldIn}</1>, which {heldBy} can write. So {heldBy} can turn it into a link to anywhere on the server, which {name} follows when it next starts. That's as good as root, so from now on any change to {heldBy} but another tag asks for a passkey."
+msgstr "{name} 挂载了 <1>{heldIn}</1> 中的 <0>{path}</0>，而 {heldBy} 可以写入该目录。所以 {heldBy} 能把它改成指向服务器上任意位置的链接，{name} 下次启动时就会跟随该链接。这相当于拥有 root，所以从现在起，对 {heldBy} 的任何更改（另一个标签除外）都需要通行密钥。"
 
 #: src/features/changes/notices.tsx
 msgid "{name} mounts the volume {path} on {server}"
@@ -1210,6 +1226,10 @@ msgstr "备份的对象是卷。请为应用添加卷，或从应用目录安装
 #: src/features/activity/describe.ts
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
+
+#: src/features/changes/words.ts
+msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
+msgstr "一个曾可访问 {path} 的卷的备份，可能含有那里的内容，相当于拥有 root"
 
 #: src/features/servers/network.ts
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
@@ -3894,6 +3914,14 @@ msgstr "它可以读取服务器上的该路径。"
 #: src/features/changes/notices.tsx
 msgid "It can take half the server's memory. Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "它最多可以占用服务器一半的内存。请设置大小,例如 {target}:size=64m,或者为 {name} 设置内存上限。"
+
+#: src/features/changes/notices.tsx
+msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which {holdsFor} mounts. So it can turn that into a link to anywhere on the server, which {holdsFor} follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
+msgstr "它可以写入包含 <1>{held}</1> 的 <0>{holder}</0>，而 {holdsFor} 挂载了 <1>{held}</1>。所以它能把它改成指向服务器上任意位置的链接，{holdsFor} 下次启动时就会跟随该链接。这相当于拥有 root，所以从现在起，对 {name} 的任何更改（另一个标签除外）都需要通行密钥。"
+
+#: src/features/changes/notices.tsx
+msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which it mounts as well. So it can turn that into a link to anywhere on the server, which it follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
+msgstr "它可以写入包含 <1>{held}</1> 的 <0>{holder}</0>，而它自己也挂载了 <1>{held}</1>。所以它能把它改成指向服务器上任意位置的链接，下次启动时就会跟随该链接。这相当于拥有 root，所以从现在起，对 {name} 的任何更改（另一个标签除外）都需要通行密钥。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "It can't be hidden there, so don't pass a secret there."
@@ -7549,6 +7577,18 @@ msgid "the server path {path} ({how})"
 msgstr "服务器路径 {path}（{how}）"
 
 #: src/features/changes/words.ts
+msgid "the server path {path}, inside {heldIn}, which {heldBy} can write, so it can make that lead anywhere, as good as root. Any change to {heldBy} but another tag asks for a passkey from now on"
+msgstr "服务器路径 {path}，位于 {heldBy} 可写入的 {heldIn} 中，所以它能让该路径指向任何位置，相当于拥有 root。从现在起，对 {heldBy} 的任何更改（另一个标签除外）都需要通行密钥"
+
+#: src/features/changes/words.ts
+msgid "the server path {path}, which holds {held}, which {holdsFor} mounts, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"
+msgstr "服务器路径 {path}，其中包含 {holdsFor} 挂载的 {held}，所以能写入此处的内容可以让它指向任何位置，相当于拥有 root。从现在起，对它的任何更改（另一个标签除外）都需要通行密钥"
+
+#: src/features/changes/words.ts
+msgid "the server path {path}, which holds {held}, which it mounts as well, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"
+msgstr "服务器路径 {path}，其中包含它自己也挂载的 {held}，所以能写入此处的内容可以让它指向任何位置，相当于拥有 root。从现在起，对它的任何更改（另一个标签除外）都需要通行密钥"
+
+#: src/features/changes/words.ts
 msgid "the server path {path}, which leads to {leadsTo} ({how})"
 msgstr "服务器路径 {path}，它指向 {leadsTo}（{how}）"
 
@@ -7644,6 +7684,10 @@ msgstr "未能取回此备份"
 #: src/features/backups/BackupsPage.tsx
 msgid "This backup failed, so nothing is on the server. This removes the record of it."
 msgstr "此备份失败了，服务器上没有留下任何内容。此操作会移除它的记录。"
+
+#: src/features/changes/notices.tsx
+msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
+msgstr "这份备份创建时，该卷可访问 <0>{path}</0>，所以任何挂载它的内容都能读取恢复后的数据。"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "This browser"

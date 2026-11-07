@@ -1972,16 +1972,40 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		// Where the agent says each server path leads, which only it can read.
 		leads := map[string]string{}
 		moved := map[string]bool{}
+		var alongside []resource.Unmanaged
+		via := map[string][]string{}
 		for i := range steps {
 			maps.Copy(leads, steps[i].Leads)
+			maps.Copy(via, steps[i].Via)
 			for _, p := range steps[i].LeadsMoved {
 				moved[p] = true
 			}
-			steps[i].PlannedLeads, steps[i].Leads, steps[i].LeadsMoved = steps[i].Leads, nil, nil
+			if alongside == nil {
+				alongside = steps[i].Alongside
+			}
+			steps[i].Leads, steps[i].LeadsMoved, steps[i].Alongside, steps[i].Via = nil, nil, nil, nil
+		}
+		// A person approves the plan as a whole, so each step goes by where every path
+		// in it leads: a service and the bind volume it mounts are two steps.
+		for i := range steps {
+			if len(leads) > 0 {
+				steps[i].PlannedLeads = maps.Clone(leads)
+			}
 		}
 		// What each item reaches on this server that it couldn't, from its
-		// specs: the control plane decides it, whatever the agent says.
+		// specs: the control plane decides it, whatever the agent says. What a
+		// backup says it came from is the agent's, and can only make a plan louder.
 		gains := map[resource.Ref][]resource.Access{}
+		mounts, err := e.holdingsOn(ctx, server, its, before, after, paths{leads: leads, via: via}, alongside)
+		if err != nil {
+			return nil, err
+		}
+		backupOf := map[resource.Ref][]string{}
+		for i := range steps {
+			if r := steps[i].Restore; r != nil {
+				backupOf[steps[i].Ref] = r.Reached
+			}
+		}
 		for _, it := range its {
 			ids[it.ref] = it.id
 			gained := resource.NewAccess(e.reach(it.ref, it.currentOn(server), before), e.reach(it.ref, it.desiredOn(server), after))
@@ -1990,7 +2014,8 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				if it.adopt != "" {
 					gained = append(gained, resource.Access{Kind: resource.AccessTakesOn, Path: it.adoptName})
 				}
-				reaches := e.reach(it.ref, desired, after)
+				reaches := append(e.reach(it.ref, desired, after), mounts.holderOf(it.ref)...)
+				gained = append(gained, resource.NewAccess(gained, mounts.gained(it.ref))...)
 				// What runs has all a resource reaches, so where that's as good as
 				// root, running something else is as much as reaching it anew.
 				if e.runsSomethingElse(it, server) {
@@ -1998,6 +2023,19 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				}
 				// What a person approved was where a path led then.
 				gained = append(gained, resource.NewAccess(gained, movedOff(reaches, moved))...)
+				// What a backup holds came from what its volume reached then, and a
+				// volume of that name now may reach far less.
+				if len(asRoot(reaches, leads)) == 0 {
+					was := backupOf[it.ref]
+					if src := it.restoreOn(server); src != nil && src.Backup != "" && len(was) == 0 {
+						if was, err = e.reachedThen(ctx, src.Backup); err != nil {
+							return nil, err
+						}
+					}
+					for _, p := range was {
+						gained = append(gained, resource.Access{Kind: resource.AccessBackupOf, Path: p})
+					}
+				}
 			}
 			for j := range gained {
 				gained[j] = gained[j].Leading(leads[gained[j].Path])
@@ -2240,8 +2278,11 @@ func (e *Engine) keptRootNotes(plan *Plan, items []item, notes []Note) []Note {
 				if it.restore != nil {
 					then = "what a backup brings back has that reach too"
 				}
-				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: it.ref.Name +
-					" reaches what's as good as root on its server, so " + then + ". Applying this takes a person and their passkey"})
+				message := it.ref.Name + " reaches what's as good as root on its server, so " + then
+				if slices.ContainsFunc(r.HostAccess, func(a resource.Access) bool { return a.Kind == resource.AccessBackupOf }) {
+					message = "This backup was taken when " + it.ref.Name + " reached what's as good as root on its server, so whatever mounts it can read what comes back"
+				}
+				out = append(out, Note{Reason: "new_code_as_root", Ref: it.ref, Message: message + ". Applying this takes a person and their passkey"})
 			}
 		}
 	}
@@ -3670,6 +3711,48 @@ func (e *Engine) BackupsRestoring(ctx context.Context) (map[string]bool, error) 
 						out[r.Backup] = true
 					}
 				}
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+// reachedThen is what a backup's volume reached that's as good as root, by its spec
+// when the backup was taken, for a backup from before backups said so themselves.
+// Where a path led then is gone, so this goes by paths as they're written.
+func (e *Engine) reachedThen(ctx context.Context, backupID string) ([]string, error) {
+	var out []string
+	err := e.db.View(ctx, func(tx *store.Tx) error {
+		b, err := tx.GetBackup(ctx, backupID)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return nil
+		case err != nil:
+			return err
+		}
+		var then *store.Revision
+		for n := 1; ; n++ {
+			r, err := tx.GetRevision(ctx, b.VolumeID, n)
+			if errors.Is(err, store.ErrNotFound) || err == nil && r.CreatedAt.After(b.StartedAt) {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			then = &r
+		}
+		if then == nil || then.Spec == nil {
+			return nil
+		}
+		spec, err := e.decode(ctx, tx, store.InRevision(then.ID, then.Kind, then.Revision), then.Spec)
+		if err != nil {
+			return err
+		}
+		access := e.kinds.HostAccess(resource.Kind(then.Kind), spec)
+		for i := range access {
+			if access[i].AsGoodAsRoot() && access[i].Path != "" {
+				out = append(out, access[i].Path)
 			}
 		}
 		return nil

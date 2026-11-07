@@ -25,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
@@ -302,6 +303,344 @@ func TestACopyStopsWhatItWasAskedToAndStartsItAgain(t *testing.T) {
 	}
 	if list, err := b.runner.readStopped(); err != nil || len(list) != 0 {
 		t.Errorf("what stopped is still on the list: %v, %v", list, err)
+	}
+}
+
+// A token can have a backup stop what mounts a volume, and start it again, so this is
+// the one start anyone can ask for at will. It's no way round where a server path
+// leads: a folder that became a link since keeps what mounts it down, and says why.
+// What else it stopped starts as it should.
+func TestWhatABackupStoppedStaysDownOnAPathThatMoved(t *testing.T) {
+	b := newBench(t)
+	b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, "conf")
+	if err := os.Mkdir(conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	running := func(service string, binds ...string) string {
+		t.Helper()
+		id, err := b.client.CreateContainer(ctx, docker.ContainerName(b.target.Project, service), &docker.CreateRequest{
+			Config: docker.Config{Image: "nginx:1", Labels: map[string]string{
+				docker.LabelProject: b.target.Project, docker.LabelService: service, docker.LabelLeads: "{}",
+			}},
+			HostConfig: docker.HostConfig{Binds: binds, Mounts: []docker.Mount{{Type: "volume", Source: b.target.Name, Target: "/data"}}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := b.client.StartContainer(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	moved, fine := running("moved", conf+":/conf"), running("fine")
+	b.take(true)
+	if !b.running(moved) || !b.running(fine) {
+		t.Fatalf("with nothing moved it started moved: %v, fine: %v", b.running(moved), b.running(fine))
+	}
+
+	b.engine.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/stop") && strings.Contains(r.URL.Path, moved) {
+			if err := os.Remove(conf); err != nil {
+				return err
+			}
+			if err := os.Symlink("/etc", conf); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	_, err = b.runner.Take(ctx, Take{ID: "bkp_2", Ref: ref, Stop: true})
+	b.engine.Intercept(nil)
+	var down downList
+	if !errors.As(err, &down) || !strings.Contains(err.Error(), conf+" leads to /etc now") {
+		t.Fatalf("a backup over a path that moved = %v", err)
+	}
+	if b.running(moved) {
+		t.Error("what mounts a link made since was started")
+	}
+	if !b.running(fine) {
+		t.Error("what mounts nothing that moved stayed down")
+	}
+	// docker start would follow the link, so that's not what it says to do.
+	if strings.Contains(err.Error(), "docker start") {
+		t.Errorf("it says to start it by hand: %v", err)
+	}
+}
+
+// bound replaces the bench's volume with one that binds device.
+func (b *bench) bound(device string) {
+	b.t.Helper()
+	if err := b.client.RemoveVolume(b.t.Context(), b.target.Name); err != nil {
+		b.t.Fatal(err)
+	}
+	if _, err := b.client.CreateVolume(b.t.Context(), &docker.VolumeCreate{
+		Name: b.target.Name, Driver: "local", DriverOpts: map[string]string{"type": "none", "o": "bind", "device": device},
+	}); err != nil {
+		b.t.Fatal(err)
+	}
+}
+
+// A backup is tied to a volume by name alone, so it says what that volume reached, by
+// where its path led, and a restore's plan says so. Undoing that puts back what was in
+// the volume, which isn't what the backup held.
+func TestABackupSaysWhatItsVolumeReached(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	link, folder := filepath.Join(dir, "link"), filepath.Join(dir, "folder")
+	if err := os.Symlink("/etc", link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(folder, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, tt := range map[string]struct {
+		device, share string
+		want          []string
+	}{
+		"an ordinary volume": {},
+		"a folder":           {device: folder},
+		"the system":         {device: "/etc", want: []string{"/etc"}},
+		"a link to it":       {device: link, want: []string{"/etc"}},
+		"an NFS share":       {share: ":/share"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := newBench(t)
+			b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
+			if tt.device != "" {
+				b.bound(tt.device)
+			}
+			if tt.share != "" {
+				if err := b.client.RemoveVolume(t.Context(), b.target.Name); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := b.client.CreateVolume(t.Context(), &docker.VolumeCreate{
+					Name: b.target.Name, Driver: "local", DriverOpts: map[string]string{"type": "nfs", "o": "addr=10.0.0.5", "device": tt.share},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			m := b.take(false)
+			if !slices.Equal(m.Reached, tt.want) {
+				t.Fatalf("it says it reached %v, want %v", m.Reached, tt.want)
+			}
+			dec, _, err := b.runner.JudgeRestore(t.Context(), ref, resource.RestoreSource{Backup: m.ID, Server: "srv_A", Change: "chg_1"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(dec.Restore.Reached, tt.want) {
+				t.Errorf("a restore's plan says %v, want %v", dec.Restore.Reached, tt.want)
+			}
+		})
+	}
+}
+
+// Docker follows a volume's path when a helper mounts it, and a restore writes over
+// everything there. So a link made since the plan stops it before anything stops,
+// where it costs nothing, and planned again it says where the path leads.
+func TestARestoreChecksWhereItsPathLeads(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, "conf")
+	if err := os.Mkdir(conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	b := newBench(t)
+	b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
+	b.bound(conf)
+	id := b.run("web", "nginx:1", "/data")
+	m := b.take(true)
+	if err := os.Remove(conf); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/etc", conf); err != nil {
+		t.Fatal(err)
+	}
+	step := resource.Step{Ref: ref, Decision: resource.Decision{Restore: &resource.RestorePlan{Backup: m.ID}}}
+	source := resource.RestoreSource{Backup: m.ID, Server: "srv_A", Change: "chg_1"}
+	started := b.engine.Started(docker.ContainerName(b.target.Project, "web"))
+	err = b.runner.ApplyRestore(t.Context(), step, source)
+	if err == nil || !strings.Contains(err.Error(), conf+" leads to /etc now") || !strings.Contains(err.Error(), "nothing was changed or stopped") {
+		t.Fatalf("a restore over a link made since its plan = %v", err)
+	}
+	if !b.running(id) || b.engine.Started(docker.ContainerName(b.target.Project, "web")) != started {
+		t.Error("something stopped")
+	}
+	// What mounts it hasn't been approved for that, so it goes first.
+	if err := b.client.RemoveContainer(t.Context(), id, true); err != nil {
+		t.Fatal(err)
+	}
+	step.PlannedLeads = map[string]string{conf: "/etc"}
+	if err := b.runner.ApplyRestore(t.Context(), step, source); err != nil {
+		t.Fatalf("a plan that says where it leads: %v", err)
+	}
+}
+
+// A restore checks where its volume's path leads again right before it writes, after
+// the stops and the copy of what's there, as a link made in that time would be
+// followed. Nothing is written over, and it says so.
+func TestARestoreChecksAgainBeforeItWrites(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, "conf")
+	if err := os.Mkdir(conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	b := newBench(t)
+	b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
+	b.bound(conf)
+	m := b.take(false)
+	starts := 0
+	b.engine.Intercept(func(r *http.Request) error {
+		// The first helper to start is the copy of what's there.
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
+			starts++
+			if starts == 1 {
+				if err := os.Remove(conf); err != nil {
+					return err
+				}
+				return os.Symlink("/etc", conf)
+			}
+		}
+		return nil
+	})
+	step := resource.Step{Ref: ref, Decision: resource.Decision{Restore: &resource.RestorePlan{Backup: m.ID}}}
+	err = b.runner.ApplyRestore(t.Context(), step, resource.RestoreSource{Backup: m.ID, Server: "srv_A", Change: "chg_1"})
+	b.engine.Intercept(nil)
+	if err == nil || !strings.Contains(err.Error(), conf+" leads to /etc now") || !strings.Contains(err.Error(), "nothing was written over") {
+		t.Fatalf("a link made during the copy of what's there = %v", err)
+	}
+}
+
+// What a backup reached is worked out again once its bytes are read, and it says what
+// either says: a link made while they were read is what they hold.
+func TestABackupSaysWhatItsVolumeReachedOnceItsRead(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder, link := filepath.Join(dir, "folder"), filepath.Join(dir, "link")
+	if err := os.Mkdir(folder, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(folder, link); err != nil {
+		t.Fatal(err)
+	}
+	b := newBench(t)
+	b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
+	b.bound(link)
+	b.engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
+			if err := os.Remove(link); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			return os.Symlink("/etc", link)
+		}
+		return nil
+	})
+	m := b.take(false)
+	b.engine.Intercept(nil)
+	if !slices.Equal(m.Reached, []string{"/etc"}) {
+		t.Errorf("it says it reached %v, want /etc", m.Reached)
+	}
+}
+
+// Recover takes each run on its own. One that a moved path keeps down stays down, and
+// says so, and is done with: no other run waits on it, and it isn't tried again.
+func TestRecoverGoesPastWhatAMovedPathKeepsDown(t *testing.T) {
+	b := newBench(t)
+	paths := &container.Paths{Client: b.client, DataDir: t.TempDir()}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, "conf")
+	if err := os.Mkdir(conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	running := func(name string, binds ...string) *user {
+		t.Helper()
+		id, err := b.client.CreateContainer(t.Context(), docker.ContainerName(b.target.Project, name), &docker.CreateRequest{
+			Config:     docker.Config{Image: "nginx:1", Labels: map[string]string{docker.LabelLeads: "{}"}},
+			HostConfig: docker.HostConfig{Binds: binds, RestartPolicy: docker.RestartPolicy{Name: "always"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := b.client.StartContainer(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+		return &user{id: id, name: name, stopWait: time.Second}
+	}
+	held, fine := running("held", conf+":/conf"), running("fine")
+	if err := b.runner.stop(t.Context(), "bkp_a", []*user{held}, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.runner.stop(t.Context(), "bkp_b", []*user{fine}, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(conf); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/etc", conf); err != nil {
+		t.Fatal(err)
+	}
+
+	again := &Runner{Client: b.client, Root: b.runner.Root, Paths: paths}
+	if err := again.Recover(t.Context()); err != nil {
+		t.Fatalf("recovering = %v", err)
+	}
+	if !b.running(fine.id) {
+		t.Error("what the other run stopped stayed down")
+	}
+	if b.running(held.id) {
+		t.Error("what mounts a link made since was started")
+	}
+	if c, err := b.client.InspectContainer(t.Context(), held.id); err != nil || c.HostConfig.RestartPolicy.Name != "no" {
+		t.Errorf("it can start by itself: %+v, %v", c, err)
+	}
+	if list, err := again.readStopped(); err != nil || len(list) != 0 {
+		t.Errorf("what's left to start: %v, %v", list, err)
+	}
+}
+
+// What restores replaced goes on time whatever Recover makes of what a run left: one
+// that can't finish doesn't keep the disk full.
+func TestPruningDoesntWaitOnRecovering(t *testing.T) {
+	b := newBench(t)
+	b.write("kept.txt", "x")
+	b.take(false)
+	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}); err != nil {
+		t.Fatal(err)
+	}
+	b.runner.Now = func() time.Time { return time.Now().Add(KeepFor + time.Hour) }
+	b.engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/containers/json") {
+			return errors.New("the engine can't list containers")
+		}
+		return nil
+	})
+	defer b.engine.Intercept(nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go b.runner.Keep(ctx)
+	deadline := time.Now().Add(5 * time.Second)
+	for slices.Contains(b.files(), "before-chg_1.tar.gz") {
+		if time.Now().After(deadline) {
+			t.Fatal("what a restore replaced is still there, as recovering never finished")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

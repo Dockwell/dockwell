@@ -5,6 +5,7 @@ package control
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -466,5 +468,139 @@ func testAValueWhatKeepsRootUsesAsksAgain(t *testing.T, backend store.Backend) {
 			}
 			applyAsRoot(t, b, planned)
 		})
+	}
+}
+
+// The attack this stops. Two services a person approved in amber, one writing the
+// folder that holds what the other mounts. A token used to be able to change the
+// first's code, as it's short of root, have it turn the folder into a link, and let
+// Docker follow that the next time the second restarted. Now the layout itself reads
+// as what it is, and the token stops at the first step. Another tag still deploys.
+func TestWhatCanMoveAnothersSourceIsOutOfATokensReach(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	registerImages(f.addDockerServer(t))
+	c := changeClient(b, b.origin)
+	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
+	serve := func(name, image, from string, command ...string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image: image, Command: command, Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: from}, Target: "/m"}},
+			}}}}},
+		}
+	}
+	applyConfirmed(t, c, proposeEdit(t, c, serve("api", "ghcr.io/acme/ops:1.0", "/srv/app/conf")))
+	layout := proposeEdit(t, c, serve("files", "ghcr.io/acme/web:1.0", "/srv"))
+	fingerprint := layout.GetPlan().GetFingerprint()
+	if err := askedBy(t, c, layout, fingerprint); reasonOf(err) != "needs_step_up" {
+		t.Fatalf("the layout with no passkey = %v", err)
+	}
+	if !slices.ContainsFunc(layout.GetPlan().GetResources()[0].GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+		return a.GetPath() == "/srv" && a.GetHolds() == "/srv/app/conf" && a.GetHoldsFor() == "api" && a.GetSameAsRoot()
+	}) {
+		t.Errorf("the plan says %v", layout.GetPlan().GetResources()[0].GetHostAccess())
+	}
+	applyAsRoot(t, b, layout)
+
+	newCode := proposeEdit(t, script, serve("files", "ghcr.io/acme/web:1.0", "/srv", "sh", "-c", "ln -sfn /etc /m/app/conf"))
+	if err := askedBy(t, script, newCode, newCode.GetPlan().GetFingerprint()); reasonOf(err) != "needs_session" {
+		t.Errorf("a token changing what can move a source = %v", err)
+	}
+	if !slices.ContainsFunc(newCode.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "new_code_as_root" }) {
+		t.Errorf("the plan doesn't say why it asks: %v", newCode.GetPlan().GetNotes())
+	}
+	if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: newCode.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	tag := proposeEdit(t, script, serve("files", "ghcr.io/acme/web:1.1", "/srv"))
+	if tag.GetPlan().GetHostAccess() {
+		t.Errorf("another tag asks: %v", tag.GetPlan())
+	}
+}
+
+// A container someone ran by hand counts as what's held through the agent too: the
+// agent names it, with what it mounts, and the plan for what can write around it asks
+// as root does, naming it.
+func TestWhatDockwellDidntMakeIsHeldThroughTheAgent(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	registerImages(e)
+	c := changeClient(b, b.origin)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, "srv", "app", "conf")
+	if err := os.MkdirAll(conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e.AddLocalImage("alpine:3", dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}})
+	id, err := e.Client().CreateContainer(t.Context(), "by-hand", &docker.CreateRequest{
+		Config: docker.Config{Image: "alpine:3"}, HostConfig: docker.HostConfig{Binds: []string{conf + ":/conf"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Client().StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	planned := proposeEdit(t, c, &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "files"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "ghcr.io/acme/web:1.0", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: filepath.Join(dir, "srv")}, Target: "/srv"}},
+		}}}}},
+	})
+	if !slices.ContainsFunc(planned.GetPlan().GetResources()[0].GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+		return a.GetHolds() == conf && a.GetHoldsFor() == "by-hand" && a.GetSameAsRoot()
+	}) {
+		t.Fatalf("the plan says %v", planned.GetPlan().GetResources()[0].GetHostAccess())
+	}
+	if err := askedBy(t, c, planned, planned.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
+		t.Errorf("with no passkey = %v", err)
+	}
+}
+
+// The links on the way to a source come from the agent too: what can write a folder
+// one of them is in holds the source, through the agent as in the engine.
+func TestAHoldOfALinkOnTheWayCountsThroughTheAgent(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	registerImages(f.addDockerServer(t))
+	c := changeClient(b, b.origin)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	disk, srv, other := filepath.Join(dir, "disk"), filepath.Join(dir, "srv"), filepath.Join(dir, "b")
+	for _, d := range []string{filepath.Join(disk, "app"), filepath.Join(other, "conf")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(disk, srv); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, filepath.Join(disk, "app", "y")); err != nil {
+		t.Fatal(err)
+	}
+	serve := func(name, image, from string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Name: name},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image: image, Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: from}, Target: "/m"}},
+			}}}}},
+		}
+	}
+	applyConfirmed(t, c, proposeEdit(t, c, serve("api", "ghcr.io/acme/ops:1.0", filepath.Join(srv, "app", "y", "conf"))))
+	planned := proposeEdit(t, c, serve("files", "ghcr.io/acme/web:1.0", filepath.Join(disk, "app")))
+	if !slices.ContainsFunc(planned.GetPlan().GetResources()[0].GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+		return a.GetHoldsFor() == "api" && a.GetSameAsRoot()
+	}) {
+		t.Fatalf("the plan says %v", planned.GetPlan().GetResources()[0].GetHostAccess())
+	}
+	if err := askedBy(t, c, planned, planned.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
+		t.Errorf("with no passkey = %v", err)
 	}
 }

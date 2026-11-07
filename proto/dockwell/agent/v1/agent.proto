@@ -986,6 +986,32 @@ message PlanResult {
   // One step for each desired resource, in order; a resource already as
   // desired has PLAN_ACTION_NONE.
   repeated dockwell.v1.PlanStep steps = 1;
+  // The containers on this server that Dockwell didn't make, with the server
+  // paths they mount, for a plan that mounts or may mount one. The control
+  // plane counts what something it plans can write around as held by it.
+  repeated UnmanagedMounts unmanaged = 100;
+  // The links each server path on this server passes through on the way to where
+  // it leads, for a plan that mounts or may mount one: what moves the path if
+  // something rewrites one of them.
+  repeated PathVia via = 103;
+}
+
+// PathVia is a server path and the links its walk passed through, each by its
+// own path in its folder, resolved.
+message PathVia {
+  string path = 103;
+  repeated string links = 104;
+}
+
+// UnmanagedMounts is a container Dockwell didn't make and the server paths it
+// mounts, as written.
+message UnmanagedMounts {
+  // Its name in Docker.
+  string name = 100;
+  repeated string paths = 101;
+  // True where what it mounts is as good as root already, so moving one of
+  // its paths gives it nothing new.
+  bool root = 102;
 }
 
 // ApplyResult says a step was carried out and verified.

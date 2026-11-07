@@ -25,6 +25,12 @@ const LabelAdopted = OwnPrefix + "adopted"
 // client reads alone.
 const LabelAdoptedFrom = OwnPrefix + "adopted-from"
 
+// LabelLeads says where the server paths a container mounts led when a person
+// approved it, as JSON, those that lead elsewhere. A container with server paths has
+// it even when that's none of them, so one without it is older than the record. One
+// taken on reads as having it, from the record of what was taken on.
+const LabelLeads = OwnPrefix + "leads"
+
 // Taken is what a container that was taken on is now.
 type Taken struct {
 	Project string `json:"project"`
@@ -35,6 +41,9 @@ type Taken struct {
 	// Compose is the Compose project it came from. What it reads as has the project
 	// of what it is now, so nothing else says.
 	Compose string `json:"compose,omitempty"`
+	// Leads is where the server paths it mounts led when it was taken on, as
+	// LabelLeads has it. Docker can't put a label on what's running.
+	Leads string `json:"leads,omitempty"`
 }
 
 // Adopted is the record of the containers a server took on as services. Docker
@@ -144,12 +153,15 @@ func (a *Adopted) snapshot() map[string]Taken {
 // list's labels may be shared, and name is what it's called in Docker, for one read
 // before it was recorded.
 func asTaken(labels map[string]string, t Taken, name string) map[string]string {
-	out := make(map[string]string, len(labels)+5)
+	out := make(map[string]string, len(labels)+7)
 	maps.Copy(out, labels)
 	out[LabelProject], out[LabelService], out[LabelNumber], out[LabelOneoff] = t.Project, t.Service, strconv.Itoa(1), "False"
 	out[LabelAdopted] = cmp.Or(t.Name, strings.TrimPrefix(name, "/"))
 	if t.Compose != "" {
 		out[LabelAdoptedFrom] = t.Compose
+	}
+	if t.Leads != "" {
+		out[LabelLeads] = t.Leads
 	}
 	return out
 }
