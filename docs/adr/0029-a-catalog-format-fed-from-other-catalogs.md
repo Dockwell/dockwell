@@ -108,7 +108,7 @@ This is our reading of the licences, not legal advice. Counsel confirms it befor
 - **A form asks only what it must.** Every app gets a name and its ports. Domains, memory limits and backups in the `Catalog-Install` mock wait: a domain has its own form on the app's page, with what a tunnel needs, and the other two have nothing to set yet.
 - **An entry's text is English for now.** The panel's own words are translated, and an entry's are data, so translations belong in the format once the catalog is big enough to need them.
 
-The first set is what the two real servers ran, and every app in it is open source, which the catalog's page says and a test holds it to. Their AI agent runner is T3 Code, from the recipe its owner keeps, [`dizys/t3code-docker`](https://github.com/dizys/t3code-docker). Three things about that entry are worth saying:
+The first set is what the two real servers ran, and every app in it is open source, which the catalog's page said and a test held it to, until the second set below. Their AI agent runner is T3 Code, from the recipe its owner keeps, [`dizys/t3code-docker`](https://github.com/dizys/t3code-docker). Three things about that entry are worth saying:
 
 - **It's published on loopback alone,** as the recipe asks: anyone who reaches it gets a shell in the container, so it must never be served unencrypted. A person reaches it through a domain, with one route to the one port `T3_SINGLE_PORT` serves, and the page says to add one first.
 - **It has an access control of its own,** unlike an app with a first-visitor wizard. A domain reaches it, and only a device with a single-use pairing token gets in, which the setup page makes for whoever holds its key.
@@ -136,6 +136,25 @@ An upgrade is a plan: `CatalogService.UpgradeCatalogInstall` reads the install's
 - **`DOCKWELL_CATALOG_DIR` names a directory of entries,** read each time, that take over from built-in ones of the same ID. Before a feed exists it's how a newer release reaches a server for a test, and how to try an entry. The panel's flow and the Docker end to end use it. A feed takes over from it, as from what's built in.
 
 Choosing to stay on a version, skipping one, and upgrading a whole fleet in one go are later work. A release that adds an input needs its value from `dockwell catalog upgrade --values`, as the panel has no form for it yet.
+
+### The second set, each tried on real Docker
+
+*Added 7 Nov 2026, with #221.*
+
+People moving off 1Panel need the apps they already run there. So the built-in set grows by about twenty, starting with what the two real servers run today: pgAdmin, Redis, MariaDB and Coder. The rest are what people self-host most. They're still ours, in the same format, and the index takes over from them as above.
+
+- **Each pins the newest version that's been out for 14 days,** as the repository holds back every other dependency, by the digest of its multi-architecture index, so the ARM server pulls its own. Each uses the project's official image.
+- **Each has a health check that proves the app answers,** not just that its process runs, as an install and an upgrade wait for it.
+- **An app that needs a database brings its own,** in its own project, as PostgreSQL's entry runs it: the same pinned image, a password generated and sealed, a volume, and no port. The app gets the password as a whole value, never inside a connection URL, which a rotation couldn't reach. Coder reads it as `PGPASSWORD`, which its PostgreSQL driver takes from the environment.
+- **A database with no admin tool is published on loopback alone.** Redis has nothing like Adminer to stand in front of it, so `127.0.0.1` is the sensible default, and a person adds a port on its page to reach it from elsewhere.
+- **Coder reaches Docker's socket, as root in its container,** to start workspaces as containers on the server. The socket's group has a different number on each server, which no form can know, and root in the container gives no more than the socket already does. Its entry says so, and the plan takes a passkey.
+- **An app under the AGPL is open source,** as Redis 8 and Coder are.
+- **n8n is source-available, not open source,** under its Sustainable Use licence, which lets you run it yourself for your own work. People asked for it by name, so it's in, and the catalog's page now calls its apps self-hosted rather than open source. A test holds each app's licence to a list that's had a look, open or source-available, and an entry's page names it.
+- **Where an app reads its database's password from a URL alone,** as Umami's migrations do, a shell in its command writes the URL from the secret as it starts. The secret stays a whole value in the service's environment, so a rotation reaches it, and the file names no password.
+- **An app that starts with a password everyone knows answers only on this server,** as Umami does with `admin` and `umami`, until a person changes it through an SSH tunnel and adds a domain.
+- **RustFS is in MinIO's place.** MinIO's repository was archived, and its images are gone from Docker Hub and Quay, so there's nothing official to pin. RustFS is S3-compatible, under Apache-2.0, with a console like MinIO's, and its summary names MinIO so a search finds it.
+
+Each entry is tried in CI on real Docker. `scripts/catalog-e2e.sh` installs it as a person would, at the version before the one it pins, checks every container turns healthy and that the app answers and signs in with what Dockwell generated, upgrades it in one plan that backs its volumes up first, checks its data and secrets stayed, and removes it, with its volumes kept for an undo. The *Catalog on Docker* jobs run it in groups side by side, so each group adds its own few minutes rather than all of them to one job, and a test holds every entry to a group or to `scripts/docker-e2e.sh`. That makes each of these a *tested* entry, as above.
 
 ### What we turned down
 

@@ -3,18 +3,23 @@
 package catalog_test
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
+	"go.yaml.in/yaml/v4"
 	"google.golang.org/protobuf/proto"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/compose"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 )
 
 // What ADR 0029 asks of every entry holds of the ones built in, and each one's
@@ -61,27 +66,41 @@ func TestTheBuiltInEntries(t *testing.T) {
 		})
 	}
 	// The first set: a database with its admin tool, a reverse proxy's
-	// replacement, a tunnel, and something that runs AI agents.
-	for _, want := range []string{"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code"} {
+	// replacement, a tunnel, and something that runs AI agents. Then what the two
+	// real servers run beside those (#221).
+	for _, want := range []string{
+		"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code",
+		"pgadmin", "redis", "mariadb", "coder",
+		"uptime-kuma", "n8n", "gitea", "vaultwarden", "nextcloud", "rustfs", "grafana", "umami",
+	} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the catalog has no %s: %v", want, ids)
 		}
 	}
 }
 
-// The catalog's page says its apps are open source, which each has to be. A licence
-// new to this list needs a look before it goes on it, and an app that isn't open
-// source needs the page's words changed.
-func TestEveryAppIsOpenSource(t *testing.T) {
+// Each app's licence is one that's had a look: open source, or one that lets you run
+// it yourself under its own terms, which an entry's page names. A licence new to these
+// lists needs a look before it goes on one. The catalog's page calls its apps
+// self-hosted, not open source, since n8n is source-available.
+func TestEveryAppsLicenceHasHadALook(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	open := []string{"Apache-2.0", "GPL-2.0-only", "MIT", "PostgreSQL"}
+	open := []string{"AGPL-3.0-only", "AGPL-3.0-or-later", "Apache-2.0", "GPL-2.0-only", "GPL-2.0-or-later", "MIT", "PostgreSQL"}
+	sourceAvailable := []string{"Sustainable Use"}
 	for _, e := range c.All() {
-		if !slices.Contains(open, e.GetAppLicense()) {
-			t.Errorf("%s is under %s, and the catalog's page says it's open source", e.GetId(), e.GetAppLicense())
+		if l := e.GetAppLicense(); !slices.Contains(open, l) && !slices.Contains(sourceAvailable, l) {
+			t.Errorf("%s is under %s, which hasn't had a look", e.GetId(), l)
 		}
+	}
+	page, err := os.ReadFile("../../web/src/features/catalog/CatalogPage.tsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(page), "Open-source apps") {
+		t.Error("the catalog's page says every app is open source, and some are source-available")
 	}
 }
 
@@ -93,7 +112,7 @@ func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"postgres", "mysql", "nginx-proxy-manager"} {
+	for _, id := range []string{"postgres", "mysql", "mariadb", "nginx-proxy-manager", "pgadmin", "coder", "uptime-kuma", "gitea", "nextcloud", "rustfs", "grafana"} {
 		e, _ := c.Entry(id)
 		steps := e.GetFirstSteps()
 		at := strings.Index(steps, "plain HTTP")
@@ -117,11 +136,45 @@ func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 	for id, how := range map[string]string{
 		"postgres":            "ALTER USER postgres PASSWORD",
 		"mysql":               "ALTER USER",
+		"mariadb":             "ALTER USER",
 		"nginx-proxy-manager": "change the password in the console",
+		"pgadmin":             "choose Change password",
+		"nextcloud":           "under Security",
+		"grafana":             "choose Change password",
 	} {
 		e, _ := c.Entry(id)
 		if steps := e.GetFirstSteps(); !strings.Contains(steps, "on first start only") || !strings.Contains(steps, how) {
 			t.Errorf("%s doesn't say its password is set once, and %q: %q", id, how, steps)
+		}
+	}
+}
+
+// A database reads its password on first start alone, and an app beside it reads the
+// same secret each time it starts, so changing that secret leaves the app with one the
+// database doesn't take. Dockwell doesn't rotate these, and each entry says to leave it.
+func TestADatabasesSharedPasswordSaysLeaveIt(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	databases := regexp.MustCompile(`^(postgres|mysql|mariadb):`)
+	for _, e := range c.All() {
+		stack, filled := read(t, e)
+		for name, value := range filled.Secrets {
+			var database, app bool
+			for _, s := range stack.Services {
+				if !slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) {
+					continue
+				}
+				if databases.MatchString(s.Spec.GetApp().GetImage()) {
+					database = true
+				} else {
+					app = true
+				}
+			}
+			if database && app && !strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
+				t.Errorf("%s shares %s between its database and its app, and its first steps don't say to leave it as it is", e.GetId(), name)
+			}
 		}
 	}
 }
@@ -181,6 +234,200 @@ func TestT3CodeStaysOnThisServer(t *testing.T) {
 	if !slices.Equal(targets, []string{"/home/t3", "/workspace"}) {
 		t.Errorf("its named volumes hold %v", targets)
 	}
+}
+
+// An entry says what it reaches on its server beyond its own containers exactly when
+// its Compose file reaches something, as a person reads that before approving it, and
+// an entry that says it reaches what it doesn't would teach them to skim it.
+func TestHostAccessIsSaid(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range c.All() {
+		t.Run(e.GetId(), func(t *testing.T) {
+			stack, _ := read(t, e)
+			var reaches []string
+			for _, s := range stack.Services {
+				for _, a := range container.ServiceAccess(s.Spec.GetApp()) {
+					reaches = append(reaches, s.Name+" reaches "+a.Path)
+				}
+			}
+			switch said := e.GetHostAccess() != ""; {
+			case len(reaches) > 0 && !said:
+				t.Errorf("it doesn't say what it reaches on its server, where %v", reaches)
+			case len(reaches) == 0 && said:
+				t.Errorf("it says it reaches %q, and its Compose file reaches nothing", e.GetHostAccess())
+			}
+		})
+	}
+}
+
+// An entry that says it answers only on this server publishes every port on loopback,
+// as Redis, Umami and T3 Code do, so a person can trust those words before they apply.
+func TestOnlyOnThisServerMeansLoopback(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	said := 0
+	for _, e := range c.All() {
+		if !strings.Contains(e.GetFirstSteps(), "only on this server") {
+			continue
+		}
+		said++
+		stack, _ := read(t, e)
+		for _, s := range stack.Services {
+			for _, p := range s.Spec.GetApp().GetPorts() {
+				if p.GetHostIp() != "127.0.0.1" {
+					t.Errorf("%s says it answers only on this server, and %s publishes %d on %q", e.GetId(), s.Name, p.GetHostPort(), p.GetHostIp())
+				}
+			}
+		}
+	}
+	if said < 3 {
+		t.Errorf("%d entries say they answer only on this server, want Redis, Umami and T3 Code at least", said)
+	}
+}
+
+// Coder starts workspaces through Docker's socket, as root in its container, and keeps
+// its database's password a whole value, which lib/pq reads as PGPASSWORD, so a
+// rotation reaches it.
+func TestCoderReachesDockerAndItsDatabase(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := c.Entry("coder")
+	if !ok {
+		t.Fatal("the catalog has no coder")
+	}
+	stack, filled := read(t, e)
+	i := slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == "coder" })
+	if i < 0 {
+		t.Fatal("it runs no coder service")
+	}
+	app := stack.Services[i].Spec.GetApp()
+	if !slices.ContainsFunc(container.ServiceAccess(app), func(a resource.Access) bool { return a.Kind == resource.AccessDocker }) {
+		t.Error("Coder doesn't reach Docker's socket")
+	}
+	if app.GetUser() != "root" {
+		t.Errorf("Coder runs as %q, which can't reach a socket whose group differs on each server", app.GetUser())
+	}
+	if url := app.GetEnv()["CODER_PG_CONNECTION_URL"]; strings.Contains(url, ":@") || strings.Count(url, ":") > 2 {
+		t.Errorf("its database's URL holds a password: %q", url)
+	}
+	if got := app.GetEnv()["PGPASSWORD"]; got == "" || got != filled.Secrets["POSTGRES_PASSWORD"] {
+		t.Error("PGPASSWORD isn't the database's password, as a whole value")
+	}
+}
+
+// Redis is published on loopback alone, as it has no admin tool of its own to stand in
+// front of it, and takes its password on its command line by reference, so a rotation
+// reaches it on its next start.
+func TestRedisStaysOnThisServer(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := c.Entry("redis")
+	if !ok {
+		t.Fatal("the catalog has no redis")
+	}
+	stack, _ := read(t, e)
+	app := stack.Services[0].Spec.GetApp()
+	if ports := app.GetPorts(); len(ports) != 1 || ports[0].GetHostIp() != "127.0.0.1" {
+		t.Errorf("it publishes %v, want loopback alone", ports)
+	}
+	if !slices.Contains(app.GetReferences(), "command") || !slices.Contains(app.GetCommand(), "${REDIS_PASSWORD}") {
+		t.Errorf("its command %v doesn't use the password by reference", app.GetCommand())
+	}
+}
+
+// Every entry is tried on real Docker in CI: by scripts/docker-e2e.sh, as the first
+// five are, or by scripts/catalog-e2e.sh in one of the Catalog on Docker jobs, which
+// installs it, checks it answers, upgrades it and removes it. An entry no job tries
+// would reach people untried.
+func TestEveryEntryIsTriedOnRealDocker(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile("../../.github/workflows/ci.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			Strategy struct {
+				Matrix struct {
+					Apps []string `yaml:"apps"`
+				} `yaml:"matrix"`
+			} `yaml:"strategy"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(raw, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	tried := map[string]string{}
+	for _, apps := range workflow.Jobs["catalog-docker"].Strategy.Matrix.Apps {
+		for _, id := range strings.Fields(apps) {
+			if was, twice := tried[id]; twice {
+				t.Errorf("%s is in two of the Catalog on Docker jobs, %q and %q", id, was, apps)
+			}
+			tried[id] = apps
+		}
+	}
+	if len(tried) == 0 {
+		t.Fatal("ci.yml has no catalog-docker job with a matrix of apps")
+	}
+	script, err := os.ReadFile("../../scripts/docker-e2e.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range regexp.MustCompile(`(?m)^[^#\n]*catalog[_ ]install ([a-z0-9-]+)`).FindAllSubmatch(script, -1) {
+		tried[string(m[1])] = "scripts/docker-e2e.sh"
+	}
+	checks, err := os.ReadFile("../../scripts/catalog-e2e.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range c.All() {
+		at, ok := tried[e.GetId()]
+		switch {
+		case !ok:
+			t.Errorf("no CI job tries %s on real Docker. Add it to a Catalog on Docker job's apps in .github/workflows/ci.yml", e.GetId())
+		case at != "scripts/docker-e2e.sh" && !strings.Contains(string(checks), "\ncheck_"+e.GetId()+"() {"):
+			t.Errorf("scripts/catalog-e2e.sh has no check_%s, which says what answering means for it", e.GetId())
+		}
+		delete(tried, e.GetId())
+	}
+	for id := range tried {
+		if id != "e2e-notes" {
+			t.Errorf("CI tries %s, which the catalog doesn't have", id)
+		}
+	}
+}
+
+// read reads an entry's Compose file as an install would, with what a person types
+// made up.
+func read(t *testing.T, e *catalogv1.Entry) (*compose.Stack, *catalog.Filled) {
+	t.Helper()
+	given := map[string]string{}
+	for _, in := range e.GetInputs() {
+		if catalog.Asks(in) && in.GetDefaultValue() == "" {
+			given[in.GetName()] = "someone@example.com"
+		}
+	}
+	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
+	if err != nil {
+		t.Fatalf("its Compose file: %v", err)
+	}
+	return stack, filled
 }
 
 // The checks the catalog's CI will make, on what would get past a look.

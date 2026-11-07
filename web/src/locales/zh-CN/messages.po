@@ -5334,10 +5334,6 @@ msgstr "打开 {name} 的变量和密钥"
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
 
-#: src/features/catalog/CatalogPage.tsx
-msgid "Open-source apps you can install in one step"
-msgstr "一步即可安装的开源应用"
-
 #: src/features/shell/CommandMenu.tsx
 msgid "Opens a plan"
 msgstr "会打开计划"
@@ -6586,6 +6582,10 @@ msgstr "查看原因"
 #: src/features/servers/network.ts
 msgid "Seen as its agent connected, {when}. That's its way out, and may not be a way in"
 msgstr "在其 Agent 连接时看到，{when}。这是它的出站地址，不一定能从这里入站"
+
+#: src/features/catalog/CatalogPage.tsx
+msgid "Self-hosted apps you can install in one step"
+msgstr "一步即可安装的自托管应用"
 
 #: src/features/changes/fields.tsx
 msgid "SELinux label"

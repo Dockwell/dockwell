@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: gitea
+name: Gitea
+summary: Git hosting with code review
+category: developer tools
+version: "28.2.0"
+release: 1
+homepage: https://about.gitea.com
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/gitea.yaml
+web:
+  service: gitea
+firstSteps: >-
+  Gitea answers over plain HTTP, so signing in from outside this server sends your
+  password in clear, and the first account registered on it is its admin. Add a
+  domain first, or reach it another way, such as a VPN or an SSH tunnel. Then open it
+  and register your account, and set GITEA__service__DISABLE_REGISTRATION to true on
+  the gitea service, so no one else can. Once it has a domain, set
+  GITEA__server__ROOT_URL there too, so clone links use it. Git over SSH answers on
+  the SSH port.
+inputs:
+  - name: PORT
+    label: Gitea port
+    hint: You open Gitea on this port of the server.
+    type: INPUT_TYPE_PORT
+    defaultValue: "3000"
+  - name: SSH_PORT
+    label: SSH port
+    hint: Git over SSH answers on this port, as the server's own SSH has 22.
+    type: INPUT_TYPE_PORT
+    defaultValue: "2222"
+compose: |
+  services:
+    gitea:
+      image: gitea/gitea:28.2.0@sha256:30777c91280d973fa02be48b1ade735bd6859e8f6f7af3b4444d519437852504
+      restart: unless-stopped
+      environment:
+        GITEA__database__DB_TYPE: sqlite3
+        GITEA__security__INSTALL_LOCK: "true"
+        GITEA__server__SSH_PORT: ${SSH_PORT}
+      ports:
+        - "${PORT}:3000"
+        - "${SSH_PORT}:22"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:3000/api/healthz"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 20s
+  volumes:
+    data: {}
