@@ -864,7 +864,7 @@ func Methods() []*apicli.Method {
 			Noun:      "processes",
 			Verb:      "end",
 			Short:     "End a process on a server",
-			Long:      "End a process on a server, as kill does: SIGTERM, and SIGKILL if it's still\nthere 10 s later. It's as much as root on the server, so it takes a passkey just\nnow: call it without a proof first, and it refuses with the reason\nneeds_step_up, then again with the proof from dockwell sessions finish-step-up\nfor STEP_UP_ACTION_END_PROCESS, whose target is \"<server ID>:<PID>\". It can't be\nundone. What Dockwell needs on the server, its agent and the process it runs in,\nand PID 1, is refused. It's on the activity log.",
+			Long:      "End a process on a server, as kill does: SIGTERM, and SIGKILL if it's still\nthere 10 s later. It's as much as root on the server, so it takes a passkey just\nnow: call it without a proof first, and it refuses with the reason\nneeds_step_up, then again with the proof from dockwell sessions finish-step-up\nfor STEP_UP_ACTION_END_PROCESS, whose target is \"<server ID>:<PID>:<start\nticks>\", so a proof ends no other process given the PID later. It can't be\nundone. Refused, with the reason process_protected: PID 1; the process\nDockwell's agent runs in, any thread of it, and what it runs under; a thread,\nwhich only stops with its process; a thread the kernel runs; and the SSH server\nthat takes new logins. A server whose kernel has no pidfds, before Linux 5.3,\nends nothing, as a signal by PID alone could reach whatever took the PID. It's\non the activity log, without the command line.",
 			Effect:    v1.Effect_EFFECT_DESTRUCTIVE,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server's ID."},

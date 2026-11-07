@@ -1825,9 +1825,14 @@ paths:
                  if it's still there 10 s later. It's as much as root on the server, so it
                  takes a passkey just now: call it without a proof first, and it refuses with
                  the reason needs_step_up, then again with the proof from FinishStepUp for
-                 STEP_UP_ACTION_END_PROCESS, whose target is "<server ID>:<PID>". It can't be
-                 undone. What Dockwell needs on the server, its agent and the process it runs
-                 in, and PID 1, is refused. It's on the activity log.
+                 STEP_UP_ACTION_END_PROCESS, whose target is "<server ID>:<PID>:<start
+                 ticks>", so a proof ends no other process given the PID later. It can't be
+                 undone. Refused, with the reason process_protected: PID 1; the process
+                 Dockwell's agent runs in, any thread of it, and what it runs under; a
+                 thread, which only stops with its process; a thread the kernel runs; and
+                 the SSH server that takes new logins. A server whose kernel has no pidfds,
+                 before Linux 5.3, ends nothing, as a signal by PID alone could reach
+                 whatever took the PID. It's on the activity log, without the command line.
             operationId: ProcessService_EndProcess
             parameters:
                 - name: serverId
