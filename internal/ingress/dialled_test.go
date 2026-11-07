@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -140,10 +141,26 @@ func TestTheKernelsTableReadsAsTheProxyDials(t *testing.T) {
 	if dialled, held := named(listen("127.0.0.1:0")); !dialled || !held {
 		t.Errorf("a listener on 127.0.0.1 is dialled %v, held %v", dialled, held)
 	}
-	if dialled, held := named(listen("[::1]:0")); dialled || !held {
+	// Ports are kept per address, so the kernel may give ::1 or 127.0.0.2 a port that
+	// something else on this machine listens on at 127.0.0.1, and that one is dialled.
+	// So these take a port nothing holds there.
+	alone := func(host string) int {
+		t.Helper()
+		for range 20 {
+			port := listen(net.JoinHostPort(host, "0"))
+			free, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+			if err == nil {
+				_ = free.Close()
+				return port
+			}
+		}
+		t.Fatalf("every port %s got is held on 127.0.0.1 too", host)
+		return 0
+	}
+	if dialled, held := named(alone("::1")); dialled || !held {
 		t.Errorf("a listener on ::1 alone is dialled %v, held %v", dialled, held)
 	}
-	if dialled, held := named(listen("127.0.0.2:0")); dialled || !held {
+	if dialled, held := named(alone("127.0.0.2")); dialled || !held {
 		t.Errorf("a listener on 127.0.0.2 is dialled %v, held %v", dialled, held)
 	}
 }
