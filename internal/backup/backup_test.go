@@ -322,7 +322,7 @@ func TestWhatABackupStoppedStaysDownOnAPathThatMoved(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := t.Context()
-	make := func(service string, binds ...string) string {
+	running := func(service string, binds ...string) string {
 		t.Helper()
 		id, err := b.client.CreateContainer(ctx, docker.ContainerName(b.target.Project, service), &docker.CreateRequest{
 			Config: docker.Config{Image: "nginx:1", Labels: map[string]string{
@@ -338,7 +338,7 @@ func TestWhatABackupStoppedStaysDownOnAPathThatMoved(t *testing.T) {
 		}
 		return id
 	}
-	moved, fine := make("moved", conf+":/conf"), make("fine")
+	moved, fine := running("moved", conf+":/conf"), running("fine")
 	b.take(true)
 	if !b.running(moved) || !b.running(fine) {
 		t.Fatalf("with nothing moved it started moved: %v, fine: %v", b.running(moved), b.running(fine))

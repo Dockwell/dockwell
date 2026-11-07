@@ -1380,7 +1380,6 @@ msgstr "Activity"
 msgid "Actor"
 msgstr "Actor"
 
-#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PoliciesPanel.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Add"
@@ -2023,10 +2022,10 @@ msgstr "Can't scan it? Enter this key instead: <0>{0}</0>"
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/BackUpSheet.tsx
 #: src/features/backups/BackupsPage.tsx
-#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/servers/SetPublicAddressSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Cancel"
 msgstr "Cancel"
@@ -4592,7 +4591,6 @@ msgstr "Move to another app"
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/auth/TokensPanel.tsx
-#: src/features/backups/DestinationsPanel.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
@@ -6196,7 +6194,6 @@ msgstr "Revealed the secret {name}"
 #: src/features/apps/AppOverview.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
-#: src/features/backups/DestinationsPanel.tsx
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx

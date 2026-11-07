@@ -164,13 +164,13 @@ func TestTakingOnKeepsWhereItsPathsLead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	real, other, link := filepath.Join(dir, "real"), filepath.Join(dir, "other"), filepath.Join(dir, "link")
-	for _, p := range []string{real, other} {
+	site, other, link := filepath.Join(dir, "site"), filepath.Join(dir, "other"), filepath.Join(dir, "link")
+	for _, p := range []string{site, other} {
 		if err := os.Mkdir(p, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.Symlink(real, link); err != nil {
+	if err := os.Symlink(site, link); err != nil {
 		t.Fatal(err)
 	}
 	e := dockertest.New(t)
@@ -194,7 +194,7 @@ func TestTakingOnKeepsWhereItsPathsLead(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := read.Spec.(*resourcev1.Container)
-	planned := resource.Decision{PlannedLeads: map[string]string{link: real}}
+	planned := resource.Decision{PlannedLeads: map[string]string{link: site}}
 
 	if err := d.Adopt(t.Context(), taken, id, spec, resource.Decision{}); err == nil || !strings.Contains(err.Error(), "it wasn't taken on") {
 		t.Fatalf("taking it on where its plan said nothing of the link = %v", err)
@@ -206,7 +206,7 @@ func TestTakingOnKeepsWhereItsPathsLead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `{"` + link + `":"` + real + `"}`; got.Config.Labels[LabelLeads] != want {
+	if want := `{"` + link + `":"` + site + `"}`; got.Config.Labels[LabelLeads] != want {
 		t.Errorf("it reads as %q, want %q", got.Config.Labels[LabelLeads], want)
 	}
 	if moved, err := d.LeadsMoved(t.Context(), taken, spec); err != nil || len(moved) != 0 {
