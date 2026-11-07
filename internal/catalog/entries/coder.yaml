@@ -22,7 +22,8 @@ firstSteps: >-
   domain first, or reach it another way, such as a VPN or an SSH
   tunnel. Then open it and make your account. Once it has a domain, set
   CODER_ACCESS_URL on the coder service to that address, so your workspaces reach it
-  there.
+  there. Leave the POSTGRES_PASSWORD secret as it is: its database keeps the password
+  it started with, and Coder would then use one it doesn't take.
 inputs:
   - name: PORT
     label: Coder port
