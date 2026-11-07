@@ -146,6 +146,18 @@ describe("ProfilePage", () => {
     );
   });
 
+  it("sets the theme, which this browser keeps", async () => {
+    const user = userEvent.setup();
+    renderAt("/profile", api());
+    const preferences = await screen.findByRole("region", { name: "Preferences" });
+    expect(within(preferences).getByText("System follows your computer")).toBeVisible();
+    await user.click(within(preferences).getByRole("radio", { name: "Dark" }));
+    expect(within(preferences).getByText("Dark, whatever your computer uses")).toBeVisible();
+    expect(localStorage.getItem("dockwell.theme")).toBe("dark");
+    await user.click(within(preferences).getByRole("radio", { name: "System" }));
+    expect(localStorage.getItem("dockwell.theme")).not.toBe("dark");
+  });
+
   it("takes who is signed in from the gate, without reading it again", async () => {
     const getAuthState = vi.fn(() => authState());
     renderAt("/profile", api({ getAuthState }));

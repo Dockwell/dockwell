@@ -2660,9 +2660,14 @@ msgstr "每天"
 msgid "Daily at {at}"
 msgstr "每天 {at}"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Dark"
 msgstr "深色"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Dark, whatever your computer uses"
+msgstr "深色，不论电脑用哪种"
 
 #: src/features/changes/fields.tsx
 msgid "data"
@@ -4336,9 +4341,14 @@ msgstr "级别是从每行的文本中读取的。没有标明级别的行算作
 msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 msgstr "级别根据每行文本判断。未标明级别的行算作信息。双击或按住 Shift 点击可只显示该级别。"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Light"
 msgstr "浅色"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Light, whatever your computer uses"
+msgstr "浅色，不论电脑用哪种"
 
 #: src/features/servers/network.ts
 msgid "Likely a home or office network"
@@ -5649,6 +5659,10 @@ msgstr "端口"
 #: src/features/servers/ContainersPanel.tsx
 msgid "Ports"
 msgstr "端口"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Preferences"
+msgstr "偏好设置"
 
 #: src/features/logs/LogFoot.tsx
 msgid "Press Enter to search all the servers keep."
@@ -7054,10 +7068,15 @@ msgstr "已同步"
 msgid "System"
 msgstr "系统"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgctxt "theme"
 msgid "System"
 msgstr "跟随系统"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "System follows your computer"
+msgstr "跟随电脑的设置"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Take it on"
@@ -7588,6 +7607,7 @@ msgstr "位于 {path} 的卷驱动 {driver}，可访问该插件能访问的内�
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
 msgstr "卷驱动 {driver}，可访问该插件能访问的内容（{reads}）"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Theme"

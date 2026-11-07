@@ -2660,9 +2660,14 @@ msgstr "Daily"
 msgid "Daily at {at}"
 msgstr "Daily at {at}"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Dark"
 msgstr "Dark"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Dark, whatever your computer uses"
+msgstr "Dark, whatever your computer uses"
 
 #: src/features/changes/fields.tsx
 msgid "data"
@@ -4336,9 +4341,14 @@ msgstr "Levels are read from each line's text. A line that names none counts as 
 msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 msgstr "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Light"
 msgstr "Light"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Light, whatever your computer uses"
+msgstr "Light, whatever your computer uses"
 
 #: src/features/servers/network.ts
 msgid "Likely a home or office network"
@@ -5649,6 +5659,10 @@ msgstr "ports"
 #: src/features/servers/ContainersPanel.tsx
 msgid "Ports"
 msgstr "Ports"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Preferences"
+msgstr "Preferences"
 
 #: src/features/logs/LogFoot.tsx
 msgid "Press Enter to search all the servers keep."
@@ -7054,10 +7068,15 @@ msgstr "Synced"
 msgid "System"
 msgstr "System"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgctxt "theme"
 msgid "System"
 msgstr "System"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "System follows your computer"
+msgstr "System follows your computer"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Take it on"
@@ -7588,6 +7607,7 @@ msgstr "the volume driver {driver} at {path}, which reaches what the plugin does
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
 msgstr "the volume driver {driver}, which reaches what the plugin does ({reads})"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Theme"
