@@ -6892,6 +6892,9 @@ msgstr "1 个存储桶 · 备份在各服务器磁盘之外存放的地方"
 msgid "1 connected · the services Dockwell sends backups to and routes behind"
 msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在的服务"
 
+msgid "A backup didn't get here {when}"
+msgstr "{when}有一份备份未能送达"
+
 msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
 msgstr "路由可以位于 Cloudflare 代理之后并信任其地址，或位于 Cloudflare Tunnel 之后，由它终止 TLS。从 Dockwell 管理其 DNS 记录将在之后推出。"
 
@@ -6914,8 +6917,11 @@ msgstr "之后推出"
 msgid "Connect"
 msgstr "连接"
 
-msgid "Credentials for private images. Today a server pulls them as its own docker login lets it."
-msgstr "私有镜像的凭据。目前服务器凭借自己的 docker login 拉取镜像。"
+msgid "Connect storage"
+msgstr "连接存储"
+
+msgid "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
+msgstr "私有镜像的凭据。目前服务器只拉取公开镜像，不使用它的 docker login，因此私有镜像只有在有人手动在该服务器上拉取后才能运行。"
 
 msgid "DNS and proxies"
 msgstr "DNS 和代理"
@@ -6938,6 +6944,9 @@ msgstr "如何在其后设置路由"
 msgid "Integrations"
 msgstr "集成"
 
+msgid "Loading where backups go"
+msgstr "正在加载备份去向"
+
 msgid "Manage in Backups"
 msgstr "在备份中管理"
 
@@ -6953,7 +6962,7 @@ msgstr "打开域名"
 msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
 msgstr "将域名记录指向服务器，Dockwell 就会为它获取证书。域名表单会说明要创建哪条记录，并持续跟踪 DNS 直到生效。"
 
-#. placeholder {0}: words.ago(timestampDate(d.lastUpload), now)
+#. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "{0}收到一份备份"
 

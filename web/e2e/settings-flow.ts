@@ -134,7 +134,11 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByRole("heading", { level: 1, name: "Integrations" }).waitFor();
   await page.getByRole("article", { name: "Cloudflare" }).waitFor();
   await shoot(page, "settings-integrations");
-  await page.getByRole("article", { name: "S3-compatible storage" }).getByRole("button", { name: "Connect" }).click();
+  // A card to connect the first, or the section's own button once there is one.
+  await page
+    .getByRole("button", { name: /^Connect( storage)?$/ })
+    .first()
+    .click();
   const adding = page.getByRole("dialog", { name: "Add a destination" });
   await adding.getByRole("textbox", { name: "Bucket" }).waitFor();
   await adding.getByRole("button", { name: "Cancel" }).click();

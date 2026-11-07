@@ -6892,6 +6892,9 @@ msgstr "1 bucket · where backups go beside each server's disk"
 msgid "1 connected · the services Dockwell sends backups to and routes behind"
 msgstr "1 connected · the services Dockwell sends backups to and routes behind"
 
+msgid "A backup didn't get here {when}"
+msgstr "A backup didn't get here {when}"
+
 msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
 msgstr "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
 
@@ -6914,8 +6917,11 @@ msgstr "Coming later"
 msgid "Connect"
 msgstr "Connect"
 
-msgid "Credentials for private images. Today a server pulls them as its own docker login lets it."
-msgstr "Credentials for private images. Today a server pulls them as its own docker login lets it."
+msgid "Connect storage"
+msgstr "Connect storage"
+
+msgid "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
+msgstr "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
 
 msgid "DNS and proxies"
 msgstr "DNS and proxies"
@@ -6938,6 +6944,9 @@ msgstr "How to route behind it"
 msgid "Integrations"
 msgstr "Integrations"
 
+msgid "Loading where backups go"
+msgstr "Loading where backups go"
+
 msgid "Manage in Backups"
 msgstr "Manage in Backups"
 
@@ -6953,7 +6962,7 @@ msgstr "Open Domains"
 msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
 msgstr "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
 
-#. placeholder {0}: words.ago(timestampDate(d.lastUpload), now)
+#. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "Received a backup {0}"
 

@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { BackupDestinationInfo } from "@dockwell/api";
-import { Button, Callout, Icon, type IconName, Panel, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, Icon, type IconName, Panel, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
@@ -27,40 +27,53 @@ const CLOUDFLARE =
  */
 export function IntegrationsPage() {
   const { t } = useLingui();
+  const phone = useMediaQuery(PHONE_QUERY);
   const destinations = useDestinations();
   const [adding, setAdding] = useState(false);
+  const read = destinations.data !== undefined;
   const list = destinations.data?.destinations ?? [];
   const connected = list.length;
+  // Counted once the list is read, never as none while it loads or can't be read.
+  const lead = read
+    ? connected === 1
+      ? t`1 connected · the services Dockwell sends backups to and routes behind`
+      : t`${connected} connected · the services Dockwell sends backups to and routes behind`
+    : undefined;
+  const variables = (
+    <p className="settings-meta integrations-aside">
+      <Trans>
+        Values your apps use live in{" "}
+        <Link to="/variables" className="cp-link">
+          Variables and secrets
+        </Link>
+      </Trans>
+    </p>
+  );
+  const connect = (
+    <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+      <Trans>Connect</Trans>
+    </Button>
+  );
   return (
-    <Page
-      title={t`Integrations`}
-      lead={
-        connected === 1
-          ? t`1 connected · the services Dockwell sends backups to and routes behind`
-          : t`${connected} connected · the services Dockwell sends backups to and routes behind`
-      }
-      back="/settings"
-      actions={
-        <p className="settings-meta integrations-aside">
-          <Trans>
-            Values your apps use live in{" "}
-            <Link to="/variables" className="cp-link">
-              Variables and secrets
-            </Link>
-          </Trans>
-        </p>
-      }
-    >
+    <Page title={t`Integrations`} lead={lead} phoneSub={lead} back="/settings" actions={variables}>
       <section className="integrations-section" aria-labelledby="integrations-storage">
         <div className="cp-section-head">
           <h2 id="integrations-storage" className="dw-text-heading">
             <Trans>Object storage</Trans>
           </h2>
-          <span className="settings-meta">
-            {connected === 1
-              ? t`1 bucket · where backups go beside each server's disk`
-              : t`${connected} buckets · where backups go beside each server's disk`}
-          </span>
+          {read ? (
+            <span className="settings-meta">
+              {connected === 1
+                ? t`1 bucket · where backups go beside each server's disk`
+                : t`${connected} buckets · where backups go beside each server's disk`}
+            </span>
+          ) : null}
+          {/* Once storage is connected, more is connected from here rather than from a card of its own. */}
+          {connected > 0 ? (
+            <Button size="sm" variant="ghost" icon="plus" className="integrations-more" onClick={() => setAdding(true)}>
+              <Trans>Connect storage</Trans>
+            </Button>
+          ) : null}
         </div>
         {destinations.error && !destinations.data ? (
           <Callout
@@ -79,22 +92,25 @@ export function IntegrationsPage() {
           >
             {sentence(destinations.error)}
           </Callout>
+        ) : !read ? (
+          <div className="integrations-grid" aria-busy="true">
+            <div className="dw-panel integrations-card integrations-skeleton" />
+            <span className="dw-sr">{t`Loading where backups go`}</span>
+          </div>
         ) : (
-          <div className="integrations-grid" aria-busy={destinations.data === undefined}>
+          <div className="integrations-grid">
             {list.map((d) => (
               <DestinationCard key={d.id} destination={d} />
             ))}
-            <Card
-              icon="archive"
-              name={t`S3-compatible storage`}
-              state={<span className="settings-meta">{t`Not connected`}</span>}
-              text={t`Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave.`}
-              action={
-                <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
-                  <Trans>Connect</Trans>
-                </Button>
-              }
-            />
+            {connected === 0 ? (
+              <Card
+                icon="archive"
+                name={t`S3-compatible storage`}
+                state={<span className="settings-meta">{t`Not connected`}</span>}
+                text={t`Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave.`}
+                action={connect}
+              />
+            ) : null}
           </div>
         )}
       </section>
@@ -142,12 +158,16 @@ export function IntegrationsPage() {
           <dt>{t`Git`}</dt>
           <dd>{t`GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file.`}</dd>
           <dt>{t`Registries`}</dt>
-          <dd>{t`Credentials for private images. Today a server pulls them as its own docker login lets it.`}</dd>
+          <dd>
+            {t`Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand.`}
+          </dd>
           <dt>{t`Cloud providers`}</dt>
           <dd>{t`Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket.`}</dd>
         </dl>
       </Panel>
 
+      {/* A phone's header has no room for the aside, so it closes the page. */}
+      {phone ? variables : null}
       {adding ? <DestinationSheet onClose={() => setAdding(false)} /> : null}
     </Page>
   );
@@ -191,9 +211,16 @@ function DestinationCard({ destination: d }: { destination: BackupDestinationInf
   } catch {
     // Shown as it was given.
   }
-  // A backup that got there is a check that passed; until one has, nobody can say.
-  const state = d.lastUpload ? (
-    <StatusBadge status="healthy" label={t`Received a backup ${words.ago(timestampDate(d.lastUpload), now)}`} />
+  // How it's doing is how its newest backup went: one that got there is a check that
+  // passed, one that didn't is a check that failed, and until either, nobody can say.
+  const uploaded = d.lastUpload ? timestampDate(d.lastUpload) : undefined;
+  const failed = d.lastFailure ? timestampDate(d.lastFailure) : undefined;
+  const failing = failed !== undefined && (uploaded === undefined || failed > uploaded);
+  const when = failed ? words.ago(failed, now) : "";
+  const state = failing ? (
+    <StatusBadge status="down" label={t`A backup didn't get here ${when}`} />
+  ) : uploaded ? (
+    <StatusBadge status="healthy" label={t`Received a backup ${words.ago(uploaded, now)}`} />
   ) : (
     <StatusBadge status="unknown" label={t`No backup yet`} />
   );
@@ -212,6 +239,11 @@ function DestinationCard({ destination: d }: { destination: BackupDestinationInf
               ? t`1 backup, ${formatBytes(d.usedBytes, i18n.locale)}`
               : t`${d.backups} backups, ${formatBytes(d.usedBytes, i18n.locale)}`}
           </span>
+          {failing ? (
+            <span className="integrations-error" role="alert">
+              {d.lastFailureError}
+            </span>
+          ) : null}
         </>
       }
       action={

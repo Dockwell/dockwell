@@ -1118,6 +1118,23 @@
   text-align: right;
 }
 
+/* A destination's last refusal, under its facts. */
+.integrations-error {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--critical);
+  overflow-wrap: anywhere;
+}
+
+.integrations-more {
+  margin-left: auto;
+}
+
+.integrations-skeleton {
+  min-height: 196px;
+  background: var(--canvas);
+}
+
 .integrations-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
