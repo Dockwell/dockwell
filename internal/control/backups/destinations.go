@@ -150,15 +150,15 @@ type destinationStanding struct {
 
 // standing reads how the destination name stands from all backups. Each is
 // the latest by when it finished, so backups that overlap, one starting before
-// another and finishing after it, are put in the order they ended. A failure
-// from before since, when the destination was last made or changed, doesn't
-// count: it was about the destination as it was, such as one removed and
-// connected again.
+// another and finishing after it, are put in the order they ended. A backup
+// that began before since, when the destination was last made or changed,
+// doesn't count either way: it read the destination as it was then, such as
+// one removed and connected again, or pointed at another bucket.
 func standing(all []store.Backup, name string, since time.Time) destinationStanding {
 	var out destinationStanding
 	for i := range all {
 		b := &all[i]
-		if b.Destination != name {
+		if b.Destination != name || b.StartedAt.Before(since) {
 			continue
 		}
 		switch {
@@ -171,9 +171,6 @@ func standing(all []store.Backup, name string, since time.Time) destinationStand
 			at := b.StartedAt
 			if b.FinishedAt != nil {
 				at = *b.FinishedAt
-			}
-			if at.Before(since) {
-				continue
 			}
 			if out.failure == nil || at.After(*out.failure) {
 				out.failure, out.why = &at, b.CopyError

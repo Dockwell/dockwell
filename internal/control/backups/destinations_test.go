@@ -42,9 +42,27 @@ func TestHowADestinationStands(t *testing.T) {
 		},
 		// Removed, a backup found it gone, and it was connected again at 7.
 		"a failure from before it was connected again": {
-			all:    []store.Backup{refused("b", 5, 6), got("a", 1, 2)},
-			since:  at(7),
-			upload: ended(2),
+			all:   []store.Backup{refused("b", 5, 6), got("a", 1, 2)},
+			since: at(7),
+		},
+		// A scheduled backup reads its destination when it begins: one that began at 5,
+		// before the destination was connected again at 7, and failed at 12, was about
+		// the destination as it was.
+		"a failure that began before it was connected again": {
+			all:   []store.Backup{refused("b", 5, 12)},
+			since: at(7),
+		},
+		// Nor does an upload to it as it was say the destination as it is works.
+		"an upload that began before it was changed": {
+			all:     []store.Backup{refused("c", 8, 9), got("a", 5, 10)},
+			since:   at(7),
+			failure: ended(9),
+		},
+		"after it was changed": {
+			all:     []store.Backup{got("d", 8, 11), refused("c", 7, 9), got("a", 5, 10)},
+			since:   at(7),
+			upload:  ended(11),
+			failure: ended(9),
 		},
 		"another destination's backups": {
 			all: []store.Backup{{ID: "x", Destination: "b2", StartedAt: at(1), FinishedAt: ended(2), CopyError: "AccessDenied"}},

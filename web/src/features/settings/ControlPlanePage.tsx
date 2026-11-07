@@ -234,13 +234,17 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
             <p className="cp-text">
               {manager === ServiceManager.SYSTEMD ? (
                 <Trans>
-                  This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps
-                  keep serving while it's stopped, and servers reconnect when it's back.
+                  Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell
+                  ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for
+                  the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's
+                  stopped, and servers reconnect when it's back.
                 </Trans>
               ) : manager === ServiceManager.OPENRC ? (
                 <Trans>
-                  Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it
-                  can't. Your apps keep serving while it's stopped, and servers reconnect when it's back.
+                  Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping
+                  Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops
+                  Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving
+                  while it's stopped, and servers reconnect when it's back.
                 </Trans>
               ) : (
                 <Trans>
@@ -252,9 +256,8 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
             <CopyCommand command={copy} className="cp-commands" />
             <p className="cp-note">
               <Trans>
-                Run it in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends
-                that terminal, and the copy with it. Then move <code>/root/dockwell-control.tgz</code> and{" "}
-                <code>/root/dockwell-key</code> off the server, to two different places.
+                Then move <code>/root/dockwell-control.tgz</code> and <code>/root/dockwell-key</code> off the server, to
+                two different places.
               </Trans>
             </p>
           </>

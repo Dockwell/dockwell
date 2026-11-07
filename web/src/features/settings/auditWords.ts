@@ -65,6 +65,10 @@ export function useAuditWords(): (event: AuditEvent) => Said {
         case "totp.lock":
           return { title: t`Stopped sign-in with codes after too many wrong ones`, tone: "warning" };
         case "logs.read":
+          // A container Dockwell didn't make is read through its server, which the target names.
+          if (e.target?.id.startsWith("srv_")) {
+            return { title: name ? t`Read a container's logs on ${name}` : t`Read a container's logs` };
+          }
           return { title: name ? t`Read the logs of ${name}` : t`Read logs` };
         case "recovery_code.use":
           return { title: t`Signed in with a recovery code`, tone: "warning" };

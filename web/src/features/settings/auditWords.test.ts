@@ -32,3 +32,25 @@ describe("every recorded action", () => {
     });
   }
 });
+
+describe("reading logs", () => {
+  it("names the service, or the server of a container Dockwell didn't make", async () => {
+    const say = renderHookWithApi(useAuditWords, {}).result.current;
+    const read = (id: string, name: string) =>
+      say(create(AuditEventSchema, { action: "logs.read", target: { id, name }, event: { action: "logs.read" } }))
+        .title;
+    expect(read("svc_1", "web")).toBe("Read the logs of web");
+    expect(read("srv_1", "web-1")).toBe("Read a container's logs on web-1");
+    await activateLocale("zh-CN");
+    const zh = renderHookWithApi(useAuditWords, {}).result.current;
+    expect(
+      zh(
+        create(AuditEventSchema, {
+          action: "logs.read",
+          target: { id: "srv_1", name: "web-1" },
+          event: { action: "logs.read" },
+        }),
+      ).title,
+    ).toBe("读取了 web-1 上某个容器的日志");
+  });
+});
