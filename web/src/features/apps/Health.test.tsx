@@ -269,9 +269,9 @@ describe("an app that isn't running", () => {
       "/apps/svc_web",
       api([web], reading({ state: HealthState.NOT_RUNNING, check: HealthCheckKind.UNSPECIFIED })),
     );
-    const config = await screen.findByRole("region", { name: "Configuration" });
-    await waitFor(() => expect(config).toHaveTextContent("None set here. The image may have one."));
-    expect(config).not.toHaveTextContent("Running only means it started");
+    const check = await screen.findByRole("region", { name: "Health check" });
+    await waitFor(() => expect(check).toHaveTextContent("None set here. The image may have one."));
+    expect(check).not.toHaveTextContent("Running only means it started");
   });
 });
 
@@ -1038,10 +1038,39 @@ describe("what runs, from what the server says", () => {
 describe("a health check on the overview", () => {
   const facts = async (app: Parameters<typeof anApp>[2], health: Api["health"] = running(web)) => {
     const { unmount } = renderAt("/apps/svc_web", api([anApp("web", "nginx", app)], health));
-    const panel = await screen.findByRole("region", { name: "Configuration" });
-    const term = within(panel).getByText("Health check");
+    const panel = await screen.findByRole("region", { name: "Health check" });
+    const term = within(panel).getByText("Checks");
     return { said: term.nextElementSibling as HTMLElement, unmount };
   };
+
+  it("has a panel of its own, which says it passes and what it said", async () => {
+    renderAt(
+      "/apps/svc_web",
+      api(
+        [anApp("web", "nginx", { healthcheck: { http: { port: 8080, path: "/healthz" } } })],
+        reading({ state: HealthState.HEALTHY, said: "GET /healthz answered 200 OK", passed: true }),
+      ),
+    );
+    const panel = await screen.findByRole("region", { name: "Health check" });
+    expect(await within(panel).findByText("Passing")).toBeVisible();
+    expect(within(panel).getByText("GET /healthz answered 200 OK")).toBeVisible();
+    // Configuration says how it's set up; the check is here alone.
+    const configuration = screen.getByRole("region", { name: "Configuration" });
+    expect(within(configuration).queryByText("Health check")).toBeNull();
+  });
+
+  it("says it fails, with what it said", async () => {
+    renderAt(
+      "/apps/svc_web",
+      api(
+        [anApp("web", "nginx", { healthcheck: { test: ["CMD", "pg_isready"] } })],
+        reading({ state: HealthState.UNHEALTHY, said: "no response", passed: false, failing: 3 }),
+      ),
+    );
+    const panel = await screen.findByRole("region", { name: "Health check" });
+    expect(await within(panel).findByText("Failing")).toBeVisible();
+    expect(within(panel).getByText("no response")).toBeVisible();
+  });
 
   it("says what an HTTP check asks", async () => {
     const { said } = await facts({ healthcheck: { http: { port: 8080, path: "/healthz" } } });
