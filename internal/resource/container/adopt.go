@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -94,18 +95,24 @@ var shownWords = map[protoreflect.Name]string{"healthcheck": "health check"}
 // directory beside the volume at it. A plan shows them, and a password isn't one.
 var notSecrets = map[protoreflect.Name]bool{"mounts": true, "working_dir": true}
 
+// secretName says a variable's name says what it holds is a secret.
+var secretName = regexp.MustCompile(`(?i)PASS|SECRET|TOKEN|KEY|CREDENTIAL`)
+
+// shortest is the fewest characters a value of a variable has to have to count as shown
+// when its name says nothing, as anything shorter could be anywhere by chance (ADR 0031).
+const shortest = 6
+
 // valuesShown names the variables whose values a spec's other fields hold. A plan
 // shows those, where the environment is sealed, and a Compose file that wrote
 // ${PASSWORD} into a command or a label leaves its value there on the container. It
 // looks through every field but those that can't hold one, so a field added to the
-// spec is looked through too. It says which by name, as a value of a few characters
-// could be anywhere, so those are left out.
+// spec is looked through too. It says which by name, and a value of any length counts
+// for a variable whose name says it's a secret: a short password is still one.
 func valuesShown(spec *resourcev1.Container) []string {
-	const shortest = 6
 	var out []string
 	eachWord(spec.ProtoReflect(), "", func(where, word string) {
 		for name, value := range spec.GetEnv() {
-			if len(value) < shortest || !strings.Contains(word, value) {
+			if value == "" || !strings.Contains(word, value) || len(value) < shortest && !secretName.MatchString(name) {
 				continue
 			}
 			// A label's name can be what holds it, so it can't say where.

@@ -392,6 +392,13 @@ func TestShmSizeAndTmpfsComeAlong(t *testing.T) {
 // anywhere else in one would show in the plan, and reach a read-only token and an
 // export. Wherever it is, it's refused, and the refusal doesn't say it. A path isn't a
 // secret, and TZ=Asia/Shanghai beside a mount of its zoneinfo is ordinary.
+func shortIn(name string) func(*docker.CreateRequest) {
+	return func(r *docker.CreateRequest) {
+		r.Env = append(r.Env, name+"=ab1")
+		r.Cmd = []string{"run", "--with", "ab1"}
+	}
+}
+
 func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -413,6 +420,21 @@ func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
 		"in-label-name": {func(r *docker.CreateRequest) {
 			r.Labels = map[string]string{"backup." + secretValue: "on"}
 		}, "the value of DB_PASSWORD in its labels"},
+		// Saying which label would say the value.
+		"in-both": {func(r *docker.CreateRequest) {
+			r.Labels = map[string]string{"backup." + secretValue: secretValue}
+		}, "the value of DB_PASSWORD in its labels"},
+		// A short value is no less a password. What its name says is what shows it.
+		"short-password": {func(r *docker.CreateRequest) {
+			r.Env = append(r.Env, "MYSQL_ROOT_PASSWORD=s3cr7")
+			r.Healthcheck = &docker.Healthcheck{Test: []string{"CMD", "mysqladmin", "ping", "-ps3cr7"}}
+			r.Labels = map[string]string{"backup.pw": "s3cr7"}
+		}, "the value of MYSQL_ROOT_PASSWORD in its health check"},
+		"short-pass":    {shortIn("db_pass"), "the value of db_pass in its command"},
+		"short-secret":  {shortIn("APP_SECRET"), "the value of APP_SECRET in its command"},
+		"short-token":   {shortIn("Api_Token"), "the value of Api_Token in its command"},
+		"short-key":     {shortIn("STRIPE_KEY"), "the value of STRIPE_KEY in its command"},
+		"short-cred":    {shortIn("CREDENTIALS"), "the value of CREDENTIALS in its command"},
 		"in-user":       {func(r *docker.CreateRequest) { r.User = secretValue }, "the value of DB_PASSWORD in its user"},
 		"in-entrypoint": {func(r *docker.CreateRequest) { r.Entrypoint = []string{"run", secretValue} }, "the value of DB_PASSWORD in its entrypoint"},
 		"in-check": {func(r *docker.CreateRequest) {
@@ -429,9 +451,11 @@ func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
 		}
 	}
 
-	// Its whole spec holds no value, on a container that passes.
+	// Its whole spec holds no value, on a container that passes. A short value whose
+	// name says nothing could be anywhere by chance, and an image's own isn't a secret.
 	runByHand(t, e, "with-zone", plainly(func(r *docker.CreateRequest) {
-		r.Env = append(r.Env, "TZ=Asia/Shanghai", "DATA_DIR=/data/app")
+		r.Env = append(r.Env, "TZ=Asia/Shanghai", "DATA_DIR=/data/app", "MODE=app")
+		r.Labels = map[string]string{"tier": "app"}
 		r.WorkingDir = "/data/app"
 		r.HostConfig.Binds = []string{"/usr/share/zoneinfo/Asia/Shanghai:/etc/localtime:ro"}
 	}))
