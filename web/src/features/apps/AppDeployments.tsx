@@ -560,7 +560,7 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
   const { t } = useLingui();
   const rows = useFieldRows();
   return (
-    <ul className="deploy-diff">
+    <dl className="deploy-diff">
       {rows({ kind: "service", changes: rev.changes }).map((row) => {
         const image =
           row.path === "image" && typeof row.from === "string" && typeof row.to === "string"
@@ -570,9 +570,9 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
         const to = image?.to ?? row.to;
         const secret = isHidden(from) || isHidden(to);
         return (
-          <li key={row.path} className="deploy-diff-row">
-            <span className="deploy-diff-path">{row.label ?? row.path}</span>
-            <span className="deploy-diff-values">
+          <div key={row.path} className="deploy-diff-row">
+            <dt className="deploy-diff-path">{row.label ?? row.path}</dt>
+            <dd className="deploy-diff-values">
               {from !== undefined && from !== "" && !secret ? (
                 <del className={cx("deploy-diff-from", isValidElement(from) && "is-words")}>
                   <DiffValue value={from} />
@@ -591,11 +591,11 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
                 )
               ) : null}
               {secret || row.hidden ? <span className="app-muted">{t`Changed, and hidden`}</span> : null}
-            </span>
-          </li>
+            </dd>
+          </div>
         );
       })}
-    </ul>
+    </dl>
   );
 }
 

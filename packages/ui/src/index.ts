@@ -2,8 +2,9 @@
 
 // The Dockwell design system as typed React components. Import
 // "@dockwell/ui/styles.css" once at the root of an app; each component
-// brings its own stylesheet. Guidelines for every component live in
-// design/system/components/<Name>/README.md.
+// brings its own stylesheet, except Panel, whose rules come with the
+// foundations there, as pages put dw-panel on their own elements too.
+// Guidelines for every component live in design/system/components/<Name>/README.md.
 
 export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./components/Button/Button";
 export { Callout, type CalloutProps } from "./components/Callout/Callout";
