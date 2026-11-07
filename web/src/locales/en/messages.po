@@ -7143,6 +7143,9 @@ msgstr "{changes, plural, one {# change} other {# changes}}"
 msgid "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
 msgstr "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
 
+msgid "<0>{path}</0> holds <1>index.php</1>. Files in a folder run no script, and hide every one, as its source can hold passwords, so those addresses answer 404."
+msgstr "<0>{path}</0> holds <1>index.php</1>. Files in a folder run no script, and hide every one, as its source can hold passwords, so those addresses answer 404."
+
 msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
 msgstr "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
 
@@ -7179,8 +7182,12 @@ msgstr "Holds {found}."
 msgid "Index files"
 msgstr "Index files"
 
-msgid "Nothing is at <0>{path}</0> yet. Docker makes the folder, empty and owned by root, as the plan applies. Put the site's files in it with scp or rsync, as Files edits files that are there."
-msgstr "Nothing is at <0>{path}</0> yet. Docker makes the folder, empty and owned by root, as the plan applies. Put the site's files in it with scp or rsync, as Files edits files that are there."
+msgid "Nothing is at <0>{path}</0> or <1>{up}</1> yet, so the folder would be made root's, and no one else could put the site's files in it. Make it first, as yours, with <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2>."
+msgstr "Nothing is at <0>{path}</0> or <1>{up}</1> yet, so the folder would be made root's, and no one else could put the site's files in it. Make it first, as yours, with <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2>."
+
+#. placeholder {0}: parent?.owner || owner
+msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{0}</1> as <2>{up}</2> is, so put the site's files in it as that user, with scp or rsync."
+msgstr "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{0}</1> as <2>{up}</2> is, so put the site's files in it as that user, with scp or rsync."
 
 msgid "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
 msgstr "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."

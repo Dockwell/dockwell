@@ -7143,6 +7143,9 @@ msgstr "{changes, plural, other {# 处更改}}"
 msgid "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
 msgstr "<0>{0}</0> 的权限是 <1>{1}</1>，只有所有者可读，所以 Web 服务器读不到它。请对它以及该文件夹中的其他文件运行 <2>chmod o+r</2>。"
 
+msgid "<0>{path}</0> holds <1>index.php</1>. Files in a folder run no script, and hide every one, as its source can hold passwords, so those addresses answer 404."
+msgstr "<0>{path}</0> 中有 <1>index.php</1>。文件夹中的文件不会运行任何脚本，并且会隐藏所有脚本，因为脚本源码中可能有密码，所以这些地址会返回 404。"
+
 msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
 msgstr "<0>{path}</0> 是文件，不是文件夹。请填写存放网站文件的文件夹。"
 
@@ -7179,8 +7182,12 @@ msgstr "包含 {found}。"
 msgid "Index files"
 msgstr "首页文件"
 
-msgid "Nothing is at <0>{path}</0> yet. Docker makes the folder, empty and owned by root, as the plan applies. Put the site's files in it with scp or rsync, as Files edits files that are there."
-msgstr "<0>{path}</0> 目前不存在。应用计划时 Docker 会创建这个文件夹，内容为空，归 root 所有。请用 scp 或 rsync 把网站文件放进去，因为“文件”只能编辑已有的文件。"
+msgid "Nothing is at <0>{path}</0> or <1>{up}</1> yet, so the folder would be made root's, and no one else could put the site's files in it. Make it first, as yours, with <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2>."
+msgstr "<0>{path}</0> 和 <1>{up}</1> 都还不存在，所以文件夹会归 root 所有，其他人无法向其中放入网站文件。请先用 <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2> 以你自己的身份创建它。"
+
+#. placeholder {0}: parent?.owner || owner
+msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{0}</1> as <2>{up}</2> is, so put the site's files in it as that user, with scp or rsync."
+msgstr "<0>{path}</0> 还不存在。应用计划时 Dockwell 会创建它，所有者与 <2>{up}</2> 相同，为 <1>{0}</1>，请以该用户身份用 scp 或 rsync 放入网站文件。"
 
 msgid "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
 msgstr "位于服务器上。它的 Web 服务器以 nobody 用户读取，所以其中的内容必须所有人可读。"
