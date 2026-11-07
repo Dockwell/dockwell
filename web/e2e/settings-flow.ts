@@ -5,6 +5,8 @@
 // and how to change it, a language for this browser, and the sections on a phone.
 // Then Control plane, as Settings-ControlPlane.dc.html has it for one control plane.
 
+import { readFile } from "node:fs/promises";
+
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
@@ -78,6 +80,33 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await replica.getByText("Healthy", { exact: true }).waitFor();
   await replica.getByText(/with its agent, of a 250 MB budget$/).waitFor();
   await shoot(page, "settings-control-plane");
+
+  step("settings: the audit log lists every event, narrows to an action, and saves what it keeps as CSV");
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Audit log" }).click();
+  await page.getByRole("heading", { level: 1, name: "Audit log" }).waitFor();
+  const log = page.getByRole("table", { name: "The audit log, newest first" });
+  await log.getByRole("cell", { name: "settings.name", exact: true }).first().waitFor();
+  await page.getByRole("combobox", { name: "Time range" }).selectOption("all");
+  await page.getByRole("textbox", { name: "Filter events" }).fill("owner.claim");
+  await log.getByRole("cell", { name: "owner.claim", exact: true }).waitFor();
+  await page.getByText("1 event, all there is.", { exact: true }).waitFor();
+  // What this flow did, which the newest page has whatever came before.
+  await page.getByRole("textbox", { name: "Filter events" }).fill("settings.");
+  await log.getByRole("cell", { name: "settings.time_zone", exact: true }).first().waitFor();
+  await shoot(page, "settings-audit-log");
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export CSV" }).click();
+  const file = await downloading;
+  const path = await file.path();
+  const csv = path ? await readFile(path, "utf8") : "";
+  // What the filters keep, and nothing else.
+  if (
+    !csv.startsWith("time,action,actor_kind,") ||
+    !csv.includes(",settings.time_zone,") ||
+    csv.includes(",owner.claim,")
+  ) {
+    fail(`the audit log's CSV reads ${JSON.stringify(csv.slice(0, 200))}`);
+  }
 
   step("settings: on a phone, the sections are a list reached from More");
   await page.setViewportSize({ width: 390, height: 844 });

@@ -41,6 +41,7 @@ import (
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/apidoc"
+	"github.com/dockwell/dockwell/internal/control/audit"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
@@ -267,6 +268,10 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			plane.AgentURLs = agentURLs(cfg.Identity)
 		}
 		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving, plane), opts...))
+		// For a person signed in alone, as its events name where people signed in from.
+		if cfg.Auth != nil {
+			handle(dockwellv1connect.NewAuditServiceHandler(audit.New(cfg.Store, cfg.Logger), opts...))
+		}
 	}
 	if cfg.Auth != nil {
 		controlServer := func() *dockwellv1.Server { return nil }

@@ -6984,6 +6984,159 @@ msgstr "{provider}'s metadata says so, {when}"
 msgid "up {uptime}"
 msgstr "up {uptime}"
 
+msgid "1 event in the last 24 hours."
+msgstr "1 event in the last 24 hours."
+
+msgid "1 event in the last 30 days."
+msgstr "1 event in the last 30 days."
+
+msgid "1 event in the last 7 days."
+msgstr "1 event in the last 7 days."
+
+msgid "1 event, all there is."
+msgstr "1 event, all there is."
+
+msgid "API"
+msgstr "API"
+
+msgid "API tokens"
+msgstr "API tokens"
+
+msgid "Action"
+msgstr "Action"
+
+msgid "All sources"
+msgstr "All sources"
+
+msgid "Audit log"
+msgstr "Audit log"
+
+msgid "CLI"
+msgstr "CLI"
+
+msgid "Cleared, which was {previous}"
+msgstr "Cleared, which was {previous}"
+
+msgid "Detail"
+msgstr "Detail"
+
+msgid "Dockwell"
+msgstr "Dockwell"
+
+msgid "Dockwell can't read the audit log"
+msgstr "Dockwell can't read the audit log"
+
+msgid "Events"
+msgstr "Events"
+
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
+msgstr "Every change and every way in, by people, tokens, servers and Dockwell · kept for as long as this install"
+
+msgid "Everything"
+msgstr "Everything"
+
+msgid "Export CSV"
+msgstr "Export CSV"
+
+msgid "Filter by actor, action, target or address"
+msgstr "Filter by actor, action, target or address"
+
+msgid "Filter events"
+msgstr "Filter events"
+
+#. placeholder {0}: event.action
+msgid "Hide details for {0} at {time}"
+msgstr "Hide details for {0} at {time}"
+
+msgid "JSON lines"
+msgstr "JSON lines"
+
+msgid "Last 24 hours"
+msgstr "Last 24 hours"
+
+msgid "Last 30 days"
+msgstr "Last 30 days"
+
+msgid "Last 7 days"
+msgstr "Last 7 days"
+
+msgid "Loading the audit log"
+msgstr "Loading the audit log"
+
+msgid "Not signed in"
+msgstr "Not signed in"
+
+msgid "Nothing happened in this range. Pick a longer one to see more."
+msgstr "Nothing happened in this range. Pick a longer one to see more."
+
+msgid "Nothing matches. Pick a longer range, or clear the filters."
+msgstr "Nothing matches. Pick a longer range, or clear the filters."
+
+msgid "Nothing more"
+msgstr "Nothing more"
+
+msgid "Open in Activity"
+msgstr "Open in Activity"
+
+msgid "Panel"
+msgstr "Panel"
+
+msgid "People"
+msgstr "People"
+
+msgid "Pick a longer range to see more."
+msgstr "Pick a longer range to see more."
+
+msgid "Said"
+msgstr "Said"
+
+msgid "Saved 1 event."
+msgstr "Saved 1 event."
+
+msgid "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
+msgstr "Saved the newest {MOST_EXPORTED} events. Narrow the filters to save the rest."
+
+#. placeholder {0}: events.length
+msgid "Saved {0} events."
+msgstr "Saved {0} events."
+
+msgid "Shells on the control server"
+msgstr "Shells on the control server"
+
+#. placeholder {0}: event.action
+msgid "Show details for {0} at {time}"
+msgstr "Show details for {0} at {time}"
+
+msgid "Target"
+msgstr "Target"
+
+msgid "The audit log, newest first"
+msgstr "The audit log, newest first"
+
+msgid "The newest {count} events. Show more for older ones."
+msgstr "The newest {count} events. Show more for older ones."
+
+msgid "Today · {day}"
+msgstr "Today · {day}"
+
+msgid "Yesterday · {day}"
+msgstr "Yesterday · {day}"
+
+msgid "{count} events in the last 24 hours."
+msgstr "{count} events in the last 24 hours."
+
+msgid "{count} events in the last 30 days."
+msgstr "{count} events in the last 30 days."
+
+msgid "{count} events in the last 7 days."
+msgstr "{count} events in the last 7 days."
+
+msgid "{count} events, all there are."
+msgstr "{count} events, all there are."
+
+msgid "{value}, which was {previous}"
+msgstr "{value}, which was {previous}"
+
 msgid "A file beside the control plane, for one control plane"
 msgstr "A file beside the control plane, for one control plane"
 
@@ -7263,9 +7416,6 @@ msgstr "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwel
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 
-msgid "API tokens"
-msgstr "API tokens"
-
 msgid "Account"
 msgstr "Account"
 
@@ -7305,8 +7455,8 @@ msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer
 msgid "Dockwell can't list your tokens"
 msgstr "Dockwell can't list your tokens"
 
-msgid "Each new address it's used from goes in the audit log"
-msgstr "Each new address it's used from goes in the audit log"
+msgid "Each new address it's used from goes in the <0>audit log</0>"
+msgstr "Each new address it's used from goes in the <0>audit log</0>"
 
 msgid "Expires"
 msgstr "Expires"

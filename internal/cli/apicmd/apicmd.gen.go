@@ -62,6 +62,25 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.RevokeTokenRequest, v1.RevokeTokenResponse](dockwellv1connect.TokenServiceRevokeTokenProcedure),
 		},
 		{
+			Name:      "dockwell.v1.AuditService.ListAuditEvents",
+			Procedure: dockwellv1connect.AuditServiceListAuditEventsProcedure,
+			HTTP:      "GET /v1/auditEvents",
+			Noun:      "audit-events",
+			Verb:      "list",
+			Short:     "Return the audit log",
+			Long:      "Return the audit log, newest first, a page at a time. The filters narrow it, and\ncombine: an event must pass each one that is set.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "page_size", Help: "How many events to return: 100 when unset, and at most 500."},
+				{Path: "page_token", Help: "Where to start: the next_page_token of the page before. Empty starts with the newest. Pass the same filters with it."},
+				{Path: "since", Help: "Only what happened at or after this. Unset keeps everything."},
+				{Path: "actor", Help: "Only what one kind of actor did."},
+				{Path: "surface", Help: "Only what came from one place, such as the panel."},
+				{Path: "query", Help: "Only events this is in, whatever its case: in the action, such as \"token.create\"; in the actor or what the event acted on, by ID or by the name of the person, token or server; or in the event's words, which name addresses."},
+			},
+			Call: apicli.Unary[v1.ListAuditEventsRequest, v1.ListAuditEventsResponse](dockwellv1connect.AuditServiceListAuditEventsProcedure),
+		},
+		{
 			Name:      "dockwell.v1.AuthService.GetAuthState",
 			Procedure: dockwellv1connect.AuthServiceGetAuthStateProcedure,
 			HTTP:      "GET /v1/authState",
@@ -1514,6 +1533,7 @@ func Methods() []*apicli.Method {
 func Nouns() []apicli.Noun {
 	return []apicli.Noun{
 		{Name: "api-tokens", Short: "Create, list or revoke API tokens", Long: "TokenService manages API tokens: secrets for scripts, the CLI and integrations,\neach acting for the person who made it, within a scope. See\ndocs/adr/0016-scoped-api-tokens.md.\n\nSend a token in the Authorization header, as \"Bearer dwt_…\", with REST, Connect,\ngRPC or gRPC-Web alike. A read-only token may call the methods whose effect is\nEFFECT_READ; a read-write token may also call EFFECT_PLAN and EFFECT_APPLY\nmethods. No token may call an EFFECT_DESTRUCTIVE method, AuthService, or this\nservice: they need a signed-in session."},
+		{Name: "audit-events", Short: "Return the audit log", Long: "AuditService reads the audit log: every event Dockwell records of who did what,\nfrom where, as it was recorded. That includes what the timeline leaves out:\nrefusals, such as a wrong code or a refused token, a token's first use from an\naddress, signing out, and the install's own setup. See\ndocs/adr/0047-the-audit-log-for-a-person.md.\n\nIts events carry the words Dockwell wrote for people, which name the addresses\npeople signed in from and were refused from, so only a person signed in reads\nit, never an API token."},
 		{Name: "auth-state", Short: "Say whether the install has an owner", Long: "The install's auth state says whether it has an owner yet, who is signed in on a\nrequest, and which address passkeys are made for there. dockwell auth-state get\nneeds no sign-in."},
 		{Name: "backups", Short: "List, get, preview, create, delete, policies, destinations, fetch or restore backups, and 0 more", Long: "BackupService is an app's volumes and databases, backed up on the server that\nhas them. Taking a backup is an event: it changes no desired state, so it makes\nno revision, and a failed one shows on the timeline. Restoring one is a change\nwith a plan, which says what it replaces and what stops, and which only a person\ncan apply. See docs/adr/0033-backups-of-volumes-and-databases.md.\n\nA backup holds what its app stored, secrets among them, so nothing here gives\nanyone its bytes."},
 		{Name: "catalog", Short: "List, get, installs, upgrade or install catalog", Long: "CatalogService lists the apps you can install, and plans installing one as a\nproject of its own: a Compose file with sensible ports and generated passwords,\nsealed, through the same plan as any other change. Nothing runs until you apply\nit. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md."},
