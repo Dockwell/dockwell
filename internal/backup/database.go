@@ -109,14 +109,24 @@ func kindOf(c *docker.Container, volumeName string) *databaseKind {
 		}) {
 			continue
 		}
-		dir := k.dataDir(c)
-		for i := range c.Mounts {
-			if m := &c.Mounts[i]; m.Name == volumeName && holds(m.Destination, dir) {
-				return k
-			}
+		if m := dataMount(c, k.dataDir(c)); m != nil && m.Name == volumeName {
+			return k
 		}
 	}
 	return nil
+}
+
+// dataMount is the mount a data directory is on: the deepest that holds it. One above
+// that has the directory's name in it, and none of the data.
+func dataMount(c *docker.Container, dir string) *docker.MountPoint {
+	var deepest *docker.MountPoint
+	for i := range c.Mounts {
+		m := &c.Mounts[i]
+		if holds(m.Destination, dir) && (deepest == nil || len(path.Clean(m.Destination)) > len(path.Clean(deepest.Destination))) {
+			deepest = m
+		}
+	}
+	return deepest
 }
 
 // dataDir is where a container of this database keeps its data.

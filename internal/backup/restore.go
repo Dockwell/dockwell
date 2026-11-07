@@ -233,37 +233,58 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 	if st.Stage == stageUndone {
 		st.Stage = stageCopied
 	}
-	m, file, err := r.source(ref, src)
+	run := "restore-" + src.Change
+	began, err := r.began(st, run)
 	if err != nil {
 		return err
+	}
+	// A run before this one stopped things or took a copy, and nothing else will put
+	// that right: whatever stops this one has to.
+	u, db := &users{}, (*database)(nil)
+	stopping := func(err error) error {
+		if !began {
+			return err
+		}
+		return r.giveBack(ctx, ref, t, st, run, u, db, err)
+	}
+	m, file, err := r.source(ref, src)
+	if err != nil {
+		return stopping(err)
 	}
 	verify := verifyArchive
 	if m.Format == formatDump {
 		k := kindNamed(m.Database)
 		if k == nil {
-			return fmt.Errorf("this backup is a dump of %s, which this agent can't load. Update it to the control plane's version", m.Database)
+			return stopping(fmt.Errorf("this backup is a dump of %s, which this agent can't load. Update it to the control plane's version", m.Database))
 		}
 		verify = verifyDump(k)
 	}
 	// Before anything stops: a bad backup costs nothing.
 	resource.Progress(ctx, "Checking the backup")
 	if err := check(file, m, verify); err != nil {
+		if began {
+			return stopping(fmt.Errorf("the backup is damaged: %w. Choose another", err))
+		}
 		return fmt.Errorf("the backup is damaged, so nothing was changed or stopped: %w. Choose another", err)
 	}
-	u, err := r.users(ctx, t)
+	if u, err = r.users(ctx, t); err != nil {
+		u = &users{}
+		return stopping(err)
+	}
+	stops, found, err := r.stopsFor(ctx, t, u, m)
 	if err != nil {
-		return err
+		return stopping(err)
 	}
-	stops, db, err := r.stopsFor(ctx, t, u, m)
-	if err != nil {
-		return err
+	db = found
+	// Once there's a copy it has room, and a restore that used up the room it wanted
+	// has nothing to gain from being refused.
+	if st.Stage == "" {
+		if err := r.roomToRestore(ctx, ref, t, m, began); err != nil {
+			return stopping(err)
+		}
 	}
-	if err := r.roomToRestore(ctx, ref, t, st, m); err != nil {
-		return err
-	}
-	run := "restore-" + src.Change
 	if err := r.adopt(run, src.Undoes); err != nil {
-		return err
+		return stopping(err)
 	}
 	if err := r.stop(ctx, run, stops, true); err != nil {
 		return r.giveBack(ctx, ref, t, st, run, u, db, err)
@@ -279,6 +300,18 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 		return r.giveBack(ctx, ref, t, st, run, u, db, err)
 	}
 	return r.saveState(ref, st, stageFinished)
+}
+
+// began says an earlier run of this restore stopped something or took a copy.
+func (r *Runner) began(st *state, run string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	list, err := r.readStopped()
+	if err != nil {
+		return false, err
+	}
+	_, stopped := list[run]
+	return stopped || st.Stage != "", nil
 }
 
 // adopt takes on what the restore an undo undoes left stopped, as nothing else will

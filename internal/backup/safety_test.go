@@ -58,6 +58,229 @@ func TestADatabaseIsInTheVolumeThatHoldsItsDataAndNoOther(t *testing.T) {
 	}
 }
 
+// A volume above the data's own volume has the directory's name in it and none of the
+// data, so restoring it mustn't load a dump over the database.
+func TestOnlyTheDeepestMountHoldsADatabase(t *testing.T) {
+	ct := &docker.Container{Config: docker.Config{Image: "postgres:17", Env: []string{"PGDATA=/var/lib/postgresql/data"}}, Mounts: []docker.MountPoint{
+		{Name: "home", Destination: "/var/lib/postgresql"},
+		{Name: "pgdata", Destination: "/var/lib/postgresql/data/"},
+		{Name: "wal", Destination: "/var/lib/postgresql/data/pg_wal"},
+	}}
+	for volume, want := range map[string]bool{"home": false, "pgdata": true, "wal": false} {
+		if got := kindOf(ct, volume) != nil; got != want {
+			t.Errorf("%s holds the database: %v, want %v", volume, got, want)
+		}
+	}
+}
+
+// dying stops a restore at its nth helper, as an agent that died would: what it did
+// stays on the disk, and the Runner that comes back knows only that.
+func dying(t *testing.T, b *bench, source resource.RestoreSource, nth int32) *Runner {
+	t.Helper()
+	dec, _, err := b.runner.JudgeRestore(t.Context(), ref, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var helpers atomic.Int32
+	died, gone, ended := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() {
+		close(gone)
+		<-ended
+	})
+	b.engine.Intercept(func(r *http.Request) error {
+		if strings.Contains(r.URL.Path, "/images/create") && helpers.Add(1) == nth {
+			close(died)
+			<-gone
+			return errors.New("the agent died")
+		}
+		return nil
+	})
+	go func() {
+		defer close(ended)
+		_ = b.runner.ApplyRestore(context.Background(), resource.Step{Ref: ref, Decision: dec}, source)
+	}()
+	<-died
+	b.engine.Intercept(nil)
+	back := &Runner{Client: b.client, Root: b.runner.Root, Binary: b.runner.Binary}
+	if err := back.Recover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	return back
+}
+
+// A restore that has its copy doesn't need the room it looked for, and using that room
+// up mustn't strand the app. Being refused was how it stayed down for good.
+func TestAResumeWithItsCopyIsntRefusedForRoom(t *testing.T) {
+	b := newBench(t)
+	b.write("kept.txt", "from the backup")
+	id := b.run("web", "nginx:1", "/data")
+	b.take(true)
+	b.write("kept.txt", "changed since")
+	source := resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}
+	back := dying(t, b, source, 3)
+	if st, err := back.stageOf(ref, "chg_1"); err != nil || st.Stage != stageCopied {
+		t.Fatalf("stage = %+v, %v", st, err)
+	}
+	back.Disk = func() disk { return disk{free: 1 << 20, reserve: 1 << 30} }
+	dec, _, err := back.JudgeRestore(t.Context(), ref, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := back.ApplyRestore(t.Context(), resource.Step{Ref: ref, Decision: dec}, source); err != nil {
+		t.Fatalf("resuming: %v", err)
+	}
+	if got := b.read("kept.txt"); got != "from the backup" {
+		t.Errorf("kept.txt = %q", got)
+	}
+	if !b.running(id) {
+		t.Error("the app stayed down")
+	}
+}
+
+// A run that stopped the app and died before it had a copy still gets its room looked
+// at, and a refusal then starts the app, and doesn't say nothing was stopped.
+func TestARefusalOnAResumeStartsWhatStopped(t *testing.T) {
+	b := newBench(t)
+	b.write("kept.txt", "from the backup")
+	id := b.run("web", "nginx:1", "/data")
+	b.take(true)
+	b.write("kept.txt", "changed since")
+	source := resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}
+	back := dying(t, b, source, 2)
+	if b.running(id) {
+		t.Fatal("the agent started what a restore stopped")
+	}
+	back.Disk = func() disk { return disk{free: 1 << 30, reserve: 1 << 30} }
+	dec, _, err := back.JudgeRestore(t.Context(), ref, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = back.ApplyRestore(t.Context(), resource.Step{Ref: ref, Decision: dec}, source)
+	if err == nil || !strings.Contains(err.Error(), "takes up to") {
+		t.Fatalf("resuming = %v", err)
+	}
+	if strings.Contains(err.Error(), "nothing was stopped") {
+		t.Errorf("it says nothing was stopped, and it stopped web: %v", err)
+	}
+	if !strings.Contains(err.Error(), "what stopped started again") {
+		t.Errorf("it doesn't say web is back: %v", err)
+	}
+	if !b.running(id) {
+		t.Error("a refusal left the app down")
+	}
+}
+
+// What's gone or damaged by the time a change resumes can't strand the app either.
+func TestAResumeThatCantGoOnStartsWhatStopped(t *testing.T) {
+	for name, spoil := range map[string]func(file string) error{
+		"gone": os.Remove,
+		"damaged": func(file string) error {
+			data, err := os.ReadFile(file)
+			if err != nil {
+				return err
+			}
+			data[len(data)/2] ^= 0xff
+			return os.WriteFile(file, data, 0o600)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := newBench(t)
+			b.write("kept.txt", "from the backup")
+			id := b.run("web", "nginx:1", "/data")
+			b.take(true)
+			b.write("kept.txt", "changed since")
+			source := resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}
+			back := dying(t, b, source, 3)
+			dec, _, err := back.JudgeRestore(t.Context(), ref, source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := spoil(filepath.Join(back.dir(ref), "bkp_1.tar.gz")); err != nil {
+				t.Fatal(err)
+			}
+			err = back.ApplyRestore(t.Context(), resource.Step{Ref: ref, Decision: dec}, source)
+			if err == nil {
+				t.Fatal("it restored")
+			}
+			if strings.Contains(err.Error(), "nothing was changed or stopped") {
+				t.Errorf("it says nothing was stopped, and it stopped web: %v", err)
+			}
+			if got := b.read("kept.txt"); got != "changed since" {
+				t.Errorf("kept.txt = %q", got)
+			}
+			if !b.running(id) {
+				t.Error("the app stayed down")
+			}
+		})
+	}
+}
+
+// Started again and cut off before it could say so, a restore has changed the volume
+// though nothing's marked stopped, so nothing it says may claim otherwise.
+func TestARestoreCutOffAsItEndedStillCounts(t *testing.T) {
+	b := newBench(t)
+	b.write("kept.txt", "from the backup")
+	b.take(false)
+	b.write("kept.txt", "changed since")
+	source := resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}
+	if err := b.restore(source); err != nil {
+		t.Fatal(err)
+	}
+	st, err := b.runner.stageOf(ref, "chg_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.runner.saveState(ref, st, stageReplaced); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(b.runner.dir(ref), "bkp_1.tar.gz")); err != nil {
+		t.Fatal(err)
+	}
+	err = b.runner.ApplyRestore(t.Context(), resource.Step{Ref: ref}, source)
+	if err == nil || !strings.Contains(err.Error(), "What was there is back") {
+		t.Errorf("resuming = %v", err)
+	}
+	if got := b.read("kept.txt"); got != "changed since" {
+		t.Errorf("kept.txt = %q", got)
+	}
+}
+
+// With nothing in the volume there's nothing to make room for, whatever the disk says,
+// and no refusal that would read "takes up to 0 B".
+func TestAnEmptyVolumeNeedsNoRoomForItsCopy(t *testing.T) {
+	b := newBench(t)
+	b.write("kept.txt", "from the backup")
+	b.take(false)
+	if err := os.Remove(filepath.Join(b.engine.VolumeDir(b.target.Name), "kept.txt")); err != nil {
+		t.Fatal(err)
+	}
+	b.runner.Disk = func() disk { return disk{free: 1 << 20, reserve: 1 << 30} }
+	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}); err != nil {
+		t.Fatalf("restoring into an empty volume = %v", err)
+	}
+	if got := b.read("kept.txt"); got != "from the backup" {
+		t.Errorf("kept.txt = %q", got)
+	}
+}
+
+// A dump takes the place of what's there, so one smaller than that needs no more
+// room, and no refusal that would read "needs 0 B more".
+func TestADumpSmallerThanWhatItReplacesNeedsNoRoom(t *testing.T) {
+	b := newBench(t)
+	b.write("data.sql", "CREATE TABLE notes;")
+	b.run("db", "postgres:17", "/var/lib/postgresql/data")
+	b.take(false)
+	b.write("data.sql", strings.Repeat("what the app has now", 1<<10))
+	v, err := volumetool.Measure(b.engine.VolumeDir(b.target.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.runner.Disk = func() disk { return disk{free: 1 << 62, reserve: 1 << 61, filesystem: v.Filesystem} }
+	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"}); err != nil {
+		t.Fatalf("restoring = %v", err)
+	}
+}
+
 // A dump's load cut short puts back what was there at once, and the change that
 // resumes starts the restore over from that copy.
 func TestALoadCutShortGoesBackThenStartsOver(t *testing.T) {

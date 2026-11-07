@@ -134,8 +134,15 @@ func tooFull(d disk, needs int64) error {
 // brings back has to fit in the volume: beside what's there for a copy of files, as
 // that goes only once all of it is in, and in place of it for a dump. Where both are
 // on one disk, it needs room for both. A volume too large to measure in time goes
-// ahead, and writing the copy watches the disk as a backup does.
-func (r *Runner) roomToRestore(ctx context.Context, ref resource.Ref, t volume.Target, st *state, m *Manifest) error {
+// ahead, and writing the copy watches the disk as a backup does. It says nothing was
+// stopped only when began says that's so.
+func (r *Runner) roomToRestore(ctx context.Context, ref resource.Ref, t volume.Target, m *Manifest, began bool) error {
+	refused := func(fact, fix string) error {
+		if began {
+			return fmt.Errorf("%s. %s", fact, fix)
+		}
+		return fmt.Errorf("%s, so nothing was stopped or changed. %s", fact, fix)
+	}
 	d, err := r.disk()
 	if err != nil {
 		return err
@@ -149,13 +156,10 @@ func (r *Runner) roomToRestore(ctx context.Context, ref resource.Ref, t volume.T
 		}
 		return nil
 	}
-	var copying int64
-	if !reached(st.Stage, stageCopied) {
-		copying = v.Bytes + v.Bytes/margin
-	}
-	if d.free-copying < d.reserve {
-		return fmt.Errorf("the disk that holds backups has %s free, and a copy of what's in %s takes up to %s, leaving %s alone, so nothing was stopped or changed. Delete old backups or free some space, then try again",
-			human.Size(d.free), ref.Name, human.Size(copying), human.Size(d.reserve))
+	copying := v.Bytes + v.Bytes/margin
+	if copying > 0 && d.free-copying < d.reserve {
+		return refused(fmt.Sprintf("the disk that holds backups has %s free, and a copy of what's in %s takes up to %s, leaving %s alone",
+			human.Size(d.free), ref.Name, human.Size(copying), human.Size(d.reserve)), "Delete old backups or free some space, then try again")
 	}
 	bringing := m.Unpacked
 	if m.Format == formatDump {
@@ -165,9 +169,9 @@ func (r *Runner) roomToRestore(ctx context.Context, ref resource.Ref, t volume.T
 	if v.Filesystem == d.filesystem {
 		free, keep = free-copying, d.reserve
 	}
-	if free-bringing < keep {
-		return fmt.Errorf("the disk that holds %s has %s free once a copy of what's there is taken, and this backup needs %s more there, so nothing was stopped or changed. Free some space on that disk, then try again",
-			ref.Name, human.Size(max(free, 0)), human.Size(bringing))
+	if bringing > 0 && free-bringing < keep {
+		return refused(fmt.Sprintf("the disk that holds %s has %s free once a copy of what's there is taken, and this backup needs %s more there",
+			ref.Name, human.Size(max(free, 0)), human.Size(bringing)), "Free some space on that disk, then try again")
 	}
 	return nil
 }
