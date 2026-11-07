@@ -71,6 +71,9 @@ func attachTo(t *testing.T, b *browser, terminalID string, offset uint64) *attac
 		close(a.msgs)
 	}()
 	a.first = a.next()
+	for a.first.GetHeartbeat() {
+		a.first = a.next()
+	}
 	if a.first == nil || !a.first.GetAttached() {
 		t.Fatalf("the attachment began with %v: %v", a.first, a.err())
 	}
@@ -405,6 +408,33 @@ func testAnUnconfirmedTerminalIsOnActivity(t *testing.T, backend store.Backend) 
 	e := waitForTerminalEvent(t, b, id, "terminal.open_unconfirmed")
 	if e.GetSubject().GetId() != id || e.GetTerminal().GetError() == "" {
 		t.Errorf("reads %v", e)
+	}
+}
+
+// An attachment's heartbeat stops before the attachment does, so none goes on a
+// stream that's closing, and a client that hears nothing else hears them.
+func TestAnAttachmentBeats(t *testing.T) { storetest.Each(t, testAnAttachmentBeats) }
+
+func testAnAttachmentBeats(t *testing.T, backend store.Backend) {
+	was := terminals.HeartbeatEvery
+	terminals.HeartbeatEvery = time.Millisecond
+	t.Cleanup(func() { terminals.HeartbeatEvery = was })
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	for range 20 {
+		term := openTerminal(t, b, id)
+		a := attachTo(t, b, term.GetId(), 0)
+		beats := 0
+		for beats < 3 {
+			if a.next().GetHeartbeat() {
+				beats++
+			}
+		}
+		a.write("exit\n")
+		if end := a.ended(); end.GetEnd().GetReason() != dockwellv1.TerminalEndReason_TERMINAL_END_REASON_EXITED {
+			t.Fatalf("ended with %v", end)
+		}
 	}
 }
 

@@ -369,6 +369,10 @@ func (h *Handler) AttachTerminal(ctx context.Context, req *connect.Request[dockw
 	if err != nil {
 		return err
 	}
+	// The heartbeat stops before this returns, as the stream is the handler's alone
+	// once it does: a send under way as it closes would race with the closing.
+	var beating sync.WaitGroup
+	defer beating.Wait()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var sendMu sync.Mutex
@@ -377,7 +381,7 @@ func (h *Handler) AttachTerminal(ctx context.Context, req *connect.Request[dockw
 		defer sendMu.Unlock()
 		return stream.Send(m)
 	}
-	go func() {
+	beating.Go(func() {
 		beat := time.NewTicker(HeartbeatEvery)
 		defer beat.Stop()
 		for {
@@ -391,7 +395,7 @@ func (h *Handler) AttachTerminal(ctx context.Context, req *connect.Request[dockw
 				}
 			}
 		}
-	}()
+	})
 	offset, cols, rows := req.Msg.GetOffset(), req.Msg.GetColumns(), req.Msg.GetRows()
 	if cols > 0 && rows > 0 {
 		cols, rows = min(max(cols, 2), terminal.MaxColumns), min(max(rows, 1), terminal.MaxRows)
