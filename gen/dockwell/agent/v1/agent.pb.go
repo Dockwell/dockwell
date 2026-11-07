@@ -353,8 +353,8 @@ type ConnectRequest_Network struct {
 
 type ConnectRequest_TerminalEnded struct {
 	// A terminal ended, as its shell exited or it timed out, on whichever stream
-	// is up then. Numbered apart, as open work adds to this message.
-	TerminalEnded *TerminalEnded `protobuf:"bytes,20,opt,name=terminal_ended,json=terminalEnded,proto3,oneof"`
+	// is up then. The terminal's numbers in agent messages are 50 to 59.
+	TerminalEnded *TerminalEnded `protobuf:"bytes,50,opt,name=terminal_ended,json=terminalEnded,proto3,oneof"`
 }
 
 func (*ConnectRequest_Hello) isConnectRequest_Message() {}
@@ -1146,13 +1146,13 @@ type Hello struct {
 	// server unless a passkey confirmed it. Only the agent can tell where a path
 	// leads, so the control plane saves through no agent that doesn't.
 	GuardsWaysIn bool `protobuf:"varint,7,opt,name=guards_ways_in,json=guardsWaysIn,proto3" json:"guards_ways_in,omitempty"`
-	// True when the agent opens terminals (OpenTerminalCall). Numbered apart, as
-	// open work adds to this message.
-	Terminals bool `protobuf:"varint,20,opt,name=terminals,proto3" json:"terminals,omitempty"`
+	// True when the agent opens terminals (OpenTerminalCall). The terminal's
+	// numbers in agent messages are 50 to 59.
+	Terminals bool `protobuf:"varint,50,opt,name=terminals,proto3" json:"terminals,omitempty"`
 	// The terminals the agent has that the control plane hasn't heard the end of:
 	// those still open, and those whose TerminalEnded hasn't gone yet. A control
 	// plane that doesn't know one asks for it to be closed.
-	OpenTerminals []string `protobuf:"bytes,21,rep,name=open_terminals,json=openTerminals,proto3" json:"open_terminals,omitempty"`
+	OpenTerminals []string `protobuf:"bytes,51,rep,name=open_terminals,json=openTerminals,proto3" json:"open_terminals,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2295,19 +2295,18 @@ type Call_SendBackup struct {
 }
 
 type Call_OpenTerminal struct {
-	// Start a shell. Numbered apart, as open work adds to this message: 30 is
-	// the databases'.
-	OpenTerminal *OpenTerminalCall `protobuf:"bytes,40,opt,name=open_terminal,json=openTerminal,proto3,oneof"`
+	// Start a shell. The terminal's numbers in agent messages are 50 to 59.
+	OpenTerminal *OpenTerminalCall `protobuf:"bytes,50,opt,name=open_terminal,json=openTerminal,proto3,oneof"`
 }
 
 type Call_AttachTerminal struct {
 	// Carry a terminal's bytes over Terminal, until the attachment ends.
-	AttachTerminal *AttachTerminalCall `protobuf:"bytes,41,opt,name=attach_terminal,json=attachTerminal,proto3,oneof"`
+	AttachTerminal *AttachTerminalCall `protobuf:"bytes,51,opt,name=attach_terminal,json=attachTerminal,proto3,oneof"`
 }
 
 type Call_CloseTerminal struct {
 	// Hang up a terminal's shell.
-	CloseTerminal *CloseTerminalCall `protobuf:"bytes,42,opt,name=close_terminal,json=closeTerminal,proto3,oneof"`
+	CloseTerminal *CloseTerminalCall `protobuf:"bytes,52,opt,name=close_terminal,json=closeTerminal,proto3,oneof"`
 }
 
 func (*Call_Plan) isCall_Call() {}
@@ -5353,19 +5352,19 @@ type CallResult_SendBackup struct {
 }
 
 type CallResult_OpenTerminal struct {
-	// The terminal, running. Numbered apart, as open work adds to this message:
-	// 30 is the databases'.
-	OpenTerminal *OpenTerminalResult `protobuf:"bytes,40,opt,name=open_terminal,json=openTerminal,proto3,oneof"`
+	// The terminal, running. The terminal's numbers in agent messages are 50 to
+	// 59.
+	OpenTerminal *OpenTerminalResult `protobuf:"bytes,50,opt,name=open_terminal,json=openTerminal,proto3,oneof"`
 }
 
 type CallResult_AttachTerminal struct {
 	// The attachment ended.
-	AttachTerminal *AttachTerminalResult `protobuf:"bytes,41,opt,name=attach_terminal,json=attachTerminal,proto3,oneof"`
+	AttachTerminal *AttachTerminalResult `protobuf:"bytes,51,opt,name=attach_terminal,json=attachTerminal,proto3,oneof"`
 }
 
 type CallResult_CloseTerminal struct {
 	// How the terminal ended.
-	CloseTerminal *CloseTerminalResult `protobuf:"bytes,42,opt,name=close_terminal,json=closeTerminal,proto3,oneof"`
+	CloseTerminal *CloseTerminalResult `protobuf:"bytes,52,opt,name=close_terminal,json=closeTerminal,proto3,oneof"`
 }
 
 func (*CallResult_Error) isCallResult_Result() {}
@@ -6245,7 +6244,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"save_ended\x18\n" +
 	" \x01(\v2\x1c.dockwell.agent.v1.SaveEndedH\x00R\tsaveEnded\x126\n" +
 	"\anetwork\x18\v \x01(\v2\x1a.dockwell.agent.v1.NetworkH\x00R\anetwork\x12I\n" +
-	"\x0eterminal_ended\x18\x14 \x01(\v2 .dockwell.agent.v1.TerminalEndedH\x00R\rterminalEndedB\t\n" +
+	"\x0eterminal_ended\x182 \x01(\v2 .dockwell.agent.v1.TerminalEndedH\x00R\rterminalEndedB\t\n" +
 	"\amessage\"\x97\x01\n" +
 	"\rTerminalEnded\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
@@ -6303,8 +6302,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\fdelivery_key\x18\x05 \x01(\fR\vdeliveryKey\x12+\n" +
 	"\x11writes_references\x18\x06 \x01(\bR\x10writesReferences\x12$\n" +
 	"\x0eguards_ways_in\x18\a \x01(\bR\fguardsWaysIn\x12\x1c\n" +
-	"\tterminals\x18\x14 \x01(\bR\tterminals\x12%\n" +
-	"\x0eopen_terminals\x18\x15 \x03(\tR\ropenTerminals\"\xbf\x02\n" +
+	"\tterminals\x182 \x01(\bR\tterminals\x12%\n" +
+	"\x0eopen_terminals\x183 \x03(\tR\ropenTerminals\"\xbf\x02\n" +
 	"\x0fConnectResponse\x126\n" +
 	"\awelcome\x18\x01 \x01(\v2\x1a.dockwell.agent.v1.WelcomeH\x00R\awelcome\x12-\n" +
 	"\x04call\x18\x02 \x01(\v2\x17.dockwell.agent.v1.CallH\x00R\x04call\x127\n" +
@@ -6376,9 +6375,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\ffetch_backup\x18\x17 \x01(\v2\".dockwell.agent.v1.FetchBackupCallH\x00R\vfetchBackup\x12D\n" +
 	"\vsend_backup\x18\x18 \x01(\v2!.dockwell.agent.v1.SendBackupCallH\x00R\n" +
 	"sendBackup\x12J\n" +
-	"\ropen_terminal\x18( \x01(\v2#.dockwell.agent.v1.OpenTerminalCallH\x00R\fopenTerminal\x12P\n" +
-	"\x0fattach_terminal\x18) \x01(\v2%.dockwell.agent.v1.AttachTerminalCallH\x00R\x0eattachTerminal\x12M\n" +
-	"\x0eclose_terminal\x18* \x01(\v2$.dockwell.agent.v1.CloseTerminalCallH\x00R\rcloseTerminalB\x06\n" +
+	"\ropen_terminal\x182 \x01(\v2#.dockwell.agent.v1.OpenTerminalCallH\x00R\fopenTerminal\x12P\n" +
+	"\x0fattach_terminal\x183 \x01(\v2%.dockwell.agent.v1.AttachTerminalCallH\x00R\x0eattachTerminal\x12M\n" +
+	"\x0eclose_terminal\x184 \x01(\v2$.dockwell.agent.v1.CloseTerminalCallH\x00R\rcloseTerminalB\x06\n" +
 	"\x04call\"h\n" +
 	"\x10OpenTerminalCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
@@ -6601,9 +6600,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\ffetch_backup\x18\x17 \x01(\v2\x1f.dockwell.agent.v1.BackupResultH\x00R\vfetchBackup\x12F\n" +
 	"\vsend_backup\x18\x18 \x01(\v2#.dockwell.agent.v1.SendBackupResultH\x00R\n" +
 	"sendBackup\x12L\n" +
-	"\ropen_terminal\x18( \x01(\v2%.dockwell.agent.v1.OpenTerminalResultH\x00R\fopenTerminal\x12R\n" +
-	"\x0fattach_terminal\x18) \x01(\v2'.dockwell.agent.v1.AttachTerminalResultH\x00R\x0eattachTerminal\x12O\n" +
-	"\x0eclose_terminal\x18* \x01(\v2&.dockwell.agent.v1.CloseTerminalResultH\x00R\rcloseTerminalB\b\n" +
+	"\ropen_terminal\x182 \x01(\v2%.dockwell.agent.v1.OpenTerminalResultH\x00R\fopenTerminal\x12R\n" +
+	"\x0fattach_terminal\x183 \x01(\v2'.dockwell.agent.v1.AttachTerminalResultH\x00R\x0eattachTerminal\x12O\n" +
+	"\x0eclose_terminal\x184 \x01(\v2&.dockwell.agent.v1.CloseTerminalResultH\x00R\rcloseTerminalB\b\n" +
 	"\x06result\"\xbd\x01\n" +
 	"\x0eAdoptionResult\x12\x12\n" +
 	"\x04spec\x18\x01 \x01(\fR\x04spec\x12\x18\n" +
