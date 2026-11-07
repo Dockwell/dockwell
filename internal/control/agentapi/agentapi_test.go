@@ -725,3 +725,29 @@ func TestAJoinGoesThroughAnAddressTheListenerAddedLater(t *testing.T) {
 		t.Errorf("once the certificate names it: %v", err)
 	}
 }
+
+// An agent samples at the stream's heartbeat while nobody watches, and at once, then
+// often, when someone starts to (ADR 0040).
+func TestAgentsSampleOftenOnlyWhileWatched(t *testing.T) {
+	s := startStack(t, time.Minute)
+	id := s.enrollLocal(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(), Collector: fakeCollector()})
+		close(done)
+	}()
+	defer func() { cancel(); <-done }()
+
+	waitFor(t, s.hub, id.ServerID, "the agent connects, at the pace for nobody watching", func(srv *dockwellv1.Server) bool {
+		return srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED &&
+			srv.GetStats().GetInterval().AsDuration() == fleet.IdleInterval
+	})
+	watch, stop := context.WithCancel(t.Context())
+	defer stop()
+	s.hub.Watch(watch)
+	// Long before the next heartbeat would come.
+	waitFor(t, s.hub, id.ServerID, "a sample comes at once, at the pace for watching", func(srv *dockwellv1.Server) bool {
+		return srv.GetStats().GetInterval().AsDuration() == fleet.StatsInterval
+	})
+}

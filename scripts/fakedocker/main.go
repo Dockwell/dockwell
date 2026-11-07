@@ -17,7 +17,8 @@
 //     run by hand has something in its log;
 //   - postgres keeps its data as one file, and dumps and loads it as its tools do,
 //     for a backup to go through a database's own dump, and answers a reading of
-//     itself as psql would, for the Databases section.
+//     itself as psql would, for the Databases section;
+//   - /info says Docker keeps its data at FAKEDOCKER_ROOT, when that's set.
 //
 // It is never part of a release. CI's Panel end to end on Docker job runs the
 // same flows on real Docker.
@@ -114,6 +115,9 @@ func main() {
 	}
 	t := &tb{dir: dir}
 	e := dockertest.New(t)
+	// Where /info says Docker keeps its data, for a run that wants the agent to add up
+	// a disk this machine has: /var/lib/docker unless set.
+	e.DockerRoot = os.Getenv("FAKEDOCKER_ROOT")
 	e.Find = func(ref string) (dockertest.Image, bool) {
 		name, _, _ := strings.Cut(ref, ":")
 		if strings.HasSuffix(name, "doesnotexist") {

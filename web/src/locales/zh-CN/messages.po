@@ -6266,6 +6266,67 @@ msgstr "{unlisted, plural, other {此服务器还有 # 个容器无法在此列�
 msgid "Copied {text}"
 msgstr "已复制 {text}"
 
+msgid "Adding up what takes the disk"
+msgstr "正在统计磁盘占用"
+
+msgid "Containers"
+msgstr "容器"
+
+msgid "Disk usage"
+msgstr "磁盘占用"
+
+#. placeholder {0}: use.mountPoint
+#. placeholder {1}: bytes(size)
+msgid "Disk usage of {0}: {summary}, of {1}"
+msgstr "{0} 的磁盘占用：{summary}，共 {1}"
+
+msgid "Free"
+msgstr "可用"
+
+msgid "Images"
+msgstr "镜像"
+
+msgid "Other files"
+msgstr "其他文件"
+
+msgid "The system and anything outside Docker"
+msgstr "系统及 Docker 之外的一切"
+
+msgid "Used"
+msgstr "已用"
+
+msgid "What Docker keeps of what they print"
+msgstr "Docker 保存的容器输出"
+
+msgid "What they wrote outside volumes"
+msgstr "容器在卷之外写入的内容"
+
+#. placeholder {0}: use.images
+msgid "{0, plural, one {# image} other {# images}}"
+msgstr "{0, plural, other {# 个镜像}}"
+
+#. placeholder {0}: use.volumes
+msgid "{0, plural, one {# volume} other {# volumes}}"
+msgstr "{0, plural, other {# 个卷}}"
+
+#. placeholder {0}: bytes(use.buildCacheBytes)
+msgid "{0} build cache"
+msgstr "构建缓存 {0}"
+
+#. placeholder {0}: bytes(use.imagesUnusedBytes)
+#. placeholder {0}: bytes(use.volumesUnusedBytes)
+msgid "{0} unused"
+msgstr "{0} 未使用"
+
+msgid "{mount}: {used} used, {free} free, of {size}"
+msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
+
+msgid "{share} of the disk"
+msgstr "占磁盘的 {share}"
+
+msgid "{share} of {size} used"
+msgstr "{size} 中已用 {share}"
+
 msgid "Loading servers"
 msgstr "正在加载服务器"
 
@@ -6289,6 +6350,78 @@ msgstr "此浏览器已离线，因此面板无法确定你的服务器的情况
 
 msgid "You're offline"
 msgstr "你已离线"
+
+msgid "Add one to reach an app at a name of yours"
+msgstr "添加一个，用你自己的域名访问应用"
+
+msgid "Can't read them now"
+msgstr "现在无法读取"
+
+msgid "Checking how they run"
+msgstr "正在检查运行状况"
+
+msgid "Deploy one from an image or the catalog"
+msgstr "从镜像或应用目录部署一个"
+
+msgid "No apps"
+msgstr "没有应用"
+
+msgid "No domains"
+msgstr "没有域名"
+
+msgid "What runs here"
+msgstr "在此运行"
+
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, other {# 个应用}}"
+
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# domain} other {# domains}}"
+msgstr "{0, plural, other {# 个域名}}"
+
+#. placeholder {0}: looks.length
+msgid "{0, plural, one {# needs a look} other {# need a look}}"
+msgstr "{0, plural, other {# 个需要查看}}"
+
+msgid "{healthy, plural, one {# healthy} other {# healthy}}"
+msgstr "{healthy, plural, other {# 个健康}}"
+
+msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
+msgstr "{more, plural, other {{shown} 等另外 # 个}}"
+
+msgid "{name} deploying"
+msgstr "{name} 正在部署"
+
+msgid "{name} failed"
+msgstr "{name} 失败"
+
+msgid "{name} not running"
+msgstr "{name} 没有运行"
+
+msgid "{name} paused"
+msgstr "{name} 已暂停"
+
+msgid "{name} starting"
+msgstr "{name} 正在启动"
+
+msgid "{name} unhealthy"
+msgstr "{name} 不健康"
+
+msgid "{only}, healthy"
+msgstr "{only}，健康"
+
+msgid "{only}, running"
+msgstr "{only}，正在运行"
+
+msgid "{only}, unknown"
+msgstr "{only}，未知"
+
+msgid "{running, plural, one {# running} other {# running}}"
+msgstr "{running, plural, other {# 个正在运行}}"
+
+msgid "{unknown, plural, one {# unknown} other {# unknown}}"
+msgstr "{unknown, plural, other {# 个未知}}"
 
 msgid "Private"
 msgstr "私有"
@@ -6345,11 +6478,11 @@ msgstr "网络"
 msgid "The agent reports no disks"
 msgstr "代理没有上报磁盘"
 
-msgid "last {span}"
-msgstr "最近 {span}"
-
 msgid "of {total}"
 msgstr "/ {total}"
+
+msgid "{cpuAverage} on average over the last {span}"
+msgstr "最近 {span} 平均 {cpuAverage}"
 
 msgid "{free} free"
 msgstr "可用 {free}"
@@ -6378,17 +6511,11 @@ msgstr "控制平面"
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
 
-msgid "Disks"
-msgstr "磁盘"
-
 msgid "Docker"
 msgstr "Docker"
 
 msgid "For {connected}"
 msgstr "已连接 {connected}"
-
-msgid "Free"
-msgstr "可用"
 
 msgid "Hostname"
 msgstr "主机名"
@@ -6435,26 +6562,29 @@ msgstr "公网地址"
 msgid "Reachable"
 msgstr "可访问"
 
-msgid "Receiving"
-msgstr "接收"
-
 msgid "Runs on another server"
 msgstr "运行在另一台服务器上"
 
 msgid "Runs on this server"
 msgstr "运行在这台服务器上"
 
-msgid "Sending"
-msgstr "发送"
-
 msgid "Set"
 msgstr "设置"
+
+msgid "Since boot"
+msgstr "开机以来"
+
+msgid "Swap"
+msgstr "交换空间"
 
 msgid "The agent hasn't said what this server is yet."
 msgstr "代理尚未上报这台服务器的信息。"
 
-msgid "Used"
-msgstr "已用"
+msgid "Traffic"
+msgstr "流量"
+
+msgid "Traffic over the last few minutes, now {rx} in and {tx} out"
+msgstr "最近几分钟的流量，当前接收 {rx}、发送 {tx}"
 
 msgid "Version"
 msgstr "版本"
@@ -6465,14 +6595,21 @@ msgstr "与控制平面相同"
 msgid "the control plane runs {controlPlane}"
 msgstr "控制平面为 {controlPlane}"
 
-msgid "{mount}: {used} used, {free} free, of {size}"
-msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
+#. placeholder {0}: formatBytes(server.stats.agentMemoryBytes, i18n.locale)
+msgid "{0}, with the control plane"
+msgstr "{0}，含控制平面"
+
+msgid "{inTotal} in · {outTotal} out"
+msgstr "接收 {inTotal} · 发送 {outTotal}"
 
 msgid "{now} now"
 msgstr "当前 {now}"
 
-msgid "{share} of {size} used"
-msgstr "{size} 中已用 {share}"
+msgid "{size} · none in use"
+msgstr "{size} · 未使用"
+
+msgid "{size} · {inUse} in use"
+msgstr "{size} · 已用 {inUse}"
 
 msgid "Control server"
 msgstr "控制服务器"

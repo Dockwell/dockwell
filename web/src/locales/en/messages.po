@@ -6266,6 +6266,67 @@ msgstr "{unlisted, plural, one {This server has # more container than fit here.}
 msgid "Copied {text}"
 msgstr "Copied {text}"
 
+msgid "Adding up what takes the disk"
+msgstr "Adding up what takes the disk"
+
+msgid "Containers"
+msgstr "Containers"
+
+msgid "Disk usage"
+msgstr "Disk usage"
+
+#. placeholder {0}: use.mountPoint
+#. placeholder {1}: bytes(size)
+msgid "Disk usage of {0}: {summary}, of {1}"
+msgstr "Disk usage of {0}: {summary}, of {1}"
+
+msgid "Free"
+msgstr "Free"
+
+msgid "Images"
+msgstr "Images"
+
+msgid "Other files"
+msgstr "Other files"
+
+msgid "The system and anything outside Docker"
+msgstr "The system and anything outside Docker"
+
+msgid "Used"
+msgstr "Used"
+
+msgid "What Docker keeps of what they print"
+msgstr "What Docker keeps of what they print"
+
+msgid "What they wrote outside volumes"
+msgstr "What they wrote outside volumes"
+
+#. placeholder {0}: use.images
+msgid "{0, plural, one {# image} other {# images}}"
+msgstr "{0, plural, one {# image} other {# images}}"
+
+#. placeholder {0}: use.volumes
+msgid "{0, plural, one {# volume} other {# volumes}}"
+msgstr "{0, plural, one {# volume} other {# volumes}}"
+
+#. placeholder {0}: bytes(use.buildCacheBytes)
+msgid "{0} build cache"
+msgstr "{0} build cache"
+
+#. placeholder {0}: bytes(use.imagesUnusedBytes)
+#. placeholder {0}: bytes(use.volumesUnusedBytes)
+msgid "{0} unused"
+msgstr "{0} unused"
+
+msgid "{mount}: {used} used, {free} free, of {size}"
+msgstr "{mount}: {used} used, {free} free, of {size}"
+
+msgid "{share} of the disk"
+msgstr "{share} of the disk"
+
+msgid "{share} of {size} used"
+msgstr "{share} of {size} used"
+
 msgid "Loading servers"
 msgstr "Loading servers"
 
@@ -6289,6 +6350,78 @@ msgstr "This browser is offline, so the panel can't say how your servers are. It
 
 msgid "You're offline"
 msgstr "You're offline"
+
+msgid "Add one to reach an app at a name of yours"
+msgstr "Add one to reach an app at a name of yours"
+
+msgid "Can't read them now"
+msgstr "Can't read them now"
+
+msgid "Checking how they run"
+msgstr "Checking how they run"
+
+msgid "Deploy one from an image or the catalog"
+msgstr "Deploy one from an image or the catalog"
+
+msgid "No apps"
+msgstr "No apps"
+
+msgid "No domains"
+msgstr "No domains"
+
+msgid "What runs here"
+msgstr "What runs here"
+
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, one {# app} other {# apps}}"
+
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# domain} other {# domains}}"
+msgstr "{0, plural, one {# domain} other {# domains}}"
+
+#. placeholder {0}: looks.length
+msgid "{0, plural, one {# needs a look} other {# need a look}}"
+msgstr "{0, plural, one {# needs a look} other {# need a look}}"
+
+msgid "{healthy, plural, one {# healthy} other {# healthy}}"
+msgstr "{healthy, plural, one {# healthy} other {# healthy}}"
+
+msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
+msgstr "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
+
+msgid "{name} deploying"
+msgstr "{name} deploying"
+
+msgid "{name} failed"
+msgstr "{name} failed"
+
+msgid "{name} not running"
+msgstr "{name} not running"
+
+msgid "{name} paused"
+msgstr "{name} paused"
+
+msgid "{name} starting"
+msgstr "{name} starting"
+
+msgid "{name} unhealthy"
+msgstr "{name} unhealthy"
+
+msgid "{only}, healthy"
+msgstr "{only}, healthy"
+
+msgid "{only}, running"
+msgstr "{only}, running"
+
+msgid "{only}, unknown"
+msgstr "{only}, unknown"
+
+msgid "{running, plural, one {# running} other {# running}}"
+msgstr "{running, plural, one {# running} other {# running}}"
+
+msgid "{unknown, plural, one {# unknown} other {# unknown}}"
+msgstr "{unknown, plural, one {# unknown} other {# unknown}}"
 
 msgid "Private"
 msgstr "Private"
@@ -6345,11 +6478,11 @@ msgstr "Network"
 msgid "The agent reports no disks"
 msgstr "The agent reports no disks"
 
-msgid "last {span}"
-msgstr "last {span}"
-
 msgid "of {total}"
 msgstr "of {total}"
+
+msgid "{cpuAverage} on average over the last {span}"
+msgstr "{cpuAverage} on average over the last {span}"
 
 msgid "{free} free"
 msgstr "{free} free"
@@ -6378,17 +6511,11 @@ msgstr "Control plane"
 msgid "Copy {ip}"
 msgstr "Copy {ip}"
 
-msgid "Disks"
-msgstr "Disks"
-
 msgid "Docker"
 msgstr "Docker"
 
 msgid "For {connected}"
 msgstr "For {connected}"
-
-msgid "Free"
-msgstr "Free"
 
 msgid "Hostname"
 msgstr "Hostname"
@@ -6435,26 +6562,29 @@ msgstr "Public address"
 msgid "Reachable"
 msgstr "Reachable"
 
-msgid "Receiving"
-msgstr "Receiving"
-
 msgid "Runs on another server"
 msgstr "Runs on another server"
 
 msgid "Runs on this server"
 msgstr "Runs on this server"
 
-msgid "Sending"
-msgstr "Sending"
-
 msgid "Set"
 msgstr "Set"
+
+msgid "Since boot"
+msgstr "Since boot"
+
+msgid "Swap"
+msgstr "Swap"
 
 msgid "The agent hasn't said what this server is yet."
 msgstr "The agent hasn't said what this server is yet."
 
-msgid "Used"
-msgstr "Used"
+msgid "Traffic"
+msgstr "Traffic"
+
+msgid "Traffic over the last few minutes, now {rx} in and {tx} out"
+msgstr "Traffic over the last few minutes, now {rx} in and {tx} out"
 
 msgid "Version"
 msgstr "Version"
@@ -6465,14 +6595,21 @@ msgstr "same as the control plane"
 msgid "the control plane runs {controlPlane}"
 msgstr "the control plane runs {controlPlane}"
 
-msgid "{mount}: {used} used, {free} free, of {size}"
-msgstr "{mount}: {used} used, {free} free, of {size}"
+#. placeholder {0}: formatBytes(server.stats.agentMemoryBytes, i18n.locale)
+msgid "{0}, with the control plane"
+msgstr "{0}, with the control plane"
+
+msgid "{inTotal} in · {outTotal} out"
+msgstr "{inTotal} in · {outTotal} out"
 
 msgid "{now} now"
 msgstr "{now} now"
 
-msgid "{share} of {size} used"
-msgstr "{share} of {size} used"
+msgid "{size} · none in use"
+msgstr "{size} · none in use"
+
+msgid "{size} · {inUse} in use"
+msgstr "{size} · {inUse} in use"
 
 msgid "Control server"
 msgstr "Control server"
