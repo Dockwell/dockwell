@@ -52,16 +52,16 @@ type Serving struct {
 	// Listen is the loopback address the panel always answers on.
 	Listen string
 	// Domain is the domain it also answers on over HTTPS, if any, and URL the
-	// panel's address there, with its port when that isn't 443.
+	// panel's address there while Dockwell serves it, with its port when that
+	// isn't 443.
 	Domain, URL string
-	// HTTPSListen is where Dockwell serves that domain itself, while it does.
-	HTTPSListen string
-	// CA is who issues the certificate Dockwell serves the domain with.
+	// CA is who issues the certificate the domain is served with.
 	CA string
-	// Proxied reports whether the server's ingress serves the domain now, in
-	// place of Dockwell: from the server's first route until its last goes
-	// (ADR 0024). Nil means never.
-	Proxied func() bool
+	// HTTPS reports where Dockwell serves the domain itself now, and false
+	// while the server's ingress serves it in Dockwell's place, from the
+	// server's first route until its last goes (ADR 0024). Each request asks,
+	// as that changes without a restart. Nil means Dockwell always does.
+	HTTPS func() (listen string, ok bool)
 }
 
 // Handler implements SettingsService.
@@ -155,7 +155,8 @@ func checkName(name string) error {
 		return fmt.Errorf("that name is %d characters, and a name holds %d at most. Choose a shorter one", n, MaxName)
 	}
 	for _, r := range name {
-		if unicode.IsControl(r) {
+		// U+2028 and U+2029 break a line as a newline does, without being control characters.
+		if unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp) {
 			return errors.New("a name can't hold a line break or another control character. Write it on one line")
 		}
 		// Such as a right-to-left override, which would turn the sign-in screen's words around, or a
@@ -237,12 +238,17 @@ func (h *Handler) panel() *dockwellv1.PanelServing {
 	if s.Domain == "" {
 		return out
 	}
-	out.Url, out.CertificateAuthority = s.URL, s.CA
-	if s.Proxied != nil && s.Proxied() {
-		out.ServedBy = dockwellv1.PanelServedBy_PANEL_SERVED_BY_INGRESS
+	out.CertificateAuthority = s.CA
+	listen, ok := "", true
+	if s.HTTPS != nil {
+		listen, ok = s.HTTPS()
+	}
+	if !ok {
+		// The ingress serves the domain on 443, whatever port Dockwell's own listener has.
+		out.ServedBy, out.Url = dockwellv1.PanelServedBy_PANEL_SERVED_BY_INGRESS, "https://"+s.Domain
 		return out
 	}
-	out.ServedBy, out.HttpsListen = dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL, s.HTTPSListen
+	out.ServedBy, out.HttpsListen, out.Url = dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL, listen, s.URL
 	return out
 }
 

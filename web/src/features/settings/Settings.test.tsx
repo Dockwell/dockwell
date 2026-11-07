@@ -200,6 +200,10 @@ describe("Settings", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Account" })).toBeVisible();
     expect(screen.getByRole("link", { name: "General" })).toHaveAttribute("href", "/settings/general");
     expect(screen.getByRole("link", { name: "Profile and security" })).toHaveAttribute("href", "/profile");
+    // Each group is a region its heading names, by an ID of its place rather than its translated label.
+    expect(
+      within(screen.getByRole("region", { name: "Account" })).getByRole("link", { name: "Profile and security" }),
+    ).toBeVisible();
     await expectAccessible(phone.container);
   });
 

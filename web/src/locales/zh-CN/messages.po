@@ -1819,8 +1819,8 @@ msgid "API tokens"
 msgstr "API 令牌"
 
 #: src/features/auth/messages.ts
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件、重命名此安装，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
 
 #: src/app/Providers.tsx
 #: src/features/changes/fields.tsx

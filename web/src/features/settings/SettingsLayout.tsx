@@ -3,6 +3,7 @@
 import { Icon, type IconName, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
+import { useId } from "react";
 
 import { Page } from "../shell/Page";
 import "./Settings.css";
@@ -75,12 +76,14 @@ export function SettingsHome() {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const groups = useSections();
+  // Each group's heading names it by its place, as its label is translated and may hold anything.
+  const id = useId();
   if (!phone) return <Navigate to="/settings/general" replace />;
   return (
     <Page title={t`Settings`} back="/more">
-      {groups.map((group) => (
-        <section key={group.label} className="settings-list-group" aria-labelledby={`settings-group-${group.label}`}>
-          <h2 id={`settings-group-${group.label}`} className="settings-list-label">
+      {groups.map((group, i) => (
+        <section key={group.label} className="settings-list-group" aria-labelledby={`${id}-${i}`}>
+          <h2 id={`${id}-${i}`} className="settings-list-label">
             {group.label}
           </h2>
           <Panel flush className="settings-list">

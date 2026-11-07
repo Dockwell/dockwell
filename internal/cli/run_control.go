@@ -116,14 +116,6 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 	}
 }
 
-// addrOf is where a listener listens, or nothing without one.
-func addrOf(ln net.Listener) string {
-	if ln == nil {
-		return ""
-	}
-	return ln.Addr().String()
-}
-
 // Where the panel listens when it has a domain.
 const (
 	defaultHTTPSListen = ":443"
@@ -300,7 +292,6 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		Auth:        people,
 		Public:      public,
 		PanelListen: ls.API.Addr().String(),
-		HTTPSListen: addrOf(ls.HTTPS),
 		PanelURL:    panelURL(addr),
 		PanelCA:     certificateAuthority(f),
 		// The ingress takes the public ports at the server's first route, and gives them

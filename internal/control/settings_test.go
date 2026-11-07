@@ -62,6 +62,8 @@ func testTheInstallsSettings(t *testing.T, backend store.Backend) {
 	for name, why := range map[string]string{
 		strings.Repeat("a", 65): "64 at most",
 		"two\nlines":            "one line",
+		"two\u2028lines":        "one line",
+		"two\u2029paragraphs":   "one line",
 		// A right-to-left override turns the words around it, and a zero-width space hides in them.
 		"Acme\u202eevil":    "U+202E",
 		"Ac\u200bme":        "U+200B",
@@ -136,8 +138,9 @@ func TestTokensAndTheInstallsSettings(t *testing.T) {
 			script := bearer{token: createToken(t, b, tt.scope), rt: b.client.Transport}
 			c := dockwellv1connect.NewSettingsServiceClient(script, b.origin, connect.WithProtoJSON())
 			_, err := c.SetInstallName(t.Context(), connect.NewRequest(&dockwellv1.SetInstallNameRequest{Name: "Not yours"}))
-			if connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != "needs_session" {
-				t.Errorf("%v token naming the install: %v, want needs_session", tt.scope, err)
+			// The CLI shows the refusal as it comes, so it names what was refused.
+			if connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != "needs_session" || !strings.Contains(err.Error(), "rename the install") {
+				t.Errorf("%v token naming the install: %v, want needs_session, saying a token can't rename the install", tt.scope, err)
 			}
 			_, err = c.SetTimeZone(t.Context(), connect.NewRequest(&dockwellv1.SetTimeZoneRequest{TimeZone: "Asia/Kolkata"}))
 			if got := reasonOf(err); (tt.zoneReason == "" && err != nil) || got != tt.zoneReason {
