@@ -27,6 +27,7 @@ import (
 	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/compose"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
@@ -87,7 +88,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	if f.volumes != nil {
 		volumeType = f.volumes(volumes)
 	}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, volumeType, &network.Driver{Client: client}}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, volumeType, &network.Driver{Client: client}, &database.UserDriver{Client: client, Dir: t.TempDir()}}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}

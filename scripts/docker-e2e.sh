@@ -3430,6 +3430,35 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("17.")) a
   fail "PostgreSQL says: $(jq -c '.readings' <<<"$said")"
 [[ "$said" != *"$password"* ]] || fail "what PostgreSQL says of itself holds its password"
 
+step "Databases: a user with a database of their own is a plan, with a password no one typed, and setting it anew signs them in with the new one"
+db_id=$(jq -r '.id' <<<"$said")
+db_env=$(jq -r '.resource.scope' <<<"$said")
+planned=$(dw databases add-user "$db_id" --user buyer --plan-only --json) || fail "planning a user failed: $planned"
+jq -e '[.change.plan.resources[].resource | .kind + " " + .name] | sort == ["database.user buyer", "secret BUYER_DATABASE_PASSWORD"]' <<<"$planned" >/dev/null ||
+  fail "the plan for a user makes: $(jq -c '[.change.plan.resources[].resource]' <<<"$planned")"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null || fail "making the user failed"
+[[ "$(pg postgres "SELECT rolpassword LIKE 'SCRAM-SHA-256\$4096:%' FROM pg_authid WHERE rolname = 'buyer'")" == t ]] ||
+  fail "buyer's password isn't a SCRAM verifier: $(pg postgres "SELECT left(rolpassword, 14) FROM pg_authid WHERE rolname = 'buyer'" 2>&1)"
+[[ "$(pg postgres "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'buyer'")" == buyer ]] || fail "buyer doesn't own the database buyer"
+said=$(dw databases get "$db_id" --json) || fail "reading the database failed"
+jq -e '.database.readings[0].users[] | select(.name == "buyer") | .secret == "BUYER_DATABASE_PASSWORD" and (.resourceId | startswith("dbu_"))' <<<"$said" >/dev/null ||
+  fail "the database says of buyer: $(jq -c '.database.readings[0].users' <<<"$said")"
+# Setting the secret to a value this step knows reaches the user, which then signs in with it, over TCP.
+printf 'e2e-buyer-password-7Rk2' >"$data/buyer-password"
+dw secrets update BUYER_DATABASE_PASSWORD --environment "$db_env" --value-file "$data/buyer-password" --yes >/dev/null ||
+  fail "setting buyer's password anew failed"
+buyer_says() { docker exec -e PGPASSWORD="$1" "$postgres_db" psql -X -h 127.0.0.1 -U buyer -d buyer -tAc 'SELECT 40 + 2' 2>&1; }
+[[ "$(buyer_says e2e-buyer-password-7Rk2)" == 42 ]] || fail "buyer can't sign in with the secret's new value: $(buyer_says e2e-buyer-password-7Rk2)"
+[[ "$(buyer_says not-the-password)" != 42 ]] || fail "buyer signs in with any password"
+nothing_shows e2e-buyer-password-7Rk2
+# Deleting it drops the user and the database, which a person applies.
+planned=$(dw changes propose --edits '[{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}]' --plan-only --json) ||
+  fail "planning to delete buyer failed: $planned"
+jq -e '.change.plan.destructive' <<<"$planned" >/dev/null || fail "dropping buyer doesn't say it destroys data: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+[[ -z "$(pg postgres "SELECT 1 FROM pg_roles WHERE rolname = 'buyer'")" ]] || fail "buyer is still there"
+[[ -z "$(pg postgres "SELECT 1 FROM pg_database WHERE datname = 'buyer'")" ]] || fail "the database buyer is still there"
+
 step "Catalog: MySQL runs with a password of its own, and phpMyAdmin signs in with it"
 catalog_install mysql
 mysql_db=$(catalog_container db)
@@ -3494,6 +3523,21 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("8.4")) a
   and ([.users[] | select(.name == "root" and .superuser)] | length >= 1)' <<<"$said" >/dev/null ||
   fail "MySQL says: $(jq -c '.readings' <<<"$said")"
 [[ "$said" != *"$password"* ]] || fail "what MySQL says of itself holds its password"
+
+step "Databases: a user in MySQL is a plan too, and signs in with what its secret is set to"
+db_id=$(jq -r '.id' <<<"$said")
+db_env=$(jq -r '.resource.scope' <<<"$said")
+planned=$(dw databases add-user "$db_id" --user seller --plan-only --json) || fail "planning a MySQL user failed: $planned"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null || fail "making the MySQL user failed"
+[[ "$(my "SELECT COUNT(*) FROM mysql.user WHERE User = 'seller' AND Host = '%'")" == 1 ]] || fail "MySQL has no user seller"
+[[ -n "$(my "SHOW DATABASES LIKE 'seller'")" ]] || fail "MySQL has no database seller"
+printf 'e2e-seller-password-3Wq8' >"$data/seller-password"
+dw secrets update SELLER_DATABASE_PASSWORD --environment "$db_env" --value-file "$data/seller-password" --yes >/dev/null ||
+  fail "setting seller's password anew failed"
+seller_says() { docker exec "$mysql_db" sh -c 'MYSQL_PWD=$1 exec mysql -useller -h127.0.0.1 -N -e "SELECT 40 + 2" seller' sh "$1" 2>&1; }
+[[ "$(seller_says e2e-seller-password-3Wq8)" == 42 ]] || fail "seller can't sign in with the secret's new value: $(seller_says e2e-seller-password-3Wq8)"
+[[ "$(seller_says not-the-password)" != 42 ]] || fail "seller signs in with any password"
+nothing_shows e2e-seller-password-3Wq8
 
 step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"
 catalog_install nginx-proxy-manager --values ADMIN_EMAIL=owner@example.com

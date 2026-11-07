@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	controlhealth "github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -451,7 +452,7 @@ func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error
 // is the panel's domain, which no route may claim. The firewall's driver comes
 // later.
 func controlKinds(domain string) *resource.Registry {
-	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{})
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &database.UserDriver{})
 }
 
 // openState opens the control plane's key, its state and its identity,

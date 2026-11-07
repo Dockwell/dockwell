@@ -1484,6 +1484,14 @@ msgstr "Add a port to {name}"
 msgid "Add a second way to sign in"
 msgstr "Add a second way to sign in"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Add a user"
+msgstr "Add a user"
+
+#: src/features/databases/AddUserSheet.tsx
+msgid "Add a user to {name}"
+msgstr "Add a user to {name}"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "Add a variable or secret to {envName}"
 msgstr "Add a variable or secret to {envName}"
@@ -2134,6 +2142,7 @@ msgstr "Can't sign in"
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/databases/AddUserSheet.tsx
 #: src/features/servers/SetPublicAddressSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Cancel"
@@ -2802,6 +2811,7 @@ msgstr "data taken out of use"
 msgid "database"
 msgstr "database"
 
+#: src/features/databases/AddUserSheet.tsx
 #: src/features/databases/DatabaseLayout.tsx
 #: src/features/databases/DatabasesPage.tsx
 #: src/features/databases/DatabaseUsers.tsx
@@ -3268,6 +3278,10 @@ msgstr "Dockwell made this change because of what failed"
 msgid "Dockwell made this change to roll back a failed one."
 msgstr "Dockwell made this change to roll back a failed one."
 
+#: src/features/databases/AddUserSheet.tsx
+msgid "Dockwell makes a password of 32 characters and keeps it in this secret, which an app uses by name. Nobody sees it unless they reveal it with a passkey."
+msgstr "Dockwell makes a password of 32 characters and keeps it in this secret, which an app uses by name. Nobody sees it unless they reveal it with a passkey."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
@@ -3391,6 +3405,7 @@ msgstr "Each server's own disk"
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
+#: src/features/databases/AddUserSheet.tsx
 msgid "Edit and try again"
 msgstr "Edit and try again"
 
@@ -4299,6 +4314,10 @@ msgstr "It's live with HTTPS"
 msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
 msgstr "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
 
+#: src/features/databases/AddUserSheet.tsx
+msgid "It's theirs, to do anything in."
+msgstr "It's theirs, to do anything in."
+
 #: src/features/servers/ServerCallout.tsx
 msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
 msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
@@ -5002,6 +5021,10 @@ msgstr "No app matches that. Try another word, or all categories."
 msgid "No app with this ID"
 msgstr "No app with this ID"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "No app yet"
+msgstr "No app yet"
+
 #: src/features/apps/AppsPage.tsx
 msgid "No apps yet"
 msgstr "No apps yet"
@@ -5226,6 +5249,10 @@ msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgid "Not loaded"
 msgstr "Not loaded"
 
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Not one of Dockwell's"
+msgstr "Not one of Dockwell's"
+
 #: src/features/apps/words.ts
 msgid "Not placed"
 msgstr "Not placed"
@@ -5265,6 +5292,7 @@ msgstr "Nothing changed on the servers. The page tries again by itself."
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
+#: src/features/databases/AddUserSheet.tsx
 msgid "Nothing changes until you apply the plan"
 msgstr "Nothing changes until you apply the plan"
 
@@ -5804,6 +5832,10 @@ msgstr "Passphrase"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Passphrase copied"
 msgstr "Passphrase copied"
+
+#: src/features/databases/DatabaseUsers.tsx
+msgid "Password in"
+msgstr "Password in"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Paste a Compose file to review its plan"
@@ -6559,6 +6591,7 @@ msgstr "Revealed the secret {name}"
 #: src/features/backups/PolicySheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
+#: src/features/databases/AddUserSheet.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Review plan"
 msgstr "Review plan"
@@ -6929,6 +6962,10 @@ msgstr "Secret"
 #: src/features/apps/AppEnvironment.tsx
 msgid "Secret {from}"
 msgstr "Secret {from}"
+
+#: src/features/databases/AddUserSheet.tsx
+msgid "Secret for the password"
+msgstr "Secret for the password"
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Secret key"
@@ -8351,6 +8388,10 @@ msgstr "This stopped before it changed anything on the server."
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "This stopped before it reached that, and Dockwell put back the rest."
 
+#: src/features/databases/AddUserSheet.tsx
+msgid "This user can't be planned"
+msgstr "This user can't be planned"
+
 #. placeholder {0}: said.database
 #: src/features/backups/BackUpSheet.tsx
 msgid "This uses {0}'s own dump, with the database running, so nothing stops. A dump restores on a newer version too."
@@ -8748,6 +8789,10 @@ msgstr "Use letters, digits and underscores, starting with a letter or an unders
 msgid "Use letters, digits and underscores, starting with a letter or underscore."
 msgstr "Use letters, digits and underscores, starting with a letter or underscore."
 
+#: src/features/databases/AddUserSheet.tsx
+msgid "Use letters, digits and underscores, starting with a letter, such as SHOP_DATABASE_PASSWORD."
+msgstr "Use letters, digits and underscores, starting with a letter, such as SHOP_DATABASE_PASSWORD."
+
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
@@ -8765,6 +8810,10 @@ msgstr "Use the dark theme"
 msgid "Use the light theme"
 msgstr "Use the light theme"
 
+#: src/features/databases/AddUserSheet.tsx
+msgid "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop."
+msgstr "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop."
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Used"
 msgstr "Used"
@@ -8778,6 +8827,7 @@ msgstr "used {0}"
 msgid "used {ago} from <0>{lastAddress}</0>"
 msgstr "used {ago} from <0>{lastAddress}</0>"
 
+#: src/features/databases/DatabaseUsers.tsx
 #: src/features/variables/VariablesPage.tsx
 msgid "Used by"
 msgstr "Used by"
@@ -8788,6 +8838,7 @@ msgid "user"
 msgstr "user"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/databases/AddUserSheet.tsx
 #: src/features/databases/DatabaseUsers.tsx
 msgid "User"
 msgstr "User"
@@ -9141,6 +9192,10 @@ msgstr "Which project is it for?"
 msgid "Who"
 msgstr "Who"
 
+#: src/features/databases/AddUserSheet.tsx
+msgid "Who signs in to {engine}. Their database takes this name too, unless you give it another."
+msgstr "Who signs in to {engine}. Their database takes this name too, unless you give it another."
+
 #: src/features/changes/words.ts
 msgid "whoever comes through {list}"
 msgstr "whoever comes through {list}"
@@ -9148,6 +9203,10 @@ msgstr "whoever comes through {list}"
 #: src/features/activity/ActivityPage.tsx
 msgid "Why it failed"
 msgstr "Why it failed"
+
+#: src/features/databases/AddUserSheet.tsx
+msgid "With a database of their own, and a password Dockwell makes"
+msgstr "With a database of their own, and a password Dockwell makes"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Without a volume, what it writes is lost when its container is replaced."

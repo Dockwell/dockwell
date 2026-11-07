@@ -3,6 +3,7 @@
 package database
 
 import (
+	"strings"
 	"testing"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -212,6 +213,47 @@ func TestRedisRefusesOnlyWithAnError(t *testing.T) {
 	for _, said := range []string{"NOAUTH Authentication required.", "(error) WRONGPASS invalid username-password pair or user is disabled.", "AUTH failed: WRONGPASS invalid username-password pair"} {
 		if !redisRefused(said) {
 			t.Errorf("%q doesn't read as refused", said)
+		}
+	}
+}
+
+func TestMakingAUserKeepsThePasswordOutOfWhatServersLog(t *testing.T) {
+	pg := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL)
+	sql, err := pg.make("shop", "shop", "a'pass\\word", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(sql, "pass") || !strings.Contains(sql, `CREATE ROLE "shop" LOGIN PASSWORD 'SCRAM-SHA-256$4096:`) || !strings.Contains(sql, `CREATE DATABASE "shop" OWNER "shop"`) {
+		t.Errorf("PostgreSQL is given %q", sql)
+	}
+	maria := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB)
+	sql, _ = maria.make("shop", "orders", "password", true)
+	if !strings.Contains(sql, "IDENTIFIED BY PASSWORD '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'") || strings.Contains(sql, "'password'") ||
+		!strings.Contains(sql, "GRANT ALL PRIVILEGES ON `orders`.* TO 'shop'@'%'") {
+		t.Errorf("MariaDB is given %q", sql)
+	}
+	mysql := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL)
+	sql, _ = mysql.make("shop", "shop", `it's\a`, false)
+	if !strings.Contains(sql, `ALTER USER 'shop'@'%' IDENTIFIED BY 'it\'s\\a'`) || !strings.HasPrefix(sql, "SET SESSION sql_mode = '';") {
+		t.Errorf("MySQL is given %q", sql)
+	}
+	if _, err := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS).make("shop", "shop", "x", true); err == nil {
+		t.Error("Redis makes a user")
+	}
+	if got := pg.drop("shop", "orders"); got != "DROP DATABASE IF EXISTS \"orders\" WITH (FORCE);\nDROP ROLE IF EXISTS \"shop\";\n" {
+		t.Errorf("PostgreSQL drops with %q", got)
+	}
+}
+
+func TestUserNamesAreOnesEveryEngineTakesAsTheyAre(t *testing.T) {
+	for _, ok := range []string{"shop", "a", "shop_2", "s23456789012345678901234567890ab"} {
+		if err := CheckSQLName("user", ok); err != nil {
+			t.Errorf("%q: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "Shop", "2shop", "shop-web", `shop"`, "shop'", "s234567890123456789012345678901ab", "_shop"} {
+		if CheckSQLName("user", bad) == nil {
+			t.Errorf("%q passes", bad)
 		}
 	}
 }
