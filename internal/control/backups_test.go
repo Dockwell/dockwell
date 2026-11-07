@@ -627,7 +627,9 @@ func testABackupOutlivesItsServerThroughADestination(t *testing.T, backend store
 	apply(t, c, planned)
 
 	// Setting what signs in always plans as a change, so a plan can't confirm a guess.
-	again := propose(t, c, "The same again", destinationEdit(bucket, secret))
+	same := destinationEdit(bucket, secret)
+	same.GetSpec().GetBackupDestination().Passphrase = ""
+	again := propose(t, c, "The same again", same)
 	if len(again.GetPlan().GetResources()) != 1 || again.GetPlan().GetResources()[0].GetAction() != dockwellv1.PlanAction_PLAN_ACTION_UPDATE {
 		t.Errorf("the same secret planned %v, so a plan confirms a guess", again.GetPlan().GetResources())
 	}

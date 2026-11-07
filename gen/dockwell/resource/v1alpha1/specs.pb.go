@@ -2017,6 +2017,8 @@ type BackupDestination struct {
 	SecretKey string `protobuf:"bytes,6,opt,name=secret_key,json=secretKey,proto3" json:"secret_key,omitempty"`
 	// What backups are encrypted with before they leave. Nothing but this opens them,
 	// and dockwell open-backup needs it: keep a copy somewhere that isn't this install.
+	// Set it when you add a destination, and leave it out of an update, which keeps it:
+	// an update that sets one is refused, as every copy there is sealed with it.
 	Passphrase    string `protobuf:"bytes,7,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

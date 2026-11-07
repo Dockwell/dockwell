@@ -183,11 +183,19 @@ type Backup struct {
 	Copy BackupCopy `protobuf:"varint,20,opt,name=copy,proto3,enum=dockwell.v1.BackupCopy" json:"copy,omitempty"`
 	// Why it isn't there, for people. Empty unless the copy failed.
 	CopyError string `protobuf:"bytes,21,opt,name=copy_error,json=copyError,proto3" json:"copy_error,omitempty"`
-	// True while its server has it, so it can be restored now. A backup on its
-	// destination alone has to be fetched first.
+	// True while it can be restored where it is: its server has it, is in the fleet and
+	// connected, and still has its volume. A backup that's stored has to be fetched
+	// otherwise.
 	OnServer bool `protobuf:"varint,22,opt,name=on_server,json=onServer,proto3" json:"on_server,omitempty"`
 	// Why it couldn't be fetched back, for people. Empty once it has been.
-	FetchError    string `protobuf:"bytes,23,opt,name=fetch_error,json=fetchError,proto3" json:"fetch_error,omitempty"`
+	FetchError string `protobuf:"bytes,23,opt,name=fetch_error,json=fetchError,proto3" json:"fetch_error,omitempty"`
+	// True when its copy won't open with what its destination has now, as the
+	// destination was removed, or removed and added again with another passphrase. Only
+	// the passphrase that sealed it opens it.
+	SealedEarlier bool `protobuf:"varint,24,opt,name=sealed_earlier,json=sealedEarlier,proto3" json:"sealed_earlier,omitempty"`
+	// The connected servers it can be fetched onto, by name: those its volume is on. Set
+	// for a stored backup that isn't on a server that can restore it now.
+	FetchOnto     []string `protobuf:"bytes,25,rep,name=fetch_onto,json=fetchOnto,proto3" json:"fetch_onto,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -381,6 +389,20 @@ func (x *Backup) GetFetchError() string {
 		return x.FetchError
 	}
 	return ""
+}
+
+func (x *Backup) GetSealedEarlier() bool {
+	if x != nil {
+		return x.SealedEarlier
+	}
+	return false
+}
+
+func (x *Backup) GetFetchOnto() []string {
+	if x != nil {
+		return x.FetchOnto
+	}
+	return nil
 }
 
 // BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
@@ -1557,7 +1579,7 @@ var File_dockwell_v1_backup_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/backup.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xaa\x06\n" +
+	"\x18dockwell/v1/backup.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf0\x06\n" +
 	"\x06Backup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x16\n" +
@@ -1588,7 +1610,10 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"copy_error\x18\x15 \x01(\tR\tcopyError\x12\x1b\n" +
 	"\ton_server\x18\x16 \x01(\bR\bonServer\x12\x1f\n" +
 	"\vfetch_error\x18\x17 \x01(\tR\n" +
-	"fetchError\"\xfd\x01\n" +
+	"fetchError\x12%\n" +
+	"\x0esealed_earlier\x18\x18 \x01(\bR\rsealedEarlier\x12\x1d\n" +
+	"\n" +
+	"fetch_onto\x18\x19 \x03(\tR\tfetchOnto\"\xfd\x01\n" +
 	"\x15BackupDestinationInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +

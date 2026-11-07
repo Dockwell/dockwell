@@ -172,17 +172,30 @@ func (Destination) New() proto.Message { return &resourcev1.BackupDestination{} 
 func (Destination) RotatesSensitive() {}
 
 // Keep holds on to a destination's passphrase, as every copy there was sealed with it,
-// and a new one would leave them all unopenable. It says the same whatever the edit
-// gave, so a plan never says whether a guess at it is right, as refusing a change would
-// (ADR 0022).
+// and a new one would leave them all unopenable. An edit that leaves it out keeps it. One
+// that gives one is refused, whatever it gives, so a refusal never says whether a guess
+// at it is right (ADR 0022).
 func (Destination) Keep(current, desired proto.Message) (resource.Kept, error) {
 	was, ok := current.(*resourcev1.BackupDestination)
 	is, same := desired.(*resourcev1.BackupDestination)
 	if !ok || !same {
 		return resource.Kept{}, nil
 	}
+	if is.GetPassphrase() != "" {
+		return resource.Kept{}, errors.New("a destination keeps the passphrase it was made with, as every copy there is sealed with it, so an update can't set one. Leave it out to keep it. To change it, remove the destination and add it again: copies already there then open only with the old passphrase, through dockwell open-backup or by adding it back with that one")
+	}
 	is.Passphrase = was.GetPassphrase()
-	return resource.Kept{Reason: "kept_passphrase", Words: "keeps the passphrase it was made with, as every copy there is sealed with it. To use another, add a destination under a new name"}, nil
+	return resource.Kept{Reason: "kept_passphrase", Words: "keeps the passphrase it was made with, as every copy there is sealed with it"}, nil
+}
+
+// CheckNew asks for a passphrase. An update can leave it out, which Keep fills in, so
+// Validate can't.
+func (Destination) CheckNew(spec proto.Message) error {
+	d := spec.(*resourcev1.BackupDestination) //nolint:forcetypeassert // Validate saw it
+	if len(d.GetPassphrase()) < minPassphrase {
+		return fmt.Errorf("a destination's passphrase needs at least %d characters, as it's all that keeps a backup from whoever holds the bucket. Let the panel make one, or use a long one of your own", minPassphrase)
+	}
+	return nil
 }
 
 // CheckName takes what fits in a URL.
@@ -203,8 +216,6 @@ func (Destination) Validate(spec proto.Message) error {
 		return errors.New("a destination needs a bucket")
 	case d.GetAccessKey() == "" || d.GetSecretKey() == "":
 		return errors.New("a destination needs an access key and its secret")
-	case len(d.GetPassphrase()) < minPassphrase:
-		return fmt.Errorf("a destination's passphrase needs at least %d characters, as it's all that keeps a backup from whoever holds the bucket. Let the panel make one, or use a long one of your own", minPassphrase)
 	}
 	d.Prefix = strings.Trim(d.GetPrefix(), "/")
 	if d.GetRegion() == "" {

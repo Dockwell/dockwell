@@ -3387,6 +3387,11 @@ msgstr "出现故障"
 msgid "Fetch"
 msgstr "取回"
 
+#. placeholder {0}: backup.volume
+#: src/features/backups/BackupsPage.tsx
+msgid "Fetch this backup of {0}"
+msgstr "取回 {0} 的这个备份"
+
 #: src/features/activity/describe.ts
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
@@ -4111,6 +4116,10 @@ msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器
 #: src/features/changes/notices.tsx
 msgid "its server"
 msgstr "它的服务器"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Its server can't restore this now: it's away, or no longer has the volume"
+msgstr "它所在的服务器现在无法恢复：服务器未连接，或已不再有该卷"
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its site"
@@ -5041,6 +5050,11 @@ msgstr "离线"
 msgid "On"
 msgstr "开启"
 
+#. placeholder {0}: b.destination
+#: src/features/backups/BackupsPage.tsx
+msgid "On {0}"
+msgstr "在 {0} 上"
+
 #: src/features/changes/words.ts
 msgid "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
 msgstr "在 {networks} 上，新容器通过检查之前，其他服务就可以通过其服务名称和 {names} 与旧容器一样访问到它，因为 Docker 无法在之后为容器添加名称"
@@ -5115,11 +5129,6 @@ msgstr "这里只显示了其中 {count} 项，你要找的可能不在其中。
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
 
-#. placeholder {0}: b.destination
-#: src/features/backups/BackupsPage.tsx
-msgid "Only on {0}"
-msgstr "仅在 {0} 上"
-
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "only on the server"
@@ -5136,6 +5145,10 @@ msgstr "只能通过你的 SSH 隧道访问，你的通行密钥也只在这里�
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
 msgstr "只能通过你的 SSH 隧道访问，你的通行密钥也只在这里可用。要在你自己的域名上使用 HTTPS，请先把它的 A 或 AAAA 记录指向这台服务器的公网地址，然后用 <0>--domain</0> 重启 dockwell。"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Onto"
+msgstr "取回到"
 
 #: src/features/catalog/CatalogPage.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -6373,6 +6386,10 @@ msgstr "备份计划"
 #: src/features/auth/TokensPanel.tsx
 msgid "Scope"
 msgstr "范围"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Sealed with an earlier passphrase"
+msgstr "使用较早的密码短语加密"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Search all the servers keep"
@@ -7687,6 +7704,10 @@ msgid "This removes it from {destination}, the last place that has it. Nothing b
 msgstr "这会将它从 {destination} 删除，那里是它最后所在的位置，删除后无法恢复。"
 
 #: src/features/backups/BackupsPage.tsx
+msgid "This removes it from the server's disk and from {destination}, where it was sealed with an earlier passphrase. Nothing brings it back."
+msgstr "这会将它从服务器磁盘和 {destination} 上删除，那里的副本是用较早的密码短语加密的。删除后无法恢复。"
+
+#: src/features/backups/BackupsPage.tsx
 msgid "This removes it from the server's disk and from {destination}. Nothing brings it back. Remove it from the server alone to keep it on {destination}, from where you can fetch it."
 msgstr "这会将它从服务器磁盘和 {destination} 上删除，删除后无法恢复。如果只从服务器移除，它会保留在 {destination} 上，之后可以取回。"
 
@@ -7782,6 +7803,11 @@ msgstr "项待创建"
 #: src/app/Providers.tsx
 msgid "to delete"
 msgstr "项待删除"
+
+#. placeholder {0}: b.volume
+#: src/features/backups/BackupsPage.tsx
+msgid "To fetch it, put {0} on a connected server first"
+msgstr "要取回它，请先将 {0} 部署到已连接的服务器上"
 
 #: src/app/Providers.tsx
 msgid "to move"

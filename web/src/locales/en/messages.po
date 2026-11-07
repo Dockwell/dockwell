@@ -3387,6 +3387,11 @@ msgstr "Failing"
 msgid "Fetch"
 msgstr "Fetch"
 
+#. placeholder {0}: backup.volume
+#: src/features/backups/BackupsPage.tsx
+msgid "Fetch this backup of {0}"
+msgstr "Fetch this backup of {0}"
+
 #: src/features/activity/describe.ts
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
@@ -4111,6 +4116,10 @@ msgstr "Its rollout order says to stop first, so there are never two"
 #: src/features/changes/notices.tsx
 msgid "its server"
 msgstr "its server"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Its server can't restore this now: it's away, or no longer has the volume"
+msgstr "Its server can't restore this now: it's away, or no longer has the volume"
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its site"
@@ -5041,6 +5050,11 @@ msgstr "Offline"
 msgid "On"
 msgstr "On"
 
+#. placeholder {0}: b.destination
+#: src/features/backups/BackupsPage.tsx
+msgid "On {0}"
+msgstr "On {0}"
+
 #: src/features/changes/words.ts
 msgid "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
 msgstr "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
@@ -5115,11 +5129,6 @@ msgstr "Only {count} of its items are here, so one you're after may be missing. 
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "Only a variable's value is hidden, so don't pass a secret there."
 
-#. placeholder {0}: b.destination
-#: src/features/backups/BackupsPage.tsx
-msgid "Only on {0}"
-msgstr "Only on {0}"
-
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
 msgid "only on the server"
@@ -5136,6 +5145,10 @@ msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTP
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
 msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Onto"
+msgstr "Onto"
 
 #: src/features/catalog/CatalogPage.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -6373,6 +6386,10 @@ msgstr "Schedules"
 #: src/features/auth/TokensPanel.tsx
 msgid "Scope"
 msgstr "Scope"
+
+#: src/features/backups/BackupsPage.tsx
+msgid "Sealed with an earlier passphrase"
+msgstr "Sealed with an earlier passphrase"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Search all the servers keep"
@@ -7687,6 +7704,10 @@ msgid "This removes it from {destination}, the last place that has it. Nothing b
 msgstr "This removes it from {destination}, the last place that has it. Nothing brings it back."
 
 #: src/features/backups/BackupsPage.tsx
+msgid "This removes it from the server's disk and from {destination}, where it was sealed with an earlier passphrase. Nothing brings it back."
+msgstr "This removes it from the server's disk and from {destination}, where it was sealed with an earlier passphrase. Nothing brings it back."
+
+#: src/features/backups/BackupsPage.tsx
 msgid "This removes it from the server's disk and from {destination}. Nothing brings it back. Remove it from the server alone to keep it on {destination}, from where you can fetch it."
 msgstr "This removes it from the server's disk and from {destination}. Nothing brings it back. Remove it from the server alone to keep it on {destination}, from where you can fetch it."
 
@@ -7782,6 +7803,11 @@ msgstr "to create"
 #: src/app/Providers.tsx
 msgid "to delete"
 msgstr "to delete"
+
+#. placeholder {0}: b.volume
+#: src/features/backups/BackupsPage.tsx
+msgid "To fetch it, put {0} on a connected server first"
+msgstr "To fetch it, put {0} on a connected server first"
 
 #: src/app/Providers.tsx
 msgid "to move"

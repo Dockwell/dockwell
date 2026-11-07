@@ -850,6 +850,12 @@ type Keeper interface {
 	Keep(current, desired proto.Message) (Kept, error)
 }
 
+// NewChecker is a kind that asks more of a new resource than Validate can of an edit,
+// where what an edit leaves out comes from what's there (Keeper).
+type NewChecker interface {
+	CheckNew(spec proto.Message) error
+}
+
 // Kept is what a Keeper kept: Reason names it, as a plan note's reason does, and
 // Words say it after the resource's name, such as "keeps the password it was made
 // with". Stays says why that can't go to a server that hasn't got it, and what to do

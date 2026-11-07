@@ -335,7 +335,7 @@ func (h *Handler) send(ctx context.Context, s *agentapi.Session, b store.Backup,
 		}
 		b.CopyError = told.Error
 	} else {
-		b.CopyKey, b.CopyBytes, b.SealedWith = got.GetKey(), got.GetStoredBytes(), h.sealedWith(destination)
+		b.CopyKey, b.CopyBytes, b.SealedWith = got.GetKey(), got.GetStoredBytes(), h.sealedWith(destination["passphrase"])
 	}
 	save := func(tx *store.Tx) error { return tx.SetBackupCopy(record, b) }
 	if action != "" {
@@ -462,9 +462,16 @@ func (h *Handler) ListBackups(ctx context.Context, req *connect.Request[dockwell
 			last := list[size-1]
 			out.NextPageToken = paging.Token(paging.Cursor{At: last.StartedAt, ID: last.ID})
 		}
-		look := h.names.In(ctx, tx)
+		f, err := h.facts(ctx, tx)
+		if err != nil {
+			return err
+		}
 		for i := range list {
-			out.Backups = append(out.Backups, h.protoIn(look, &list[i]))
+			row, err := h.protoIn(ctx, tx, f, &list[i])
+			if err != nil {
+				return err
+			}
+			out.Backups = append(out.Backups, row)
 		}
 		return nil
 	})
@@ -500,6 +507,13 @@ func (h *Handler) DeleteBackup(ctx context.Context, req *connect.Request[dockwel
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't on its server, so there's nothing to remove there", b.ID), "not_on_server")
 		case b.CopyKey == "":
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is only on its server, so removing it from there would lose it. Delete it instead", b.ID), "not_stored")
+		}
+		earlier, err := h.sealedEarlier(ctx, &b)
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		if earlier {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s was sealed with an earlier passphrase, so removing it from its server would leave only a copy Dockwell can't open. Add %s again with that passphrase first, or leave it on its server", b.ID, b.Destination), "sealed_earlier")
 		}
 	}
 	if b.State == store.BackupDone {
@@ -619,6 +633,15 @@ func (h *Handler) RestoreBackup(ctx context.Context, req *connect.Request[dockwe
 	if b.State != store.BackupDone {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is %s, so there's nothing to restore. Choose one that finished", b.ID, b.State), "not_restorable")
 	}
+	if b.CopyKey != "" {
+		can, err := h.restorable(ctx, &b)
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		if !can {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't on a server that can restore it now. Fetch it from %s onto a server that has %s, then restore it", b.ID, b.Destination, b.Volume), "fetch_first")
+		}
+	}
 	c, err := h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
 		ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
 		source := resource.RestoreSource{Backup: b.ID, Server: b.ServerID}
@@ -639,13 +662,130 @@ var states = map[string]dockwellv1.BackupState{
 func (h *Handler) proto(ctx context.Context, b store.Backup) (*dockwellv1.Backup, error) {
 	var out *dockwellv1.Backup
 	err := h.db.View(ctx, func(tx *store.Tx) error {
-		out = h.protoIn(h.names.In(ctx, tx), &b)
-		return nil
+		f, err := h.facts(ctx, tx)
+		if err != nil {
+			return err
+		}
+		out, err = h.protoIn(ctx, tx, f, &b)
+		return err
 	})
 	return out, err
 }
 
-func (h *Handler) protoIn(look actors.Lookup, b *store.Backup) *dockwellv1.Backup {
+// rowFacts is what a backup's row says beyond the backup, read once for a page of them.
+type rowFacts struct {
+	look actors.Lookup
+	// connected names the servers in the fleet that are connected now, by ID.
+	connected map[string]string
+	// sealing says what each destination seals with now, by name (sealedWith).
+	sealing map[string]string
+	// placed is the servers each volume read so far is on, by ID, and nil for one
+	// that's deleted.
+	placed map[string][]string
+}
+
+func (h *Handler) facts(ctx context.Context, tx *store.Tx) (*rowFacts, error) {
+	f := &rowFacts{look: h.names.In(ctx, tx), connected: map[string]string{}, sealing: map[string]string{}, placed: map[string][]string{}}
+	servers, err := tx.ListServers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range servers {
+		if _, ok := h.agents.Session(servers[i].ID); ok {
+			f.connected[servers[i].ID] = servers[i].Name
+		}
+	}
+	found, _, err := h.destinations(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for name, d := range found {
+		f.sealing[name] = h.sealedWith(d.GetPassphrase())
+	}
+	return f, nil
+}
+
+// opens says a backup's copy opens with what its destination has now. One that doesn't
+// is no way back for Dockwell, whatever the bucket holds.
+func (f *rowFacts) opens(b *store.Backup) bool {
+	return b.CopyKey != "" && b.SealedWith == f.sealing[b.Destination]
+}
+
+// placement is the servers a backup's volume is on, and nil once it's deleted.
+func (f *rowFacts) placement(ctx context.Context, tx *store.Tx, b *store.Backup) ([]string, error) {
+	if placed, ok := f.placed[b.VolumeID]; ok {
+		return placed, nil
+	}
+	var placed []string
+	r, err := tx.GetResourceByID(ctx, b.VolumeID)
+	switch {
+	case errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil:
+	case err != nil:
+		return nil, err
+	default:
+		if placed, err = tx.Placement(ctx, r.ID, r.Revision); err != nil {
+			return nil, err
+		}
+	}
+	f.placed[b.VolumeID] = placed
+	return placed, nil
+}
+
+// here says a backup can be restored where it is now: its server has it, is in the fleet
+// and connected, and still has its volume. What a volume that's deleted needs first, a
+// restore says itself.
+func (f *rowFacts) here(ctx context.Context, tx *store.Tx, b *store.Backup) (bool, error) {
+	if _, connected := f.connected[b.ServerID]; !connected || b.State != store.BackupDone || b.OffServer {
+		return false, nil
+	}
+	placed, err := f.placement(ctx, tx, b)
+	return placed == nil || slices.Contains(placed, b.ServerID), err
+}
+
+// onto names the connected servers a backup can be fetched onto: those its volume is on.
+func (f *rowFacts) onto(ctx context.Context, tx *store.Tx, b *store.Backup) ([]string, error) {
+	placed, err := f.placement(ctx, tx, b)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, server := range placed {
+		if name, ok := f.connected[server]; ok {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names, nil
+}
+
+// sealedEarlier says a backup's copy won't open with what its destination has now.
+func (h *Handler) sealedEarlier(ctx context.Context, b *store.Backup) (bool, error) {
+	var opens bool
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		f, err := h.facts(ctx, tx)
+		if err == nil {
+			opens = f.opens(b)
+		}
+		return err
+	})
+	return !opens, err
+}
+
+// restorable says a backup can be restored where it is now (rowFacts.here).
+func (h *Handler) restorable(ctx context.Context, b *store.Backup) (bool, error) {
+	var can bool
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		f, err := h.facts(ctx, tx)
+		if err != nil {
+			return err
+		}
+		can, err = f.here(ctx, tx, b)
+		return err
+	})
+	return can, err
+}
+
+func (h *Handler) protoIn(ctx context.Context, tx *store.Tx, f *rowFacts, b *store.Backup) (*dockwellv1.Backup, error) {
 	copied := dockwellv1.BackupCopy_BACKUP_COPY_UNSPECIFIED
 	switch {
 	case b.Destination == "" || b.State == store.BackupFailed:
@@ -656,12 +796,21 @@ func (h *Handler) protoIn(look actors.Lookup, b *store.Backup) *dockwellv1.Backu
 	default:
 		copied = dockwellv1.BackupCopy_BACKUP_COPY_PENDING
 	}
+	here, err := f.here(ctx, tx, b)
+	if err != nil {
+		return nil, err
+	}
 	out := &dockwellv1.Backup{
-		Destination: b.Destination, Copy: copied, CopyError: b.CopyError, OnServer: b.State == store.BackupDone && !b.OffServer,
-		FetchError: b.FetchError,
-		Id:         b.ID, EnvironmentId: b.EnvironmentID, Volume: b.Volume, VolumeId: b.VolumeID, ServerId: b.ServerID, ServerName: look.Name(b.ServerID),
+		Destination: b.Destination, Copy: copied, CopyError: b.CopyError, OnServer: here,
+		FetchError: b.FetchError, SealedEarlier: b.CopyKey != "" && !f.opens(b),
+		Id: b.ID, EnvironmentId: b.EnvironmentID, Volume: b.Volume, VolumeId: b.VolumeID, ServerId: b.ServerID, ServerName: f.look.Name(b.ServerID),
 		State: states[b.State], Method: resourcepb.BackupMethod(b.Method), Database: b.Database, SizeBytes: b.SizeBytes, Sha256: b.SHA256,
-		StartedAt: timestamppb.New(b.StartedAt), Actor: look.Actor(b.Actor), Error: b.Error, FilesChanged: b.FilesChanged, PolicyId: b.PolicyID,
+		StartedAt: timestamppb.New(b.StartedAt), Actor: f.look.Actor(b.Actor), Error: b.Error, FilesChanged: b.FilesChanged, PolicyId: b.PolicyID,
+	}
+	if b.CopyKey != "" && !here {
+		if out.FetchOnto, err = f.onto(ctx, tx, b); err != nil {
+			return nil, err
+		}
 	}
 	if b.FinishedAt != nil {
 		out.FinishedAt = timestamppb.New(*b.FinishedAt)
@@ -669,7 +818,7 @@ func (h *Handler) protoIn(look actors.Lookup, b *store.Backup) *dockwellv1.Backu
 	h.mu.Lock()
 	out.Progress = h.progress[b.ID] // a run's, and a send's or a fetch's after one
 	h.mu.Unlock()
-	return out
+	return out, nil
 }
 
 // agentError says what a server said, or that it's gone.

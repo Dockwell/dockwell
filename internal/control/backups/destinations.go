@@ -72,8 +72,8 @@ func (h *Handler) destination(ctx context.Context, name string) (map[string]stri
 // nothing of it without the install's key. A destination can go and come back under
 // its name with another passphrase, and this tells that from the one a copy needs. It
 // stays off the API, as a value anyone could compare would confirm a guess.
-func (h *Handler) sealedWith(destination map[string]string) string {
-	return hex.EncodeToString(h.keeper.Digest("backup passphrase", []byte(destination["passphrase"])))
+func (h *Handler) sealedWith(passphrase string) string {
+	return hex.EncodeToString(h.keeper.Digest("backup passphrase", []byte(passphrase)))
 }
 
 // ListBackupDestinations returns the destinations, and never what signs in to one.
@@ -180,7 +180,7 @@ func (h *Handler) fetch(s *agentapi.Session, b store.Backup, server string, dest
 	if err != nil {
 		action = ActionFetchFailed
 		told.Error, _ = resource.Explain(err)
-		if b.SealedWith != "" && b.SealedWith != h.sealedWith(destination) {
+		if b.SealedWith != "" && b.SealedWith != h.sealedWith(destination["passphrase"]) {
 			told.Error += ". This copy was sealed with the passphrase " + b.Destination + " had before, so today's can't open it. Add " + b.Destination + " again with that passphrase, or open the file with dockwell open-backup"
 		}
 	}

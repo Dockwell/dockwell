@@ -14,6 +14,7 @@ import {
   ChangeState,
   type CreateBackupRequest,
   type DeleteBackupRequest,
+  type FetchBackupRequest,
   PlanAction,
   PreviewBackupResponseSchema,
   type ProposeChangeRequest,
@@ -529,13 +530,13 @@ describe("the backups page", () => {
 
   it("fetches a backup its server lost, and offers no restore until then", async () => {
     const user = userEvent.setup();
-    const fetched = vi.fn(() => ({ backup: aBackup() }));
+    const fetched = vi.fn((_: FetchBackupRequest) => ({ backup: aBackup() }));
     renderAt(
       "/backups",
       api([aBackup()], {
         backups: {
           listBackups: () => ({
-            backups: [aBackup({ onServer: false, destination: "r2", copy: BackupCopy.STORED })],
+            backups: [aBackup({ onServer: false, destination: "r2", copy: BackupCopy.STORED, fetchOnto: ["hz-2"] })],
           }),
           listBackupPolicies: () => ({}),
           listBackupDestinations: () => ({}),
@@ -545,8 +546,51 @@ describe("the backups page", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Fetch" }));
     await waitFor(() => expect(fetched).toHaveBeenCalled());
+    expect(fetched.mock.calls[0]?.[0]).toMatchObject({ id: "bkp_1", server: "hz-2" });
     expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
-    expect(screen.getByText("Only on r2")).toBeVisible();
+    expect(screen.getByText("On r2")).toBeVisible();
+  });
+
+  it("asks which server to fetch onto, where its volume is on several", async () => {
+    const user = userEvent.setup();
+    const fetched = vi.fn((_: FetchBackupRequest) => ({ backup: aBackup() }));
+    const b = aBackup({ onServer: false, destination: "r2", copy: BackupCopy.STORED, fetchOnto: ["hz-2", "hz-3"] });
+    renderAt("/backups", copies([b], { fetchBackup: fetched }));
+    await user.click(await screen.findByRole("button", { name: "Fetch" }));
+    const sheet = await screen.findByRole("dialog", { name: /Fetch this backup/ });
+    expect(fetched).not.toHaveBeenCalled();
+    await user.selectOptions(within(sheet).getByLabelText("Onto"), "hz-3");
+    await user.click(within(sheet).getByRole("button", { name: "Fetch" }));
+    await waitFor(() => expect(fetched).toHaveBeenCalled());
+    expect(fetched.mock.calls[0]?.[0]).toMatchObject({ id: "bkp_1", server: "hz-3" });
+  });
+
+  it("says what's needed when no server can take it", async () => {
+    renderAt("/backups", copies([aBackup({ onServer: false, destination: "r2", copy: BackupCopy.STORED })]));
+    expect(await screen.findByText("To fetch it, put orders on a connected server first")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Fetch" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+  });
+
+  it("says when only a server that can't be reached has it", async () => {
+    renderAt("/backups", copies([aBackup({ onServer: false })]));
+    expect(await screen.findByText(/Its server can't restore this now/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+  });
+
+  it("marks a copy only an earlier passphrase opens, and keeps the server's", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      copies([aBackup({ destination: "r2", copy: BackupCopy.STORED, sealedEarlier: true })], {
+        deleteBackup: () => ({}),
+      }),
+    );
+    expect(await screen.findByText("Sealed with an earlier passphrase")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Delete this backup" }));
+    const sheet = await screen.findByRole("dialog", { name: /Delete this backup/ });
+    expect(within(sheet).getByText(/where it was sealed with an earlier passphrase/)).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: "Remove from the server only" })).toBeNull();
   });
 
   it("offers a restore while its server has it, and no fetch", async () => {

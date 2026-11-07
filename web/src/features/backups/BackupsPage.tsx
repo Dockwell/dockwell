@@ -9,6 +9,7 @@ import {
   Callout,
   Panel,
   PHONE_QUERY,
+  SelectField,
   Sheet,
   StatusBadge,
   Table,
@@ -51,6 +52,7 @@ export function BackupsPage() {
   const [taking, setTaking] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [deleting, setDeleting] = useState<Backup>();
+  const [choosing, setChoosing] = useState<Backup>();
   const [bringBackFailure, setBringBackFailure] = useState<string>();
   const queries = useQueryClient();
   const backups = query.data?.backups ?? [];
@@ -60,10 +62,11 @@ export function BackupsPage() {
   const restore = (backup: Backup) => {
     sheet.open({ kind: "plan", make: () => client.restoreBackup({ id: backup.id }) });
   };
-  const bringBack = async (backup: Backup) => {
+  const bringBack = async (backup: Backup, server: string) => {
+    setChoosing(undefined);
     setBringBackFailure(undefined);
     try {
-      await client.fetchBackup({ id: backup.id });
+      await client.fetchBackup({ id: backup.id, server });
       await queries.invalidateQueries({
         queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
       });
@@ -112,7 +115,7 @@ export function BackupsPage() {
           <BackupsList
             backups={backups}
             onRestore={restore}
-            onFetch={(b) => void bringBack(b)}
+            onFetch={(b) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""))}
             onDelete={setDeleting}
           />
         </>
@@ -124,6 +127,13 @@ export function BackupsPage() {
         <PolicySheet volumes={volumes} destinations={destinations} onClose={() => setScheduling(false)} />
       ) : null}
       {deleting ? <DeleteSheet backup={deleting} client={client} onClose={() => setDeleting(undefined)} /> : null}
+      {choosing ? (
+        <FetchSheet
+          backup={choosing}
+          onFetch={(server) => void bringBack(choosing, server)}
+          onClose={() => setChoosing(undefined)}
+        />
+      ) : null}
     </Page>
   );
 }
@@ -162,7 +172,14 @@ function BackupsList({
       {b.state === BackupState.FAILED ? <span className="backup-why">{b.error}</span> : null}
       {b.progress ? <span className="backup-why">{b.progress}</span> : null}
       {b.copy === BackupCopy.STORED ? (
-        <span className="backup-why">{b.onServer ? t`Also on ${b.destination}` : t`Only on ${b.destination}`}</span>
+        <span className="backup-why">{b.onServer ? t`Also on ${b.destination}` : t`On ${b.destination}`}</span>
+      ) : null}
+      {b.sealedEarlier ? <span className="backup-why">{t`Sealed with an earlier passphrase`}</span> : null}
+      {b.state === BackupState.DONE && !b.onServer && b.copy !== BackupCopy.STORED ? (
+        <span className="backup-why">{t`Its server can't restore this now: it's away, or no longer has the volume`}</span>
+      ) : null}
+      {b.copy === BackupCopy.STORED && !b.onServer && b.fetchOnto.length === 0 ? (
+        <span className="backup-why">{t`To fetch it, put ${b.volume} on a connected server first`}</span>
       ) : null}
       {b.fetchError ? <span className="backup-why">{t`It couldn't be fetched: ${b.fetchError}`}</span> : null}
       {b.copy === BackupCopy.PENDING ? <span className="backup-why">{t`Sending to ${b.destination}`}</span> : null}
@@ -187,7 +204,7 @@ function BackupsList({
             <Trans>Restore</Trans>
           </Button>
         ) : null}
-        {b.copy === BackupCopy.STORED && !b.onServer ? (
+        {b.copy === BackupCopy.STORED && !b.onServer && b.fetchOnto.length > 0 ? (
           <Button size="sm" variant="ghost" onClick={() => onFetch(b)}>
             <Trans>Fetch</Trans>
           </Button>
@@ -254,6 +271,46 @@ function BackupsList({
 }
 
 /** Deleting a backup can't be taken back, so it asks. */
+/** Asks which server to fetch a backup onto, where its volume is on several. */
+function FetchSheet({
+  backup,
+  onFetch,
+  onClose,
+}: {
+  backup: Backup;
+  onFetch: (server: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useLingui();
+  const [server, setServer] = useState(backup.fetchOnto[0] ?? "");
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={t`Fetch this backup of ${backup.volume}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button variant="primary" onClick={() => onFetch(server)}>
+            <Trans>Fetch</Trans>
+          </Button>
+        </>
+      }
+    >
+      <div className="backup-sheet">
+        <SelectField
+          label={t`Onto`}
+          value={server}
+          options={backup.fetchOnto.map((name) => ({ value: name, label: name }))}
+          onChange={(event) => setServer(event.target.value)}
+        />
+      </div>
+    </Sheet>
+  );
+}
+
 function DeleteSheet({
   backup,
   client,
@@ -270,6 +327,8 @@ function DeleteSheet({
   const failed = backup.state === BackupState.FAILED;
   const stored = backup.copy === BackupCopy.STORED;
   const destination = backup.destination;
+  // A copy only an earlier passphrase opens is no way back, so the server's has to stay.
+  const canKeep = stored && backup.onServer && !backup.sealedEarlier;
   const remove = async (serverOnly: boolean) => {
     setBusy(true);
     setFailure(undefined);
@@ -294,7 +353,7 @@ function DeleteSheet({
           <Button variant="secondary" onClick={onClose}>
             <Trans>Cancel</Trans>
           </Button>
-          {stored && backup.onServer ? (
+          {canKeep ? (
             <Button variant="secondary" loading={busy} onClick={() => void remove(true)}>
               <Trans>Remove from the server only</Trans>
             </Button>
@@ -309,10 +368,15 @@ function DeleteSheet({
         <p className="backup-sheet-line">
           {failed ? (
             <Trans>This backup failed, so nothing is on the server. This removes the record of it.</Trans>
-          ) : stored && backup.onServer ? (
+          ) : canKeep ? (
             <Trans>
               This removes it from the server's disk and from {destination}. Nothing brings it back. Remove it from the
               server alone to keep it on {destination}, from where you can fetch it.
+            </Trans>
+          ) : stored && backup.onServer ? (
+            <Trans>
+              This removes it from the server's disk and from {destination}, where it was sealed with an earlier
+              passphrase. Nothing brings it back.
             </Trans>
           ) : stored ? (
             <Trans>This removes it from {destination}, the last place that has it. Nothing brings it back.</Trans>

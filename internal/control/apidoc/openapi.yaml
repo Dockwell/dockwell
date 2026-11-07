@@ -2914,11 +2914,25 @@ components:
                 onServer:
                     type: boolean
                     description: |-
-                        True while its server has it, so it can be restored now. A backup on its
-                         destination alone has to be fetched first.
+                        True while it can be restored where it is: its server has it, is in the fleet and
+                         connected, and still has its volume. A backup that's stored has to be fetched
+                         otherwise.
                 fetchError:
                     type: string
                     description: Why it couldn't be fetched back, for people. Empty once it has been.
+                sealedEarlier:
+                    type: boolean
+                    description: |-
+                        True when its copy won't open with what its destination has now, as the
+                         destination was removed, or removed and added again with another passphrase. Only
+                         the passphrase that sealed it opens it.
+                fetchOnto:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The connected servers it can be fetched onto, by name: those its volume is on. Set
+                         for a stored backup that isn't on a server that can restore it now.
             description: Backup is one backup of one volume.
         BackupDestination:
             type: object
@@ -2948,6 +2962,8 @@ components:
                     description: |-
                         What backups are encrypted with before they leave. Nothing but this opens them,
                          and dockwell open-backup needs it: keep a copy somewhere that isn't this install.
+                         Set it when you add a destination, and leave it out of an update, which keeps it:
+                         an update that sets one is refused, as every copy there is sealed with it.
             description: |-
                 BackupDestination is S3-compatible storage that backups go to as well as the
                  server's disk, so they outlive it: Amazon S3, Cloudflare R2, Backblaze B2, MinIO

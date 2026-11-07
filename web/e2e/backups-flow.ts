@@ -111,6 +111,20 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   if (!(await review.isDisabled())) fail("a destination goes ahead with no word that its passphrase is kept");
   const passphrase = (await adding.locator(".backup-passphrase span").allInnerTexts()).join("");
   if (passphrase.length < 32) fail(`a destination's passphrase reads as ${passphrase.length} characters`);
+  // Copied by hand, it has to be what the button copies, with no line break in it.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const selected = await adding.locator(".backup-passphrase").evaluate(async (code) => {
+    const selection = window.getSelection();
+    selection?.selectAllChildren(code);
+    document.execCommand("copy");
+    selection?.removeAllRanges();
+    return navigator.clipboard.readText();
+  });
+  await adding.getByRole("button", { name: "Copy the passphrase" }).click();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  if (selected !== copied || copied !== passphrase) {
+    fail(`a passphrase selected by hand reads ${JSON.stringify(selected)}, and Copy gives ${JSON.stringify(copied)}`);
+  }
   await adding.getByLabel("I've kept a copy of the passphrase").check();
   await shoot(page, "backups-destination");
   await review.click();

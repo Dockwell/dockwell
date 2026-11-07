@@ -1509,7 +1509,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "prefix", Help: "What each object's name starts with, such as \"dockwell\". Empty uses the bucket from the top."},
 				{Path: "access_key", Help: "The access key's ID.", Sensitive: true},
 				{Path: "secret_key", Help: "The access key's secret.", Sensitive: true},
-				{Path: "passphrase", Help: "What backups are encrypted with before they leave. Nothing but this opens them, and dockwell open-backup needs it: keep a copy somewhere that isn't this install.", Sensitive: true},
+				{Path: "passphrase", Help: "What backups are encrypted with before they leave. Nothing but this opens them, and dockwell open-backup needs it: keep a copy somewhere that isn't this install. Set it when you add a destination, and leave it out of an update, which keeps it: an update that sets one is refused, as every copy there is sealed with it.", Sensitive: true},
 			},
 		},
 	}

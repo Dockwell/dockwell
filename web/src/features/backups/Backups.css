@@ -153,12 +153,16 @@
   }
 }
 
+/* Inline, as a flex item copies with a line break after it. */
 .backup-passphrase {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--space-2);
+  display: block;
   margin: var(--space-2) 0;
   user-select: all;
+}
+
+.backup-passphrase span {
+  display: inline-block;
+  margin-inline-end: var(--space-2);
 }
 
 .backup-saved {

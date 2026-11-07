@@ -1073,6 +1073,13 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
 					}
 				}
+				if t, err := e.kinds.Type(ed.Ref.Kind); it.current == nil && err == nil {
+					if c, ok := t.(resource.NewChecker); ok {
+						if err := c.CheckNew(it.spec); err != nil {
+							return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
+						}
+					}
+				}
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
 				}

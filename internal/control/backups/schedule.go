@@ -223,9 +223,13 @@ func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup
 		return
 	}
 	var all []store.Backup
+	var f *rowFacts
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
-		all, err = tx.ListBackups(ctx, store.BackupFilter{PolicyID: b.PolicyID, ServerID: b.ServerID})
+		if all, err = tx.ListBackups(ctx, store.BackupFilter{PolicyID: b.PolicyID, ServerID: b.ServerID}); err != nil {
+			return err
+		}
+		f, err = h.facts(ctx, tx)
 		return err
 	})
 	if err != nil {
@@ -247,18 +251,22 @@ func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup
 			continue
 		}
 		if old.State == store.BackupDone {
-			here, there := !old.OffServer, old.CopyKey != ""
+			here, there, opens := !old.OffServer, old.CopyKey != "", f.opens(old)
 			if here && kept < keep {
 				kept++
-				if there {
+				if opens {
 					stored++
 				}
 				continue
 			}
+			// A copy sealed with an earlier passphrase counts for nothing, and is no
+			// reason to give up the server's.
 			if there && stored < keep {
-				stored++
-				if here {
-					h.offServer(ctx, s, old)
+				if opens {
+					stored++
+					if here {
+						h.offServer(ctx, s, old)
+					}
 				}
 				continue
 			}
@@ -302,7 +310,10 @@ func (h *Handler) ListBackupPolicies(ctx context.Context, _ *connect.Request[doc
 		if err != nil {
 			return err
 		}
-		look := h.names.In(ctx, tx)
+		f, err := h.facts(ctx, tx)
+		if err != nil {
+			return err
+		}
 		for i := range list {
 			p := &list[i]
 			info := &dockwellv1.BackupPolicyInfo{Id: p.id, Name: p.name, EnvironmentId: p.environment, Spec: p.spec}
@@ -314,7 +325,9 @@ func (h *Handler) ListBackupPolicies(ctx context.Context, _ *connect.Request[doc
 			for j := range backups {
 				b := &backups[j]
 				if j == 0 {
-					info.Last = h.protoIn(look, b)
+					if info.Last, err = h.protoIn(ctx, tx, f, b); err != nil {
+						return err
+					}
 					if b.StartedAt.After(since) {
 						since = b.StartedAt
 					}

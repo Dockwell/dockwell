@@ -44,8 +44,8 @@ type Backup struct {
 	CopyKey     string
 	CopyBytes   int64
 	CopyError   string
-	// OffServer says its server no longer has it, as retention or a person removed
-	// it there, or the server went.
+	// OffServer says retention or a person removed it from its server. A server that's
+	// gone or away is read from the fleet instead, so its backups come back with it.
 	OffServer bool
 	// SealedWith is a keyed hash of the passphrase its copy was sealed with, which says
 	// whether a destination of that name still has it, and nothing of what it is.

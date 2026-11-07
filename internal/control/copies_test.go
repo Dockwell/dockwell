@@ -11,6 +11,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/backup/s3/s3test"
@@ -304,7 +305,11 @@ func testAServersCopyCanGoAndTheDestinationsStays(t *testing.T, backend store.Ba
 	if s.said(t, "backup.server_copy_removed") == nil {
 		t.Error("Activity doesn't say it left its server")
 	}
-	_, err := s.bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: b.GetId(), ServerOnly: true}))
+	_, err := s.bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: b.GetId()}))
+	if err == nil || !strings.Contains(err.Error(), "Fetch it from r2") {
+		t.Errorf("restoring what left its server = %v", err)
+	}
+	_, err = s.bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: b.GetId(), ServerOnly: true}))
 	if err == nil || !strings.Contains(err.Error(), "isn't on its server") {
 		t.Errorf("removing it from there twice = %v", err)
 	}
@@ -420,14 +425,33 @@ func TestAScheduleWhoseDestinationWentKeepsBackingUp(t *testing.T) {
 	}
 }
 
-// A destination keeps its passphrase through an update, as what's there was sealed
-// with it. The plan says so, whatever the edit gave, and what's there stays readable.
-// One added again under the name has one of its own, and a copy says which it needs.
+// A destination keeps its passphrase through an update, as what's there was sealed with
+// it. Leaving it out keeps it, and the plan says so. Giving one is refused in the same
+// words whatever it gives, so a refusal says nothing of a guess.
 func TestAPassphraseOutlivesAnUpdate(t *testing.T) {
 	s := startSending(t, store.SQLite)
 	b := s.sent(t)
+	giving := func(passphrase string) string {
+		edit := destinationEdit(s.bucket, "a-new-secret")
+		edit.Spec.GetBackupDestination().Passphrase = passphrase
+		_, err := s.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Change it", Edits: []*dockwellv1.Edit{edit}}))
+		if err == nil {
+			t.Fatalf("an update that gives a passphrase planned")
+		}
+		return err.Error()
+	}
+	right, wrong := giving("a long passphrase of our own"), giving("a different passphrase altogether")
+	if right != wrong {
+		t.Errorf("a refusal tells a right passphrase from a wrong one: %q, %q", right, wrong)
+	}
+	for _, want := range []string{"an update can't set one", "remove the destination and add it again", "open only with the old passphrase"} {
+		if !strings.Contains(right, want) {
+			t.Errorf("the refusal says %q, with no %q", right, want)
+		}
+	}
+
 	edit := destinationEdit(s.bucket, "a-new-secret")
-	edit.Spec.GetBackupDestination().Passphrase = "a different passphrase altogether"
+	edit.Spec.GetBackupDestination().Passphrase = ""
 	planned := propose(t, s.c, "Rotate the keys", edit)
 	if notes := planned.GetPlan().GetNotes(); !slices.ContainsFunc(notes, func(n *dockwellv1.PlanNote) bool {
 		return n.GetReason() == "kept_passphrase" && strings.Contains(n.GetMessage(), "r2 keeps the passphrase")
@@ -440,20 +464,223 @@ func TestAPassphraseOutlivesAnUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	eventually(t, "it to come back", func() bool { return s.said(t, "backup.fetched") != nil })
-	if got := s.get(t, b.GetId()); got.GetFetchError() != "" {
-		t.Fatalf("after keeping its passphrase = %q", got.GetFetchError())
+	if got := s.get(t, b.GetId()); got.GetFetchError() != "" || got.GetSealedEarlier() {
+		t.Fatalf("after keeping its passphrase = %v", got)
+	}
+}
+
+// addAgain removes r2 and adds it with another passphrase.
+func (s *sendingTo) addAgain(t *testing.T) {
+	t.Helper()
+	apply(t, s.c, propose(t, s.c, "Delete it", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.DestinationKind), Name: "r2"}, Delete: true}))
+	edit := destinationEdit(s.bucket, "a-new-secret")
+	edit.Spec.GetBackupDestination().Passphrase = "a different passphrase altogether"
+	apply(t, s.c, propose(t, s.c, "Add it again", edit))
+}
+
+// A new destination needs a passphrase, including one added again under a name that's
+// been used. Only an update can leave it out.
+func TestANewDestinationNeedsAPassphrase(t *testing.T) {
+	s := startSending(t, store.SQLite)
+	apply(t, s.c, propose(t, s.c, "Delete it", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.DestinationKind), Name: "r2"}, Delete: true}))
+	for _, passphrase := range []string{"", "too short"} {
+		edit := destinationEdit(s.bucket, "a-secret")
+		edit.Spec.GetBackupDestination().Passphrase = passphrase
+		_, err := s.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Add it", Edits: []*dockwellv1.Edit{edit}}))
+		if err == nil || !strings.Contains(err.Error(), "at least 16 characters") {
+			t.Errorf("a new destination with the passphrase %q = %v", passphrase, err)
+		}
+	}
+}
+
+// A copy added again with another passphrase is marked, and can't be what's left: it's
+// refused by hand, and retention leaves the server's copy too. Fetching it says why not.
+func TestACopyOnlyAnEarlierPassphraseOpensIsNoWayBack(t *testing.T) {
+	s := startSending(t, store.SQLite)
+	s.schedule(t, 1)
+	h, now := s.f.server.backups, time.Now()
+	day(t, h, now, 1)
+	b := doneOf(backupsOf(t, s.bc))[0]
+	if b.GetSealedEarlier() || b.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_STORED {
+		t.Fatalf("a copy its destination opens = %v", b)
+	}
+	s.addAgain(t)
+	if got := s.get(t, b.GetId()); !got.GetSealedEarlier() {
+		t.Errorf("a copy sealed with an earlier passphrase = %v", got)
+	}
+	_, err := s.bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: b.GetId(), ServerOnly: true}))
+	if err == nil || !strings.Contains(err.Error(), "sealed with an earlier passphrase") || !strings.Contains(err.Error(), "Add r2 again with that passphrase") {
+		t.Errorf("leaving only a copy nothing opens = %v", err)
+	}
+	if !s.get(t, b.GetId()).GetOnServer() {
+		t.Fatal("the server's copy went")
 	}
 
+	// The next copy can't get there, so this is still the newest on the bucket.
+	s.bucket.Refuse, s.bucket.RefuseOnly = "AccessDenied", http.MethodPost
+	day(t, h, now, 2)
+	if got := s.get(t, b.GetId()); !got.GetOnServer() {
+		t.Errorf("retention took the server's copy of what only an earlier passphrase opens: %v", got)
+	}
+
+	// Removed for good, it's no way back either.
+	apply(t, s.c, propose(t, s.c, "Delete it", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.DestinationKind), Name: "r2"}, Delete: true}))
+	_, err = s.bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: b.GetId(), ServerOnly: true}))
+	if err == nil || !strings.Contains(err.Error(), "sealed with an earlier passphrase") {
+		t.Errorf("with its destination gone = %v", err)
+	}
+}
+
+// A fetch that needs an earlier passphrase says so.
+func TestAFetchSaysItNeedsAnEarlierPassphrase(t *testing.T) {
+	s := startSending(t, store.SQLite)
+	b := s.sent(t)
 	s.lost(t, b)
-	gone := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.DestinationKind), Name: "r2"}, Delete: true}
-	apply(t, s.c, propose(t, s.c, "Delete it", gone))
-	apply(t, s.c, propose(t, s.c, "Add it again", edit))
+	s.addAgain(t)
 	if _, err := s.bc.FetchBackup(t.Context(), connect.NewRequest(&dockwellv1.FetchBackupRequest{Id: b.GetId()})); err != nil {
 		t.Fatal(err)
 	}
 	eventually(t, "the fetch to fail", func() bool { return s.get(t, b.GetId()).GetFetchError() != "" })
 	if got := s.get(t, b.GetId()).GetFetchError(); !strings.Contains(got, "sealed with the passphrase r2 had before") {
 		t.Errorf("a copy that needs another passphrase says %q", got)
+	}
+}
+
+// place puts web and its volume on these servers, by ID.
+func (s *sendingTo) place(t *testing.T, servers ...string) {
+	t.Helper()
+	web := runImage("ghcr.io/acme/shop:1.4")
+	web.GetSpec().GetService().GetApp().Mounts = []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/srv/data"}}
+	web.Servers = servers
+	data := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(volume.Kind), Name: "data"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{}}},
+		Servers:  servers,
+	}
+	applyConfirmed(t, s.c, propose(t, s.c, "Run web there", web, data))
+}
+
+// A server that's removed takes its disk with it. Its backups read as gone from there,
+// restoring one says what to do, and once a new server has the volume, the backup comes
+// back through its destination.
+func TestARemovedServersBackupComesBackThroughItsDestination(t *testing.T) {
+	storetest.Each(t, testARemovedServersBackupComesBackThroughItsDestination)
+}
+
+func testARemovedServersBackupComesBackThroughItsDestination(t *testing.T, backend store.Backend) {
+	s := startSending(t, backend)
+	b := s.sent(t)
+	first := s.f.lastDocker
+	if err := s.f.ident.Revoke(t.Context(), first.id.ServerID, "cli:test"); err != nil {
+		t.Fatal(err)
+	}
+	first.stop()
+	waitConnected(t, s.f, first.id.ServerID, false)
+	e := s.f.addServerNamed(t, "hz-2", nil, nil)
+	second := s.f.lastDocker
+	second.backups.HTTP = s.bucket.Client()
+	waitConnected(t, s.f, second.id.ServerID, true)
+
+	got := s.get(t, b.GetId())
+	if got.GetOnServer() || got.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_STORED || len(got.GetFetchOnto()) != 0 {
+		t.Fatalf("with its server removed and no other with the volume = %v", got)
+	}
+	want := "Fetch it from r2 onto a server that has data, then restore it"
+	if _, err := s.bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: b.GetId()})); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("restoring it = %v", err)
+	}
+
+	s.place(t, second.id.ServerID)
+	if got := s.get(t, b.GetId()).GetFetchOnto(); !slices.Equal(got, []string{"hz-2"}) {
+		t.Fatalf("it can be fetched onto %v", got)
+	}
+	if _, err := s.bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: b.GetId()})); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("restoring it before it's fetched = %v", err)
+	}
+	if _, err := s.bc.FetchBackup(t.Context(), connect.NewRequest(&dockwellv1.FetchBackupRequest{Id: b.GetId(), Server: "hz-2"})); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "it to come back", func() bool { return s.get(t, b.GetId()).GetOnServer() })
+	if got := s.get(t, b.GetId()); got.GetServerName() != "hz-2" || len(got.GetFetchOnto()) != 0 {
+		t.Errorf("once it's fetched = %v", got)
+	}
+	ref := resource.Ref{Kind: volume.Kind, Scope: b.GetEnvironmentId(), Name: "data"}
+	dir := e.VolumeDir(volume.TargetOf(ref).Name)
+	writeData(t, dir, "orders.db", "not the orders")
+	restore, err := s.bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: b.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := restore.Msg.GetChange()
+	w := watch(t, s.c, ch.GetId())
+	if _, err := s.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()})); err != nil {
+		t.Fatal(err)
+	}
+	if end := waitWatch(t, w).last(); end.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the restore ended %v: %v", end.GetState(), end.GetError())
+	}
+	if got := readData(t, dir, "orders.db"); got != "the orders" {
+		t.Errorf("orders.db on hz-2 = %q", got)
+	}
+}
+
+// A volume that moved leaves its backups on a server that can't restore them, however
+// connected that is. What's stored comes back onto where the volume is now.
+func TestABackupOfAVolumeThatMovedCanBeFetchedAfterIt(t *testing.T) {
+	s := startSending(t, store.SQLite)
+	b := s.sent(t)
+	s.f.addServerNamed(t, "hz-2", nil, nil)
+	second := s.f.lastDocker
+	second.backups.HTTP = s.bucket.Client()
+	waitConnected(t, s.f, second.id.ServerID, true)
+	s.place(t, second.id.ServerID)
+	got := s.get(t, b.GetId())
+	if got.GetOnServer() || !slices.Equal(got.GetFetchOnto(), []string{"hz-2"}) {
+		t.Errorf("with its volume moved = %v", got)
+	}
+	if _, err := s.bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: b.GetId()})); err == nil || !strings.Contains(err.Error(), "Fetch it from r2") {
+		t.Errorf("restoring it = %v", err)
+	}
+}
+
+// A server that's away, and not removed, reads the same: what it holds can't be restored
+// now, and what's stored can come back onto a server that's there.
+func TestABackupOfAServerThatsAwayCanBeFetchedOntoAnother(t *testing.T) {
+	s := startSending(t, store.SQLite)
+	b := s.sent(t)
+	first := s.f.lastDocker
+	s.f.addServerNamed(t, "hz-2", nil, nil)
+	second := s.f.lastDocker
+	second.backups.HTTP = s.bucket.Client()
+	waitConnected(t, s.f, second.id.ServerID, true)
+	s.place(t, first.id.ServerID, second.id.ServerID)
+
+	local, err := s.bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: s.volumeID, Server: "hz-1"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := waitBackup(t, s.bc, local.Msg.GetBackup().GetId()); !got.GetOnServer() {
+		t.Fatalf("a backup on a connected server = %v", got)
+	}
+	if got := s.get(t, b.GetId()); !got.GetOnServer() || len(got.GetFetchOnto()) != 0 {
+		t.Fatalf("with its server connected = %v", got)
+	}
+	first.stop()
+	waitConnected(t, s.f, first.id.ServerID, false)
+
+	if got := s.get(t, local.Msg.GetBackup().GetId()); got.GetOnServer() || len(got.GetFetchOnto()) != 0 {
+		t.Errorf("what only a server that's away holds = %v", got)
+	}
+	got := s.get(t, b.GetId())
+	if got.GetOnServer() || !slices.Equal(got.GetFetchOnto(), []string{"hz-2"}) {
+		t.Fatalf("what's stored too = %v", got)
+	}
+	if _, err := s.bc.FetchBackup(t.Context(), connect.NewRequest(&dockwellv1.FetchBackupRequest{Id: b.GetId(), Server: "hz-2"})); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "it to come back", func() bool { return s.get(t, b.GetId()).GetOnServer() })
+	if got := s.get(t, b.GetId()); got.GetServerName() != "hz-2" {
+		t.Errorf("once it's fetched = %v", got)
 	}
 }
 
