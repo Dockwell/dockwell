@@ -3344,14 +3344,14 @@ msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgid "Open {app}"
 msgstr "Open {app}"
 
-msgid "Open-source apps you can install in one step"
-msgstr "Open-source apps you can install in one step"
-
 msgid "Reading the catalog"
 msgstr "Reading the catalog"
 
 msgid "Search apps"
 msgstr "Search apps"
+
+msgid "Self-hosted apps you can install in one step"
+msgstr "Self-hosted apps you can install in one step"
 
 msgid "Update out"
 msgstr "Update out"

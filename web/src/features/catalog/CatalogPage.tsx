@@ -53,7 +53,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
       width="wide"
       title={t`Catalog`}
       back="/more"
-      lead={t`Open-source apps you can install in one step`}
+      lead={t`Self-hosted apps you can install in one step`}
       actions={
         count > 0 ? (
           <RouterButtonLink to="/apps" variant="secondary" icon="service">

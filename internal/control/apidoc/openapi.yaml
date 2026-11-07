@@ -4142,6 +4142,16 @@ components:
                         Ports it exposes to what shares a network with it, beyond what its image exposes
                          and what it publishes, such as "3000/tcp". It opens nothing on the server. What
                          finds containers through Docker reads it, as Traefik does for the port to reach.
+                extraHosts:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Names it reaches at an address of its own choosing, as hostname:address,
+                         such as "host.docker.internal:host-gateway", where host-gateway is the
+                         server as its containers reach it. It adds to the container's /etc/hosts,
+                         and reaches nothing a container couldn't without it. Numbered in the
+                         catalog's block, 80 to 89, apart from fields other work adds.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves

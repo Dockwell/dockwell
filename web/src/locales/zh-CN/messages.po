@@ -3344,14 +3344,14 @@ msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。
 msgid "Open {app}"
 msgstr "打开 {app}"
 
-msgid "Open-source apps you can install in one step"
-msgstr "一步即可安装的开源应用"
-
 msgid "Reading the catalog"
 msgstr "正在读取应用目录"
 
 msgid "Search apps"
 msgstr "搜索应用"
+
+msgid "Self-hosted apps you can install in one step"
+msgstr "一步即可安装的自托管应用"
 
 msgid "Update out"
 msgstr "有更新"

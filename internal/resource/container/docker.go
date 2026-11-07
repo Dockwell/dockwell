@@ -598,6 +598,7 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 	req.HostConfig.RestartPolicy = restartOf(spec)
 	req.HostConfig.Privileged, req.HostConfig.CapAdd, req.HostConfig.CapDrop, req.HostConfig.GroupAdd =
 		spec.GetPrivileged(), spec.GetCapAdd(), spec.GetCapDrop(), spec.GetGroupAdd()
+	req.HostConfig.ExtraHosts = spec.GetExtraHosts()
 	req.HostConfig.NanoCPUs = cpuNanos(spec.GetResources().GetCpus())
 	req.HostConfig.Memory = memoryBytes(spec.GetResources().GetMemory())
 	req.HostConfig.MemoryReservation = memoryBytes(spec.GetResources().GetMemoryReservation())
@@ -883,6 +884,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		CapAdd:         c.HostConfig.CapAdd,
 		CapDrop:        c.HostConfig.CapDrop,
 		GroupAdd:       c.HostConfig.GroupAdd,
+		ExtraHosts:     extraHostsOf(c.HostConfig.ExtraHosts),
 		Resources:      projectResources(&c.HostConfig),
 		Tmpfs:          projectTmpfs(&c.HostConfig),
 	}

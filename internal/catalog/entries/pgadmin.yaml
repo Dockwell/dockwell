@@ -14,22 +14,27 @@ source:
 web:
   service: pgadmin
 firstSteps: >-
-  pgAdmin answers over plain HTTP, so signing in from outside this server sends your
-  password in clear. Add a domain first, or reach it another way, such as a VPN or an
-  SSH tunnel. Then open pgAdmin and sign in with your email and the password in the
+  pgAdmin answers only on this server until you add a domain, as it signs in over
+  plain HTTP. Add a domain on its page, over HTTPS or behind your tunnel, and open it
+  there. To open it before that, use an SSH tunnel from your computer:
+  ssh -N -L 5050:127.0.0.1:5050 you@your-server, using the port you gave it, then open
+  http://localhost:5050. Sign in with your email and the password in the
   PGADMIN_PASSWORD secret. That secret sets the password on first start only, so
   changing it doesn't change what signs in. To change the password, choose Change
-  password in pgAdmin's user menu, then set the secret to match. To manage a database
-  installed here, add a port to its db service, then register this server's address
-  and that port in pgAdmin.
+  password in pgAdmin's user menu, then set the secret to match. To manage a PostgreSQL
+  this server runs with a port of its own, such as one another panel set up, register
+  host.docker.internal as its host, which is this server from inside pgAdmin. A
+  database installed from this catalog keeps to its own project, where its services
+  reach it by name, such as db, and publishes no port; connection names, which are on
+  the way, will let pgAdmin reach one in a click.
 inputs:
   - name: ADMIN_EMAIL
     label: Your email
     hint: You sign in to pgAdmin with this.
     type: INPUT_TYPE_EMAIL
   - name: PORT
-    label: pgAdmin port
-    hint: You open pgAdmin on this port of the server. It asks for your password.
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "5050"
   - name: PGADMIN_PASSWORD
@@ -46,7 +51,10 @@ compose: |
         PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
         PGADMIN_LISTEN_ADDRESS: 0.0.0.0
       ports:
-        - "${PORT}:80"
+        - "127.0.0.1:${PORT}:80"
+      # This server, as pgAdmin reaches it, for a database it runs outside this project.
+      extra_hosts:
+        - host.docker.internal:host-gateway
       volumes:
         - data:/var/lib/pgadmin
       healthcheck:
