@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
@@ -46,12 +47,12 @@ type bench struct {
 func newBench(t *testing.T) *bench {
 	t.Helper()
 	e := dockertest.New(t)
-	binary := filepath.Join(t.TempDir(), "dockwell")
-	if err := os.WriteFile(binary, []byte("#!agent\n"), 0o600); err != nil {
+	helper := filepath.Join(t.TempDir(), "dockwell")
+	if err := os.WriteFile(helper, []byte("#!agent\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	b := &bench{t: t, engine: e, client: e.Client(), target: volume.TargetOf(ref)}
-	b.runner = &Runner{Client: b.client, Root: t.TempDir(), Binary: binary}
+	b.runner = &Runner{Client: b.client, Root: t.TempDir(), Binary: helper, Work: 1000}
 	if _, err := b.client.CreateVolume(t.Context(), &docker.VolumeCreate{Name: b.target.Name}); err != nil {
 		t.Fatal(err)
 	}
@@ -858,6 +859,7 @@ func (b *bench) gone(t *testing.T, id string) {
 // A backup leaves sealed, and comes back whole on a server that's lost its copy.
 func TestABackupGoesToItsDestinationAndComesBack(t *testing.T) {
 	b := newBench(t)
+	b.runner.Work = 0 // as an agent has it
 	b.write("orders.db", strings.Repeat("the orders ", 1<<18))
 	d, store := b.destination(t)
 	m, copied := b.sent(t, "bkp_1", d)
@@ -869,6 +871,11 @@ func TestABackupGoesToItsDestinationAndComesBack(t *testing.T) {
 	sealed := objects["/acme/"+wantKey]
 	if int64(len(sealed)) != copied.Bytes {
 		t.Errorf("stored %d bytes, says %d", len(sealed), copied.Bytes)
+	}
+	for _, path := range []string{"/acme/" + wantKey, "/acme/" + wantKey + ".json"} {
+		if !bytes.Contains(objects[path][:32], binary.BigEndian.AppendUint32(nil, seal.Iterations)) {
+			t.Errorf("%s isn't sealed at %d iterations", path, seal.Iterations)
+		}
 	}
 	local, err := os.ReadFile(filepath.Join(b.runner.dir(ref), "bkp_1.tar.gz"))
 	if err != nil {
@@ -985,7 +992,7 @@ func TestAFetchComesDownToTheHashOnRecord(t *testing.T) {
 	d, store := b.destination(t)
 	m, copied := b.sent(t, "bkp_1", d)
 	b.gone(t, "bkp_1")
-	other, err := seal.Small([]byte("something else"), d.Passphrase, binding(ref, "bkp_1"))
+	other, err := seal.Small([]byte("something else"), d.Passphrase, binding(ref, "bkp_1"), b.runner.Work)
 	if err != nil {
 		t.Fatal(err)
 	}

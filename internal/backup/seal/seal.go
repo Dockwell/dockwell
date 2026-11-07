@@ -42,9 +42,6 @@ const Iterations = 600_000
 // maxIterations bounds what a header can ask of whoever opens it.
 const maxIterations = 100_000_000
 
-// work is what a file is sealed at, which a test of something else can lower.
-var work = Iterations
-
 // ChunkSize is how much of a file each chunk holds.
 const ChunkSize = 1 << 20
 
@@ -78,10 +75,15 @@ func keyed(passphrase string, salt []byte, iterations int) (cipher.AEAD, error) 
 }
 
 // New starts a sealed file, with a salt of its own. binding says what it is, so it
-// can be told from any other sealed with the same passphrase.
-func New(passphrase, binding string) (*Sealer, error) {
+// can be told from any other sealed with the same passphrase. iterations is what its
+// key takes, and zero means Iterations: only a test gives any other, as a key takes
+// over a second under the race detector.
+func New(passphrase, binding string, iterations int) (*Sealer, error) {
 	if passphrase == "" {
 		return nil, errors.New("a sealed backup needs a passphrase")
+	}
+	if iterations == 0 {
+		iterations = Iterations
 	}
 	if len(binding) > 1<<16-1 {
 		return nil, errors.New("what a sealed file is bound to is too long")
@@ -90,13 +92,13 @@ func New(passphrase, binding string) (*Sealer, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return nil, err
 	}
-	aead, err := keyed(passphrase, salt, work)
+	aead, err := keyed(passphrase, salt, iterations)
 	if err != nil {
 		return nil, err
 	}
 	header := make([]byte, 0, fixedSize+len(binding))
 	header = append(header, magic...)
-	header = binary.BigEndian.AppendUint32(header, uint32(work)) //nolint:gosec // a constant, and a small one
+	header = binary.BigEndian.AppendUint32(header, uint32(iterations))
 	header = append(header, salt...)
 	header = binary.BigEndian.AppendUint16(header, uint16(len(binding))) //nolint:gosec // checked above
 	header = append(header, binding...)
@@ -130,9 +132,9 @@ func (s *Sealer) Size(size int64) int64 {
 	return int64(len(s.header)) + size + chunks*tagSize
 }
 
-// Small seals something small whole.
-func Small(plain []byte, passphrase, binding string) ([]byte, error) {
-	s, err := New(passphrase, binding)
+// Small seals something small whole, as New does.
+func Small(plain []byte, passphrase, binding string, iterations int) ([]byte, error) {
+	s, err := New(passphrase, binding, iterations)
 	if err != nil {
 		return nil, err
 	}

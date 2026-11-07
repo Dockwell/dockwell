@@ -80,7 +80,7 @@ func (r *Runner) Send(ctx context.Context, ref resource.Ref, id string, d *Desti
 		return nil, err
 	}
 	bound := binding(ref, m.ID)
-	sealer, err := seal.New(d.Passphrase, bound)
+	sealer, err := seal.New(d.Passphrase, bound, r.Work)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (r *Runner) Send(ctx context.Context, ref resource.Ref, id string, d *Desti
 	if err != nil {
 		return nil, err
 	}
-	sealed, err := seal.Small(said, d.Passphrase, bound+manifestBinding)
+	sealed, err := seal.Small(said, d.Passphrase, bound+manifestBinding, r.Work)
 	if err != nil {
 		return nil, err
 	}

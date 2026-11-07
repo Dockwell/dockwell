@@ -87,6 +87,9 @@ type Runner struct {
 	Disk func() disk
 	// HTTP reaches a destination; http.DefaultClient unless set.
 	HTTP *http.Client
+	// Work is what a key takes for what this seals, for a test: a key takes over a
+	// second under the race detector. Zero, as an agent has it, means seal.Iterations.
+	Work int
 
 	mu      sync.Mutex
 	working map[string]bool // volumes in Docker with a backup or restore under way

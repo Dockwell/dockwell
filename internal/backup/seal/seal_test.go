@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"os"
 	"strings"
 	"testing"
 )
@@ -14,15 +13,14 @@ import (
 // bound is what the files here are bound to.
 const bound = "env_1/data/bkp_1"
 
-func TestMain(m *testing.M) {
-	work = 1000 // what these tests are about isn't how long a key takes
-	os.Exit(m.Run())
-}
+// cheap is what the files here are sealed at, as what these tests are about isn't how
+// long a key takes.
+const cheap = 1000
 
 // file seals data as an upload does, chunk by chunk.
 func file(t *testing.T, data []byte) []byte {
 	t.Helper()
-	s, err := New("a passphrase", bound)
+	s, err := New("a passphrase", bound, cheap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +45,7 @@ func TestASealedFileOpens(t *testing.T) {
 			t.Fatal(err)
 		}
 		sealed := file(t, data)
-		s, err := New("a passphrase", bound)
+		s, err := New("a passphrase", bound, cheap)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,10 +132,7 @@ func TestAFileOpensOnlyAsWhatItIs(t *testing.T) {
 // A guess at a passphrase has to cost what opening a file costs, and a file says what
 // that was, so it can grow.
 func TestAFileIsSealedAtItsWork(t *testing.T) {
-	was := work
-	defer func() { work = was }()
-	work = Iterations
-	s, err := New("a passphrase", bound)
+	s, err := New("a passphrase", bound, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +144,7 @@ func TestAFileIsSealedAtItsWork(t *testing.T) {
 func TestSomethingSmallSealsWhole(t *testing.T) {
 	for _, size := range []int{0, 300, ChunkSize, ChunkSize + 1} {
 		data := bytes.Repeat([]byte("x"), size)
-		sealed, err := Small(data, "a passphrase", bound)
+		sealed, err := Small(data, "a passphrase", bound, cheap)
 		if err != nil {
 			t.Fatal(err)
 		}
