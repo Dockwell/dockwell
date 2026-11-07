@@ -4,7 +4,7 @@
 # requirements, on every push to main, nightly, and on each pull request that
 # needs them, as scripts/ci-jobs.sh says: the budgets for a change to Go code,
 # and the install tests for one to the install script, the release, or what
-# the script runs in the binary (docs/adr/0037-ci-runs-what-a-change-needs.md).
+# the script runs in the binary (docs/adr/0050-ci-runs-what-a-change-needs.md).
 # Release snapshot asks first, and the jobs after it run only when they're
 # needed. Install, every job is the check a branch rule requires:
 #

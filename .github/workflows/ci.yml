@@ -47,7 +47,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs go
@@ -124,7 +124,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs docker-go
@@ -176,7 +176,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs caddy-go
@@ -215,7 +215,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs docker-e2e
@@ -256,7 +256,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs docker-panel
@@ -296,7 +296,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs logs-load
@@ -323,7 +323,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs containers-load
@@ -352,7 +352,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs e2e
@@ -386,7 +386,7 @@ jobs:
         with:
           fetch-depth: 0
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs schema
@@ -440,7 +440,7 @@ jobs:
           # A pull request's merge commit and its two parents: main, and the pull request.
           fetch-depth: 2
       # The steps after this one run only when this change needs this job,
-      # from the files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs panel

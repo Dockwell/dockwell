@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 # Which jobs of the CI and Install workflows a pull request needs, from the
-# files it changes (docs/adr/0037-ci-runs-what-a-change-needs.md).
+# files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
 #
 #   scripts/ci-jobs.sh needs <job>...    in a job: whether this change needs it
 #   scripts/ci-jobs.sh check             in Install, every job: whether it all passed
