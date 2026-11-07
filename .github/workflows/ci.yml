@@ -23,9 +23,9 @@ jobs:
   go:
     name: Go
     runs-on: ubuntu-24.04
-    # It takes 10 to 14 minutes under the race detector, depending on the runner, so this leaves room for a slow
-    # runner rather than failing at random.
-    timeout-minutes: 20
+    # It takes about 17 minutes under the race detector on 2026-11-07, and grows with each feature, so this
+    # leaves room for a slow runner rather than failing at random. A hang still ends it. #197 is to bring it down.
+    timeout-minutes: 35
     # The store's tests run on SQLite and on this Postgres (ADR 0014).
     services:
       postgres:
@@ -157,8 +157,8 @@ jobs:
   docker-e2e:
     name: Service end to end on Docker
     runs-on: ubuntu-24.04
-    # 11 minutes at most.
-    timeout-minutes: 22
+    # About 18 minutes on 2026-11-07, and it grows with each feature, so this leaves room for a slow runner.
+    timeout-minutes: 35
     # A service through the CLI end to end, beside docker compose (ADR 0021), and
     # the ingress in its container on 80 and 443, with a real certificate from
     # Pebble, which the script fetches (ADR 0024), with Dockwell as root, as on a
@@ -255,7 +255,9 @@ jobs:
   e2e:
     name: Panel end to end
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # About 14 minutes on 2026-11-07, and it grows with each flow, so this leaves room for a slow runner rather than
+    # cutting off a run that's still going.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
