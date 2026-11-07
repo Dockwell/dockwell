@@ -3,9 +3,14 @@
 package control
 
 import (
+	"errors"
+	"net/http"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -279,9 +285,24 @@ func TestWhatCantBeTakenOnSaysWhy(t *testing.T) {
 		t.Errorf("taking on as a name that's taken: %v", err)
 	}
 
+	// One thing is it and that, and more are them and those.
+	runByHand(t, e, "two-things", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+		r.HostConfig.ReadonlyRootfs = true
+	})
+	e.Reports("two-things", "HostConfig", map[string]any{"CpuQuota": 50000})
+	_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "two-things"}))
+	if err == nil || !strings.Contains(err.Error(), "would drop them without a word") || !strings.Contains(err.Error(), "without those") {
+		t.Errorf("taking on what has two things: %v", err)
+	}
+	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "own-rootfs"}))
+	if err == nil || !strings.Contains(err.Error(), "without that, then take it on") {
+		t.Errorf("taking on what has one thing: %v", err)
+	}
+
 	for name, says := range map[string]string{
-		"in-word":    "the value of DB_PASSWORD in its command",
-		"own-rootfs": "read_only",
+		"in-word":    "so a plan would show it to anyone",
+		"own-rootfs": "would drop it without a word",
 	} {
 		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name}))
 		if err == nil || !strings.Contains(err.Error(), says) || !strings.Contains(err.Error(), "It stays as it is") {
@@ -727,6 +748,73 @@ func TestWhatOthersLeanOnStaysAsItIs(t *testing.T) {
 	}
 }
 
+// A step that fails partway leaves no project half taken on: what it had taken on it
+// lets go of, with nothing touched, and the project it made goes.
+func TestAFailedStepLeavesNoProjectHalfTakenOn(t *testing.T) {
+	for _, failAt := range []int{2, 4} {
+		t.Run(strconv.Itoa(failAt), func(t *testing.T) {
+			f := startFull(t, store.SQLite, nil)
+			b := signedIn(t, f)
+			e := f.addDockerServer(t)
+			e.AddNetwork(docker.Network{ID: "shopnet", Name: "shop_default", Driver: "bridge"})
+			c := changeClient(b, b.origin)
+			cc := containerClient(b, b.origin)
+			imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+			composeContainer(t, e, "shop", "db", "shop-db-1", nil)
+			web := composeContainer(t, e, "shop", "web", "shop-web-1", nil)
+			res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "shop"}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			planned := res.Msg.GetChange()
+			from := len(e.Seen())
+			var seen atomic.Int32
+			e.Intercept(func(r *http.Request) error {
+				if strings.HasSuffix(r.URL.Path, "/containers/"+web+"/json") && int(seen.Add(1)) == failAt {
+					return errors.New("the engine failed this one")
+				}
+				return nil
+			})
+			w := watch(t, c, planned.GetId())
+			_, err = c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: planned.GetId(), Fingerprint: planned.GetPlan().GetFingerprint()}))
+			if err == nil {
+				waitWatch(t, w)
+			}
+			e.Intercept(nil)
+			if got := mutations(e, from); len(got) != 0 {
+				t.Errorf("a failed take-on asked Docker for %v", got)
+			}
+			var list *connect.Response[dockwellv1.ListContainersResponse]
+			for range 100 {
+				if list, err = cc.ListContainers(t.Context(), connect.NewRequest(&dockwellv1.ListContainersRequest{})); err != nil {
+					t.Fatal(err)
+				}
+				if len(list.Msg.GetContainers()) == 2 {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+			if got := list.Msg.GetContainers(); len(got) != 2 {
+				t.Errorf("after a failed step, what Dockwell didn't make is %v, want both back", got)
+			}
+			var projects []string
+			err = f.store.View(t.Context(), func(tx *store.Tx) error {
+				tree, err := scope.Load(t.Context(), tx)
+				for _, p := range tree.Projects {
+					projects = append(projects, p.Name)
+				}
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(projects, []string{"default"}) {
+				t.Errorf("after a failed step the projects are %v", projects)
+			}
+		})
+	}
+}
+
 // One refusal says everything in the way, so a person fixes it once, whatever kind of
 // thing is in the way: a scaled service, a name the project runs already, and what no
 // spec holds all come together.
@@ -778,7 +866,7 @@ func TestARefusalSaysEverythingAtOnce(t *testing.T) {
 	applyConfirmed(t, changeClient(b, b.origin), planned.Msg.GetChange())
 	composeContainer(t, e, "shop2", "web", "shop2-web-1", readOnly)
 	says("a name it runs beside what can't come", take(&dockwellv1.AdoptComposeRequest{Name: "shop2", Project: "shop"}),
-		"shop runs a service web already", "shop2-web-1 runs with read_only")
+		"the project shop runs a service web already", "shop2-web-1 runs with read_only")
 }
 
 // Compose gives a service its name on every network it joins, so two installs of one
@@ -1025,6 +1113,8 @@ func testTakingOnACompose(t *testing.T, backend store.Backend) {
 	web := composeContainer(t, e, "shop", "web", "shop-web-1", func(r *docker.CreateRequest) {
 		r.HostConfig.PortBindings = map[string][]docker.PortBinding{"80/tcp": {{HostPort: "8089"}}}
 	})
+	// A one-off is no container of the service it ran as, so it's no scaled one.
+	composeContainer(t, e, "shop", "web", "shop-web-run-1", func(r *docker.CreateRequest) { r.Labels[docker.LabelOneoff] = "True" })
 	db := composeContainer(t, e, "shop", "db", "shop-db-1", func(r *docker.CreateRequest) {
 		r.HostConfig.Binds = []string{"shop_db-data:/var/lib/data"}
 	})
@@ -1036,6 +1126,11 @@ func testTakingOnACompose(t *testing.T, backend store.Backend) {
 		t.Fatal(err)
 	}
 	planned := res.Msg.GetChange()
+	for _, n := range planned.GetPlan().GetNotes() {
+		if n.GetReason() == "takes_on" && !strings.HasSuffix(n.GetMessage(), ".") {
+			t.Errorf("the note %q has no full stop", n.GetMessage())
+		}
+	}
 	if !slices.ContainsFunc(planned.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
 		return n.GetReason() == "managed_elsewhere" && strings.Contains(n.GetMessage(), "the Compose project shop")
 	}) {
@@ -1061,7 +1156,7 @@ func testTakingOnACompose(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := names(list.Msg.GetContainers()); !slices.Equal(got, []string{"other-web-1"}) {
+	if got := names(list.Msg.GetContainers()); !slices.Equal(got, []string{"other-web-1", "shop-web-run-1"}) {
 		t.Errorf("the list has %v, want what's left", got)
 	}
 	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))

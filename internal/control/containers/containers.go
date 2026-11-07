@@ -104,7 +104,7 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		return nil, err
 	}
 	if why := Refusal(c.GetName(), found); why != "" {
-		return nil, authapi.Invalid(fmt.Errorf("%s. It stays as it is, and nothing was taken on. Make it again without them, then take it on, or leave it outside Dockwell", why))
+		return nil, authapi.Invalid(fmt.Errorf("%s. It stays as it is, and nothing was taken on. %s", why, Fix(found)))
 	}
 	edit := &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: env.ID, Name: name},
@@ -112,7 +112,7 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		Servers:  []string{s.ID},
 	}
 	notes := []revision.Note{{Reason: "takes_on", Message: fmt.Sprintf(
-		"Takes on %s as it is: it keeps running, with no restart. Changing its image later replaces it, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container", c.GetName())}}
+		"Takes on %s as it is: it keeps running, with no restart. Changing its image later replaces it, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container.", c.GetName())}}
 	if p := c.GetComposeProject(); p != "" {
 		notes = append(notes, revision.ManagedElsewhere(resource.Elsewhere{Manager: found.Manager, Container: c.GetName(), Project: p, Folder: found.Folder}))
 	}
@@ -127,22 +127,42 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 }
 
 // Refusal says why a container can't be taken on as it was read, or nothing if it
-// can. It names a value of its environment by the variable alone.
+// can. It names a value of its environment by the variable alone, and starts with a
+// word of its own, as a sentence can't capitalise a name.
 func Refusal(name string, a resource.Adoption) string {
 	var why []string
 	if len(a.Refused) > 0 {
-		why = append(why, fmt.Sprintf("%s runs with %s, which a service can't hold yet, so changing its image would drop them without a word", name, human.List(a.Refused)))
+		why = append(why, fmt.Sprintf("the container %s runs with %s, which a service can't hold yet, so changing its image would drop %s without a word", name, human.List(a.Refused), itOrThem(len(a.Refused))))
 	}
 	if a.Invalid != "" {
-		why = append(why, fmt.Sprintf("%s can't be a service as it runs: %s", name, a.Invalid))
+		why = append(why, fmt.Sprintf("the container %s can't be a service as it runs: %s", name, a.Invalid))
 	}
 	if len(a.Shows) > 0 {
-		why = append(why, fmt.Sprintf("%s holds %s, so a plan would show it to anyone who can read plans", name, human.List(a.Shows)))
+		why = append(why, fmt.Sprintf("the container %s holds %s, so a plan would show %s to anyone who can read plans", name, human.List(a.Shows), itOrThem(len(a.Shows))))
 	}
 	if len(a.LeanedOn) > 0 {
-		why = append(why, fmt.Sprintf("%s can't be replaced while others depend on it: %s, so a new container would cut that off", name, human.List(a.LeanedOn)))
+		why = append(why, fmt.Sprintf("the container %s can't be replaced while others depend on it: %s, so a new container would cut that off", name, human.List(a.LeanedOn)))
 	}
 	return strings.Join(why, ". ")
+}
+
+func itOrThem(n int) string {
+	if n == 1 {
+		return "it"
+	}
+	return "them"
+}
+
+// Fix says what to do about what Refusal said of a.
+func Fix(a resource.Adoption) string {
+	n := len(a.Refused) + len(a.Shows) + len(a.LeanedOn)
+	if a.Invalid != "" {
+		n++
+	}
+	if n == 1 {
+		return "Make it again without that, then take it on, or leave it outside Dockwell"
+	}
+	return "Make it again without those, then take it on, or leave it outside Dockwell"
 }
 
 // ReadAs asks a server what a container would be as the service ref, and what would

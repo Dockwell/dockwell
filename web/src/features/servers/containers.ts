@@ -60,7 +60,12 @@ export function mountSource(mount: ContainerMount): string {
 
 /** What a service that takes a container on is called unless someone says, as the control plane works it out. */
 export function serviceNameFor(container: ServerContainer): string {
-  const name = (container.composeService || container.name)
+  return labelFor(container.composeService || container.name);
+}
+
+/** A name as Dockwell takes one, such as a project's that a Compose project came in as. */
+export function labelFor(given: string): string {
+  const name = given
     .toLowerCase()
     .replace(/[_.]/g, "-")
     .replace(/[^a-z0-9-]/g, "")

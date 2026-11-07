@@ -3899,6 +3899,10 @@ msgstr "它的检查已通过。"
 msgid "Its check said"
 msgstr "检查结果"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Its Compose project was taken on already, so this joins it."
+msgstr "它的 Compose 项目已被接管，所以它会加入其中。"
+
 #: src/features/logs/LogNote.tsx
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"

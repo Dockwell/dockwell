@@ -8,6 +8,7 @@ import {
   ContainerState,
   type ListContainersResponse,
   ListContainersResponseSchema,
+  ResourceSchema,
   ServerContainerSchema,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -284,6 +285,43 @@ describe("a container's page", () => {
     expect(within(panel).getByRole("textbox", { name: "Name as a service" })).toHaveValue("legacy-api");
     await userEvent.setup().click(within(panel).getByRole("button", { name: "Plan taking it on" }));
     await vi.waitFor(() => expect(asked).toEqual([{ id: "legacy_api", server: "srv_1", service: "legacy-api" }]));
+  });
+
+  it("joins the project its Compose project was taken on as", async () => {
+    const asked: unknown[] = [];
+    const place = (id: string, kind: string, scope: string, name: string) =>
+      create(ResourceSchema, { id, resource: { kind, scope, name } });
+    renderContainer("/servers/srv_1/containers/shop-late-1", {
+      containers: {
+        listContainers: () =>
+          answer({ containers: [container("shop-late-1", { composeProject: "shop", composeService: "late" })] }),
+        adoptContainer: (req) => {
+          asked.push({ id: req.id, environment: req.environment });
+          return { change: webPlanned() };
+        },
+      },
+      resources: {
+        listResources: (req) => ({
+          resources:
+            req.kind === "project"
+              ? [place("prj_default", "project", "org_1", "default"), place("prj_shop", "project", "org_1", "shop")]
+              : [
+                  place("env_default", "environment", "prj_default", "production"),
+                  place("env_shop", "environment", "prj_shop", "production"),
+                ],
+        }),
+      },
+      logs: {
+        listLogSources: () => ({}),
+        async *watchLogs() {
+          yield { caughtUp: true };
+        },
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Take it on" });
+    expect(await within(panel).findByText(/Its Compose project was taken on already, so this joins it/)).toBeVisible();
+    await userEvent.setup().click(within(panel).getByRole("button", { name: "Plan taking it on" }));
+    await vi.waitFor(() => expect(asked).toEqual([{ id: "shop-late-1", environment: "env_shop" }]));
   });
 
   it("offers its whole Compose project once there is more of it", async () => {

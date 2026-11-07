@@ -15,7 +15,15 @@ import { LogsPage, type LogsSearch } from "../logs/LogsPage";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import { Page } from "../shell/Page";
 import { useMadeWords } from "./ContainersPanel";
-import { mountSource, portWords, READ_EVERY_MS, serviceNameFor, statusOf, useContainerStateWord } from "./containers";
+import {
+  labelFor,
+  mountSource,
+  portWords,
+  READ_EVERY_MS,
+  serviceNameFor,
+  statusOf,
+  useContainerStateWord,
+} from "./containers";
 import { useFleet } from "./useFleet";
 import "./ContainersPanel.css";
 
@@ -136,8 +144,10 @@ function TakeItOn({
   const places = usePlaces();
   const [name, setName] = useState(() => serviceNameFor(container));
   const [environment, setEnvironment] = useState("");
-  const chosen = environment || places.defaultEnvironment?.id || "";
   const project = container.composeProject;
+  // What came late to a project that was taken on belongs with the rest of it.
+  const joins = project ? places.environments.find((e) => e.project === labelFor(project)) : undefined;
+  const chosen = environment || joins?.id || places.defaultEnvironment?.id || "";
   const openProject = () =>
     sheet.open({
       kind: "plan",
@@ -172,6 +182,11 @@ function TakeItOn({
             volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it.
           </Trans>
         </p>
+        {joins ? (
+          <p>
+            <Trans>Its Compose project was taken on already, so this joins it.</Trans>
+          </p>
+        ) : null}
         <TextField label={t`Name as a service`} value={name} onChange={(event) => setName(event.target.value)} />
         {places.environments.length > 1 ? (
           <SelectField

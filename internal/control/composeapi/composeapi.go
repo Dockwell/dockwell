@@ -324,7 +324,7 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 			refusals = append(refusals, oneService(name, byName[name]))
 		}
 		if slices.Contains(running, name) {
-			refusals = append(refusals, fmt.Sprintf("%s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, name, c.GetName()))
+			refusals = append(refusals, fmt.Sprintf("the project %s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, name, c.GetName()))
 		}
 		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: name}
 		svc, found, err := h.containers.ReadAs(ctx, s, c, ref)
@@ -353,7 +353,7 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 		Edits: place.made, Adopts: adopts,
 		Notes: []revision.Note{
 			{Reason: "takes_on", Message: fmt.Sprintf(
-				"Takes on %s as it is: its containers keep running, with no restart, on the networks and volumes they have. Changing an image later replaces that container, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container", m.GetName())},
+				"Takes on %s as it is: its containers keep running, with no restart, on the networks and volumes they have. Changing an image later replaces that container, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container.", m.GetName())},
 			revision.ManagedElsewhere(resource.Elsewhere{Manager: manager, Container: human.List(names), Project: m.GetName(), Folder: folder}),
 		},
 	})

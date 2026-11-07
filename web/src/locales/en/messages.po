@@ -3899,6 +3899,10 @@ msgstr "Its check passed."
 msgid "Its check said"
 msgstr "Its check said"
 
+#: src/features/servers/ContainerPage.tsx
+msgid "Its Compose project was taken on already, so this joins it."
+msgstr "Its Compose project was taken on already, so this joins it."
+
 #: src/features/logs/LogNote.tsx
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
