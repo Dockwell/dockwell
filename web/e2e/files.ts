@@ -109,6 +109,9 @@ function makeSite() {
   symlinkSync(join(data, "control", "key"), join(site, "planted"));
   symlinkSync("conf.d", join(site, "config"));
   symlinkSync("nowhere", join(site, "broken"));
+  // A folder longer than its pane, as /etc is.
+  mkdirSync(join(site, "many"));
+  for (let i = 0; i < 120; i++) writeFileSync(join(site, "many", `part-${String(i).padStart(3, "0")}.conf`), "");
 }
 
 async function shoot(page: Page, name: string) {
@@ -187,6 +190,17 @@ async function main() {
   await shoot(page, "folder");
   await noSidewaysScroll(page, "a folder");
   await page.setViewportSize({ width: 1440, height: 970 });
+
+  step("a folder longer than its pane scrolls there, and the page is no taller for it");
+  const pageHeight = () => page.evaluate(() => document.documentElement.scrollHeight);
+  const short = await pageHeight();
+  await page.goto(at({ path: join(site, "many") }));
+  await page.getByText("part-119.conf").waitFor({ state: "attached" });
+  const long = await pageHeight();
+  if (long > short)
+    fail(`a folder of 120 files makes the page ${long - short} px taller than a short one, past its pane`);
+  await page.goto(at({ path: site }));
+  await page.getByText("nginx.conf").waitFor();
 
   step("open a file");
   await page.getByText("nginx.conf").click();

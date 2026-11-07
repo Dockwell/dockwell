@@ -1,0 +1,13 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* What every tab of a server's page shares, so its head stays put from tab to tab. */
+
+.server-address {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+/* The tabs sit closer to the head than the page's panels do to them, as the mocks have them. */
+.server-page > .dw-tabs {
+  margin-top: calc(-1 * var(--space-2) - 4px);
+}

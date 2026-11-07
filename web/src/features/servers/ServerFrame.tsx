@@ -14,6 +14,7 @@ import { publicAddressOf } from "./network";
 import { ServerAddress } from "./ServerAddress";
 import { primaryAddress, useServerWords } from "./server";
 import { useFleet, useFleetUnread } from "./useFleet";
+import "./ServerFrame.css";
 
 /** What a tab changes of the phone's header, for a screen of its own within it. */
 export type PhoneHead = Pick<PageProps, "phoneTitle" | "phoneMachineTitle" | "phoneSub" | "backLink">;

@@ -3,7 +3,8 @@
 import { type ReactNode, useId } from "react";
 
 import { cx, hasContent } from "../../lib/cx";
-import "./Panel.css";
+
+// Panel.css loads with the foundations in styles/index.css, as pages use its classes on their own elements.
 
 export interface PanelProps {
   /** The panel's heading, in the heading text style. */

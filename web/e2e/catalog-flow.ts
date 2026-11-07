@@ -94,6 +94,26 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await page.getByRole("link", { name: "Install MySQL" }).waitFor();
   await page.getByRole("textbox", { name: "Search apps" }).fill("");
 
+  step(
+    "catalog: at its own address, with no other screen loaded first, its cards are panels and its form's fields sit apart",
+  );
+  await page.goto(`${origin}/catalog/postgres`);
+  const direct = page.getByRole("dialog", { name: "Install PostgreSQL" });
+  await direct.getByLabel("Adminer port").waitFor();
+  const drawn = await page.evaluate(() => {
+    const card = document.querySelector(".catalog-card");
+    const form = document.querySelector(".dw-sheet form");
+    return {
+      card: card ? getComputedStyle(card).borderTopWidth : "missing",
+      fields: form ? getComputedStyle(form).rowGap : "missing",
+    };
+  });
+  if (drawn.card !== "1px" || drawn.fields !== "20px") {
+    fail(`opened at its address, the catalog draws its cards' border and its fields' gap as ${JSON.stringify(drawn)}`);
+  }
+  await direct.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
+
   step("catalog: installing asks only what the app needs, starting from what's free");
   await page.getByRole("link", { name: "Install PostgreSQL" }).click();
   const sheet = page.getByRole("dialog", { name: "Install PostgreSQL" });
