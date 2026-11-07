@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -75,7 +76,10 @@ const (
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
-	serverActions = []string{"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear}
+	serverActions = []string{
+		"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear,
+		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed,
+	}
 	healthActions = []string{health.Action}
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
@@ -494,7 +498,7 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Id: a.ID, Kind: dockwellv1.EventKind_EVENT_KIND_ACCESS, Action: a.Action, Time: timestamppb.New(a.At),
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
-	if strings.HasPrefix(a.Action, "server.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed {
+	if strings.HasPrefix(a.Action, "server.") || strings.HasPrefix(a.Action, "process.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if a.Action == health.Action {
@@ -531,6 +535,11 @@ func auditEvent(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		var change fleet.AddressChange
 		if err := json.Unmarshal([]byte(a.Detail), &change); err == nil {
 			e.PublicAddress = &dockwellv1.EventPublicAddress{Address: change.Address, Previous: change.Previous}
+		}
+	}
+	if strings.HasPrefix(a.Action, "process.") {
+		if d, ok := processes.ReadDetail(a.Detail); ok {
+			e.Process = d
 		}
 	}
 	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {

@@ -69,6 +69,9 @@ const (
 	// StepUpSaveWayBackIn saves a file that's a way back onto a server. Its
 	// target is the server's ID and the file's path, with every link followed.
 	StepUpSaveWayBackIn StepUpAction = "file.save_way_back_in"
+	// StepUpEndProcess ends a process on a server. Its target is the server's ID
+	// and the process's, as "srv_…:1234".
+	StepUpEndProcess StepUpAction = "process.end"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -86,6 +89,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpCreateToken:     {"creating an API token", false},
 	StepUpApplyRootChange: {"applying", true},
 	StepUpSaveWayBackIn:   {"saving", true},
+	StepUpEndProcess:      {"ending process", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

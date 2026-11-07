@@ -40,6 +40,8 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0034](0034-a-servers-public-address.md) | A server's public address, and what may be claimed of it | Accepted |
 | [0035](0035-containers-named-after-their-environment.md) | A service's containers are named after its project and environment | Accepted |
 | [0036](0036-deleting-a-project-takes-its-environments.md) | Deleting a project takes its environments | Accepted |
+| [0040](0040-a-servers-live-use.md) | A server's live use, while someone looks | Accepted |
+| [0041](0041-processes-on-a-server.md) | Processes on a server, and ending one | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).
 

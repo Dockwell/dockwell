@@ -139,6 +139,10 @@ type Engine struct {
 	starts  map[string]int
 	// volumeRoot is where what's in each volume is kept, once one is asked for.
 	volumeRoot string
+	// VolumeSizes is what /system/df says each volume holds, by name: nothing
+	// unless set. ContainerSizes is what each container wrote to its own layer,
+	// by name without the slash.
+	VolumeSizes, ContainerSizes map[string]int64
 }
 
 type image struct {
@@ -381,11 +385,52 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		e.serveDistribution(w, strings.Join(parts[1:len(parts)-1], "/"))
 	case parts[0] == "volumes":
 		e.serveVolumes(w, r, parts[1:])
+	case r.Method == http.MethodGet && path == "/system/df":
+		writeJSON(w, http.StatusOK, e.diskUsage())
 	case parts[0] == "networks":
 		e.serveNetworks(w, r, parts[1:])
 	default:
 		fail(w, http.StatusNotFound, "page not found")
 	}
+}
+
+// diskUsage is what /system/df says: each pulled image at its size, each layer
+// counted once, so an image under two tags is one; each container's own layer as
+// ContainerSizes has it; and each volume as VolumeSizes has it, with how many
+// containers use it.
+func (e *Engine) diskUsage() docker.DiskUsage {
+	var out docker.DiskUsage
+	seen := map[*image]bool{}
+	for _, img := range e.images {
+		if seen[img] {
+			continue
+		}
+		seen[img] = true
+		used := int64(0)
+		for _, c := range e.containers {
+			if c.img == img {
+				used++
+			}
+		}
+		out.LayersSize += img.Size
+		out.Images = append(out.Images, docker.DiskUsageImage{ID: img.id, Size: img.Size, Containers: used})
+	}
+	for _, c := range e.containers {
+		out.Containers = append(out.Containers, docker.DiskUsageContainer{ID: c.ID, SizeRw: e.ContainerSizes[strings.TrimPrefix(c.Name, "/")]})
+	}
+	for name := range e.volumes {
+		v := docker.DiskUsageVolume{Name: name, UsageData: &docker.VolumeUsage{Size: e.VolumeSizes[name]}}
+		for _, c := range e.containers {
+			if slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == name }) {
+				v.UsageData.RefCount++
+			}
+		}
+		out.Volumes = append(out.Volumes, v)
+	}
+	slices.SortFunc(out.Images, func(a, b docker.DiskUsageImage) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(out.Containers, func(a, b docker.DiskUsageContainer) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(out.Volumes, func(a, b docker.DiskUsageVolume) int { return strings.Compare(a.Name, b.Name) })
+	return out
 }
 
 // ncpu is how many CPUs the fake server has.

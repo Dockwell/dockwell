@@ -84,7 +84,9 @@ func httpRule(rule *annotations.HttpRule) (verb, path string) {
 	return "", ""
 }
 
-// fillPath puts a value in every variable of a path template.
+// fillPath puts a value in every variable of a path template: "1", which reads as
+// a string, such as an ID, and as a number, such as a process's PID, so a path
+// reaches what checks who may call it before anything checks the value.
 func fillPath(path string) string {
 	var b strings.Builder
 	for {
@@ -94,7 +96,7 @@ func fillPath(path string) string {
 			return b.String()
 		}
 		end := strings.IndexByte(path[open:], '}')
-		b.WriteString(path[:open] + "x")
+		b.WriteString(path[:open] + "1")
 		path = path[open+end+1:]
 	}
 }

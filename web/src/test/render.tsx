@@ -15,6 +15,7 @@ import {
   GetVersionResponseSchema,
   HealthService,
   LogService,
+  ProcessService,
   ResourceService,
   ServerService,
   ServiceService,
@@ -54,6 +55,7 @@ export type Api = {
   containers?: Partial<ServiceImpl<typeof ContainerService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
+  processes?: Partial<ServiceImpl<typeof ProcessService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -100,6 +102,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
       service(FileService, api.files ?? {});
+      service(ProcessService, { watchProcesses: quietWatch, ...api.processes });
       service(BackupService, {
         listBackups: () => ({}),
         listBackupPolicies: () => ({}),

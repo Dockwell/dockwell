@@ -361,3 +361,63 @@ func TestAttachAddsServersThatJoinedLater(t *testing.T) {
 		t.Errorf("List = %v", s)
 	}
 }
+
+// Agents sample often only while someone watches, and slow down a while after the
+// last watch has gone, unless another opens first (ADR 0040).
+func TestPaceFollowsWatchers(t *testing.T) {
+	h, _ := newHub(t, "hz-1")
+	h.idleAfter = 50 * time.Millisecond
+	heard := make(chan time.Duration, 16)
+	h.OnPace(func(d time.Duration) { heard <- d })
+	next := func(want time.Duration) {
+		t.Helper()
+		select {
+		case got := <-heard:
+			if got != want {
+				t.Fatalf("pace = %v, want %v", got, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("no pace heard; want %v", want)
+		}
+	}
+	quiet := func(within time.Duration) {
+		t.Helper()
+		select {
+		case got := <-heard:
+			t.Fatalf("pace changed to %v with nothing to change it", got)
+		case <-time.After(within):
+		}
+	}
+	if got := h.Pace(); got != IdleInterval {
+		t.Fatalf("with nobody watching, pace = %v, want %v", got, IdleInterval)
+	}
+
+	first, stop1 := context.WithCancel(t.Context())
+	h.Watch(first)
+	next(StatsInterval)
+	second, stop2 := context.WithCancel(t.Context())
+	h.Watch(second)
+	quiet(20 * time.Millisecond) // a second watch changes nothing
+
+	stop1()
+	quiet(150 * time.Millisecond) // one watch is still open
+	stop2()
+	next(IdleInterval)
+	if got := h.Pace(); got != IdleInterval {
+		t.Fatalf("after the last watch, pace = %v", got)
+	}
+
+	// A page that reloads opens its next watch before agents slow down.
+	third, stop3 := context.WithCancel(t.Context())
+	h.Watch(third)
+	next(StatsInterval)
+	stop3()
+	again, stop4 := context.WithCancel(t.Context())
+	defer stop4()
+	time.Sleep(10 * time.Millisecond)
+	h.Watch(again)
+	quiet(150 * time.Millisecond)
+	if got := h.Pace(); got != StatsInterval {
+		t.Fatalf("with a watch open again, pace = %v", got)
+	}
+}

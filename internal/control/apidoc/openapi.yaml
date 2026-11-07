@@ -1497,6 +1497,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{id}/diskUse:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                GetServerDiskUse says what takes the room on the disk that holds Docker's
+                 data: images, containers, volumes, the build cache and logs, and the rest.
+                 The server's agent asks Docker when this is called, and only then, as
+                 Docker adds up every volume to answer, which takes a while on a big disk.
+                 An answer stands for 30 s, so a page opened twice asks once. See
+                 docs/adr/0040-a-servers-live-use.md.
+            operationId: ServerService_GetServerDiskUse
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerDiskUseResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{id}:setPublicAddress:
         post:
             tags:
@@ -1633,6 +1665,52 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SaveFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/processes/{pid}:end:
+        post:
+            tags:
+                - ProcessService
+            description: |-
+                EndProcess ends a process on a server, as kill does: SIGTERM, and SIGKILL
+                 if it's still there 10 s later. It's as much as root on the server, so it
+                 takes a passkey just now: call it without a proof first, and it refuses with
+                 the reason needs_step_up, then again with the proof from FinishStepUp for
+                 STEP_UP_ACTION_END_PROCESS, whose target is "<server ID>:<PID>". It can't be
+                 undone. What Dockwell needs on the server, its agent and the process it runs
+                 in, and PID 1, is refused. It's on the activity log.
+            operationId: ProcessService_EndProcess
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: pid
+                  in: path
+                  description: The process ID.
+                  required: true
+                  schema:
+                    type: integer
+                    format: uint32
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/EndProcessRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/EndProcessResponse'
                 default:
                     description: Default error response
                     content:
@@ -3221,6 +3299,7 @@ components:
                         - STEP_UP_ACTION_CREATE_TOKEN
                         - STEP_UP_ACTION_APPLY_ROOT_CHANGE
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_END_PROCESS
                     type: string
                     description: The action.
                     format: enum
@@ -4347,6 +4426,34 @@ components:
                          without its project is an error that names the projects. Other kinds
                          name their project, if they live in one, in resource.scope.
             description: Edit sets one resource's desired spec, or deletes it.
+        EndProcessRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                pid:
+                    type: integer
+                    description: The process ID.
+                    format: uint32
+                startTicks:
+                    type: string
+                    description: |-
+                        When it started, as Process.start_ticks has it, so a process that ended
+                         and gave its PID to another isn't ended in its place.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for STEP_UP_ACTION_END_PROCESS on
+                         "<server ID>:<PID>".
+            description: EndProcessRequest names a process.
+        EndProcessResponse:
+            type: object
+            properties:
+                killed:
+                    type: boolean
+                    description: True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
+            description: EndProcessResponse says how it went.
         Entry:
             type: object
             properties:
@@ -4547,6 +4654,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/EventPublicAddress'
                     description: What a person set of a server's public address, on such an event.
+                process:
+                    allOf:
+                        - $ref: '#/components/schemas/EventProcess'
+                    description: |-
+                        The process someone ended on a server, for "process.end". Its subject is
+                         the server. Numbered apart, as open work adds to this message.
             description: Event is one thing that happened.
         EventBackup:
             type: object
@@ -4639,6 +4752,32 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventProcess:
+            type: object
+            properties:
+                pid:
+                    type: integer
+                    description: Its process ID.
+                    format: uint32
+                name:
+                    type: string
+                    description: What the kernel called it, such as "postgres".
+                command:
+                    type: string
+                    description: Its command line, at most 512 characters.
+                user:
+                    type: string
+                    description: Who it ran as.
+                container:
+                    type: string
+                    description: The container it ran in, by name. Empty for one that didn't.
+                killed:
+                    type: boolean
+                    description: True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
+                error:
+                    type: string
+                    description: Why it couldn't be ended, for "process.end_failed".
+            description: EventProcess is a process someone ended on a server.
         EventPublicAddress:
             type: object
             properties:
@@ -5026,6 +5165,14 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change.
             description: GetChangeResponse carries one change.
+        GetServerDiskUseResponse:
+            type: object
+            properties:
+                diskUse:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerDiskUse'
+                    description: What takes the room on the disk that holds Docker's data.
+            description: GetServerDiskUseResponse says what takes the room on a server's disk.
         GetServerResponse:
             type: object
             properties:
@@ -7533,7 +7680,9 @@ components:
                     description: |-
                         Recent stats, oldest first, for sparklines: at most 60 samples, from
                          the 5 minutes before the newest by the samples' own times, so a server
-                         that reports again after a longer outage starts over. Empty in lists.
+                         that reports again after a longer outage starts over. Samples come every
+                         5 s while anyone watches the fleet, and every 15 s while nobody does, so
+                         each says its own interval. Empty in lists.
                 agentBuild:
                     allOf:
                         - $ref: '#/components/schemas/BuildInfo'
@@ -7637,6 +7786,66 @@ components:
                     type: boolean
                     description: True for a container that docker compose run made for one command.
             description: ServerContainer is a container on a server, as Docker lists it.
+        ServerDiskUse:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent added it up, on the server's clock.
+                    format: date-time
+                dockerRoot:
+                    type: string
+                    description: Where Docker keeps its data, such as "/var/lib/docker".
+                mountPoint:
+                    type: string
+                    description: Where the disk that holds it is mounted, such as "/".
+                sizeBytes:
+                    type: string
+                    description: How big that disk is, in bytes.
+                usedBytes:
+                    type: string
+                    description: How much of it is in use, in bytes, as df counts it.
+                imagesBytes:
+                    type: string
+                    description: |-
+                        What images take, each layer counted once, as `docker system df` counts
+                         them.
+                imagesUnusedBytes:
+                    type: string
+                    description: What of that no container uses, so removing those images would free it.
+                containersBytes:
+                    type: string
+                    description: What containers have written to their own layers.
+                volumesBytes:
+                    type: string
+                    description: What volumes hold. Docker counts only the volumes it keeps itself.
+                volumesUnusedBytes:
+                    type: string
+                    description: What of that is in volumes no container uses.
+                buildCacheBytes:
+                    type: string
+                    description: What the build cache takes.
+                logsBytes:
+                    type: string
+                    description: |-
+                        What containers' logs take, as Docker's json-file and local drivers keep
+                         them, rotated files included.
+                images:
+                    type: integer
+                    description: How many images there are.
+                    format: uint32
+                containers:
+                    type: integer
+                    description: How many containers there are, running or not.
+                    format: uint32
+                volumes:
+                    type: integer
+                    description: How many volumes there are.
+                    format: uint32
+            description: |-
+                ServerDiskUse is what takes the room on the disk that holds Docker's data,
+                 as Docker and the agent added it up. Docker's parts can come to more than
+                 the disk holds, when Docker's data spans disks of its own.
         ServerHealth:
             type: object
             properties:
@@ -7926,6 +8135,30 @@ components:
                     pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
                     type: string
                     description: Time since the server booted.
+                swapUsedBytes:
+                    type: string
+                    description: Swap in use, in bytes.
+                swapTotalBytes:
+                    type: string
+                    description: Total swap, in bytes. 0 for a server with none.
+                agentMemoryBytes:
+                    type: string
+                    description: |-
+                        What the agent itself holds in memory (its resident set), in bytes. 0
+                         from an agent from before this.
+                networkRxBytes:
+                    type: string
+                    description: Bytes received across physical interfaces since the server booted.
+                networkTxBytes:
+                    type: string
+                    description: Bytes sent across physical interfaces since the server booted.
+                interval:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long until the agent's next sample, at the pace it was sampling when
+                         it took this one: 5 s while anyone watches the fleet, 15 s while nobody
+                         does. Unset from an agent from before this, which samples every 5 s.
             description: ServerStats is one sample of a server's resource use.
         Service:
             type: object
@@ -8860,6 +9093,15 @@ tags:
          WatchLogs streams, so it has no REST path. A REST client pages through
          ReadLogs, or opens the stream with Connect, gRPC or gRPC-Web, with the
          same credentials.
+    - name: ProcessService
+      description: |-
+        ProcessService shows what runs on a server, process by process, and ends one.
+         A server's agent reads its processes only while someone watches them. See
+         docs/adr/0041-processes-on-a-server.md.
+
+         Every method needs a signed-in session: no API token can call them, whatever
+         its scope, as a process's command line can hold what was typed with it, a
+         password included, and ending one is as much as root on the server.
     - name: ResourceService
       description: |-
         ResourceService reads the resources Dockwell manages: projects,
