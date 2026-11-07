@@ -48,11 +48,13 @@ func listenForIngressWhenItCan(logger *slog.Logger, path string, every time.Dura
 				return
 			}
 			if got.err == nil {
-				l.ln = got.ln
-				close(l.bound)
+				// It says so before Accept can go on, so the log never has the panel
+				// answering ahead of the line that says it does.
 				if warned {
 					logger.Info("listening for what the ingress sends the panel, so the panel answers on its domain again", slog.String("socket", path))
 				}
+				l.ln = got.ln
+				close(l.bound)
 				return
 			}
 			if tries%ingressListenWarnEvery == 0 {
