@@ -151,9 +151,16 @@ type PathFollower interface {
 
 // Surveyor is a driver that can say where every server path on its server leads, and
 // the folder each is in, as a plan works out what's inside what, and the same folder
-// can be written two ways.
+// can be written two ways, and what containers it didn't make mount.
 type Surveyor interface {
-	Survey(ctx context.Context, paths []string) (map[string]string, error)
+	Survey(ctx context.Context, paths []string) (Surveyed, error)
+}
+
+// Surveyed is what a Surveyor found: where paths lead, for those that lead elsewhere,
+// and what containers Dockwell didn't make mount.
+type Surveyed struct {
+	Leads     map[string]string
+	Unmanaged []Unmanaged
 }
 
 // PathMover is a PathFollower that can say which of a resource's server paths
@@ -424,9 +431,11 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	return steps, nil
 }
 
-// survey adds where every server path on this server leads to each step that mounts
-// one, for the control plane to work out what's inside what. An agent's word on that
-// can only make a plan louder.
+// survey adds where every server path on this server leads, and what containers
+// Dockwell didn't make mount, to each step for something that mounts or may mount one,
+// for the control plane to work out what's inside what. What runs may mount a server
+// path only through a volume, so every container and service asks. An agent's word
+// on this can only make a plan louder.
 func (l Local) survey(ctx context.Context, desired []Desired, steps []Step) error {
 	var s Surveyor
 	var paths []string
@@ -436,33 +445,34 @@ func (l Local) survey(ctx context.Context, desired []Desired, steps []Step) erro
 		if err != nil || desired[i].Spec == nil {
 			continue
 		}
-		h, ok := d.(HostAccesser)
-		if !ok {
-			continue
-		}
-		mounts := false
-		access := h.HostAccess(desired[i].Spec)
-		for j := range access {
-			if access[j].Kind == AccessPath || access[j].Kind == AccessDocker {
-				paths, mounts = append(paths, access[j].Path), true
+		sv, surveys := d.(Surveyor)
+		mounts := surveys
+		if h, ok := d.(HostAccesser); ok {
+			access := h.HostAccess(desired[i].Spec)
+			for j := range access {
+				if access[j].Kind == AccessPath || access[j].Kind == AccessDocker {
+					paths, mounts = append(paths, access[j].Path), true
+				}
 			}
 		}
 		if !mounts {
 			continue
 		}
 		mounting = append(mounting, i)
-		if sv, ok := d.(Surveyor); ok && s == nil {
+		if surveys && s == nil {
 			s = sv
 		}
 	}
 	if s == nil {
 		return nil
 	}
-	all, err := s.Survey(ctx, paths)
+	surveyed, err := s.Survey(ctx, paths)
 	if err != nil {
 		return fmt.Errorf("can't read where this server's paths lead: %w", err)
 	}
+	all := surveyed.Leads
 	for _, i := range mounting {
+		steps[i].Alongside = surveyed.Unmanaged
 		for p, to := range all {
 			if _, ok := steps[i].Leads[p]; ok {
 				continue

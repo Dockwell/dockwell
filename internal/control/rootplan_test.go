@@ -16,6 +16,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -515,5 +516,48 @@ func TestWhatCanMoveAnothersSourceIsOutOfATokensReach(t *testing.T) {
 	tag := proposeEdit(t, script, serve("files", "ghcr.io/acme/web:1.1", "/srv"))
 	if tag.GetPlan().GetHostAccess() {
 		t.Errorf("another tag asks: %v", tag.GetPlan())
+	}
+}
+
+// A container someone ran by hand counts as what's held through the agent too: the
+// agent names it, with what it mounts, and the plan for what can write around it asks
+// as root does, naming it.
+func TestWhatDockwellDidntMakeIsHeldThroughTheAgent(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	registerImages(e)
+	c := changeClient(b, b.origin)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, "srv", "app", "conf")
+	if err := os.MkdirAll(conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e.AddLocalImage("alpine:3", dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}})
+	id, err := e.Client().CreateContainer(t.Context(), "by-hand", &docker.CreateRequest{
+		Config: docker.Config{Image: "alpine:3"}, HostConfig: docker.HostConfig{Binds: []string{conf + ":/conf"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Client().StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	planned := proposeEdit(t, c, &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "files"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "ghcr.io/acme/web:1.0", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: filepath.Join(dir, "srv")}, Target: "/srv"}},
+		}}}}},
+	})
+	if !slices.ContainsFunc(planned.GetPlan().GetResources()[0].GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+		return a.GetHolds() == conf && a.GetHoldsFor() == "by-hand" && a.GetSameAsRoot()
+	}) {
+		t.Fatalf("the plan says %v", planned.GetPlan().GetResources()[0].GetHostAccess())
+	}
+	if err := askedBy(t, c, planned, planned.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
+		t.Errorf("with no passkey = %v", err)
 	}
 }

@@ -1972,18 +1972,29 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		// Where the agent says each server path leads, which only it can read.
 		leads := map[string]string{}
 		moved := map[string]bool{}
+		var alongside []resource.Unmanaged
 		for i := range steps {
 			maps.Copy(leads, steps[i].Leads)
 			for _, p := range steps[i].LeadsMoved {
 				moved[p] = true
 			}
-			steps[i].PlannedLeads, steps[i].Leads, steps[i].LeadsMoved = steps[i].Leads, nil, nil
+			if alongside == nil {
+				alongside = steps[i].Alongside
+			}
+			steps[i].Leads, steps[i].LeadsMoved, steps[i].Alongside = nil, nil, nil
+		}
+		// A person approves the plan as a whole, so each step goes by where every path
+		// in it leads: a service and the bind volume it mounts are two steps.
+		for i := range steps {
+			if len(leads) > 0 {
+				steps[i].PlannedLeads = maps.Clone(leads)
+			}
 		}
 		// What each item reaches on this server that it couldn't, from its
 		// specs: the control plane decides it, whatever the agent says. What a
 		// backup says it came from is the agent's, and can only make a plan louder.
 		gains := map[resource.Ref][]resource.Access{}
-		mounts, err := e.holdingsOn(ctx, server, its, before, after, leads)
+		mounts, err := e.holdingsOn(ctx, server, its, before, after, leads, alongside)
 		if err != nil {
 			return nil, err
 		}

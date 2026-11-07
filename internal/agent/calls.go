@@ -450,6 +450,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		for i := range steps {
 			out.Steps = append(out.Steps, resourcepb.Step(steps[i], ""))
 		}
+		// What containers Dockwell didn't make mount is the server's, so once.
+		for i := range steps {
+			if len(steps[i].Alongside) > 0 {
+				for _, u := range steps[i].Alongside {
+					out.Unmanaged = append(out.Unmanaged, &agentv1.UnmanagedMounts{Name: u.Name, Paths: u.Paths, Root: u.Root})
+				}
+				break
+			}
+		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Plan{Plan: out}}
 	case call.GetApply() != nil:
 		step, err := resourcepb.FromStep(call.GetApply().GetStep())

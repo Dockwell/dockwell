@@ -695,41 +695,64 @@ func givesMore(at, to string, readOnly bool) bool {
 // paths, each with the folder it's in. A plan works out what's inside what, and one
 // folder can be written two ways, so it needs every path here and not only its own.
 // One that can't be followed counts as it's written, as a plan for something else
-// shouldn't fail on it.
-func (d *Docker) Survey(ctx context.Context, paths []string) (map[string]string, error) {
+// shouldn't fail on it. It names the containers Dockwell didn't make, with the paths
+// they mount, as something a plan makes can write around those too.
+func (d *Docker) Survey(ctx context.Context, paths []string) (resource.Surveyed, error) {
 	if d.Paths == nil {
-		return nil, nil
+		return resource.Surveyed{}, nil
 	}
 	list, err := d.Client.ListContainers(ctx, nil)
 	if err != nil {
-		return nil, err
+		return resource.Surveyed{}, err
 	}
-	volumes := map[string]bool{}
+	devices := map[string]string{}
+	type mounted struct {
+		paths    []string
+		readOnly map[string]bool
+	}
+	unmanaged := map[string]*mounted{}
 	for i := range list {
-		for _, m := range list[i].Mounts {
+		c := &list[i]
+		var mine *mounted
+		if !madeByDockwell(c.Labels) {
+			mine = &mounted{readOnly: map[string]bool{}}
+			unmanaged[listedName(c.Names)] = mine
+		}
+		for _, m := range c.Mounts {
+			source := ""
 			switch {
 			case m.Type == "bind":
-				paths = append(paths, m.Source)
-			case m.Type == "volume" && m.Name != "" && !volumes[m.Name]:
-				volumes[m.Name] = true
-				v, err := d.Client.InspectVolume(ctx, m.Name)
-				switch {
-				case docker.IsNotFound(err):
-					continue
-				case err != nil:
-					return nil, err
+				source = m.Source
+			case m.Type == "volume" && m.Name != "":
+				dev, seen := devices[m.Name]
+				if !seen {
+					v, err := d.Client.InspectVolume(ctx, m.Name)
+					switch {
+					case docker.IsNotFound(err):
+					case err != nil:
+						return resource.Surveyed{}, err
+					default:
+						dev, _ = BindDevice(v.Driver, v.Options)
+					}
+					devices[m.Name] = dev
 				}
-				if dev, ok := BindDevice(v.Driver, v.Options); ok {
-					paths = append(paths, dev)
-				}
+				source = dev
+			}
+			if source == "" {
+				continue
+			}
+			paths = append(paths, source)
+			if mine != nil {
+				mine.paths = append(mine.paths, path.Clean(source))
+				mine.readOnly[path.Clean(source)] = !m.RW
 			}
 		}
 	}
 	h, err := d.Paths.Host(ctx)
 	if err != nil || h.Resolve == nil {
-		return nil, err
+		return resource.Surveyed{}, err
 	}
-	out := map[string]string{}
+	out := resource.Surveyed{Leads: map[string]string{}}
 	seen := map[string]bool{}
 	for _, p := range paths {
 		for _, at := range []string{path.Clean(p), path.Dir(path.Clean(p))} {
@@ -738,21 +761,56 @@ func (d *Docker) Survey(ctx context.Context, paths []string) (map[string]string,
 			}
 			seen[at] = true
 			if to, err := h.Resolve(at); err == nil && to != at {
-				out[at] = to
+				out.Leads[at] = to
 			}
 		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(unmanaged)) {
+		m := unmanaged[name]
+		if len(m.paths) == 0 {
+			continue
+		}
+		u := resource.Unmanaged{Name: name, Paths: m.paths}
+		for _, p := range m.paths {
+			u.Root = u.Root || PathAccess(p, m.readOnly[p]).Leading(out.Leads[p]).AsGoodAsRoot()
+		}
+		out.Unmanaged = append(out.Unmanaged, u)
 	}
 	return out, nil
 }
 
+// listedName is a container's name as a list has it, without a link's.
+func listedName(names []string) string {
+	for _, n := range names {
+		if n = strings.TrimPrefix(n, "/"); !strings.Contains(n, "/") {
+			return n
+		}
+	}
+	return ""
+}
+
+// madeByDockwell says a container's labels are Dockwell's: what it made or took on,
+// and its own, such as the proxy.
+func madeByDockwell(labels map[string]string) bool {
+	if labels[docker.LabelProject] != "" {
+		return true
+	}
+	for k := range labels {
+		if strings.HasPrefix(k, docker.OwnPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // Survey says where every server path on the server leads (Docker.Survey).
-func (d *Driver) Survey(ctx context.Context, paths []string) (map[string]string, error) {
+func (d *Driver) Survey(ctx context.Context, paths []string) (resource.Surveyed, error) {
 	if s, ok := d.Runtime.(interface {
-		Survey(ctx context.Context, paths []string) (map[string]string, error)
+		Survey(ctx context.Context, paths []string) (resource.Surveyed, error)
 	}); ok {
 		return s.Survey(ctx, paths)
 	}
-	return nil, nil
+	return resource.Surveyed{}, nil
 }
 
 // Follow says where server paths lead on this server, for those that lead elsewhere.

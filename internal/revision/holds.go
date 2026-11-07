@@ -57,11 +57,17 @@ type serverMount struct {
 	access resource.Access
 	// root says the resource is as good as root already, by what else it reaches.
 	root bool
+	// unmanaged says Dockwell didn't make it, so it's only ever what's held: its code
+	// isn't what a token or a plan here chooses.
+	unmanaged bool
 }
+
+// unmanagedKind names a container Dockwell didn't make, on the held side of a hold.
+const unmanagedKind resource.Kind = "unmanaged"
 
 // holdingsOn works out what holds what on server. Most changes mount no server path,
 // and those read nothing more.
-func (e *Engine) holdingsOn(ctx context.Context, server string, its []*item, before, after map[resource.Ref]proto.Message, leads map[string]string) (pathHolds, error) {
+func (e *Engine) holdingsOn(ctx context.Context, server string, its []*item, before, after map[resource.Ref]proto.Message, leads map[string]string, alongside []resource.Unmanaged) (pathHolds, error) {
 	var was, is []serverMount
 	for _, it := range its {
 		was = append(was, mountsOf(it.ref, e.reach(it.ref, it.currentOn(server), before), leads)...)
@@ -87,6 +93,14 @@ func (e *Engine) holdingsOn(ctx context.Context, server string, its []*item, bef
 		o := &others[i]
 		was = append(was, mountsOf(o.ref, e.reach(o.ref, o.currentOn(server), namedBefore), leads)...)
 		is = append(is, mountsOf(o.ref, e.reach(o.ref, o.desiredOn(server), namedAfter), leads)...)
+	}
+	// What Dockwell didn't make is as the change finds it and as it leaves it.
+	for _, u := range alongside {
+		ref := resource.Ref{Kind: unmanagedKind, Scope: server, Name: u.Name}
+		for _, p := range u.Paths {
+			m := serverMount{ref: ref, access: resource.Access{Kind: resource.AccessPath, Path: p}, root: u.Root, unmanaged: true}
+			was, is = append(was, m), append(is, m)
+		}
 	}
 	return pathHolds{before: holdingsIn(was, leads), after: holdingsIn(is, leads)}, nil
 }
@@ -152,7 +166,7 @@ func holdingsIn(list []serverMount, leads map[string]string) []pathHold {
 	var out []pathHold
 	for i := range list {
 		h := &list[i]
-		if h.access.ReadOnly || h.access.Leading(leads[h.access.Path]).AsGoodAsRoot() {
+		if h.unmanaged || h.access.ReadOnly || h.access.Leading(leads[h.access.Path]).AsGoodAsRoot() {
 			continue
 		}
 		for j := range list {

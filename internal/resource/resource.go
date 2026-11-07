@@ -180,6 +180,9 @@ type Decision struct {
 	// when what runs now was made. What a person approved isn't what it reaches
 	// any more, so the control plane counts it as gained.
 	LeadsMoved []string `json:",omitempty"`
+	// Alongside is what containers Dockwell didn't make mount on the step's server,
+	// as its agent surveyed it for the plan. It isn't kept with the plan.
+	Alongside []Unmanaged `json:"-"`
 	// Pull is true when the step asks the server for its image again first. With
 	// no Changes, it replaces what runs only if that finds a newer image. With
 	// nothing but a restart policy to change, it changes that in place otherwise.
@@ -478,6 +481,16 @@ type BackupFirst struct {
 type BackupTaken struct {
 	ID, Method, Database, SHA256 string
 	Size, Changed                int64
+}
+
+// Unmanaged is a container Dockwell didn't make, by its name, and the server paths it
+// mounts, which a plan counts as held where something it plans can write around one.
+type Unmanaged struct {
+	Name  string
+	Paths []string
+	// Root says it's as good as root by what it mounts already, so moving one of its
+	// paths gives it nothing new.
+	Root bool
 }
 
 // IngressChange is what happens to the proxy that holds a server's public

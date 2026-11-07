@@ -327,7 +327,7 @@ func (d *Driver) Leads(ctx context.Context, ref resource.Ref, desired proto.Mess
 }
 
 // Survey says where every server path on the server leads (container.Docker.Survey).
-func (d *Driver) Survey(ctx context.Context, paths []string) (map[string]string, error) {
+func (d *Driver) Survey(ctx context.Context, paths []string) (resource.Surveyed, error) {
 	return d.Containers.Survey(ctx, paths)
 }
 
