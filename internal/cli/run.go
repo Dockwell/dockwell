@@ -88,7 +88,7 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	cfg.Terminals = terminal.New(terminal.Options{
-		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, agent.FollowPaths, agent.ProcMounts),
+		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
 	lookups(&cfg, stdio, g)
 	return agent.Run(ctx, cfg)

@@ -277,8 +277,9 @@ func volumeFolder(p string, m docker.MountPoint) bool {
 }
 
 // FollowPaths says where server paths lead on this server, for those that lead
-// elsewhere, with the resolver a plan's Leads uses. Paths.Follow, which records
-// each link a path passes, takes its place once it's on main (#200).
+// elsewhere, with the resolver a plan's Leads uses, and needs no Docker. The agent
+// itself follows them with container.Paths.Follow, which is the same, with where
+// Docker keeps its data.
 func FollowPaths(_ context.Context, paths ...string) (map[string]string, error) {
 	return containerdriver.Host{Resolve: containerdriver.Resolve}.Leads(paths...)
 }
