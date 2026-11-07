@@ -5,6 +5,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -33,6 +34,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	controlhealth "github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -312,6 +314,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		Agents:         agents,
 		Store:          db,
 		Secrets:        keeper,
+		Releases:       releasesURL(stdio),
 	})
 	if err != nil {
 		closeAll()
@@ -827,4 +830,21 @@ func withListenHint(err error, flag string) error {
 	default:
 		return err
 	}
+}
+
+// envMirror and envReleasesURL name where Dockwell's releases are, as the install
+// script takes them, which the control plane reads the newest release from.
+const (
+	envMirror      = "DOCKWELL_MIRROR"
+	envReleasesURL = "DOCKWELL_RELEASES_URL"
+)
+
+// releasesURL is where the control plane reads Dockwell's newest release from, as
+// the install script takes it: a mirror, then DOCKWELL_RELEASES_URL, then GitHub's.
+// A test reads none unless DOCKWELL_RELEASES_URL names one (ADR 0043).
+func releasesURL(stdio IO) string {
+	if isSet(stdio.Getenv(envTest)) {
+		return stdio.Getenv(envReleasesURL)
+	}
+	return cmp.Or(stdio.Getenv(envMirror), stdio.Getenv(envReleasesURL), updates.GitHubReleases)
 }

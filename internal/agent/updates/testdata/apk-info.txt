@@ -1,0 +1,9 @@
+busybox-1.36.1-r29 description:
+Size optimized toolbox of many common UNIX utilities
+
+openssl-3.3.2-r0 description:
+Toolkit for Transport Layer Security (TLS)
+
+py3-foo-bar-1.2.3-r0 description:
+A library that does foo and bar
+

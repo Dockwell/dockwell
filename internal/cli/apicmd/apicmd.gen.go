@@ -1293,6 +1293,34 @@ func Methods() []*apicli.Method {
 			Call:      apicli.Unary[v1.UnlockCodeSignInRequest, v1.UnlockCodeSignInResponse](dockwellv1connect.AuthServiceUnlockCodeSignInProcedure),
 		},
 		{
+			Name:      "dockwell.v1.UpdateService.CheckServerUpdates",
+			Procedure: dockwellv1connect.UpdateServiceCheckServerUpdatesProcedure,
+			HTTP:      "POST /v1/servers/{id}/updates:check",
+			Noun:      "updates",
+			Verb:      "check",
+			Short:     "Refresh a server's package lists now",
+			Long:      "Refresh a server's package lists now, whatever their age, and reads what waits\nagain. It answers at once, with checking set, and dockwell updates get has the\nresult. A server is refreshed this way at most once a minute: asking again\nsooner answers with the refresh under way, or the last one.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "The server's ID.", Arg: true},
+			},
+			Call: apicli.Unary[v1.CheckServerUpdatesRequest, v1.CheckServerUpdatesResponse](dockwellv1connect.UpdateServiceCheckServerUpdatesProcedure),
+		},
+		{
+			Name:      "dockwell.v1.UpdateService.GetServerUpdates",
+			Procedure: dockwellv1connect.UpdateServiceGetServerUpdatesProcedure,
+			HTTP:      "GET /v1/servers/{id}/updates",
+			Noun:      "updates",
+			Verb:      "get",
+			Short:     "Say which package updates wait on a server",
+			Long:      "Say which package updates wait on a server, which are security fixes, whether\nthe server needs a reboot, and Dockwell's own version against its newest\nrelease. An answer stands for 10 minutes. Past that, or with none yet, this asks\nthe server's agent, and answers with what it had and checking set when the agent\ntakes more than a few seconds: ask again for the rest. The agent refreshes the\nserver's package lists first when they're more than a day old.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "The server's ID, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\".", Arg: true},
+			},
+			Call: apicli.Unary[v1.GetServerUpdatesRequest, v1.GetServerUpdatesResponse](dockwellv1connect.UpdateServiceGetServerUpdatesProcedure),
+		},
+		{
 			Name:      "dockwell.v1.VariableService.ListVariables",
 			Procedure: dockwellv1connect.VariableServiceListVariablesProcedure,
 			HTTP:      "GET /v1/variables",
@@ -1338,6 +1366,7 @@ func Nouns() []apicli.Noun {
 		{Name: "settings", Short: "Get, set name or set time zone settings", Long: "SettingsService reads and changes the install's own settings: what it's called,\nthe time zone its schedules start in, and how its panel is served.\n\nNone of these is managed state: they change what Dockwell says and suggests, not\nwhat runs on a server, so a change needs no plan. Each is on the activity log,\nwith what it replaced. How the panel is served comes from how dockwell run was\nstarted, and changes there. See docs/adr/0042-the-installs-settings.md."},
 		{Name: "system", Short: "Return the build of the control plane that answers", Long: "SystemService describes the Dockwell install itself. It needs no sign-in, so the\nCLI, agents and other tools can check what they are talking to first."},
 		{Name: "totp", Short: "Get, disable or unlock TOTP, and 4 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},
+		{Name: "updates", Short: "Get or check updates", Long: "UpdateService says which package updates wait on a server, through its agent,\nwhich reads them with the server's own package manager: apt, dnf or apk. Nothing\nis read while nobody asks, and a server's package lists are refreshed at most\ndaily. See docs/adr/0043-package-updates-on-a-server.md."},
 		{Name: "variables", Short: "List, create, update or delete variables", Long: "A variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use\nvariables and secrets by reference, under the names they expect, so changing one\nis a plan that restarts every service that uses it.\n\ndockwell variables create, update and delete each propose a change, show its\nplan, and ask before applying it."},
 	}
 }

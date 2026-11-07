@@ -119,6 +119,11 @@ msgstr "{0, plural, one {# revision · newest first} other {# revisions · newes
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, one {# server} other {# servers}}"
 
+#. placeholder {0}: s.total
+#: src/features/updates/UpdatesCard.tsx
+msgid "{0, plural, one {# update, not for security} other {# updates, none for security}}"
+msgstr "{0, plural, one {# update, not for security} other {# updates, none for security}}"
+
 #. placeholder {0}: optional.length
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {# with a default} other {# with a default}}"
@@ -149,6 +154,17 @@ msgstr "{0, plural, one {This makes # app} other {This makes # apps}}"
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, one {Volume} other {Volumes}}"
 
+#. placeholder {0}: shown.join(", ")
+#. placeholder {1}: ps.length - shown.length
+#: src/features/updates/UpdatesCard.tsx
+msgid "{0} and {1} more"
+msgstr "{0} and {1} more"
+
+#. placeholder {0}: shown.join(", ")
+#: src/features/updates/UpdatesPage.tsx
+msgid "{0} and {more} more"
+msgstr "{0} and {more} more"
+
 #. placeholder {0}: d.backups
 #. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
 #: src/features/backups/DestinationsPanel.tsx
@@ -175,6 +191,11 @@ msgstr "{0} can't take its steps until its agent reconnects, so the plan can't a
 msgid "{0} disk"
 msgstr "{0} disk"
 
+#. placeholder {0}: managerName(updates.manager)
+#: src/features/updates/UpdatesPage.tsx
+msgid "{0} doesn't say which updates fix security issues, so none is marked here."
+msgstr "{0} doesn't say which updates fix security issues, so none is marked here."
+
 #. placeholder {0}: offline.join(", ")
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0} has to reconnect first"
@@ -184,6 +205,17 @@ msgstr "{0} has to reconnect first"
 #: src/features/logs/LogNote.tsx
 msgid "{0} is offline"
 msgstr "{0} is offline"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "{0} is up to date, as far as its lists say."
+msgstr "{0} is up to date, as far as its lists say."
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesCard.tsx
+#: src/features/updates/UpdatesPage.tsx
+msgid "{0} needs a reboot"
+msgstr "{0} needs a reboot"
 
 #. placeholder {0}: step.toLocaleString(i18n.locale)
 #. placeholder {1}: store.matches.toLocaleString(i18n.locale)
@@ -236,6 +268,11 @@ msgstr "{0}, {zone} · {1}"
 #: src/features/apps/AppOverview.tsx
 msgid "{0}. It was proposed with an API token, and its plan is one only a signed-in person may apply. Nothing changes until someone does."
 msgstr "{0}. It was proposed with an API token, and its plan is one only a signed-in person may apply. Nothing changes until someone does."
+
+#. placeholder {0}: names(s.security)
+#: src/features/updates/UpdatesCard.tsx
+msgid "{0}. Needs a reboot."
+msgstr "{0}. Needs a reboot."
 
 #: src/features/shell/CommandMenu.tsx
 msgid "{address}, private"
@@ -472,6 +509,26 @@ msgstr "{mount}: {used} used, {free} free, of {size}"
 #: src/features/apps/AppsPage.tsx
 msgid "{moving} deploying"
 msgstr "{moving} deploying"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{n, plural, one {# more is held back: {names}. An upgrade doesn't take it yet, as with a phased update that hasn't reached this server.} other {# more are held back: {names}. An upgrade doesn't take them yet, as with phased updates that haven't reached this server.}}"
+msgstr "{n, plural, one {# more is held back: {names}. An upgrade doesn't take it yet, as with a phased update that hasn't reached this server.} other {# more are held back: {names}. An upgrade doesn't take them yet, as with phased updates that haven't reached this server.}}"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "{n, plural, one {# security update for {distro}} other {# security updates for {distro}}}"
+msgstr "{n, plural, one {# security update for {distro}} other {# security updates for {distro}}}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
+msgstr "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "{n, plural, one {# security update} other {# security updates}}"
+msgstr "{n, plural, one {# security update} other {# security updates}}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{n} from {source}"
+msgstr "{n} from {source}"
 
 #: src/features/catalog/InstalledPanel.tsx
 msgid "{name} {version}"
@@ -785,6 +842,10 @@ msgstr "{needing, plural, one {# needs a look} other {# need a look}}"
 msgid "{networks, plural, one {a network} other {# networks}}"
 msgstr "{networks, plural, one {a network} other {# networks}}"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "{newest} available"
+msgstr "{newest} available"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
 msgstr "{now} now"
@@ -845,6 +906,10 @@ msgstr "{reads}, relabelled for SELinux as private"
 #: src/features/changes/words.ts
 msgid "{reads}, relabelled for SELinux as shared"
 msgstr "{reads}, relabelled for SELinux as shared"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
+msgstr "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
 
 #: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
@@ -1065,6 +1130,11 @@ msgstr "+{left}"
 msgid "+{others}"
 msgstr "+{others}"
 
+#. placeholder {0}: control || agent
+#: src/features/updates/UpdatesPage.tsx
+msgid "<0>{0}</0> · agent and control plane"
+msgstr "<0>{0}</0> · agent and control plane"
+
 #. placeholder {0}: window.location.host
 #: src/features/auth/SignInPage.tsx
 msgid "<0>{0}</0> · the panel for {name}"
@@ -1197,6 +1267,10 @@ msgstr "<0>{source}</0> gives this app control of Docker on the server, the same
 #: src/features/changes/fields.tsx
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>, read-only"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "<0>{tool}</0> installs updates"
+msgstr "<0>{tool}</0> installs updates"
 
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
@@ -1551,6 +1625,14 @@ msgstr "Addresses"
 msgid "Agent"
 msgstr "Agent"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Agent <0>{agent}</0>, control plane <1>{control}</1>"
+msgstr "Agent <0>{agent}</0>, control plane <1>{control}</1>"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "Agent and control plane"
+msgstr "Agent and control plane"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Agent connected"
 msgstr "Agent connected"
@@ -1813,6 +1895,10 @@ msgstr "Applying this asks for your passkey"
 msgid "Apps"
 msgstr "Apps"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Apps and websites go offline"
+msgstr "Apps and websites go offline"
+
 #: src/features/overview/OverviewApps.tsx
 msgid "Apps on this server"
 msgstr "Apps on this server"
@@ -1834,6 +1920,16 @@ msgstr "Asked for a passkey to apply {change}, and none came"
 msgid "Asked for a passkey to save {path} on {server}, and none came"
 msgstr "Asked for a passkey to save {path} on {server}, and none came"
 
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesCard.tsx
+msgid "Asking {0}"
+msgstr "Asking {0}"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Asking {0} which updates wait…"
+msgstr "Asking {0} which updates wait…"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "Asking the server what this takes"
 msgstr "Asking the server what this takes"
@@ -1854,9 +1950,21 @@ msgstr "Authenticator app"
 msgid "Automatic"
 msgstr "Automatic"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Automatic updates"
+msgstr "Automatic updates"
+
 #: src/features/catalog/useCatalog.ts
 msgid "Automation"
 msgstr "Automation"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "available"
+msgstr "available"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Available"
+msgstr "Available"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/shell/Page.tsx
@@ -1988,6 +2096,10 @@ msgstr "Bucket"
 #: src/features/apps/AppDeployments.tsx
 msgid "By"
 msgstr "By"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "By itself"
+msgstr "By itself"
 
 #: src/features/settings/GeneralPage.tsx
 msgid "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
@@ -2176,6 +2288,10 @@ msgstr "Check"
 msgid "Check it from a terminal"
 msgstr "Check it from a terminal"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Check now"
+msgstr "Check now"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Check that the server and its agent are up."
 msgstr "Check that the server and its agent are up."
@@ -2208,15 +2324,30 @@ msgstr "Check the port in the app, then try again."
 msgid "Checked"
 msgstr "Checked"
 
+#. placeholder {0}: words.ago(timestampDate(updates.listsTime), now)
+#: src/features/updates/UpdatesPage.tsx
+msgid "checked {0}"
+msgstr "checked {0}"
+
+#. placeholder {0}: words.ago(timestampDate(u.listsTime), now)
+#: src/features/updates/UpdatesCard.tsx
+msgid "Checked {0}"
+msgstr "Checked {0}"
+
 #: src/features/apps/Health.tsx
 #: src/features/auth/AuthGate.tsx
 #: src/features/changes/words.ts
+#: src/features/updates/UpdatesPage.tsx
 msgid "Checking"
 msgstr "Checking"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking again."
 msgstr "Checking again."
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "Checking for updates"
+msgstr "Checking for updates"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -2433,12 +2564,21 @@ msgstr "Container"
 msgid "Containers Dockwell didn't make"
 msgstr "Containers Dockwell didn't make"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Containers keep running"
+msgstr "Containers keep running"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Containers keep running while it restarts"
+msgstr "Containers keep running while it restarts"
+
 #: src/features/files/FileViewer.tsx
 msgid "Contents of {name}"
 msgstr "Contents of {name}"
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
+#: src/features/updates/UpdatesCard.tsx
 msgid "Control plane"
 msgstr "Control plane"
 
@@ -2735,6 +2875,7 @@ msgstr "Creating passkey"
 #: src/features/auth/SessionsPanel.tsx
 #: src/features/logs/LogsPage.tsx
 #: src/features/shell/CommandMenu.tsx
+#: src/features/updates/UpdatesPage.tsx
 msgid "Current"
 msgstr "Current"
 
@@ -3029,6 +3170,14 @@ msgstr "DNS points at a private address that isn't this server's"
 msgid "Docker"
 msgstr "Docker"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Docker and Dockwell"
+msgstr "Docker and Dockwell"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Docker Engine"
+msgstr "Docker Engine"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
 msgstr "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
@@ -3058,13 +3207,27 @@ msgstr "Docker's socket"
 msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 msgstr "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 
+#. placeholder {0}: plainVersion(release?.newest ?? "")
+#: src/features/updates/UpdatesCard.tsx
+msgid "Dockwell {0} is out"
+msgstr "Dockwell {0} is out"
+
 #: src/features/shell/Rail.tsx
 msgid "Dockwell {short}: control plane status"
 msgstr "Dockwell {short}: control plane status"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "Dockwell {version} is current"
+msgstr "Dockwell {version} is current"
+
 #: src/features/system/StatusPage.tsx
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell can't install updates yet, so run {command} on {0}."
+msgstr "Dockwell can't install updates yet, so run {command} on {0}."
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "Dockwell can't reach what this would back up"
@@ -3074,6 +3237,11 @@ msgstr "Dockwell can't reach what this would back up"
 #: src/features/overview/OverviewBackups.tsx
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell can't read its backups"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell can't read updates on {0}"
+msgstr "Dockwell can't read updates on {0}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
@@ -3106,6 +3274,16 @@ msgstr "Dockwell can't tell whether <0>{next}</0> started"
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell can't tell whether this ran"
 msgstr "Dockwell can't tell whether this ran"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell couldn't ask {0} for its updates"
+msgstr "Dockwell couldn't ask {0} for its updates"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell couldn't read {0}'s updates just now"
+msgstr "Dockwell couldn't read {0}'s updates just now"
 
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
@@ -3248,6 +3426,10 @@ msgstr "Dockwell put things back as they were"
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell puts <0>{image}</0> back once {0} reconnects"
 msgstr "Dockwell puts <0>{image}</0> back once {0} reconnects"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell refreshes them once they're a day old, when someone looks"
+msgstr "Dockwell refreshes them once they're a day old, when someone looks"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
@@ -3451,6 +3633,14 @@ msgstr "Events: {caption}"
 msgid "Every change, server event, access grant, change of health and backup, newest first"
 msgstr "Every change, server event, access grant, change of health and backup, newest first"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Every container restarts"
+msgstr "Every container restarts"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Every container restarts with it"
+msgstr "Every container restarts with it"
+
 #: src/features/changes/notices.tsx
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "Everything in {name} on {server} goes back to what was there before the restore"
@@ -3651,6 +3841,10 @@ msgstr "For a script, the CLI or an integration"
 msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
 msgstr "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "For what was installed to take effect"
+msgstr "For what was installed to take effect"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Free"
 msgstr "Free"
@@ -3664,6 +3858,16 @@ msgstr "from"
 #: src/features/apps/AppEnvironment.tsx
 msgid "From"
 msgstr "From"
+
+#. placeholder {0}: from[0]
+#: src/features/updates/UpdatesPage.tsx
+msgid "From {0}"
+msgstr "From {0}"
+
+#. placeholder {0}: from.length
+#: src/features/updates/UpdatesPage.tsx
+msgid "From {0} sources"
+msgstr "From {0} sources"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "From Git, a Docker image, a Compose file or the catalog."
@@ -3784,6 +3988,7 @@ msgid "Hidden"
 msgstr "Hidden"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/updates/UpdatesPage.tsx
 msgid "Hide"
 msgstr "Hide"
 
@@ -3960,6 +4165,11 @@ msgid "Install Cloudflare Tunnel from the Catalog"
 msgstr "Install Cloudflare Tunnel from the Catalog"
 
 #: src/features/auth/ClaimPage.tsx
+msgid "Installed"
+msgstr "Installed"
+
+#: src/features/updates/UpdatesPage.tsx
+msgctxt "a package's version"
 msgid "Installed"
 msgstr "Installed"
 
@@ -4297,6 +4507,10 @@ msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this
 msgid "Its logs show here once they can be read."
 msgstr "Its logs show here once they can be read."
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Its newest release isn't known"
+msgstr "Its newest release isn't known"
+
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its project, which keeps it apart from your other apps."
 msgstr "Its project, which keeps it apart from your other apps."
@@ -4515,6 +4729,10 @@ msgstr "Link expires"
 #: src/features/changes/words.ts
 msgid "Listening there now: {listening}"
 msgstr "Listening there now: {listening}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "lists never refreshed"
+msgstr "lists never refreshed"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Live"
@@ -4819,6 +5037,14 @@ msgstr "names values in"
 msgid "Near lines {0}–{1}: {2}"
 msgstr "Near lines {0}–{1}: {2}"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Needed now"
+msgstr "Needed now"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Needs a reboot"
+msgstr "Needs a reboot"
+
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
 msgid "network"
@@ -4852,12 +5078,17 @@ msgctxt "token expiry"
 msgid "Never"
 msgstr "Never"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Never refreshed"
+msgstr "Never refreshed"
+
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/auth/TokensPanel.tsx
 msgid "never used"
 msgstr "never used"
 
 #: src/features/shell/Topbar.tsx
+#: src/features/updates/UpdatesPage.tsx
 msgid "New"
 msgstr "New"
 
@@ -4993,6 +5224,10 @@ msgstr "No passkey for this address? Passkeys belong to the address they were ma
 msgid "No passkey works at {rpId} yet"
 msgstr "No passkey works at {rpId} yet"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "No reboot"
+msgstr "No reboot"
+
 #: src/features/apps/DomainNote.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "No report"
@@ -5009,6 +5244,11 @@ msgstr "No schedule"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "No schedules yet. A backup you take by hand stays until you delete it."
 msgstr "No schedules yet. A backup you take by hand stays until you delete it."
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "No security fix waits on {0}."
+msgstr "No security fix waits on {0}."
 
 #: src/features/apps/DomainNote.tsx
 msgid "No server"
@@ -5046,6 +5286,10 @@ msgstr "No tokens yet. Make one for each script or integration, so you can revok
 msgid "No undo"
 msgstr "No undo"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "no update waits"
+msgstr "no update waits"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
@@ -5057,6 +5301,10 @@ msgstr "Nobody can say how {name} runs"
 #: src/features/apps/Health.tsx
 msgid "Nobody can say how {name} runs now."
 msgstr "Nobody can say how {name} runs now."
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "none needs a reboot"
+msgstr "none needs a reboot"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -5073,6 +5321,10 @@ msgstr "None set"
 #: src/features/apps/AppOverview.tsx
 msgid "None set here. The image may have one."
 msgstr "None set here. The image may have one."
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "None waiting"
+msgstr "None waiting"
 
 #: src/features/overview/OverviewBackups.tsx
 msgid "None yet"
@@ -5109,6 +5361,7 @@ msgid "Not in this release yet"
 msgstr "Not in this release yet"
 
 #: src/features/servers/ServerPanels.tsx
+#: src/features/updates/UpdatesPage.tsx
 msgid "Not installed or not running"
 msgstr "Not installed or not running"
 
@@ -5123,6 +5376,10 @@ msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 #: src/features/apps/AppEnvironment.tsx
 msgid "Not loaded"
 msgstr "Not loaded"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Not needed"
+msgstr "Not needed"
 
 #: src/features/apps/words.ts
 msgid "Not placed"
@@ -5230,6 +5487,10 @@ msgstr "Nothing in its spec changed. It moved, or came back as it was."
 msgid "Nothing in the {total} lines loaded has \"{query}\"."
 msgstr "Nothing in the {total} lines loaded has \"{query}\"."
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Nothing installs updates"
+msgstr "Nothing installs updates"
+
 #: src/features/changes/words.ts
 msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
 msgstr "Nothing listens on port {number} yet, so this answers 502 until something does"
@@ -5293,6 +5554,10 @@ msgstr "Nothing to change"
 msgid "Nothing to show until {servers} is back"
 msgstr "Nothing to show until {servers} is back"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "Nothing waits in its package lists"
+msgstr "Nothing waits in its package lists"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing was written in this time"
 msgstr "Nothing was written in this time"
@@ -5304,6 +5569,10 @@ msgstr "Nothing yet: the panel has no domain"
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "Nothing yet. It runs once the deploy finishes."
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Nothing: <0>{tool}</0> is off"
+msgstr "Nothing: <0>{tool}</0> is off"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "now"
@@ -5411,6 +5680,12 @@ msgstr "Once <0>{servers}</0> reconnects, Dockwell puts things back as they were
 #: src/features/apps/AppOverview.tsx
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
+
+#. placeholder {0}: server.name
+#. placeholder {1}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "One of them needs a reboot to take effect, and apps and websites go offline while {0} restarts. Dockwell can't install updates yet, so run {command} on {1}."
+msgstr "One of them needs a reboot to take effect, and apps and websites go offline while {0} restarts. Dockwell can't install updates yet, so run {command} on {1}."
 
 #: src/features/files/FilesPage.tsx
 msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
@@ -5605,6 +5880,15 @@ msgstr "Other apps are here, so it needs a name of its own, such as <0>shop</0>.
 msgid "Other apps on its network reach it by this name."
 msgstr "Other apps on its network reach it by this name."
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Other updates"
+msgstr "Other updates"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Other updates for {0}"
+msgstr "Other updates for {0}"
+
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
 #: src/features/servers/ServerFrame.tsx
@@ -5629,6 +5913,18 @@ msgstr "Owner account"
 #: src/app/Providers.tsx
 msgid "package"
 msgstr "package"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Package"
+msgstr "Package"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Package lists"
+msgstr "Package lists"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Package manager"
+msgstr "Package manager"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Pages"
@@ -6176,6 +6472,10 @@ msgstr "Reads logs"
 msgid "Reads servers and their state. Changes nothing."
 msgstr "Reads servers and their state. Changes nothing."
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Reboot"
+msgstr "Reboot"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Receiving"
 msgstr "Receiving"
@@ -6220,6 +6520,15 @@ msgstr "Recovery codes"
 #: src/features/changes/words.ts
 msgid "Recreates its container"
 msgstr "Recreates its container"
+
+#. placeholder {0}: words.ago(timestampDate(updates.listsTime), now)
+#: src/features/updates/UpdatesPage.tsx
+msgid "Refreshed {0}"
+msgstr "Refreshed {0}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Refreshing lists"
+msgstr "Refreshing lists"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Refused"
@@ -6378,6 +6687,10 @@ msgstr "Restarting"
 msgid "Restarts"
 msgstr "Restarts"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Restarts Docker"
+msgstr "Restarts Docker"
+
 #: src/features/backups/BackupsPage.tsx
 #: src/features/overview/OverviewBackups.tsx
 msgid "Restore"
@@ -6413,6 +6726,10 @@ msgstr "Revealed a secret"
 msgid "Revealed the secret {name}"
 msgstr "Revealed the secret {name}"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "Review"
+msgstr "Review"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
@@ -6430,6 +6747,10 @@ msgstr "Review plan"
 #: src/features/catalog/InstalledPanel.tsx
 msgid "Review the change"
 msgstr "Review the change"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "Review updates"
+msgstr "Review updates"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
@@ -6811,6 +7132,15 @@ msgstr "Secret key"
 msgid "secrets"
 msgstr "secrets"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Security updates"
+msgstr "Security updates"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Security updates for {0}"
+msgstr "Security updates for {0}"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See its logs"
 msgstr "See its logs"
@@ -6994,6 +7324,10 @@ msgstr "shared memory"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show"
 msgstr "Show"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Show all"
+msgstr "Show all"
 
 #: src/app/Providers.tsx
 msgid "Show all of this line"
@@ -7691,6 +8025,11 @@ msgstr "The oldest goes once a new one is whole. A failed run takes nothing away
 msgid "The owner account wasn't created"
 msgstr "The owner account wasn't created"
 
+#. placeholder {0}: updates.refreshError
+#: src/features/updates/UpdatesPage.tsx
+msgid "The package lists couldn't be refreshed, so this is what they said before: {0}"
+msgstr "The package lists couldn't be refreshed, so this is what they said before: {0}"
+
 #: src/features/changes/words.ts
 msgid "The panel"
 msgstr "The panel"
@@ -8168,6 +8507,10 @@ msgstr "This removes it from the server's disk and from {destination}. Nothing b
 msgid "This removes it from the server's disk. Nothing brings it back."
 msgstr "This removes it from the server's disk. Nothing brings it back."
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "This runs {version}. Update with the install script"
+msgstr "This runs {version}. Update with the install script"
+
 #: src/features/files/FileViewer.tsx
 msgid "This save may still land"
 msgstr "This save may still land"
@@ -8536,6 +8879,10 @@ msgstr "up {uptime}"
 msgid "Up to {stepBound} until healthy"
 msgstr "Up to {stepBound} until healthy"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "Up to date"
+msgstr "Up to date"
+
 #: src/features/changes/words.ts
 msgid "Update"
 msgstr "Update"
@@ -8552,6 +8899,10 @@ msgstr "Update out"
 msgid "Update the agent on this server to edit {name} here. You can still read it."
 msgstr "Update the agent on this server to edit {name} here. You can still read it."
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Update with the install script: <0>curl -fsSL https://get.dockwell.dev | sh</0>"
+msgstr "Update with the install script: <0>curl -fsSL https://get.dockwell.dev | sh</0>"
+
 #: src/app/Providers.tsx
 msgid "updated"
 msgstr "updated"
@@ -8564,6 +8915,21 @@ msgstr "Updated"
 #: src/app/Providers.tsx
 msgid "Updated in place"
 msgstr "Updated in place"
+
+#: src/features/servers/ServerFrame.tsx
+#: src/features/updates/UpdatesCard.tsx
+#: src/features/updates/UpdatesPage.tsx
+msgid "Updates"
+msgstr "Updates"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "Updates can't be read here"
+msgstr "Updates can't be read here"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Updates for {0}"
+msgstr "Updates for {0}"
 
 #: src/features/changes/words.ts
 msgid "Updating"
@@ -8807,6 +9173,11 @@ msgstr "Weekly"
 msgid "Weekly on {day} at {at}"
 msgstr "Weekly on {day} at {at}"
 
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "What {what} changed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
+msgstr "What {what} changed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "What applying means"
 msgstr "What applying means"
@@ -8943,6 +9314,11 @@ msgstr "What to search"
 msgid "What to show"
 msgstr "What to show"
 
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "What was installed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
+msgstr "What was installed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
+
 #: src/features/auth/TokensPanel.tsx
 msgid "What will use this token?"
 msgstr "What will use this token?"
@@ -8964,6 +9340,10 @@ msgstr "What you typed is still here."
 msgid "What your domains serve isn't affected."
 msgstr "What your domains serve isn't affected."
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "What's here was read {read}."
+msgstr "What's here was read {read}."
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What's in front"
 msgstr "What's in front"
@@ -8980,6 +9360,10 @@ msgstr "What's in front gets a 404 for {where}, so visitors see whatever it show
 #: src/features/apps/AppDeployments.tsx
 msgid "When"
 msgstr "When"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "When installed"
+msgstr "When installed"
 
 #: src/features/apps/words.ts
 msgid "When it exits with an error"

@@ -9,6 +9,7 @@ import { Fragment, type ReactNode } from "react";
 import { RouterTabLink } from "../../lib/links";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
+import { summarize, useServerUpdates } from "../updates/updates";
 import { Connecting, usePageReconnecting } from "./FleetNotes";
 import { publicAddressOf } from "./network";
 import { ServerAddress } from "./ServerAddress";
@@ -124,9 +125,31 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
           <RouterTabLink to="/servers/$serverId/files" params={{ serverId: server.id }}>
             <Trans>Files</Trans>
           </RouterTabLink>
+          <UpdatesTab server={server} />
         </TabNav>
       )}
       {children}
     </Page>
+  );
+}
+
+/**
+ * The Updates tab, with how many security fixes wait, in a warning's tone, or how
+ * many updates do when none is for security. Opening a server's page is looking,
+ * so this is what has its agent read them (ADR 0043).
+ */
+function UpdatesTab({ server }: { server: Server }) {
+  const query = useServerUpdates(server.id);
+  const s = summarize(query.data?.updates);
+  const security = s.security.length;
+  return (
+    <RouterTabLink
+      to="/servers/$serverId/updates"
+      params={{ serverId: server.id }}
+      count={security > 0 ? security : s.total > 0 ? s.total : undefined}
+      countTone={security > 0 ? "warning" : undefined}
+    >
+      <Trans>Updates</Trans>
+    </RouterTabLink>
   );
 }

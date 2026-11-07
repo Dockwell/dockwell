@@ -1,0 +1,10 @@
+
+kernel.x86_64                        5.14.0-503.15.1.el9_5              baseos   
+openssl.x86_64                       1:3.2.2-6.el9_5                    baseos   
+openssl-libs.x86_64                  1:3.2.2-6.el9_5                    baseos   
+python3-dnf-plugin-versionlock-and-a-long-name.noarch
+                                     4.3.0-16.el9                       baseos   
+vim-minimal.x86_64                   2:8.2.2637-21.el9                  baseos   
+Obsoleting Packages
+grub2-tools.x86_64                   1:2.06-92.el9.alma.1               baseos   
+    grub2-tools.x86_64               1:2.06-80.el9.alma.1               @baseos

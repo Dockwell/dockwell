@@ -59,6 +59,7 @@ import (
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/system"
+	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/control/variables"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
@@ -134,6 +135,9 @@ type Config struct {
 	// control plane stops, before they are cancelled; DefaultStepGrace when
 	// zero. Their changes finish when it starts again.
 	StepGrace time.Duration
+	// Releases is the URL of Dockwell's releases, in GitHub's layout, which
+	// UpdateService reads the newest release from. Empty reads none.
+	Releases string
 }
 
 // DefaultStepGrace is how long the steps under way get to finish when the
@@ -272,6 +276,13 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		domainHandler := domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, fleetOf(cfg), cfg.Logger)
 		domainHandler.Lookup = cfg.DNSLookup
 		handle(dockwellv1connect.NewDomainServiceHandler(domainHandler, opts...))
+		if cfg.Fleet != nil {
+			var releases *updates.Releases
+			if cfg.Releases != "" {
+				releases = updates.NewReleases(cfg.Releases, cfg.Logger)
+			}
+			handle(dockwellv1connect.NewUpdateServiceHandler(updates.New(cfg.Fleet, cfg.Agents, releases, cfg.Build, cfg.Logger), opts...))
+		}
 		// A person's, so it needs sign-in; the agent decides what it reads.
 		if cfg.Fleet != nil && cfg.Auth != nil {
 			handle(dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))

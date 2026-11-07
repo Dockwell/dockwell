@@ -28,7 +28,8 @@
 # undoes, keeping its volume, environment and network. A tag listed for two
 # architectures in that local registry says what ran, and two projects' routes reach
 # a service of one name each through one Caddy. One change reaches two servers, with
-# the agent build as the second, and one offline is refused by name. It uses
+# the agent build as the second, and one offline is refused by name. The agent's
+# reader of package updates runs on real Ubuntu, Debian, AlmaLinux and Alpine. It uses
 # throwaway data directories and removes
 # what it made, so it never touches a real install. It needs Docker with the compose
 # plugin, Go, curl, jq, openssl, pgrep and iproute2's ss, a free port (E2E_WEB_PORT,
@@ -363,6 +364,54 @@ service_container() {
 }
 # named_container is service_container in the default environment's project.
 named_container() { service_container "$project" "$1"; }
+
+step "Package updates read with each distribution's own tool: apt on Ubuntu and Debian, dnf on AlmaLinux, apk on Alpine"
+# The agent's reader, built on its own, runs as root in a container of each, and
+# refreshes the lists itself (ADR 0043). On Ubuntu, a package put back to its release
+# version has to be listed, and what it lists, and marks a security fix, has to be
+# what apt-get --simulate says, line by line.
+updates_bin="$rollout_dir/updates"
+(cd "$(dirname "$0")/.." && CGO_ENABLED=0 go build -o "$updates_bin" ./scripts/updates) || fail "can't build scripts/updates"
+# read_updates IMAGE PREPARE runs PREPARE, then the reader, in a container of IMAGE,
+# with what PREPARE says on standard error in $rollout_dir/said. It runs in a
+# command substitution, so its caller fails for it.
+read_updates() {
+  docker run --rm -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" "$1" sh -c "$2 dockwell-updates" 2>"$rollout_dir/said"
+}
+said() { cat "$rollout_dir/said"; }
+# shellcheck disable=SC2016 # it's for the container's shell to expand
+ubuntu=$(read_updates ubuntu:24.04 '
+  set -e
+  apt-get -qq update >/dev/null
+  v=$(apt-cache madison less | awk -F"|" "\$3 ~ / noble\/main/ { gsub(/ /, \"\", \$2); print \$2; exit }")
+  apt-get -qq install -y --allow-downgrades "less=$v" >/dev/null 2>&1
+  echo "less=$v" >&2
+  apt-get -s --with-new-pkgs upgrade | awk "/^Inst / { print \"name:\" \$2 } /^Inst .*-security/ { print \"security:\" \$2 }" >&2
+  ') || fail "the agent's reader failed on Ubuntu: $(said)"
+echo "$ubuntu" | jq -e '.manager == "PACKAGE_MANAGER_APT" and .marksSecurity and (.unavailable // "") == "" and (.refreshError // "") == "" and .listsTime != null' >/dev/null ||
+  fail "on Ubuntu, the reader said: $ubuntu"
+installed=$(sed -n 's/^less=//p' "$rollout_dir/said")
+[[ -n "$installed" ]] || fail "less has no release version in noble/main: $(said)"
+echo "$ubuntu" | jq -e --arg v "$installed" '.packages | any(.name == "less" and .installed == $v and .available != $v and (.summary // "") != "")' >/dev/null ||
+  fail "on Ubuntu, less at $installed isn't listed as an update: $ubuntu"
+diff <(echo "$ubuntu" | jq -r '.packages[]?.name' | sort) <(sed -n 's/^name://p' "$rollout_dir/said" | sort) ||
+  fail "on Ubuntu, the reader listed other packages than apt-get --simulate does"
+diff <(echo "$ubuntu" | jq -r '.packages[]? | select(.security) | .name' | sort) <(sed -n 's/^security://p' "$rollout_dir/said" | sort) ||
+  fail "on Ubuntu, the reader marked other security fixes than apt-get --simulate does"
+debian=$(read_updates debian:12 '') || fail "the agent's reader failed on Debian: $(said)"
+echo "$debian" | jq -e '.manager == "PACKAGE_MANAGER_APT" and .marksSecurity and (.refreshError // "") == "" and .listsTime != null' >/dev/null ||
+  fail "on Debian, the reader said: $debian"
+alma=$(read_updates almalinux:9 'dnf -q -y downgrade less >/dev/null 2>&1 && echo downgraded >&2;') ||
+  fail "the agent's reader failed on AlmaLinux: $(said)"
+echo "$alma" | jq -e '.manager == "PACKAGE_MANAGER_DNF" and (.refreshError // "") == "" and .listsTime != null' >/dev/null ||
+  fail "on AlmaLinux, the reader said: $alma"
+if grep -qx downgraded "$rollout_dir/said"; then
+  echo "$alma" | jq -e '.packages | any(.name == "less" and (.installed // "") != "" and (.origin // "") != "" and (.summary // "") != "")' >/dev/null ||
+    fail "on AlmaLinux, less put back a version isn't listed: $alma"
+fi
+alpine=$(read_updates alpine:3.20 '') || fail "the agent's reader failed on Alpine: $(said)"
+echo "$alpine" | jq -e '.manager == "PACKAGE_MANAGER_APK" and (.marksSecurity // false) == false and (.refreshError // "") == "" and .listsTime != null' >/dev/null ||
+  fail "on Alpine, the reader said: $alpine"
 
 step "A service from an image runs"
 dw services create web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hello --yes ||

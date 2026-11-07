@@ -44,6 +44,7 @@ func Commands() []string {
 		"settings",
 		"system",
 		"totp",
+		"updates",
 		"variables",
 		"volumes",
 	}

@@ -612,6 +612,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_SaveFile{SaveFile: saved}}
 	}
+	if list := call.GetListUpdates(); list != nil {
+		if c.cfg.Updates == nil {
+			return fail(errors.New("this agent doesn't read package updates"))
+		}
+		found, err := c.cfg.Updates.Read(ctx, list.GetRefresh(), list.GetForce())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListUpdates{ListUpdates: &agentv1.ListUpdatesResult{Updates: found}}}
+	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",
 	}}}

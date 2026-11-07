@@ -13,6 +13,7 @@ import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/server.proto";
 import "dockwell/v1/system.proto";
+import "dockwell/v1/update.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -241,6 +242,10 @@ message Hello {
   // server unless a passkey confirmed it. Only the agent can tell where a path
   // leads, so the control plane saves through no agent that doesn't.
   bool guards_ways_in = 7;
+  // True when the agent reads the server's package updates (ListUpdatesCall).
+  // The terminal and updates take 50 to 59 in agent messages, as other work adds
+  // to them at once.
+  bool updates = 53;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -406,6 +411,9 @@ message Call {
     FetchBackupCall fetch_backup = 23;
     // Send a backup that's on the server to its destination.
     SendBackupCall send_backup = 24;
+    // Say which package updates wait on the server. The terminal and updates take
+    // 50 to 59 in agent messages.
+    ListUpdatesCall list_updates = 53;
   }
 }
 
@@ -432,6 +440,21 @@ message BackupCall {
   dockwell.v1.ResourceRef volume = 2;
   // Stop what runs on the volume for an exact copy, and start it again after.
   bool stop = 3;
+}
+
+// ListUpdatesCall asks which package updates wait, read with the server's own
+// package manager. See docs/adr/0043-package-updates-on-a-server.md.
+message ListUpdatesCall {
+  // Refresh the package lists first when they're more than a day old.
+  bool refresh = 1;
+  // Refresh them first whatever their age, as a person asked.
+  bool force = 2;
+}
+
+// ListUpdatesResult is what the package manager said. The agent sets neither
+// checking nor error: those are the control plane's.
+message ListUpdatesResult {
+  dockwell.v1.ServerUpdates updates = 1;
 }
 
 // SendBackupCall asks to send a backup that's on the server to its destination, as a
@@ -859,6 +882,7 @@ message CallResult {
     BackupResult fetch_backup = 23;
     // What send_backup sent.
     SendBackupResult send_backup = 24;
+    ListUpdatesResult list_updates = 53;
   }
 }
 

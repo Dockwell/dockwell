@@ -119,6 +119,11 @@ msgstr "{0, plural, other {# 个修订版本 · 最新在前}}"
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, other {# 台服务器}}"
 
+#. placeholder {0}: s.total
+#: src/features/updates/UpdatesCard.tsx
+msgid "{0, plural, one {# update, not for security} other {# updates, none for security}}"
+msgstr "{0, plural, other {# 个更新，均非安全更新}}"
+
 #. placeholder {0}: optional.length
 #: src/features/apps/NewAppSheet.tsx
 msgid "{0, plural, one {# with a default} other {# with a default}}"
@@ -149,6 +154,17 @@ msgstr "{0, plural, other {这会创建 # 个应用}}"
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, other {卷}}"
 
+#. placeholder {0}: shown.join(", ")
+#. placeholder {1}: ps.length - shown.length
+#: src/features/updates/UpdatesCard.tsx
+msgid "{0} and {1} more"
+msgstr "{0} 等，另有 {1} 个"
+
+#. placeholder {0}: shown.join(", ")
+#: src/features/updates/UpdatesPage.tsx
+msgid "{0} and {more} more"
+msgstr "{0} 等，另有 {more} 个"
+
 #. placeholder {0}: d.backups
 #. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
 #: src/features/backups/DestinationsPanel.tsx
@@ -175,6 +191,11 @@ msgstr "{0} 的代理重新连接之前无法执行其步骤，所以在此之�
 msgid "{0} disk"
 msgstr "{0} 磁盘"
 
+#. placeholder {0}: managerName(updates.manager)
+#: src/features/updates/UpdatesPage.tsx
+msgid "{0} doesn't say which updates fix security issues, so none is marked here."
+msgstr "{0} 不标明哪些更新修复安全问题，所以这里都不加标记。"
+
 #. placeholder {0}: offline.join(", ")
 #: src/features/changes/ChangeSheet.tsx
 msgid "{0} has to reconnect first"
@@ -184,6 +205,17 @@ msgstr "{0} 需要先重新连接"
 #: src/features/logs/LogNote.tsx
 msgid "{0} is offline"
 msgstr "{0} 已离线"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "{0} is up to date, as far as its lists say."
+msgstr "据软件包列表，{0} 已是最新。"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesCard.tsx
+#: src/features/updates/UpdatesPage.tsx
+msgid "{0} needs a reboot"
+msgstr "{0} 需要重启"
 
 #. placeholder {0}: step.toLocaleString(i18n.locale)
 #. placeholder {1}: store.matches.toLocaleString(i18n.locale)
@@ -236,6 +268,11 @@ msgstr "{0}，{zone} · {1}"
 #: src/features/apps/AppOverview.tsx
 msgid "{0}. It was proposed with an API token, and its plan is one only a signed-in person may apply. Nothing changes until someone does."
 msgstr "{0}。它是用 API 令牌提出的，它的计划只有已登录的人才能应用。在有人应用之前，什么都不会改变。"
+
+#. placeholder {0}: names(s.security)
+#: src/features/updates/UpdatesCard.tsx
+msgid "{0}. Needs a reboot."
+msgstr "{0}。需要重启。"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "{address}, private"
@@ -472,6 +509,26 @@ msgstr "{mount}：共 {size}，已用 {used}，可用 {free}"
 #: src/features/apps/AppsPage.tsx
 msgid "{moving} deploying"
 msgstr "{moving} 个正在部署"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{n, plural, one {# more is held back: {names}. An upgrade doesn't take it yet, as with a phased update that hasn't reached this server.} other {# more are held back: {names}. An upgrade doesn't take them yet, as with phased updates that haven't reached this server.}}"
+msgstr "{n, plural, other {另有 # 个被暂缓：{names}。升级暂不安装它们，例如尚未分阶段推送到这台服务器的更新。}}"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "{n, plural, one {# security update for {distro}} other {# security updates for {distro}}}"
+msgstr "{n, plural, other {{distro} 有 # 个安全更新}}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
+msgstr "{n, plural, other {# 个安全更新可以安装}}"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "{n, plural, one {# security update} other {# security updates}}"
+msgstr "{n, plural, other {# 个安全更新}}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{n} from {source}"
+msgstr "{n} 个，来自 {source}"
 
 #: src/features/catalog/InstalledPanel.tsx
 msgid "{name} {version}"
@@ -785,6 +842,10 @@ msgstr "{needing, plural, other {# 个需要查看}}"
 msgid "{networks, plural, one {a network} other {# networks}}"
 msgstr "{networks, plural, other {# 个网络}}"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "{newest} available"
+msgstr "{newest} 可用"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "{now} now"
 msgstr "当前 {now}"
@@ -845,6 +906,10 @@ msgstr "{reads}，按 SELinux 重新标记为私有"
 #: src/features/changes/words.ts
 msgid "{reads}, relabelled for SELinux as shared"
 msgstr "{reads}，按 SELinux 重新标记为共享"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
+msgstr "{reboots, plural, other {# 个需要重启}}"
 
 #: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
@@ -1065,6 +1130,11 @@ msgstr "+{left}"
 msgid "+{others}"
 msgstr "+{others}"
 
+#. placeholder {0}: control || agent
+#: src/features/updates/UpdatesPage.tsx
+msgid "<0>{0}</0> · agent and control plane"
+msgstr "<0>{0}</0> · 代理与控制平面"
+
 #. placeholder {0}: window.location.host
 #: src/features/auth/SignInPage.tsx
 msgid "<0>{0}</0> · the panel for {name}"
@@ -1197,6 +1267,10 @@ msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权�
 #: src/features/changes/fields.tsx
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>，只读"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "<0>{tool}</0> installs updates"
+msgstr "<0>{tool}</0> 自动安装更新"
 
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
@@ -1551,6 +1625,14 @@ msgstr "地址"
 msgid "Agent"
 msgstr "代理"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Agent <0>{agent}</0>, control plane <1>{control}</1>"
+msgstr "代理 <0>{agent}</0>，控制平面 <1>{control}</1>"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "Agent and control plane"
+msgstr "代理与控制平面"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Agent connected"
 msgstr "代理已连接"
@@ -1813,6 +1895,10 @@ msgstr "应用此计划时会要求验证你的通行密钥"
 msgid "Apps"
 msgstr "应用"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Apps and websites go offline"
+msgstr "应用和网站会离线"
+
 #: src/features/overview/OverviewApps.tsx
 msgid "Apps on this server"
 msgstr "此服务器上的应用"
@@ -1834,6 +1920,16 @@ msgstr "应用 {change} 时要求验证通行密钥，但未收到"
 msgid "Asked for a passkey to save {path} on {server}, and none came"
 msgstr "保存 {server} 上的 {path} 时要求验证通行密钥，但未收到"
 
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesCard.tsx
+msgid "Asking {0}"
+msgstr "正在询问 {0}"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Asking {0} which updates wait…"
+msgstr "正在询问 {0} 有哪些待装更新…"
+
 #: src/features/backups/BackUpSheet.tsx
 msgid "Asking the server what this takes"
 msgstr "正在询问服务器此操作的要求"
@@ -1854,9 +1950,21 @@ msgstr "身份验证器应用"
 msgid "Automatic"
 msgstr "自动"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Automatic updates"
+msgstr "自动更新"
+
 #: src/features/catalog/useCatalog.ts
 msgid "Automation"
 msgstr "自动化"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "available"
+msgstr "可用"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Available"
+msgstr "可用版本"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/shell/Page.tsx
@@ -1988,6 +2096,10 @@ msgstr "存储桶"
 #: src/features/apps/AppDeployments.tsx
 msgid "By"
 msgstr "执行者"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "By itself"
+msgstr "自动安装"
 
 #: src/features/settings/GeneralPage.tsx
 msgid "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
@@ -2176,6 +2288,10 @@ msgstr "检查"
 msgid "Check it from a terminal"
 msgstr "在终端中检查"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Check now"
+msgstr "立即检查"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Check that the server and its agent are up."
 msgstr "请检查服务器及其代理是否正常运行。"
@@ -2208,15 +2324,30 @@ msgstr "请检查应用内的端口，然后重试。"
 msgid "Checked"
 msgstr "已检查"
 
+#. placeholder {0}: words.ago(timestampDate(updates.listsTime), now)
+#: src/features/updates/UpdatesPage.tsx
+msgid "checked {0}"
+msgstr "{0}检查"
+
+#. placeholder {0}: words.ago(timestampDate(u.listsTime), now)
+#: src/features/updates/UpdatesCard.tsx
+msgid "Checked {0}"
+msgstr "{0}检查"
+
 #: src/features/apps/Health.tsx
 #: src/features/auth/AuthGate.tsx
 #: src/features/changes/words.ts
+#: src/features/updates/UpdatesPage.tsx
 msgid "Checking"
 msgstr "正在检查"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking again."
 msgstr "正在重新检查。"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "Checking for updates"
+msgstr "正在检查更新"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Checking your session"
@@ -2433,12 +2564,21 @@ msgstr "容器"
 msgid "Containers Dockwell didn't make"
 msgstr "非 Dockwell 创建的容器"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Containers keep running"
+msgstr "容器保持运行"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Containers keep running while it restarts"
+msgstr "重启期间容器保持运行"
+
 #: src/features/files/FileViewer.tsx
 msgid "Contents of {name}"
 msgstr "{name} 的内容"
 
 #: src/features/servers/ServerPanels.tsx
 #: src/features/shell/MorePage.tsx
+#: src/features/updates/UpdatesCard.tsx
 msgid "Control plane"
 msgstr "控制平面"
 
@@ -2735,6 +2875,7 @@ msgstr "正在创建通行密钥"
 #: src/features/auth/SessionsPanel.tsx
 #: src/features/logs/LogsPage.tsx
 #: src/features/shell/CommandMenu.tsx
+#: src/features/updates/UpdatesPage.tsx
 msgid "Current"
 msgstr "当前"
 
@@ -3029,6 +3170,14 @@ msgstr "DNS 指向一个不属于此服务器的私有地址"
 msgid "Docker"
 msgstr "Docker"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Docker and Dockwell"
+msgstr "Docker 与 Dockwell"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Docker Engine"
+msgstr "Docker Engine"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
 msgstr "Docker 只会在它出错退出时重启它，而现在不会。请重启或部署。"
@@ -3058,13 +3207,27 @@ msgstr "Docker 套接字"
 msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 msgstr "位于 {path} 的 Docker 套接字，可控制服务器上的 Docker，等同于 root 权限"
 
+#. placeholder {0}: plainVersion(release?.newest ?? "")
+#: src/features/updates/UpdatesCard.tsx
+msgid "Dockwell {0} is out"
+msgstr "Dockwell {0} 已发布"
+
 #: src/features/shell/Rail.tsx
 msgid "Dockwell {short}: control plane status"
 msgstr "Dockwell {short}：控制平面状态"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "Dockwell {version} is current"
+msgstr "Dockwell {version} 是最新版本"
+
 #: src/features/system/StatusPage.tsx
 msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
 msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell can't install updates yet, so run {command} on {0}."
+msgstr "Dockwell 暂不能安装更新，请在 {0} 上运行 {command}。"
 
 #: src/features/backups/BackUpSheet.tsx
 msgid "Dockwell can't reach what this would back up"
@@ -3074,6 +3237,11 @@ msgstr "Dockwell 无法访问要备份的内容"
 #: src/features/overview/OverviewBackups.tsx
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell 无法读取备份"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell can't read updates on {0}"
+msgstr "Dockwell 无法读取 {0} 的更新"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
@@ -3106,6 +3274,16 @@ msgstr "Dockwell 无法确定 <0>{next}</0> 是否已启动"
 #: src/features/changes/RollbackLine.tsx
 msgid "Dockwell can't tell whether this ran"
 msgstr "Dockwell 无法确定此步骤是否已运行"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell couldn't ask {0} for its updates"
+msgstr "Dockwell 无法向 {0} 询问更新"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell couldn't read {0}'s updates just now"
+msgstr "Dockwell 刚才未能读取 {0} 的更新"
 
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
@@ -3248,6 +3426,10 @@ msgstr "Dockwell 已恢复原样"
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell puts <0>{image}</0> back once {0} reconnects"
 msgstr "{0} 重新连接后，Dockwell 会恢复 <0>{image}</0>"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Dockwell refreshes them once they're a day old, when someone looks"
+msgstr "列表超过一天时，Dockwell 会在有人查看时刷新"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
@@ -3451,6 +3633,14 @@ msgstr "事件：{caption}"
 msgid "Every change, server event, access grant, change of health and backup, newest first"
 msgstr "所有变更、服务器事件、访问授权、健康变化和备份，最新的在前"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Every container restarts"
+msgstr "所有容器都会重启"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Every container restarts with it"
+msgstr "所有容器会随之重启"
+
 #: src/features/changes/notices.tsx
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "{server} 上 {name} 的全部内容会回到恢复之前的状态"
@@ -3651,6 +3841,10 @@ msgstr "用于脚本、CLI 或集成"
 msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
 msgstr "用于文件使用的变量。它只用于读取文件和生成计划，不会保存在此浏览器中，值只有在文件写入的地方才会留下记录。"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "For what was installed to take effect"
+msgstr "已安装的更新需重启后生效"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Free"
 msgstr "可用"
@@ -3664,6 +3858,16 @@ msgstr "从"
 #: src/features/apps/AppEnvironment.tsx
 msgid "From"
 msgstr "来源"
+
+#. placeholder {0}: from[0]
+#: src/features/updates/UpdatesPage.tsx
+msgid "From {0}"
+msgstr "来自 {0}"
+
+#. placeholder {0}: from.length
+#: src/features/updates/UpdatesPage.tsx
+msgid "From {0} sources"
+msgstr "来自 {0} 个来源"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "From Git, a Docker image, a Compose file or the catalog."
@@ -3784,6 +3988,7 @@ msgid "Hidden"
 msgstr "已隐藏"
 
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/updates/UpdatesPage.tsx
 msgid "Hide"
 msgstr "隐藏"
 
@@ -3962,6 +4167,11 @@ msgstr "从目录安装 Cloudflare Tunnel"
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "安装时间"
+
+#: src/features/updates/UpdatesPage.tsx
+msgctxt "a package's version"
+msgid "Installed"
+msgstr "已安装版本"
 
 #: src/features/changes/fields.tsx
 msgid "internal"
@@ -4297,6 +4507,10 @@ msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除
 msgid "Its logs show here once they can be read."
 msgstr "能读取时，它的日志就会显示在这里。"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Its newest release isn't known"
+msgstr "最新版本未知"
+
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its project, which keeps it apart from your other apps."
 msgstr "它所在的项目，让它与你的其他应用彼此隔离。"
@@ -4515,6 +4729,10 @@ msgstr "链接过期"
 #: src/features/changes/words.ts
 msgid "Listening there now: {listening}"
 msgstr "目前在此监听的是：{listening}"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "lists never refreshed"
+msgstr "列表从未刷新"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Live"
@@ -4819,6 +5037,14 @@ msgstr "引用值的字段"
 msgid "Near lines {0}–{1}: {2}"
 msgstr "第 {0}–{1} 行附近：{2}"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Needed now"
+msgstr "现在需要"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Needs a reboot"
+msgstr "需要重启"
+
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
 msgid "network"
@@ -4852,12 +5078,17 @@ msgctxt "token expiry"
 msgid "Never"
 msgstr "从不"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Never refreshed"
+msgstr "从未刷新"
+
 #: src/features/auth/PasskeysPanel.tsx
 #: src/features/auth/TokensPanel.tsx
 msgid "never used"
 msgstr "从未使用"
 
 #: src/features/shell/Topbar.tsx
+#: src/features/updates/UpdatesPage.tsx
 msgid "New"
 msgstr "新建"
 
@@ -4993,6 +5224,10 @@ msgstr "这个地址没有通行密钥？通行密钥属于创建它的地址，
 msgid "No passkey works at {rpId} yet"
 msgstr "{rpId} 上还没有可用的通行密钥"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "No reboot"
+msgstr "无需重启"
+
 #: src/features/apps/DomainNote.tsx
 #: src/features/domains/DomainsPage.tsx
 msgid "No report"
@@ -5009,6 +5244,11 @@ msgstr "没有计划"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "No schedules yet. A backup you take by hand stays until you delete it."
 msgstr "还没有备份计划。手动备份会一直保留，直到你删除它。"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "No security fix waits on {0}."
+msgstr "{0} 没有待装的安全修复。"
 
 #: src/features/apps/DomainNote.tsx
 msgid "No server"
@@ -5046,6 +5286,10 @@ msgstr "还没有令牌。为每个脚本或集成各创建一个，这样就能
 msgid "No undo"
 msgstr "无法撤销"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "no update waits"
+msgstr "没有待装更新"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "{envName} 中还没有变量或密钥。请在上方添加第一个，服务随后按名称使用它。"
@@ -5057,6 +5301,10 @@ msgstr "无法确定 {name} 的运行情况"
 #: src/features/apps/Health.tsx
 msgid "Nobody can say how {name} runs now."
 msgstr "现在无法确定 {name} 的运行情况。"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "none needs a reboot"
+msgstr "均无需重启"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -5073,6 +5321,10 @@ msgstr "未设置"
 #: src/features/apps/AppOverview.tsx
 msgid "None set here. The image may have one."
 msgstr "这里没有设置。镜像可能自带检查。"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "None waiting"
+msgstr "没有待装"
 
 #: src/features/overview/OverviewBackups.tsx
 msgid "None yet"
@@ -5109,6 +5361,7 @@ msgid "Not in this release yet"
 msgstr "此版本尚未提供"
 
 #: src/features/servers/ServerPanels.tsx
+#: src/features/updates/UpdatesPage.tsx
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
 
@@ -5123,6 +5376,10 @@ msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。
 #: src/features/apps/AppEnvironment.tsx
 msgid "Not loaded"
 msgstr "未加载"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Not needed"
+msgstr "不需要"
 
 #: src/features/apps/words.ts
 msgid "Not placed"
@@ -5230,6 +5487,10 @@ msgstr "规格没有变化。它只是被移动，或恢复原样。"
 msgid "Nothing in the {total} lines loaded has \"{query}\"."
 msgstr "已加载的 {total} 行中没有“{query}”。"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Nothing installs updates"
+msgstr "没有工具自动安装更新"
+
 #: src/features/changes/words.ts
 msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
 msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
@@ -5293,6 +5554,10 @@ msgstr "没有需要更改的内容"
 msgid "Nothing to show until {servers} is back"
 msgstr "{servers} 恢复前没有可显示的内容"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "Nothing waits in its package lists"
+msgstr "软件包列表中没有待装更新"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing was written in this time"
 msgstr "这段时间内没有写入内容"
@@ -5304,6 +5569,10 @@ msgstr "暂无：面板还没有域名"
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "暂无。部署完成后开始运行。"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Nothing: <0>{tool}</0> is off"
+msgstr "没有：<0>{tool}</0> 已关闭"
 
 #: src/features/auth/SessionsPanel.tsx
 msgid "now"
@@ -5411,6 +5680,12 @@ msgstr "<0>{servers}</0> 重新连接后，Dockwell 会恢复原样"
 #: src/features/apps/AppOverview.tsx
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
 msgstr "部署失败后，服务器重新连接时，Dockwell 会恢复 <0>{image}</0>。在此之前，无法确定那里正在运行什么。"
+
+#. placeholder {0}: server.name
+#. placeholder {1}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "One of them needs a reboot to take effect, and apps and websites go offline while {0} restarts. Dockwell can't install updates yet, so run {command} on {1}."
+msgstr "其中一个需要重启才能生效，{0} 重启期间应用和网站会离线。Dockwell 暂不能安装更新，请在 {1} 上运行 {command}。"
 
 #: src/features/files/FilesPage.tsx
 msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
@@ -5605,6 +5880,15 @@ msgstr "这里已有其他应用，因此需要单独的名称，例如 <0>shop<
 msgid "Other apps on its network reach it by this name."
 msgstr "同一网络上的其他应用通过此名称访问它。"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Other updates"
+msgstr "其他更新"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Other updates for {0}"
+msgstr "{0} 的其他更新"
+
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
 #: src/features/servers/ServerFrame.tsx
@@ -5629,6 +5913,18 @@ msgstr "所有者账户"
 #: src/app/Providers.tsx
 msgid "package"
 msgstr "软件包"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Package"
+msgstr "软件包"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Package lists"
+msgstr "软件包列表"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Package manager"
+msgstr "包管理器"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Pages"
@@ -6176,6 +6472,10 @@ msgstr "可读取日志"
 msgid "Reads servers and their state. Changes nothing."
 msgstr "读取服务器及其状态，不做任何更改。"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Reboot"
+msgstr "重启"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Receiving"
 msgstr "接收"
@@ -6220,6 +6520,15 @@ msgstr "恢复码"
 #: src/features/changes/words.ts
 msgid "Recreates its container"
 msgstr "重建它的容器"
+
+#. placeholder {0}: words.ago(timestampDate(updates.listsTime), now)
+#: src/features/updates/UpdatesPage.tsx
+msgid "Refreshed {0}"
+msgstr "{0}刷新"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Refreshing lists"
+msgstr "正在刷新列表"
 
 #: src/features/auth/AuthGate.tsx
 msgid "Refused"
@@ -6378,6 +6687,10 @@ msgstr "正在重启"
 msgid "Restarts"
 msgstr "重启策略"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Restarts Docker"
+msgstr "重启 Docker"
+
 #: src/features/backups/BackupsPage.tsx
 #: src/features/overview/OverviewBackups.tsx
 msgid "Restore"
@@ -6413,6 +6726,10 @@ msgstr "显示了一个密钥"
 msgid "Revealed the secret {name}"
 msgstr "显示了密钥 {name}"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "Review"
+msgstr "查看"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
@@ -6430,6 +6747,10 @@ msgstr "审查计划"
 #: src/features/catalog/InstalledPanel.tsx
 msgid "Review the change"
 msgstr "查看更改"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "Review updates"
+msgstr "查看更新"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
@@ -6811,6 +7132,15 @@ msgstr "私密密钥"
 msgid "secrets"
 msgstr "密钥"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Security updates"
+msgstr "安全更新"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Security updates for {0}"
+msgstr "{0} 的安全更新"
+
 #: src/features/apps/AppOverview.tsx
 msgid "See its logs"
 msgstr "查看日志"
@@ -6994,6 +7324,10 @@ msgstr "共享内存"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show"
 msgstr "显示"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "Show all"
+msgstr "显示全部"
 
 #: src/app/Providers.tsx
 msgid "Show all of this line"
@@ -7691,6 +8025,11 @@ msgstr "新备份完整后才会删除最旧的备份。失败的运行不会删
 msgid "The owner account wasn't created"
 msgstr "所有者账户未创建"
 
+#. placeholder {0}: updates.refreshError
+#: src/features/updates/UpdatesPage.tsx
+msgid "The package lists couldn't be refreshed, so this is what they said before: {0}"
+msgstr "软件包列表未能刷新，以下是之前的内容：{0}"
+
 #: src/features/changes/words.ts
 msgid "The panel"
 msgstr "面板"
@@ -8168,6 +8507,10 @@ msgstr "这会将它从服务器磁盘和 {destination} 上删除，删除后无
 msgid "This removes it from the server's disk. Nothing brings it back."
 msgstr "此操作会将它从服务器磁盘上移除，且无法恢复。"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "This runs {version}. Update with the install script"
+msgstr "当前运行 {version}。用安装脚本更新"
+
 #: src/features/files/FileViewer.tsx
 msgid "This save may still land"
 msgstr "这次保存可能仍会写入"
@@ -8536,6 +8879,10 @@ msgstr "已运行 {uptime}"
 msgid "Up to {stepBound} until healthy"
 msgstr "最多 {stepBound} 后恢复健康"
 
+#: src/features/updates/UpdatesCard.tsx
+msgid "Up to date"
+msgstr "已是最新"
+
 #: src/features/changes/words.ts
 msgid "Update"
 msgstr "更新"
@@ -8552,6 +8899,10 @@ msgstr "有更新"
 msgid "Update the agent on this server to edit {name} here. You can still read it."
 msgstr "更新这台服务器上的 agent，才能在这里编辑 {name}。你仍然可以查看它。"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "Update with the install script: <0>curl -fsSL https://get.dockwell.dev | sh</0>"
+msgstr "用安装脚本更新：<0>curl -fsSL https://get.dockwell.dev | sh</0>"
+
 #: src/app/Providers.tsx
 msgid "updated"
 msgstr "已更新"
@@ -8564,6 +8915,21 @@ msgstr "更新"
 #: src/app/Providers.tsx
 msgid "Updated in place"
 msgstr "已原地更新"
+
+#: src/features/servers/ServerFrame.tsx
+#: src/features/updates/UpdatesCard.tsx
+#: src/features/updates/UpdatesPage.tsx
+msgid "Updates"
+msgstr "更新"
+
+#: src/features/updates/UpdatesCard.tsx
+msgid "Updates can't be read here"
+msgstr "无法在此读取更新"
+
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "Updates for {0}"
+msgstr "{0} 的更新"
 
 #: src/features/changes/words.ts
 msgid "Updating"
@@ -8807,6 +9173,11 @@ msgstr "每周"
 msgid "Weekly on {day} at {at}"
 msgstr "每周{day} {at}"
 
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "What {what} changed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
+msgstr "{what} 的变更要在 {0} 重启后才生效，目前仍在运行旧版本。重启期间其上的应用和网站会离线：请在合适时用 <0>sudo reboot</0> 重启。"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "What applying means"
 msgstr "应用的影响"
@@ -8943,6 +9314,11 @@ msgstr "搜索范围"
 msgid "What to show"
 msgstr "显示内容"
 
+#. placeholder {0}: server.name
+#: src/features/updates/UpdatesPage.tsx
+msgid "What was installed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
+msgstr "已安装的更新要在 {0} 重启后才生效，目前仍在运行旧版本。重启期间其上的应用和网站会离线：请在合适时用 <0>sudo reboot</0> 重启。"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "What will use this token?"
 msgstr "什么将使用这个令牌？"
@@ -8964,6 +9340,10 @@ msgstr "你输入的内容还在这里。"
 msgid "What your domains serve isn't affected."
 msgstr "你的域名所提供的服务不受影响。"
 
+#: src/features/updates/UpdatesPage.tsx
+msgid "What's here was read {read}."
+msgstr "这里的内容读取于{read}。"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "What's in front"
 msgstr "前面是什么"
@@ -8980,6 +9360,10 @@ msgstr "前面的代理访问 {where} 会得到 404，因此访问者会看到�
 #: src/features/apps/AppDeployments.tsx
 msgid "When"
 msgstr "时间"
+
+#: src/features/updates/UpdatesPage.tsx
+msgid "When installed"
+msgstr "安装时"
 
 #: src/features/apps/words.ts
 msgid "When it exits with an error"

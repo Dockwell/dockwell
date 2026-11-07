@@ -1498,6 +1498,76 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{id}/updates:
+        get:
+            tags:
+                - UpdateService
+            description: |-
+                GetServerUpdates says which package updates wait on a server, which are
+                 security fixes, whether the server needs a reboot, and Dockwell's own
+                 version against its newest release. An answer stands for 10 minutes. Past
+                 that, or with none yet, this asks the server's agent, and answers with what
+                 it had and checking set when the agent takes more than a few seconds: ask
+                 again for the rest. The agent refreshes the server's package lists first
+                 when they're more than a day old.
+            operationId: UpdateService_GetServerUpdates
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerUpdatesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{id}/updates:check:
+        post:
+            tags:
+                - UpdateService
+            description: |-
+                CheckServerUpdates refreshes a server's package lists now, whatever their
+                 age, and reads what waits again. It answers at once, with checking set, and
+                 GetServerUpdates has the result. A server is refreshed this way at most once
+                 a minute: asking again sooner answers with the refresh under way, or the
+                 last one.
+            operationId: UpdateService_CheckServerUpdates
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckServerUpdatesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckServerUpdatesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{id}:setPublicAddress:
         post:
             tags:
@@ -2933,6 +3003,20 @@ components:
                         The change: applying, with its steps queued; or applied, when it had
                          no steps to run.
             description: ApplyChangeResponse carries the change as it starts applying.
+        AutomaticUpdates:
+            type: object
+            properties:
+                tool:
+                    type: string
+                    description: |-
+                        The tool, such as "unattended-upgrades" or "dnf-automatic". Empty when
+                         there's none.
+                on:
+                    type: boolean
+                    description: True when it's on.
+            description: |-
+                AutomaticUpdates is whether a server installs updates by itself, as the
+                 distribution's own tool for that is set.
         Backup:
             type: object
             properties:
@@ -3752,6 +3836,21 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
             description: CheckDomainResponse says what DNS says of it.
+        CheckServerUpdatesRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The server's ID.
+            description: CheckServerUpdatesRequest names a server.
+        CheckServerUpdatesResponse:
+            type: object
+            properties:
+                updates:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerUpdates'
+                    description: The server's package updates as they stood, with checking set.
+            description: CheckServerUpdatesResponse is what's known as the refresh starts.
         ComposeRefusal:
             type: object
             properties:
@@ -4188,6 +4287,32 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: DiskUsage is one filesystem's use.
+        DockwellRelease:
+            type: object
+            properties:
+                agent:
+                    type: string
+                    description: The server's agent's version, such as "0.9.4".
+                controlPlane:
+                    type: string
+                    description: The control plane's version.
+                newest:
+                    type: string
+                    description: |-
+                        The newest release, as the releases URL says. Empty when that isn't known:
+                         the control plane couldn't read it, or doesn't, as in tests.
+                newestTime:
+                    type: string
+                    description: When the control plane read it.
+                    format: date-time
+                releases:
+                    type: string
+                    description: |-
+                        Where it read it from, such as
+                         "https://github.com/Dockwell/dockwell/releases".
+            description: |-
+                DockwellRelease is Dockwell's version on a server and its control plane, and
+                 the newest release.
         Domain:
             type: object
             properties:
@@ -5140,6 +5265,20 @@ components:
                         - $ref: '#/components/schemas/Server'
                     description: The server, with history.
             description: GetServerResponse carries one server.
+        GetServerUpdatesResponse:
+            type: object
+            properties:
+                updates:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerUpdates'
+                    description: The server's package updates.
+                dockwell:
+                    allOf:
+                        - $ref: '#/components/schemas/DockwellRelease'
+                    description: |-
+                        Dockwell's version on the server and the control plane, and its newest
+                         release.
+            description: GetServerUpdatesResponse is what waits on a server.
         GetSettingsResponse:
             type: object
             properties:
@@ -6243,6 +6382,51 @@ components:
                  by name, as a Compose file's networks. A service reaches another on a
                  network they share by the other's name. Docker can't change a network,
                  so its spec can't change once it is made.
+        PackageUpdate:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The package's name, such as "openssl".
+                architecture:
+                    type: string
+                    description: Its architecture, where the package manager names one, such as "x86_64".
+                summary:
+                    type: string
+                    description: |-
+                        What it is, in the package's own words, such as "Secure Sockets Layer
+                         toolkit".
+                installed:
+                    type: string
+                    description: |-
+                        The version installed. Empty for a package that installing brings in new,
+                         such as the next kernel.
+                available:
+                    type: string
+                    description: The version it would get.
+                origin:
+                    type: string
+                    description: |-
+                        Where that version comes from: apt's suite, such as "noble-security", or
+                         dnf's repository, such as "baseos". Empty where the tool doesn't say.
+                security:
+                    type: boolean
+                    description: True when the distribution marks it a security fix.
+                advisory:
+                    type: string
+                    description: The advisory that names it, such as "ALSA-2024:9473", where there is one.
+                severity:
+                    type: string
+                    description: The advisory's severity, in its own words, such as "Important".
+                effect:
+                    enum:
+                        - PACKAGE_EFFECT_UNSPECIFIED
+                        - PACKAGE_EFFECT_REBOOT
+                        - PACKAGE_EFFECT_DOCKER_RESTART
+                    type: string
+                    description: What installing it does beyond replacing its files.
+                    format: enum
+            description: PackageUpdate is one package with a newer version waiting.
         PanelServing:
             type: object
             properties:
@@ -8107,6 +8291,87 @@ components:
                     type: string
                     description: Time since the server booted.
             description: ServerStats is one sample of a server's resource use.
+        ServerUpdates:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                manager:
+                    enum:
+                        - PACKAGE_MANAGER_UNSPECIFIED
+                        - PACKAGE_MANAGER_APT
+                        - PACKAGE_MANAGER_DNF
+                        - PACKAGE_MANAGER_APK
+                    type: string
+                    description: The package manager that read them. Unspecified when none could.
+                    format: enum
+                unavailable:
+                    type: string
+                    description: |-
+                        Set when Dockwell can't read updates on this server, saying why, such as
+                         that it has none of apt, dnf and apk. Nothing else is then set.
+                packages:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PackageUpdate'
+                    description: The updates that wait, security fixes first, then by name.
+                held:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Packages with a newer version that an upgrade holds back, by name, such as
+                         one of Ubuntu's phased updates that hasn't reached this server yet.
+                marksSecurity:
+                    type: boolean
+                    description: |-
+                        False where the distribution doesn't mark security fixes, as Alpine
+                         doesn't: no package is then marked, whatever it fixes.
+                rebootRequired:
+                    type: boolean
+                    description: True when the server needs a reboot now, for what's already installed.
+                rebootPackages:
+                    type: array
+                    items:
+                        type: string
+                    description: What the server says asked for the reboot, by package, where it says.
+                listsTime:
+                    type: string
+                    description: |-
+                        When the server's package lists were last refreshed, by anyone. Unset when
+                         they never were.
+                    format: date-time
+                readTime:
+                    type: string
+                    description: When the agent read these.
+                    format: date-time
+                checking:
+                    type: boolean
+                    description: |-
+                        True while the agent reads them, or refreshes the lists first: what's here
+                         is from before, and asking again gives what it finds.
+                refreshing:
+                    type: boolean
+                    description: True while the lists are being refreshed, as part of checking.
+                error:
+                    type: string
+                    description: Why the last read failed, if it did. What's here is from the one before.
+                refreshError:
+                    type: string
+                    description: |-
+                        Why refreshing the lists failed, if it did. What's here was read from the
+                         lists as they were, at lists_time.
+                automatic:
+                    allOf:
+                        - $ref: '#/components/schemas/AutomaticUpdates'
+                    description: Whether the server installs updates by itself.
+                dockerLiveRestore:
+                    type: boolean
+                    description: |-
+                        True when Docker keeps containers running while it restarts (live-restore),
+                         so updating Docker's engine stops none.
+            description: ServerUpdates is what a server's package manager says waits.
         Service:
             type: object
             properties:
@@ -9151,6 +9416,12 @@ tags:
          whose effect is EFFECT_READ; a read-write token may also call EFFECT_PLAN
          and EFFECT_APPLY methods. No token may call an EFFECT_DESTRUCTIVE method,
          AuthService, or this service: they need a signed-in session.
+    - name: UpdateService
+      description: |-
+        UpdateService says which package updates wait on a server, through its
+         agent, which reads them with the server's own package manager: apt, dnf or
+         apk. Nothing is read while nobody asks, and a server's package lists are
+         refreshed at most daily. See docs/adr/0043-package-updates-on-a-server.md.
     - name: VariableService
       description: |-
         VariableService reads an environment's variables and secrets, and reveals

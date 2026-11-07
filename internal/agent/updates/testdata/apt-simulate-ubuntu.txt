@@ -1,0 +1,29 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Calculating upgrade...
+The following upgrades have been deferred due to phasing:
+  python3-distupgrade ubuntu-release-upgrader-core
+The following NEW packages will be installed:
+  linux-image-6.8.0-49-generic linux-modules-6.8.0-49-generic
+The following packages have been kept back:
+  ubuntu-advantage-tools
+The following packages will be upgraded:
+  docker-ce libssh-4 libssl3t64 linux-image-virtual openssl systemd
+6 upgraded, 2 newly installed, 0 to remove and 3 not upgraded.
+Inst libssl3t64 [3.0.13-0ubuntu3.4] (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) [openssl:amd64 ]
+Inst openssl [3.0.13-0ubuntu3.4] (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libssh-4 [0.10.6-2build2] (0.10.6-2ubuntu0.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst linux-modules-6.8.0-49-generic (6.8.0-49.49 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst linux-image-6.8.0-49-generic (6.8.0-49.49 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst linux-image-virtual [6.8.0-48.48] (6.8.0-49.49 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst systemd [255.4-1ubuntu8.4] (255.4-1ubuntu8.5 Ubuntu:24.04/noble-updates [amd64])
+Inst docker-ce [5:27.3.1-1~ubuntu.24.04~noble] (5:27.4.0-1~ubuntu.24.04~noble Docker CE:noble [amd64])
+Conf libssl3t64 (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf openssl (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libssh-4 (0.10.6-2ubuntu0.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf linux-modules-6.8.0-49-generic (6.8.0-49.49 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf linux-image-6.8.0-49-generic (6.8.0-49.49 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf linux-image-virtual (6.8.0-49.49 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf systemd (255.4-1ubuntu8.5 Ubuntu:24.04/noble-updates [amd64])
+Conf docker-ce (5:27.4.0-1~ubuntu.24.04~noble Docker CE:noble [amd64])
