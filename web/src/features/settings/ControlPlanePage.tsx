@@ -252,8 +252,9 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
             <CopyCommand command={copy} className="cp-commands" />
             <p className="cp-note">
               <Trans>
-                Then move <code>/root/dockwell-control.tgz</code> and <code>/root/dockwell-key</code> off the server, to
-                two different places.
+                Run it in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends
+                that terminal, and the copy with it. Then move <code>/root/dockwell-control.tgz</code> and{" "}
+                <code>/root/dockwell-key</code> off the server, to two different places.
               </Trans>
             </p>
           </>

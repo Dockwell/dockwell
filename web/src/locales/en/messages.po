@@ -7353,6 +7353,9 @@ msgstr "Releases"
 msgid "Replicas"
 msgstr "Replicas"
 
+msgid "Run it in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, and the copy with it. Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+msgstr "Run it in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, and the copy with it. Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+
 msgid "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 msgstr "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 
@@ -7368,9 +7371,6 @@ msgstr "State store"
 
 msgid "The version that runs here is unknown"
 msgstr "The version that runs here is unknown"
-
-msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
-msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
 
 msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
 msgstr "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
@@ -7962,6 +7962,12 @@ msgstr "Planned a change"
 msgid "Planned {summary}"
 msgstr "Planned {summary}"
 
+msgid "Read logs"
+msgstr "Read logs"
+
+msgid "Read the logs of {name}"
+msgstr "Read the logs of {name}"
+
 msgid "Refused a call this token can't make"
 msgstr "Refused a call this token can't make"
 
@@ -7979,6 +7985,9 @@ msgstr "Saving {path} on {name}"
 
 msgid "Set up this install"
 msgstr "Set up this install"
+
+msgid "Signed in with a recovery code"
+msgstr "Signed in with a recovery code"
 
 msgid "Signed out"
 msgstr "Signed out"

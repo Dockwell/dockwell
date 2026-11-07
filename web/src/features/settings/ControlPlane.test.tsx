@@ -119,6 +119,10 @@ describe("Control plane", () => {
     const command = copyCommand("/var/lib/dockwell", "/var/lib/dockwell/control/key", ServiceManager.SYSTEMD);
     expect(within(backups).getByText((_, el) => el?.tagName === "CODE" && el.textContent === command)).toBeVisible();
     expect(backups).toHaveTextContent("copies nothing if it can't");
+    // Dockwell's own terminal ends when Dockwell stops, before the copy.
+    expect(backups).toHaveTextContent(
+      "Run it in an SSH session on the control server, not in a terminal Dockwell opens",
+    );
     expect(within(backups).getByRole("link", { name: "How to back it up and restore it" })).toHaveAttribute(
       "href",
       "https://github.com/Dockwell/dockwell/blob/main/docs/install.md#back-up-the-control-plane",

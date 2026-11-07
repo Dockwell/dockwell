@@ -7353,6 +7353,9 @@ msgstr "版本发布"
 msgid "Replicas"
 msgstr "副本"
 
+msgid "Run it in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, and the copy with it. Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+msgstr "请在控制服务器上的 SSH 会话中运行，不要在 Dockwell 打开的终端里运行：停止 Dockwell 会结束那个终端，复制也随之中断。然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出服务器，分别存放在两个不同的地方。"
+
 msgid "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 msgstr "请以 root 身份运行。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
 
@@ -7368,9 +7371,6 @@ msgstr "状态存储"
 
 msgid "The version that runs here is unknown"
 msgstr "无法得知这里运行的版本"
-
-msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
-msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出服务器，分别存放在两个不同的地方。"
 
 msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
 msgstr "这些取决于 Dockwell 的启动方式。面板的域名在<0>常规</0>中；其余的也以同样方式设置。"
@@ -7962,6 +7962,12 @@ msgstr "规划了一项变更"
 msgid "Planned {summary}"
 msgstr "已规划 {summary}"
 
+msgid "Read logs"
+msgstr "读取了日志"
+
+msgid "Read the logs of {name}"
+msgstr "读取了 {name} 的日志"
+
 msgid "Refused a call this token can't make"
 msgstr "拒绝了此令牌无权发起的调用"
 
@@ -7979,6 +7985,9 @@ msgstr "正在保存 {name} 上的 {path}"
 
 msgid "Set up this install"
 msgstr "创建了此安装"
+
+msgid "Signed in with a recovery code"
+msgstr "使用恢复码登录"
 
 msgid "Signed out"
 msgstr "已退出登录"

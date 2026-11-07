@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -84,6 +85,10 @@ func (h *Handler) ListBackupDestinations(ctx context.Context, _ *connect.Request
 		if err != nil {
 			return err
 		}
+		since, err := revisedAt(ctx, tx)
+		if err != nil {
+			return err
+		}
 		all, err := tx.ListBackups(ctx, store.BackupFilter{})
 		if err != nil {
 			return err
@@ -97,28 +102,17 @@ func (h *Handler) ListBackupDestinations(ctx context.Context, _ *connect.Request
 			d := found[name]
 			info := &dockwellv1.BackupDestinationInfo{Id: ids[name], Name: name, Endpoint: d.GetEndpoint(), Bucket: d.GetBucket(), Prefix: d.GetPrefix()}
 			for i := range all {
-				b := &all[i]
-				if b.Destination != name || b.CopyKey == "" {
-					continue
-				}
-				info.Backups++
-				info.UsedBytes += b.CopyBytes
-				if info.LastUpload == nil && b.FinishedAt != nil {
-					info.LastUpload = timestamppb.New(*b.FinishedAt)
+				if b := &all[i]; b.Destination == name && b.CopyKey != "" {
+					info.Backups++
+					info.UsedBytes += b.CopyBytes
 				}
 			}
-			// The newest that didn't get there, newest first as the list is, so
-			// someone sees a destination that stopped taking backups.
-			for i := range all {
-				b := &all[i]
-				if b.Destination == name && b.CopyKey == "" && b.CopyError != "" {
-					at := b.StartedAt
-					if b.FinishedAt != nil {
-						at = *b.FinishedAt
-					}
-					info.LastFailure, info.LastFailureError = timestamppb.New(at), b.CopyError
-					break
-				}
+			s := standing(all, name, since[name])
+			if s.upload != nil {
+				info.LastUpload = timestamppb.New(*s.upload)
+			}
+			if s.failure != nil {
+				info.LastFailure, info.LastFailureError = timestamppb.New(*s.failure), s.why
 			}
 			out.Destinations = append(out.Destinations, info)
 		}
@@ -128,6 +122,65 @@ func (h *Handler) ListBackupDestinations(ctx context.Context, _ *connect.Request
 		return nil, h.fail(ctx, err)
 	}
 	return connect.NewResponse(out), nil
+}
+
+// revisedAt says when each destination was last made or changed, by name.
+func revisedAt(ctx context.Context, tx *store.Tx) (map[string]time.Time, error) {
+	stored, err := tx.ListKind(ctx, string(backuppolicy.DestinationKind))
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]time.Time, len(stored))
+	for i := range stored {
+		rev, err := tx.GetRevision(ctx, stored[i].ID, stored[i].Revision)
+		if err != nil {
+			return nil, err
+		}
+		out[stored[i].Name] = rev.CreatedAt
+	}
+	return out, nil
+}
+
+// destinationStanding is how a destination stands by its backups: when the
+// last one got there, and when the last one didn't, and why.
+type destinationStanding struct {
+	upload, failure *time.Time
+	why             string
+}
+
+// standing reads how the destination name stands from all backups. Each is
+// the latest by when it finished, so backups that overlap, one starting before
+// another and finishing after it, are put in the order they ended. A failure
+// from before since, when the destination was last made or changed, doesn't
+// count: it was about the destination as it was, such as one removed and
+// connected again.
+func standing(all []store.Backup, name string, since time.Time) destinationStanding {
+	var out destinationStanding
+	for i := range all {
+		b := &all[i]
+		if b.Destination != name {
+			continue
+		}
+		switch {
+		case b.CopyKey != "" && b.FinishedAt != nil:
+			if out.upload == nil || b.FinishedAt.After(*out.upload) {
+				at := *b.FinishedAt
+				out.upload = &at
+			}
+		case b.CopyKey == "" && b.CopyError != "":
+			at := b.StartedAt
+			if b.FinishedAt != nil {
+				at = *b.FinishedAt
+			}
+			if at.Before(since) {
+				continue
+			}
+			if out.failure == nil || at.After(*out.failure) {
+				out.failure, out.why = &at, b.CopyError
+			}
+		}
+	}
+	return out
 }
 
 // FetchBackup starts bringing a backup back from its destination.
