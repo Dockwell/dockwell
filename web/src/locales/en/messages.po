@@ -5863,6 +5863,146 @@ msgstr "{unlisted, plural, one {This server has # more container than fit here.}
 msgid "Copied {text}"
 msgstr "Copied {text}"
 
+msgid "Action"
+msgstr "Action"
+
+msgid "Allow"
+msgstr "Allow"
+
+msgid "Anywhere"
+msgstr "Anywhere"
+
+msgid "Anywhere, IPv6"
+msgstr "Anywhere, IPv6"
+
+msgid "Can't tell"
+msgstr "Can't tell"
+
+#. placeholder {0}: l.decidedBy
+msgid "Can't tell: {0} decides by names or rules it doesn't say the ports of"
+msgstr "Can't tell: {0} decides by names or rules it doesn't say the ports of"
+
+#. placeholder {0}: l.decidedBy
+msgid "Closed by {0}"
+msgstr "Closed by {0}"
+
+msgid "Deny"
+msgstr "Deny"
+
+msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them."
+msgstr "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them."
+
+msgid "Every IPv4 address"
+msgstr "Every IPv4 address"
+
+msgid "Every IPv6 address"
+msgstr "Every IPv6 address"
+
+msgid "Every address"
+msgstr "Every address"
+
+msgid "Inbound traffic"
+msgstr "Inbound traffic"
+
+msgid "It doesn't say what it does with what no rule matches."
+msgstr "It doesn't say what it does with what no rule matches."
+
+msgid "It drops what no rule lets in."
+msgstr "It drops what no rule lets in."
+
+msgid "It lets in what no rule turns away."
+msgstr "It lets in what no rule turns away."
+
+msgid "It turns away what no rule lets in."
+msgstr "It turns away what no rule lets in."
+
+msgid "Its port"
+msgstr "Its port"
+
+msgid "Limit"
+msgstr "Limit"
+
+msgid "Note"
+msgstr "Note"
+
+#. placeholder {0}: server.name
+msgid "Nothing filters what comes in to {0}: it has no ufw, firewalld or nftables rules turned on."
+msgstr "Nothing filters what comes in to {0}: it has no ufw, firewalld or nftables rules turned on."
+
+msgid "On · read-only, as Dockwell didn't make it"
+msgstr "On · read-only, as Dockwell didn't make it"
+
+#. placeholder {0}: l.sources.join(", ")
+#. placeholder {1}: l.decidedBy
+msgid "Only from {0}, as {1} says"
+msgstr "Only from {0}, as {1} says"
+
+#. placeholder {0}: l.decidedBy
+msgid "Open, as {0} allows it"
+msgstr "Open, as {0} allows it"
+
+msgid "Open: nothing here closes it"
+msgstr "Open: nothing here closes it"
+
+msgid "Port"
+msgstr "Port"
+
+msgid "Ports Docker publishes"
+msgstr "Ports Docker publishes"
+
+msgid "Reach"
+msgstr "Reach"
+
+#. placeholder {0}: server.name
+msgid "Reading what filters {0}'s traffic"
+msgstr "Reading what filters {0}'s traffic"
+
+msgid "Reject"
+msgstr "Reject"
+
+msgid "Rules as it says them"
+msgstr "Rules as it says them"
+
+msgid "Rules of {title}"
+msgstr "Rules of {title}"
+
+#. placeholder {0}: server.name
+msgid "What listens on {0}"
+msgstr "What listens on {0}"
+
+msgid "firewalld"
+msgstr "firewalld"
+
+#. placeholder {0}: tool.name
+msgid "firewalld, zone {0}"
+msgstr "firewalld, zone {0}"
+
+msgid "iptables-legacy"
+msgstr "iptables-legacy"
+
+msgid "nftables"
+msgstr "nftables"
+
+#. placeholder {0}: tool.name
+msgid "nftables table {0}"
+msgstr "nftables table {0}"
+
+msgid "ufw"
+msgstr "ufw"
+
+#. placeholder {0}: listening.length
+#. placeholder {0}: ports.length
+msgid "{0, plural, one {# port} other {# ports}}"
+msgstr "{0, plural, one {# port} other {# ports}}"
+
+#. placeholder {0}: tool.ruleCount
+msgid "{0, plural, one {It holds # rule, which ufw, Docker or a person may have made. Dockwell doesn't weigh it, so what listens below may reach less far than it says.} other {It holds # rules, which ufw, Docker or a person may have made. Dockwell doesn't weigh them one by one, so what listens below may reach less far than it says.}}"
+msgstr "{0, plural, one {It holds # rule, which ufw, Docker or a person may have made. Dockwell doesn't weigh it, so what listens below may reach less far than it says.} other {It holds # rules, which ufw, Docker or a person may have made. Dockwell doesn't weigh them one by one, so what listens below may reach less far than it says.}}"
+
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what filters its traffic can't be read now."
+msgstr "{0} isn't reporting, so what filters its traffic can't be read now."
+
 msgid "Loading servers"
 msgstr "Loading servers"
 
@@ -5907,6 +6047,9 @@ msgstr "{name} isn't reporting"
 
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
+
+msgid "Firewall"
+msgstr "Firewall"
 
 msgid "No server with this ID"
 msgstr "No server with this ID"

@@ -126,6 +126,9 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
             <Trans>Files</Trans>
           </RouterTabLink>
           <UpdatesTab server={server} />
+          <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
+            <Trans>Firewall</Trans>
+          </RouterTabLink>
         </TabNav>
       )}
       {children}

@@ -5863,6 +5863,146 @@ msgstr "{unlisted, plural, other {此服务器还有 # 个容器无法在此列�
 msgid "Copied {text}"
 msgstr "已复制 {text}"
 
+msgid "Action"
+msgstr "操作"
+
+msgid "Allow"
+msgstr "允许"
+
+msgid "Anywhere"
+msgstr "任意来源"
+
+msgid "Anywhere, IPv6"
+msgstr "任意来源，IPv6"
+
+msgid "Can't tell"
+msgstr "无法判断"
+
+#. placeholder {0}: l.decidedBy
+msgid "Can't tell: {0} decides by names or rules it doesn't say the ports of"
+msgstr "无法判断：{0} 按名称或未写明端口的规则决定"
+
+#. placeholder {0}: l.decidedBy
+msgid "Closed by {0}"
+msgstr "被 {0} 关闭"
+
+msgid "Deny"
+msgstr "拒绝"
+
+msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them."
+msgstr "Docker 会在 ufw 或 firewalld 的规则看到之前把这些端口转发给容器，因此这些规则管不到它们。"
+
+msgid "Every IPv4 address"
+msgstr "所有 IPv4 地址"
+
+msgid "Every IPv6 address"
+msgstr "所有 IPv6 地址"
+
+msgid "Every address"
+msgstr "所有地址"
+
+msgid "Inbound traffic"
+msgstr "入站流量"
+
+msgid "It doesn't say what it does with what no rule matches."
+msgstr "它没有说明如何处理不匹配任何规则的流量。"
+
+msgid "It drops what no rule lets in."
+msgstr "它会丢弃没有规则放行的流量。"
+
+msgid "It lets in what no rule turns away."
+msgstr "它会放行没有规则拦下的流量。"
+
+msgid "It turns away what no rule lets in."
+msgstr "它会拒收没有规则放行的流量。"
+
+msgid "Its port"
+msgstr "容器端口"
+
+msgid "Limit"
+msgstr "限速"
+
+msgid "Note"
+msgstr "备注"
+
+#. placeholder {0}: server.name
+msgid "Nothing filters what comes in to {0}: it has no ufw, firewalld or nftables rules turned on."
+msgstr "没有任何规则过滤进入 {0} 的流量：它没有启用 ufw、firewalld 或 nftables 规则。"
+
+msgid "On · read-only, as Dockwell didn't make it"
+msgstr "已启用 · 只读，因为不是 Dockwell 创建的"
+
+#. placeholder {0}: l.sources.join(", ")
+#. placeholder {1}: l.decidedBy
+msgid "Only from {0}, as {1} says"
+msgstr "仅限来自 {0}，按 {1} 的规则"
+
+#. placeholder {0}: l.decidedBy
+msgid "Open, as {0} allows it"
+msgstr "开放，{0} 允许"
+
+msgid "Open: nothing here closes it"
+msgstr "开放：这里没有规则关闭它"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "Ports Docker publishes"
+msgstr "Docker 发布的端口"
+
+msgid "Reach"
+msgstr "可达性"
+
+#. placeholder {0}: server.name
+msgid "Reading what filters {0}'s traffic"
+msgstr "正在读取过滤 {0} 流量的规则"
+
+msgid "Reject"
+msgstr "拒收"
+
+msgid "Rules as it says them"
+msgstr "原样列出的规则"
+
+msgid "Rules of {title}"
+msgstr "{title} 的规则"
+
+#. placeholder {0}: server.name
+msgid "What listens on {0}"
+msgstr "{0} 上的监听端口"
+
+msgid "firewalld"
+msgstr "firewalld"
+
+#. placeholder {0}: tool.name
+msgid "firewalld, zone {0}"
+msgstr "firewalld，区域 {0}"
+
+msgid "iptables-legacy"
+msgstr "iptables-legacy"
+
+msgid "nftables"
+msgstr "nftables"
+
+#. placeholder {0}: tool.name
+msgid "nftables table {0}"
+msgstr "nftables 表 {0}"
+
+msgid "ufw"
+msgstr "ufw"
+
+#. placeholder {0}: listening.length
+#. placeholder {0}: ports.length
+msgid "{0, plural, one {# port} other {# ports}}"
+msgstr "{0, plural, other {# 个端口}}"
+
+#. placeholder {0}: tool.ruleCount
+msgid "{0, plural, one {It holds # rule, which ufw, Docker or a person may have made. Dockwell doesn't weigh it, so what listens below may reach less far than it says.} other {It holds # rules, which ufw, Docker or a person may have made. Dockwell doesn't weigh them one by one, so what listens below may reach less far than it says.}}"
+msgstr "{0, plural, other {其中有 # 条规则，可能由 ufw、Docker 或某人创建。Dockwell 不会逐条计入，因此下方监听的端口实际可达范围可能比显示的更小。}}"
+
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what filters its traffic can't be read now."
+msgstr "{0} 未在上报，因此现在无法读取过滤其流量的规则。"
+
 msgid "Loading servers"
 msgstr "正在加载服务器"
 
@@ -5907,6 +6047,9 @@ msgstr "{name} 没有上报数据"
 
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
+
+msgid "Firewall"
+msgstr "防火墙"
 
 msgid "No server with this ID"
 msgstr "没有这个 ID 的服务器"

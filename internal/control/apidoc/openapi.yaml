@@ -1711,6 +1711,37 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/firewall:
+        get:
+            tags:
+                - FirewallService
+            description: |-
+                GetServerFirewall reads, through the server's agent, the firewalls already
+                 there, ufw, firewalld, nftables's tables and iptables-legacy, with what each
+                 allows and drops; what listens on the server, and how far each reaches past
+                 them; and the ports Docker publishes, which reach their containers past a
+                 firewall's input rules.
+            operationId: FirewallService_GetServerFirewall
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerFirewallResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services:
         get:
             tags:
@@ -5170,6 +5201,91 @@ components:
                     type: string
                     description: Why the rule exists, shown next to it.
             description: FirewallRule allows or blocks inbound traffic to a port on a server.
+        FirewallSeenRule:
+            type: object
+            properties:
+                verdict:
+                    enum:
+                        - FIREWALL_VERDICT_UNSPECIFIED
+                        - FIREWALL_VERDICT_ALLOW
+                        - FIREWALL_VERDICT_DENY
+                        - FIREWALL_VERDICT_REJECT
+                        - FIREWALL_VERDICT_LIMIT
+                    type: string
+                    description: What it does.
+                    format: enum
+                port:
+                    type: string
+                    description: |-
+                        What it covers, as the firewall says it: a port and protocol such as
+                         "22/tcp" or "80,443/tcp", or a service by name, such as "ssh".
+                source:
+                    type: string
+                    description: 'Where from: a CIDR range, such as "203.0.113.0/24". Empty for anywhere.'
+                ipv6:
+                    type: boolean
+                    description: True when it covers IPv6 alone.
+                comment:
+                    type: string
+                    description: The comment it has, if any.
+            description: FirewallSeenRule is one rule of a firewall Dockwell didn't make.
+        FirewallTool:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - FIREWALL_TOOL_KIND_UNSPECIFIED
+                        - FIREWALL_TOOL_KIND_UFW
+                        - FIREWALL_TOOL_KIND_FIREWALLD
+                        - FIREWALL_TOOL_KIND_NFTABLES
+                        - FIREWALL_TOOL_KIND_IPTABLES_LEGACY
+                    type: string
+                    description: What it is.
+                    format: enum
+                name:
+                    type: string
+                    description: |-
+                        Which: an nftables table, such as "inet filter", or firewalld's zone, such
+                         as "public". Empty for ufw.
+                active:
+                    type: boolean
+                    description: True when it filters traffic now.
+                defaultInbound:
+                    enum:
+                        - FIREWALL_VERDICT_UNSPECIFIED
+                        - FIREWALL_VERDICT_ALLOW
+                        - FIREWALL_VERDICT_DENY
+                        - FIREWALL_VERDICT_REJECT
+                        - FIREWALL_VERDICT_LIMIT
+                    type: string
+                    description: |-
+                        What it does with inbound traffic no rule matches. Unspecified when it says
+                         nothing, as an nftables table of rules alone doesn't.
+                    format: enum
+                rules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FirewallSeenRule'
+                    description: Its rules, by port and source, in its order.
+                other:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Rules it holds that aren't a port and a source, as it says them, such as
+                         firewalld's rich rules.
+                ruleCount:
+                    type: integer
+                    description: |-
+                        How many rules an nftables table, or iptables-legacy, holds, which the agent
+                         doesn't read one by one. Zero for ufw and firewalld, whose rules are in rules.
+                    format: uint32
+                unreadable:
+                    type: string
+                    description: |-
+                        Why the agent couldn't read it, such as that the agent doesn't run as root.
+                         Empty when it could.
+            description: FirewallTool is one firewall on a server, and what it does.
         GetAuthStateResponse:
             type: object
             properties:
@@ -5258,6 +5374,14 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change.
             description: GetChangeResponse carries one change.
+        GetServerFirewallResponse:
+            type: object
+            properties:
+                firewall:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerFirewall'
+                    description: The firewall, as the agent read it.
+            description: GetServerFirewallResponse is what filters the server's inbound traffic.
         GetServerResponse:
             type: object
             properties:
@@ -5496,6 +5620,38 @@ components:
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.
+        HostListener:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: The address it listens on, such as "0.0.0.0", "::" or "10.0.0.5".
+                port:
+                    type: integer
+                    description: The port.
+                    format: uint32
+                protocol:
+                    type: string
+                    description: '"tcp" or "udp".'
+                reach:
+                    enum:
+                        - LISTENER_REACH_UNSPECIFIED
+                        - LISTENER_REACH_OPEN
+                        - LISTENER_REACH_SOME
+                        - LISTENER_REACH_CLOSED
+                        - LISTENER_REACH_UNKNOWN
+                    type: string
+                    description: How far it reaches, past the firewalls here.
+                    format: enum
+                decidedBy:
+                    type: string
+                    description: The firewall that decides that, such as "ufw", when one does.
+                sources:
+                    type: array
+                    items:
+                        type: string
+                    description: The sources a rule lets in from, when only some may reach it.
+            description: HostListener is a port something on the server listens on, beyond loopback.
         HttpCheck:
             type: object
             properties:
@@ -7091,6 +7247,27 @@ components:
                         True when nothing shows the address is a way in, so it's named only with a
                          caveat: a way out, or a metadata service the machine doesn't confirm.
             description: PublicAddress is what's known of one public address of a server.
+        PublishedPort:
+            type: object
+            properties:
+                container:
+                    type: string
+                    description: The container, by name.
+                hostIp:
+                    type: string
+                    description: The address it's published on, such as "0.0.0.0", "::" or "127.0.0.1".
+                hostPort:
+                    type: integer
+                    description: The port on the server.
+                    format: uint32
+                protocol:
+                    type: string
+                    description: '"tcp", "udp" or "sctp".'
+                containerPort:
+                    type: integer
+                    description: The port in the container.
+                    format: uint32
+            description: PublishedPort is a port Docker publishes on the server for a container.
         ReadFileRequest:
             type: object
             properties:
@@ -8016,6 +8193,40 @@ components:
                     type: boolean
                     description: True for a container that docker compose run made for one command.
             description: ServerContainer is a container on a server, as Docker lists it.
+        ServerFirewall:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent read it.
+                    format: date-time
+                tools:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FirewallTool'
+                    description: Each firewall the agent found there, active or not.
+                published:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PublishedPort'
+                    description: |-
+                        The ports Docker publishes. Docker forwards them to their containers before
+                         a firewall's input rules see them, so ufw's and firewalld's rules don't
+                         cover them.
+                listening:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostListener'
+                    description: |-
+                        What listens on the server itself, beyond loopback, and how far each
+                         reaches past the firewalls here, which do cover it. A port Docker publishes
+                         is in published, not here, though Docker's proxy listens on it too.
+                publishedUnreadable:
+                    type: string
+                    description: |-
+                        Why the agent couldn't read the ports Docker publishes, such as that Docker
+                         isn't answering. Empty when it could.
+            description: ServerFirewall is what filters a server's inbound traffic, as its agent read it.
         ServerHealth:
             type: object
             properties:
@@ -9356,6 +9567,10 @@ tags:
          its scope. The agent refuses what holds Dockwell's keys, secrets' values and
          the server's own credentials for everyone, with the reason "file_refused":
          docs/security/files.md lists them.
+    - name: FirewallService
+      description: |-
+        FirewallService says what filters a server's inbound traffic. Reading it
+         changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
     - name: HealthService
       description: |-
         HealthService says how services are, as far as anything checked, from what

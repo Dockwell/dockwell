@@ -89,6 +89,8 @@ type Config struct {
 	CallGrace time.Duration
 	// unfinished is what outlives its call, across this agent's streams.
 	unfinished *unfinished
+	// firewall reads what filters the server's inbound traffic, when asked.
+	firewall *firewallReader
 	// outlook keeps what the server found out from one stream to the next.
 	outlook *outlook
 	// Hello changes what the agent says of itself as a stream opens, for a test
@@ -310,6 +312,7 @@ func Run(ctx context.Context, cfg Config) error {
 		cfg.Collector = collect.New()
 	}
 	cfg.outlook = &outlook{}
+	cfg.firewall = &firewallReader{docker: cfg.Docker}
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}

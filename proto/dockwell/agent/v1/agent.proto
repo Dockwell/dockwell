@@ -8,6 +8,7 @@ import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
 import "dockwell/v1/domain.proto";
 import "dockwell/v1/file.proto";
+import "dockwell/v1/firewall.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
@@ -416,8 +417,16 @@ message Call {
     // 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
     // next of either takes 54.
     ListUpdatesCall list_updates = 53;
+    // Read what filters the server's inbound traffic, changing nothing. Numbered
+    // in the block for a server's own pages.
+    FirewallCall firewall = 43;
   }
 }
+
+// FirewallCall asks what filters the server's inbound traffic. The agent reads
+// ufw, firewalld and nftables with their own commands, and Docker's published
+// ports, and changes nothing.
+message FirewallCall {}
 
 // AdoptionCall asks what a container would be as a service. It reads the
 // container, environment and all, and changes nothing.
@@ -885,6 +894,8 @@ message CallResult {
     // What send_backup sent.
     SendBackupResult send_backup = 24;
     ListUpdatesResult list_updates = 53;
+    // What a firewall call read.
+    dockwell.v1.ServerFirewall firewall = 43;
   }
 }
 
