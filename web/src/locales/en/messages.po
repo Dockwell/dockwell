@@ -342,8 +342,8 @@ msgid "{domain} has no DNS record yet, so its certificate can't come until it ha
 msgstr "{domain} has no DNS record yet, so its certificate can't come until it has one. {point}"
 
 #: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {publics}; it comes once you do"
-msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {publics}; it comes once you do"
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
+msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
 
 #: src/features/logs/LogFoot.tsx
 msgid "{down} couldn't be searched, so its lines aren't in this."

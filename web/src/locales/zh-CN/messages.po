@@ -342,8 +342,8 @@ msgid "{domain} has no DNS record yet, so its certificate can't come until it ha
 msgstr "{domain} 还没有 DNS 记录，在添加之前无法获取证书。{point}"
 
 #: src/features/changes/words.ts
-msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {publics}; it comes once you do"
-msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {publics} 的 A 或 AAAA 记录，添加后即可获取证书"
+msgid "{domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at {either}; it comes once you do"
+msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {either} 的 A 或 AAAA 记录，添加后即可获取证书"
 
 #: src/features/logs/LogFoot.tsx
 msgid "{down} couldn't be searched, so its lines aren't in this."

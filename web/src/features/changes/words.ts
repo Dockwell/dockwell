@@ -31,6 +31,12 @@ import { useCallback, useMemo } from "react";
 import { isPrivateAddress } from "../servers/server";
 import { type Fold, kindWord } from "./plan";
 
+/** Things as a list, "a, b and c", as the CLI writes it. British English leaves out the serial comma, as these words do. */
+function listWords(locale: string, items: readonly string[], type: Intl.ListFormatType = "conjunction"): string {
+  const words = locale.startsWith("en") ? "en-GB" : locale;
+  return new Intl.ListFormat(words, { style: "long", type }).format(items);
+}
+
 /** How a step is going, as a status and a word. */
 export interface StepLook {
   status: Status;
@@ -119,7 +125,7 @@ export function plain(s: string): string {
 }
 
 export function useChangeWords(): ChangeWords {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   return useMemo<ChangeWords>(
     () => ({
       kind(kind) {
@@ -403,10 +409,12 @@ export function useChangeWords(): ChangeWords {
       domain(check) {
         if (!check) return "";
         const { domain } = check;
-        const found = check.found.join(", ");
-        const here = check.here.join(", ");
+        const found = listWords(i18n.locale, check.found);
+        const here = listWords(i18n.locale, check.here);
         // A record pointed at a private address can't work, so none is named as where to point one.
-        const publics = check.here.filter((ip) => !isPrivateAddress(ip)).join(", ");
+        const own = check.here.filter((ip) => !isPrivateAddress(ip));
+        const publics = listWords(i18n.locale, own);
+        const either = listWords(i18n.locale, own, "disjunction");
         const point =
           here === ""
             ? t`Point an A or AAAA record at this server's public address`
@@ -417,7 +425,7 @@ export function useChangeWords(): ChangeWords {
           case DomainCheckState.NO_RECORD:
             return publics === ""
               ? t`${domain} has no DNS record yet, so its certificate can't come until it has one. ${point}`
-              : t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${publics}; it comes once you do`;
+              : t`${domain} has no DNS record yet, so its certificate can't come. Point an A or AAAA record at ${either}; it comes once you do`;
           case DomainCheckState.ELSEWHERE:
             return publics === ""
               ? t`DNS for ${domain} points at ${found}, not this server, so its certificate can't come yet. ${point}. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead`
@@ -636,7 +644,7 @@ export function useChangeWords(): ChangeWords {
         return "";
       },
     }),
-    [t],
+    [t, i18n.locale],
   );
 }
 
@@ -651,9 +659,7 @@ export function useAlsoWords() {
       if (environment) parts.push(t`environment ${environment}`);
       if (networks > 0) parts.push(plural(networks, { one: "a network", other: "# networks" }));
       if (volumes > 0) parts.push(plural(volumes, { one: "a volume", other: "# volumes" }));
-      // British English leaves out the serial comma, as these words do.
-      const locale = i18n.locale.startsWith("en") ? "en-GB" : i18n.locale;
-      const list = new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(parts);
+      const list = listWords(i18n.locale, parts);
       return done ? t`Also created ${list}` : t`Also creates ${list}`;
     },
     [t, i18n.locale],
