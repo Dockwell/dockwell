@@ -974,6 +974,9 @@ msgstr "添加变量"
 msgid "Add {key} to {name}"
 msgstr "把 {key} 添加到 {name}"
 
+msgid "Can't read the environment's variables and secrets"
+msgstr "无法读取环境中的变量和密钥"
+
 msgid "Change"
 msgstr "更改"
 
@@ -1070,11 +1073,20 @@ msgstr "环境中已经有密钥 {trimmed}。可以直接使用它，或换一�
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "环境中已经有变量 {trimmed}。可以直接使用它，或换一个名称。"
 
+msgid "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
+msgstr "环境中已经有 {usedList}，所以应用会直接使用它和它现有的值。要更改它，请到变量和密钥中修改，每个使用它的应用都会得到更改。"
+
+msgid "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
+msgstr "环境中已经有 {usedList}，所以应用会直接使用它们和它们现有的值。要更改它们，请到变量和密钥中修改，每个使用它们的应用都会得到更改。"
+
 msgid "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
 msgstr "密钥的值不会显示，所以请输入它应有的完整值。每个使用它的应用都会得到它。"
 
 msgid "Their values are hidden, and revealing one takes your passkey."
 msgstr "它们的值会被隐藏，显示其中一个需要你的通行密钥。"
+
+msgid "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
+msgstr "在读取成功之前，它们的值不会显示，添加也会暂停，以免新名称与已有的冲突。"
 
 msgid "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
 msgstr "这个应用只使用镜像里设置的值运行。在上方添加一个变量，应用计划后它就会得到。"
@@ -1133,14 +1145,11 @@ msgstr "{app} 已经有 {trimmed}。请在下方它所在的行里更改。"
 msgid "{changed} changed"
 msgstr "{changed} 项更改"
 
-msgid "{count, plural, one {Add # variable} other {Add # variables}}"
-msgstr "{count, plural, other {添加 # 个变量}}"
+msgid "{count, plural, one {Import # value} other {Import # values}}"
+msgstr "{count, plural, other {导入 # 个值}}"
 
 msgid "{name} changed after you started. Close this and review your edits again: they apply to what it is now."
 msgstr "你开始编辑之后，{name} 发生了变化。请关闭这里，再审查一次你的编辑：它们会作用于它现在的样子。"
-
-msgid "{name} is as good as root on its server, so applying this asks for your passkey."
-msgstr "{name} 在它的服务器上等同于 root，所以应用这次更改需要你的通行密钥。"
 
 msgid "{name}'s spec can't be read"
 msgstr "无法读取 {name} 的配置"
@@ -1149,10 +1158,16 @@ msgid "{name}, secret"
 msgstr "{name}，密钥"
 
 msgid "{own} set on this app"
-msgstr "{own} 个在此应用上设置"
+msgstr "{own} 个仅在此应用上设置的值"
 
 msgid "{removed} removed"
 msgstr "{removed} 项移除"
+
+msgid "{rooted} are as good as root on their servers, so applying this asks for your passkey."
+msgstr "{rooted} 在各自的服务器上等同于 root，所以应用这次更改需要你的通行密钥。"
+
+msgid "{rooted} is as good as root on its server, so applying this asks for your passkey."
+msgstr "{rooted} 在它的服务器上等同于 root，所以应用这次更改需要你的通行密钥。"
 
 msgid "{secrets, plural, one {# secret} other {# secrets}}"
 msgstr "{secrets, plural, other {# 个密钥}}"

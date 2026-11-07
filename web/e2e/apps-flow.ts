@@ -698,6 +698,25 @@ export async function appsFlow(
   await addValue("SIGNING_KEY", "e2e-signing-key", true);
   const unapplied = page.getByRole("region", { name: "Unapplied changes" });
   await unapplied.getByText("2 unapplied changes").waitFor();
+  // A long value wraps in its cell: the table never widens, and no key breaks for it.
+  await addValue("LONG_NOTE", "x".repeat(90).concat("-", "y".repeat(90), "/", "z".repeat(90)), false);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width > 600 ? 900 : 844 });
+    const fits = await page.evaluate(() => {
+      const wrap = document.querySelector(".app-environment .dw-table-wrap");
+      const keys = [...document.querySelectorAll(".app-environment .app-env-name")];
+      return {
+        table: wrap ? wrap.scrollWidth - wrap.clientWidth : -1,
+        page: document.documentElement.scrollWidth - window.innerWidth,
+        broken: keys.filter((k) => k.getBoundingClientRect().height > 24).map((k) => k.textContent),
+      };
+    });
+    if (fits.table !== 0 || fits.page > 0)
+      fail(`at ${width} px a long value widens the table by ${fits.table} px, the page by ${fits.page}`);
+    if (fits.broken.length > 0) fail(`at ${width} px a long value breaks the keys ${fits.broken.join(", ")}`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "Revert LONG_NOTE" }).click();
   if ((await docker()).some((c) => c.env.some((v) => v.startsWith("GREETING="))))
     fail("an edit reached Docker before its plan");
   await shoot(page, "apps-environment-pending");

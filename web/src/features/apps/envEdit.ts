@@ -76,13 +76,14 @@ export function envCounts(pending: ReadonlyMap<string, EnvEdit>): { added: numbe
  * The other apps a pending change of an environment's value restarts, as they
  * use it too, by name, without the app being edited.
  */
-export function alsoRestarts(service: ServiceInfo, rows: readonly EnvRow[]): string[] {
-  const others = new Set<string>();
+export function alsoRestarts(service: ServiceInfo, rows: readonly EnvRow[]): { id: string; name: string }[] {
+  const others = new Map<string, string>();
   for (const row of rows) {
     if (row.pending?.op !== "change" || !row.stored) continue;
-    for (const use of row.stored.usedBy) if (use.serviceId !== service.id) others.add(use.service || use.serviceId);
+    for (const use of row.stored.usedBy)
+      if (use.serviceId !== service.id) others.set(use.serviceId, use.service || use.serviceId);
   }
-  return [...others].sort();
+  return [...others].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** The plan sheet's edit for a variable or secret of an environment. */

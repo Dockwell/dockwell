@@ -974,7 +974,8 @@ function PlanBody({
     return (
       <div className="plan-body">
         <Callout tone="critical">
-          <MachineWords>{sentence(failure)}</MachineWords>
+          {/* What the form that opened this says of it, as a stale plan, which only the form can put right. */}
+          {opening.fix?.(reasonOf(failure)) ?? <MachineWords>{sentence(failure)}</MachineWords>}
         </Callout>
       </div>
     );
@@ -1022,7 +1023,8 @@ function PlanBody({
     <div className="plan-body">
       {failure ? (
         <Callout tone="critical" title={t`That didn't apply`}>
-          <MachineWords>{refusal(failure, plan)}</MachineWords>
+          {/* What the form that opened this says of it, as a stale plan, which only the form can put right. */}
+          {opening.fix?.(reasonOf(failure)) ?? <MachineWords>{refusal(failure, plan)}</MachineWords>}
         </Callout>
       ) : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}

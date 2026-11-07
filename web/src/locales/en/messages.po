@@ -974,6 +974,9 @@ msgstr "Add a variable"
 msgid "Add {key} to {name}"
 msgstr "Add {key} to {name}"
 
+msgid "Can't read the environment's variables and secrets"
+msgstr "Can't read the environment's variables and secrets"
+
 msgid "Change"
 msgstr "Change"
 
@@ -1070,11 +1073,20 @@ msgstr "The environment has a secret {trimmed} already. Use it as it is, or choo
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 
+msgid "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
+msgstr "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
+
+msgid "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
+msgstr "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
+
 msgid "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
 msgstr "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
 
 msgid "Their values are hidden, and revealing one takes your passkey."
 msgstr "Their values are hidden, and revealing one takes your passkey."
+
+msgid "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
+msgstr "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
 
 msgid "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
 msgstr "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
@@ -1133,14 +1145,11 @@ msgstr "{app} has {trimmed} already. Change it in its row below."
 msgid "{changed} changed"
 msgstr "{changed} changed"
 
-msgid "{count, plural, one {Add # variable} other {Add # variables}}"
-msgstr "{count, plural, one {Add # variable} other {Add # variables}}"
+msgid "{count, plural, one {Import # value} other {Import # values}}"
+msgstr "{count, plural, one {Import # value} other {Import # values}}"
 
 msgid "{name} changed after you started. Close this and review your edits again: they apply to what it is now."
 msgstr "{name} changed after you started. Close this and review your edits again: they apply to what it is now."
-
-msgid "{name} is as good as root on its server, so applying this asks for your passkey."
-msgstr "{name} is as good as root on its server, so applying this asks for your passkey."
 
 msgid "{name}'s spec can't be read"
 msgstr "{name}'s spec can't be read"
@@ -1153,6 +1162,12 @@ msgstr "{own} set on this app"
 
 msgid "{removed} removed"
 msgstr "{removed} removed"
+
+msgid "{rooted} are as good as root on their servers, so applying this asks for your passkey."
+msgstr "{rooted} are as good as root on their servers, so applying this asks for your passkey."
+
+msgid "{rooted} is as good as root on its server, so applying this asks for your passkey."
+msgstr "{rooted} is as good as root on its server, so applying this asks for your passkey."
 
 msgid "{secrets, plural, one {# secret} other {# secrets}}"
 msgstr "{secrets, plural, one {# secret} other {# secrets}}"
