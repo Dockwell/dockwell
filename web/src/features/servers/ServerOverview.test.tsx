@@ -2,16 +2,18 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   BuildInfoSchema,
   CloudProvider,
   Connection,
   DiskSchema,
+  HealthState,
   NetworkShape,
   PublicAddressSchema,
   PublicAddressSource,
   Reachable,
+  ServerDiskUseSchema,
   ServerInventorySchema,
   ServerNetworkSchema,
   type WatchServersResponse,
@@ -22,9 +24,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { aHealth, anApp } from "../../test/apps";
 import { authError } from "../../test/auth";
 import { expectMetric } from "../../test/metrics";
-import { feed, onPhone, renderAt } from "../../test/render";
+import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
 
 const GiB = 1024 ** 3;
@@ -58,13 +61,38 @@ const hz1 = aServer({
   lastSeenTime: timestampFromDate(new Date(2026, 10, 4, 11, 59, 58)),
 });
 
-/** Renders the server's page at path once the snapshot holds servers. */
-async function renderServer(path: string, ...servers: ReturnType<typeof aServer>[]) {
+/** What takes hz-1's disk, as Server-Overview.dc.html has it. */
+const diskUse = create(ServerDiskUseSchema, {
+  time: timestampFromDate(NOW),
+  dockerRoot: "/var/lib/docker",
+  mountPoint: "/",
+  sizeBytes: BigInt(160 * GiB),
+  usedBytes: BigInt(61 * GiB),
+  imagesBytes: BigInt(18 * GiB),
+  imagesUnusedBytes: BigInt(4 * GiB),
+  images: 9,
+  volumesBytes: BigInt(22 * GiB),
+  volumes: 4,
+  containersBytes: BigInt(GiB / 2),
+  containers: 7,
+  logsBytes: BigInt(3 * GiB),
+});
+
+/** Renders the server's page at path once the snapshot holds servers, with more of the API as api says. */
+async function renderServerWith(api: Api, path: string, ...servers: ReturnType<typeof aServer>[]) {
   const watch = feed<WatchServersResponse>();
   watch.push(...servers.map(changed), snapshotComplete);
-  const rendered = renderAt(path, { servers: { watchServers: watch.stream } });
+  const rendered = renderAt(path, {
+    ...api,
+    servers: { watchServers: watch.stream, getServerDiskUse: () => ({ diskUse }), ...api.servers },
+  });
   await screen.findByRole("heading", { level: 1 });
   return { ...rendered, watch };
+}
+
+/** Renders the server's page at path once the snapshot holds servers. */
+function renderServer(path: string, ...servers: ReturnType<typeof aServer>[]) {
+  return renderServerWith({}, path, ...servers);
 }
 
 const panel = (name: string) => screen.getByRole("region", { name });
@@ -125,14 +153,104 @@ describe("ServerOverview", () => {
     expect(screen.queryByText("Network", { selector: ".dw-metric-label span" })).toBeNull();
   });
 
-  it("draws each disk's used and free space", async () => {
+  it("says what takes the disk Docker keeps its data on, part by part", async () => {
     await renderServer("/servers/srv_1", hz1);
-    const disks = await screen.findByRole("region", { name: "Disks" });
+    const disk = await screen.findByRole("region", { name: "Disk usage" });
+    await within(disk).findByText("Images");
+    expect(
+      within(disk).getByRole("img", {
+        name: "Disk usage of /: Images 18 GB, Volumes 22 GB, Containers 512 MB, Logs 3 GB, Other files 18 GB, Free 99 GB, of 160 GB",
+      }),
+    ).toBeVisible();
+    expect(disk).toHaveTextContent("Images18 GB9 images · 4 GB unused");
+    expect(disk).toHaveTextContent("Volumes22 GB4 volumes");
+    expect(disk).toHaveTextContent("Free99 GB62% of the disk");
+  });
+
+  it("draws each disk's used and free space while Docker can't say what takes it", async () => {
+    const getServerDiskUse = () => {
+      throw new ConnectError("hz-1 can't say what takes its disk now: Docker isn't running", Code.Unavailable);
+    };
+    await renderServerWith({ servers: { getServerDiskUse } }, "/servers/srv_1", hz1);
+    const disks = await screen.findByRole("region", { name: "Disk usage" });
+    await within(disks).findByText("Docker isn't running", { exact: false });
     expect(within(disks).getByText("/")).toBeVisible();
     expect(disks).toHaveTextContent("/dev/sda1 · ext4");
     expect(disks).toHaveTextContent("38% of 160 GB used");
     expect(within(disks).getByRole("img", { name: "/: 61 GB used, 99 GB free, of 160 GB" })).toBeVisible();
     expect(disks).toHaveTextContent("Used61 GBFree99 GB");
+  });
+
+  it("asks a server whose agent isn't connected nothing of its disk", async () => {
+    const getServerDiskUse = vi.fn(() => ({ diskUse }));
+    await renderServerWith(
+      { servers: { getServerDiskUse } },
+      "/servers/srv_1",
+      aServer({ ...hz1, connection: Connection.UNREACHABLE, connectTime: undefined }),
+    );
+    const disks = await screen.findByRole("region", { name: "Disk usage" });
+    expect(disks).toHaveTextContent("38% of 160 GB used");
+    expect(getServerDiskUse).not.toHaveBeenCalled();
+  });
+
+  it("counts the apps and domains on the server, and names what needs a look", async () => {
+    const api: Api = {
+      services: {
+        listServices: () => ({
+          services: [
+            anApp("web", "nginx:1.27"),
+            anApp("api", "ghcr.io/acme/api:2"),
+            anApp("worker", "ghcr.io/acme/worker:1"),
+            anApp("elsewhere", "redis:7", {}, { deployments: [{ serverId: "srv_2", serverName: "hz-2" }] }),
+          ],
+        }),
+      },
+      health: {
+        listHealth: () => ({
+          services: [
+            aHealth("svc_web", { state: HealthState.HEALTHY }),
+            aHealth("svc_api", { state: HealthState.HEALTHY }),
+            aHealth("svc_worker", { state: HealthState.UNHEALTHY }),
+          ],
+        }),
+      },
+      domains: {
+        listDomains: () => ({
+          domains: [
+            { name: "shop.example.com", servers: [{ serverId: "srv_1" }] },
+            { name: "api.example.com", servers: [{ serverId: "srv_1" }] },
+            { name: "status.example.com", servers: [{ serverId: "srv_1" }] },
+            { name: "other.example.com", servers: [{ serverId: "srv_2" }] },
+          ],
+        }),
+      },
+    };
+    await renderServerWith(api, "/servers/srv_1", hz1);
+    const runs = await screen.findByRole("region", { name: "What runs here" });
+    const apps = await within(runs).findByRole("link", { name: /^3 apps/ });
+    await waitFor(() => expect(apps).toHaveTextContent("3 apps2 healthy · worker unhealthy"));
+    expect(apps).toHaveAttribute("href", "/apps");
+    const domains = await within(runs).findByRole("link", { name: /^3 domains/ });
+    expect(domains).toHaveTextContent("3 domainsapi.example.com, shop.example.com and 1 more");
+  });
+
+  it("invites an app and a domain on a server with neither, and opens the one app it has", async () => {
+    await renderServer("/servers/srv_1", hz1);
+    const runs = await screen.findByRole("region", { name: "What runs here" });
+    expect(await within(runs).findByRole("link", { name: /^No apps/ })).toHaveAttribute("href", "/apps/new");
+    expect(await within(runs).findByRole("link", { name: /^No domains/ })).toHaveAttribute("href", "/domains");
+  });
+
+  it("opens the one app a server has, by name", async () => {
+    const api: Api = {
+      services: { listServices: () => ({ services: [anApp("web", "nginx:1.27")] }) },
+      health: { listHealth: () => ({ services: [aHealth("svc_web", { state: HealthState.NO_CHECK })] }) },
+    };
+    await renderServerWith(api, "/servers/srv_1", hz1);
+    const runs = await screen.findByRole("region", { name: "What runs here" });
+    const app = await within(runs).findByRole("link", { name: /^1 app/ });
+    await waitFor(() => expect(app).toHaveTextContent("1 appweb, running"));
+    expect(app).toHaveAttribute("href", "/apps/svc_web");
   });
 
   it("says what the server is", async () => {
@@ -326,7 +444,7 @@ describe("ServerOverview", () => {
     expect(network).toHaveTextContent("Public IPv449.12.33.7");
     expect(network).toHaveTextContent("Public IPv62a01:4f8:c012:9a3e::1");
     expect(network).toHaveTextContent("Private addresses10.0.0.2172.17.0.1");
-    expect(network).toHaveTextContent("Receiving8 Mbit/sSending4.4 Mbit/s");
+    expect(network).toHaveTextContent("Traffic8 Mbit/s in · 4.4 Mbit/s out");
 
     await userEvent.click(within(network).getByRole("button", { name: "Copy 49.12.33.7" }));
     expect(writeText).toHaveBeenCalledWith("49.12.33.7");
@@ -387,7 +505,7 @@ describe("ServerOverview", () => {
     const agent = screen.getByRole("region", { name: "Agent" });
     expect(agent).toHaveTextContent("Not connected");
     expect(agent).not.toHaveTextContent("For ");
-    expect(screen.getByRole("region", { name: "Network" })).not.toHaveTextContent("Receiving");
+    expect(screen.getByRole("region", { name: "Network" })).not.toHaveTextContent("Traffic");
     expect(screen.getByRole("region", { name: "System" })).toHaveTextContent("Ubuntu 24.04.1 LTS");
   });
 
@@ -402,7 +520,7 @@ describe("ServerOverview", () => {
     );
     expect(screen.getByRole("region", { name: "Agent" })).toHaveTextContent("Waiting");
     expect(screen.getByRole("region", { name: "Agent" })).toHaveTextContent("Last heartbeatNever");
-    expect(screen.queryByRole("region", { name: "Disks" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Disk usage" })).toBeNull();
   });
 
   it("says when there's no such server", async () => {
@@ -446,7 +564,8 @@ describe("ServerOverview", () => {
     await renderServer("/servers/srv_1", hz1);
     expect(await screen.findByText("运行控制平面")).toBeVisible();
     expectMetric("平均负载", "0.84", "1、5 和 15 分钟，共 4 个 vCPU");
-    expect(panel("磁盘")).toHaveTextContent("160 GB 中已用 38%");
+    expect(await screen.findByText("镜像")).toBeVisible();
+    expect(panel("磁盘占用")).toHaveTextContent("可用99 GB占磁盘的 62%");
     expect(panel("系统")).toHaveTextContent("操作系统Ubuntu 24.04.1 LTS");
     expect(panel("网络")).toHaveTextContent("公网 IPv449.12.33.7");
     expect(panel("代理")).toHaveTextContent("已连接 3 小时");

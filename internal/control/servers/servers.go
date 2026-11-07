@@ -7,6 +7,7 @@ package servers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -16,15 +17,18 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/actors"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Service answers ServerService calls.
 type Service struct {
-	fleet *fleet.Hub
-	db    *store.DB
+	fleet  *fleet.Hub
+	db     *store.DB
+	agents *agentapi.Agents
 }
 
 var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)
@@ -33,8 +37,11 @@ var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)
 var HeartbeatEvery = 10 * time.Second
 
 // New returns a Service reading hub, which names who sets a server's public
-// address from db.
-func New(hub *fleet.Hub, db *store.DB) *Service { return &Service{fleet: hub, db: db} }
+// address from db, and asks servers what only they can say through agents. Nil
+// agents asks nothing.
+func New(hub *fleet.Hub, db *store.DB, agents *agentapi.Agents) *Service {
+	return &Service{fleet: hub, db: db, agents: agents}
+}
 
 // ListServers returns every server.
 func (s *Service) ListServers(context.Context, *connect.Request[dockwellv1.ListServersRequest]) (*connect.Response[dockwellv1.ListServersResponse], error) {
@@ -51,6 +58,35 @@ func (s *Service) GetServer(_ context.Context, req *connect.Request[dockwellv1.G
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.GetServerResponse{Server: srv}), nil
+}
+
+// GetServerDiskUse asks a server's agent what takes the room on the disk that
+// holds Docker's data, only when someone asks (ADR 0040).
+func (s *Service) GetServerDiskUse(ctx context.Context, req *connect.Request[dockwellv1.GetServerDiskUseRequest]) (*connect.Response[dockwellv1.GetServerDiskUseResponse], error) {
+	srv, err := s.fleet.Get(req.Msg.GetId())
+	if errors.Is(err, fleet.ErrNotFound) {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("there's no server "+req.Msg.GetId()+". List them with ListServers"))
+	}
+	if err != nil {
+		return nil, err
+	}
+	var session *agentapi.Session
+	if s.agents != nil && srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED {
+		session, _ = s.agents.SessionPastMove(ctx, srv.GetId(), agentapi.MoveGrace)
+	}
+	if session == nil {
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf(
+			"the agent on %s isn't connected, so nothing can say what takes its disk now. Check the server; this works again when its agent reconnects", srv.GetName()), authapi.ReasonUnavailable)
+	}
+	use, err := session.DiskUse(ctx)
+	if err != nil {
+		var se *resource.ServerError
+		if errors.As(err, &se) {
+			err = se.Err
+		}
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say what takes its disk now: %w", srv.GetName(), err), authapi.ReasonUnavailable)
+	}
+	return connect.NewResponse(&dockwellv1.GetServerDiskUseResponse{DiskUse: use}), nil
 }
 
 // SetServerPublicAddress records a server's public address as a person says it.

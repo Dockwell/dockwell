@@ -3,15 +3,20 @@
 import { PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 
 import { ContainersPanel } from "./ContainersPanel";
+import { DiskUsePanel } from "./DiskUse";
 import { FleetUnreadNote } from "./FleetNotes";
+import { RunsHere } from "./RunsHere";
 import { ServerCallout } from "./ServerCallout";
 import { ServerFrame } from "./ServerFrame";
 import { ServerMetrics } from "./ServerMetrics";
-import { AgentPanel, DisksPanel, NetworkPanel, SystemPanel } from "./ServerPanels";
+import { AgentPanel, NetworkPanel, SystemPanel } from "./ServerPanels";
 import { useFleetUnread } from "./useFleet";
 import "./ServerOverview.css";
 
-/** One server's overview: its live numbers, its disks, what it is, how to reach it, and its agent. */
+/**
+ * One server's overview, as Server-Overview.dc.html has it: its live numbers, what
+ * runs on it, what takes its disk, what it is, how to reach it, and its agent.
+ */
 export function ServerOverview({ id }: { id: string }) {
   const phone = useMediaQuery(PHONE_QUERY);
   const unread = useFleetUnread();
@@ -22,7 +27,8 @@ export function ServerOverview({ id }: { id: string }) {
           {/* What it last said of itself can't stand, so that is what it says, and nothing it last said instead. */}
           {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
           <ServerMetrics server={server} fourth="load" compact={phone} />
-          <DisksPanel server={server} />
+          <RunsHere server={server} />
+          <DiskUsePanel server={server} />
           <ContainersPanel server={server} />
           <div className="server-panels">
             <SystemPanel server={server} />
