@@ -14,6 +14,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
+import { PreferencesPanel } from "./PreferencesPanel";
 import { SessionsPanel } from "./SessionsPanel";
 import { TokensPanel } from "./TokensPanel";
 import { TotpPanel } from "./TotpPanel";
@@ -60,6 +61,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
         <TotpPanel />
         <SessionsPanel />
         <TokensPanel />
+        <PreferencesPanel />
       </div>
     </Page>
   );
