@@ -82,3 +82,31 @@ func TestAnHourlyScheduleKeepsToTheHourAsTheClocksChange(t *testing.T) {
 		t.Errorf("after %s comes %s, want %s", between, got, want)
 	}
 }
+
+// A key in the endpoint would show in the plan, which shows the endpoint as it
+// is, so it goes where the plan hides it: the access key and the secret.
+func TestADestinationsEndpointHoldsNoKey(t *testing.T) {
+	good := func() *resourcev1.BackupDestination {
+		return &resourcev1.BackupDestination{
+			Endpoint: "https://example.r2.cloudflarestorage.com", Bucket: "acme-backups", AccessKey: "AKIAEXAMPLE", SecretKey: "the-secret",
+		}
+	}
+	if err := (Destination{}).Validate(good()); err != nil {
+		t.Fatal(err)
+	}
+	for _, endpoint := range []string{
+		"https://AKIAEXAMPLE:the-secret@example.r2.cloudflarestorage.com",
+		"https://AKIAEXAMPLE@example.r2.cloudflarestorage.com",
+		"https://:the-secret@example.r2.cloudflarestorage.com",
+	} {
+		d := good()
+		d.Endpoint = endpoint
+		err := (Destination{}).Validate(d)
+		if err == nil || !strings.Contains(err.Error(), "access key and secret") {
+			t.Errorf("%s: %v, want a refusal that says where a key goes", endpoint, err)
+		}
+		if err != nil && (strings.Contains(err.Error(), "the-secret") || strings.Contains(err.Error(), "AKIAEXAMPLE")) {
+			t.Errorf("the refusal says what signs in: %v", err)
+		}
+	}
+}

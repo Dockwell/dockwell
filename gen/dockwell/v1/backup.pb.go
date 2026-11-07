@@ -423,9 +423,14 @@ type BackupDestinationInfo struct {
 	// How much those take, in bytes.
 	UsedBytes int64 `protobuf:"varint,7,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
 	// When the last one got there. Unset until one has.
-	LastUpload    *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_upload,json=lastUpload,proto3" json:"last_upload,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	LastUpload *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_upload,json=lastUpload,proto3" json:"last_upload,omitempty"`
+	// When the newest backup that didn't get there was taken, and why it
+	// didn't. Unset until one has failed. The destination is failing when
+	// this is newer than last_upload.
+	LastFailure      *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_failure,json=lastFailure,proto3" json:"last_failure,omitempty"`
+	LastFailureError string                 `protobuf:"bytes,10,opt,name=last_failure_error,json=lastFailureError,proto3" json:"last_failure_error,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *BackupDestinationInfo) Reset() {
@@ -512,6 +517,20 @@ func (x *BackupDestinationInfo) GetLastUpload() *timestamppb.Timestamp {
 		return x.LastUpload
 	}
 	return nil
+}
+
+func (x *BackupDestinationInfo) GetLastFailure() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastFailure
+	}
+	return nil
+}
+
+func (x *BackupDestinationInfo) GetLastFailureError() string {
+	if x != nil {
+		return x.LastFailureError
+	}
+	return ""
 }
 
 // ListBackupDestinationsRequest asks for the destinations.
@@ -1613,7 +1632,7 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"fetchError\x12%\n" +
 	"\x0esealed_earlier\x18\x18 \x01(\bR\rsealedEarlier\x12\x1d\n" +
 	"\n" +
-	"fetch_onto\x18\x19 \x03(\tR\tfetchOnto\"\xfd\x01\n" +
+	"fetch_onto\x18\x19 \x03(\tR\tfetchOnto\"\xea\x02\n" +
 	"\x15BackupDestinationInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -1624,7 +1643,10 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\n" +
 	"used_bytes\x18\a \x01(\x03R\tusedBytes\x12;\n" +
 	"\vlast_upload\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"lastUpload\"\x1f\n" +
+	"lastUpload\x12=\n" +
+	"\flast_failure\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vlastFailure\x12,\n" +
+	"\x12last_failure_error\x18\n" +
+	" \x01(\tR\x10lastFailureError\"\x1f\n" +
 	"\x1dListBackupDestinationsRequest\"h\n" +
 	"\x1eListBackupDestinationsResponse\x12F\n" +
 	"\fdestinations\x18\x01 \x03(\v2\".dockwell.v1.BackupDestinationInfoR\fdestinations\"<\n" +
@@ -1767,40 +1789,41 @@ var file_dockwell_v1_backup_proto_depIdxs = []int32{
 	25, // 4: dockwell.v1.Backup.actor:type_name -> dockwell.v1.Actor
 	1,  // 5: dockwell.v1.Backup.copy:type_name -> dockwell.v1.BackupCopy
 	24, // 6: dockwell.v1.BackupDestinationInfo.last_upload:type_name -> google.protobuf.Timestamp
-	3,  // 7: dockwell.v1.ListBackupDestinationsResponse.destinations:type_name -> dockwell.v1.BackupDestinationInfo
-	2,  // 8: dockwell.v1.FetchBackupResponse.backup:type_name -> dockwell.v1.Backup
-	26, // 9: dockwell.v1.BackupPolicyInfo.spec:type_name -> dockwell.resource.v1alpha1.BackupPolicy
-	24, // 10: dockwell.v1.BackupPolicyInfo.next_run:type_name -> google.protobuf.Timestamp
-	2,  // 11: dockwell.v1.BackupPolicyInfo.last:type_name -> dockwell.v1.Backup
-	8,  // 12: dockwell.v1.ListBackupPoliciesResponse.policies:type_name -> dockwell.v1.BackupPolicyInfo
-	2,  // 13: dockwell.v1.ListBackupsResponse.backups:type_name -> dockwell.v1.Backup
-	2,  // 14: dockwell.v1.GetBackupResponse.backup:type_name -> dockwell.v1.Backup
-	23, // 15: dockwell.v1.PreviewBackupResponse.method:type_name -> dockwell.v1.BackupMethod
-	2,  // 16: dockwell.v1.CreateBackupResponse.backup:type_name -> dockwell.v1.Backup
-	27, // 17: dockwell.v1.RestoreBackupResponse.change:type_name -> dockwell.v1.Change
-	11, // 18: dockwell.v1.BackupService.ListBackups:input_type -> dockwell.v1.ListBackupsRequest
-	13, // 19: dockwell.v1.BackupService.GetBackup:input_type -> dockwell.v1.GetBackupRequest
-	15, // 20: dockwell.v1.BackupService.PreviewBackup:input_type -> dockwell.v1.PreviewBackupRequest
-	17, // 21: dockwell.v1.BackupService.CreateBackup:input_type -> dockwell.v1.CreateBackupRequest
-	19, // 22: dockwell.v1.BackupService.DeleteBackup:input_type -> dockwell.v1.DeleteBackupRequest
-	9,  // 23: dockwell.v1.BackupService.ListBackupPolicies:input_type -> dockwell.v1.ListBackupPoliciesRequest
-	4,  // 24: dockwell.v1.BackupService.ListBackupDestinations:input_type -> dockwell.v1.ListBackupDestinationsRequest
-	6,  // 25: dockwell.v1.BackupService.FetchBackup:input_type -> dockwell.v1.FetchBackupRequest
-	21, // 26: dockwell.v1.BackupService.RestoreBackup:input_type -> dockwell.v1.RestoreBackupRequest
-	12, // 27: dockwell.v1.BackupService.ListBackups:output_type -> dockwell.v1.ListBackupsResponse
-	14, // 28: dockwell.v1.BackupService.GetBackup:output_type -> dockwell.v1.GetBackupResponse
-	16, // 29: dockwell.v1.BackupService.PreviewBackup:output_type -> dockwell.v1.PreviewBackupResponse
-	18, // 30: dockwell.v1.BackupService.CreateBackup:output_type -> dockwell.v1.CreateBackupResponse
-	20, // 31: dockwell.v1.BackupService.DeleteBackup:output_type -> dockwell.v1.DeleteBackupResponse
-	10, // 32: dockwell.v1.BackupService.ListBackupPolicies:output_type -> dockwell.v1.ListBackupPoliciesResponse
-	5,  // 33: dockwell.v1.BackupService.ListBackupDestinations:output_type -> dockwell.v1.ListBackupDestinationsResponse
-	7,  // 34: dockwell.v1.BackupService.FetchBackup:output_type -> dockwell.v1.FetchBackupResponse
-	22, // 35: dockwell.v1.BackupService.RestoreBackup:output_type -> dockwell.v1.RestoreBackupResponse
-	27, // [27:36] is the sub-list for method output_type
-	18, // [18:27] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	24, // 7: dockwell.v1.BackupDestinationInfo.last_failure:type_name -> google.protobuf.Timestamp
+	3,  // 8: dockwell.v1.ListBackupDestinationsResponse.destinations:type_name -> dockwell.v1.BackupDestinationInfo
+	2,  // 9: dockwell.v1.FetchBackupResponse.backup:type_name -> dockwell.v1.Backup
+	26, // 10: dockwell.v1.BackupPolicyInfo.spec:type_name -> dockwell.resource.v1alpha1.BackupPolicy
+	24, // 11: dockwell.v1.BackupPolicyInfo.next_run:type_name -> google.protobuf.Timestamp
+	2,  // 12: dockwell.v1.BackupPolicyInfo.last:type_name -> dockwell.v1.Backup
+	8,  // 13: dockwell.v1.ListBackupPoliciesResponse.policies:type_name -> dockwell.v1.BackupPolicyInfo
+	2,  // 14: dockwell.v1.ListBackupsResponse.backups:type_name -> dockwell.v1.Backup
+	2,  // 15: dockwell.v1.GetBackupResponse.backup:type_name -> dockwell.v1.Backup
+	23, // 16: dockwell.v1.PreviewBackupResponse.method:type_name -> dockwell.v1.BackupMethod
+	2,  // 17: dockwell.v1.CreateBackupResponse.backup:type_name -> dockwell.v1.Backup
+	27, // 18: dockwell.v1.RestoreBackupResponse.change:type_name -> dockwell.v1.Change
+	11, // 19: dockwell.v1.BackupService.ListBackups:input_type -> dockwell.v1.ListBackupsRequest
+	13, // 20: dockwell.v1.BackupService.GetBackup:input_type -> dockwell.v1.GetBackupRequest
+	15, // 21: dockwell.v1.BackupService.PreviewBackup:input_type -> dockwell.v1.PreviewBackupRequest
+	17, // 22: dockwell.v1.BackupService.CreateBackup:input_type -> dockwell.v1.CreateBackupRequest
+	19, // 23: dockwell.v1.BackupService.DeleteBackup:input_type -> dockwell.v1.DeleteBackupRequest
+	9,  // 24: dockwell.v1.BackupService.ListBackupPolicies:input_type -> dockwell.v1.ListBackupPoliciesRequest
+	4,  // 25: dockwell.v1.BackupService.ListBackupDestinations:input_type -> dockwell.v1.ListBackupDestinationsRequest
+	6,  // 26: dockwell.v1.BackupService.FetchBackup:input_type -> dockwell.v1.FetchBackupRequest
+	21, // 27: dockwell.v1.BackupService.RestoreBackup:input_type -> dockwell.v1.RestoreBackupRequest
+	12, // 28: dockwell.v1.BackupService.ListBackups:output_type -> dockwell.v1.ListBackupsResponse
+	14, // 29: dockwell.v1.BackupService.GetBackup:output_type -> dockwell.v1.GetBackupResponse
+	16, // 30: dockwell.v1.BackupService.PreviewBackup:output_type -> dockwell.v1.PreviewBackupResponse
+	18, // 31: dockwell.v1.BackupService.CreateBackup:output_type -> dockwell.v1.CreateBackupResponse
+	20, // 32: dockwell.v1.BackupService.DeleteBackup:output_type -> dockwell.v1.DeleteBackupResponse
+	10, // 33: dockwell.v1.BackupService.ListBackupPolicies:output_type -> dockwell.v1.ListBackupPoliciesResponse
+	5,  // 34: dockwell.v1.BackupService.ListBackupDestinations:output_type -> dockwell.v1.ListBackupDestinationsResponse
+	7,  // 35: dockwell.v1.BackupService.FetchBackup:output_type -> dockwell.v1.FetchBackupResponse
+	22, // 36: dockwell.v1.BackupService.RestoreBackup:output_type -> dockwell.v1.RestoreBackupResponse
+	28, // [28:37] is the sub-list for method output_type
+	19, // [19:28] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_backup_proto_init() }

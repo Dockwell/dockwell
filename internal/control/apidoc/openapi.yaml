@@ -3730,6 +3730,15 @@ components:
                     type: string
                     description: When the last one got there. Unset until one has.
                     format: date-time
+                lastFailure:
+                    type: string
+                    description: |-
+                        When the newest backup that didn't get there was taken, and why it
+                         didn't. Unset until one has failed. The destination is failing when
+                         this is newer than last_upload.
+                    format: date-time
+                lastFailureError:
+                    type: string
             description: BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
         BackupFirst:
             type: object
