@@ -360,11 +360,18 @@ describe("New website", () => {
 
   it("says at the field what's missing, and what the server refused", async () => {
     const user = userEvent.setup();
+    // The refusal is waited on by the request that brings it, not by the clock, as a
+    // slow runner takes its time getting there.
+    let refused!: () => void;
+    const asked = new Promise<void>((resolve) => {
+      refused = resolve;
+    });
     renderAt(
       "/websites/new",
       api([], {
         websites: {
           createWebsite: () => {
+            refused();
             const err = new ConnectError(
               "the path /a;b has a character a website can't send on. Use letters, digits, -, ., _, ~ and /",
               Code.InvalidArgument,
@@ -379,10 +386,13 @@ describe("New website", () => {
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(within(sheet).getByLabelText("Domain")).toHaveAttribute("aria-invalid", "true");
     expect(within(sheet).getByLabelText("URL")).toHaveAttribute("aria-invalid", "true");
-    await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
-    await user.type(within(sheet).getByLabelText("URL"), "https://backend.example.com/a;b");
+    await user.click(within(sheet).getByLabelText("Domain"));
+    await user.paste("shop.example.com");
+    await user.click(within(sheet).getByLabelText("URL"));
+    await user.paste("https://backend.example.com/a;b");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
-    expect(await within(sheet).findByText(/a character a website can't send on/, {}, { timeout: 5_000 })).toBeVisible();
+    await asked;
+    expect(await within(sheet).findByText(/a character a website can't send on/)).toBeVisible();
     expect(within(sheet).getByLabelText("URL")).toHaveAttribute("aria-invalid", "true");
   });
 });
