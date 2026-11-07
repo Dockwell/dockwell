@@ -205,12 +205,12 @@ func checkURL(raw string) (string, error) {
 			return "", fmt.Errorf("%q has the port %s, which isn't one. Use one from 1 to 65535", raw, port)
 		}
 	}
-	path := strings.TrimRight(u.EscapedPath(), "/")
-	if path != "" {
-		if !pathRE.MatchString(path) {
+	under := strings.TrimRight(u.EscapedPath(), "/")
+	if under != "" {
+		if !pathRE.MatchString(under) {
 			return "", fmt.Errorf("the path %s has a character a website can't send on. Use letters, digits, -, ., _, ~ and /", u.EscapedPath())
 		}
-		for _, seg := range strings.Split(path[1:], "/") {
+		for _, seg := range strings.Split(under[1:], "/") {
 			if seg == "." || seg == ".." {
 				return "", fmt.Errorf("the path %s has a %s in it. Give the path it leads to", u.EscapedPath(), seg)
 			}
@@ -218,7 +218,7 @@ func checkURL(raw string) (string, error) {
 	}
 	u.Host = strings.ToLower(u.Host)
 	u.Path, u.RawPath = "", ""
-	return u.Scheme + "://" + u.Host + path, nil
+	return u.Scheme + "://" + u.Host + under, nil
 }
 
 // checkHost takes a DNS name or an address, but not this container's own loopback,
@@ -321,6 +321,8 @@ func Config(w *resourcev1.Website) string {
 		return proxyConfig(w.GetProxy())
 	case Folder:
 		return folderConfig(w.GetFolder())
+	case ProxyToPort:
+		// The ingress sends it straight to the port.
 	}
 	return ""
 }
