@@ -432,6 +432,10 @@ msgid "{elsewhere, plural, one {# more app lives outside this view} other {# mor
 msgstr "{elsewhere, plural, one {# more app lives outside this view} other {# more apps live outside this view}}"
 
 #: src/features/databases/DatabaseOverview.tsx
+msgid "{engine} {next} is out"
+msgstr "{engine} {next} is out"
+
+#: src/features/databases/DatabaseOverview.tsx
 msgid "{engine} didn't say how it is"
 msgstr "{engine} didn't say how it is"
 
@@ -1278,6 +1282,10 @@ msgstr "A backup of {volume} couldn't be fetched from {destination}"
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "A certificate came for {domain} on port 80 or 443, as of {when}"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "A change to how {engine} {now} runs is out"
+msgstr "A change to how {engine} {now} runs is out"
+
 #: src/features/catalog/InstalledPanel.tsx
 msgid "A change to how {version} runs is out."
 msgstr "A change to how {version} runs is out."
@@ -1590,7 +1598,6 @@ msgid "All actors"
 msgstr "All actors"
 
 #: src/features/backups/AppBackups.tsx
-#: src/features/databases/DatabaseOverview.tsx
 msgid "All backups"
 msgstr "All backups"
 
@@ -1609,6 +1616,10 @@ msgstr "All environments"
 #: src/features/shell/Topbar.tsx
 msgid "All healthy"
 msgstr "All healthy"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "All its backups"
+msgstr "All its backups"
 
 #: src/features/logs/LogsPage.tsx
 msgid "All levels"
@@ -1862,6 +1873,10 @@ msgstr "Automation"
 msgid "Back"
 msgstr "Back"
 
+#: src/features/databases/DatabaseBackups.tsx
+msgid "Back it up before you change what's in it, or upgrade it."
+msgstr "Back it up before you change what's in it, or upgrade it."
+
 #: src/features/files/FilesPage.tsx
 msgid "Back to {folder}"
 msgstr "Back to {folder}"
@@ -1902,12 +1917,14 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseBackups.tsx
 #: src/features/databases/DatabaseOverview.tsx
 #: src/features/databases/DatabasesPage.tsx
 msgid "Back up now"
 msgstr "Back up now"
 
 #: src/features/backups/PolicySheet.tsx
+#: src/features/databases/DatabaseBackups.tsx
 msgid "Back up on a schedule"
 msgstr "Back up on a schedule"
 
@@ -1926,11 +1943,16 @@ msgstr "backup"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/backups/AppBackups.tsx
 #: src/features/backups/BackupsPage.tsx
+#: src/features/databases/DatabaseLayout.tsx
 #: src/features/databases/DatabaseOverview.tsx
 #: src/features/databases/DatabasesPage.tsx
 #: src/features/shell/sections.ts
 msgid "Backups"
 msgstr "Backups"
+
+#: src/features/databases/DatabaseBackups.tsx
+msgid "Backups of {name}, newest first"
+msgstr "Backups of {name}, newest first"
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
@@ -3139,6 +3161,10 @@ msgstr "Dockwell can't read its backups"
 msgid "Dockwell can't read its databases"
 msgstr "Dockwell can't read its databases"
 
+#: src/features/databases/DatabaseBackups.tsx
+msgid "Dockwell can't read the backups of {name}"
+msgstr "Dockwell can't read the backups of {name}"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell can't read what {name} runs"
@@ -3369,6 +3395,10 @@ msgstr "driver options"
 #: src/features/changes/ChangeSheet.tsx
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "Each app rolls back to what it runs now if this fails"
+
+#: src/features/databases/DatabaseBackups.tsx
+msgid "Each backup is {engine}'s own dump of everything in it, taken while it runs, so nothing stops. A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
+msgstr "Each backup is {engine}'s own dump of everything in it, taken while it runs, so nothing stops. A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
 
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Each backup is encrypted with this before it leaves its server, so your storage provider can't read it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open what's in the bucket."
@@ -3896,6 +3926,10 @@ msgstr "Hover or focus a server to inspect it."
 #: src/features/databases/DatabaseOverview.tsx
 msgid "How"
 msgstr "How"
+
+#: src/features/databases/DatabaseBackups.tsx
+msgid "How it's backed up"
+msgstr "How it's backed up"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "How often"
@@ -5014,6 +5048,10 @@ msgstr "No backup is taken first"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "No backup was taken, and the data stays as it is now"
 
+#: src/features/databases/DatabaseBackups.tsx
+msgid "No backups of {name} yet"
+msgstr "No backups of {name} yet"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "No backups yet"
 msgstr "No backups yet"
@@ -5539,6 +5577,7 @@ msgstr "Only {count} of its items are here, so one you're after may be missing. 
 msgid "Only a variable's value is hidden, so don't pass a secret there."
 msgstr "Only a variable's value is hidden, so don't pass a secret there."
 
+#: src/features/databases/DatabaseBackups.tsx
 #: src/features/databases/DatabaseOverview.tsx
 #: src/features/databases/DatabasesPage.tsx
 msgid "Only by hand"
@@ -6519,6 +6558,10 @@ msgstr "Restarts"
 msgid "Restore"
 msgstr "Restore"
 
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Restore the newest"
+msgstr "Restore the newest"
+
 #: src/app/Providers.tsx
 msgid "Results"
 msgstr "Results"
@@ -6566,6 +6609,10 @@ msgstr "Review plan"
 #: src/features/catalog/InstalledPanel.tsx
 msgid "Review the change"
 msgstr "Review the change"
+
+#: src/features/databases/DatabaseLayout.tsx
+msgid "Review the change to {next}"
+msgstr "Review the change to {next}"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
@@ -8703,8 +8750,13 @@ msgid "Upgrade to {latest}"
 msgstr "Upgrade to {latest}"
 
 #: src/features/catalog/InstalledPanel.tsx
+#: src/features/databases/DatabaseLayout.tsx
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
+
+#: src/features/databases/DatabaseOverview.tsx
+msgid "Upgrading is a plan that backs up its data with {engine}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
+msgstr "Upgrading is a plan that backs up its data with {engine}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Use 24-hour HH:MM, such as 03:00."

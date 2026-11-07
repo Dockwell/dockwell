@@ -3,8 +3,12 @@
 // The Databases section end to end, on the fake Docker Engine of scripts/fakedocker:
 // from the rail to every database, with what PostgreSQL said of itself when the
 // agent asked it in its own container, onto one database's page with its password
-// masked, who signs in to it, and the same on a phone. scripts/docker-e2e.sh reads
-// real PostgreSQL, MySQL and Redis the same way.
+// masked, who signs in to it, its backups and a restore of one, an upgrade the catalog
+// offers, and the same on a phone. scripts/docker-e2e.sh reads real PostgreSQL, MySQL
+// and Redis the same way.
+
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import type { Page } from "playwright-core";
 
@@ -14,6 +18,8 @@ export interface DatabasesFlowOptions {
   step: (what: string) => void;
   /** Saves screenshots of a screen, if the run was asked to. */
   shoot: (page: Page, name: string) => Promise<void>;
+  /** The directory the control plane reads more entries from, for a release newer than the built-in one. */
+  catalogDir: string;
 }
 
 function fail(message: string): never {
@@ -29,7 +35,7 @@ async function fitsItsWidth(page: Page, what: string) {
   if (scroll > width) fail(`${what} scrolls sideways at ${width} px: it's ${scroll} px wide`);
 }
 
-export async function databasesFlow(page: Page, { origin, step, shoot }: DatabasesFlowOptions) {
+export async function databasesFlow(page: Page, { origin, step, shoot, catalogDir }: DatabasesFlowOptions) {
   step("databases: the rail leads to them, with what the catalog's PostgreSQL says of itself");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${origin}/apps`);
@@ -69,6 +75,54 @@ export async function databasesFlow(page: Page, { origin, step, shoot }: Databas
   await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: /Users/ }).click();
   await page.getByRole("table", { name: "Databases in db" }).getByText("app", { exact: true }).first().waitFor();
   await shoot(page, "database-users");
+
+  step("databases: its backups are a tab, where one is taken and one restores through a plan");
+  await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: "Backups" }).click();
+  const backups = page.getByRole("table", { name: "Backups of db, newest first" });
+  await backups.getByRole("row").filter({ hasText: "PostgreSQL dump" }).first().waitFor({ timeout: 15_000 });
+  const before = await backups.getByRole("row").count();
+  await page.getByRole("button", { name: "Back up now" }).first().click();
+  const sheet = page.getByRole("dialog", { name: /^Back up / });
+  await sheet.getByText(/uses PostgreSQL's own dump/).waitFor({ timeout: 20_000 });
+  await sheet.getByRole("button", { name: "Back up", exact: true }).click();
+  const deadline = Date.now() + 30_000;
+  while ((await backups.getByRole("row").count()) <= before) {
+    if (Date.now() > deadline) fail("the backup taken from a database's page isn't on its list");
+    await page.waitForTimeout(250);
+  }
+  await backups.getByRole("row").nth(1).getByText("Done").waitFor({ timeout: 30_000 });
+  await shoot(page, "database-backups");
+  await backups.getByRole("row").nth(1).getByRole("button", { name: "Restore" }).click();
+  const plan = page.locator(".plan-sheet");
+  await plan
+    .locator(".plan-risk")
+    .getByText(/is replaced with the dump from/)
+    .waitFor({ timeout: 30_000 });
+  await plan.getByRole("button", { name: "Cancel" }).click();
+  await plan.waitFor({ state: "hidden" });
+
+  step("databases: a newer release of its entry is an upgrade, a plan that backs it up first");
+  const entry = join(catalogDir, "postgres.yaml");
+  const builtIn = readFileSync("internal/catalog/entries/postgres.yaml", "utf8");
+  const newer = builtIn
+    .replace('version: "17.11"', 'version: "17.12"')
+    .replace("release: 1", "release: 2")
+    .replace(/postgres:17\.11@sha256:[0-9a-f]{64}/, `postgres:17.12@sha256:${"3".repeat(64)}`);
+  if (newer === builtIn || !newer.includes("postgres:17.12@"))
+    fail("the newer release of PostgreSQL reads the same as the built-in one");
+  writeFileSync(entry, newer);
+  try {
+    await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: "Overview" }).click();
+    await page.reload();
+    await page.getByText("PostgreSQL 17.12 is out").waitFor({ timeout: 20_000 });
+    await shoot(page, "database-upgrade");
+    await page.getByRole("button", { name: "Upgrade to 17.12" }).click();
+    await plan.getByText("Its volumes are backed up first").waitFor({ timeout: 30_000 });
+    await plan.getByRole("button", { name: "Cancel" }).click();
+    await plan.waitFor({ state: "hidden" });
+  } finally {
+    rmSync(entry, { force: true });
+  }
 
   step("databases: on a phone, each is a row that opens its page");
   await page.setViewportSize({ width: 390, height: 844 });

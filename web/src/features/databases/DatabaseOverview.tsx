@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
-import { type Database, DatabaseEngine, type DatabaseReading } from "@dockwell/api";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import { BackupService, type Database, DatabaseEngine, type DatabaseReading } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -28,6 +30,8 @@ import { usePlaces, useServices } from "../apps/useServices";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
 import { useMethodWord, useScheduleWords } from "../backups/words";
+import { installIn, useInstalls } from "../catalog/useCatalog";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { CopyButton } from "../system/CopyCommand";
 import { useThisDatabase } from "./DatabaseLayout";
@@ -46,6 +50,7 @@ export function DatabaseOverview() {
   return (
     <div className="database-overview">
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
+      <UpgradeNote db={db} />
       <Numbers db={db} read={read} />
       <div className="database-panels">
         <BackupsPanel db={db} />
@@ -58,6 +63,27 @@ export function DatabaseOverview() {
         </>
       ) : null}
     </div>
+  );
+}
+
+/** A newer release of the catalog entry it came from, and what upgrading does first. */
+function UpgradeNote({ db }: { db: Database }) {
+  const { t } = useLingui();
+  const install = installIn(useInstalls().data?.installs ?? [], db.resource?.scope ?? "");
+  const next = install?.upgrade?.version ?? "";
+  if (!install?.upgrade) return null;
+  const engine = engineName(db.engine);
+  const now = install.pin?.version ?? "";
+  return (
+    <Callout
+      tone="info"
+      title={next === now ? t`A change to how ${engine} ${now} runs is out` : t`${engine} ${next} is out`}
+    >
+      <Trans>
+        Upgrading is a plan that backs up its data with {engine}'s own dump before anything else, and says which backup
+        holds it. Undoing it puts this version back, and leaves the data as the new one left it.
+      </Trans>
+    </Callout>
   );
 }
 
@@ -155,6 +181,10 @@ function BackupsPanel({ db }: { db: Database }) {
   const time = useTimeWords();
   const { fleet } = useFleetView();
   const [taking, setTaking] = useState(false);
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const restore = (id: string) =>
+    sheet.open({ kind: "plan", make: () => createClient(BackupService, transport).restoreBackup({ id }) });
   const engine = engineName(db.engine);
   const policy = policiesOf(db, policies)[0];
   const newest = db.newestBackup;
@@ -243,8 +273,13 @@ function BackupsPanel({ db }: { db: Database }) {
         <Button size="sm" icon="archive" onClick={() => setTaking(true)}>
           <Trans>Back up now</Trans>
         </Button>
-        <RouterButtonLink to="/backups" variant="ghost" size="sm">
-          <Trans>All backups</Trans>
+        {newest?.onServer ? (
+          <Button size="sm" variant="ghost" icon="undo" onClick={() => restore(newest.id)}>
+            <Trans>Restore the newest</Trans>
+          </Button>
+        ) : null}
+        <RouterButtonLink to="/databases/$serviceId/backups" params={{ serviceId: db.id }} variant="ghost" size="sm">
+          <Trans>All its backups</Trans>
         </RouterButtonLink>
       </div>
       {taking ? (
