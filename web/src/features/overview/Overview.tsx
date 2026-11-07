@@ -6,6 +6,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
 import { formatBytes } from "../../lib/format";
+import { RouterButtonLink } from "../../lib/links";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "../servers/FleetNotes";
 import { ServerCallout } from "../servers/ServerCallout";
 import { ServerMetrics } from "../servers/ServerMetrics";
@@ -14,11 +15,16 @@ import { useServerWords } from "../servers/server";
 import { useFleet, useFleetUnread } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { OverviewApps } from "./OverviewApps";
+import { OverviewBackups } from "./OverviewBackups";
+import { RecentChanges } from "./RecentChanges";
+import "./Overview.css";
 
 /**
  * The first screen: is everything OK? With one server, that server's health,
- * live. With none, how to add one. From the second server on, every server
- * in a list, until the fleet overview exists.
+ * live, then what runs on it, what changed and how its backups stand, as
+ * Overview-Single has them. With none, how to add one. From the second server
+ * on, every server in a list, until the fleet overview exists.
  */
 export function Overview() {
   const { t } = useLingui();
@@ -80,9 +86,23 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
       phoneMachineTitle
       phoneSub={unread ? t`Unknown` : phoneSub}
       status={status}
+      actions={
+        <RouterButtonLink to="/servers/$serverId/files" params={{ serverId: server.id }} icon="folder">
+          <Trans>Files</Trans>
+        </RouterButtonLink>
+      }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
       <ServerMetrics server={server} fourth="network" compact={phone} />
+      <div className="overview-columns">
+        <div className="overview-main">
+          <OverviewApps />
+        </div>
+        <div className="overview-side">
+          <RecentChanges />
+          <OverviewBackups />
+        </div>
+      </div>
     </Page>
   );
 }

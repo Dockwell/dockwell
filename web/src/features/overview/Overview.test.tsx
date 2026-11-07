@@ -2,15 +2,23 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code, ConnectError } from "@connectrpc/connect";
-import { Connection, ServerInventorySchema, type WatchServersResponse } from "@dockwell/api";
+import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
+import {
+  Connection,
+  HealthState,
+  ServerInventorySchema,
+  type WatchEventsResponse,
+  type WatchServersResponse,
+} from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { aHealth, anApp, ENV, places } from "../../test/apps";
+import { applied, changeEvent, snapshot, webPlanned } from "../../test/changes";
 import { expectMetric, metric } from "../../test/metrics";
-import { feed, onPhone, renderAt } from "../../test/render";
+import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, gap, history, sample, snapshotComplete } from "../../test/servers";
 
 const GiB = 1024 ** 3;
@@ -273,5 +281,97 @@ describe("the server list page", () => {
     expect(note).toHaveTextContent("Reconnecting");
     expect(screen.getAllByText("Reconnecting")).toEqual([note]);
     expect(screen.getAllByRole("status")).toEqual([note]);
+  });
+});
+
+/** A watch that opens with these events and stays open. */
+function eventsWatch(...events: Parameters<typeof snapshot>[0]) {
+  return async function* (_req: unknown, ctx: HandlerContext): AsyncGenerator<WatchEventsResponse> {
+    yield snapshot(events);
+    await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+  };
+}
+
+describe("what the overview shows below the numbers", () => {
+  const web = anApp("web", "ghcr.io/example/web:1.5.0");
+  const api = anApp("api", "ghcr.io/example/api:2.1.0");
+
+  function overviewApi(backups: Api["backups"] = {}): Api {
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    return {
+      servers: { watchServers: watch.stream },
+      services: { listServices: () => ({ services: [web, api] }) },
+      resources: places(),
+      health: {
+        listHealth: () => ({
+          services: [
+            aHealth(web.id, { state: HealthState.HEALTHY }),
+            aHealth(api.id, { state: HealthState.UNHEALTHY, said: "the database refuses connections" }),
+          ],
+        }),
+      },
+      domains: {
+        listDomains: () => ({
+          domains: [
+            { name: "www.example.com", environmentId: ENV, routes: [{ service: "web", port: 3000 }] },
+            { name: "example.com", environmentId: ENV, routes: [{ service: "web", port: 3000 }] },
+          ],
+        }),
+      },
+      events: { watchEvents: eventsWatch(changeEvent(applied(webPlanned()))) },
+      backups: {
+        listBackups: () => ({ backups: [] }),
+        listBackupPolicies: () => ({ policies: [] }),
+        listBackupDestinations: () => ({ destinations: [] }),
+        ...backups,
+      },
+    };
+  }
+
+  it("lists the apps, what needs a look first, and where each answers", async () => {
+    renderAt("/", overviewApi());
+
+    const table = await screen.findByRole("table", { name: "Apps on this server" });
+    await waitFor(() =>
+      expect(
+        within(table)
+          .getAllByRole("row")
+          .map((r) => r.textContent),
+      ).toHaveLength(3),
+    );
+    const [, first, second] = within(table).getAllByRole("row");
+    await waitFor(() => expect(first).toHaveTextContent(/^api/));
+    expect(first).toHaveTextContent("Unhealthy");
+    expect(second).toHaveTextContent("web");
+    expect(second).toHaveTextContent("Healthy");
+    await waitFor(() => expect(second).toHaveTextContent("www.example.com+1"));
+    expect(screen.getByText("2 apps · 1 needs a look")).toBeVisible();
+    expect(screen.getByRole("link", { name: "View all" })).toHaveAttribute("href", "/apps");
+    expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", "/servers/srv_1/files");
+  });
+
+  it("shows the newest changes, and how backups stand", async () => {
+    const { container } = renderAt("/", overviewApi());
+
+    const changes = await screen.findByRole("region", { name: "Recent changes" });
+    expect(await within(changes).findByText("Update web")).toBeVisible();
+    expect(within(changes).getByRole("link", { name: "Activity" })).toHaveAttribute("href", "/activity");
+    const backups = screen.getByRole("region", { name: "Backups" });
+    expect(
+      await within(backups).findByText(
+        "A backup is of a volume. Add one to an app, or install a database from the catalog.",
+      ),
+    ).toBeVisible();
+    await expectAccessible(container);
+  });
+
+  it("lists the apps as rows on a phone, healthy ones quiet", async () => {
+    onPhone();
+    renderAt("/", overviewApi());
+
+    const row = await screen.findByRole("link", { name: /^web/ });
+    expect(row).toHaveAttribute("href", "/apps/svc_web");
+    await waitFor(() => expect(within(row).getByText("Healthy")).toBeVisible());
   });
 });

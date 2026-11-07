@@ -184,7 +184,7 @@ export function ActivityPage({
                 <span className="activity-day-meta">{meta}</span>
               </div>
               {phone ? (
-                <PhoneDay events={day.events} summaries={summaries} now={now} />
+                <EventTimeline events={day.events} summaries={summaries} now={now} />
               ) : (
                 <DayTable
                   events={day.events}
@@ -438,8 +438,16 @@ function DayTable({
   );
 }
 
-/** A day on a phone: one line of time, each change opening its plan sheet. */
-function PhoneDay({ events, summaries, now }: DayProps) {
+/** A day on a phone, and the overview's recent changes: one line of time, each change opening its plan sheet. */
+export function EventTimeline({
+  events,
+  summaries,
+  now,
+  framed = true,
+}: DayProps & {
+  /** Drawn in a frame of its own, as a day on a phone is; the overview's sits in its panel. */
+  framed?: boolean;
+}) {
   const { t } = useLingui();
   const describe = useDescribe();
   const time = useTimeWords();
@@ -472,7 +480,7 @@ function PhoneDay({ events, summaries, now }: DayProps) {
   });
   return (
     <Timeline
-      className="activity-timeline"
+      className={framed ? "activity-timeline" : undefined}
       events={items}
       onUndo={(item) => sheet.open({ kind: "undo", id: String(item.id) })}
     />
