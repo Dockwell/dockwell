@@ -210,3 +210,45 @@ func TestDiskOf(t *testing.T) {
 		t.Error("a relative path is on no disk")
 	}
 }
+
+// A server's addresses are its physical interfaces' alone, so a private one is a
+// network it's on, never a Docker bridge's, and the inventory says so (#254).
+func TestAddressesAreThePhysicalInterfaces(t *testing.T) {
+	got, err := physicalAddresses()
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := map[string]bool{}
+	for _, a := range got {
+		listed[a.String()] = true
+	}
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, iface := range ifaces {
+		addrs, _ := iface.Addrs()
+		for _, a := range addrs {
+			if virtual(iface.Name) && listed[a.String()] {
+				t.Errorf("%s on %s, a virtual interface, is listed", a, iface.Name)
+			}
+			if !virtual(iface.Name) && !listed[a.String()] {
+				t.Errorf("%s on %s, a physical interface, isn't listed", a, iface.Name)
+			}
+		}
+	}
+	for _, name := range []string{"docker0", "br-3f2a9c1d4e5b", "veth12ab", "lo", "cni0"} {
+		if !virtual(name) {
+			t.Errorf("%s reads as physical", name)
+		}
+	}
+	for _, name := range []string{"eth0", "ens3", "enp0s31f6", "wlan0"} {
+		if virtual(name) {
+			t.Errorf("%s reads as virtual", name)
+		}
+	}
+	c := &Collector{Root: fstest.MapFS{}, Hostname: func() (string, error) { return "hz-1", nil }, Addresses: func() ([]net.Addr, error) { return nil, nil }, Metadata: ClosedMetadata, STUN: []string{}}
+	if !c.Inventory(t.Context()).GetAddressesPhysical() {
+		t.Error("the inventory doesn't say its addresses are the physical interfaces'")
+	}
+}

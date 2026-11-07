@@ -3,6 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  Connection,
   ContainerMountSchema,
   ContainerPortSchema,
   ContainerState,
@@ -148,6 +149,21 @@ describe("the containers Dockwell didn't make", () => {
     const panel = await screen.findByRole("region", { name: "Containers Dockwell didn't make" });
     expect(await within(panel).findByText(/isn't connected/)).toBeVisible();
     expect(within(panel).queryByRole("table")).toBeNull();
+  });
+
+  it("says in its own words, in Chinese too, that a server not reporting can't say, and asks it nothing", async () => {
+    await activateLocale("zh-CN");
+    const listContainers = vi.fn(() => {
+      throw new ConnectError("hz-1 isn't connected, so nothing can say what runs there", Code.Unavailable);
+    });
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(aServer({ id: "srv_1", name: "hz-1", connection: Connection.UNREACHABLE })), snapshotComplete);
+    renderAt("/servers/srv_1", { servers: { watchServers: watch.stream }, containers: { listContainers } });
+    await screen.findByRole("heading", { level: 1 });
+    const panel = await screen.findByRole("region", { name: "非 Dockwell 创建的容器" });
+    expect(panel).toHaveTextContent("hz-1 未在上报，因此现在无法读取那里 Docker 运行的内容。");
+    expect(panel).not.toHaveTextContent("isn't connected");
+    expect(listContainers).not.toHaveBeenCalled();
   });
 
   it("stacks on a phone, with each row a way in", async () => {

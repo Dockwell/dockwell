@@ -39,7 +39,8 @@ type Collector struct {
 	Statfs func(path string) (size, used uint64, err error)
 	// DockerSocket is where the Docker Engine listens.
 	DockerSocket string
-	// Hostname and Addresses default to the real ones.
+	// Hostname defaults to the real one, and Addresses to the addresses of the
+	// physical interfaces: never a Docker bridge's, or another virtual one's.
 	Hostname  func() (string, error)
 	Addresses func() ([]net.Addr, error)
 	// Outbound is the address this server's route to the internet leaves from.
@@ -70,7 +71,7 @@ func New() *Collector {
 		Statfs:       statfs,
 		DockerSocket: "/var/run/docker.sock",
 		Hostname:     os.Hostname,
-		Addresses:    net.InterfaceAddrs,
+		Addresses:    physicalAddresses,
 		Outbound:     OutboundAddress,
 	}
 }
@@ -127,6 +128,7 @@ func (c *Collector) Inventory(ctx context.Context) *dockwellv1.ServerInventory {
 	inv.DockerVersion = c.dockerVersion(ctx)
 	inv.DockerLogDriver = c.dockerLogDriver(ctx)
 	if addrs, err := c.Addresses(); err == nil {
+		inv.AddressesPhysical = true
 		for _, a := range addrs {
 			if ipn, ok := a.(*net.IPNet); ok && !ipn.IP.IsLoopback() && !ipn.IP.IsLinkLocalUnicast() {
 				inv.Addresses = append(inv.Addresses, ipn.IP.String())
@@ -326,6 +328,33 @@ func parseMeminfo(b []byte) map[string]uint64 {
 // on a physical one, or none at all.
 var virtualInterfaces = []string{"lo", "docker", "veth", "br-", "virbr", "cni", "flannel", "cali", "vxlan", "tun", "tap", "dummy"}
 
+// virtual reports a network device that virtualInterfaces names.
+func virtual(name string) bool {
+	return slices.ContainsFunc(virtualInterfaces, func(p string) bool { return strings.HasPrefix(name, p) })
+}
+
+// physicalAddresses lists the addresses of the server's physical interfaces, so a
+// private one is a network the server is on, such as a cloud's private network,
+// and never one of Docker's bridges, which a custom pool can put in 10.x too.
+func physicalAddresses() ([]net.Addr, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	var out []net.Addr
+	for _, iface := range ifaces {
+		if virtual(iface.Name) {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		out = append(out, addrs...)
+	}
+	return out, nil
+}
+
 // netTotals sums received and sent bytes over physical interfaces.
 func netTotals(dev []byte) (rx, tx uint64, ok bool) {
 	sc := bufio.NewScanner(bytes.NewReader(dev))
@@ -335,7 +364,7 @@ func netTotals(dev []byte) (rx, tx uint64, ok bool) {
 			continue
 		}
 		name = strings.TrimSpace(name)
-		if slices.ContainsFunc(virtualInterfaces, func(p string) bool { return strings.HasPrefix(name, p) }) {
+		if virtual(name) {
 			continue
 		}
 		f := strings.Fields(rest)

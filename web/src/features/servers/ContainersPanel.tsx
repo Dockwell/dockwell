@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { ContainerService, ContainerState, type Server, type ServerContainer } from "@dockwell/api";
+import { Connection, ContainerService, ContainerState, type Server, type ServerContainer } from "@dockwell/api";
 import {
   Button,
   cx,
@@ -54,10 +54,12 @@ function Some({ items, more }: { items: readonly string[]; more: number }) {
 export function ContainersPanel({ server }: { server: Server }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  // A server whose agent isn't reporting can't say what runs there: it isn't asked.
+  const connected = server.connection === Connection.CONNECTED;
   const list = useQuery(
     ContainerService.method.listContainers,
     { server: server.id },
-    { refetchInterval: READ_EVERY_MS, retry: false },
+    { refetchInterval: READ_EVERY_MS, retry: false, enabled: connected },
   );
   const [filter, setFilter] = useState("");
   const [shown, setShown] = useState(PAGE);
@@ -70,7 +72,9 @@ export function ContainersPanel({ server }: { server: Server }) {
   const projects = useMemo(() => new Set((containers ?? []).map((c) => c.composeProject)), [containers]);
 
   // What it last read can't stand once it can't be read, so that is all this says.
-  const body: ReactNode = list.error ? (
+  const body: ReactNode = !connected ? (
+    <p className="containers-note">{t`${server.name} isn't reporting, so what Docker runs there can't be read now.`}</p>
+  ) : list.error ? (
     <p className="containers-note">{sentence(list.error)}</p>
   ) : !list.data ? (
     <p className="containers-note" aria-busy="true">
@@ -147,7 +151,7 @@ export function ContainersPanel({ server }: { server: Server }) {
       className="containers"
       title={t`Containers Dockwell didn't make`}
       actions={
-        count > 0 && !list.error ? (
+        connected && count > 0 && !list.error ? (
           <span className="containers-count">
             {plural(count, { one: `# container, ${running} running`, other: `# containers, ${running} running` })}
           </span>

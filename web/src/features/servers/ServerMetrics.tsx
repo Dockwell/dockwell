@@ -15,6 +15,8 @@ export interface ServerMetricsProps {
   fourth: "network" | "load";
   /** Phones: the numbers alone, two by two, without trends or captions. */
   compact?: boolean;
+  /** Nothing can say how the server is now: what it last said is greyed, not shown as now. */
+  stale?: boolean;
 }
 
 /**
@@ -22,7 +24,7 @@ export interface ServerMetricsProps {
  * trend over the history the control plane keeps, since the last gap. Values keep their number
  * of decimals, so they update in place without shifting.
  */
-export function ServerMetrics({ server, fourth, compact = false }: ServerMetricsProps) {
+export function ServerMetrics({ server, fourth, compact = false, stale = false }: ServerMetricsProps) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   const of = (total: string) => t`of ${total}`;
@@ -109,7 +111,7 @@ export function ServerMetrics({ server, fourth, compact = false }: ServerMetrics
   ];
 
   return (
-    <div className={cx("metrics", compact && "is-compact")}>
+    <div className={cx("metrics", compact && "is-compact", stale && "is-stale")} aria-disabled={stale || undefined}>
       {metrics.map(({ id, data, caption, ...metric }) => (
         <div key={id} className="dw-panel metrics-panel">
           <Metric {...metric} data={compact ? undefined : data} caption={compact ? undefined : caption} />

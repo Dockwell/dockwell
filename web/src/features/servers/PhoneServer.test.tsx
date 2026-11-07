@@ -188,6 +188,7 @@ describe("a server on a phone", () => {
 
   it("says a server waits for its agent, and how to start it", async () => {
     await renderPhone(aServer({ ...hz1, connection: Connection.PENDING, stats: undefined, history: [] }));
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IP10.0.0.2");
     const status = screen.getByRole("region", { name: "Status" });
     expect(status).toHaveTextContent("Waiting for its agent");
     expect(status).toHaveTextContent("Start it with dockwell run on the server.");
@@ -210,6 +211,47 @@ describe("a server on a phone", () => {
     await waitFor(() => expect(status).toHaveTextContent("Can't say how it is now"));
     expect(status).toHaveTextContent("Unknown");
     expect(status).not.toHaveTextContent("Healthy");
+    // What it last said of its CPU and memory is greyed, not shown as now.
+    expect(within(status).getByRole("meter", { name: "CPU" }).closest("[aria-disabled]")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("says Degraded in the header too, past 90% of its memory", async () => {
+    await renderPhone(aServer({ ...hz1, stats: sample(40, 7.4) }));
+    expect(screen.getByText(/· up 3 days$/)).toHaveTextContent("Degraded · up 3 days");
+    expect(screen.queryByText("Healthy · up 3 days")).toBeNull();
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Degraded");
+  });
+
+  it("says its private IP isn't known until its agent says how it goes out", async () => {
+    // One still waiting for its agent, and one from before agents said.
+    await renderPhone(aServer({ id: "srv_1", name: "hz-1", connection: Connection.PENDING }));
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IPNot known");
+  });
+
+  it("gives a cloud's private network as its private IP, once the agent lists only physical interfaces", async () => {
+    const vps = (physical: boolean) =>
+      aServer({
+        id: "srv_1",
+        name: "hz-1",
+        stats: past.at(-1),
+        history: past,
+        inventory: {
+          cpuCount: 4,
+          // A custom Docker pool in 10.x would read the same in an older agent's list.
+          addresses: ["203.0.113.7", "10.0.1.5"],
+          outboundAddress: "203.0.113.7",
+          addressesPhysical: physical,
+        },
+        network: { ipv4: { address: "203.0.113.7" } },
+      });
+    const { unmount } = await renderPhone(vps(true));
+    expect(screen.getByRole("button", { name: "Copy Private IP 10.0.1.5" })).toBeVisible();
+    unmount();
+    await renderPhone(vps(false));
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IPNone");
   });
 
   it("says an app failed to deploy here, from its deployment here, and one deploying", async () => {

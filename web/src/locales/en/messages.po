@@ -7947,6 +7947,10 @@ msgstr "See them all with <0>docker ps -a</0> on the server."
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what Docker runs there can't be read now."
+msgstr "{0} isn't reporting, so what Docker runs there can't be read now."
+
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 

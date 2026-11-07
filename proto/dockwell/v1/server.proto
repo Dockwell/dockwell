@@ -386,7 +386,9 @@ message ServerInventory {
   // The Docker Engine version, such as "28.5.1". Empty when Docker isn't
   // installed or isn't running.
   string docker_version = 11;
-  // The server's non-loopback IP addresses.
+  // The server's non-loopback IP addresses: its physical interfaces' alone
+  // when addresses_physical says so, and every interface's, Docker's bridges
+  // included, from an agent from before that.
   repeated string addresses = 12;
   // The logging driver Docker uses by default, such as "json-file". Empty
   // when Docker isn't running.
@@ -394,6 +396,10 @@ message ServerInventory {
   // The address its route to the internet leaves from. Empty when it has no
   // such route, or from an agent from before this.
   string outbound_address = 14;
+  // True when addresses lists only physical interfaces' addresses, so a
+  // private one there is a private network the server is on, as a cloud's is,
+  // and never a Docker bridge's.
+  bool addresses_physical = 15;
 }
 
 // Disk is one mounted filesystem.

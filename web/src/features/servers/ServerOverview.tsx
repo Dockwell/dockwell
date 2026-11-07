@@ -38,7 +38,7 @@ export function ServerOverview({ id }: { id: string }) {
             <PhoneServer server={server} unread={unread !== undefined} />
           ) : (
             <>
-              <ServerMetrics server={server} fourth="load" />
+              <ServerMetrics server={server} fourth="load" stale={unread !== undefined} />
               <RunsHere server={server} />
             </>
           )}

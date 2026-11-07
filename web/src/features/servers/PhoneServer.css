@@ -21,6 +21,10 @@
   line-height: 20px;
 }
 
+.phone-status-grid.is-stale {
+  opacity: 0.45;
+}
+
 .phone-status-fix {
   margin: 0;
   color: var(--ink-muted);

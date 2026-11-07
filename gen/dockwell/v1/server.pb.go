@@ -1417,7 +1417,9 @@ type ServerInventory struct {
 	// The Docker Engine version, such as "28.5.1". Empty when Docker isn't
 	// installed or isn't running.
 	DockerVersion string `protobuf:"bytes,11,opt,name=docker_version,json=dockerVersion,proto3" json:"docker_version,omitempty"`
-	// The server's non-loopback IP addresses.
+	// The server's non-loopback IP addresses: its physical interfaces' alone
+	// when addresses_physical says so, and every interface's, Docker's bridges
+	// included, from an agent from before that.
 	Addresses []string `protobuf:"bytes,12,rep,name=addresses,proto3" json:"addresses,omitempty"`
 	// The logging driver Docker uses by default, such as "json-file". Empty
 	// when Docker isn't running.
@@ -1425,8 +1427,12 @@ type ServerInventory struct {
 	// The address its route to the internet leaves from. Empty when it has no
 	// such route, or from an agent from before this.
 	OutboundAddress string `protobuf:"bytes,14,opt,name=outbound_address,json=outboundAddress,proto3" json:"outbound_address,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// True when addresses lists only physical interfaces' addresses, so a
+	// private one there is a private network the server is on, as a cloud's is,
+	// and never a Docker bridge's.
+	AddressesPhysical bool `protobuf:"varint,15,opt,name=addresses_physical,json=addressesPhysical,proto3" json:"addresses_physical,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ServerInventory) Reset() {
@@ -1555,6 +1561,13 @@ func (x *ServerInventory) GetOutboundAddress() string {
 		return x.OutboundAddress
 	}
 	return ""
+}
+
+func (x *ServerInventory) GetAddressesPhysical() bool {
+	if x != nil {
+		return x.AddressesPhysical
+	}
+	return false
 }
 
 // Disk is one mounted filesystem.
@@ -1974,7 +1987,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"known_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tknownTime\x12\x16\n" +
 	"\x06domain\x18\x04 \x01(\tR\x06domain\x12)\n" +
 	"\x06set_by\x18\x05 \x01(\v2\x12.dockwell.v1.ActorR\x05setBy\x12\x1a\n" +
-	"\bunproven\x18\x06 \x01(\bR\bunproven\"\xd8\x03\n" +
+	"\bunproven\x18\x06 \x01(\bR\bunproven\"\x87\x04\n" +
 	"\x0fServerInventory\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
 	"\aos_name\x18\x02 \x01(\tR\x06osName\x12\x13\n" +
@@ -1991,7 +2004,8 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x0edocker_version\x18\v \x01(\tR\rdockerVersion\x12\x1c\n" +
 	"\taddresses\x18\f \x03(\tR\taddresses\x12*\n" +
 	"\x11docker_log_driver\x18\r \x01(\tR\x0fdockerLogDriver\x12)\n" +
-	"\x10outbound_address\x18\x0e \x01(\tR\x0foutboundAddress\"~\n" +
+	"\x10outbound_address\x18\x0e \x01(\tR\x0foutboundAddress\x12-\n" +
+	"\x12addresses_physical\x18\x0f \x01(\bR\x11addressesPhysical\"~\n" +
 	"\x04Disk\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x16\n" +

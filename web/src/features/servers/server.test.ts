@@ -57,10 +57,22 @@ describe("fleetView", () => {
   it("stays the same object while only the numbers change", () => {
     const before = fleetView({ status: "live", servers: [hz1, hz2] });
     const after = fleetView(
-      { status: "live", servers: [aServer({ ...hz1, stats: sample(90) }), aServer({ ...hz2, stats: sample(5) })] },
+      { status: "live", servers: [aServer({ ...hz1, stats: sample(80) }), aServer({ ...hz2, stats: sample(5) })] },
       before,
     );
     expect(after).toBe(before);
+  });
+
+  it("changes when a server's memory or CPU crosses 90%, which reads as degraded everywhere", () => {
+    const before = fleetView({ status: "live", servers: [hz1, hz2] });
+    const after = fleetView({ status: "live", servers: [aServer({ ...hz1, stats: sample(40, 7.4) }), hz2] }, before);
+    expect(after).not.toBe(before);
+    expect(after.servers?.[0]?.strained).toBe(true);
+    expect(after.servers?.[1]).toBe(before.servers?.[1]);
+    expect(serverStatus(after.servers?.[0] ?? hz1)).toBe("degraded");
+    expect(serverStatus(aServer({ ...hz1, stats: sample(40, 7.4) }))).toBe("degraded");
+    expect(serverStatus(aServer({ ...hz1, stats: sample(93) }))).toBe("degraded");
+    expect(serverStatus(aServer({ ...hz1, stats: sample(40, 2) }))).toBe("healthy");
   });
 
   it("changes when a server drops, keeping the parts that didn't", () => {

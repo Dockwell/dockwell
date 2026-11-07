@@ -196,6 +196,18 @@ describe("ServerOverview", () => {
     expect(getServerDiskUse).not.toHaveBeenCalled();
   });
 
+  it("greys what it last said of its numbers while nothing can say how it is now", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await renderServer("/servers/srv_1", hz1);
+    const metrics = () => screen.getAllByText("CPU", { exact: true })[0]?.closest(".metrics");
+    await waitFor(() => expect(metrics()).toBeTruthy());
+    expect(metrics()).not.toHaveAttribute("aria-disabled");
+    // Nothing heard, not even a heartbeat, for longer than what was heard can stand.
+    await act(() => vi.advanceTimersByTimeAsync(35_000));
+    await waitFor(() => expect(metrics()).toHaveAttribute("aria-disabled", "true"));
+    expect(metrics()).toHaveClass("is-stale");
+  });
+
   it("draws Docker's disk part by part, and another disk beside it by used and free, each once", async () => {
     const two = clone(ServerSchema, hz1);
     two.inventory?.disks.push(

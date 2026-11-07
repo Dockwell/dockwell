@@ -12387,7 +12387,10 @@ components:
                     type: array
                     items:
                         type: string
-                    description: The server's non-loopback IP addresses.
+                    description: |-
+                        The server's non-loopback IP addresses: its physical interfaces' alone
+                         when addresses_physical says so, and every interface's, Docker's bridges
+                         included, from an agent from before that.
                 dockerLogDriver:
                     type: string
                     description: |-
@@ -12398,6 +12401,12 @@ components:
                     description: |-
                         The address its route to the internet leaves from. Empty when it has no
                          such route, or from an agent from before this.
+                addressesPhysical:
+                    type: boolean
+                    description: |-
+                        True when addresses lists only physical interfaces' addresses, so a
+                         private one there is a private network the server is on, as a cloud's is,
+                         and never a Docker bridge's.
             description: 'ServerInventory is what a server is: its system and hardware.'
         ServerLogStatus:
             type: object

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { durationMs, timestampMs } from "@bufbuild/protobuf/wkt";
-import { Connection, type Server } from "@dockwell/api";
+import { Connection, type Server, type ServerStats } from "@dockwell/api";
 import { type Status, useUIStrings } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
@@ -15,14 +15,34 @@ const STATUS: Partial<Record<Connection, Status>> = {
   [Connection.PENDING]: "stopped",
 };
 
+/** Past this share of its memory or CPU, a server reads as degraded, as the mocks have it. */
+export const HIGH_USE = 90;
+
+/** What a server is short of, memory first, as its last sample says: or nothing. */
+export function strainOf(stats: ServerStats | undefined): "memory" | "cpu" | undefined {
+  if (!stats) return undefined;
+  const total = Number(stats.memoryTotalBytes);
+  if (total > 0 && (Number(stats.memoryUsedBytes) / total) * 100 >= HIGH_USE) return "memory";
+  if (stats.cpuPercent >= HIGH_USE) return "cpu";
+  return undefined;
+}
+
 /**
  * A server's state as the design system draws it: connected is healthy, gone
  * quiet is down, not yet heard from is stopped. Connected with an agent that
- * can't read Docker is degraded, as nobody can say what runs there. A state this
- * panel doesn't know, from a newer control plane, is stopped too.
+ * can't read Docker, or with memory or CPU past HIGH_USE, is degraded. A state
+ * this panel doesn't know, from a newer control plane, is stopped too. A full
+ * server's strain is in its stats; a summary's, in strained.
  */
-export function serverStatus(server: { connection: Connection; dockerUnreadableSince?: unknown }): Status {
-  if (server.connection === Connection.CONNECTED && server.dockerUnreadableSince !== undefined) return "degraded";
+export function serverStatus(server: {
+  connection: Connection;
+  dockerUnreadableSince?: unknown;
+  stats?: ServerStats;
+  strained?: boolean;
+}): Status {
+  const connected = server.connection === Connection.CONNECTED;
+  if (connected && server.dockerUnreadableSince !== undefined) return "degraded";
+  if (connected && (server.strained ?? strainOf(server.stats) !== undefined)) return "degraded";
   return STATUS[server.connection] ?? "stopped";
 }
 
@@ -64,6 +84,8 @@ export interface ServerSummary {
   address: string | undefined;
   /** Since when its agent can't read Docker, for one that's connected and can't. */
   dockerUnreadableSince?: number;
+  /** True for one that's connected with memory or CPU past HIGH_USE. */
+  strained?: boolean;
 }
 
 /**
@@ -126,6 +148,7 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
       ...(server.connection === Connection.CONNECTED && server.dockerUnreadableSince
         ? { dockerUnreadableSince: timestampMs(server.dockerUnreadableSince) }
         : {}),
+      ...(server.connection === Connection.CONNECTED && strainOf(server.stats) ? { strained: true } : {}),
     };
     const old = prev?.[i];
     return old && sameSummary(old, summary) ? old : summary;
@@ -141,7 +164,8 @@ function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
     a.address === b.address &&
     a.lastSeen === b.lastSeen &&
     a.connectedAt === b.connectedAt &&
-    a.dockerUnreadableSince === b.dockerUnreadableSince
+    a.dockerUnreadableSince === b.dockerUnreadableSince &&
+    a.strained === b.strained
   );
 }
 

@@ -16,13 +16,10 @@ import { nameOf, revisionName } from "../apps/app";
 import { useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
 import { useCopy } from "./CopyButton";
-import { forwardToOf, publicAddressOf } from "./network";
-import { serverStatus, useServerWords } from "./server";
+import { forwardToOf, isSharedAddress, publicAddressOf } from "./network";
+import { HIGH_USE as HIGH, isPrivateAddress, serverStatus, strainOf, useServerWords } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./PhoneServer.css";
-
-/** Past this share, CPU or memory reads as a warning: the state the mock gives it. */
-const HIGH = 90;
 
 /** How many recent events the page shows. */
 const RECENT = 3;
@@ -86,12 +83,10 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
     );
   } else if (server.dockerUnreadableSince) {
     line = t`Docker hasn't answered for ${lasted(server.dockerUnreadableSince)}`;
-  } else if (memory >= HIGH) {
+  } else if (strainOf(stats) === "memory") {
     line = t`Memory above ${HIGH}%`;
-    if (status === "healthy") status = "degraded";
-  } else if (cpu >= HIGH) {
+  } else if (strainOf(stats) === "cpu") {
     line = t`CPU above ${HIGH}%`;
-    if (status === "healthy") status = "degraded";
   } else {
     line = uptime ? t`Up ${uptime}` : t`Reporting`;
   }
@@ -99,9 +94,7 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
   const [used, total] = stats ? formatLiveBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, locale) : ["–", ""];
   const cpuValue = stats ? formatFixed(cpu, 0, locale) : "–";
   const publicIp = publicAddressOf(server);
-  // The address its route out leaves from, when that's private: never a bridge of
-  // Docker's, which a server's interfaces list too.
-  const privateIp = forwardToOf(server);
+  const privateIp = privateAddressOf(server);
 
   return (
     <section className="dw-panel phone-status" aria-label={t`Status`}>
@@ -112,7 +105,8 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
         <span className="phone-status-line">{line}</span>
         {fix ? <p className="phone-status-fix">{fix}</p> : null}
       </div>
-      <div className="phone-status-grid">
+      {/* While nothing can say how it is, what it last said is greyed, not shown as now. */}
+      <div className={unread ? "phone-status-grid is-stale" : "phone-status-grid"} aria-disabled={unread || undefined}>
         <div className="phone-status-cell">
           <Metric label={t`CPU`} value={cpuValue} unit="%" />
           <Meter label={t`CPU`} share={cpu} text={`${cpuValue}%`} />
@@ -124,7 +118,11 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
       </div>
       <div className="phone-status-grid">
         <CopyCell label={t`Public IP`} address={publicIp} none={t`Not known`} />
-        <CopyCell label={t`Private IP`} address={privateIp} none={t`None`} />
+        <CopyCell
+          label={t`Private IP`}
+          address={privateIp === "unknown" ? undefined : privateIp}
+          none={privateIp === "unknown" ? t`Not known` : t`None`}
+        />
       </div>
     </section>
   );
@@ -307,4 +305,20 @@ function PhoneRecent({ server }: { server: Server }) {
       )}
     </section>
   );
+}
+
+/**
+ * A server's private address: the one its route out leaves from, when that's
+ * private, as a home server's is; or the first private one on its physical
+ * interfaces, as a cloud's private network gives one. An agent from before it
+ * listed only those lists Docker's bridges too, so its list says nothing here.
+ * "unknown" for one whose agent hasn't said how it goes out: one still waiting,
+ * or one from before it said.
+ */
+export function privateAddressOf(server: Server): string | "unknown" | undefined {
+  const inv = server.inventory;
+  if (!inv || inv.outboundAddress === "") return "unknown";
+  const forward = forwardToOf(server);
+  if (forward || !inv.addressesPhysical) return forward;
+  return inv.addresses.find((ip) => !ip.includes(":") && isPrivateAddress(ip) && !isSharedAddress(ip));
 }

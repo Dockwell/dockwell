@@ -7947,6 +7947,10 @@ msgstr "请在服务器上用 <0>docker ps -a</0> 查看全部。"
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "这些容器在 Dockwell 之前就已存在，或以其他方式运行。Dockwell 只读取它们，因此在这里查看不会改变任何内容，它们会照常运行。"
 
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what Docker runs there can't be read now."
+msgstr "{0} 未在上报，因此现在无法读取那里 Docker 运行的内容。"
+
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, other {# 个容器，{running} 个正在运行}}"
 
