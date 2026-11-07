@@ -56,12 +56,13 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
         </p>
       ) : null}
       <ProfileCallout via={via} rpId={auth?.rpId ?? ""} />
+      {/* Preferences in the first row, where the mock has it beside the account. */}
       <div className="profile-grid">
+        <PreferencesPanel />
         <PasskeysPanel rpId={auth?.rpId ?? ""} />
         <TotpPanel />
         <SessionsPanel />
         <TokensPanel />
-        <PreferencesPanel />
       </div>
     </Page>
   );

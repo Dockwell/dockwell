@@ -74,6 +74,7 @@ export { englishStrings, type UIStrings, UIStringsProvider, useUIStrings } from 
 export { PHONE_QUERY, useMediaQuery } from "./lib/useMediaQuery";
 export {
   applyThemePreference,
+  followThemeAcrossTabs,
   type ResolvedTheme,
   readThemePreference,
   setThemePreference,

@@ -2730,8 +2730,8 @@ msgid "Dark"
 msgstr "Dark"
 
 #: src/features/auth/PreferencesPanel.tsx
-msgid "Dark, whatever your computer uses"
-msgstr "Dark, whatever your computer uses"
+msgid "Dark, whatever your device uses"
+msgstr "Dark, whatever your device uses"
 
 #: src/features/changes/fields.tsx
 msgid "data"
@@ -4452,8 +4452,8 @@ msgid "Light"
 msgstr "Light"
 
 #: src/features/auth/PreferencesPanel.tsx
-msgid "Light, whatever your computer uses"
-msgstr "Light, whatever your computer uses"
+msgid "Light, whatever your device uses"
+msgstr "Light, whatever your device uses"
 
 #: src/features/servers/network.ts
 msgid "Likely a home or office network"
@@ -7254,8 +7254,8 @@ msgid "System"
 msgstr "System"
 
 #: src/features/auth/PreferencesPanel.tsx
-msgid "System follows your computer"
-msgstr "System follows your computer"
+msgid "System follows your device"
+msgstr "System follows your device"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Take it on"

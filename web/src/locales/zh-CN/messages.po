@@ -2730,8 +2730,8 @@ msgid "Dark"
 msgstr "深色"
 
 #: src/features/auth/PreferencesPanel.tsx
-msgid "Dark, whatever your computer uses"
-msgstr "深色，不论电脑用哪种"
+msgid "Dark, whatever your device uses"
+msgstr "深色，不论设备用哪种"
 
 #: src/features/changes/fields.tsx
 msgid "data"
@@ -4452,8 +4452,8 @@ msgid "Light"
 msgstr "浅色"
 
 #: src/features/auth/PreferencesPanel.tsx
-msgid "Light, whatever your computer uses"
-msgstr "浅色，不论电脑用哪种"
+msgid "Light, whatever your device uses"
+msgstr "浅色，不论设备用哪种"
 
 #: src/features/servers/network.ts
 msgid "Likely a home or office network"
@@ -7254,8 +7254,8 @@ msgid "System"
 msgstr "跟随系统"
 
 #: src/features/auth/PreferencesPanel.tsx
-msgid "System follows your computer"
-msgstr "跟随电脑的设置"
+msgid "System follows your device"
+msgstr "跟随设备的设置"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Take it on"

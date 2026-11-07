@@ -150,12 +150,14 @@ describe("ProfilePage", () => {
     const user = userEvent.setup();
     renderAt("/profile", api());
     const preferences = await screen.findByRole("region", { name: "Preferences" });
-    expect(within(preferences).getByText("System follows your computer")).toBeVisible();
+    expect(within(preferences).getByText("System follows your device")).toBeVisible();
     await user.click(within(preferences).getByRole("radio", { name: "Dark" }));
-    expect(within(preferences).getByText("Dark, whatever your computer uses")).toBeVisible();
+    expect(within(preferences).getByText("Dark, whatever your device uses")).toBeVisible();
     expect(localStorage.getItem("dockwell.theme")).toBe("dark");
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     await user.click(within(preferences).getByRole("radio", { name: "System" }));
-    expect(localStorage.getItem("dockwell.theme")).not.toBe("dark");
+    expect(localStorage.getItem("dockwell.theme")).toBeNull();
+    expect(document.documentElement).not.toHaveAttribute("data-theme");
   });
 
   it("takes who is signed in from the gate, without reading it again", async () => {

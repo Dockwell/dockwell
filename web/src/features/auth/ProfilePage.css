@@ -233,4 +233,9 @@
     justify-content: flex-start;
     margin-left: 44px;
   }
+
+  /* The theme's options are as tall as the rows' buttons, for a finger. */
+  .profile-pref .dw-seg-item {
+    height: var(--control-sm);
+  }
 }
