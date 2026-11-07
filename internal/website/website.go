@@ -4,7 +4,7 @@
 // its route, and the services in its project's environment. A website is a project
 // of its own, and Project.website is the source of what it serves, so the control
 // plane writes the rest each time. See
-// docs/adr/0038-websites-as-projects-of-their-own.md.
+// docs/adr/0039-websites-as-projects-of-their-own.md.
 package website
 
 import (

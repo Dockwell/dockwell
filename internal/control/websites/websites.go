@@ -3,7 +3,7 @@
 // Package websites serves dockwell.v1.WebsiteService: the websites, and planning
 // making one, changing what it serves and deleting it, each as a change. A website
 // is a project of its own, and what it serves is written from Project.website. See
-// docs/adr/0038-websites-as-projects-of-their-own.md.
+// docs/adr/0039-websites-as-projects-of-their-own.md.
 package websites
 
 import (
