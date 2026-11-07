@@ -5380,7 +5380,10 @@ type DomainCheck struct {
 	// can reach it, and no forwarded port either. Only a tunnel can.
 	CarrierNat bool `protobuf:"varint,7,opt,name=carrier_nat,json=carrierNat,proto3" json:"carrier_nat,omitempty"`
 	// When DNS was read. Unset for a check from an agent from before this.
-	ReadTime      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=read_time,json=readTime,proto3" json:"read_time,omitempty"`
+	ReadTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=read_time,json=readTime,proto3" json:"read_time,omitempty"`
+	// A record points at Cloudflare's proxy, which ends TLS, and blocks a
+	// certificate over HTTP-01 or TLS-ALPN.
+	Proxied       bool `protobuf:"varint,9,opt,name=proxied,proto3" json:"proxied,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5469,6 +5472,13 @@ func (x *DomainCheck) GetReadTime() *timestamppb.Timestamp {
 		return x.ReadTime
 	}
 	return nil
+}
+
+func (x *DomainCheck) GetProxied() bool {
+	if x != nil {
+		return x.Proxied
+	}
+	return false
 }
 
 // FieldChange is one field that differs between two specs.
@@ -6054,7 +6064,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06change\x18\x01 \x01(\x0e2\x1a.dockwell.v1.IngressChangeR\x06change\x12\x14\n" +
 	"\x05proxy\x18\x02 \x01(\tR\x05proxy\x12\x14\n" +
 	"\x05ports\x18\x03 \x03(\tR\x05ports\x12!\n" +
-	"\fpanel_domain\x18\x04 \x01(\tR\vpanelDomain\"\xb8\x02\n" +
+	"\fpanel_domain\x18\x04 \x01(\tR\vpanelDomain\"\xd2\x02\n" +
 	"\vDomainCheck\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x123\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1d.dockwell.v1.DomainCheckStateR\x05state\x12\x14\n" +
@@ -6064,7 +6074,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x12unproven_addresses\x18\x06 \x03(\tR\x11unprovenAddresses\x12\x1f\n" +
 	"\vcarrier_nat\x18\a \x01(\bR\n" +
 	"carrierNat\x127\n" +
-	"\tread_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\breadTime\"\x89\x01\n" +
+	"\tread_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\breadTime\x12\x18\n" +
+	"\aproxied\x18\t \x01(\bR\aproxied\"\x89\x01\n" +
 	"\vFieldChange\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12$\n" +
 	"\x02op\x18\x02 \x01(\x0e2\x14.dockwell.v1.FieldOpR\x02op\x12\x12\n" +

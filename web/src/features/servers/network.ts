@@ -14,6 +14,7 @@ import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
 import { useTimeWords } from "../../lib/time";
+import { isPrivateAddress } from "./server";
 
 /** The providers by name, which aren't words to translate. */
 const PROVIDERS: Partial<Record<CloudProvider, string>> = {
@@ -116,5 +117,91 @@ export function useNetworkWords() {
           };
       }
     },
+  };
+}
+
+/** What the domain form leads with, for a server of each shape. */
+/** One record to point at a server, and whether what it names is only known as a way out. */
+export interface DomainRecordToMake {
+  address: string;
+  unproven: boolean;
+}
+
+export type DomainAdvice =
+  /** Make these records, one for each family, as a way in is known, or a cloud's NAT may be one. */
+  | { lead: "record"; records: DomainRecordToMake[]; provider: CloudProvider | undefined }
+  /**
+   * A tunnel first. A way in of its own, as IPv6 on an interface, is a record beside it,
+   * and the router's address goes behind a forwarded port to the server's own address.
+   */
+  | { lead: "tunnel"; records: DomainRecordToMake[]; router: string | undefined; forwardTo: string | undefined }
+  /** A tunnel and nothing else, as a forwarded port can't work behind carrier NAT. */
+  | { lead: "tunnel-only" }
+  /** Nothing says, so a person does: directly, or through a tunnel or a proxy. */
+  | { lead: "ask"; provider: CloudProvider | undefined };
+
+/** Whether an IPv4 address is in carrier-grade NAT's range, 100.64.0.0/10. */
+function isSharedAddress(ip: string): boolean {
+  const [a, b] = ip.split(".").map(Number);
+  return a === 100 && b !== undefined && b >= 64 && b < 128;
+}
+
+/**
+ * The address a router forwards a port to: the one this server reaches the internet
+ * from, when that's a private IPv4 address of its own and not a VPN's shared one. Its
+ * interfaces aren't asked, as Docker's bridges are among them.
+ */
+export function forwardToOf(server: Server | undefined): string | undefined {
+  const out = server?.inventory?.outboundAddress ?? "";
+  return out !== "" && !out.includes(":") && isPrivateAddress(out) && !isSharedAddress(out) ? out : undefined;
+}
+
+/**
+ * How a domain should reach a server, from what's known of it (ADR 0034). A way in leads
+ * with its record whatever the shape, as someone has proved or said so, but for IPv4 at
+ * home, where a tunnel leads unless IPv4 itself is a known way in. A way out is only ever
+ * offered as what it is: on a cloud as a record with the caveat, at home as the router's
+ * address behind a forwarded port, and behind carrier NAT not at all.
+ */
+export function domainAdviceOf(network: ServerNetwork | undefined, forwardTo?: string): DomainAdvice {
+  const known = publicAddressesOf(network).map(({ address, unproven }) => ({ address, unproven }));
+  const ways = known.filter((record) => !record.unproven);
+  const provider = network?.provider === CloudProvider.UNSPECIFIED ? undefined : network?.provider;
+  const carrier = network?.shape === NetworkShape.CARRIER_NAT;
+  const four = known.find((record) => !record.address.includes(":"));
+  if (network?.shape === NetworkShape.LOCAL_NAT && four?.unproven !== false) {
+    return { lead: "tunnel", records: ways, router: four?.address, forwardTo };
+  }
+  if (ways.length > 0) return { lead: "record", records: carrier ? ways : known, provider };
+  switch (network?.shape) {
+    case NetworkShape.CARRIER_NAT:
+      return { lead: "tunnel-only" };
+    case NetworkShape.CLOUD_NAT:
+      return known.length === 0 ? { lead: "ask", provider } : { lead: "record", records: known, provider };
+    default:
+      return { lead: "ask", provider };
+  }
+}
+
+/** Which firewalls stand in the way on a provider's cloud, beside the machine's own. */
+export function useFirewallWords(): (provider: CloudProvider | undefined) => string {
+  const { t } = useLingui();
+  return (provider) => {
+    switch (provider) {
+      case CloudProvider.ORACLE:
+        return t`Oracle has two firewalls, and most people only open one: the VCN's security list, or a network security group in its place, and the machine's own. On Oracle's Ubuntu images, insert the rule before the REJECT one with iptables -I, as one appended with -A comes after it and does nothing. On Oracle Linux, open ports 80 and 443 with firewall-cmd.`;
+      case CloudProvider.AWS:
+        return t`Open ports 80 and 443 in the instance's security group and in the machine's own firewall.`;
+      case CloudProvider.GCP:
+        return t`Open ports 80 and 443 in the VPC's firewall rules, or tick Allow HTTP traffic and Allow HTTPS traffic on the VM, and in the machine's own firewall.`;
+      case CloudProvider.AZURE:
+        return t`Open ports 80 and 443 in the network security group on the VM's network interface and in the one on its subnet, as either can block them, and in the machine's own firewall.`;
+      case CloudProvider.DIGITALOCEAN:
+        return t`Open ports 80 and 443 in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall.`;
+      case CloudProvider.HETZNER:
+        return t`Open ports 80 and 443 in Hetzner's Cloud Firewall, if the server has one, and in the machine's own firewall.`;
+      default:
+        return t`Open ports 80 and 443 in your provider's firewall and in the machine's own.`;
+    }
   };
 }

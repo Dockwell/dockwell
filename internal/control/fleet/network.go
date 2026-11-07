@@ -330,7 +330,7 @@ func (h *Hub) refreshNetworkLocked(server string, l *live) {
 // its to be told: it has that, with any others, and picks by what a record needs.
 // Behind carrier-grade NAT, a way out is no address to point anything at at all.
 func tellOf(n *dockwellv1.ServerNetwork) *agentv1.PublicAddress {
-	out := &agentv1.PublicAddress{}
+	out := &agentv1.PublicAddress{Provider: n.GetProvider()}
 	wayIn := false
 	carrier := n.GetShape() == dockwellv1.NetworkShape_NETWORK_SHAPE_CARRIER_NAT
 	for _, a := range []*dockwellv1.PublicAddress{n.GetIpv4(), n.GetIpv6()} {

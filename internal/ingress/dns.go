@@ -14,6 +14,7 @@ import (
 	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -31,11 +32,25 @@ type DNS struct {
 	Told []*agentv1.KnownAddress
 	// Carrier says this server is behind carrier-grade NAT, with no way in known.
 	Carrier bool
+	// Firewalls says which of them to open, on a cloud whose provider is known.
+	Firewalls string
+}
+
+// firewallWords say where a provider's own firewall is, beside the machine's.
+var firewallWords = map[dockwellv1.CloudProvider]string{
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_ORACLE: "Oracle has two firewalls, and most people only open one: the VCN's security list, or a network security group in its place, and the machine's own. " +
+		"On Oracle's Ubuntu images, insert the rule before the REJECT one with iptables -I, as one appended with -A comes after it and does nothing. On Oracle Linux, open both ports with firewall-cmd.",
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_AWS:          "Open both ports in the instance's security group, and in the machine's own firewall.",
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_GCP:          "Open both ports in the VPC's firewall rules, or tick Allow HTTP traffic and Allow HTTPS traffic on the VM, and in the machine's own firewall.",
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_AZURE:        "Open both ports in the network security group on the VM's network interface and in the one on its subnet, as either can block them, and in the machine's own firewall.",
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_DIGITALOCEAN: "Open both ports in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall.",
+	dockwellv1.CloudProvider_CLOUD_PROVIDER_HETZNER:      "Open both ports in Hetzner's Cloud Firewall, if the server has one, and in the machine's own firewall.",
 }
 
 // Know takes what the control plane says of this server's public addresses.
 func (d *DNS) Know(known *agentv1.PublicAddress) {
 	d.Told, d.Carrier = known.GetAddresses(), known.GetCarrierNat()
+	d.Firewalls = firewallWords[known.GetProvider()]
 }
 
 // Check says what DNS says of a domain. It never fails: what it can't find
@@ -43,7 +58,7 @@ func (d *DNS) Know(known *agentv1.PublicAddress) {
 func (d *DNS) Check(ctx context.Context, domain string) *resource.DomainCheck {
 	ctx, cancel := context.WithTimeout(ctx, dnsWait)
 	defer cancel()
-	out := &resource.DomainCheck{Domain: domain, Carrier: d.Carrier, ReadAt: time.Now()}
+	out := &resource.DomainCheck{Domain: domain, Carrier: d.Carrier, Firewalls: d.Firewalls, ReadAt: time.Now()}
 	found, err := d.lookup(ctx, domain)
 	own, herr := d.addrs()
 	here := own
@@ -75,6 +90,7 @@ func (d *DNS) Check(ctx context.Context, domain string) *resource.DomainCheck {
 	noWayIn := func(a netip.Addr) bool {
 		return resource.IsPublicAddress(a) && !slices.ContainsFunc(wayIn, func(in netip.Addr) bool { return in.Is4() == a.Unmap().Is4() })
 	}
+	out.Proxied = slices.ContainsFunc(found, IsCloudflare)
 	switch {
 	case isNoRecord(err) || (err == nil && len(found) == 0):
 		out.State = resource.DomainNoRecord

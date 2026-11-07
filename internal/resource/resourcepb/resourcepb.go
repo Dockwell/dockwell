@@ -275,7 +275,7 @@ func DomainCheck(d *resource.DomainCheck) *dockwellv1.DomainCheck {
 	if d == nil {
 		return nil
 	}
-	out := &dockwellv1.DomainCheck{Domain: d.Domain, State: domainStates[d.State], Found: d.Found, Here: d.Here, PublicAddresses: d.Public, UnprovenAddresses: d.Unproven, CarrierNat: d.Carrier}
+	out := &dockwellv1.DomainCheck{Domain: d.Domain, State: domainStates[d.State], Found: d.Found, Here: d.Here, PublicAddresses: d.Public, UnprovenAddresses: d.Unproven, CarrierNat: d.Carrier, Proxied: d.Proxied}
 	if !d.ReadAt.IsZero() {
 		out.ReadTime = timestamppb.New(d.ReadAt)
 	}
@@ -391,7 +391,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	// step, so nothing is misstated by it.
 	if d := p.GetDomainCheck(); d != nil {
 		state, _ := from(domainStates, d.GetState())
-		s.Domain = &resource.DomainCheck{Domain: d.GetDomain(), State: state, Found: d.GetFound(), Here: d.GetHere(), Public: d.GetPublicAddresses(), Unproven: d.GetUnprovenAddresses(), Carrier: d.GetCarrierNat()}
+		s.Domain = &resource.DomainCheck{Domain: d.GetDomain(), State: state, Found: d.GetFound(), Here: d.GetHere(), Public: d.GetPublicAddresses(), Unproven: d.GetUnprovenAddresses(), Carrier: d.GetCarrierNat(), Proxied: d.GetProxied()}
 		if d.GetReadTime() != nil {
 			s.Domain.ReadAt = d.GetReadTime().AsTime()
 		}

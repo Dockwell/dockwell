@@ -119,7 +119,7 @@ docker stop 1Panel-openresty-abc12
 
 If something manages that container, stop it there too, as it can start it again or make it anew: for 1Panel, stop OpenResty under its installed apps, or a later upgrade there may bring it back. A proxy that isn't in a container is your init system's to stop, such as `systemctl disable --now nginx`.
 
-**4. Add a route for each site.** Point the domain's DNS record at this server's public address first, or just after, as the certificate comes once it does. A private address, such as `10.0.0.5`, can't work: on a cloud with 1:1 NAT, the public address isn't on any interface, so take it from the provider's console. A server the internet can't reach on 80 or 443 needs [the section below](#behind-cloudflare-tunnel-or-another-proxy) instead.
+**4. Add a route for each site.** Point the domain's DNS record at this server's public address first, or just after, as the certificate comes once it does. A private address, such as `10.0.0.5`, can't work: on a cloud with 1:1 NAT, the public address isn't on any interface. The panel's domain form shows the record to make, and follows DNS until it's there. On a cloud, also open ports 80 and 443 at the provider and on the machine: Oracle has both the VCN's security list and the machine's own iptables, and most people only open one. On a home or office network, or behind carrier NAT, use a tunnel instead. A server the internet can't reach on 80 or 443 needs [the section below](#behind-cloudflare-tunnel-or-another-proxy) instead.
 
 ```sh
 dockwell routes create www --domain app.example.com --service myapp --port 8080 --yes

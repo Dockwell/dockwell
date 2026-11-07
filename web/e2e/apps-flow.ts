@@ -328,6 +328,8 @@ export async function appsFlow(
   await page.setViewportSize({ width: 360, height: 780 });
   await page.getByRole("button", { name: "Add a domain" }).first().click();
   const addDomain = page.getByRole("dialog", { name: /^Add a domain to / });
+  // What it says to do goes by the machine this runs on, and it always says something.
+  await addDomain.locator(".domain-record").waitFor();
   await addDomain.getByLabel("Domain").fill("app.example.com");
   await addDomain.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
   await addDomain.getByRole("radio", { name: /Cloudflare's proxy/ }).check();

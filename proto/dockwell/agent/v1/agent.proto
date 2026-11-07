@@ -272,6 +272,9 @@ message PublicAddress {
   repeated KnownAddress addresses = 1;
   // True when the server is behind carrier-grade NAT, with no way in known.
   bool carrier_nat = 2;
+  // The cloud the machine says it's on, which tells the agent whose firewall to
+  // name when a connection fails.
+  dockwell.v1.CloudProvider provider = 3;
 }
 
 // KnownAddress is one public address of a server.

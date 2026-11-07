@@ -96,6 +96,12 @@ The owner decided this, and nothing else asks one: another lookup needs the same
 
 [The threat model](../security/public-address.md) says what's sent and what an answer can do. Metadata services are link-local, and reading them is no third party.
 
+### What the domain form says
+
+It says what to do by the shape, and a way in leads with its record whatever the shape is, as someone has proved or said so, but for IPv4 at home. There's one record for each family, and a way out is offered as what it is: on a cloud a record to check against the provider's console, and behind carrier NAT not at all. At home a tunnel leads unless IPv4 itself is a known way in, a way in of IPv6 is a record beside it, and the router's address goes only behind a forwarded port, to the address the server reaches the internet from. Each record says whether DNS has it by its own address among the answers, as an A record says nothing of an AAAA one.
+
+`DomainService.CheckDomain` reads DNS for a name as it's typed and until each record is there, with no route yet, on the control plane's resolver. It uses what's known of the server, so it says what a plan would, and only the server's public addresses count as where a record leads to it, as a private one, a bridge's or a TUN's never is. As it resolves names through the control server, it needs a token that can make changes, a caller can check 60 names a minute, and a private answer is shown only when it's the server's own, so it can't be used to read what names resolve to inside a network. A record that points at Cloudflare's ranges reads as `proxied`, as the proxy can block a certificate over HTTP-01 or TLS-ALPN, and works with a route that takes none. With no address known and no shape to go by, it says where the address is shown, and the form's switch for a tunnel or a proxy is the one question it asks.
+
 ## Consequences
 
 - Every word about DNS has one source of truth, on the agent, so a change to what's known changes what a domain says within seconds.

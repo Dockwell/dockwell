@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -103,5 +104,62 @@ func testAPublicAddressIsSetThroughTheAPI(t *testing.T, backend store.Backend) {
 	code, _, body := callREST(t, b, http.MethodPost, "/v1/servers/"+s.id.ServerID+":setPublicAddress", nil, `{"address":"198.51.100.8"}`)
 	if code != http.StatusOK || !strings.Contains(body, "198.51.100.8") {
 		t.Errorf("POST: %d %s", code, body)
+	}
+}
+
+func TestADomainIsCheckedAgainstAServerBeforeItHasARoute(t *testing.T) {
+	storetest.Each(t, testADomainIsChecked)
+}
+
+func testADomainIsChecked(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	s := f.addNamedServer(t, "oci-1", false)
+	domains := dockwellv1connect.NewDomainServiceClient(b, b.origin)
+	servers := dockwellv1connect.NewServerServiceClient(b, b.origin)
+	checkOf := func(domain string) *dockwellv1.DomainCheck {
+		t.Helper()
+		res, err := domains.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.id.ServerID, Domain: domain}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetCheck()
+	}
+
+	if got := checkOf("nothing-here.example.com"); got.GetDomain() != "nothing-here.example.com" || got.GetState() != dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_NO_RECORD {
+		t.Errorf("a name with no record reads %v", got)
+	}
+
+	// It goes by what's known of the server, as a plan would.
+	if _, err := servers.SetServerPublicAddress(t.Context(), connect.NewRequest(&dockwellv1.SetServerPublicAddressRequest{Id: s.id.ServerID, Address: "198.51.100.7"})); err != nil {
+		t.Fatal(err)
+	}
+	f.names.set("app.example.com", "198.51.100.7")
+	deadline := time.Now().Add(5 * time.Second)
+	for checkOf("app.example.com").GetState() != dockwellv1.DomainCheckState_DOMAIN_CHECK_STATE_POINTS_HERE {
+		if time.Now().After(deadline) {
+			t.Fatalf("a record at the address set reads %v", checkOf("app.example.com"))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	f.names.set("inside.example.com", "10.9.9.9")
+	if got := checkOf("inside.example.com"); len(got.GetFound()) != 0 {
+		t.Errorf("a private answer that isn't the server's is shown: %v", got)
+	}
+
+	_, err := domains.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.id.ServerID, Domain: "not a domain"}))
+	if reasonOf(err) != "invalid" {
+		t.Errorf("a bad name: %v", err)
+	}
+	_, err = domains.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: "srv_nobody", Domain: "app.example.com"}))
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("an unknown server: %v", err)
+	}
+
+	// It resolves names through the control server, so a token that can only read can't.
+	reader := dockwellv1connect.NewDomainServiceClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY), rt: b.client.Transport}, b.origin)
+	_, err = reader.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{ServerId: s.id.ServerID, Domain: "app.example.com"}))
+	if connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Errorf("a read-only token: %v", err)
 	}
 }

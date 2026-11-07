@@ -38,6 +38,9 @@ const (
 	// DomainServiceListDomainsProcedure is the fully-qualified name of the DomainService's ListDomains
 	// RPC.
 	DomainServiceListDomainsProcedure = "/dockwell.v1.DomainService/ListDomains"
+	// DomainServiceCheckDomainProcedure is the fully-qualified name of the DomainService's CheckDomain
+	// RPC.
+	DomainServiceCheckDomainProcedure = "/dockwell.v1.DomainService/CheckDomain"
 )
 
 // DomainServiceClient is a client for the dockwell.v1.DomainService service.
@@ -47,6 +50,13 @@ type DomainServiceClient interface {
 	// each server. A domain whose certificate is on its way answers over HTTPS
 	// once it's issued; poll this to follow it.
 	ListDomains(context.Context, *connect.Request[v1.ListDomainsRequest]) (*connect.Response[v1.ListDomainsResponse], error)
+	// CheckDomain says what DNS says of a name now, against what's known of a
+	// server, whether or not any route has the name yet, as adding a domain does.
+	// Read it again to see a record arrive. It resolves the name through the
+	// control server, so it needs a token that can make changes, a caller can
+	// check 60 names a minute, and an answer that's a private address is only
+	// shown when it's the server's own.
+	CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error)
 }
 
 // NewDomainServiceClient constructs a client for the dockwell.v1.DomainService service. By default,
@@ -67,17 +77,30 @@ func NewDomainServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		checkDomain: connect.NewClient[v1.CheckDomainRequest, v1.CheckDomainResponse](
+			httpClient,
+			baseURL+DomainServiceCheckDomainProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("CheckDomain")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // domainServiceClient implements DomainServiceClient.
 type domainServiceClient struct {
 	listDomains *connect.Client[v1.ListDomainsRequest, v1.ListDomainsResponse]
+	checkDomain *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
 }
 
 // ListDomains calls dockwell.v1.DomainService.ListDomains.
 func (c *domainServiceClient) ListDomains(ctx context.Context, req *connect.Request[v1.ListDomainsRequest]) (*connect.Response[v1.ListDomainsResponse], error) {
 	return c.listDomains.CallUnary(ctx, req)
+}
+
+// CheckDomain calls dockwell.v1.DomainService.CheckDomain.
+func (c *domainServiceClient) CheckDomain(ctx context.Context, req *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error) {
+	return c.checkDomain.CallUnary(ctx, req)
 }
 
 // DomainServiceHandler is an implementation of the dockwell.v1.DomainService service.
@@ -87,6 +110,13 @@ type DomainServiceHandler interface {
 	// each server. A domain whose certificate is on its way answers over HTTPS
 	// once it's issued; poll this to follow it.
 	ListDomains(context.Context, *connect.Request[v1.ListDomainsRequest]) (*connect.Response[v1.ListDomainsResponse], error)
+	// CheckDomain says what DNS says of a name now, against what's known of a
+	// server, whether or not any route has the name yet, as adding a domain does.
+	// Read it again to see a record arrive. It resolves the name through the
+	// control server, so it needs a token that can make changes, a caller can
+	// check 60 names a minute, and an answer that's a private address is only
+	// shown when it's the server's own.
+	CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error)
 }
 
 // NewDomainServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -103,10 +133,19 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	domainServiceCheckDomainHandler := connect.NewUnaryHandler(
+		DomainServiceCheckDomainProcedure,
+		svc.CheckDomain,
+		connect.WithSchema(domainServiceMethods.ByName("CheckDomain")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DomainService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DomainServiceListDomainsProcedure:
 			domainServiceListDomainsHandler.ServeHTTP(w, r)
+		case DomainServiceCheckDomainProcedure:
+			domainServiceCheckDomainHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -118,4 +157,8 @@ type UnimplementedDomainServiceHandler struct{}
 
 func (UnimplementedDomainServiceHandler) ListDomains(context.Context, *connect.Request[v1.ListDomainsRequest]) (*connect.Response[v1.ListDomainsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.ListDomains is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.CheckDomain is not implemented"))
 }

@@ -1309,6 +1309,9 @@ message DomainCheck {
   bool carrier_nat = 7;
   // When DNS was read. Unset for a check from an agent from before this.
   google.protobuf.Timestamp read_time = 8;
+  // A record points at Cloudflare's proxy, which ends TLS, and blocks a
+  // certificate over HTTP-01 or TLS-ALPN.
+  bool proxied = 9;
 }
 
 // DomainCheckState is whether a domain's DNS points at a server.

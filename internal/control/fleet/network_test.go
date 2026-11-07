@@ -717,7 +717,7 @@ func TestWhatAnAgentIsTold(t *testing.T) {
 				set(t, h, tc.set)
 			}
 			got := h.PublicAddress("srv_A")
-			want := &agentv1.PublicAddress{Addresses: tc.want, CarrierNat: tc.carrier}
+			want := &agentv1.PublicAddress{Addresses: tc.want, CarrierNat: tc.carrier, Provider: tc.network.GetMachineProvider()}
 			if !proto.Equal(got, want) {
 				t.Errorf("told %v, want %v", got, want)
 			}

@@ -655,6 +655,10 @@ msgstr "{name} mounts the volume {path} on {server}"
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 
+#: src/features/apps/DomainRecord.tsx
+msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
+msgstr "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
+
 #: src/features/changes/notices.tsx
 msgid "{name} reaches {path} on {server}"
 msgstr "{name} reaches {path} on {server}"
@@ -1963,6 +1967,10 @@ msgstr "Can't reach the control plane"
 msgid "Can't reach this server"
 msgstr "Can't reach this server"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "Can't read DNS"
+msgstr "Can't read DNS"
+
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
 #: src/features/shell/Topbar.tsx
@@ -2389,6 +2397,10 @@ msgstr "Copies an earlier destination sealed open only with the passphrase it ha
 #: src/features/logs/LogsPage.tsx
 msgid "Copy"
 msgstr "Copy"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Copy {address}"
+msgstr "Copy {address}"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Copy {at}"
@@ -2906,6 +2918,26 @@ msgstr "DNS for {domain} points at {found}. This server goes out from {goesOut},
 msgid "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
 msgstr "DNS for {domain} points at {found}. This server's own addresses are private ({here}), so the agent can't tell whether that is this server. If it isn't, its certificate can't come until it is. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
 
+#: src/features/changes/words.ts
+msgid "DNS for {domain} points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+msgstr "DNS for {domain} points at Cloudflare's proxy, which can block the certificate authority's check, so its certificate may not come. Set the record to DNS only. If a tunnel or a proxy in front ends TLS, set tls to off on this route instead"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS has this record"
+msgstr "DNS has this record"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS points at {found}"
+msgstr "DNS points at {found}"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS points at {found}, and Dockwell can't tell whether that's this server"
+msgstr "DNS points at {found}, and Dockwell can't tell whether that's this server"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "DNS points at a private address that isn't this server's"
+msgstr "DNS points at a private address that isn't this server's"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Docker"
 msgstr "Docker"
@@ -2998,6 +3030,14 @@ msgstr "Dockwell didn't make that network. Whatever else is on it, other project
 #: src/features/changes/notices.tsx
 msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 msgstr "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
+msgstr "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
+msgstr "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
 
 #: src/features/files/FilesPage.tsx
 msgid "Dockwell doesn't open this"
@@ -3795,6 +3835,10 @@ msgstr "Info"
 msgid "Install {app}"
 msgstr "Install {app}"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "Install Cloudflare Tunnel from the Catalog"
+msgstr "Install Cloudflare Tunnel from the Catalog"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "Installed"
 msgstr "Installed"
@@ -4072,6 +4116,10 @@ msgstr "Its agent last reported {seen}, and the numbers here are from then. Chec
 #: src/features/apps/NewAppSheet.tsx
 msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
 msgstr "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
+
+#: src/features/apps/AddDomainSheet.tsx
+msgid "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
+msgstr "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
 
 #: src/features/apps/Health.tsx
 msgid "Its check hasn't finished yet."
@@ -4464,6 +4512,14 @@ msgstr "Make {trimmed} a variable"
 #: src/features/auth/TotpPanel.tsx
 msgid "Make new recovery codes"
 msgstr "Make new recovery codes"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Make these records at your DNS provider."
+msgstr "Make these records at your DNS provider."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Make this record at your DNS provider."
+msgstr "Make this record at your DNS provider."
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Match the system theme"
@@ -5197,6 +5253,30 @@ msgstr "Open {where}"
 msgid "Open plan"
 msgstr "Open plan"
 
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall."
+msgstr "Open ports 80 and 443 in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall."
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in Hetzner's Cloud Firewall, if the server has one, and in the machine's own firewall."
+msgstr "Open ports 80 and 443 in Hetzner's Cloud Firewall, if the server has one, and in the machine's own firewall."
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in the instance's security group and in the machine's own firewall."
+msgstr "Open ports 80 and 443 in the instance's security group and in the machine's own firewall."
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in the network security group on the VM's network interface and in the one on its subnet, as either can block them, and in the machine's own firewall."
+msgstr "Open ports 80 and 443 in the network security group on the VM's network interface and in the one on its subnet, as either can block them, and in the machine's own firewall."
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in the VPC's firewall rules, or tick Allow HTTP traffic and Allow HTTPS traffic on the VM, and in the machine's own firewall."
+msgstr "Open ports 80 and 443 in the VPC's firewall rules, or tick Allow HTTP traffic and Allow HTTPS traffic on the VM, and in the machine's own firewall."
+
+#: src/features/servers/network.ts
+msgid "Open ports 80 and 443 in your provider's firewall and in the machine's own."
+msgstr "Open ports 80 and 443 in your provider's firewall and in the machine's own."
+
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the activity"
 msgstr "Open the activity"
@@ -5282,6 +5362,22 @@ msgstr "option"
 #: src/app/Providers.tsx
 msgid "Optional"
 msgstr "Optional"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
+msgstr "Or forward ports 80 and 443 on your router to this server, and make this record."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
+msgstr "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
+msgstr "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
+
+#: src/features/servers/network.ts
+msgid "Oracle has two firewalls, and most people only open one: the VCN's security list, or a network security group in its place, and the machine's own. On Oracle's Ubuntu images, insert the rule before the REJECT one with iptables -I, as one appended with -A comes after it and does nothing. On Oracle Linux, open ports 80 and 443 with firewall-cmd."
+msgstr "Oracle has two firewalls, and most people only open one: the VCN's security list, or a network security group in its place, and the machine's own. On Oracle's Ubuntu images, insert the rule before the REJECT one with iptables -I, as one appended with -A comes after it and does nothing. On Oracle Linux, open ports 80 and 443 with firewall-cmd."
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
@@ -5490,9 +5586,9 @@ msgstr "Point an A record at this server's public address. Dockwell only sees {h
 msgid "Point an A record at this server's public address. Dockwell only sees {here} here, which is private, so the internet can't reach it"
 msgstr "Point an A record at this server's public address. Dockwell only sees {here} here, which is private, so the internet can't reach it"
 
-#: src/features/apps/AddDomainSheet.tsx
-msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
-msgstr "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+#: src/features/apps/DomainRecord.tsx
+msgid "Point an A record at your router's public address."
+msgstr "Point an A record at your router's public address."
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Point its DNS at this server."
@@ -5871,6 +5967,10 @@ msgstr "Recent deployments"
 #: src/features/apps/AppOverview.tsx
 msgid "Recent health"
 msgstr "Recent health"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "Recommended. It needs no public address and no forwarded port."
+msgstr "Recommended. It needs no public address and no forwarded port."
 
 #: src/features/servers/FleetNotes.tsx
 msgid "Reconnecting"
@@ -7067,9 +7167,21 @@ msgstr "That was the last try. 5 wrong codes ended this setup, and its key no lo
 msgid "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 msgstr "That would leave you no way to sign in. Add another passkey or an authenticator app first."
 
+#: src/features/apps/DomainRecord.tsx
+msgid "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
+msgstr "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
+msgstr "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
+
 #: src/features/changes/notices.tsx
 msgid "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
+
+#: src/features/apps/DomainRecord.tsx
+msgid "That's your router's address, as far as Dockwell can tell."
+msgstr "That's your router's address, as far as Dockwell can tell."
 
 #: src/features/changes/notices.tsx
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
@@ -7670,6 +7782,10 @@ msgstr "This isn't a text file"
 msgid "This isn't the file you opened"
 msgstr "This isn't the file you opened"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "This looks like a home or office network, so the internet can't reach this server by itself."
+msgstr "This looks like a home or office network, so the internet can't reach this server by itself."
+
 #. placeholder {0}: server.serverName
 #: src/features/changes/notices.tsx
 msgid "This may cut off access to {0}"
@@ -7771,6 +7887,10 @@ msgstr "This server"
 #: src/features/changes/words.ts
 msgid "This server is behind carrier NAT ({here}), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither"
 msgstr "This server is behind carrier NAT ({here}), so a DNS record can't reach it, and neither can a forwarded port. Use a tunnel, which needs neither"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
+msgstr "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
 
 #: src/features/logs/LogFoot.tsx
 msgid "this server shares what it carries live between everyone reading it."
@@ -8343,6 +8463,10 @@ msgstr "Volumes"
 msgid "Waiting"
 msgstr "Waiting"
 
+#: src/features/apps/DomainRecord.tsx
+msgid "Waiting for DNS"
+msgstr "Waiting for DNS"
+
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
@@ -8672,6 +8796,10 @@ msgstr "You're not signed in. Sign in, then try again."
 #: src/features/servers/FleetNotes.tsx
 msgid "You're offline"
 msgstr "You're offline"
+
+#: src/features/apps/DomainRecord.tsx
+msgid "your domain"
+msgstr "your domain"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Your domain gets a certificate automatically."

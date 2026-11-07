@@ -9,6 +9,7 @@ import {
   type Domain,
   type DomainRoute,
   DomainService,
+  type Server,
   type ServiceInfo,
 } from "@dockwell/api";
 import {
@@ -29,8 +30,10 @@ import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "rea
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
+import { type FleetState, useFleet } from "../servers/useFleet";
 import { appOf, environmentOf, nameOf } from "./app";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
+import { DomainRecord } from "./DomainRecord";
 import { formRefusal, proxyList, refusedField, routeName } from "./domains";
 import { validPort } from "./form";
 
@@ -67,6 +70,12 @@ function portOf(service: ServiceInfo | undefined): string {
   if (app?.hostNetwork) return "";
   const published = app?.ports[0]?.containerPort;
   return published ? String(published) : "80";
+}
+
+/** The server a route goes on: the one chosen, or the only one there is. */
+function serverOf(fleet: FleetState, id: string): Server | undefined {
+  if (fleet.status === "connecting") return undefined;
+  return fleet.servers.find((s) => s.id === id) ?? (fleet.servers.length === 1 ? fleet.servers[0] : undefined);
 }
 
 /** What ends TLS in front of this server, which says who the route answers. */
@@ -127,6 +136,7 @@ export function AddDomainSheet({
   const field = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const switchName = useTunnelSwitchName();
+  const fleet = useFleet();
   // A domain's root may be with another app already, whatever its route is called.
   // Going on moves it, the same either way, so this says that before it does.
   const typed = domain.trim().toLowerCase();
@@ -366,7 +376,7 @@ export function AddDomainSheet({
           error={domainError}
           hint={
             !noCertificate
-              ? t`Point its DNS at this server, before or after. Its certificate comes by itself once it does.`
+              ? t`Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after.`
               : inFront === "anyone"
                 ? t`Point its DNS at this server.`
                 : t`Point its DNS at your tunnel or proxy.`
@@ -388,6 +398,13 @@ export function AddDomainSheet({
             onChange={(event) => choose(event.target.value)}
           />
         ) : null}
+        <DomainRecord
+          server={serverOf(fleet, server)}
+          domain={typed}
+          tunnel={noCertificate}
+          tunnelName={switchName}
+          onLeave={onClose}
+        />
         {leaves ? (
           <Callout tone="warning">
             <Trans>

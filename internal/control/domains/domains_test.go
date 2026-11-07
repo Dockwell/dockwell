@@ -131,7 +131,7 @@ func TestDomainsSayWhatEachSendsWhereAndWhereItsCertificateStands(t *testing.T) 
 
 		issued := &dockwellv1.DomainStatus{Domain: "app.example.com", Certificate: &dockwellv1.Certificate{State: dockwellv1.CertificateState_CERTIFICATE_STATE_ISSUED}}
 		failed := &dockwellv1.DomainStatus{Domain: "off.example.com", Certificate: &dockwellv1.Certificate{State: dockwellv1.CertificateState_CERTIFICATE_STATE_FAILED, Problem: dockwellv1.CertificateProblem_CERTIFICATE_PROBLEM_DNS, Message: "Point it here"}}
-		h := New(kinds, db, reports{"srv_on/app.example.com": issued, "srv_off/off.example.com": failed}, logger)
+		h := New(kinds, db, reports{"srv_on/app.example.com": issued, "srv_off/off.example.com": failed}, nil, logger)
 
 		list := func(env, svc string) []*dockwellv1.Domain {
 			t.Helper()
@@ -242,7 +242,7 @@ func TestAPlainDomainSaysPlainHTTP(t *testing.T) {
 		if err := e.Apply(t.Context(), p.Change); err != nil {
 			t.Fatal(err)
 		}
-		h := New(kinds, db, reports{}, logger)
+		h := New(kinds, db, reports{}, nil, logger)
 		res, err := h.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
 		if err != nil {
 			t.Fatal(err)
@@ -295,7 +295,7 @@ func TestAServiceFindsARouteThatDialsAPortOnTheServer(t *testing.T) {
 		if err := e.Apply(t.Context(), p.Change); err != nil {
 			t.Fatal(err)
 		}
-		h := New(kinds, db, reports{}, logger)
+		h := New(kinds, db, reports{}, nil, logger)
 		for _, tc := range []struct {
 			service string
 			want    int

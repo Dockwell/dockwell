@@ -997,6 +997,37 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/domains:check:
+        post:
+            tags:
+                - DomainService
+            description: |-
+                CheckDomain says what DNS says of a name now, against what's known of a
+                 server, whether or not any route has the name yet, as adding a domain does.
+                 Read it again to see a record arrive. It resolves the name through the
+                 control server, so it needs a token that can make changes, a caller can
+                 check 60 names a minute, and an answer that's a private address is only
+                 shown when it's the server's own.
+            operationId: DomainService_CheckDomain
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckDomainRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckDomainResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/drift:
         get:
             tags:
@@ -3622,6 +3653,24 @@ components:
                          people, such as a log rotation of its own in place of the file's. A plan's
                          notes say the same.
             description: CheckComposeResponse says what a Compose file would make, or why it can't.
+        CheckDomainRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server, by ID.
+                domain:
+                    type: string
+                    description: The domain, such as "app.example.com".
+            description: CheckDomainRequest names a domain and the server it's meant to reach.
+        CheckDomainResponse:
+            type: object
+            properties:
+                check:
+                    allOf:
+                        - $ref: '#/components/schemas/DomainCheck'
+                    description: What DNS says, as the control plane reads it.
+            description: CheckDomainResponse says what DNS says of it.
         ComposeRefusal:
             type: object
             properties:
@@ -4133,6 +4182,11 @@ components:
                     type: string
                     description: When DNS was read. Unset for a check from an agent from before this.
                     format: date-time
+                proxied:
+                    type: boolean
+                    description: |-
+                        A record points at Cloudflare's proxy, which ends TLS, and blocks a
+                         certificate over HTTP-01 or TLS-ALPN.
             description: DomainCheck is what DNS says of a domain, as a server sees it.
         DomainRoute:
             type: object
