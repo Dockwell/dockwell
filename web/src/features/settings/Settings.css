@@ -73,6 +73,15 @@
   padding-left: var(--space-2);
 }
 
+/* A phone shows the page alone, as if nothing were around it. */
+.settings.is-phone {
+  display: block;
+}
+
+.settings.is-phone > .settings-page {
+  padding-left: 0;
+}
+
 /* ---------- On a phone: the sections as rows ---------- */
 
 /* Each group's name above its rows, as the navigation beside a page says it on wide screens. */
@@ -448,5 +457,290 @@
 @media (min-width: 1200px) {
   .cp-wide .settings-facts {
     grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
+  }
+}
+
+/* ---------- API tokens ---------- */
+
+.tokens-section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The list on its way, about three rows high. Nothing shimmers: only three things in the system loop. */
+.tokens-skeleton {
+  height: 192px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.tokens-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.tokens-empty-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.tokens-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* A token's scopes on one line in the table, as each fits its column there. */
+.tokens-table .tokens-tags {
+  flex-wrap: nowrap;
+}
+
+.tokens-new {
+  margin-left: var(--space-2);
+  color: var(--cobalt);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+/* Words under a cell's first line, which the table sets in mono for machine values. */
+.dw-cell-sub.tokens-sans {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+}
+
+.dw-cell-sub.tokens-sans code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.tokens-revoke {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.tokens-problem {
+  flex-basis: 100%;
+  color: var(--critical);
+  font-size: 12.5px;
+  line-height: 18px;
+  text-align: right;
+  white-space: normal;
+}
+
+/* On a phone: a stacked row each, as tables are below 640px. */
+.tokens-list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+}
+
+.tokens-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 14px var(--space-4);
+}
+
+.tokens-item + .tokens-item {
+  border-top: 1px solid var(--line);
+}
+
+.tokens-facts {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.settings-facts.tokens-facts-list {
+  gap: 4px var(--space-3);
+  font-size: 13px;
+}
+
+.tokens-made .dw-callout-text {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tokens-made .dw-callout-text code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.tokens-secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tokens-secret {
+  display: flex;
+  flex: 0 1 460px;
+  align-items: center;
+  min-width: 0;
+  height: 32px;
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.tokens-made .tokens-secret code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokens-dots {
+  color: var(--ink-muted);
+  letter-spacing: 1px;
+}
+
+.tokens-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tokens-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.tokens-name {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.tokens-expiry {
+  flex: 0 1 200px;
+  min-width: 0;
+}
+
+.tokens-scopes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tokens-scopes > legend {
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.tokens-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: var(--space-2);
+}
+
+.tokens-scope {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.tokens-scope:hover {
+  border-color: var(--line-strong);
+}
+
+.tokens-scope.is-fixed {
+  cursor: default;
+}
+
+.tokens-scope.is-fixed:hover {
+  border-color: var(--line);
+}
+
+.tokens-scope:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tokens-box {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--on-action);
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+
+.tokens-scope.is-on .tokens-box {
+  border-color: var(--action);
+  background: var(--action);
+}
+
+.tokens-scope-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tokens-scope-hint {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.tokens-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.tokens-pointer {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* A phone has no room beside the title for the note on the audit log. */
+@media (max-width: 639.98px) {
+  .tokens-create .dw-panel-actions {
+    display: none;
   }
 }
