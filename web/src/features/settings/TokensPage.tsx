@@ -44,6 +44,8 @@ export interface Made {
   id: string;
   name: string;
   secret: string;
+  /** What the list shows of it, such as "dwt_4f9K…x9Ta". */
+  hint: string;
   expires?: Date | undefined;
 }
 
@@ -207,8 +209,11 @@ function Expires({ token, now }: { token: Token; now: number }) {
 function TokenName({ token, isNew }: { token: Token; isNew: boolean }) {
   return (
     <span className="dw-cell">
-      <span className="dw-cell-title">
-        {token.name}
+      <span className="dw-cell-title tokens-title">
+        {/* Two lines at most, so a long name leaves the dates and Revoke in view; the whole name is its tooltip. */}
+        <span className="tokens-title-text" title={token.name}>
+          {token.name}
+        </span>
         {isNew ? (
           <span className="tokens-new">
             <Trans>New</Trans>
@@ -336,8 +341,9 @@ function NewToken({ made, onDone }: { made: Made; onDone: () => void }) {
   const [shown, setShown] = useState(false);
   const { name, secret } = made;
   const expires = made.expires ? formatDay(made.expires, i18n.locale) : "";
-  const head = secret.slice(0, 16);
-  const tail = secret.slice(-4);
+  // Hidden as the list will show it, from its hint, which never holds the checksum: that
+  // follows from the random digits, and would give more of them away.
+  const [head = "", tail = ""] = made.hint.split("…");
   return (
     <Callout tone="healthy" className="tokens-made" title={t`Copy this token now. It won't be shown again.`}>
       <span>
@@ -426,6 +432,7 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
         id: res.token?.id ?? "",
         name: res.token?.name ?? trimmed,
         secret: res.secret,
+        hint: res.token?.hint ?? "",
         expires: res.token?.expireTime ? timestampDate(res.token.expireTime) : undefined,
       });
       setName("");

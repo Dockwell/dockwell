@@ -43,7 +43,8 @@ const grafana = create(TokenSchema, {
   grants: [TokenGrant.LOGS],
   createTime: timestampFromDate(new Date(2026, 7, 14)),
 });
-const secret = "dwt_4f9K2xQ7Lr8eVb3NcR5tYw1ZaD6gHj0kMp9sUq2XnE4x9Ta";
+// The prefix, 43 random digits and a 6-digit checksum, which the hint never shows.
+const secret = "dwt_4f9K2xQ7Lr8eVb3NcR5tYw1ZaD6gHj0kMp9sUq2x9TaQz81Lm";
 
 /** The proof the stand-in control plane gives a step-up for action. */
 const proofFor = (action: StepUpAction) => `proof-${action}`;
@@ -88,7 +89,8 @@ describe("API tokens", () => {
     expect(screen.getByText("2 tokens · 1 expires soon")).toBeVisible();
     const [, first, second] = within(table).getAllByRole("row");
     const one = within(first as HTMLElement);
-    expect(one.getByText("GitHub Actions deploy")).toBeVisible();
+    // A name that runs past two lines is cut there, with the whole of it as its tooltip.
+    expect(one.getByText("GitHub Actions deploy")).toHaveAttribute("title", "GitHub Actions deploy");
     expect(one.getByText("dwt_4f9K…x9Ta")).toBeVisible();
     expect(first).toHaveTextContent("read:*write:undoable");
     expect(one.getByText("8 min ago")).toBeVisible();
@@ -117,6 +119,7 @@ describe("API tokens", () => {
         ...deploy,
         id: "tok_new",
         name: req.name,
+        hint: "dwt_4f9K…x9Ta",
         expireTime:
           req.expiration.case === "ttl"
             ? timestampFromDate(new Date(Date.now() + Number(req.expiration.value.seconds) * 1_000))
@@ -152,7 +155,8 @@ describe("API tokens", () => {
     expect(made).toHaveTextContent(/Created Nightly backup check\. .* It expires \d+ \w+/);
     expect(within(made).queryByText(secret)).toBeNull();
     const hidden = made.querySelector(".tokens-secret code");
-    expect(hidden).toHaveTextContent(/^The new token, partly hidden: dwt_4f9K2xQ7Lr8e•+x9Ta$/);
+    // As its hint has it: 4 random digits at each end, and never the checksum.
+    expect(hidden).toHaveTextContent(/^The new token, partly hidden: dwt_4f9K•+x9Ta$/);
     await userEvent.click(within(made).getByRole("button", { name: "Show the whole token" }));
     expect(within(made).getByText(secret).tagName).toBe("CODE");
     await userEvent.click(within(made).getByRole("button", { name: "Copy token" }));
