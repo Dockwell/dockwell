@@ -26,7 +26,7 @@ nftables runs every base chain on a hook, in every table, and a packet passes on
 
 ### What Dockwell's table does
 
-- **Inbound is allowed by default, until someone chooses otherwise.** A server Dockwell meets keeps working as it did. The tab offers the mock's model, deny everything else, as a setting of its own, `firewall.policy`, which is a resource like a rule and so a plan too. Turning it on lists, in the plan, every port something on the server listens on that no rule allows.
+- **Inbound is allowed by default, until someone chooses otherwise.** A server Dockwell meets keeps working as it did. Deny everything else, the mock's fixed last rule, is a policy a person turns on, `firewall.policy`, which is a resource like a rule and so a plan too. Turning it on lists, in the plan, every port something on the server listens on that no rule allows. The owner decided this on 2026-11-07: a default of deny would need every server's ports listed before it joined to be safe, where this leaves each as it was until someone closes it on purpose.
 - **What keeps the server reachable is always allowed, and pinned above every rule:** traffic of connections already open, loopback, the ICMP and ICMPv6 that path MTU discovery and IPv6 neighbor discovery need, and on the control server the agent listener and the panel's own ports. A rule that would deny those is refused when it's planned, saying which it would cut.
 - **Docker's published ports are filtered where they arrive.** Docker forwards a published port to its container before the input hook, so an input rule never sees it. The table's `forward` chain matches traffic Docker translated (`ct status dnat`) by the port it arrived on (`ct original proto-dst`), from interfaces that aren't Docker's own, so `8080/tcp` means what a person means by it: the port on the server. Traffic between containers, and from them out, is never filtered.
 - **Outbound is never filtered.** The agent's stream to the control plane goes out, and so do the packages, images and certificates a server fetches.
@@ -53,7 +53,7 @@ The agent drives `nft`, `sshd` and `fail2ban-client` as commands, so it links no
 
 ## Consequences
 
-- A server keeps working as it did when Dockwell arrives; closing everything else is a choice, made with a plan that lists what would close.
+- A server keeps working as it did when Dockwell arrives; closing everything else is a choice, made with a plan that lists what would close, as the owner decided.
 - Dockwell can't open what ufw or firewalld closes, and says so. Someone who wants Dockwell to own the firewall turns those off, which the tab says how to do.
 - Every firewall, SSH and fail2ban change costs up to 60 s of waiting for a confirmation. That's the price of not locking anyone out.
 - Tests run the table against real nftables in CI, in a privileged container, and against a fake elsewhere. The install-test images (Debian, Ubuntu, AlmaLinux, Alpine) check that `nft` is there or say it isn't.
