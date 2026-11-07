@@ -204,8 +204,8 @@ function DestinationSheet({ onClose }: { onClose: () => void }) {
                 </Trans>
               </p>
               <code className="backup-passphrase">
-                {made.match(/.{1,6}/g)?.map((group, i) => (
-                  <span key={`${i}-${group}`}>{group}</span>
+                {Array.from(made.matchAll(/.{1,6}/g), (group) => (
+                  <span key={group.index}>{group[0]}</span>
                 ))}
               </code>
               <CopyButton
