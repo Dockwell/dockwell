@@ -44,21 +44,54 @@ Each of these is its own decision, and together they are the record that replace
 - **One person can hold different roles in different projects,** such as developer in `shop` and viewer in `blog`. Their role in a project is the highest grant that covers it. Viewers are scoped too: a viewer of one project reads that project, and nothing of another.
 - **The store keeps grants in a table of their own,** `(user_id, role, project_id)`, with no project for the install. `users.role` goes. A unique index keeps exactly one owner grant.
 
-#### Enforcing it: two checks and one filter
+#### Enforcing it: two checks and one resolver
 
-One interceptor can't enforce a project's scope: it sees which method is called, not what it touches. Proposing a change can touch several projects, applying acts on a change someone else proposed, and lists and streams return everything. So there are two checks, and one filter:
+One interceptor can't enforce a project's scope: it sees which method is called, not what it touches. A call can name an object by its ID; a change can touch several projects; applying, discarding and undoing act on a change someone else proposed; and lists and streams return everything. So there are two checks, and one resolver every other call goes through:
 
 1. **The interceptor checks the lowest role a method needs anywhere.** Reading needs a viewer's grant somewhere, proposing a developer's somewhere, and what's install-wide, below, an admin's. Each method's rule sits beside its effect and its token scope (ADR 0016). A method with no rule is the owner's, so a new service is closed until it says.
-2. **`internal/revision` checks every item's project,** when a change is proposed, against the proposer's grants, and again when it's applied, against whoever applies it, who may be someone else or may have lost the role since. A change with one item outside the person's grants is refused whole. Only `internal/revision` calls `Revise` already, so this is the one place every change passes.
-3. **One shared filter narrows every list and stream** to what the person may see: changes, events, services, variables, logs, files, servers and the timeline. Each reads through it. A test walks every list and stream method in the generated service descriptors and fails on one that returns rows without it, as the `Revise` test does for writes.
+2. **`internal/revision` checks every item's project, for everything done to a change,** against the person doing it:
+   - proposing it, against the proposer;
+   - applying, discarding or undoing it, and rolling a service back, against whoever does that, who may be someone else, or may have lost the role since;
+   - an undo or a rollback item by item, as the change it plans, as a new change is.
 
-A project outside someone's grants reads as not found, in a refusal as in a list, so its name doesn't leak.
+   A change with one item outside the person's grants is refused whole. Only `internal/revision` calls `Revise` already, so every change passes here.
+3. **One resolver says which project any object belongs to,** from its ID: a service and its revisions, a change, a backup and its volume, a variable or a secret, a route, a domain, a Compose project, a deployment's logs, an event. Every call that isn't a change goes through it:
+   - every read by ID;
+   - every list and stream, which keep only rows in the person's projects;
+   - every write that isn't a revision, such as revealing a secret, or making, previewing, fetching or deleting a backup.
+
+   An object in no project, such as a server, or a container on its own, resolves to the install, which only an admin or the owner holds.
+
+   **Out of scope reads as not found.** A call that names an object outside the person's grants, by ID or in a list it passes, gets the same code and words as an ID that never existed, from the resolver, so neither the object nor its project's name leaks. A refusal from check 2 says the same of the item.
+
+   Today that covers, among the rest, the calls by ID that a developer in `shop` holding one of `blog`'s IDs would otherwise reach: `VariableService.RevealSecret`; `BackupService.GetBackup`, `PreviewBackup`, `CreateBackup`, `FetchBackup` and `DeleteBackup`; `ChangeService.GetChange`, `DiscardChange` and `UndoChange` (check 2 as well); `ServiceService.ListServiceRevisions` and `RollBackService`; and `ComposeService.ExportCompose`. An ID being hard to guess is never what keeps it out.
+
+**A test holds the line,** as the `Revise` test does for writes. It walks every method in the generated service descriptors, by its effect and the ID fields of its request, and fails on:
+
+- one that names an object, by an ID field or in a list of them, without the resolver;
+- one that returns rows without it;
+- a write that changes managed state anywhere but `internal/revision`.
+
+A new method with an ID field is closed until it resolves that ID.
 
 #### Install-wide power is an admin's
 
-A developer who can apply in one project could apply something as good as root on a server, such as a host path or Docker's socket (ADR 0021), and with it take the server and every project on it. A passkey step-up proves who is there, not that they may. So these are an admin's or the owner's, whatever someone's project grants say:
+A developer who can apply in one project could apply something as good as root on a server, such as a host path or Docker's socket (ADR 0021), and with it take the server and every project on it. A passkey step-up proves who is there, not that they may. So these are an admin's or the owner's, whatever someone's project grants say.
 
-- plans as good as root, as the plan's `host_access` marks them;
+What a plan reaches beyond its project, as `host_access` names it:
+
+- any server path, mounted into a container or bound by a volume, read-only or not;
+- Docker's or containerd's socket;
+- the server's own network;
+- privileged mode, a capability beyond Docker's defaults, and a group a command joins;
+- a volume mounted from a driver, such as an NFS or CIFS share, or a volume plugin;
+- a network Dockwell didn't make, or one that reaches past the server's bridge, such as macvlan;
+- a proxy a route trusts for where a request came from;
+- the panel's domain.
+
+Anything else that isn't one project's:
+
+- any item in no project, such as a container on its own;
 - files on a server ([ADR 0032](0032-files-on-a-server.md));
 - terminals, on a server or in a container;
 - containers Dockwell didn't make (ADR 0031);
@@ -68,7 +101,13 @@ A developer who can apply in one project could apply something as good as root o
 - variables and secrets set for the whole install;
 - settings, members and invites, the audit log, and anyone else's API tokens.
 
+**What a developer may use,** of what `host_access` also marks, are their own project's ordinary needs: a domain for a route, a port on the server a route sends to, and a route over plain HTTP. Each still needs a person to approve it, as host access always has. A domain or a server port another project holds is refused when the change is planned, as taken, with words that don't name the project that holds it: "shop.example.com is in use by a project you can't see. Ask an admin". A domain another environment of the same project held within the undo window stays theirs to take back, as today.
+
 A developer can read their project's secrets through a container they deploy, as the container is given them (ADR 0022). A role that deploys can read what it deploys. A viewer can't, as a viewer runs nothing.
+
+#### Images on a shared server
+
+A container starts from an image already on its server, whoever pulled it (`ensureImage` in `internal/resource/container`). On a server several projects share, that would let one project run a private image another pulled with its credentials. So once a project pulls with credentials of its own, a private image is pulled with that project's credentials every time a container is made from it, so the registry decides each time, and one project's credentials never serve another's pull. Until then a server pulls public images only, as it does today. The registries work, under Integrations' "Coming later", inherits this.
 
 #### A change of role takes effect at once
 
@@ -102,7 +141,7 @@ A token's scope is narrowed by its maker's grants when it's used, not when it's 
 
 #### Refusals and the record
 
-- **A refusal for a role has a reason of its own,** `needs_role`, and says which role the call needs, and where.
+- **A refusal for a role has a reason of its own,** `needs_role`, and says which role the call needs, and where, for a place the person can see, such as a viewer of `shop` deploying there. Anything out of their scope is not found instead, as above.
 - **The audit log records** role refusals, invites made, revoked, expired and accepted, role changes, removals and ownership transfers: `member.invite`, `member.invite_revoke`, `member.join`, `member.role`, `member.remove` and `owner.transfer`, with who, from where, what was and what is. Those but refusals are on Activity's access events too.
 - **The audit log and the members list are the owner's and the admins'.** The timeline narrows to what each person may see, through the shared filter.
 
