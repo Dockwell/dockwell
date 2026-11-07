@@ -955,7 +955,7 @@ function PlanBody({
     read && lookOf(read.domain).state === "serving" ? [read.domain.name] : [],
   );
   const warnings = useWarnings(plan, phase !== "review", serving);
-  const dataLeft = useDataLeft(plan);
+  const dataLeft = useDataLeft(plan, change?.steps ?? []);
   const asides = useAsides(plan);
   const fleet = isFleet(plan);
   if (phase === "planning") {

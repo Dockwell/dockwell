@@ -431,6 +431,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				return fail(err)
 			}
 			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()}
+			if id := d.GetBackupId(); id != "" {
+				want.Backup = &resource.BackupAsked{ID: id}
+			}
 			if r := d.GetRestore(); r != nil {
 				want.Restore = &resource.RestoreSource{Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Change: r.GetChangeId()}
 			}
@@ -468,7 +471,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		ctx = resource.WithProgress(ctx, progress.say)
 		ctx = resource.WithOutcome(ctx, func(o resource.Outcome) {
 			_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{
-				Id: call.GetId(), Outcome: &agentv1.StepOutcome{Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note, Untouched: o.Untouched, Did: resourcepb.Did(o.Did)},
+				Id: call.GetId(), Outcome: &agentv1.StepOutcome{Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note, Untouched: o.Untouched, Did: resourcepb.Did(o.Did), Backup: backupTaken(o.Backup)},
 			}}})
 		})
 		if d := call.GetApply().GetDeploy(); d != nil {
@@ -651,6 +654,14 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 		return nil, err
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteBackup{DeleteBackup: out}}, nil
+}
+
+// backupTaken is what a step took, as the stream carries it.
+func backupTaken(b *resource.BackupTaken) *agentv1.BackupResult {
+	if b == nil {
+		return nil
+	}
+	return &agentv1.BackupResult{Id: b.ID, Method: resourcepb.BackupMethod(b.Method), Database: b.Database, Sha256: b.SHA256, SizeBytes: b.Size, FilesChanged: b.Changed}
 }
 
 // openDestination opens where a backup goes, sealed to this stream for this volume,

@@ -41,6 +41,8 @@ type Upgrade struct {
 	// by reference.
 	Stands map[string]string
 	Pin    *resourcev1.CatalogPin
+	// SkipBackup leaves out the backup of its volumes that comes first.
+	SkipBackup bool
 	// Old is the file the install has now, with what it used and what stood for its
 	// secrets, which nothing but reading it needs.
 	Old          []byte
@@ -52,7 +54,8 @@ type Upgrade struct {
 // its pin in the same change, so undoing it takes both back. It's a three-way merge of
 // the old file, the new one and what runs (ADR 0029), so what the release changes
 // follows it, what it dropped goes, and what a person did stays. Nothing the old file
-// didn't name is touched. Its plan says no backup is taken.
+// didn't name is touched. It backs up the volumes the release keeps first, as steps
+// that come before what uses them, unless it's asked not to, and its plan says which.
 func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Change, error) {
 	next, err := h.read(ctx, compose.Input{File: in.File, Variables: in.Variables})
 	if err != nil {
@@ -81,11 +84,29 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	project := resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project}
 	place.made = []revision.Edit{{Ref: project, Spec: &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}}}
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Variables: in.Variables}
-	return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: append([]revision.Note{{
-		Reason:  "no_backup",
-		Message: "Dockwell takes no backup before this upgrade, as it can't make one yet. Undoing it puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first",
+	var backUp []resource.Ref
+	for _, v := range next.Volumes {
+		if now.volumes[v.Name] {
+			backUp = append(backUp, resource.Ref{Kind: volume.Kind, Scope: place.environment, Name: v.Name})
+		}
+	}
+	say := revision.Note{
+		Reason:  "backup_first",
+		Message: "Dockwell backs up this app's volumes before it changes anything. If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that",
 		Ref:     project,
-	}}, notes...)})
+	}
+	switch {
+	case in.SkipBackup:
+		backUp = nil
+		say = revision.Note{
+			Reason:  "no_backup",
+			Message: "This upgrade takes no backup, as you asked. Undoing it puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first",
+			Ref:     project,
+		}
+	case len(backUp) == 0:
+		return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
+	}
+	return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, notes: append([]revision.Note{say}, notes...)})
 }
 
 // normalize gives what a file says the shape the store keeps it in, so it compares

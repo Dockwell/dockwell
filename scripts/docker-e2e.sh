@@ -3594,8 +3594,8 @@ catalog_release 2 1.28 "$release_second"
 installs=$(dw catalog installs --json) || fail "catalog installs failed"
 jq -e '.installs[] | select(.project == "e2e-notes") | .upgrade.version == "1.28"' <<<"$installs" >/dev/null || fail "a newer release doesn't read as one: $installs"
 planned=$(dw catalog upgrade e2e-notes --plan-only --json) || fail "planning the upgrade failed"
-jq -e '.change.plan.notes | any(.reason == "no_backup" and (.message | contains("takes no backup")))' <<<"$planned" >/dev/null ||
-  fail "the upgrade's plan doesn't say no backup is taken: $planned"
+jq -e '(.change.plan.notes | any(.reason == "backup_first")) and (.change.plan.servers[0].steps | any(.backupFirst != null))' <<<"$planned" >/dev/null ||
+  fail "the upgrade's plan doesn't back up first: $planned"
 change=$(jq -r .change.id <<<"$planned")
 dw changes apply "$change" --yes >/dev/null || fail "applying the upgrade failed"
 catalog_runs() {
@@ -3617,6 +3617,13 @@ catalog_runs "$release_second"
 installs=$(dw catalog installs --json) || fail "catalog installs failed"
 jq -e '.installs[] | select(.project == "e2e-notes") | (has("upgrade") | not) and .pin.version == "1.28"' <<<"$installs" >/dev/null ||
   fail "after the upgrade the install reads: $installs"
+
+step "Catalog: an upgrade backed up what it could change first"
+upgrade_volume=$(volume_id data "$catalog_project")
+[[ -n "$upgrade_volume" ]] || fail "the install has no volume data"
+backups=$(dw backups list --volume-id "$upgrade_volume" --json) || fail "listing backups failed"
+jq -e '.backups | length == 1 and .[0].state == "BACKUP_STATE_DONE" and (.[0].sizeBytes | tonumber > 0)' <<<"$backups" >/dev/null ||
+  fail "the upgrade left no backup: $backups"
 
 step "Catalog: undoing an upgrade puts the old version back, with the data as it is"
 dw changes undo "$change" --yes >/dev/null || fail "undoing the upgrade failed"

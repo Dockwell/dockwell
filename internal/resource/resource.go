@@ -211,6 +211,9 @@ type Decision struct {
 	// Restore says what a step that brings a volume's data back from a backup
 	// does. Its fingerprint covers it, so what stops can't change unreviewed.
 	Restore *RestorePlan `json:",omitempty"`
+	// BackupFirst says what a step that backs up a volume, before the rest of its
+	// change, does.
+	BackupFirst *BackupFirst `json:",omitempty"`
 	// Returning names stopped containers Docker starts again when it next
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
@@ -397,6 +400,9 @@ func (d Decision) Budget() time.Duration {
 	if d.Restore != nil {
 		return restoreBudget(d.Restore.Size)
 	}
+	if d.BackupFirst != nil {
+		return restoreBudget(d.BackupFirst.Estimate)
+	}
 	b := max(d.Downtime, d.UntilHealthy)
 	if r := d.Rollout; r != nil {
 		b += r.HealthyWithin + r.Soak + r.Drain + r.StopGrace
@@ -446,6 +452,29 @@ type RestorePlan struct {
 	// one that would read them, set when those are different releases.
 	WrittenBy string `json:",omitempty"`
 	RunsOn    string `json:",omitempty"`
+}
+
+// BackupFirst is a backup a change takes before anything else it does.
+type BackupFirst struct {
+	// ID is the backup's, which the control plane gave it.
+	ID string
+	// Method is how it's taken: BackupDump and so on.
+	Method string
+	// Database names the database of a dump.
+	Database string `json:",omitempty"`
+	// Stops names what stops while it's copied, sorted.
+	Stops []string `json:",omitempty"`
+	// Estimate is about how much it will take on the disk, in bytes.
+	Estimate int64 `json:",omitempty"`
+	// Unmeasured says nothing could tell how large it will be, so the time the step
+	// gets is a guess: there was no backup before, and measuring took too long.
+	Unmeasured bool `json:",omitempty"`
+}
+
+// BackupTaken is a backup a step took, whole on its server.
+type BackupTaken struct {
+	ID, Method, Database, SHA256 string
+	Size, Changed                int64
 }
 
 // IngressChange is what happens to the proxy that holds a server's public
@@ -881,6 +910,16 @@ type Restorer interface {
 	JudgeRestore(ctx context.Context, ref Ref, source RestoreSource) (Decision, bool, error)
 	// ApplyRestore carries out the step.
 	ApplyRestore(ctx context.Context, step Step, source RestoreSource) error
+}
+
+// BackerUp is a driver that can back up a resource's data as a step of a change, as
+// a catalog upgrade does before it replaces what uses it (ADR 0033).
+type BackerUp interface {
+	// JudgeBackup judges a step that takes backup id, and reports false when that's
+	// been taken already, as a step that finished and went unheard has.
+	JudgeBackup(ctx context.Context, ref Ref, id string) (Decision, bool, error)
+	// ApplyBackup carries out the step, and reports what it took (Report).
+	ApplyBackup(ctx context.Context, step Step) error
 }
 
 // HostAccesser is a kind whose specs can reach their server beyond what

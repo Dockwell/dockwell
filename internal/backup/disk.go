@@ -78,9 +78,9 @@ func (r *Runner) lastSize(ref resource.Ref) int64 {
 // estimate says about how much a backup of a volume will take: what the last took,
 // or what's in it before there's been one. That's an upper bound, as a backup is
 // compressed. Zero means it took too long to find out.
-func (r *Runner) estimate(ctx context.Context, take Take, t volume.Target) int64 {
+func (r *Runner) estimate(ctx context.Context, take Take, t volume.Target) (size int64, known bool) {
 	if size := r.lastSize(take.Ref); size > 0 {
-		return size
+		return size, true
 	}
 	ctx, cancel := context.WithTimeout(ctx, measureWait)
 	defer cancel()
@@ -89,9 +89,9 @@ func (r *Runner) estimate(ctx context.Context, take Take, t volume.Target) int64
 		if !errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 			r.logger().Warn("can't measure a volume", "volume", t.Name, "error", err.Error())
 		}
-		return 0
+		return 0, false
 	}
-	return stats.Bytes
+	return stats.Bytes, true
 }
 
 // margin is how far a backup may outgrow the last, as data does.
@@ -103,7 +103,7 @@ func (r *Runner) roomFor(ctx context.Context, take Take, t volume.Target) error 
 	if err != nil {
 		return err
 	}
-	size := r.estimate(ctx, take, t)
+	size, _ := r.estimate(ctx, take, t)
 	needs := size + size/margin
 	if d.free-needs >= d.reserve {
 		return nil

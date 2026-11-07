@@ -184,10 +184,10 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
     .waitFor();
   await shoot(page, "catalog-upgrade");
 
-  step("catalog: upgrading is a plan that says no backup is taken, and it has an undo");
+  step("catalog: upgrading is a plan that backs up first, and it has an undo");
   await upgrade.click();
   await plan.waitFor({ timeout: 30_000 });
-  await plan.getByText("No backup is taken first").waitFor();
+  await plan.getByText("Its volumes are backed up first").waitFor();
   await shoot(page, "catalog-upgrade-plan");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
   const undo = page.getByRole("button", { name: /Undo/ });

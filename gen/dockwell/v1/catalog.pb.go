@@ -603,7 +603,9 @@ type UpgradeCatalogInstallRequest struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// A value for each input the newer release adds, by name, as InstallCatalogEntry
 	// takes them. What it was installed with carries over, and its secrets stay.
-	Values        map[string]string `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Values map[string]string `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Leaves out the backup of its volumes that comes first, and the plan says so.
+	SkipBackup    bool `protobuf:"varint,3,opt,name=skip_backup,json=skipBackup,proto3" json:"skip_backup,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -650,6 +652,13 @@ func (x *UpgradeCatalogInstallRequest) GetValues() map[string]string {
 		return x.Values
 	}
 	return nil
+}
+
+func (x *UpgradeCatalogInstallRequest) GetSkipBackup() bool {
+	if x != nil {
+		return x.SkipBackup
+	}
+	return false
 }
 
 // UpgradeCatalogInstallResponse carries the planned change.
@@ -741,10 +750,12 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"J\n" +
 	"\x1bInstallCatalogEntryResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xbe\x01\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xdf\x01\n" +
 	"\x1cUpgradeCatalogInstallRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12S\n" +
-	"\x06values\x18\x02 \x03(\v25.dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntryB\x04\xc8\xf3\x18\x01R\x06values\x1a9\n" +
+	"\x06values\x18\x02 \x03(\v25.dockwell.v1.UpgradeCatalogInstallRequest.ValuesEntryB\x04\xc8\xf3\x18\x01R\x06values\x12\x1f\n" +
+	"\vskip_backup\x18\x03 \x01(\bR\n" +
+	"skipBackup\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"L\n" +

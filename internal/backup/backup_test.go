@@ -1116,3 +1116,46 @@ func TestDeleteRemovesABackup(t *testing.T) {
 		t.Error("it took a path for an ID")
 	}
 }
+
+// A backup that's a step of a change goes by the last one's size, which sets how long it
+// gets. With none, and nothing to measure with, it says that's a guess.
+func TestABackupStepSaysWhatItsGoingBy(t *testing.T) {
+	b := newBench(t)
+	b.write("orders.db", strings.Repeat("the orders ", 1<<16))
+	b.engine.Intercept(func(r *http.Request) error {
+		if strings.Contains(r.URL.Path, "/images/create") {
+			return errors.New("no room for the helper")
+		}
+		return nil
+	})
+	dec, _, err := b.runner.JudgeBackup(t.Context(), ref, "bkp_2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !dec.BackupFirst.Unmeasured || dec.BackupFirst.Estimate != 0 {
+		t.Errorf("with nothing to go by = %+v", dec.BackupFirst)
+	}
+	b.engine.Intercept(nil)
+	dec, _, err = b.runner.JudgeBackup(t.Context(), ref, "bkp_2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dec.BackupFirst.Unmeasured || dec.BackupFirst.Estimate == 0 {
+		t.Errorf("measured = %+v", dec.BackupFirst)
+	}
+
+	m := b.take(false)
+	b.engine.Intercept(func(r *http.Request) error {
+		if strings.Contains(r.URL.Path, "/images/create") {
+			return errors.New("no room for the helper")
+		}
+		return nil
+	})
+	dec, _, err = b.runner.JudgeBackup(t.Context(), ref, "bkp_2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dec.BackupFirst.Unmeasured || dec.BackupFirst.Estimate != m.Size {
+		t.Errorf("after a backup of %d bytes = %+v", m.Size, dec.BackupFirst)
+	}
+}

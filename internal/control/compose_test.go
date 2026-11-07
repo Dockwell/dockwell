@@ -82,7 +82,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		t.Fatal(err)
 	}
 	backups := &backup.Runner{Client: client, Root: t.TempDir(), Binary: helper, Work: 1000}
-	volumes := &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, Restores: backups}
+	volumes := &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, Restores: backups, BacksUp: backups}
 	var volumeType resource.Type = volumes
 	if f.volumes != nil {
 		volumeType = f.volumes(volumes)

@@ -408,3 +408,79 @@ func TestARestoreResumesWithoutRunningTwice(t *testing.T) {
 		}
 	})
 }
+
+// backingUp is an agent that plans a step for a backup, as a server's does, and writes
+// down what it was asked to do.
+type backingUp struct {
+	resource.Agent
+	server     string
+	unmeasured bool
+	did        *[]string
+}
+
+func (a backingUp) Plan(ctx context.Context, desired []resource.Desired) ([]resource.Step, error) {
+	plain := slices.Clone(desired)
+	for i := range plain {
+		plain[i].Backup = nil
+	}
+	steps, err := a.Agent.Plan(ctx, plain)
+	if err != nil {
+		return nil, err
+	}
+	for i := range desired {
+		if asked := desired[i].Backup; asked != nil {
+			steps[i].Action = resource.ActionUpdate
+			steps[i].BackupFirst = &resource.BackupFirst{ID: asked.ID, Method: resource.BackupCopy, Unmeasured: a.unmeasured}
+		}
+	}
+	return steps, nil
+}
+
+func (a backingUp) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	if step.BackupFirst != nil {
+		*a.did = append(*a.did, "back up on "+a.server)
+		return nil
+	}
+	*a.did = append(*a.did, step.Ref.Name+" on "+a.server)
+	return a.Agent.Apply(ctx, step, desired)
+}
+
+// An app on several servers has a backup on each before anything is replaced on any of
+// them, so one that fails leaves them all as they were. And a volume nothing could
+// measure says so once, however many servers have it.
+func TestBackupsComeBeforeAnythingOnAnyServer(t *testing.T) {
+	e, _, db := setupDocker(t, store.SQLite, "srv_A", "srv_B")
+	env := production(t, db)
+	agents := e.agents.(onDocker) //nolint:forcetypeassert // setupDocker's
+	placed := func(version string) []Edit {
+		web := uses(env, "srv_A", "srv_B")
+		app := web.Spec.(*resourcev1.Service).GetApp() //nolint:forcetypeassert // uses's
+		app.Env, app.Networks = map[string]string{"VERSION": version}, nil
+		return []Edit{data(env, "srv_A", "srv_B"), web}
+	}
+	apply(t, e, propose(t, e, "Run web", placed("1")...))
+	var did []string
+	for _, server := range []string{"srv_A", "srv_B"} {
+		agents[server] = backingUp{Agent: agents[server], server: server, unmeasured: true, did: &did}
+	}
+	edits := placed("2")
+	edits[0].Backup = true
+	plan := propose(t, e, "Move web on", edits...)
+	unmeasured := 0
+	for _, n := range plan.Notes {
+		if n.Reason == "backup_unmeasured" {
+			unmeasured++
+			if !strings.Contains(n.Message, "data took too long to measure") {
+				t.Errorf("the plan says %q", n.Message)
+			}
+		}
+	}
+	if unmeasured != 1 {
+		t.Errorf("the plan says %d times that data is unmeasured: %+v", unmeasured, plan.Notes)
+	}
+	apply(t, e, plan)
+	want := []string{"back up on srv_A", "back up on srv_B"}
+	if len(did) < 3 || !slices.Equal(did[:2], want) {
+		t.Errorf("did %v, want it to start with %v", did, want)
+	}
+}

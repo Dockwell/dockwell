@@ -470,7 +470,7 @@ func (s *Session) progressed(p *agentv1.CallProgress) {
 	s.mu.Unlock()
 	if o := p.GetOutcome(); o != nil {
 		if told != nil {
-			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid())})
+			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup())})
 		}
 		return
 	}
@@ -830,6 +830,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			dr.Restore = &agentv1.RestoreSource{BackupId: r.Backup, Undoes: r.Undoes, ChangeId: r.Change}
 		}
 		dr.ScopeName = s.scopeName(ctx, d.Ref)
+		if b := d.Backup; b != nil {
+			dr.BackupId = b.ID
+		}
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)
@@ -1221,6 +1224,16 @@ func (s *Session) Containers(ctx context.Context, container string) (*agentv1.Co
 		return nil, err
 	}
 	return r.GetContainers(), nil
+}
+
+// backupTaken reads what a step took.
+func backupTaken(b *agentv1.BackupResult) *resource.BackupTaken {
+	if b == nil {
+		return nil
+	}
+	return &resource.BackupTaken{
+		ID: b.GetId(), Method: resourcepb.BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), SHA256: b.GetSha256(), Size: b.GetSizeBytes(), Changed: b.GetFilesChanged(),
+	}
 }
 
 // BackupPreview asks the agent what backing up a volume would do.

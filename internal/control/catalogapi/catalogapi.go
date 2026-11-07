@@ -242,6 +242,7 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 		Secrets:     filled.Secrets,
 		Stands:      filled.Stands(),
 		Pin:         pinTo(entry, filled),
+		SkipBackup:  m.GetSkipBackup(),
 
 		Old:          pin.GetFile(),
 		OldVariables: oldVariables,

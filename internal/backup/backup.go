@@ -145,9 +145,10 @@ type Preview struct {
 	// Running names what runs on the volume now, as a plan does.
 	Running []string
 	// Estimate is about how much a backup will take on the disk, in bytes, and zero
-	// when that took too long to find out. Free is what's free there, and Reserve how
-	// much of that a backup leaves alone.
+	// when that took too long to find out, which Unmeasured says. Free is what's free
+	// there, and Reserve how much of that a backup leaves alone.
 	Estimate, Free, Reserve int64
+	Unmeasured              bool
 }
 
 // Preview says what backing up a volume would do.
@@ -174,7 +175,9 @@ func (r *Runner) Preview(ctx context.Context, ref resource.Ref) (Preview, error)
 		return Preview{}, err
 	}
 	p.Free, p.Reserve = disk.free, disk.reserve
-	p.Estimate = r.estimate(ctx, Take{Ref: ref}, t)
+	var known bool
+	p.Estimate, known = r.estimate(ctx, Take{Ref: ref}, t)
+	p.Unmeasured = !known
 	return p, nil
 }
 

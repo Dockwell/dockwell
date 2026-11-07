@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"slices"
@@ -171,6 +172,49 @@ func estimate(m *Manifest) time.Duration {
 		speed = 4 << 20
 	}
 	return time.Minute + 2*time.Duration(m.Size/speed)*time.Second
+}
+
+// JudgeBackup plans a backup as a step of a change, and reports false if it's been
+// taken already. It stops what runs on the volume for an exact copy, as what follows
+// it in a change usually replaces that anyway.
+func (r *Runner) JudgeBackup(ctx context.Context, ref resource.Ref, id string) (resource.Decision, bool, error) {
+	if _, err := readManifest(filepath.Join(r.dir(ref), id+".json")); err == nil {
+		return resource.Decision{}, false, nil
+	}
+	p, err := r.Preview(ctx, ref)
+	if err != nil {
+		return resource.Decision{}, false, err
+	}
+	dec := resource.Decision{Action: resource.ActionUpdate, BackupFirst: &resource.BackupFirst{ID: id, Method: p.Method, Database: p.Database, Estimate: p.Estimate, Unmeasured: p.Unmeasured}}
+	if p.Method == resource.BackupCopyRunning {
+		dec.Effect = resource.EffectRestart
+		dec.BackupFirst.Method = resource.BackupCopy
+		dec.BackupFirst.Stops = p.Running
+		dec.Downtime = time.Minute + 2*time.Duration(sizeBucket(p.Estimate)/(20<<20))*time.Second
+	}
+	return dec, true, nil
+}
+
+// sizeBucket rounds a size up to a power of two, so a plan's downtime doesn't move
+// between planning and applying because a file grew.
+func sizeBucket(size int64) int64 {
+	if size <= 0 {
+		return 0
+	}
+	return 1 << bits.Len64(uint64(size))
+}
+
+// ApplyBackup takes a step's backup, and says what it took.
+func (r *Runner) ApplyBackup(ctx context.Context, step resource.Step) error {
+	first := step.BackupFirst
+	m, err := readManifest(filepath.Join(r.dir(step.Ref), first.ID+".json"))
+	if err != nil {
+		if m, err = r.Take(ctx, Take{ID: first.ID, Ref: step.Ref, Stop: true}); err != nil {
+			return err
+		}
+	}
+	resource.Report(ctx, resource.Outcome{Backup: &resource.BackupTaken{ID: m.ID, Method: m.Method, Database: m.Database, SHA256: m.SHA256, Size: m.Size, Changed: m.Changed}})
+	return nil
 }
 
 // JudgeRestore plans a restore, and reports false if the change did it already.

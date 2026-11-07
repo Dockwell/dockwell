@@ -35,6 +35,8 @@ type Outcome struct {
 	Untouched bool
 	// Did is what the step did in the end, where that isn't what its plan says.
 	Did *Action
+	// Backup is the backup the step took.
+	Backup *BackupTaken
 }
 
 // Did is what Outcome.Did holds.

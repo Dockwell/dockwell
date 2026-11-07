@@ -169,6 +169,9 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 			TakenAt: timestamppb.New(r.Taken), SizeBytes: r.Size, Stops: r.Stops, WrittenBy: r.WrittenBy, RunsOn: r.RunsOn,
 		}
 	}
+	if b := s.BackupFirst; b != nil {
+		p.BackupFirst = &dockwellv1.BackupFirst{BackupId: b.ID, Method: BackupMethod(b.Method), Database: b.Database, Stops: b.Stops, EstimateBytes: b.Estimate, Unmeasured: b.Unmeasured}
+	}
 	return p
 }
 
@@ -418,6 +421,9 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 			Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Method: BackupMethodFrom(r.GetMethod()), Database: r.GetDatabase(),
 			Taken: r.GetTakenAt().AsTime(), Size: r.GetSizeBytes(), Stops: r.GetStops(), WrittenBy: r.GetWrittenBy(), RunsOn: r.GetRunsOn(),
 		}
+	}
+	if b := p.GetBackupFirst(); b != nil {
+		s.BackupFirst = &resource.BackupFirst{ID: b.GetBackupId(), Method: BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), Stops: b.GetStops(), Estimate: b.GetEstimateBytes(), Unmeasured: b.GetUnmeasured()}
 	}
 	return s, nil
 }

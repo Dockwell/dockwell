@@ -7,6 +7,7 @@
 package backups
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -113,9 +114,42 @@ var _ dockwellv1connect.BackupServiceHandler = (*Handler)(nil)
 // New returns a handler that reaches servers through agents.
 func New(ch *changes.Handler, engine *revision.Engine, agents *agentapi.Agents, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
 	base, cancel := context.WithCancel(context.Background())
-	return &Handler{
+	h := &Handler{
 		changes: ch, engine: engine, agents: agents, db: db, keeper: keeper, logger: logger, names: actors.New(),
 		base: base, cancel: cancel, progress: map[string]string{},
+	}
+	engine.OnBackup(h.recordStep)
+	return h
+}
+
+// recordStep puts a backup a change's step took on the record. A step resumed after
+// its answer went unheard reports what's on the disk again, and this says it once.
+func (h *Handler) recordStep(ctx context.Context, step revision.BackupStep) {
+	taken := step.Taken
+	now := h.now()
+	actor := cmp.Or(step.Change.AppliedBy, step.Change.Actor)
+	b := store.Backup{
+		ID: taken.ID, EnvironmentID: step.Volume.Scope, Volume: step.Volume.Name, VolumeID: step.VolumeID, ServerID: step.Server,
+		State: store.BackupDone, Method: taken.Method, Database: taken.Database, SizeBytes: taken.Size, SHA256: taken.SHA256, FilesChanged: taken.Changed,
+		Actor: actor, StartedAt: now, FinishedAt: &now,
+	}
+	told := Told{ID: b.ID, Volume: b.Volume, Method: b.Method, Size: b.SizeBytes}
+	err := h.say(ctx, &b, ActionTaken, told, actor, store.SurfaceAutomatic, func(tx *store.Tx) error {
+		if err := tx.CreateBackup(ctx, b); err != nil {
+			return err
+		}
+		return tx.FinishBackup(ctx, b)
+	})
+	if err != nil {
+		var seen store.Backup
+		if lookErr := h.db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			seen, err = tx.GetBackup(ctx, b.ID)
+			return err
+		}); lookErr == nil && seen.ID == b.ID {
+			return
+		}
+		h.logger.ErrorContext(ctx, "can't record a backup a change took", slog.String("backup", b.ID), slog.String("error", err.Error()))
 	}
 }
 

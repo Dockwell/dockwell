@@ -27,18 +27,26 @@ type Desired struct {
 	// stop by hand isn't drift (ADR 0021), so nothing else starts it, but for a
 	// change that replaces it anyway.
 	Run bool
-	// Restart names a restart the resource is to have, though its spec hasn't
-	// changed: the change's ID. Its kind is a Settler.
-	Restart string
 	// Rollback says a rollback is planning this, which runs before anyone reads its
 	// plan, so it takes nothing only a person may approve.
 	Rollback bool
+	// Restart names a restart the resource is to have, though its spec hasn't
+	// changed: the change's ID. Its kind is a Settler.
+	Restart string
 	// Adopt takes on this container, by its full ID, as what the resource runs, in
 	// place of making one. Its kind is an Adopter.
 	Adopt string
 	// Restore brings the resource's data back from a backup, with its spec as it
 	// is. Its kind is a Restorer.
 	Restore *RestoreSource
+	// Backup backs up the resource's data as a step of this change. Its kind is a
+	// BackerUp.
+	Backup *BackupAsked
+}
+
+// BackupAsked is a backup a change asks a step to take, under the ID it gave it.
+type BackupAsked struct {
+	ID string
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -255,7 +263,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup}, d
 	}
 	for i, want := range normal {
 		d, spec := drivers[i], want.Spec
@@ -311,6 +319,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 						return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 					}
 				}
+			}
+			steps = append(steps, step)
+			continue
+		}
+		if want.Backup != nil && step.Action == ActionNone {
+			b, ok := d.(BackerUp)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't back up a %s", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := b.JudgeBackup(ctx, want.Ref, want.Backup.ID)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.Decision = dec
 			}
 			steps = append(steps, step)
 			continue
@@ -448,6 +471,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return fmt.Errorf("can't get the values %s uses: %w", step.Ref, err)
 		}
 		ctx = WithValues(ctx, values)
+	}
+	if step.BackupFirst != nil {
+		b, ok := d.(BackerUp)
+		if !ok {
+			return cantApply(step, fmt.Errorf("this agent can't back up a %s", step.Ref.Kind))
+		}
+		if err := b.ApplyBackup(ctx, step); err != nil {
+			return Plainly(fmt.Sprintf("Dockwell can't back up %s, so nothing else in this change ran: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't back up %s: %w", step.Ref, err))
+		}
+		return nil
 	}
 	if step.Restore != nil {
 		r, ok := d.(Restorer)

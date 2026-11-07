@@ -419,15 +419,15 @@ func testUpgradingAnInstall(t *testing.T, backend store.Backend) {
 	}
 	var said string
 	for _, n := range planned.GetPlan().GetNotes() {
-		if n.GetReason() == "no_backup" {
+		if n.GetReason() == "backup_first" {
 			said = n.GetMessage()
 		}
 		if n.GetReason() == "updates_project" {
 			t.Errorf("an upgrade reads as a file landing on a project: %s", n.GetMessage())
 		}
 	}
-	if !strings.Contains(said, "takes no backup") {
-		t.Errorf("the plan doesn't say no backup is taken: %v", planned.GetPlan().GetNotes())
+	if !strings.Contains(said, "backs up this app's volumes before it changes anything") {
+		t.Errorf("the plan doesn't say a backup comes first: %v", planned.GetPlan().GetNotes())
 	}
 	if strings.Contains(planned.String(), password) {
 		t.Error("the plan holds the password")
@@ -514,6 +514,7 @@ type upgrading struct {
 	c   dockwellv1connect.ChangeServiceClient
 	cat dockwellv1connect.CatalogServiceClient
 	b   *browser
+	f   *fullServer
 	env string
 }
 
@@ -526,6 +527,7 @@ func startUpgrading(t *testing.T, backend store.Backend, entry string) *upgradin
 	u.release(entry)
 	f := startFull(t, backend, nil)
 	u.b = signedIn(t, f)
+	u.f = f
 	u.e = f.addDockerServer(t)
 	pullsAnything(u.e)
 	u.c = changeClient(u.b, u.b.origin)
@@ -733,8 +735,8 @@ func testAFailedUpgradeGoesBackToWhatRan(t *testing.T, backend store.Backend) {
 		t.Errorf("the install reads pin %d, upgrade %d, after a failed upgrade", got.GetPin().GetRelease(), got.GetUpgrade().GetRelease())
 	}
 	// The sheet says what this left in the data from what the plan said.
-	if !slices.ContainsFunc(failed.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "no_backup" }) {
-		t.Errorf("the failed upgrade's plan lost its no_backup note: %v", failed.GetPlan().GetNotes())
+	if !slices.ContainsFunc(failed.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "backup_first" }) {
+		t.Errorf("the failed upgrade's plan lost its backup_first note: %v", failed.GetPlan().GetNotes())
 	}
 }
 
@@ -746,6 +748,7 @@ func TestUndoingAnUpgradeWarnsOfItsData(t *testing.T) {
 
 func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
 	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	var names []string
 	said := func(id string) string {
 		t.Helper()
 		undo, err := u.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: id}))
@@ -754,8 +757,8 @@ func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
 		}
 		var out string
 		for _, n := range undo.Msg.GetChange().GetPlan().GetNotes() {
-			if n.GetReason() == "undo_no_backup" {
-				out = n.GetMessage()
+			if n.GetReason() == "undo_backup_first" {
+				out, names = n.GetMessage(), n.GetNames()
 			}
 		}
 		if _, err := u.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: undo.Msg.GetChange().GetId()})); err != nil {
@@ -777,12 +780,103 @@ func testUndoingAnUpgradeWarnsOfItsData(t *testing.T, backend store.Backend) {
 	u.release(testEntry(2, "2.0", secondRelease, ""))
 	up := u.upgrade()
 	u.applied(up)
+	bc := backupClient(u.b, u.b.origin)
+	taken := backupsOf(t, bc)
+	if len(taken) != 1 {
+		t.Fatalf("backups = %v", taken)
+	}
+	id := taken[0].GetId()
 	got := said(up.GetId())
-	for _, want := range []string{"may refuse it or misread it", "no backup was taken"} {
+	when := taken[0].GetStartedAt().AsTime().Format("2006-01-02 15:04") + " UTC"
+	for _, want := range []string{"may refuse it or misread it", "backed it up first, in " + id, when, "restore that from Backups"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("an undo of an upgrade says %q, with no %q", got, want)
 		}
 	}
+
+	// A surface with words of its own gets when, then which.
+	if at, err := time.Parse(time.RFC3339, names[0]); err != nil || !at.Equal(taken[0].GetStartedAt().AsTime().Truncate(time.Second)) || !slices.Equal(names[1:], []string{id}) {
+		t.Errorf("an undo of an upgrade names %v, %v", names, err)
+	}
+
+	// Once it's gone, the undo can't point at it.
+	if _, err := bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: id})); err != nil {
+		t.Fatal(err)
+	}
+	if got := said(up.GetId()); !strings.Contains(got, "took first is gone") || strings.Contains(got, id) {
+		t.Errorf("with its backup deleted, an undo says %q", got)
+	}
+}
+
+// An upgrade backs up what it may change before it touches anything, as a step of its
+// plan. A backup that fails stops it there, and asking for none says so.
+func TestAnUpgradeBacksUpFirst(t *testing.T) { storetest.Each(t, testAnUpgradeBacksUpFirst) }
+
+func testAnUpgradeBacksUpFirst(t *testing.T, backend store.Backend) {
+	u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+	bc := backupClient(u.b, u.b.origin)
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+
+	up := u.upgrade()
+	steps := up.GetPlan().GetServers()[0].GetSteps()
+	first := slices.IndexFunc(steps, func(s *dockwellv1.PlanStep) bool { return s.GetBackupFirst() != nil })
+	replace := slices.IndexFunc(steps, func(s *dockwellv1.PlanStep) bool { return s.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_REPLACE })
+	if first < 0 || replace < 0 || first > replace {
+		t.Fatalf("the backup isn't before what it protects: %v", steps)
+	}
+	if up.GetPlan().GetDestructive() {
+		t.Error("a backup first makes the plan read as destructive")
+	}
+
+	// A backup that can't run stops it there, with nothing changed.
+	binary := u.f.lastDocker.backups.Binary
+	u.f.lastDocker.backups.Binary = filepath.Join(t.TempDir(), "gone")
+	w := watch(t, u.c, up.GetId())
+	if _, err := u.c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: up.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	failed := waitWatch(t, w).last()
+	u.f.lastDocker.backups.Binary = binary
+	if failed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(failed.GetError(), "nothing else in this change ran") {
+		t.Fatalf("the upgrade ended %v: %s", failed.GetState(), failed.GetError())
+	}
+	if got := u.web(); got.Config.Image != firstRelease {
+		t.Errorf("a failed backup let the upgrade run: web runs %s", got.Config.Image)
+	}
+
+	// Planned again, it takes the backup and goes on.
+	again := u.upgrade()
+	u.applied(again)
+	if got := u.web(); got.Config.Image != secondRelease {
+		t.Errorf("web runs %s", got.Config.Image)
+	}
+	res, err := bc.ListBackups(t.Context(), connect.NewRequest(&dockwellv1.ListBackupsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Msg.GetBackups(); len(got) != 1 || got[0].GetState() != dockwellv1.BackupState_BACKUP_STATE_DONE || got[0].GetSizeBytes() == 0 {
+		t.Fatalf("after the upgrade, backups = %v", got)
+	}
+}
+
+func TestAnUpgradeCanSkipItsBackupAndSaysSo(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		u := startUpgrading(t, backend, testEntry(1, "1.0", firstRelease, ""))
+		u.release(testEntry(2, "2.0", secondRelease, ""))
+		res, err := u.cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "thing", SkipBackup: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan := res.Msg.GetChange().GetPlan()
+		if !slices.ContainsFunc(plan.GetNotes(), func(n *dockwellv1.PlanNote) bool {
+			return n.GetReason() == "no_backup" && strings.Contains(n.GetMessage(), "takes no backup, as you asked")
+		}) {
+			t.Errorf("notes = %v", plan.GetNotes())
+		}
+		if slices.ContainsFunc(plan.GetServers()[0].GetSteps(), func(s *dockwellv1.PlanStep) bool { return s.GetBackupFirst() != nil }) {
+			t.Error("it backs up what it was told not to")
+		}
+	})
 }
 
 // A release that changes nothing that runs, such as a typo in its words, offers nothing,
