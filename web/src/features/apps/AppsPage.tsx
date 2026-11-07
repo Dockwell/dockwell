@@ -262,7 +262,11 @@ export function AppsPage({
   }, [all]);
   const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM;
   const elsewhere = count - shown.length;
-  const { lead, total, going, trouble, needing } = useLead(shown, environment ? places.label(environment) : "", health);
+  const { lead, total, going, trouble, needing } = useAppsLead(
+    shown,
+    environment ? places.label(environment) : "",
+    health,
+  );
   const later = useLaterTrouble(needing, trouble, settled);
   const showFirst = outOfPlace ? (
     <Button variant="ghost" size="sm" className="apps-show-first" onClick={bringUp}>
@@ -478,8 +482,8 @@ function UnreadNote({ why, heard }: { why: Unread; heard: Date | undefined }) {
   );
 }
 
-/** The line under the title: how many, and what is going on with them. */
-function useLead(
+/** The line under the title: how many, and what is going on with them. The overview's apps say it too. */
+export function useAppsLead(
   services: readonly ServiceInfo[],
   where: string,
   health: HealthView,
