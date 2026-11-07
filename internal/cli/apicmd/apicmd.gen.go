@@ -254,6 +254,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The change's ID.", Arg: true},
 				{Path: "fingerprint", Help: "The fingerprint of the plan you reviewed. When set, the change applies only if its plan has it. A plan that destroys data, may cut off access, or lets two containers write to one place needs it."},
+				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for applying this change. A plan that gives something as much as root on a server needs it, which is why no API token can apply one. Call without it first: it checks everything else, then refuses with the reason needs_step_up."},
 			},
 			Call: apicli.Unary[v1.ApplyChangeRequest, v1.ApplyChangeResponse](dockwellv1connect.ChangeServiceApplyChangeProcedure),
 		},
@@ -634,6 +635,8 @@ func Methods() []*apicli.Method {
 				{Path: "path", Help: "The file's absolute path, without . or .. in it. The file must exist: dockwell files save doesn't make one."},
 				{Path: "content", Help: "The file's new text, 1 MiB at most."},
 				{Path: "version", Help: "The version from dockwell files read: the file as you last read it."},
+				{Path: "confirmed_path", Help: "The path dockwell files read said the file is at, with every symlink followed, which proof confirms. Set it with proof."},
+				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for saving this path on this server. A file that's a way back onto the server needs it. Call without it first: it checks everything else, then refuses with the reason needs_step_up."},
 			},
 			Call: apicli.Unary[v1.SaveFileRequest, v1.SaveFileResponse](dockwellv1connect.FileServiceSaveFileProcedure),
 		},

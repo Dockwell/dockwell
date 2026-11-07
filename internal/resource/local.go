@@ -141,6 +141,12 @@ type PathFollower interface {
 	Leads(ctx context.Context, ref Ref, desired proto.Message) (map[string]string, error)
 }
 
+// PathMover is a PathFollower that can say which of a resource's server paths
+// don't lead where they did when what runs now was made.
+type PathMover interface {
+	LeadsMoved(ctx context.Context, ref Ref, desired proto.Message) ([]string, error)
+}
+
 // PlanChecker is a driver that checks a resource about to start against what
 // else is on the server, and the rest of what the plan wants there, as a port
 // only one thing can hold. all holds every resource the plan wants here,
@@ -299,6 +305,12 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			step = Step{Ref: want.Ref}
 			if left {
 				step.Decision = dec
+				// A restore writes wherever a path leads now.
+				if f, ok := d.(PathFollower); ok && spec != nil {
+					if step.Leads, err = f.Leads(ctx, want.Ref, spec); err != nil {
+						return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+					}
+				}
 			}
 			steps = append(steps, step)
 			continue
@@ -349,9 +361,17 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			}
 			step.Pull = step.Action != ActionNone
 		}
+		// Nothing is mounted for a step with nothing to do, and a dead path on what's
+		// left as it is shouldn't refuse a plan for something else.
 		if f, ok := d.(PathFollower); ok && spec != nil && step.Action != ActionNone {
 			if step.Leads, err = f.Leads(ctx, want.Ref, spec); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			step.PlannedLeads = step.Leads
+			if m, ok := d.(PathMover); ok {
+				if step.LeadsMoved, err = m.LeadsMoved(ctx, want.Ref, spec); err != nil {
+					return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+				}
 			}
 		}
 		// Only what is about to start can fail to: a resource left as it is

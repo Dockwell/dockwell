@@ -160,6 +160,12 @@ const (
 	StepUpAction_STEP_UP_ACTION_REGENERATE_RECOVERY_CODES StepUpAction = 6
 	// Creating an API token, with TokenService.CreateToken. It has no target.
 	StepUpAction_STEP_UP_ACTION_CREATE_TOKEN StepUpAction = 7
+	// Applying a change that gives something as much as root on a server, with
+	// ChangeService.ApplyChange. The target is the change's ID.
+	StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE StepUpAction = 8
+	// Saving a file that's a way back onto a server, with FileService.SaveFile.
+	// The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
+	StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN StepUpAction = 9
 )
 
 // Enum value maps for StepUpAction.
@@ -173,6 +179,8 @@ var (
 		5: "STEP_UP_ACTION_DISABLE_CODES",
 		6: "STEP_UP_ACTION_REGENERATE_RECOVERY_CODES",
 		7: "STEP_UP_ACTION_CREATE_TOKEN",
+		8: "STEP_UP_ACTION_APPLY_ROOT_CHANGE",
+		9: "STEP_UP_ACTION_SAVE_WAY_BACK_IN",
 	}
 	StepUpAction_value = map[string]int32{
 		"STEP_UP_ACTION_UNSPECIFIED":               0,
@@ -183,6 +191,8 @@ var (
 		"STEP_UP_ACTION_DISABLE_CODES":             5,
 		"STEP_UP_ACTION_REGENERATE_RECOVERY_CODES": 6,
 		"STEP_UP_ACTION_CREATE_TOKEN":              7,
+		"STEP_UP_ACTION_APPLY_ROOT_CHANGE":         8,
+		"STEP_UP_ACTION_SAVE_WAY_BACK_IN":          9,
 	}
 )
 
@@ -3211,7 +3221,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x16SIGN_IN_METHOD_PASSKEY\x10\x02\x12%\n" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
-	"\x13SIGN_IN_METHOD_LINK\x10\x05*\xa5\x02\n" +
+	"\x13SIGN_IN_METHOD_LINK\x10\x05*\xf0\x02\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -3220,7 +3230,9 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1bSTEP_UP_ACTION_SET_UP_CODES\x10\x04\x12 \n" +
 	"\x1cSTEP_UP_ACTION_DISABLE_CODES\x10\x05\x12,\n" +
 	"(STEP_UP_ACTION_REGENERATE_RECOVERY_CODES\x10\x06\x12\x1f\n" +
-	"\x1bSTEP_UP_ACTION_CREATE_TOKEN\x10\a2\x96%\n" +
+	"\x1bSTEP_UP_ACTION_CREATE_TOKEN\x10\a\x12$\n" +
+	" STEP_UP_ACTION_APPLY_ROOT_CHANGE\x10\b\x12#\n" +
+	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t2\x96%\n" +
 	"\vAuthService\x12q\n" +
 	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12}\n" +
 	"\n" +

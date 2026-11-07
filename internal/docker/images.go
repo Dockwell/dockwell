@@ -31,18 +31,18 @@ func (i *Image) Digest(ref string) string {
 	if _, digest, ok := strings.Cut(ref, "@"); ok {
 		return digest
 	}
-	want := repository(ref)
+	want := Repository(ref)
 	for _, known := range i.RepoDigests {
-		if name, digest, ok := strings.Cut(known, "@"); ok && repository(name) == want {
+		if name, digest, ok := strings.Cut(known, "@"); ok && Repository(name) == want {
 			return digest
 		}
 	}
 	return ""
 }
 
-// repository is a reference's name, without its tag, or the docker.io/library/
-// that a name from Docker Hub can be written with.
-func repository(ref string) string {
+// Repository is a reference's name, without its tag or digest, or the
+// docker.io/library/ that a name from Docker Hub can be written with.
+func Repository(ref string) string {
 	name, _, _ := strings.Cut(ref, "@")
 	if i := strings.LastIndex(name, ":"); i > strings.LastIndex(name, "/") {
 		name = name[:i]

@@ -288,9 +288,13 @@ func (*Driver) ImageOf(spec proto.Message) string {
 	return spec.(*resourcev1.Service).GetApp().GetImage()
 }
 
-// CodeOf is what a service's app runs in its image, to compare.
-func (*Driver) CodeOf(spec proto.Message) []string {
-	return container.Code(spec.(*resourcev1.Service).GetApp())
+// WhatRuns is a copy of a service's spec without its app's limits.
+func (*Driver) WhatRuns(spec proto.Message) proto.Message {
+	s := proto.Clone(spec).(*resourcev1.Service)
+	if app := s.GetApp(); app != nil {
+		app.Resources = nil
+	}
+	return s
 }
 
 // SetImage changes the image a service's app runs.
@@ -303,6 +307,12 @@ func (*Driver) SetImage(spec proto.Message, image string) {
 // Leads says where the server paths the app mounts lead on its server.
 func (d *Driver) Leads(ctx context.Context, ref resource.Ref, desired proto.Message) (map[string]string, error) {
 	return d.Containers.LeadsAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
+}
+
+// LeadsMoved says which of the server paths a service's app mounts don't lead where
+// they did when what runs now was made.
+func (d *Driver) LeadsMoved(ctx context.Context, ref resource.Ref, desired proto.Message) ([]string, error) {
+	return d.Containers.LeadsMovedAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
 }
 
 // Check checks the app on its server, as the container driver does.

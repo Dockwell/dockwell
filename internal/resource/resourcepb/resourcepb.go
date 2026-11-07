@@ -133,7 +133,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	}
 	p.KeptPaths, p.Restores, p.HostAccess, p.HealthUnknown = s.Kept, s.Restores, HostAccess(s.HostAccess), s.HealthUnknown
 	for _, at := range slices.Sorted(maps.Keys(s.Leads)) {
-		p.HostAccess = append(p.HostAccess, &dockwellv1.HostAccess{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: at, LeadsTo: s.Leads[at]})
+		p.HostAccess = append(p.HostAccess, &dockwellv1.HostAccess{Kind: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH, Path: at, LeadsTo: s.Leads[at], LeadsMoved: slices.Contains(s.LeadsMoved, at)})
 	}
 	p.Pull, p.ImageGone = s.Pull, s.ImageGone
 	if i := s.Ingress; i != nil {
@@ -352,6 +352,9 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 				s.Leads = map[string]string{}
 			}
 			s.Leads[a.GetPath()] = a.GetLeadsTo()
+			if a.GetLeadsMoved() {
+				s.LeadsMoved = append(s.LeadsMoved, a.GetPath())
+			}
 		}
 	}
 	s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs = p.GetKeptPaths(), p.GetRestores(), p.GetHealthUnknown(), p.GetHidesLogs()

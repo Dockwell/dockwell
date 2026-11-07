@@ -76,7 +76,7 @@ func engineWith(t *testing.T, b store.Backend, servers int) (*Handler, *revision
 	}
 	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{})
 	e := revision.New(db, kinds, f, secretstest.Keeper(db, kinds), logger)
-	return New(e, db, logger), e, f, db
+	return New(e, nil, db, logger), e, f, db
 }
 
 func rule(server, name string, port uint32) revision.Edit {

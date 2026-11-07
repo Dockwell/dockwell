@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
@@ -50,15 +51,17 @@ const (
 // Handler implements ChangeService.
 type Handler struct {
 	engine *revision.Engine
+	auth   *auth.Service
 	db     *store.DB
 	logger *slog.Logger
 }
 
 var _ dockwellv1connect.ChangeServiceHandler = (*Handler)(nil)
 
-// New returns a handler over engine, which reads db.
-func New(engine *revision.Engine, db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{engine: engine, db: db, logger: logger}
+// New returns a handler over engine, which reads db. people checks the passkey a
+// plan that's as good as root takes.
+func New(engine *revision.Engine, people *auth.Service, db *store.DB, logger *slog.Logger) *Handler {
+	return &Handler{engine: engine, auth: people, db: db, logger: logger}
 }
 
 // by is who is calling, and from where, as auth.Client.Surface says: a
@@ -284,7 +287,19 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			fmt.Errorf("%s %s. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, accessWords(r.Plan), r.Fingerprint),
 			"needs_confirmation")
 	}
+	// The proof is asked for once nothing else here refuses, and held until the
+	// engine takes the change, as it can still refuse: busy, offline or out of date.
+	giveBack := func() {}
+	if r.State == store.ChangePlanned && r.Plan.AsGoodAsRoot() {
+		back, err := h.auth.HoldStepUp(p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID)
+		if err != nil {
+			h.auth.AskedForStepUp(p, auth.StepUpApplyRootChange, r.ID, func() { h.noteUnconfirmed(r.ID, who) })
+			return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+		}
+		giveBack = back
+	}
 	if err := h.engine.Start(ctx, r.ID, who); err != nil {
+		giveBack()
 		return nil, h.rpcError(ctx, err)
 	}
 	c, err := h.change(ctx, r.ID)
@@ -292,6 +307,21 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.ApplyChangeResponse{Change: c}), nil
+}
+
+// noteUnconfirmed puts on record a plan as good as root that someone tried to apply,
+// and no passkey followed. Stopping there changed nothing, and it's what a stolen
+// session looks like.
+func (h *Handler) noteUnconfirmed(changeID string, who revision.By) {
+	ctx := context.Background()
+	if err := h.db.Update(ctx, func(tx *store.Tx) error {
+		return tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: time.Now(), Actor: who.Actor, Action: "change.apply_unconfirmed", Subject: changeID, Target: changeID, Surface: who.Via,
+			Detail: "asked for a passkey to apply " + changeID + ", and none came",
+		})
+	}); err != nil {
+		h.logger.WarnContext(ctx, "can't record a plan that wasn't confirmed", slog.String("change", changeID), slog.String("error", err.Error()))
+	}
 }
 
 // signIn says where a person applies what no token may. The CLI signs in

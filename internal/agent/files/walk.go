@@ -148,6 +148,7 @@ type step struct {
 	fd    int
 	name  string
 	place place
+	id    identity // what it is, as a way in goes by
 }
 
 // walked is where a walk ended: each part from / down, every one checked,
@@ -215,6 +216,7 @@ func (g *guard) walk(t *trail, p string) (*walked, *agentv1.FileRefusal) {
 		w.close()
 		return nil, denied("/", err)
 	}
+	w.steps[0].id = identify(&w.st)
 	if refusal := g.follow(t, w, parts(p)); refusal != nil {
 		w.close()
 		return nil, refusal
@@ -277,7 +279,7 @@ func (g *guard) follow(t *trail, w *walked, todo []string) *agentv1.FileRefusal 
 		if into == free && st.Mode&unix.S_IFMT == unix.S_IFDIR && dockerShaped(fd) {
 			into = dockerRoot
 		}
-		w.steps = append(w.steps, step{fd: fd, name: name, place: into})
+		w.steps = append(w.steps, step{fd: fd, name: name, place: into, id: identify(&st)})
 		w.st = st
 	}
 	return nil

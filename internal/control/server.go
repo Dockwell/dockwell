@@ -225,7 +225,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet), opts...))
 	}
 	if cfg.Changes != nil {
-		ch := changes.New(cfg.Changes, cfg.Store, cfg.Logger)
+		ch := changes.New(cfg.Changes, cfg.Auth, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
 		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
@@ -240,7 +240,7 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 		handle(dockwellv1connect.NewDomainServiceHandler(domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, cfg.Logger), opts...))
 		// A person's, so it needs sign-in; the agent decides what it reads.
 		if cfg.Fleet != nil && cfg.Auth != nil {
-			handle(dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Store, cfg.Logger), opts...))
+			handle(dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
 		}
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)

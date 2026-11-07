@@ -172,12 +172,14 @@ func TestResumeKeepsARestoreARestore(t *testing.T) {
 // mounts them so. The control plane reads that from their specs, so what
 // adds to a service's reach through them needs a person, and what keeps it
 // as it is doesn't.
-// A new image is any code at all with what a service reaches, so on what's as good as
-// root it needs a person, however it comes: another tag, or what a tag points at now.
-// What runs the same image, and what isn't as good as root, go on as they did.
+// Another image is any code at all with what a service reaches, so on what's as good as
+// root it needs a person. Another tag of the same repository is how CI deploys, and so
+// is what a tag points at now, and those go on as they did. So does a limit, which runs
+// nothing, and what isn't as good as root.
 func TestANewImageOnWhatIsAsGoodAsRootNeedsAPerson(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, _, db := setupDocker(t, b, "srv_A")
+		e, engines, db := setupDocker(t, b, "srv_A")
+		engines["srv_A"].Registry["ghcr.io/stranger/ops:1.0"] = dockertest.Image{}
 		env := production(t, db)
 		app := func(image string, mutate func(*resourcev1.Container)) Edit {
 			c := &resourcev1.Container{
@@ -191,21 +193,27 @@ func TestANewImageOnWhatIsAsGoodAsRootNeedsAPerson(t *testing.T) {
 		}
 		apply(t, e, propose(t, e, "Run it", app("nginx:1.27", nil)))
 
-		tag := propose(t, e, "Another tag", app("nginx:1.28", nil))
-		if !tag.HostAccess() {
-			t.Errorf("another tag asks nothing of anyone: %+v", tag.Resources)
+		other := propose(t, e, "Another image", app("ghcr.io/stranger/ops:1.0", nil))
+		if !other.HostAccess() {
+			t.Errorf("another image asks nothing of anyone: %+v", other.Resources)
 		}
-		if a := tag.Resources[0].HostAccess; len(a) != 1 || !a[0].AsGoodAsRoot() || a[0].Path != "/var/run/docker.sock" {
-			t.Errorf("another tag says it reaches %+v, want the socket", a)
+		if a := other.Resources[0].HostAccess; len(a) != 1 || !a[0].AsGoodAsRoot() || a[0].Path != "/var/run/docker.sock" {
+			t.Errorf("another image says it reaches %+v, want the socket", a)
 		}
-		if err := e.Discard(t.Context(), tag.Change, By{Actor: "usr_test"}); err != nil {
+		if err := e.Discard(t.Context(), other.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+
+		if p := propose(t, e, "Another tag", app("nginx:1.28", nil)); p.HostAccess() {
+			t.Errorf("another tag needs a person: %+v", p.Resources)
+		} else if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
 			t.Fatal(err)
 		}
 
 		again := app("nginx:1.27", nil)
 		again.Pull = true
-		if p := propose(t, e, "What the tag points at now", again); !p.HostAccess() {
-			t.Errorf("pulling its tag again asks nothing of anyone: %+v", p.Resources)
+		if p := propose(t, e, "What the tag points at now", again); p.HostAccess() {
+			t.Errorf("pulling its tag again needs a person: %+v", p.Resources)
 		} else if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
 			t.Fatal(err)
 		}
@@ -219,9 +227,13 @@ func TestANewImageOnWhatIsAsGoodAsRootNeedsAPerson(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if p := propose(t, e, "A limit", app("nginx:1.27", func(c *resourcev1.Container) {
-			c.Resources = &resourcev1.Resources{Memory: "512M"}
-		})); p.HostAccess() {
+		limit := func(c *resourcev1.Container) { c.Resources = &resourcev1.Resources{Memory: "512M"} }
+		if p := propose(t, e, "A limit and another tag", app("nginx:1.28", limit)); p.HostAccess() {
+			t.Errorf("a limit beside another tag needs a person: %+v", p.Resources)
+		} else if err := e.Discard(t.Context(), p.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+		if p := propose(t, e, "A limit", app("nginx:1.27", limit)); p.HostAccess() {
 			t.Errorf("a change of the same image needs a person: %+v", p.Resources)
 		}
 	})

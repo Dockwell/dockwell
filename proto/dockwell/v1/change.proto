@@ -288,6 +288,11 @@ message ApplyChangeRequest {
   // only if its plan has it. A plan that destroys data, may cut off access,
   // or lets two containers write to one place needs it.
   string fingerprint = 2;
+  // The proof from FinishStepUp, for applying this change. A plan that gives
+  // something as much as root on a server needs it, which is why no API token
+  // can apply one. Call without it first: it checks everything else, then
+  // refuses with the reason needs_step_up.
+  string proof = 3;
 }
 
 // ApplyChangeResponse carries the change as it starts applying.
@@ -817,6 +822,10 @@ message HostAccess {
   // when that is somewhere else. Empty when it isn't, or when no agent has said,
   // as for a server that wasn't connected when it was planned.
   string leads_to = 10;
+  // True when that isn't where the path led when what runs now was made, as its
+  // server's agent reads it. An agent sets it, for the control plane to decide
+  // what a plan gains by, and plans don't carry it.
+  bool leads_moved = 11;
 }
 
 // HostAccessKind is what a resource reaches on its server.

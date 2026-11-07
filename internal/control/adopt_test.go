@@ -938,45 +938,55 @@ func TestAContainerKeepsANameOthersHoldToo(t *testing.T) {
 }
 
 // A token may run a new image on what was taken on, as on any service: that's what a
-// deploy from CI is. Not on what's as good as root, where a new image is any code
-// with root's reach, so a person approves that, whichever way it got there.
+// deploy from CI is. On what's as good as root that's another tag of the image it runs,
+// as anything else is any code with root's reach, so a person approves that, whichever
+// way it got there.
 func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
+	registerImages(e)
 	cc := containerClient(b, b.origin)
 	c := changeClient(b, b.origin)
 	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
 	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
-	takeOn := func(name string, edit func(*docker.CreateRequest)) {
+	takeOn := func(name string, edit func(*docker.CreateRequest), confirm func(*dockwellv1.Change)) {
 		t.Helper()
 		runByHand(t, e, name, func(r *docker.CreateRequest) {
 			r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
 			edit(r)
 		})
-		applyConfirmed(t, c, adopt(t, cc, name, name))
+		confirm(adopt(t, cc, name, name))
 	}
-	takeOn("plain", func(*docker.CreateRequest) {})
+	asRoot := func(p *dockwellv1.Change) { t.Helper(); applyAsRoot(t, b, p) }
+	takeOn("plain", func(*docker.CreateRequest) {}, func(p *dockwellv1.Change) { t.Helper(); applyConfirmed(t, c, p) })
 	takeOn("runs-docker", func(r *docker.CreateRequest) {
 		r.HostConfig.Binds = []string{"/var/run/docker.sock:/var/run/docker.sock"}
-	})
-	takeOn("runs-privileged", func(r *docker.CreateRequest) { r.HostConfig.Privileged = true })
+	}, asRoot)
+	takeOn("runs-privileged", func(r *docker.CreateRequest) { r.HostConfig.Privileged = true }, asRoot)
 
-	deploy := func(name string) *dockwellv1.Change {
+	deploy := func(name, image string) *dockwellv1.Change {
 		t.Helper()
-		res, err := services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: name, Image: "nginx:1.27"}))
+		res, err := services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: name, Image: image}))
 		if err != nil {
 			t.Fatalf("deploying %s: %v", name, err)
 		}
 		return res.Msg.GetChange()
 	}
-	if p := deploy("plain"); p.GetPlan().GetHostAccess() {
+	if p := deploy("plain", "nginx:1.27"); p.GetPlan().GetHostAccess() {
 		t.Errorf("a new image on an ordinary service needs a person: %v", p.GetPlan())
 	} else {
 		apply(t, script, p)
 	}
+	// Not by the socket: what was taken on has no record of where a path led, so where
+	// it leads through a link, as /var/run does on many servers, that asks first.
+	if p := deploy("runs-privileged", "nginx:1.27"); p.GetPlan().GetHostAccess() {
+		t.Errorf("another tag of the image on runs-privileged needs a person: %v", p.GetPlan())
+	} else {
+		apply(t, script, p)
+	}
 	for _, name := range []string{"runs-docker", "runs-privileged"} {
-		p := deploy(name)
+		p := deploy(name, "ghcr.io/stranger/ops:1.0")
 		if !p.GetPlan().GetHostAccess() {
 			t.Errorf("a new image on %s asks nothing of anyone: %v", name, p.GetPlan())
 		}
@@ -993,7 +1003,7 @@ func TestANewImageAsGoodAsRootNeedsAPerson(t *testing.T) {
 // A new command is any code at all too, and a health check runs one, so what's as good
 // as root needs a person for those as for an image: a token that holds the socket's
 // command runs what it likes as root. That holds for what Dockwell made as for what it
-// took on. The environment isn't that, and stays open.
+// took on. So is the environment, as a variable such as LD_PRELOAD runs what it names.
 func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -1005,7 +1015,7 @@ func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
 		r.HostConfig.PortBindings = nil
 		r.HostConfig.Binds = []string{"/var/run/docker.sock:/var/run/docker.sock"}
 	})
-	applyConfirmed(t, c, adopt(t, cc, "runs-docker", "runs-docker"))
+	applyAsRoot(t, b, adopt(t, cc, "runs-docker", "runs-docker"))
 	env := listedEnv(t, b)
 	current := func() *resourcev1.Service {
 		t.Helper()
@@ -1038,6 +1048,7 @@ func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
 		"a health check": func(a *resourcev1.Container) {
 			a.Healthcheck = &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "docker ps"}}
 		},
+		"a variable": func(a *resourcev1.Container) { a.Env["LOG_LEVEL"] = "debug" },
 	} {
 		p := plan(what, edit)
 		if !p.GetPlan().GetHostAccess() {
@@ -1050,9 +1061,6 @@ func TestANewCommandAsGoodAsRootNeedsAPerson(t *testing.T) {
 		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: p.GetId()})); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if p := plan("a variable", func(a *resourcev1.Container) { a.Env["LOG_LEVEL"] = "debug" }); p.GetPlan().GetHostAccess() {
-		t.Errorf("a change of environment on what holds the socket needs a person: %v", p.GetPlan().GetResources())
 	}
 }
 

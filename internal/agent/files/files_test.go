@@ -807,7 +807,7 @@ func savable(t *testing.T, d *fakeDisk, p string) string {
 
 func (d *fakeDisk) save(t *testing.T, p, content, version string) *agentv1.SaveFileResult {
 	t.Helper()
-	r, err := d.server.Save(t.Context(), p, content, version, "evt_save")
+	r, err := d.server.Save(t.Context(), p, content, version, "evt_save", "")
 	if err != nil {
 		t.Fatalf("Save(%s): %v", p, err)
 	}
@@ -822,6 +822,67 @@ func spares(t *testing.T, dir string) []string {
 		t.Fatal(err)
 	}
 	return found
+}
+
+// Saving what lets someone back in takes a passkey, for where the walk ended. The
+// agent goes by that, so a link to one takes it too, and a passkey for one path
+// doesn't pass another, as when a link was swapped in since.
+func TestAWayBackInTakesAPasskeyForWhereItEnds(t *testing.T) {
+	d := newDisk(t)
+	keys := filepath.Join(d.root, "root", ".ssh", "authorized_keys")
+	write(t, keys, "ssh-ed25519 AAAA admin\n")
+	via := filepath.Join(d.root, "volume", "config.yml")
+	if err := os.MkdirAll(filepath.Dir(via), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(keys, via); err != nil {
+		t.Fatal(err)
+	}
+	read := d.read(t, via).GetFile()
+	if !read.GetWayBackIn() || read.GetPath() != keys {
+		t.Fatalf("a read says %v", read)
+	}
+	save := func(p, confirmed string) *agentv1.SaveFileResult {
+		t.Helper()
+		got, err := d.server.Save(t.Context(), p, "typed\n", read.GetVersion(), "evt_save", confirmed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	for _, confirmed := range []string{"", via, keys + ".old"} {
+		got := save(via, confirmed).GetRefusal()
+		if got.GetKind() != agentv1.FileRefusal_KIND_NEEDS_STEP_UP || got.GetPath() != keys || !strings.Contains(got.GetMessage(), "takes your passkey") {
+			t.Fatalf("with %q confirmed: %v", confirmed, got)
+		}
+	}
+	if content, _ := os.ReadFile(keys); string(content) != "ssh-ed25519 AAAA admin\n" {
+		t.Fatalf("it wrote %q with no passkey", content)
+	}
+	if left := spares(t, filepath.Dir(keys)); len(left) != 0 {
+		t.Errorf("it left %v", left)
+	}
+	// What else would refuse it comes first, so a passkey isn't asked for over nothing.
+	stale, err := d.server.Save(t.Context(), keys, "typed\n", strings.Repeat("0", 64), "evt_save", "")
+	if err != nil || stale.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_CHANGED {
+		t.Fatalf("over a file that changed = %v, %v", stale, err)
+	}
+	saved := save(via, keys).GetSaved()
+	if saved == nil || !saved.GetWayBackIn() {
+		t.Fatalf("with a passkey for where it ends: %v", saved)
+	}
+	if content, _ := os.ReadFile(keys); string(content) != "typed\n" {
+		t.Fatalf("the file holds %q", content)
+	}
+	// Anywhere else takes nothing, and says it isn't one.
+	plain := filepath.Join(d.root, "site", "nginx.conf")
+	write(t, plain, "listen 80;\n")
+	if read := d.read(t, plain).GetFile(); read.GetWayBackIn() {
+		t.Errorf("nginx.conf reads as a way back in")
+	}
+	if got := d.save(t, plain, "listen 81;\n", savable(t, d, plain)).GetSaved(); got == nil || got.GetWayBackIn() {
+		t.Errorf("a save elsewhere: %v", got)
+	}
 }
 
 func TestSavingAFile(t *testing.T) {
@@ -928,7 +989,7 @@ func TestASaveRefusesWhatAReadRefuses(t *testing.T) {
 	write(t, opts, `{"o":"password=x"}`)
 	dark := New(d.data, nil, func(context.Context) (string, error) { return "", errors.New("Docker isn't answering") })
 	for p, text := range map[string]string{config: `{"Env":["A=1"]}`, opts: `{"o":"password=x"}`} {
-		r, err := dark.Save(t.Context(), p, "written", versionOf(t, p, text), "evt_save")
+		r, err := dark.Save(t.Context(), p, "written", versionOf(t, p, text), "evt_save", "")
 		if err != nil || r.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
 			t.Errorf("saving %s with Docker's root unknown: %v, %v", p, r, err)
 		}
@@ -982,10 +1043,10 @@ func TestASaveLeavesWhatIsntAFile(t *testing.T) {
 	if got := d.save(t, filepath.Join(dir, "nothing"), "x", stale); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_NOT_FOUND {
 		t.Errorf("nothing there: %v", got)
 	}
-	if _, err := d.server.Save(t.Context(), filepath.Join(dir, "a"), strings.Repeat("x", MaxFileBytes+1), stale, "evt_save"); err == nil {
+	if _, err := d.server.Save(t.Context(), filepath.Join(dir, "a"), strings.Repeat("x", MaxFileBytes+1), stale, "evt_save", ""); err == nil {
 		t.Error("a save over the limit went ahead")
 	}
-	if _, err := d.server.Save(t.Context(), dir+"/../a", "x", stale, "evt_save"); err == nil {
+	if _, err := d.server.Save(t.Context(), dir+"/../a", "x", stale, "evt_save", ""); err == nil {
 		t.Error("a save with .. in its path went ahead")
 	}
 }

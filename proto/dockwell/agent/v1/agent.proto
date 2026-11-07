@@ -104,6 +104,8 @@ message SaveEnded {
   bool landed = 3;
   // Why it didn't, for people.
   string reason = 4;
+  // True when the file is a way back onto the server.
+  bool way_back_in = 5;
 }
 
 // Health is how each container of a server's services is, as far as anything
@@ -211,6 +213,10 @@ message Hello {
   // as it makes the container. The control plane sends none to one that
   // doesn't say so, which would run ${NAME} as the words it is.
   bool writes_references = 6;
+  // True when the agent refuses a save to what can let someone back onto the
+  // server unless a passkey confirmed it. Only the agent can tell where a path
+  // leads, so the control plane saves through no agent that doesn't.
+  bool guards_ways_in = 7;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -418,6 +424,9 @@ message SaveFileCall {
   string version = 3;
   // What the control plane calls this save on record, for a SaveEnded to name.
   string record = 4;
+  // The path a person confirmed with a passkey. The agent writes a way back onto
+  // the server only if its walk ended there.
+  string confirmed_path = 5;
 }
 
 // FileRefusal says why the agent didn't list, read or save a path. It is an
@@ -447,6 +456,9 @@ message FileRefusal {
     // The path stopped answering after a save began to write it, so the save
     // may still land. A SaveEnded says how it came out.
     KIND_MAY_LAND = 8;
+    // The file is a way back onto the server, and no passkey confirmed saving
+    // where the walk ended, so nothing was written.
+    KIND_NEEDS_STEP_UP = 9;
   }
 
   // What went wrong.
@@ -648,6 +660,9 @@ message ApplyCall {
   // True when a run stopped partway took the step as far as it can be seen to have
   // gone, so all the agent does is its check.
   bool finishing = 6;
+  // Where the server paths this step mounts led when it was planned, by path,
+  // for those that lead elsewhere. What makes a container checks again.
+  map<string, string> planned_leads = 7;
 }
 
 // Deploy says which revision and change a step carries out.

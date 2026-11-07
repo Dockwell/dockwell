@@ -532,7 +532,7 @@ func TestListingServicesReadsInFewQueries(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		logger := slog.New(slog.DiscardHandler)
-		h := services.New(changes.New(b.f.engine, b.f.store, logger), b.f.engine, b.f.store, b.f.keeper, logger)
+		h := services.New(changes.New(b.f.engine, nil, b.f.store, logger), b.f.engine, b.f.store, b.f.keeper, logger)
 		read := func() int64 {
 			t.Helper()
 			var n atomic.Int64

@@ -59,7 +59,12 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | Read a file without leaving a record | It can't. The audit event is written before the contents leave the control plane, and a failed write returns nothing. Tested |
 | Look for credentials and leave no trace of what it missed | It can't. A refused or failed read is on Activity however it failed: nothing there, not a file, denied, refused, or not answering. So is a refused listing. Tested |
 | Hide in the record with a crafted path | A name can hold a newline or a terminal's escape codes, and a link can lead through one. A path is cleaned before it's stored or shown. Tested |
-| Save a file, such as a cron job or `authorized_keys`, to get root or keep a way in | It can today, and it won't by the first release: a save to one of these will take a step-up ([ADR 0032](../adr/0032-files-on-a-server.md#a-step-up-for-a-way-back-in-and-for-nothing-else)). Each save is on the timeline, with the path, and in the audit log |
+| Save a file, such as a cron job or `authorized_keys`, to get root or keep a way in | It can't without the person's passkey, just now, for that path on that server. A save asks where a plan's mount would count as root (`resource.SystemPath`), or in Dockwell's data, and for names that rule can't see. With no passkey at that address, it can't at all. Each one is on the timeline in a warning tone, and in the audit log. Tested |
+| Reach a way in under another name, by a bind mount, a volume's data or a hard link | The agent matches what's listed by device and inode, on the walk's directories and the final file, as it does for what's refused. Tested |
+| Save through an old agent, which doesn't ask | The agent says in its hello that it guards these, and the control plane saves through no agent that doesn't. Tested |
+| Keep at it, unseen, until something gives | A passkey asked for that doesn't come within a minute is on the timeline in a warning tone, for a save or an apply. Tested |
+| Put new code in a service that already has root, by a plan | Anything that changes what runs in it asks for a person, the typed fingerprint and a passkey, whichever way it came. Only another tag or digest of the same image repository goes on as it did, and a limit, which runs nothing. Tested |
+| Bring a way in back from an old backup | A restore into a volume that reaches what's as good as root, and its undo, asks for a person, the typed fingerprint and a passkey, as a save there does. An ordinary volume asks no passkey. Tested |
 | Save a file without leaving a record | It can't. `file.saving` is written before the agent is asked, and if it can't be written nothing is. Tested |
 | Write over the install's key, or a secret's value in Docker's state | Refused: a save takes the same walk as a read |
 | Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |
@@ -84,6 +89,7 @@ It can't reach past its container on its own. What it can do is leave things for
 | Change a file a person is editing, to have their save undo it, or to slip something in | A save names the version it was edited from, and a file that differs isn't written over. The person sees that it changed, and chooses. Tested |
 | Have a person's session overwrite a binary it knows the digest of, such as `/usr/bin/sudo` | A save goes only over what reads as text, and the version counts for nothing on anything else. Tested |
 | Fill the disk, so a save leaves a file cut short | A copy of the old text goes beside the file first. A disk that can't hold that stops the save with the file untouched. One that holds the copy can still fail the write, as the file grows: the old text goes back, and failing that the copy stays, and the error names it, with the file cut short. Tested, with a real write that fails partway |
+| Turn a folder a service mounts into a link to `/etc`, to be mounted next | A container says where its paths led when it was made, so a plan that finds one moved asks as if for the first time, and what makes a container looks again and refuses. That holds for what a plan makes. A container that starts again isn't asked about: see [known gaps](#known-gaps). Tested |
 
 ### A mount that stops answering
 
@@ -104,17 +110,18 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 
 ## What this doesn't do
 
-- **Keep a stolen session out of the disk.** A session controls every server: it can apply a plan that mounts `/etc`, with no passkey ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)). Reading a file takes no step-up, as that would add a prompt without closing that door. Saving to a way back in will, and so will a plan that's as good as root, before the first release: see [ADR 0032](../adr/0032-files-on-a-server.md#a-step-up-for-a-way-back-in-and-for-nothing-else).
+- **Keep a stolen session out of the disk.** A session controls every server: it can apply a plan that mounts `/etc`, with no passkey ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)). Reading a file takes no step-up, as that would add a prompt without closing that door. Saving to a way back in does, and so does a plan that's as good as root: see [ADR 0032](../adr/0032-files-on-a-server.md#a-step-up-for-a-way-back-in-and-for-nothing-else).
 - **Stop a stolen session reaching what's refused.** The refused list stops Files. ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach everything here.
 - **Keep a stolen session out of a server with no Docker by any other way.** With no plan to run, Files is new reach there, and Activity is what shows it.
 - **Undo a save.** A file isn't managed state, so there's no revision to go back to. The panel says so beside the Save button.
-- **Know what a file does.** A save to a cron job, a unit file or `sudoers` is root, and Dockwell doesn't read what's in it or check its syntax.
+- **Know what a file does.** A save to a cron job, a unit file or `sudoers` is root, and takes a passkey, but Dockwell doesn't read what's in it or check its syntax. What runs that isn't on the list, such as a script a cron job calls, takes none.
 - **Keep what's typed in a tab that closes.** What's typed stays in memory through a session that ends, and leaving the page asks first, but it never goes in the browser's storage, so a tab the browser discards loses it.
 - **Tell a config with a password in it from one without.** `.env`, `wp-config.php` and the like are readable with a session.
 - **Protect one person on a server from another.** Every signed-in person can read every server's files until roles come.
 
 ## Known gaps
 
+- **A folder that becomes a link, once what mounts it starts again.** A start step, `bringBack` or Docker's own restart mounts what the path leads to by then, with no plan to ask, so a folder approved in amber can come back as `/etc`. #190 takes this up, and it has to land before a release.
 - **A file that holds a secret's value because an app wrote it there.** Dockwell delivers a value to a container's environment, and an app may copy it to a volume, a log or a config file. Files serves that as it serves any file. It's the same boundary as "deploying is reading" in [secrets.md](secrets.md#known-gaps).
 - **A copy of something refused.** A backup of the data directory made by hand, under another path, is served like any file. The database is SQLite, which reads as binary, and the key is raw bytes, which do too, so neither's contents go out. A JSON or text copy of a token would.
 - **An `EnvironmentFile` with `DOCKWELL_DATABASE` in it** is named by the operator, so Dockwell can't refuse it by its path. Keep the password in `/root/.pgpass`, which is refused. The database holds sealed specs, and reaching it isn't reaching the key.

@@ -6,11 +6,12 @@
 // scripts/docker-e2e.sh, need an owner for local access to act for. It is
 // never part of a release.
 //
-//	go run ./scripts/claim http://localhost:7697/claim#<token> [cookie file]
+//	go run ./scripts/claim http://localhost:7697/claim#<token> [cookie file [passkey file]]
 //
 // With a cookie file, it writes the session the claim signs in with there, as a
 // Cookie header's value, for what only a person may do, such as applying a plan
-// that needs one.
+// that needs one. With a passkey file, it writes the passkey it made there, for
+// scripts/stepup to confirm with what takes one.
 package main
 
 import (
@@ -33,16 +34,19 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 || len(os.Args) > 3 {
-		fmt.Fprintln(os.Stderr, "usage: go run ./scripts/claim <claim link> [cookie file]")
+	if len(os.Args) < 2 || len(os.Args) > 4 {
+		fmt.Fprintln(os.Stderr, "usage: go run ./scripts/claim <claim link> [cookie file [passkey file]]")
 		os.Exit(2)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	cookieFile := ""
-	if len(os.Args) == 3 {
+	cookieFile, passkeyFile := "", ""
+	if len(os.Args) >= 3 {
 		cookieFile = os.Args[2]
 	}
-	err := claim(ctx, os.Args[1], cookieFile)
+	if len(os.Args) == 4 {
+		passkeyFile = os.Args[3]
+	}
+	err := claim(ctx, os.Args[1], cookieFile, passkeyFile)
 	cancel()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "claim:", err)
@@ -53,7 +57,7 @@ func main() {
 // claim claims the install at link. The panel answers on loopback under
 // localhost, as the link says, so the client dials 127.0.0.1 and sends the
 // link's host and origin, which the panel checks.
-func claim(ctx context.Context, link, cookieFile string) error {
+func claim(ctx context.Context, link, cookieFile, passkeyFile string) error {
 	u, err := url.Parse(link)
 	if err != nil || u.Fragment == "" || !strings.HasSuffix(u.Path, "/claim") {
 		return fmt.Errorf("%q isn't a claim link, such as http://localhost:7697/claim#<token>. Copy it from what dockwell claim printed", link)
@@ -80,7 +84,7 @@ func claim(ctx context.Context, link, cookieFile string) error {
 	if err != nil {
 		return fmt.Errorf("can't begin the claim: %w", err)
 	}
-	cred, _, err := (&authtest.Authenticator{}).Create(begin.Msg.GetOptionsJson(), base)
+	cred, passkey, err := (&authtest.Authenticator{}).Create(begin.Msg.GetOptionsJson(), base)
 	if err != nil {
 		return fmt.Errorf("can't make a passkey: %w", err)
 	}
@@ -88,6 +92,15 @@ func claim(ctx context.Context, link, cookieFile string) error {
 		CeremonyId: begin.Msg.GetCeremonyId(), Token: u.Fragment, CredentialJson: cred,
 	})); err != nil {
 		return fmt.Errorf("can't finish the claim: %w", err)
+	}
+	if passkeyFile != "" {
+		exported, err := passkey.Export()
+		if err != nil {
+			return fmt.Errorf("can't export the passkey: %w", err)
+		}
+		if err := os.WriteFile(passkeyFile, exported, 0o600); err != nil { //nolint:gosec // a path the script gave
+			return fmt.Errorf("can't write the passkey to %s: %w", passkeyFile, err)
+		}
 	}
 	if cookieFile == "" {
 		return nil

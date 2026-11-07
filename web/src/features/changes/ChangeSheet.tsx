@@ -24,6 +24,7 @@ import {
   ResourceService,
   ServiceService,
   StepState,
+  StepUpAction,
   VariableService,
 } from "@dockwell/api";
 import {
@@ -53,6 +54,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { formatDay } from "../../lib/format";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
+import { PasskeyError } from "../../lib/webauthn";
 import { appOf, unreached } from "../apps/app";
 import { DomainFacts, DomainNote, useSilent } from "../apps/DomainNote";
 import {
@@ -65,6 +67,8 @@ import {
 } from "../apps/domains";
 import { readHealthSoon, useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
+import { useAuthError } from "../auth/messages";
+import { withStepUpIfAsked } from "../auth/stepUp";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
@@ -72,7 +76,7 @@ import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
-import { type Notice, needsConfirming, useAsides, useDataLeft, useRisks, useWarnings } from "./notices";
+import { type Notice, needsConfirming, needsPasskey, useAsides, useDataLeft, useRisks, useWarnings } from "./notices";
 import { PlanSteps } from "./PlanSteps";
 import {
   canUndo,
@@ -408,6 +412,7 @@ function ChangeSheet({
   const { t, i18n } = useLingui();
   const transport = useTransport();
   const client = useMemo(() => createClient(ChangeService, transport), [transport]);
+  const explain = useAuthError();
   const { open } = useChangeSheet();
   const phone = useMediaQuery(PHONE_QUERY);
   const away = useSheetViewAway();
@@ -518,16 +523,27 @@ function ChangeSheet({
     const held = proposal.current;
     if (held) held.keep = true;
     try {
-      const res = await client.applyChange({ id: change.id, fingerprint: change.plan?.fingerprint ?? "" });
+      const fingerprint = change.plan?.fingerprint ?? "";
+      const res = await withStepUpIfAsked(transport, StepUpAction.APPLY_ROOT_CHANGE, change.id, (proof) =>
+        client.applyChange({ id: change.id, fingerprint, proof }),
+      );
       setChange((was) => later(was, res.change));
     } catch (err) {
       // Still planned: closing discards it, as before.
       if (held) held.keep = false;
-      setFailure(err);
+      if (err instanceof PasskeyError && err.problem === "cancelled") {
+        setFailure(
+          new Error(
+            t`The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready.`,
+          ),
+        );
+      } else {
+        setFailure(err instanceof PasskeyError ? new Error(explain(err)) : err);
+      }
     } finally {
       setBusy(undefined);
     }
-  }, [change, canApply, busy, client]);
+  }, [change, canApply, busy, client, transport, explain, t]);
 
   // Closing lets go of the plan this sheet made, which discards it unless it applied.
   const close = useCallback(() => onClose(change), [onClose, change]);
@@ -652,7 +668,15 @@ function ChangeSheet({
             }
           }}
         />
-        <div className="plan-gate-note">{undoNote}</div>
+        <div className="plan-gate-note">
+          {undoNote}
+          {needsPasskey(plan) ? (
+            <span className="dw-sheet-note">
+              <Icon name="key" size={14} />
+              <Trans>Applying this asks for your passkey</Trans>
+            </span>
+          ) : null}
+        </div>
         <Button variant="ghost" size={size} onClick={close} className="plan-gate-cancel">
           <Trans>Cancel</Trans>
         </Button>

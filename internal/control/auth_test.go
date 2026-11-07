@@ -93,6 +93,9 @@ func (f *fullServer) execSQL(t *testing.T, query string) {
 	storetest.Exec(t, f.db, query)
 }
 
+// askWait is how long these tests give a step-up that was asked for.
+const askWait = 200 * time.Millisecond
+
 func startFull(t *testing.T, backend store.Backend, public https.Source) *fullServer {
 	t.Helper()
 	return startFullLogging(t, backend, public, slog.New(slog.DiscardHandler))
@@ -127,7 +130,7 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	if public != nil {
 		sites.Domain = public.Domain()
 	}
-	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites})
+	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait})
 	if err != nil {
 		t.Fatal(err)
 	}

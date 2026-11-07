@@ -10,6 +10,7 @@ import {
   ReadFileResponseSchema,
   Role,
   SaveFileResponseSchema,
+  StepUpAction,
   UserSchema,
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
@@ -19,7 +20,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { authState } from "../../test/auth";
+import { authError, authState, requestOptions, stubPasskeys } from "../../test/auth";
 import { type Api, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { dropDrafts } from "./drafts";
@@ -566,6 +567,75 @@ describe("editing a file", () => {
     expect(field).toHaveValue("memory_limit = 512M");
     await userEvent.click(saveButton());
     expect(await screen.findByText("Saved .user.ini", { selector: "p" })).toBeVisible();
+  });
+
+  describe("with a file that's a way back onto the server", () => {
+    const keys = "/root/.ssh/authorized_keys";
+    const wayIn = () => text("ssh-ed25519 AAAA admin\n", { path: keys, wayBackIn: true });
+    const asks = () => {
+      throw authError(Code.PermissionDenied, "needs_step_up", `${keys} can let someone back onto this server`);
+    };
+
+    it("says it asks, confirms that path on that server, and saves with the proof", async () => {
+      const passkeys = stubPasskeys();
+      const saveFile = vi.fn((req: { proof: string }) => (req.proof ? saved() : asks()));
+      const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
+      await edited(
+        { readFile: wayIn, saveFile: saveFile as never },
+        { getAuthState: () => authState(), beginStepUp, finishStepUp: () => ({ proof: "proof_1" }) },
+      );
+      expect(screen.getByText("It asks for your passkey", { exact: false })).toBeVisible();
+      await userEvent.click(saveButton());
+      await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+      expect(saveFile.mock.calls[0]?.[0]).toMatchObject({ proof: "", confirmedPath: keys });
+      expect(saveFile.mock.lastCall?.[0]).toMatchObject({ proof: "proof_1", confirmedPath: keys, version: "v1" });
+      expect(beginStepUp).toHaveBeenCalledWith(
+        expect.objectContaining({ action: StepUpAction.SAVE_WAY_BACK_IN, target: `srv_1:${keys}` }),
+        expect.anything(),
+      );
+      expect(passkeys.get).toHaveBeenCalledTimes(1);
+      expect(await screen.findByText("Saved .user.ini", { selector: "p" })).toBeVisible();
+    });
+
+    it("points to SSH with no passkey for this address, and keeps what you typed", async () => {
+      stubPasskeys();
+      const { field } = await edited(
+        { readFile: wayIn, saveFile: asks },
+        {
+          getAuthState: () => authState(),
+          beginStepUp: () => {
+            throw authError(Code.FailedPrecondition, "no_passkey_here", "you have none here");
+          },
+        },
+      );
+      await userEvent.click(saveButton());
+      expect(await screen.findByText("Connect to the server over SSH to change it", { exact: false })).toBeVisible();
+      expect(screen.getByText(`Saving ${keys} takes a passkey`, { exact: false })).toBeVisible();
+      expect(field).toHaveValue("memory_limit = 512M");
+    });
+
+    it("says so in words if you close the passkey prompt, and keeps what you typed", async () => {
+      stubPasskeys({ get: "NotAllowedError" });
+      const { field } = await edited(
+        { readFile: wayIn, saveFile: asks },
+        {
+          getAuthState: () => authState(),
+          beginStepUp: () => ({ ceremonyId: "cer_1", optionsJson: requestOptions }),
+        },
+      );
+      await userEvent.click(saveButton());
+      expect(
+        await screen.findByText("The passkey prompt closed, so nothing was saved. Save again when you're ready.", {
+          exact: false,
+        }),
+      ).toBeVisible();
+      expect(field).toHaveValue("memory_limit = 512M");
+    });
+
+    it("says nothing of a passkey for any other file", async () => {
+      await edited({ readFile: () => text("old\n") });
+      expect(screen.queryByText("It asks for your passkey", { exact: false })).toBeNull();
+    });
   });
 
   describe("when a session ends", () => {

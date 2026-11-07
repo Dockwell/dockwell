@@ -27,6 +27,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -139,6 +140,9 @@ type Config struct {
 	ServerName func() string
 	// Now replaces the clock in tests.
 	Now func() time.Time
+	// AskWait is how long a step-up that was asked for has to come before it counts
+	// as missed. Zero means StepUpTTL.
+	AskWait time.Duration
 }
 
 // Service is the control plane's authority over people.
@@ -149,6 +153,7 @@ type Service struct {
 	sites      Sites
 	serverName func() string
 	now        func() time.Time
+	askWait    time.Duration
 
 	ceremonies     *ceremonies
 	relyingParties relyingParties
@@ -185,6 +190,7 @@ func New(cfg Config) (*Service, error) {
 		sites:      cfg.Sites,
 		serverName: cfg.ServerName,
 		now:        cfg.Now,
+		askWait:    cmp.Or(cfg.AskWait, StepUpTTL),
 		ceremonies: newCeremonies(1024),
 		sources:    newFailures(freeSourceFailures, 10_000),
 		begins:     newBuckets(30, 2*time.Second, 10_000),

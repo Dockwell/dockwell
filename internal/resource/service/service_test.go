@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -89,5 +91,39 @@ func TestWhichKindsAreSealed(t *testing.T) {
 		if got := resource.Sealed(c.t); got != c.want {
 			t.Errorf("resource.Sealed(%s) = %t, want %t", c.t.Kind(), got, c.want)
 		}
+	}
+}
+
+// What runs in a service is all of its spec but what limits it, whichever kind holds
+// it, so what's added to a spec later counts until someone says it doesn't. The spec
+// itself stays as it is.
+func TestWhatRunsIsAllButALimit(t *testing.T) {
+	app := func() *resourcev1.Container {
+		return &resourcev1.Container{Image: "nginx:1.27", Resources: &resourcev1.Resources{Memory: "512M"}}
+	}
+	drivers := map[string]struct {
+		namer resource.ImageNamer
+		spec  func(*resourcev1.Container) proto.Message
+	}{
+		"a service": {&service.Driver{}, func(c *resourcev1.Container) proto.Message {
+			return &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}
+		}},
+		"a container": {&container.Driver{}, func(c *resourcev1.Container) proto.Message { return c }},
+	}
+	for name, d := range drivers {
+		t.Run(name, func(t *testing.T) {
+			limited, changed := app(), app()
+			changed.Resources, changed.Command = &resourcev1.Resources{Memory: "1G"}, []string{"sh"}
+			original := d.spec(limited)
+			if got, want := d.namer.WhatRuns(original), d.namer.WhatRuns(d.spec(&resourcev1.Container{Image: "nginx:1.27"})); !proto.Equal(got, want) {
+				t.Errorf("a limit counts as what runs: %v, want %v", got, want)
+			}
+			if !proto.Equal(original, d.spec(app())) {
+				t.Errorf("reading what runs changed the spec: %v", original)
+			}
+			if proto.Equal(d.namer.WhatRuns(original), d.namer.WhatRuns(d.spec(changed))) {
+				t.Error("another command reads as what ran before")
+			}
+		})
 	}
 }

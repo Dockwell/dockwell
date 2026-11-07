@@ -5,6 +5,9 @@ package revision
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +17,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -81,7 +85,7 @@ func withVolume(t *testing.T, b store.Backend) *restoreBench {
 	agents := e.agents.(onDocker)             //nolint:forcetypeassert // setupDocker's
 	local := agents["srv_A"].(resource.Local) //nolint:forcetypeassert // setupDocker's
 	client := engines["srv_A"].Client()
-	drivers := resource.NewRegistry(&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, Restores: r})
+	drivers := resource.NewRegistry(&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}, Paths: &container.Paths{Client: client}}, Restores: r})
 	agents["srv_A"] = twoAgents{Local: local, volumes: resource.Local{Drivers: drivers}}
 	ref := resource.Ref{Kind: volume.Kind, Scope: env, Name: "data"}
 	return &restoreBench{e, r, agents, ref, env, db}
@@ -187,6 +191,68 @@ func TestARestoreIsAPlanThatMakesNoRevision(t *testing.T) {
 			t.Errorf("ran = %+v", r.ran)
 		}
 	})
+}
+
+// A restore writes over all that's in a volume, so where the volume reaches what's as
+// good as root it asks what any other way of putting something there asks: a save into
+// /etc and a restore into /etc get the same answer. What reaches no further than its
+// own data, which is nearly every volume, asks nothing more than it did.
+func TestARestoreIntoWhatIsAsGoodAsRootTakesAPasskey(t *testing.T) {
+	bound := func(device string) *resourcev1.Volume {
+		return &resourcev1.Volume{Options: map[string]string{"type": "none", "o": "bind", "device": device}}
+	}
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink("/etc", link); err != nil {
+		t.Fatal(err)
+	}
+	for name, tt := range map[string]struct {
+		spec *resourcev1.Volume
+		root bool
+	}{
+		"an ordinary volume":        {spec: &resourcev1.Volume{}},
+		"a folder of the server's":  {spec: bound("/srv/nas")},
+		"an NFS share":              {spec: &resourcev1.Volume{Options: map[string]string{"type": "nfs", "o": "addr=10.0.0.5", "device": ":/share"}}},
+		"a bind of the system":      {spec: bound("/etc"), root: true},
+		"a link to the system":      {spec: bound(link), root: true},
+		"a plugin that mounts /etc": {spec: &resourcev1.Volume{Driver: "local-persist", Options: map[string]string{"mountpoint": "/etc"}}, root: true},
+		"where Docker's socket is":  {spec: bound("/run"), root: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			x := withVolume(t, store.SQLite)
+			e, ref := x.e, x.ref
+			apply(t, e, propose(t, e, "Make it", Edit{Ref: ref, Spec: tt.spec, Servers: []string{"srv_A"}}))
+
+			plan, err := e.Restore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Server: "srv_A"}, restoreBy(), "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !plan.Destructive() {
+				t.Errorf("a restore doesn't say it destroys data: %+v", plan)
+			}
+			if got := plan.AsGoodAsRoot(); got != tt.root {
+				t.Errorf("as good as root = %v, want %v: %+v", got, tt.root, plan.Resources)
+			}
+			says := func(p *Plan) bool {
+				return slices.ContainsFunc(p.Notes, func(n Note) bool { return n.Reason == "new_code_as_root" })
+			}
+			if got := says(plan); got != tt.root {
+				t.Errorf("says why it asks = %v, want %v: %+v", got, tt.root, plan.Notes)
+			}
+			apply(t, e, plan)
+
+			// Undoing it writes over all that's there too.
+			undo, err := e.Undo(t.Context(), plan.Change, restoreBy())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := undo.AsGoodAsRoot(); got != tt.root {
+				t.Errorf("the undo: as good as root = %v, want %v: %+v", got, tt.root, undo.Resources)
+			}
+			if got := says(undo); got != tt.root {
+				t.Errorf("the undo says why it asks = %v, want %v: %+v", got, tt.root, undo.Notes)
+			}
+		})
+	}
 }
 
 func latest(t *testing.T, db *store.DB, ref resource.Ref) int {

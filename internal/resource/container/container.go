@@ -953,19 +953,12 @@ func (d *Driver) NotRunningAt(ctx context.Context, t Target) (string, error) {
 // exposedPort is a port as Docker keeps one it exposes.
 var exposedPort = regexp.MustCompile(`^\d{1,5}/(tcp|udp|sctp)$`)
 
-// Code is what spec runs in its image: its command, its entrypoint and its health
-// check's, each marked off from the next. A check the agent makes runs nothing there.
-func Code(c *resourcev1.Container) []string {
-	out := []string{"command"}
-	out = append(out, c.GetCommand()...)
-	out = append(out, "entrypoint", strconv.FormatBool(c.GetNoEntrypoint()))
-	out = append(out, c.GetEntrypoint()...)
-	out = append(out, "check")
-	return append(out, c.GetHealthcheck().GetTest()...)
+// WhatRuns is a copy of a container's spec without its limits.
+func (*Driver) WhatRuns(spec proto.Message) proto.Message {
+	c := proto.Clone(spec).(*resourcev1.Container)
+	c.Resources = nil
+	return c
 }
-
-// CodeOf is what a container runs in its image, to compare.
-func (*Driver) CodeOf(spec proto.Message) []string { return Code(spec.(*resourcev1.Container)) }
 
 // ImageOf is the image a container runs, as it is written.
 func (*Driver) ImageOf(spec proto.Message) string { return spec.(*resourcev1.Container).GetImage() }

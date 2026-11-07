@@ -282,7 +282,7 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 	if strings.Contains(planned.String(), token) {
 		t.Error("the plan holds the token")
 	}
-	applyConfirmed(t, changeClient(b, b.origin), planned)
+	applyAsRoot(t, b, planned)
 	var tunnel *docker.Container
 	for _, name := range e.Containers() {
 		if strings.HasSuffix(name, "-tunnel-1") {

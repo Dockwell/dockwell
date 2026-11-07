@@ -59,6 +59,19 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const path = event.subject?.path ?? "";
           return { title: t`Saved ${path} on ${server}`, icon: "file" };
         }
+        case "file.save_way_back_in": {
+          // Passkey or not, this is what a stolen session would do: worth a look.
+          const path = event.subject?.path ?? "";
+          return { title: t`Saved ${path} on ${server}, which can let someone back in`, icon: "file", tone: "warning" };
+        }
+        case "file.save_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to save ${path} on ${server}, and none came`,
+            icon: "file",
+            tone: "warning",
+          };
+        }
         case "file.save_failed": {
           const path = event.subject?.path ?? "";
           return { title: t`Couldn't save ${path} on ${server}`, icon: "file", tone: "warning" };
@@ -66,6 +79,10 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         case "file.save_unknown": {
           const path = event.subject?.path ?? "";
           return { title: t`May have saved ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
+        case "change.apply_unconfirmed": {
+          const change = event.subject?.id ?? "";
+          return { title: t`Asked for a passkey to apply ${change}, and none came`, icon: "key", tone: "warning" };
         }
         case "owner.claim":
           return { title: t`Claimed this install`, icon: "key" };

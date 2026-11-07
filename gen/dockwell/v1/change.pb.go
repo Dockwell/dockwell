@@ -1649,7 +1649,12 @@ type ApplyChangeRequest struct {
 	// The fingerprint of the plan you reviewed. When set, the change applies
 	// only if its plan has it. A plan that destroys data, may cut off access,
 	// or lets two containers write to one place needs it.
-	Fingerprint   string `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	Fingerprint string `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	// The proof from FinishStepUp, for applying this change. A plan that gives
+	// something as much as root on a server needs it, which is why no API token
+	// can apply one. Call without it first: it checks everything else, then
+	// refuses with the reason needs_step_up.
+	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1694,6 +1699,13 @@ func (x *ApplyChangeRequest) GetId() string {
 func (x *ApplyChangeRequest) GetFingerprint() string {
 	if x != nil {
 		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *ApplyChangeRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
 	}
 	return ""
 }
@@ -3763,7 +3775,11 @@ type HostAccess struct {
 	// Where the server path leads through symlinks, as its server's agent reads it,
 	// when that is somewhere else. Empty when it isn't, or when no agent has said,
 	// as for a server that wasn't connected when it was planned.
-	LeadsTo       string `protobuf:"bytes,10,opt,name=leads_to,json=leadsTo,proto3" json:"leads_to,omitempty"`
+	LeadsTo string `protobuf:"bytes,10,opt,name=leads_to,json=leadsTo,proto3" json:"leads_to,omitempty"`
+	// True when that isn't where the path led when what runs now was made, as its
+	// server's agent reads it. An agent sets it, for the control plane to decide
+	// what a plan gains by, and plans don't carry it.
+	LeadsMoved    bool `protobuf:"varint,11,opt,name=leads_moved,json=leadsMoved,proto3" json:"leads_moved,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3866,6 +3882,13 @@ func (x *HostAccess) GetLeadsTo() string {
 		return x.LeadsTo
 	}
 	return ""
+}
+
+func (x *HostAccess) GetLeadsMoved() bool {
+	if x != nil {
+		return x.LeadsMoved
+	}
+	return false
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -5586,10 +5609,11 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"l\n" +
 	"\x13ListChangesResponse\x12-\n" +
 	"\achanges\x18\x01 \x03(\v2\x13.dockwell.v1.ChangeR\achanges\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"F\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\\\n" +
 	"\x12ApplyChangeRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
-	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\"B\n" +
+	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\x12\x14\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\"B\n" +
 	"\x13ApplyChangeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"$\n" +
 	"\x12WatchChangeRequest\x12\x0e\n" +
@@ -5734,7 +5758,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12)\n" +
 	"\x10previous_servers\x18\a \x03(\tR\x0fpreviousServers\x128\n" +
 	"\vhost_access\x18\b \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\"\xa3\x02\n" +
+	"hostAccess\"\xc4\x02\n" +
 	"\n" +
 	"HostAccess\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.dockwell.v1.HostAccessKindR\x04kind\x12\x12\n" +
@@ -5748,7 +5772,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\fsame_as_root\x18\t \x01(\bR\n" +
 	"sameAsRoot\x12\x19\n" +
 	"\bleads_to\x18\n" +
-	" \x01(\tR\aleadsTo\"\xa2\x02\n" +
+	" \x01(\tR\aleadsTo\x12\x1f\n" +
+	"\vleads_moved\x18\v \x01(\bR\n" +
+	"leadsMoved\"\xa2\x02\n" +
 	"\n" +
 	"ServerPlan\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +

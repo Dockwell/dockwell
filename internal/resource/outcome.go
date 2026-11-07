@@ -68,9 +68,10 @@ type ImageNamer interface {
 	ImageOf(spec proto.Message) string
 	// SetImage changes the image a spec runs.
 	SetImage(spec proto.Message, image string)
-	// CodeOf is what a spec runs in that image, to compare: what a change of it means
-	// is as much as a new image, where it may run anything.
-	CodeOf(spec proto.Message) []string
+	// WhatRuns is a copy of a spec to compare what runs in it: all of it but its
+	// limits, which run nothing, so what's added to a spec later counts until someone
+	// says it doesn't.
+	WhatRuns(spec proto.Message) proto.Message
 }
 
 // BareImage is an image without the digest it may be pinned to.

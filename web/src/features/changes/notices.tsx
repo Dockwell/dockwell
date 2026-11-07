@@ -58,6 +58,11 @@ export function needsConfirming(plan: Plan | undefined): boolean {
   return plan.hostAccess && access.length === 0 ? true : access.some(asGoodAsRoot);
 }
 
+/** Whether applying a plan asks for a passkey, as the control plane decides it: anything as good as root does. */
+export function needsPasskey(plan: Plan | undefined): boolean {
+  return plan !== undefined && accessOf(plan).some(asGoodAsRoot);
+}
+
 /** How much worse one reach is than another, so the worst leads. */
 const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.DOCKER_SOCKET]: 0,

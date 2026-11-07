@@ -120,8 +120,12 @@ const (
 
 // Decision is a driver's judgement of one step.
 type Decision struct {
-	Action Action
-	Effect Effect
+	// PlannedLeads says where the server paths the resource mounts led when this
+	// was planned, for those that lead elsewhere. What makes a container checks
+	// again, and refuses what leads elsewhere by then.
+	PlannedLeads map[string]string `json:",omitempty"`
+	Action       Action
+	Effect       Effect
 	// Downtime is how long what the resource serves is unavailable; zero
 	// means none. Drivers must not understate it.
 	Downtime time.Duration
@@ -172,6 +176,10 @@ type Decision struct {
 	// didn't make uses, by name, where that isn't Docker's bridge. An agent reads it;
 	// the control plane puts it on HostAccess (Access.Leading), and it goes no further.
 	Leads map[string]string `json:",omitempty"`
+	// LeadsMoved says which of Leads aren't where the resource's server path led
+	// when what runs now was made. What a person approved isn't what it reaches
+	// any more, so the control plane counts it as gained.
+	LeadsMoved []string `json:",omitempty"`
 	// Pull is true when the step asks the server for its image again first. With
 	// no Changes, it replaces what runs only if that finds a newer image. With
 	// nothing but a restart policy to change, it changes that in place otherwise.

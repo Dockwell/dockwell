@@ -454,6 +454,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		step.Ref, step.Pulled, step.Finishing = ref, call.GetApply().GetPulled(), call.GetApply().GetFinishing()
+		step.PlannedLeads = call.GetApply().GetPlannedLeads()
 		progress := c.progress(call.GetId())
 		defer progress.stop()
 		ctx = resource.WithProgress(ctx, progress.say)
@@ -574,7 +575,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Files == nil {
 			return fail(errNoFiles)
 		}
-		saved, err := c.cfg.Files.Save(ctx, save.GetPath(), save.GetContent(), save.GetVersion(), save.GetRecord())
+		saved, err := c.cfg.Files.Save(ctx, save.GetPath(), save.GetContent(), save.GetVersion(), save.GetRecord(), save.GetConfirmedPath())
 		if err != nil {
 			return fail(err)
 		}

@@ -4,6 +4,7 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -365,6 +366,53 @@ func (d *Docker) networkDrivers(ctx context.Context, t Target, spec *resourcev1.
 	return out, nil
 }
 
+// LeadsMoved says which of the server paths a spec mounts don't lead where they did
+// when what runs now was made, as its label says. One with no label was made before
+// that was kept, so all that's known is that nobody approved where it leads now.
+func (d *Docker) LeadsMoved(ctx context.Context, t Target, spec *resourcev1.Container) ([]string, error) {
+	leads, err := d.pathLeads(ctx, t, spec)
+	if err != nil || len(leads) == 0 {
+		return nil, err
+	}
+	all, err := d.instances(ctx, t)
+	if err != nil || len(all) == 0 {
+		return nil, err // nothing runs, so a plan counts all it reaches anyway
+	}
+	var was map[string]string
+	if label := all[0].Config.Labels[LabelLeads]; label != "" {
+		if err := json.Unmarshal([]byte(label), &was); err != nil {
+			return nil, fmt.Errorf("can't read where %s's paths led: %w", all[0].name(), err)
+		}
+	}
+	var moved []string
+	for _, p := range slices.Sorted(maps.Keys(leads)) {
+		if was[p] != leads[p] {
+			moved = append(moved, p)
+		}
+	}
+	return moved, nil
+}
+
+// leadsAsPlanned checks the server paths a container is about to mount lead where
+// its plan said, as a link can change between the two and Docker follows what it
+// finds, and says what to keep on the container.
+func (d *Docker) leadsAsPlanned(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) (string, error) {
+	leads, err := d.pathLeads(ctx, t, spec)
+	if err != nil || len(leads) == 0 {
+		return "", err
+	}
+	for _, p := range slices.Sorted(maps.Keys(leads)) {
+		if dec.PlannedLeads[p] != leads[p] {
+			return "", fmt.Errorf("the server path %s leads to %s now, which isn't what this plan was approved for, so nothing was made. Plan the change again to see what it reaches", p, leads[p])
+		}
+	}
+	label, err := json.Marshal(leads)
+	if err != nil {
+		return "", fmt.Errorf("can't keep where %s's paths lead: %w", t.Name, err)
+	}
+	return string(label), nil
+}
+
 // pathLeads says where the server paths a container mounts lead on this server.
 func (d *Docker) pathLeads(ctx context.Context, t Target, spec *resourcev1.Container) (map[string]string, error) {
 	if d.Paths == nil || len(spec.GetMounts()) == 0 {
@@ -428,6 +476,25 @@ func (d *Driver) Leads(ctx context.Context, ref resource.Ref, desired proto.Mess
 func (d *Driver) LeadsAt(ctx context.Context, t Target, c *resourcev1.Container) (map[string]string, error) {
 	if l, ok := d.Runtime.(pathLeader); ok {
 		return l.Leads(ctx, t, c)
+	}
+	return nil, nil
+}
+
+// pathMover is a Runtime that can say which server paths have moved (PathMover).
+type pathMover interface {
+	LeadsMoved(ctx context.Context, t Target, spec *resourcev1.Container) ([]string, error)
+}
+
+// LeadsMoved says which of the server paths a container mounts don't lead where
+// they did when what runs now was made.
+func (d *Driver) LeadsMoved(ctx context.Context, ref resource.Ref, desired proto.Message) ([]string, error) {
+	return d.LeadsMovedAt(ctx, HostTarget(ref), desired.(*resourcev1.Container))
+}
+
+// LeadsMovedAt is LeadsMoved for the container at t, for a service's app too.
+func (d *Driver) LeadsMovedAt(ctx context.Context, t Target, c *resourcev1.Container) ([]string, error) {
+	if m, ok := d.Runtime.(pathMover); ok {
+		return m.LeadsMoved(ctx, t, c)
 	}
 	return nil, nil
 }

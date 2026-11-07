@@ -513,14 +513,22 @@ export async function appsFlow(
         },
       ],
     });
-    if (!change) fail("the server planned no change for an app on its own network");
-    await call("ApplyChange", { id: change?.id, fingerprint: change?.plan?.fingerprint });
-    for (let i = 0; i < 240; i++) {
-      const now = await call("GetChange", { id: change?.id });
-      if (now.change?.state === "CHANGE_STATE_APPLIED") break;
-      if (now.change?.state === "CHANGE_STATE_FAILED") fail("the app on the server's own network failed to run");
-      await page.waitForTimeout(500);
-    }
+    if (!change?.id) fail("the server planned no change for an app on its own network");
+    // The server's own network is as good as root, so this goes the way a person's
+    // does, in the panel: the plan says why it asks, and a passkey confirms it.
+    await page.goto(`${origin}/changes/${change?.id}`);
+    const onHostPlan = page.getByRole("dialog", { name: "Review plan" });
+    await onHostPlan.waitFor({ timeout: 30_000 });
+    await onHostPlan
+      .locator(".plan-risk")
+      .getByText(/^onhost shares .+'s own network/)
+      .waitFor();
+    await onHostPlan.locator(".plan-gate").getByText("Applying this asks for your passkey").waitFor();
+    await onHostPlan.locator(".plan-gate input").fill(await onHostPlan.locator(".plan-gate code").first().innerText());
+    await onHostPlan.getByRole("button", { name: /Apply plan/ }).click();
+    const onHostDone = page.getByRole("button", { name: "Done", exact: true });
+    await onHostDone.waitFor({ timeout: 120_000 });
+    await onHostDone.click();
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Apps" }).click();
     await page
       .getByRole("link", { name: /^onhost/ })

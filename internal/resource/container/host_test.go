@@ -387,6 +387,75 @@ func TestWhatIsAsGoodAsRoot(t *testing.T) {
 // A symlink reaches what it leads to, so the agent says where each server path
 // leads, from the server as it is, for a bind and for a volume that binds. A path
 // that leads nowhere else isn't mentioned.
+// A link can change between a plan and what it makes, and Docker follows what it
+// finds, so what makes a container looks again, and what it made says where each
+// path led, for the next plan to tell if that's moved.
+func TestAContainerIsOnlyMadeWhereThePlanSaidItsPathsLead(t *testing.T) {
+	e := dockertest.New(t)
+	e.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	site, other := filepath.Join(dir, "site"), filepath.Join(dir, "other")
+	if err := os.Mkdir(site, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	via := filepath.Join(dir, "via")
+	if err := os.Symlink(site, via); err != nil {
+		t.Fatal(err)
+	}
+	relink := func(to string) {
+		t.Helper()
+		if err := os.Remove(via); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(to, via); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := &container.Paths{Client: e.Client(), DataDir: filepath.Join(dir, "dockwell")}
+	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Paths: paths}
+	c := container.Driver{Runtime: rt}
+	l := resource.Local{Drivers: resource.NewRegistry(&c)}
+	ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+	spec := func(env string) *resourcev1.Container {
+		return &resourcev1.Container{Image: "nginx:1.27", Env: map[string]string{"V": env}, Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: via}, Target: "/site"}}}
+	}
+	plan := func(s *resourcev1.Container) resource.Step {
+		t.Helper()
+		steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: s}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return steps[0]
+	}
+
+	first := plan(spec("1"))
+	relink(other)
+	err = l.Apply(t.Context(), first, spec("1"))
+	if err == nil || !strings.Contains(err.Error(), via+" leads to "+other+" now") || !strings.Contains(err.Error(), "Plan the change again") {
+		t.Fatalf("a path that moved since its plan = %v", err)
+	}
+	if got := e.Containers(); len(got) != 0 {
+		t.Fatalf("it made %v", got)
+	}
+
+	if err := l.Apply(t.Context(), plan(spec("1")), spec("1")); err != nil {
+		t.Fatal(err)
+	}
+	if got := plan(spec("2")); len(got.LeadsMoved) != 0 {
+		t.Errorf("a path that leads where it did reads as moved: %v", got.LeadsMoved)
+	}
+	relink(site)
+	if got := plan(spec("2")); !slices.Equal(got.LeadsMoved, []string{via}) {
+		t.Errorf("a path that moved reads as %v", got.LeadsMoved)
+	}
+}
+
 func TestTheAgentSaysWhereAPathLeads(t *testing.T) {
 	e := dockertest.New(t)
 	images(e)

@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type FileEntry, FileService, type ReadFileResponse } from "@dockwell/api";
+import { type FileEntry, FileService, type ReadFileResponse, StepUpAction } from "@dockwell/api";
 import { Button, Callout, CodeField, Icon, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -13,6 +13,9 @@ import { type KeyboardEvent, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { onApple } from "../../lib/platform";
+import { PasskeyError } from "../../lib/webauthn";
+import { useAuthError } from "../auth/messages";
+import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Base, type Draft, dropDraft, heldDraft, holdDraft } from "./drafts";
 import { changedLines, editable, lineCount, lineEnding, nameOf, restoreEndings } from "./paths";
@@ -178,6 +181,7 @@ function baseOf(read: ReadFileResponse): Base {
     version: read.version,
     crlf: lineEnding(read.content) === "CRLF",
     where: read.path,
+    wayBackIn: read.wayBackIn,
   };
 }
 
@@ -193,6 +197,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
   const queryClient = useQueryClient();
+  const explain = useAuthError();
   const [base, setBase] = useState(() => baseOf(read));
   const [draft, setDraft] = useState(base.text);
   const [saving, setSaving] = useState(false);
@@ -256,7 +261,20 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     setConflict(false);
     setJustSaved(false);
     try {
-      const res = await client.saveFile({ serverId, path, content, version: over });
+      const res = await withStepUpIfAsked(
+        transport,
+        StepUpAction.SAVE_WAY_BACK_IN,
+        `${serverId}:${base.where}`,
+        (proof) =>
+          client.saveFile({
+            serverId,
+            path,
+            content,
+            version: over,
+            proof,
+            confirmedPath: base.wayBackIn || proof ? base.where : "",
+          }),
+      );
       setBase((was) => ({ ...was, text: sent, version: res.version }));
       dropDraft(serverId, path);
       setJustSaved(true);
@@ -268,9 +286,18 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     } catch (err) {
       const reason = reasonOf(err);
       if (reason === "file_changed") setConflict(true);
-      else {
+      else if (reason === "no_passkey_here") {
+        const where = base.where;
+        setProblem(
+          t`Saving ${where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it.`,
+        );
+      } else {
         setMayLand(reason === "save_may_land");
-        setProblem(sentence(err));
+        if (err instanceof PasskeyError && err.problem === "cancelled") {
+          setProblem(t`The passkey prompt closed, so nothing was saved. Save again when you're ready.`);
+        } else {
+          setProblem(err instanceof PasskeyError ? explain(err) : sentence(err));
+        }
       }
     } finally {
       setSaving(false);
@@ -431,7 +458,8 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
               {plural(changes, { one: "# line changed", other: "# lines changed" })}
             </p>
             <span>
-              <Trans>Saving replaces the file at once, and can't be undone.</Trans>
+              <Trans>Saving replaces the file at once, and can't be undone.</Trans>{" "}
+              {base.wayBackIn ? <Trans>It asks for your passkey, as this file can let someone back in.</Trans> : null}
             </span>
           </div>
           <div className="files-save-actions">
