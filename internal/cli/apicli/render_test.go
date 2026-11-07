@@ -15,6 +15,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
@@ -1075,5 +1076,36 @@ func TestAHeartbeatPrintsNothing(t *testing.T) {
 	serverEvent(&out, &dockwellv1.WatchServersResponse{SnapshotComplete: true}, now)
 	if !strings.Contains(out.String(), "Watching for changes") {
 		t.Errorf("the end of the snapshot printed %q", out.String())
+	}
+}
+
+func TestAWebsitesPreviewAndListRead(t *testing.T) {
+	config := "{\n\tadmin off\n}\n\n:8080 {\n\treverse_proxy https://backend.example.com\n}\n"
+	var b strings.Builder
+	Render(&b, &dockwellv1.PreviewWebsiteResponse{
+		Website: &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Url: "https://backend.example.com"}}},
+		Config:  config,
+	}, now)
+	if want := "Sends to https://backend.example.com\n\n" + config; b.String() != want {
+		t.Errorf("a preview reads\n%s\nwant\n%s", b.String(), want)
+	}
+
+	b.Reset()
+	Render(&b, &dockwellv1.ListWebsitesResponse{Websites: []*dockwellv1.WebsiteInfo{
+		{
+			Domain: "blog.example.com", ServerName: "web-1", UpdateTime: timestamppb.New(now.Add(-2 * time.Hour)),
+			Spec: &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Url: "https://backend.example.com/blog"}}},
+		},
+		{
+			Domain: "tools.example.com", ServerName: "web-1",
+			Spec: &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Port: 3000}}},
+		},
+	}}, now)
+	lines := strings.Split(strings.TrimSpace(b.String()), "\n")
+	if len(lines) != 3 || !strings.HasPrefix(lines[0], "Domain") || !strings.Contains(lines[0], "Sends to") || !strings.Contains(lines[0], "Server") || !strings.Contains(lines[0], "Changed") {
+		t.Fatalf("the list reads\n%s", b.String())
+	}
+	if !strings.Contains(lines[1], "https://backend.example.com/blog") || !strings.Contains(lines[1], "web-1") || !strings.Contains(lines[2], "port 3000 on the server") {
+		t.Errorf("the list reads\n%s", b.String())
 	}
 }
