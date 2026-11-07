@@ -11,8 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strconv"
+	"strings"
 
 	"connectrpc.com/connect"
 
@@ -21,6 +23,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -66,7 +69,89 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{Entry: entry, Project: free.project, Values: free.values}), nil
+	parts, err := partsOf(ctx, entry, free.values)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{Entry: entry, Project: free.project, Values: free.values, Parts: parts}), nil
+}
+
+// partsOf reads what an entry's Compose file runs, from the values an install starts
+// with and a stand-in for what a person types or Dockwell generates, as nothing it
+// says depends on those. The service a person opens comes first, then the other apps,
+// then the databases they keep their data in.
+func partsOf(ctx context.Context, e *catalogv1.Entry, values map[string]string) ([]*dockwellv1.CatalogPart, error) {
+	variables := maps.Clone(values)
+	if variables == nil {
+		variables = map[string]string{}
+	}
+	for _, in := range e.GetInputs() {
+		if variables[in.GetName()] == "" {
+			variables[in.GetName()] = standIn(in)
+		}
+	}
+	stack, err := compose.Read(ctx, compose.Input{File: []byte(e.GetCompose()), Variables: variables})
+	if err != nil {
+		return nil, fmt.Errorf("reading the Compose file of the catalog entry %s: %w", e.GetId(), err)
+	}
+	out := make([]*dockwellv1.CatalogPart, 0, len(stack.Services))
+	for _, s := range stack.Services {
+		app := s.Spec.GetApp()
+		part := &dockwellv1.CatalogPart{
+			Service:  s.Name,
+			Image:    tagged(app.GetImage()),
+			Database: isDatabase(app.GetImage()),
+			Opens:    s.Name == e.GetWeb().GetService(),
+		}
+		for _, m := range app.GetMounts() {
+			if v := m.GetVolume(); v != "" && !m.GetExternal() {
+				part.Volumes = append(part.Volumes, v)
+			}
+		}
+		out = append(out, part)
+	}
+	rank := func(p *dockwellv1.CatalogPart) int {
+		switch {
+		case p.GetOpens():
+			return 0
+		case !p.GetDatabase():
+			return 1
+		}
+		return 2
+	}
+	slices.SortStableFunc(out, func(a, b *dockwellv1.CatalogPart) int { return cmp.Compare(rank(a), rank(b)) })
+	return out, nil
+}
+
+// standIn is a value for an input that has none yet, of the kind it takes.
+func standIn(in *catalogv1.Input) string {
+	switch in.GetType() {
+	case catalogv1.InputType_INPUT_TYPE_EMAIL:
+		return "you@example.com"
+	case catalogv1.InputType_INPUT_TYPE_PORT:
+		return "1024"
+	case catalogv1.InputType_INPUT_TYPE_UNSPECIFIED, catalogv1.InputType_INPUT_TYPE_TEXT, catalogv1.InputType_INPUT_TYPE_SECRET:
+	}
+	return "stand-in"
+}
+
+// tagged is an image by repository and tag, without the digest that pins it.
+func tagged(image string) string {
+	repo, _, _ := strings.Cut(image, "@")
+	return repo
+}
+
+// databases are the images of databases an app keeps its data in, by repository.
+var databases = []string{"postgres", "mysql", "mariadb", "redis", "clickhouse/clickhouse-server"}
+
+// isDatabase reports an image of a database, by its repository.
+func isDatabase(image string) bool {
+	repo := tagged(image)
+	if i := strings.LastIndex(repo, ":"); i > strings.LastIndex(repo, "/") {
+		repo = repo[:i]
+	}
+	repo = strings.TrimPrefix(strings.TrimPrefix(repo, "docker.io/"), "library/")
+	return slices.Contains(databases, repo)
 }
 
 // InstallCatalogEntry plans an entry as a project of its own.

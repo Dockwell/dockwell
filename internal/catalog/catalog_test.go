@@ -80,6 +80,25 @@ func TestTheBuiltInEntries(t *testing.T) {
 	}
 }
 
+// Names sort as people read them, whatever their case, so n8n and pgAdmin sit among
+// the others rather than after Z.
+func TestEntriesSortAsPeopleReadThem(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range c.All() {
+		names = append(names, e.GetName())
+	}
+	if !slices.IsSortedFunc(names, func(a, b string) int { return strings.Compare(strings.ToLower(a), strings.ToLower(b)) }) {
+		t.Errorf("the catalog lists %v", names)
+	}
+	if i, j := slices.Index(names, "n8n"), slices.Index(names, "Nextcloud"); i < 0 || j < 0 || i > j {
+		t.Errorf("n8n comes after Nextcloud, or one is missing: %v", names)
+	}
+}
+
 // Each app's licence is one that's had a look: open source, or allowed by name, with
 // why. Coder's image is built with its Enterprise code, under Coder's own licence, so
 // the catalog's page calls its apps self-hosted rather than open source, and the

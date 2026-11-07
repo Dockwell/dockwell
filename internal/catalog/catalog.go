@@ -74,8 +74,12 @@ func Load(commit string) (*Catalog, error) {
 	return out, nil
 }
 
+// sortEntries sorts by name as people read one, whatever its case, so n8n and
+// pgAdmin sit among the others rather than after them all.
 func sortEntries(entries []*catalogv1.Entry) {
-	slices.SortFunc(entries, func(a, b *catalogv1.Entry) int { return strings.Compare(a.GetName(), b.GetName()) })
+	slices.SortFunc(entries, func(a, b *catalogv1.Entry) int {
+		return cmp.Or(strings.Compare(strings.ToLower(a.GetName()), strings.ToLower(b.GetName())), strings.Compare(a.GetName(), b.GetName()))
+	})
 }
 
 // BuiltIn returns the entries built into the binary alone, whatever DirEnv names,

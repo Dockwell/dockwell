@@ -69,6 +69,26 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	if first.Msg.GetProject() != "postgres" || first.Msg.GetValues()["ADMIN_PORT"] != "8081" {
 		t.Errorf("GetCatalogEntry suggests %q and %v", first.Msg.GetProject(), first.Msg.GetValues())
 	}
+	// What it installs: Adminer, which a person opens, then the database it reaches,
+	// by tag, as a person reads an image.
+	var parts []string
+	for _, p := range first.Msg.GetParts() {
+		parts = append(parts, fmt.Sprintf("%s %s database=%t opens=%t %v", p.GetService(), p.GetImage(), p.GetDatabase(), p.GetOpens(), p.GetVolumes()))
+	}
+	if want := []string{"adminer adminer:6.2.0 database=false opens=true []", "db postgres:17.11 database=true opens=false [data]"}; !slices.Equal(parts, want) {
+		t.Errorf("GetCatalogEntry says it installs %q, want %q", parts, want)
+	}
+	// One that takes a person's own folder lists only its volumes, and one with an
+	// input no one has given yet still says what it runs.
+	for id, want := range map[string]string{"jellyfin": "jellyfin jellyfin/jellyfin:12.3 database=false opens=true [config cache]", "nextcloud": "nextcloud nextcloud:35.0.2-apache database=false opens=true [html]"} {
+		got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p := got.Msg.GetParts(); len(p) == 0 || fmt.Sprintf("%s %s database=%t opens=%t %v", p[0].GetService(), p[0].GetImage(), p[0].GetDatabase(), p[0].GetOpens(), p[0].GetVolumes()) != want {
+			t.Errorf("%s says it installs %v, want %s first", id, p, want)
+		}
+	}
 
 	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "postgres"})
 	if want := "Install PostgreSQL 17.11 as postgres"; planned.GetSummary() != want {

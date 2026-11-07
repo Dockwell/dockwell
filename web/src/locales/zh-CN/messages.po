@@ -3365,14 +3365,23 @@ msgstr "{count, plural, other {已安装 # 个}}"
 msgid "{count} installed"
 msgstr "已安装 {count} 个"
 
+msgid "App you open"
+msgstr "你打开的应用"
+
 msgid "Couldn't read this app"
 msgstr "无法读取此应用"
+
+msgid "Database"
+msgstr "数据库"
 
 msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
 msgstr "Dockwell 会生成{inLog}，但 {app} 会把它写入日志，而查看日志不需要通行密钥。请在首次登录后修改。"
 
 msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
 msgstr "Dockwell 会生成{made}并加密保存。你可以用通行密钥查看。"
+
+msgid "Each image pinned by digest"
+msgstr "每个镜像都按摘要固定"
 
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "请填写{missingLabel}，然后审阅计划"
@@ -3391,6 +3400,9 @@ msgstr "正在读取此应用"
 
 msgid "Version {version}"
 msgstr "版本 {version}"
+
+msgid "What it installs"
+msgstr "它会安装什么"
 
 msgid "What to do first"
 msgstr "首先要做的事"

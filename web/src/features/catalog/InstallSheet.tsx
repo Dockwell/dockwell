@@ -2,8 +2,19 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { CatalogService, type Change, ChangeState, type Input, InputType } from "@dockwell/api";
-import { Button, Callout, cx, Icon, PHONE_QUERY, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
+import { type CatalogPart, CatalogService, type Change, ChangeState, type Input, InputType } from "@dockwell/api";
+import {
+  Button,
+  Callout,
+  cx,
+  Icon,
+  PHONE_QUERY,
+  PlanDiff,
+  type PlanResource,
+  Sheet,
+  TextField,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useMemo, useState } from "react";
@@ -242,6 +253,7 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
                 </span>
               </p>
             ) : null}
+            <Parts parts={got.data?.parts ?? []} />
             <p className="catalog-sheet-source">
               <Trans>
                 {app} is under the {license} licence.
@@ -258,6 +270,40 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
         ) : null}
       </form>
     </Sheet>
+  );
+}
+
+/**
+ * What an install runs, as the plan will list it (Catalog-Install): the app you open
+ * first, then what it keeps its data in, each with its image by tag and its volumes.
+ * The plan says the rest, such as the project and its secrets, so this counts nothing.
+ */
+function Parts({ parts }: { parts: readonly CatalogPart[] }) {
+  const { t } = useLingui();
+  if (parts.length === 0) return null;
+  const resources: PlanResource[] = parts.map((part) => ({
+    id: part.service,
+    action: "create",
+    kind: part.database ? "database" : "app",
+    kindLabel: part.database ? t`Database` : part.opens ? t`App you open` : t`App`,
+    name: part.service,
+    changes: [
+      { path: "image", label: t`image`, to: part.image },
+      ...part.volumes.map((volume, i) => ({ path: `volumes[${i}]`, label: t`volume`, to: volume })),
+    ],
+  }));
+  return (
+    <section className="catalog-parts" aria-labelledby="catalog-parts-title">
+      <div className="catalog-parts-head">
+        <h3 id="catalog-parts-title">
+          <Trans>What it installs</Trans>
+        </h3>
+        <span>
+          <Trans>Each image pinned by digest</Trans>
+        </span>
+      </div>
+      <PlanDiff resources={resources} noSummary />
+    </section>
   );
 }
 

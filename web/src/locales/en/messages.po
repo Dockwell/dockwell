@@ -3365,14 +3365,23 @@ msgstr "{count, plural, one {Installed} other {# installed}}"
 msgid "{count} installed"
 msgstr "{count} installed"
 
+msgid "App you open"
+msgstr "App you open"
+
 msgid "Couldn't read this app"
 msgstr "Couldn't read this app"
+
+msgid "Database"
+msgstr "Database"
 
 msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
 msgstr "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
 
 msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
 msgstr "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
+
+msgid "Each image pinned by digest"
+msgstr "Each image pinned by digest"
 
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "Give {missingLabel} a value to review the plan"
@@ -3391,6 +3400,9 @@ msgstr "Reading this app"
 
 msgid "Version {version}"
 msgstr "Version {version}"
+
+msgid "What it installs"
+msgstr "What it installs"
 
 msgid "What to do first"
 msgstr "What to do first"

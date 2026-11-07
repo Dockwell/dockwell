@@ -74,11 +74,11 @@ async function chooseServer(sheet: Locator) {
 }
 
 export async function catalogFlow(page: Page, { origin, step, shoot, docker, catalogDir }: CatalogFlowOptions) {
-  step("catalog: the rail leads to it, and it lists the first set");
+  step("catalog: the rail leads to it, and it lists the apps, n8n and pgAdmin among them");
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
-  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "T3 Code"]) {
+  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "T3 Code", "pgAdmin", "n8n"]) {
     await page.getByRole("link", { name: `Install ${app}` }).waitFor();
   }
   await shoot(page, "catalog");
@@ -112,6 +112,14 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   if (drawn.card !== "1px" || drawn.fields !== "20px") {
     fail(`opened at its address, the catalog draws its cards' border and its fields' gap as ${JSON.stringify(drawn)}`);
   }
+
+  step("catalog: an app's page says what it installs before the plan, the app you open first, each by image");
+  const parts = direct.getByRole("region", { name: "What it installs" });
+  await parts.getByText("App you open").waitFor();
+  for (const image of ["adminer:6.2.0", "postgres:17.11"]) await parts.getByText(image, { exact: true }).waitFor();
+  const order = (await parts.textContent()) ?? "";
+  if (order.indexOf("adminer") > order.indexOf("postgres:17.11"))
+    fail(`What it installs puts the database before the app: ${order}`);
   await direct.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
 

@@ -68,7 +68,14 @@ function api(more: Api["catalog"] = {}): Api {
       getCatalogEntry: (req) => {
         const values: Record<string, string> = req.id === "postgres" ? { ADMIN_PORT: "8085" } : {};
         const entry = req.id === "postgres" ? postgres : req.id === proxy.id ? proxy : tunnel;
-        return { entry, project: req.id, values };
+        const parts =
+          req.id === "postgres"
+            ? [
+                { service: "adminer", image: "adminer:6.2.0", opens: true },
+                { service: "db", image: "postgres:17.11", database: true, volumes: ["data"] },
+              ]
+            : [];
+        return { entry, project: req.id, values, parts };
       },
       ...more,
     },
@@ -191,6 +198,18 @@ describe("A newer release", () => {
 });
 
 describe("Installing from the catalog", () => {
+  it("says what it installs before the plan: the app you open, then its database, each by image", async () => {
+    const { container } = renderAt("/catalog/postgres", api());
+    const parts = await screen.findByRole("region", { name: "What it installs" });
+    expect(within(parts).getByText("Each image pinned by digest")).toBeVisible();
+    const text = parts.textContent ?? "";
+    expect(text.indexOf("adminer")).toBeLessThan(text.indexOf("postgres:17.11"));
+    for (const word of ["App you open", "adminer:6.2.0", "Database", "postgres:17.11", "data"]) {
+      expect(within(parts).getByText(word)).toBeVisible();
+    }
+    await expectAccessible(container);
+  });
+
   it("starts from what's free, asks nothing it can generate, and plans it", async () => {
     const user = userEvent.setup();
     let asked: InstallCatalogEntryRequest | undefined;
