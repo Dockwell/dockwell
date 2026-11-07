@@ -300,6 +300,41 @@ describe("New website", () => {
   });
 });
 
+describe("New website on a fleet", () => {
+  it("asks which server, and takes you to it", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchServersResponse>();
+    watch.push(
+      changed(aServer({ id: SERVER, name: "hz-1" })),
+      changed(aServer({ id: "srv_2", name: "hz-2" })),
+      snapshotComplete,
+    );
+    let asked: CreateWebsiteRequest | undefined;
+    renderAt("/websites/new", {
+      ...api([], {
+        websites: {
+          createWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+      servers: { watchServers: watch.stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "shop.example.com");
+    await user.type(within(sheet).getByRole("textbox", { name: "URL" }), "https://backend.example.com");
+    const server = await within(sheet).findByRole("combobox", { name: "Server" });
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(await within(sheet).findByText("Choose the server it runs on.")).toBeVisible();
+    await waitFor(() => expect(server).toHaveFocus());
+    await user.selectOptions(server, "hz-2");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked?.servers).toEqual(["srv_2"]));
+  });
+});
+
 describe("A website's configuration", () => {
   it("shows what its web server runs, marks what an edit changes, and plans it", async () => {
     const user = userEvent.setup();

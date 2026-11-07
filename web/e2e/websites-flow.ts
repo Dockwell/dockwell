@@ -124,6 +124,12 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await sheet.getByText("Name the domain, such as blog.example.com.").waitFor();
   await sheet.getByRole("textbox", { name: "Domain", exact: true }).fill("blog.example.net");
   await sheet.getByRole("textbox", { name: "URL", exact: true }).fill("https://backend.example.net/blog");
+  // With several servers, the sheet asks which, as a website runs on one.
+  const where = sheet.getByRole("combobox", { name: "Server" });
+  if ((await where.count()) > 0) {
+    await sheet.getByText("Choose the server it runs on.").waitFor();
+    await where.selectOption({ index: 1 });
+  }
   await shoot(page, "website-new");
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   const plan = page.getByRole("dialog", { name: "Review plan" });
@@ -205,7 +211,10 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await row("blog.example.net").getByText("· 61 days left").waitFor();
   await row("tools.example.net").getByText("Port 3000 on the server").waitFor();
   await row("tools.example.net").getByText("TLS ends in front").waitFor();
-  await page.getByText("3 sites on").waitFor();
+  await page
+    .getByText(/^3 sites( on |$)/)
+    .first()
+    .waitFor();
   await shoot(page, "websites");
 
   step("websites: at 800 px and on a phone it fits, with every domain whole");
