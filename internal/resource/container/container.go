@@ -931,7 +931,7 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 			if !ok {
 				return errors.New("this runtime can't take on a container")
 			}
-			return a.Adopt(ctx, t, step.Adopts, spec)
+			return a.Adopt(ctx, t, step.Adopts, spec, step.Decision)
 		}
 		if p, ok := d.Runtime.(puller); ok && step.Pull {
 			same, err := p.PullAgain(ctx, t, spec, step.Pulled)

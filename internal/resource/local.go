@@ -285,7 +285,11 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			if err != nil {
 				return nil, fmt.Errorf("can't take on %s: %w", want.Ref.Name, err)
 			}
-			steps = append(steps, Step{Ref: want.Ref, Decision: dec, Changes: Diff(nil, spec)})
+			step := Step{Ref: want.Ref, Decision: dec, Changes: Diff(nil, spec)}
+			if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
+				return nil, err
+			}
+			steps = append(steps, step)
 			continue
 		}
 		actual, err := Observe(ctx, d, want.Ref)
@@ -314,10 +318,8 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			if left {
 				step.Decision = dec
 				// A restore writes wherever a path leads now.
-				if f, ok := d.(PathFollower); ok && spec != nil {
-					if step.Leads, err = f.Leads(ctx, want.Ref, spec); err != nil {
-						return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
-					}
+				if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
+					return nil, err
 				}
 			}
 			steps = append(steps, step)
@@ -386,12 +388,12 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		}
 		// Nothing is mounted for a step with nothing to do, and a dead path on what's
 		// left as it is shouldn't refuse a plan for something else.
-		if f, ok := d.(PathFollower); ok && spec != nil && step.Action != ActionNone {
-			if step.Leads, err = f.Leads(ctx, want.Ref, spec); err != nil {
-				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+		if step.Action != ActionNone {
+			if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
+				return nil, err
 			}
 			step.PlannedLeads = step.Leads
-			if m, ok := d.(PathMover); ok {
+			if m, ok := d.(PathMover); ok && spec != nil {
 				if step.LeadsMoved, err = m.LeadsMoved(ctx, want.Ref, spec); err != nil {
 					return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 				}
@@ -410,6 +412,20 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		steps = append(steps, step)
 	}
 	return steps, nil
+}
+
+// leadsOf says where the server paths a spec mounts lead, for a kind that follows
+// them. A plan answers for that, so every step that mounts or writes anything asks.
+func leadsOf(ctx context.Context, d Driver, ref Ref, spec proto.Message) (map[string]string, error) {
+	f, ok := d.(PathFollower)
+	if !ok || spec == nil {
+		return nil, nil
+	}
+	leads, err := f.Leads(ctx, ref, spec)
+	if err != nil {
+		return nil, fmt.Errorf("can't plan %s: %w", ref, err)
+	}
+	return leads, nil
 }
 
 // normalize checks a desired spec with its driver, and returns the

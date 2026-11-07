@@ -28,6 +28,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
@@ -74,6 +75,9 @@ type Runner struct {
 	Client *docker.Client
 	// Root is where backups live, the agent's backups directory.
 	Root string
+	// Paths follows server paths, to check where they lead before a container
+	// starts again or a restore writes through one. Nil checks nothing.
+	Paths *container.Paths
 	// Binary is what runs in the helper; /proc/self/exe unless set, which stays
 	// right across an upgrade that replaces the file.
 	Binary string
@@ -497,12 +501,26 @@ func (r *Runner) stop(ctx context.Context, run string, containers []*user, resto
 	return nil
 }
 
+// startContainer starts a container this stopped, as long as its server paths lead
+// where they did. Nothing plans this, so it's all that stands between a link made
+// meanwhile and what Docker would follow.
+func (r *Runner) startContainer(ctx context.Context, id string) error {
+	c, err := r.Client.InspectContainer(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := r.Paths.LeadsAsMade(ctx, c); err != nil {
+		return err
+	}
+	return r.Client.StartContainer(ctx, id)
+}
+
 // start starts containers, and forgets them once all of them are.
 func (r *Runner) start(ctx context.Context, run string, containers []*user) error {
 	var down downList
 	for _, c := range containers {
 		resource.Progress(ctx, "Starting "+c.name)
-		if err := r.Client.StartContainer(ctx, c.id); err != nil && !docker.IsNotFound(err) {
+		if err := r.startContainer(ctx, c.id); err != nil && !docker.IsNotFound(err) {
 			down = append(down, stayedDown{user: c, err: err})
 		}
 	}
@@ -528,6 +546,11 @@ type downList []stayedDown
 func (d downList) Error() string {
 	out := make([]string, 0, len(d))
 	for _, c := range d {
+		var moved *container.PathMovedError
+		if errors.As(c.err, &moved) {
+			out = append(out, c.why())
+			continue
+		}
 		out = append(out, fmt.Sprintf("%s, so it's down. Start it with docker start %s", c.why(), c.dockerName()))
 	}
 	return strings.Join(out, ". ")

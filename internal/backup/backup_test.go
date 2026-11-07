@@ -25,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
 
@@ -302,6 +303,73 @@ func TestACopyStopsWhatItWasAskedToAndStartsItAgain(t *testing.T) {
 	}
 	if list, err := b.runner.readStopped(); err != nil || len(list) != 0 {
 		t.Errorf("what stopped is still on the list: %v, %v", list, err)
+	}
+}
+
+// A token can have a backup stop what mounts a volume, and start it again, so this is
+// the one start anyone can ask for at will. It's no way round where a server path
+// leads: a folder that became a link since keeps what mounts it down, and says why.
+// What else it stopped starts as it should.
+func TestWhatABackupStoppedStaysDownOnAPathThatMoved(t *testing.T) {
+	b := newBench(t)
+	b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, "conf")
+	if err := os.Mkdir(conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	make := func(service string, binds ...string) string {
+		t.Helper()
+		id, err := b.client.CreateContainer(ctx, docker.ContainerName(b.target.Project, service), &docker.CreateRequest{
+			Config: docker.Config{Image: "nginx:1", Labels: map[string]string{
+				docker.LabelProject: b.target.Project, docker.LabelService: service, docker.LabelLeads: "{}",
+			}},
+			HostConfig: docker.HostConfig{Binds: binds, Mounts: []docker.Mount{{Type: "volume", Source: b.target.Name, Target: "/data"}}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := b.client.StartContainer(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	moved, fine := make("moved", conf+":/conf"), make("fine")
+	b.take(true)
+	if !b.running(moved) || !b.running(fine) {
+		t.Fatalf("with nothing moved it started moved: %v, fine: %v", b.running(moved), b.running(fine))
+	}
+
+	b.engine.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/stop") && strings.Contains(r.URL.Path, moved) {
+			if err := os.Remove(conf); err != nil {
+				return err
+			}
+			if err := os.Symlink("/etc", conf); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	_, err = b.runner.Take(ctx, Take{ID: "bkp_2", Ref: ref, Stop: true})
+	b.engine.Intercept(nil)
+	var down downList
+	if !errors.As(err, &down) || !strings.Contains(err.Error(), conf+" leads to /etc now") {
+		t.Fatalf("a backup over a path that moved = %v", err)
+	}
+	if b.running(moved) {
+		t.Error("what mounts a link made since was started")
+	}
+	if !b.running(fine) {
+		t.Error("what mounts nothing that moved stayed down")
+	}
+	// docker start would follow the link, so that's not what it says to do.
+	if strings.Contains(err.Error(), "docker start") {
+		t.Errorf("it says to start it by hand: %v", err)
 	}
 }
 
