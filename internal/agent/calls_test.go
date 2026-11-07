@@ -503,6 +503,9 @@ func TestWhatsLeftBehindIsBoundedAcrossStreams(t *testing.T) {
 			t.Fatal("stop hung")
 		}
 	}
+	// Each call counts itself as left behind on its own goroutine, which can be
+	// a moment after its stream has stopped.
+	waitFor(t, "every call to be left behind", func() bool { return cfg.unfinished.left.Load() == maxLeftBehind })
 	if n := cfg.unfinished.left.Load(); n != maxLeftBehind {
 		t.Fatalf("%d calls left behind", n)
 	}
