@@ -8,15 +8,13 @@ import { type Event, EventService, type WatchEventsResponse, WatchEventsResponse
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 
 import { isSessionEnded } from "../../lib/errors";
+import { useAway } from "../../lib/outOfSight";
 import { keepTrying } from "../../lib/retry";
 
 /** How many of the newest events the stream's snapshot holds. */
 export const PAGE_SIZE = 50;
 
 const BACKOFF = { minMs: 1_000, maxMs: 15_000 };
-
-/** How long a tab stays out of sight before its stream closes, to free its connection for the tabs in view. */
-export const HIDDEN_CLOSE_MS = 30_000;
 
 export type HubStatus =
   | { kind: "connecting"; error?: ConnectError }
@@ -137,21 +135,12 @@ const Hub = createContext<EventsHub | undefined>(undefined);
 export function EventsHubProvider({ children }: { children: ReactNode }) {
   const transport = useTransport();
   const [hub] = useState(() => new EventsHub(transport));
+  const away = useAway();
   useEffect(() => {
+    if (away) return undefined;
     hub.open();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const onVisibility = () => {
-      clearTimeout(timer);
-      if (document.visibilityState === "hidden") timer = setTimeout(() => hub.close(), HIDDEN_CLOSE_MS);
-      else hub.open();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-      hub.close();
-    };
-  }, [hub]);
+    return () => hub.close();
+  }, [hub, away]);
   return <Hub.Provider value={hub}>{children}</Hub.Provider>;
 }
 

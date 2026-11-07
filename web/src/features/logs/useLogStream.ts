@@ -13,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { isSessionEnded } from "../../lib/errors";
+import { useAway } from "../../lib/outOfSight";
 import { keepTrying } from "../../lib/retry";
 import type { LogStore } from "./store";
 
@@ -40,6 +41,17 @@ export function final(err: ConnectError): boolean {
   return err.code === Code.PermissionDenied || err.code === Code.NotFound || err.code === Code.InvalidArgument;
 }
 
+/** What one request has read so far, kept while its stream is closed for a tab out of sight. */
+interface Progress {
+  token: string;
+  sources: Map<string, LogSource>;
+  servers: Map<string, ServerLogStatus>;
+  /** Read to its end, or failed for good: nothing to carry on with. */
+  finished: boolean;
+}
+
+const fresh = (): Progress => ({ token: "", sources: new Map(), servers: new Map(), finished: false });
+
 /**
  * Follows a stream of logs into a store. A dropped stream carries on after the
  * last line it had, with no line twice and none missing, as far as its servers
@@ -47,7 +59,9 @@ export function final(err: ConnectError): boolean {
  * come at, and a reader this page can't keep up with reads more slowly, which
  * the agent feels and answers by dropping lines, and saying how many.
  *
- * Leaving stops it at once, all the way to the agent.
+ * Leaving stops it at once, all the way to the agent. So does a tab out of
+ * sight for a while, to free its connection for the tabs in view; it carries
+ * on after its last line as the tab comes back, as after any drop.
  */
 export function useLogStream(
   request: Request | undefined,
@@ -63,24 +77,28 @@ export function useLogStream(
   latest.current = request;
   const heard = useRef(onSources);
   heard.current = onSources;
+  const away = useAway();
+  const progress = useRef<Progress>(fresh());
+
+  // A new request starts over. This runs before the stream's own effect, after its cleanup has put its last lines in.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: key says when what is asked for changes
+  useEffect(() => {
+    progress.current = fresh();
+    if (latest.current) store.clear();
+    setState(START);
+  }, [key, store]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: key says when what is asked for changes
   useEffect(() => {
     const req = latest.current;
-    if (!req) {
-      setState(START);
-      return undefined;
-    }
+    const read = progress.current;
+    if (!req || away || read.finished) return undefined;
     const abort = new AbortController();
     const client = createClient(LogService, transport);
-    store.clear();
-    setState(START);
-    let token = "";
+    const { sources, servers } = read;
     let pending: LogChunk[] = [];
     let timer: ReturnType<typeof setTimeout> | undefined;
     let flushed = 0;
-    const sources = new Map<string, LogSource>();
-    const servers = new Map<string, ServerLogStatus>();
     const flush = () => {
       timer = undefined;
       flushed = performance.now();
@@ -100,9 +118,9 @@ export function useLogStream(
         // renders, and one that changes nothing doesn't make it, so a long follow
         // would keep them all, with what each message's closure holds.
         let saidLive = false;
-        for await (const m of client.watchLogs({ ...req, resumeToken: token }, { signal: attempt })) {
+        for await (const m of client.watchLogs({ ...req, resumeToken: read.token }, { signal: attempt })) {
           connected();
-          if (m.resumeToken) token = m.resumeToken;
+          if (m.resumeToken) read.token = m.resumeToken;
           let changed = false;
           for (const s of m.sources) {
             sources.set(s.id, s);
@@ -135,6 +153,7 @@ export function useLogStream(
         if (req.once) {
           if (timer !== undefined) clearTimeout(timer);
           flush();
+          read.finished = true;
           setState((was) => ({ ...was, status: "done", caughtUp: true }));
           return "done";
         }
@@ -144,6 +163,7 @@ export function useLogStream(
         if (isSessionEnded(err)) return "done"; // the gate's to handle
         const error = ConnectError.from(err);
         if (final(error)) {
+          read.finished = true;
           setState((was) => ({ ...was, status: "failed", error }));
           return "done";
         }
@@ -153,9 +173,13 @@ export function useLogStream(
     );
     return () => {
       abort.abort();
-      if (timer !== undefined) clearTimeout(timer);
+      // Lines heard and not yet shown go in, so a stream closed for a tab out of sight carries on without a gap.
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        flush();
+      }
     };
-  }, [transport, key, store]);
+  }, [transport, key, store, away]);
 
   return state;
 }
