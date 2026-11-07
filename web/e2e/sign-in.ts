@@ -434,8 +434,9 @@ async function main() {
   await phone.goto(link);
   await expectText(phone, "You signed in with a one-time link");
   await expectPage(phone, "Profile and security");
-  if ((await phone.getByRole("link", { name: "Back" }).getAttribute("href")) !== "/more") {
-    fail("the phone's profile header doesn't lead back to More");
+  // Profile and security is a section of Settings, so its header leads back there.
+  if ((await phone.getByRole("link", { name: "Back", exact: true }).getAttribute("href")) !== "/settings") {
+    fail("the phone's profile header doesn't lead back to Settings");
   }
   await nav(phone).getByRole("link", { name: "More" }).click();
   await expectPage(phone, "More");

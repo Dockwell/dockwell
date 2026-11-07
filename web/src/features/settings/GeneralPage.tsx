@@ -73,7 +73,8 @@ function InstallPanel({ settings }: { settings: Settings | undefined }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const shownName = name ?? settings?.name ?? "";
-  const shownZone = zone ?? settings?.timeZone ?? "UTC";
+  // Empty when nobody has chosen one, which new schedules read as UTC.
+  const shownZone = zone ?? settings?.timeZone ?? "";
   const changedName = settings !== undefined && name !== undefined && name.trim() !== settings.name;
   const changedZone = settings !== undefined && zone !== undefined && zone !== settings.timeZone;
 
@@ -121,7 +122,10 @@ function InstallPanel({ settings }: { settings: Settings | undefined }) {
     }
   };
 
-  const zoneOptions = zones().map((z) => ({ value: z, label: z.replaceAll("_", " ") }));
+  const zoneOptions = [
+    { value: "", label: t`Not set: UTC` },
+    ...zones().map((z) => ({ value: z, label: z.replaceAll("_", " ") })),
+  ];
   if (!zoneOptions.some((o) => o.value === shownZone)) zoneOptions.push({ value: shownZone, label: shownZone });
   return (
     <Panel title={t`This install`} className="general-install">
@@ -147,7 +151,7 @@ function InstallPanel({ settings }: { settings: Settings | undefined }) {
           value={shownZone}
           disabled={settings === undefined}
           error={zoneError}
-          hint={t`New schedules, such as a backup's, start in it. Each keeps the zone it was made with.`}
+          hint={t`A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with.`}
           onChange={(event) => {
             setZone(event.target.value);
             setZoneError(undefined);
@@ -174,15 +178,15 @@ function PanelServed({ settings }: { settings: Settings | undefined }) {
   const { t } = useLingui();
   const panel = settings?.panel;
   const domain = panel?.domain ?? "";
+  const ca = panel?.certificateAuthority || "Let's Encrypt";
+  const url = panel?.url || (domain ? `https://${domain}` : "");
   let served: string;
   switch (panel?.servedBy) {
     case PanelServedBy.DOCKWELL:
-      served = panel.httpsListen
-        ? t`Dockwell, on ${panel.httpsListen}, with a certificate from Let's Encrypt that it renews`
-        : t`Dockwell, with a certificate from Let's Encrypt that it renews`;
+      served = t`Dockwell itself, with a certificate from ${ca} that it renews`;
       break;
     case PanelServedBy.INGRESS:
-      served = t`Caddy, the server's ingress, which holds ports 80 and 443 once the server has a route`;
+      served = t`Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes`;
       break;
     default:
       served = t`Nothing yet: the panel has no domain`;
@@ -193,8 +197,8 @@ function PanelServed({ settings }: { settings: Settings | undefined }) {
         <dt>{t`Address`}</dt>
         <dd>
           {domain ? (
-            <a href={`https://${domain}`} className="general-mono">
-              https://{domain}
+            <a href={url} className="general-mono general-link">
+              {url}
             </a>
           ) : (
             <span className="general-muted">{t`Loopback only`}</span>
@@ -208,24 +212,51 @@ function PanelServed({ settings }: { settings: Settings | undefined }) {
           <span className="general-sub">{t`Always on, through an SSH tunnel to the server`}</span>
         </dd>
       </dl>
-      <p className="general-how">
-        {domain ? (
+      <div className="general-how">
+        <p>
+          {domain ? (
+            <Trans>
+              The domain is set where Dockwell runs, as <code>DOCKWELL_DOMAIN</code>, and read as it starts. Change it
+              there and restart Dockwell:
+            </Trans>
+          ) : (
+            <Trans>
+              To reach the panel over HTTPS on a domain of yours, point the domain's DNS at this server, set{" "}
+              <code>DOCKWELL_DOMAIN=panel.example.com</code> where Dockwell runs, and restart it:
+            </Trans>
+          )}
+        </p>
+        <ul>
+          <li>
+            <Trans>
+              With systemd, <code>sudo systemctl edit dockwell</code> adds the line as{" "}
+              <code>Environment=DOCKWELL_DOMAIN=…</code>, then <code>sudo systemctl restart dockwell</code>.
+            </Trans>
+          </li>
+          <li>
+            <Trans>
+              With OpenRC, <code>export DOCKWELL_DOMAIN=…</code> in <code>/etc/conf.d/dockwell</code>, then{" "}
+              <code>sudo rc-service dockwell restart</code>.
+            </Trans>
+          </li>
+          <li>
+            <Trans>
+              Run by hand, <code>dockwell run --domain …</code>.
+            </Trans>
+          </li>
+        </ul>
+        <p>
           <Trans>
-            The domain is set where Dockwell runs, as <code>DOCKWELL_DOMAIN</code>. To change it, run{" "}
-            <code>sudo systemctl edit dockwell</code>, change that line, and restart with{" "}
-            <code>sudo systemctl restart dockwell</code>.
-          </Trans>
-        ) : (
-          <Trans>
-            To reach the panel over HTTPS on a domain of yours, point the domain at this server, run{" "}
-            <code>sudo systemctl edit dockwell</code>, add <code>Environment=DOCKWELL_DOMAIN=panel.example.com</code>,
-            and restart with <code>sudo systemctl restart dockwell</code>.
-          </Trans>
-        )}{" "}
-        <a href={CHANGE_SETTINGS} target="_blank" rel="noreferrer">
-          <Trans>How to change settings</Trans>
-        </a>
-      </p>
+            Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of
+            this server's routes already serves. Passkeys belong to the address they were made on, so those for an old
+            domain won't work on the new one: over SSH, run <code>dockwell recover</code> on the server, open its link
+            on the new domain, and add a passkey there.
+          </Trans>{" "}
+          <a href={CHANGE_SETTINGS} target="_blank" rel="noreferrer" className="general-link">
+            <Trans>How to change settings</Trans>
+          </a>
+        </p>
+      </div>
     </Panel>
   );
 }

@@ -2360,7 +2360,9 @@ paths:
                 - SettingsService
             description: |-
                 SetInstallName names the install, as the sign-in screen and the browser's
-                 tabs say it. An empty name goes back to none, where they say Dockwell.
+                 tabs say it. An empty name goes back to none, where they say Dockwell. The
+                 sign-in screen shows it to anyone who reaches the panel, so only a person
+                 signed in can set it, never an API token.
             operationId: SettingsService_SetInstallName
             requestBody:
                 content:
@@ -2387,8 +2389,9 @@ paths:
                 - SettingsService
             description: |-
                 SetTimeZone sets the time zone a new schedule starts in, such as a
-                 backup's. A schedule keeps the zone it was made with. An empty zone goes
-                 back to UTC.
+                 backup's, when it comes without one of its own. A schedule keeps the zone
+                 it was made with, so this moves none. An empty zone clears it, and new
+                 schedules start in UTC again.
             operationId: SettingsService_SetTimeZone
             requestBody:
                 content:
@@ -3169,7 +3172,10 @@ components:
                     format: int32
                 timeZone:
                     type: string
-                    description: 'The time zone at is in, such as "Europe/Amsterdam": "UTC" unless set.'
+                    description: |-
+                        The time zone at is in, such as "Europe/Amsterdam". Left out, a change
+                         that makes or updates the policy sets the install's time zone, from
+                         Settings, and UTC where the install has none.
                 keep:
                     type: integer
                     description: 'How many of its backups to keep, on each server, newest first: 7 unless set.'
@@ -6244,8 +6250,20 @@ components:
                 httpsListen:
                     type: string
                     description: |-
-                        The address Dockwell serves HTTPS on itself, such as ":443", with
+                        The address Dockwell serves HTTPS on itself, such as "[::]:443", with
                          PANEL_SERVED_BY_DOCKWELL. Empty otherwise.
+                url:
+                    type: string
+                    description: |-
+                        The panel's address on its domain, with its port when that isn't 443,
+                         such as "https://panel.example.com" or "https://panel.example.com:8443".
+                         Empty without a domain.
+                certificateAuthority:
+                    type: string
+                    description: |-
+                        Who issues the certificate Dockwell serves the domain with: "Let's
+                         Encrypt", or the host of the ACME directory dockwell run was given, such
+                         as "acme.example.com". Empty without a domain.
             description: PanelServing is how the panel is served, as dockwell run was started.
         Passkey:
             type: object
@@ -8386,8 +8404,8 @@ components:
                 timeZone:
                     type: string
                     description: |-
-                        The zone as the IANA names it, such as "Europe/Amsterdam". Empty goes back
-                         to UTC.
+                        The zone as the IANA names it, such as "Europe/Amsterdam" or "UTC". Empty
+                         clears it, and new schedules start in UTC again.
             description: SetTimeZoneRequest sets the time zone new schedules start in.
         SetTimeZoneResponse:
             type: object
@@ -8408,8 +8426,9 @@ components:
                 timeZone:
                     type: string
                     description: |-
-                        The time zone a new schedule starts in, as the IANA names it, such as
-                         "Europe/Amsterdam". "UTC" unless set.
+                        The time zone a new schedule starts in when it comes without one of its
+                         own, as the IANA names it, such as "Europe/Amsterdam" or "UTC". Empty
+                         when nobody has set one, and new schedules then start in UTC.
                 panel:
                     allOf:
                         - $ref: '#/components/schemas/PanelServing'

@@ -36,8 +36,10 @@ export function SignInPage({ next }: { next?: string }) {
     return <Unclaimed serverName={auth.data.serverName} />;
   }
   // Empty until the control plane says, so a placeholder never flashes. The install's
-  // name, once someone has given it one, and the server's until then.
+  // name, once someone has given it one, and the server's until then, heads the page;
+  // the way back in names the server, which is where to run it.
   const name = auth.data?.installName || auth.data?.serverName || "";
+  const server = auth.data?.serverName ?? "";
   return (
     <div className="signin">
       <main className="signin-main">
@@ -61,8 +63,8 @@ export function SignInPage({ next }: { next?: string }) {
                 <Trans>Lost your passkey?</Trans>
               </h2>
               <p>
-                {name ? (
-                  <Trans>Run this on {name} over SSH. It prints a sign-in link that works once.</Trans>
+                {server ? (
+                  <Trans>Run this on {server} over SSH. It prints a sign-in link that works once.</Trans>
                 ) : (
                   <Trans>Run this on the server over SSH. It prints a sign-in link that works once.</Trans>
                 )}

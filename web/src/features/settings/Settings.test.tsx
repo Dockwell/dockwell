@@ -15,7 +15,7 @@ import { type Api, onPhone, renderAt } from "../../test/render";
 
 const settings = (init: MessageInitShape<typeof SettingsSchema> = {}) =>
   create(SettingsSchema, {
-    timeZone: "UTC",
+    timeZone: "",
     createTime: timestampFromDate(new Date(2026, 10, 4, 9, 0)),
     panel: { listen: "127.0.0.1:7600", servedBy: PanelServedBy.NONE },
     ...init,
@@ -88,25 +88,75 @@ describe("Settings", () => {
     const panel = await screen.findByRole("region", { name: "Panel address" });
     await waitFor(() => expect(panel).toHaveTextContent("AddressLoopback only"));
     expect(panel).toHaveTextContent("Loopback127.0.0.1:7600");
-    expect(panel).toHaveTextContent("Environment=DOCKWELL_DOMAIN=panel.example.com");
+    expect(panel).toHaveTextContent("DOCKWELL_DOMAIN=panel.example.com");
+    expect(panel).toHaveTextContent("Environment=DOCKWELL_DOMAIN=…");
   });
 
-  it("names the domain and what serves it", async () => {
+  it("names the domain at its port, what serves it and who issues its certificate", async () => {
     const served = settings({
       panel: {
         listen: "127.0.0.1:7600",
         domain: "panel.example.com",
         servedBy: PanelServedBy.DOCKWELL,
-        httpsListen: ":443",
+        // As a listener on every address names itself.
+        httpsListen: "[::]:8443",
+        url: "https://panel.example.com:8443",
+        certificateAuthority: "acme.example.com",
       },
     });
     renderSettings("/settings/general", { settings: { getSettings: () => ({ settings: served }) } });
     const panel = await screen.findByRole("region", { name: "Panel address" });
-    expect(await within(panel).findByRole("link", { name: "https://panel.example.com" })).toHaveAttribute(
+    expect(await within(panel).findByRole("link", { name: "https://panel.example.com:8443" })).toHaveAttribute(
       "href",
-      "https://panel.example.com",
+      "https://panel.example.com:8443",
     );
-    expect(panel).toHaveTextContent("Dockwell, on :443, with a certificate from Let's Encrypt that it renews");
+    expect(panel).toHaveTextContent("Dockwell itself, with a certificate from acme.example.com that it renews");
+    expect(panel).not.toHaveTextContent("[::]");
+    expect(panel).toHaveTextContent("The domain is set where Dockwell runs");
+    for (const how of [
+      "sudo systemctl edit dockwell",
+      "/etc/conf.d/dockwell",
+      "dockwell run --domain",
+      "dockwell recover",
+    ]) {
+      expect(panel).toHaveTextContent(how);
+    }
+    expect(within(panel).getByRole("link", { name: "How to change settings" })).toHaveClass("general-link");
+  });
+
+  it("says when the server's ingress serves the domain, while it has routes", async () => {
+    const served = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        domain: "panel.example.com",
+        servedBy: PanelServedBy.INGRESS,
+        url: "https://panel.example.com",
+        certificateAuthority: "Let's Encrypt",
+      },
+    });
+    renderSettings("/settings/general", { settings: { getSettings: () => ({ settings: served }) } });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await waitFor(() =>
+      expect(panel).toHaveTextContent(
+        "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes",
+      ),
+    );
+  });
+
+  it("tells a time zone nobody chose from UTC chosen", async () => {
+    const user = userEvent.setup();
+    const setTimeZone = vi.fn(({ timeZone }: { timeZone: string }) => ({ settings: settings({ timeZone }) }));
+    renderSettings("/settings/general", { settings: { setTimeZone } });
+    const install = await screen.findByRole("region", { name: "This install" });
+    const zone = within(install).getByRole("combobox", { name: "Time zone" });
+    await waitFor(() => expect(zone).toBeEnabled());
+    expect(zone).toHaveValue("");
+    expect(within(zone).getByRole("option", { name: "Not set: UTC" })).toBeInTheDocument();
+    await user.selectOptions(zone, "UTC");
+    await user.click(within(install).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(setTimeZone).toHaveBeenCalledWith(expect.objectContaining({ timeZone: "UTC" }), expect.anything()),
+    );
   });
 
   it("shows the panel in the language chosen for this browser, and goes back to the browser's", async () => {
@@ -121,10 +171,19 @@ describe("Settings", () => {
     expect(chosenLocale()).toBeUndefined();
   });
 
-  it("names the install on the sign-in screen and in the browser's tab", async () => {
+  it("names the install in the browser's tab", async () => {
     renderSettings("/settings/general", { auth: { getAuthState: () => authState({ installName: "Acme servers" }) } });
     await screen.findByRole("heading", { level: 1, name: "General" });
     await waitFor(() => expect(document.title).toBe("General · Acme servers"));
+  });
+
+  it("heads the sign-in screen with the install's name, and names the server to run dockwell recover on", async () => {
+    renderAt("/sign-in", {
+      auth: { getAuthState: () => authState({ user: undefined, installName: "Acme servers", serverName: "hz-1" }) },
+    });
+    expect(await screen.findByText(/the panel for Acme servers/)).toBeVisible();
+    expect(screen.getByText("Run this on hz-1 over SSH. It prints a sign-in link that works once.")).toBeVisible();
+    expect(screen.queryByText(/Run this on Acme servers/)).toBeNull();
   });
 
   it("lists its sections on a phone, and passes axe there and wide", async () => {
@@ -137,6 +196,8 @@ describe("Settings", () => {
     const phone = renderSettings("/settings");
     expect(await screen.findByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/more");
+    expect(screen.getByRole("heading", { level: 2, name: "Install" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 2, name: "Account" })).toBeVisible();
     expect(screen.getByRole("link", { name: "General" })).toHaveAttribute("href", "/settings/general");
     expect(screen.getByRole("link", { name: "Profile and security" })).toHaveAttribute("href", "/profile");
     await expectAccessible(phone.container);

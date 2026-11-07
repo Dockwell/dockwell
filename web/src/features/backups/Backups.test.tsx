@@ -358,6 +358,57 @@ describe("the backups page", () => {
     expect(edit?.spec?.kind.value).toMatchObject({ volume: "orders", at: "03:00", keep: 3, stop: true });
   });
 
+  it("says a schedule starts in the install's time zone, and leaves it for the control plane to set", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((req: ProposeChangeRequest) => {
+      void req;
+      return {
+        change: create(ChangeSchema, { id: "chg_policy", state: ChangeState.PLANNED, plan: { fingerprint: "abc" } }),
+      };
+    });
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          previewBackup: () => ({}),
+        },
+        settings: { getSettings: () => ({ settings: { timeZone: "Asia/Kolkata" } }) },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", { name: "Add" }),
+    );
+    expect(await screen.findByText("In Asia/Kolkata")).toBeVisible();
+    // An hour's minutes depend on the zone too, in one half an hour off UTC.
+    await user.click(screen.getByRole("radio", { name: "Hourly" }));
+    expect(screen.getByText("In Asia/Kolkata")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value).toMatchObject({ timeZone: "" });
+  });
+
+  it("says a schedule starts in UTC where the install has no time zone, and where to set one", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          previewBackup: () => ({}),
+        },
+        settings: { getSettings: () => ({ settings: { timeZone: "" } }) },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", { name: "Add" }),
+    );
+    expect(await screen.findByText("In UTC. Set the install's time zone in Settings to use another.")).toBeVisible();
+  });
+
   it("says when it can't tell what a schedule costs, rather than nothing", async () => {
     const user = userEvent.setup();
     renderAt(

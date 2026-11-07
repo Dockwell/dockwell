@@ -47,7 +47,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
           <Trans>Sign out</Trans>
         </Button>
       }
-      back="/more"
+      back="/settings"
     >
       {signOut.problem ? (
         <p className="profile-error" role="alert">

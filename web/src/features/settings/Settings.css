@@ -72,6 +72,22 @@
 
 /* ---------- On a phone: the sections as rows ---------- */
 
+/* Each group's name above its rows, as the navigation beside a page says it on wide screens. */
+.settings-list-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-list-label {
+  margin: 0;
+  padding: 0 var(--space-1);
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
 .settings-list {
   overflow: hidden;
 }
@@ -200,6 +216,34 @@
   font-size: 13px;
   line-height: 20px;
   overflow-wrap: anywhere;
+}
+
+.general-how p {
+  margin: 0;
+}
+
+.general-how ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
+}
+
+/* A link in running text, as the mocks draw them: the link colour, underlined on hover. */
+.general-link {
+  border-radius: var(--radius-xs);
+  color: var(--link);
+  text-decoration: none;
+}
+
+.general-link:hover {
+  text-decoration: underline;
+}
+
+.general-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .general-how code {

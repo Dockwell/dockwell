@@ -100,12 +100,14 @@ type Config struct {
 	// Public serves the panel on its domain over HTTPS. Nil keeps the panel
 	// on loopback.
 	Public https.Source
-	// PanelListen is the loopback address the panel answers on, and
-	// HTTPSListen where it serves Public's domain itself, for the settings to
-	// say how the panel is served. PanelProxied is true when the server's
-	// ingress serves the panel's domain instead (ADR 0024).
-	PanelListen, HTTPSListen string
-	PanelProxied             bool
+	// PanelListen is the loopback address the panel answers on, HTTPSListen
+	// where it serves Public's domain itself, PanelURL its address there, and
+	// PanelCA who issues its certificate, for the settings to say how the panel
+	// is served. PanelHandsOver is true when the server's ingress takes the
+	// public ports while the server has a route, and serves the panel's domain
+	// then (ADR 0024): the settings ask PublicPorts which holds them now.
+	PanelListen, HTTPSListen, PanelURL, PanelCA string
+	PanelHandsOver                              bool
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
@@ -177,12 +179,15 @@ func New(cfg Config) (*Server, error) {
 	}
 	var logs *logapi.Handler
 	var backupHandler *backups.Handler
-	api, err := apiRoutes(cfg, ui, &logs, &backupHandler)
+	// Made first, so the settings can ask it who holds the public ports now.
+	ports := &PublicPorts{ready: make(chan struct{})}
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler)
 	if err != nil {
 		return nil, err
 	}
 	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
-	s.ports = &PublicPorts{server: s, ready: make(chan struct{})}
+	ports.server = s
+	s.ports = ports
 	if s.stepGrace <= 0 {
 		s.stepGrace = DefaultStepGrace
 	}
@@ -213,7 +218,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut **backups.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -228,9 +233,12 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 	}
 	handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
 	if cfg.Store != nil {
-		serving := settings.Serving{Listen: cfg.PanelListen, HTTPSListen: cfg.HTTPSListen, Proxied: cfg.PanelProxied}
+		serving := settings.Serving{Listen: cfg.PanelListen, HTTPSListen: cfg.HTTPSListen, URL: cfg.PanelURL, CA: cfg.PanelCA}
 		if cfg.Public != nil {
 			serving.Domain = cfg.Public.Domain()
+		}
+		if cfg.PanelHandsOver {
+			serving.Proxied = func() bool { return !ports.Serving() }
 		}
 		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving), opts...))
 	}
@@ -412,6 +420,14 @@ func (p *PublicPorts) serve(httpsLn, httpLn net.Listener) {
 			}
 		}()
 	}
+}
+
+// Serving reports whether the control plane holds the public ports now,
+// rather than this server's proxy.
+func (p *PublicPorts) Serving() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.stop != nil
 }
 
 // Release stops serving on the public ports, and returns once they are free.

@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/settings.proto.
  */
 export const file_dockwell_v1_settings: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9zZXR0aW5ncy5wcm90bxILZG9ja3dlbGwudjEiFAoSR2V0U2V0dGluZ3NSZXF1ZXN0Ij4KE0dldFNldHRpbmdzUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyKGAQoIU2V0dGluZ3MSDAoEbmFtZRgBIAEoCRIRCgl0aW1lX3pvbmUYAiABKAkSKAoFcGFuZWwYAyABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInMKDFBhbmVsU2VydmluZxIOCgZsaXN0ZW4YASABKAkSDgoGZG9tYWluGAIgASgJEi0KCXNlcnZlZF9ieRgDIAEoDjIaLmRvY2t3ZWxsLnYxLlBhbmVsU2VydmVkQnkSFAoMaHR0cHNfbGlzdGVuGAQgASgJIiUKFVNldEluc3RhbGxOYW1lUmVxdWVzdBIMCgRuYW1lGAEgASgJIkEKFlNldEluc3RhbGxOYW1lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyInChJTZXRUaW1lWm9uZVJlcXVlc3QSEQoJdGltZV96b25lGAEgASgJIj4KE1NldFRpbWVab25lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyqFAQoNUGFuZWxTZXJ2ZWRCeRIfChtQQU5FTF9TRVJWRURfQllfVU5TUEVDSUZJRUQQABIYChRQQU5FTF9TRVJWRURfQllfTk9ORRABEhwKGFBBTkVMX1NFUlZFRF9CWV9ET0NLV0VMTBACEhsKF1BBTkVMX1NFUlZFRF9CWV9JTkdSRVNTEAMyxgMKD1NldHRpbmdzU2VydmljZRKAAQoLR2V0U2V0dGluZ3MSHy5kb2Nrd2VsbC52MS5HZXRTZXR0aW5nc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5HZXRTZXR0aW5nc1Jlc3BvbnNlIi6QAgGguxgBqrsYDwoIc2V0dGluZ3MSA2dldILT5JMCDhIML3YxL3NldHRpbmdzEpYBCg5TZXRJbnN0YWxsTmFtZRIiLmRvY2t3ZWxsLnYxLlNldEluc3RhbGxOYW1lUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlNldEluc3RhbGxOYW1lUmVzcG9uc2UiO6C7GAOquxgUCghzZXR0aW5ncxIIc2V0LW5hbWWC0+STAhk6ASoiFC92MS9zZXR0aW5nczpzZXROYW1lEpYBCgtTZXRUaW1lWm9uZRIfLmRvY2t3ZWxsLnYxLlNldFRpbWVab25lUmVxdWVzdBogLmRvY2t3ZWxsLnYxLlNldFRpbWVab25lUmVzcG9uc2UiRKC7GAOquxgZCghzZXR0aW5ncxINc2V0LXRpbWUtem9uZYLT5JMCHToBKiIYL3YxL3NldHRpbmdzOnNldFRpbWVab25lQqYBCg9jb20uZG9ja3dlbGwudjFCDVNldHRpbmdzUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9zZXR0aW5ncy5wcm90bxILZG9ja3dlbGwudjEiFAoSR2V0U2V0dGluZ3NSZXF1ZXN0Ij4KE0dldFNldHRpbmdzUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyKGAQoIU2V0dGluZ3MSDAoEbmFtZRgBIAEoCRIRCgl0aW1lX3pvbmUYAiABKAkSKAoFcGFuZWwYAyABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIp8BCgxQYW5lbFNlcnZpbmcSDgoGbGlzdGVuGAEgASgJEg4KBmRvbWFpbhgCIAEoCRItCglzZXJ2ZWRfYnkYAyABKA4yGi5kb2Nrd2VsbC52MS5QYW5lbFNlcnZlZEJ5EhQKDGh0dHBzX2xpc3RlbhgEIAEoCRILCgN1cmwYBSABKAkSHQoVY2VydGlmaWNhdGVfYXV0aG9yaXR5GAYgASgJIiUKFVNldEluc3RhbGxOYW1lUmVxdWVzdBIMCgRuYW1lGAEgASgJIkEKFlNldEluc3RhbGxOYW1lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyInChJTZXRUaW1lWm9uZVJlcXVlc3QSEQoJdGltZV96b25lGAEgASgJIj4KE1NldFRpbWVab25lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyqFAQoNUGFuZWxTZXJ2ZWRCeRIfChtQQU5FTF9TRVJWRURfQllfVU5TUEVDSUZJRUQQABIYChRQQU5FTF9TRVJWRURfQllfTk9ORRABEhwKGFBBTkVMX1NFUlZFRF9CWV9ET0NLV0VMTBACEhsKF1BBTkVMX1NFUlZFRF9CWV9JTkdSRVNTEAMyygMKD1NldHRpbmdzU2VydmljZRKAAQoLR2V0U2V0dGluZ3MSHy5kb2Nrd2VsbC52MS5HZXRTZXR0aW5nc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5HZXRTZXR0aW5nc1Jlc3BvbnNlIi6QAgGguxgBqrsYDwoIc2V0dGluZ3MSA2dldILT5JMCDhIML3YxL3NldHRpbmdzEpoBCg5TZXRJbnN0YWxsTmFtZRIiLmRvY2t3ZWxsLnYxLlNldEluc3RhbGxOYW1lUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlNldEluc3RhbGxOYW1lUmVzcG9uc2UiP6C7GAOquxgUCghzZXR0aW5ncxIIc2V0LW5hbWWwuxgBgtPkkwIZOgEqIhQvdjEvc2V0dGluZ3M6c2V0TmFtZRKWAQoLU2V0VGltZVpvbmUSHy5kb2Nrd2VsbC52MS5TZXRUaW1lWm9uZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5TZXRUaW1lWm9uZVJlc3BvbnNlIkSguxgDqrsYGQoIc2V0dGluZ3MSDXNldC10aW1lLXpvbmWC0+STAh06ASoiGC92MS9zZXR0aW5nczpzZXRUaW1lWm9uZUKmAQoPY29tLmRvY2t3ZWxsLnYxQg1TZXR0aW5nc1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * GetSettingsRequest takes no parameters.
@@ -69,8 +69,9 @@ export type Settings = Message<"dockwell.v1.Settings"> & {
   name: string;
 
   /**
-   * The time zone a new schedule starts in, as the IANA names it, such as
-   * "Europe/Amsterdam". "UTC" unless set.
+   * The time zone a new schedule starts in when it comes without one of its
+   * own, as the IANA names it, such as "Europe/Amsterdam" or "UTC". Empty
+   * when nobody has set one, and new schedules then start in UTC.
    *
    * @generated from field: string time_zone = 2;
    */
@@ -128,12 +129,30 @@ export type PanelServing = Message<"dockwell.v1.PanelServing"> & {
   servedBy: PanelServedBy;
 
   /**
-   * The address Dockwell serves HTTPS on itself, such as ":443", with
+   * The address Dockwell serves HTTPS on itself, such as "[::]:443", with
    * PANEL_SERVED_BY_DOCKWELL. Empty otherwise.
    *
    * @generated from field: string https_listen = 4;
    */
   httpsListen: string;
+
+  /**
+   * The panel's address on its domain, with its port when that isn't 443,
+   * such as "https://panel.example.com" or "https://panel.example.com:8443".
+   * Empty without a domain.
+   *
+   * @generated from field: string url = 5;
+   */
+  url: string;
+
+  /**
+   * Who issues the certificate Dockwell serves the domain with: "Let's
+   * Encrypt", or the host of the ACME directory dockwell run was given, such
+   * as "acme.example.com". Empty without a domain.
+   *
+   * @generated from field: string certificate_authority = 6;
+   */
+  certificateAuthority: string;
 };
 
 /**
@@ -192,8 +211,8 @@ export const SetInstallNameResponseSchema: GenMessage<SetInstallNameResponse> = 
  */
 export type SetTimeZoneRequest = Message<"dockwell.v1.SetTimeZoneRequest"> & {
   /**
-   * The zone as the IANA names it, such as "Europe/Amsterdam". Empty goes back
-   * to UTC.
+   * The zone as the IANA names it, such as "Europe/Amsterdam" or "UTC". Empty
+   * clears it, and new schedules start in UTC again.
    *
    * @generated from field: string time_zone = 1;
    */
@@ -255,9 +274,9 @@ export enum PanelServedBy {
   DOCKWELL = 2,
 
   /**
-   * The server's ingress, Caddy, which holds ports 80 and 443 once the server
+   * The server's ingress, Caddy, which holds ports 80 and 443 while the server
    * has a route, and serves the panel's domain with its own certificate (ADR
-   * 0024).
+   * 0024). The panel takes them back when the last route goes.
    *
    * @generated from enum value: PANEL_SERVED_BY_INGRESS = 3;
    */
@@ -294,7 +313,9 @@ export const SettingsService: GenService<{
   },
   /**
    * SetInstallName names the install, as the sign-in screen and the browser's
-   * tabs say it. An empty name goes back to none, where they say Dockwell.
+   * tabs say it. An empty name goes back to none, where they say Dockwell. The
+   * sign-in screen shows it to anyone who reaches the panel, so only a person
+   * signed in can set it, never an API token.
    *
    * @generated from rpc dockwell.v1.SettingsService.SetInstallName
    */
@@ -305,8 +326,9 @@ export const SettingsService: GenService<{
   },
   /**
    * SetTimeZone sets the time zone a new schedule starts in, such as a
-   * backup's. A schedule keeps the zone it was made with. An empty zone goes
-   * back to UTC.
+   * backup's, when it comes without one of its own. A schedule keeps the zone
+   * it was made with, so this moves none. An empty zone clears it, and new
+   * schedules start in UTC again.
    *
    * @generated from rpc dockwell.v1.SettingsService.SetTimeZone
    */

@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
@@ -726,6 +727,9 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				}
 				return err
 			}
+			if spec, err = withInstallZone(ctx, tx, spec); err != nil {
+				return err
+			}
 			var servers []string // none keeps a service where it runs
 			if len(e.GetServers()) > 0 {
 				servers = e.GetServers()
@@ -735,6 +739,27 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 		return nil
 	})
 	return out, err
+}
+
+// withInstallZone gives a backup schedule that comes without a time zone the
+// install's, from Settings, before it's planned, as Settings says new schedules
+// start in it (ADR 0042). The kind's own default, UTC, is for an install that
+// has none. A copy is changed, never the request.
+func withInstallZone(ctx context.Context, tx *store.Tx, spec proto.Message) (proto.Message, error) {
+	p, ok := spec.(*resourcev1.BackupPolicy)
+	if !ok || p.GetTimeZone() != "" {
+		return spec, nil
+	}
+	zone, err := tx.GetSetting(ctx, store.SettingTimeZone)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return spec, nil
+	case err != nil:
+		return nil, fmt.Errorf("can't read the install's time zone for a backup schedule: %w", err)
+	}
+	p = proto.Clone(p).(*resourcev1.BackupPolicy) //nolint:forcetypeassert // a clone has its original's type
+	p.TimeZone = string(zone)
+	return p, nil
 }
 
 // choiceAt is a choice a request left out, with the field of the request

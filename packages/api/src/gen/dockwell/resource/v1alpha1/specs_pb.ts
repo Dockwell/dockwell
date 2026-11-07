@@ -985,7 +985,9 @@ export type BackupPolicy = Message<"dockwell.resource.v1alpha1.BackupPolicy"> & 
   weekday: number;
 
   /**
-   * The time zone at is in, such as "Europe/Amsterdam": "UTC" unless set.
+   * The time zone at is in, such as "Europe/Amsterdam". Left out, a change
+   * that makes or updates the policy sets the install's time zone, from
+   * Settings, and UTC where the install has none.
    *
    * @generated from field: string time_zone = 5;
    */

@@ -51,11 +51,14 @@ type SettingsServiceClient interface {
 	// GetSettings returns the install's settings, and how its panel is served.
 	GetSettings(context.Context, *connect.Request[v1.GetSettingsRequest]) (*connect.Response[v1.GetSettingsResponse], error)
 	// SetInstallName names the install, as the sign-in screen and the browser's
-	// tabs say it. An empty name goes back to none, where they say Dockwell.
+	// tabs say it. An empty name goes back to none, where they say Dockwell. The
+	// sign-in screen shows it to anyone who reaches the panel, so only a person
+	// signed in can set it, never an API token.
 	SetInstallName(context.Context, *connect.Request[v1.SetInstallNameRequest]) (*connect.Response[v1.SetInstallNameResponse], error)
 	// SetTimeZone sets the time zone a new schedule starts in, such as a
-	// backup's. A schedule keeps the zone it was made with. An empty zone goes
-	// back to UTC.
+	// backup's, when it comes without one of its own. A schedule keeps the zone
+	// it was made with, so this moves none. An empty zone clears it, and new
+	// schedules start in UTC again.
 	SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error)
 }
 
@@ -119,11 +122,14 @@ type SettingsServiceHandler interface {
 	// GetSettings returns the install's settings, and how its panel is served.
 	GetSettings(context.Context, *connect.Request[v1.GetSettingsRequest]) (*connect.Response[v1.GetSettingsResponse], error)
 	// SetInstallName names the install, as the sign-in screen and the browser's
-	// tabs say it. An empty name goes back to none, where they say Dockwell.
+	// tabs say it. An empty name goes back to none, where they say Dockwell. The
+	// sign-in screen shows it to anyone who reaches the panel, so only a person
+	// signed in can set it, never an API token.
 	SetInstallName(context.Context, *connect.Request[v1.SetInstallNameRequest]) (*connect.Response[v1.SetInstallNameResponse], error)
 	// SetTimeZone sets the time zone a new schedule starts in, such as a
-	// backup's. A schedule keeps the zone it was made with. An empty zone goes
-	// back to UTC.
+	// backup's, when it comes without one of its own. A schedule keeps the zone
+	// it was made with, so this moves none. An empty zone clears it, and new
+	// schedules start in UTC again.
 	SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error)
 }
 

@@ -46,19 +46,21 @@ var Actions = []string{ActionName, ActionTimeZone}
 // MaxName is the most characters a name holds.
 const MaxName = 64
 
-// DefaultTimeZone is the zone new schedules start in until someone sets one.
-const DefaultTimeZone = "UTC"
-
 // Serving is how the panel is served, as dockwell run was started.
 type Serving struct {
 	// Listen is the loopback address the panel always answers on.
 	Listen string
-	// Domain is the domain it also answers on over HTTPS, if any.
-	Domain string
-	// HTTPSListen is where Dockwell serves that domain itself, if it does.
+	// Domain is the domain it also answers on over HTTPS, if any, and URL the
+	// panel's address there, with its port when that isn't 443.
+	Domain, URL string
+	// HTTPSListen is where Dockwell serves that domain itself, while it does.
 	HTTPSListen string
-	// Proxied is true when the server's ingress serves the domain instead.
-	Proxied bool
+	// CA is who issues the certificate Dockwell serves the domain with.
+	CA string
+	// Proxied reports whether the server's ingress serves the domain now, in
+	// place of Dockwell: from the server's first route until its last goes
+	// (ADR 0024). Nil means never.
+	Proxied func() bool
 }
 
 // Handler implements SettingsService.
@@ -138,9 +140,6 @@ func (h *Handler) SetTimeZone(ctx context.Context, req *connect.Request[dockwell
 			return nil, authapi.Invalid(fmt.Errorf("%q isn't a time zone Dockwell knows. Name one as the IANA does, such as Europe/Amsterdam or UTC", zone))
 		}
 	}
-	if zone == DefaultTimeZone {
-		zone = ""
-	}
 	out, err := h.set(ctx, keyTimeZone, ActionTimeZone, zone)
 	if err != nil {
 		return nil, err
@@ -156,6 +155,11 @@ func checkName(name string) error {
 	for _, r := range name {
 		if unicode.IsControl(r) {
 			return errors.New("a name can't hold a line break or another control character. Write it on one line")
+		}
+		// Such as a right-to-left override, which would turn the sign-in screen's words around, or a
+		// zero-width space, which makes two names look alike.
+		if unicode.Is(unicode.Cf, r) {
+			return fmt.Errorf("a name can't hold the invisible character U+%04X, which changes how the text around it shows. Type the name again without it", r)
 		}
 	}
 	return nil
@@ -213,9 +217,6 @@ func (h *Handler) read(ctx context.Context, tx *store.Tx) (*dockwellv1.Settings,
 	if err != nil {
 		return nil, err
 	}
-	if zone == "" {
-		zone = DefaultTimeZone
-	}
 	out := &dockwellv1.Settings{Name: name, TimeZone: zone, Panel: h.panel()}
 	switch org, err := tx.Organization(ctx); {
 	case err == nil:
@@ -226,16 +227,20 @@ func (h *Handler) read(ctx context.Context, tx *store.Tx) (*dockwellv1.Settings,
 	return out, nil
 }
 
+// panel says how the panel is served now: which of Dockwell and the server's
+// ingress holds the public ports changes as routes come and go.
 func (h *Handler) panel() *dockwellv1.PanelServing {
 	s := h.serving
 	out := &dockwellv1.PanelServing{Listen: s.Listen, Domain: s.Domain, ServedBy: dockwellv1.PanelServedBy_PANEL_SERVED_BY_NONE}
-	switch {
-	case s.Domain == "":
-	case s.Proxied:
-		out.ServedBy = dockwellv1.PanelServedBy_PANEL_SERVED_BY_INGRESS
-	default:
-		out.ServedBy, out.HttpsListen = dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL, s.HTTPSListen
+	if s.Domain == "" {
+		return out
 	}
+	out.Url, out.CertificateAuthority = s.URL, s.CA
+	if s.Proxied != nil && s.Proxied() {
+		out.ServedBy = dockwellv1.PanelServedBy_PANEL_SERVED_BY_INGRESS
+		return out
+	}
+	out.ServedBy, out.HttpsListen = dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL, s.HTTPSListen
 	return out
 }
 

@@ -178,6 +178,10 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
 		EventPoll: 200 * time.Millisecond, Logs: logs,
 	}
+	if public != nil {
+		// As dockwell run says it of a domain on the public ports, which the ingress takes while there are routes.
+		config.HTTPSListen, config.PanelURL, config.PanelCA, config.PanelHandsOver = "[::]:443", "https://"+public.Domain(), "Let's Encrypt", true
+	}
 	srv, err := New(config)
 	if err != nil {
 		t.Fatal(err)

@@ -78,19 +78,24 @@ export function SettingsHome() {
   return (
     <Page title={t`Settings`} back="/more">
       {groups.map((group) => (
-        <Panel key={group.label} flush className="settings-list">
-          <nav aria-label={group.label}>
-            {group.sections.map((section) => (
-              <Link key={section.to} to={section.to} className="settings-row">
-                <span className="settings-row-icon">
-                  <Icon name={section.icon} size={18} />
-                </span>
-                <span className="settings-row-label">{section.label}</span>
-                <Icon name="chevron-right" size={16} />
-              </Link>
-            ))}
-          </nav>
-        </Panel>
+        <section key={group.label} className="settings-list-group" aria-labelledby={`settings-group-${group.label}`}>
+          <h2 id={`settings-group-${group.label}`} className="settings-list-label">
+            {group.label}
+          </h2>
+          <Panel flush className="settings-list">
+            <nav aria-label={group.label}>
+              {group.sections.map((section) => (
+                <Link key={section.to} to={section.to} className="settings-row">
+                  <span className="settings-row-icon">
+                    <Icon name={section.icon} size={18} />
+                  </span>
+                  <span className="settings-row-label">{section.label}</span>
+                  <Icon name="chevron-right" size={16} />
+                </Link>
+              ))}
+            </nav>
+          </Panel>
+        </section>
       ))}
     </Page>
   );

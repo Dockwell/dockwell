@@ -26,13 +26,14 @@ type How = "hour" | "day" | "week";
 const EVERY: Readonly<Record<How, Every>> = { hour: Every.HOUR, day: Every.DAY, week: Every.WEEK };
 
 /**
- * The time zone at reads in: the install's, once someone has set one in Settings,
- * and otherwise the browser's, as that's the clock a person means (ADR 0042).
+ * The time zone at reads in, for the form to say: the install's from Settings, or
+ * UTC where it has none, as the control plane gives a schedule that comes without
+ * one (ADR 0042). Undefined until Settings answer, so it never says another.
  */
-function useScheduleZone(): string {
-  const set = useQuery(SettingsService.method.getSettings, {}).data?.settings?.timeZone;
-  if (set && set !== "UTC") return set;
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+function useScheduleZone(): { zone: string | undefined; set: boolean } {
+  const settings = useQuery(SettingsService.method.getSettings, {}).data?.settings;
+  if (!settings) return { zone: undefined, set: false };
+  return { zone: settings.timeZone || "UTC", set: settings.timeZone !== "" };
 }
 
 /**
@@ -51,7 +52,7 @@ export function PolicySheet({
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const weekdays = useWeekdays();
-  const zone = useScheduleZone();
+  const { zone, set: zoneSet } = useScheduleZone();
   const [volumeId, setVolumeId] = useState(volumes[0]?.id ?? "");
   const [how, setHow] = useState<How>("day");
   const [at, setAt] = useState("03:00");
@@ -95,7 +96,8 @@ export function PolicySheet({
                 every: EVERY[how],
                 at,
                 weekday: Number(weekday),
-                timeZone: zone,
+                // Left out, so the control plane gives it the install's zone, whichever client makes it.
+                timeZone: "",
                 keep: count,
                 stop: risky && stop,
                 destination,
@@ -158,7 +160,13 @@ export function PolicySheet({
           label={how === "hour" ? t`Minutes past the hour, as 00:MM` : t`At`}
           mono
           value={at}
-          hint={how === "hour" ? undefined : t`In ${zone}`}
+          hint={
+            zone === undefined
+              ? undefined
+              : zoneSet
+                ? t`In ${zone}`
+                : t`In UTC. Set the install's time zone in Settings to use another.`
+          }
           error={validAt ? undefined : t`Use 24-hour HH:MM, such as 03:00.`}
           onChange={(event) => setAt(event.target.value)}
         />

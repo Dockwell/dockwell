@@ -28,7 +28,7 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   }
   const panel = page.getByRole("region", { name: "Panel address" });
   await panel.getByText("Loopback only", { exact: true }).waitFor();
-  await panel.getByText("Environment=DOCKWELL_DOMAIN=panel.example.com", { exact: true }).waitFor();
+  await panel.getByText("DOCKWELL_DOMAIN=panel.example.com", { exact: true }).waitFor();
   await shoot(page, "settings-general");
 
   step("settings: naming the install and setting its time zone are on Activity, and the tab says the name");
@@ -66,7 +66,7 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   // What later steps and screens read stays as it was.
   await page.setViewportSize({ width: 1440, height: 900 });
   await name.fill("");
-  await install.getByRole("combobox", { name: "Time zone" }).selectOption("UTC");
+  await install.getByRole("combobox", { name: "Time zone" }).selectOption("");
   await install.getByRole("button", { name: "Save" }).click();
   await install.getByText("Saved. It's on Activity.", { exact: true }).waitFor();
 }

@@ -35,9 +35,9 @@ const (
 	// Dockwell itself, with a certificate from an ACME CA, Let's Encrypt unless
 	// dockwell run names another, renewed as it runs out.
 	PanelServedBy_PANEL_SERVED_BY_DOCKWELL PanelServedBy = 2
-	// The server's ingress, Caddy, which holds ports 80 and 443 once the server
+	// The server's ingress, Caddy, which holds ports 80 and 443 while the server
 	// has a route, and serves the panel's domain with its own certificate (ADR
-	// 0024).
+	// 0024). The panel takes them back when the last route goes.
 	PanelServedBy_PANEL_SERVED_BY_INGRESS PanelServedBy = 3
 )
 
@@ -173,8 +173,9 @@ type Settings struct {
 	// What the install is called, such as "Acme servers". Empty when nobody has
 	// named it, where the panel says Dockwell.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The time zone a new schedule starts in, as the IANA names it, such as
-	// "Europe/Amsterdam". "UTC" unless set.
+	// The time zone a new schedule starts in when it comes without one of its
+	// own, as the IANA names it, such as "Europe/Amsterdam" or "UTC". Empty
+	// when nobody has set one, and new schedules then start in UTC.
 	TimeZone string `protobuf:"bytes,2,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
 	// How the panel is served.
 	Panel *PanelServing `protobuf:"bytes,3,opt,name=panel,proto3" json:"panel,omitempty"`
@@ -253,11 +254,19 @@ type PanelServing struct {
 	Domain string `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
 	// What serves it over HTTPS on its domain.
 	ServedBy PanelServedBy `protobuf:"varint,3,opt,name=served_by,json=servedBy,proto3,enum=dockwell.v1.PanelServedBy" json:"served_by,omitempty"`
-	// The address Dockwell serves HTTPS on itself, such as ":443", with
+	// The address Dockwell serves HTTPS on itself, such as "[::]:443", with
 	// PANEL_SERVED_BY_DOCKWELL. Empty otherwise.
-	HttpsListen   string `protobuf:"bytes,4,opt,name=https_listen,json=httpsListen,proto3" json:"https_listen,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HttpsListen string `protobuf:"bytes,4,opt,name=https_listen,json=httpsListen,proto3" json:"https_listen,omitempty"`
+	// The panel's address on its domain, with its port when that isn't 443,
+	// such as "https://panel.example.com" or "https://panel.example.com:8443".
+	// Empty without a domain.
+	Url string `protobuf:"bytes,5,opt,name=url,proto3" json:"url,omitempty"`
+	// Who issues the certificate Dockwell serves the domain with: "Let's
+	// Encrypt", or the host of the ACME directory dockwell run was given, such
+	// as "acme.example.com". Empty without a domain.
+	CertificateAuthority string `protobuf:"bytes,6,opt,name=certificate_authority,json=certificateAuthority,proto3" json:"certificate_authority,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *PanelServing) Reset() {
@@ -314,6 +323,20 @@ func (x *PanelServing) GetServedBy() PanelServedBy {
 func (x *PanelServing) GetHttpsListen() string {
 	if x != nil {
 		return x.HttpsListen
+	}
+	return ""
+}
+
+func (x *PanelServing) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *PanelServing) GetCertificateAuthority() string {
+	if x != nil {
+		return x.CertificateAuthority
 	}
 	return ""
 }
@@ -413,8 +436,8 @@ func (x *SetInstallNameResponse) GetSettings() *Settings {
 // SetTimeZoneRequest sets the time zone new schedules start in.
 type SetTimeZoneRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The zone as the IANA names it, such as "Europe/Amsterdam". Empty goes back
-	// to UTC.
+	// The zone as the IANA names it, such as "Europe/Amsterdam" or "UTC". Empty
+	// clears it, and new schedules start in UTC again.
 	TimeZone      string `protobuf:"bytes,1,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -516,12 +539,14 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\ttime_zone\x18\x02 \x01(\tR\btimeZone\x12/\n" +
 	"\x05panel\x18\x03 \x01(\v2\x19.dockwell.v1.PanelServingR\x05panel\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\x9a\x01\n" +
+	"createTime\"\xe1\x01\n" +
 	"\fPanelServing\x12\x16\n" +
 	"\x06listen\x18\x01 \x01(\tR\x06listen\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x127\n" +
 	"\tserved_by\x18\x03 \x01(\x0e2\x1a.dockwell.v1.PanelServedByR\bservedBy\x12!\n" +
-	"\fhttps_listen\x18\x04 \x01(\tR\vhttpsListen\"+\n" +
+	"\fhttps_listen\x18\x04 \x01(\tR\vhttpsListen\x12\x10\n" +
+	"\x03url\x18\x05 \x01(\tR\x03url\x123\n" +
+	"\x15certificate_authority\x18\x06 \x01(\tR\x14certificateAuthority\"+\n" +
 	"\x15SetInstallNameRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"K\n" +
 	"\x16SetInstallNameResponse\x121\n" +
@@ -534,12 +559,12 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x1bPANEL_SERVED_BY_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14PANEL_SERVED_BY_NONE\x10\x01\x12\x1c\n" +
 	"\x18PANEL_SERVED_BY_DOCKWELL\x10\x02\x12\x1b\n" +
-	"\x17PANEL_SERVED_BY_INGRESS\x10\x032\xc6\x03\n" +
+	"\x17PANEL_SERVED_BY_INGRESS\x10\x032\xca\x03\n" +
 	"\x0fSettingsService\x12\x80\x01\n" +
 	"\vGetSettings\x12\x1f.dockwell.v1.GetSettingsRequest\x1a .dockwell.v1.GetSettingsResponse\".\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
-	"\bsettings\x12\x03get\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/settings\x90\x02\x01\x12\x96\x01\n" +
-	"\x0eSetInstallName\x12\".dockwell.v1.SetInstallNameRequest\x1a#.dockwell.v1.SetInstallNameResponse\";\xa0\xbb\x18\x03\xaa\xbb\x18\x14\n" +
-	"\bsettings\x12\bset-name\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/settings:setName\x12\x96\x01\n" +
+	"\bsettings\x12\x03get\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/settings\x90\x02\x01\x12\x9a\x01\n" +
+	"\x0eSetInstallName\x12\".dockwell.v1.SetInstallNameRequest\x1a#.dockwell.v1.SetInstallNameResponse\"?\xa0\xbb\x18\x03\xaa\xbb\x18\x14\n" +
+	"\bsettings\x12\bset-name\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/settings:setName\x12\x96\x01\n" +
 	"\vSetTimeZone\x12\x1f.dockwell.v1.SetTimeZoneRequest\x1a .dockwell.v1.SetTimeZoneResponse\"D\xa0\xbb\x18\x03\xaa\xbb\x18\x19\n" +
 	"\bsettings\x12\rset-time-zone\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/settings:setTimeZoneB\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rSettingsProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"

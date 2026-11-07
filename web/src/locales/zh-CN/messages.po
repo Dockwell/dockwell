@@ -1268,6 +1268,10 @@ msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容�
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果它在 {healthyWithin} 内未变为健康，新容器会被移除，正在运行的容器保留"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
+msgstr "新的计划（例如备份计划）除非指定了自己的时区，否则都使用这个时区，无论来自面板、CLI 还是 API。每个计划保留创建时的时区。"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "A restart has no undo, as it changes nothing to go back to."
 msgstr "重启无法撤销，因为它不会改变任何可恢复的内容。"
@@ -1933,8 +1937,8 @@ msgid "By"
 msgstr "执行者"
 
 #: src/features/settings/GeneralPage.tsx
-msgid "Caddy, the server's ingress, which holds ports 80 and 443 once the server has a route"
-msgstr "Caddy，即服务器的入口，服务器有路由后它会占用 80 和 443 端口"
+msgid "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
+msgstr "Caddy，即服务器的入口，在服务器有路由期间占用 80 和 443 端口"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "Can read logs"
@@ -2226,8 +2230,12 @@ msgid "Cleared the public address of {server}, which was {previous}"
 msgstr "清除了 {server} 的公网地址，原地址为 {previous}"
 
 #: src/features/activity/describe.ts
-msgid "Cleared this install's name"
-msgstr "清除了此安装的名称"
+msgid "Cleared the time zone for new schedules, which was {previous}, so they start in UTC"
+msgstr "清除了新计划的时区（原为 {previous}），新计划改用 UTC"
+
+#: src/features/activity/describe.ts
+msgid "Cleared this install's name, which was {previous}"
+msgstr "清除了这个安装的名称（原为 {previous}）"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Clearing this away failed too"
@@ -3115,6 +3123,10 @@ msgstr "Dockwell 正在恢复 <0>{previous}</0>"
 msgid "Dockwell is putting things back as they were"
 msgstr "Dockwell 正在恢复原样"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Dockwell itself, with a certificate from {ca} that it renews"
+msgstr "Dockwell 自身，使用 {ca} 签发并由它续期的证书"
+
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Dockwell keeps it encrypted, and sends it only to a server sending a backup."
 msgstr "Dockwell 会加密保存它，只发送给正在传送备份的服务器。"
@@ -3184,15 +3196,6 @@ msgstr "{0} 重新连接后，Dockwell 会恢复 <0>{image}</0>"
 #: src/features/servers/ContainerPage.tsx
 msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
 msgstr "此后 Dockwell 会把它作为服务运行，因此更换镜像是一个可撤销的计划，并保留它的卷。接管不会重启它，它的环境变量会加密带入，任何计划或日志都不会显示。"
-
-#. placeholder {0}: panel.httpsListen
-#: src/features/settings/GeneralPage.tsx
-msgid "Dockwell, on {0}, with a certificate from Let's Encrypt that it renews"
-msgstr "Dockwell，在 {0} 上，使用它自动续期的 Let's Encrypt 证书"
-
-#: src/features/settings/GeneralPage.tsx
-msgid "Dockwell, with a certificate from Let's Encrypt that it renews"
-msgstr "Dockwell，使用它自动续期的 Let's Encrypt 证书"
 
 #: src/features/changes/fields.tsx
 msgid "doesn't come back"
@@ -3875,6 +3878,10 @@ msgstr "应用内"
 #: src/features/auth/ClaimPage.tsx
 msgid "in under a minute"
 msgstr "不到一分钟后"
+
+#: src/features/backups/PolicySheet.tsx
+msgid "In UTC. Set the install's time zone in Settings to use another."
+msgstr "使用 UTC。要使用其他时区，请在设置中设置这个安装的时区。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Info"
@@ -4711,6 +4718,10 @@ msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
 msgid "Named this install {value}"
 msgstr "将此安装命名为 {value}"
 
+#: src/features/activity/describe.ts
+msgid "Named this install {value}, which was {previous}"
+msgstr "将这个安装命名为 {value}（原为 {previous}）"
+
 #: src/features/changes/fields.tsx
 msgid "names values in"
 msgstr "引用值的字段"
@@ -4770,10 +4781,6 @@ msgstr "新建应用"
 #: src/features/auth/TotpPanel.tsx
 msgid "New recovery codes"
 msgstr "新的恢复码"
-
-#: src/features/settings/GeneralPage.tsx
-msgid "New schedules, such as a backup's, start in it. Each keeps the zone it was made with."
-msgstr "新的计划（例如备份计划）使用此时区。每个计划保留创建时的时区。"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
@@ -5014,6 +5021,10 @@ msgstr "未部署"
 #: src/features/apps/Health.tsx
 msgid "Not running"
 msgstr "没有运行"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Not set: UTC"
+msgstr "未设置：UTC"
 
 #: src/features/servers/containers.ts
 msgid "Not started"
@@ -5733,6 +5744,10 @@ msgstr "端口"
 #: src/features/servers/ContainersPanel.tsx
 msgid "Ports"
 msgstr "端口"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
+msgstr "要获取证书，80 和 443 端口必须能访问到这台服务器；如果这台服务器的某条路由已在使用该域名，Dockwell 将无法启动。通行密钥属于创建它的地址，旧域名的通行密钥在新域名上不可用：请通过 SSH 在服务器上运行 <0>dockwell recover</0>，在新域名上打开它给出的链接，然后在那里添加通行密钥。"
 
 #: src/features/logs/LogFoot.tsx
 msgid "Press Enter to search all the servers keep."
@@ -6471,9 +6486,13 @@ msgstr "运行 Compose 文件"
 msgid "Run an image or a Compose file on your server. You review a plan before anything starts."
 msgstr "在服务器上运行镜像或 Compose 文件。开始之前你会先审查计划。"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Run by hand, <0>dockwell run --domain …</0>."
+msgstr "手动运行时，使用 <0>dockwell run --domain …</0>。"
+
 #: src/features/auth/SignInPage.tsx
-msgid "Run this on {name} over SSH. It prints a sign-in link that works once."
-msgstr "请通过 SSH 在 {name} 上运行这条命令。它会打印一个只能用一次的登录链接。"
+msgid "Run this on {server} over SSH. It prints a sign-in link that works once."
+msgstr "通过 SSH 在 {server} 上运行此命令。它会打印一个只能使用一次的登录链接。"
 
 #: src/features/auth/RecoverPage.tsx
 msgid "Run this on the server over SSH for a new link. It works once, for 15 min."
@@ -6814,6 +6833,10 @@ msgstr "将 {server} 的公网地址设置为 {address}，原地址为 {previous
 #: src/features/activity/describe.ts
 msgid "Set the time zone for new schedules to {value}"
 msgstr "将新计划的时区设为 {value}"
+
+#: src/features/activity/describe.ts
+msgid "Set the time zone for new schedules to {value}, which was {previous}"
+msgstr "将新计划的时区设为 {value}（原为 {previous}）"
 
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
@@ -7440,8 +7463,8 @@ msgid "the domain {path}, which the environment {detail} held within the last 7 
 msgstr "域名 {path}，环境 {detail} 在过去 7 天内曾持有它"
 
 #: src/features/settings/GeneralPage.tsx
-msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>. To change it, run <1>sudo systemctl edit dockwell</1>, change that line, and restart with <2>sudo systemctl restart dockwell</2>."
-msgstr "域名在 Dockwell 运行的地方设置，即 <0>DOCKWELL_DOMAIN</0>。要更改它，运行 <1>sudo systemctl edit dockwell</1>，修改这一行，然后用 <2>sudo systemctl restart dockwell</2> 重启。"
+msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
+msgstr "域名在 Dockwell 运行的地方以 <0>DOCKWELL_DOMAIN</0> 设置，并在启动时读取。请在那里修改并重启 Dockwell："
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "The file uses these, and has no default for them."
@@ -8104,8 +8127,8 @@ msgid "to move"
 msgstr "移动"
 
 #: src/features/settings/GeneralPage.tsx
-msgid "To reach the panel over HTTPS on a domain of yours, point the domain at this server, run <0>sudo systemctl edit dockwell</0>, add <1>Environment=DOCKWELL_DOMAIN=panel.example.com</1>, and restart with <2>sudo systemctl restart dockwell</2>."
-msgstr "要通过你自己的域名以 HTTPS 访问面板，请将域名指向此服务器，运行 <0>sudo systemctl edit dockwell</0>，添加 <1>Environment=DOCKWELL_DOMAIN=panel.example.com</1>，然后用 <2>sudo systemctl restart dockwell</2> 重启。"
+msgid "To reach the panel over HTTPS on a domain of yours, point the domain's DNS at this server, set <0>DOCKWELL_DOMAIN=panel.example.com</0> where Dockwell runs, and restart it:"
+msgstr "要通过你自己的域名以 HTTPS 访问面板，请将该域名的 DNS 指向这台服务器，在 Dockwell 运行的地方设置 <0>DOCKWELL_DOMAIN=panel.example.com</0>，然后重启："
 
 #: src/app/Providers.tsx
 msgid "to replace"
@@ -8839,6 +8862,14 @@ msgstr "经由 {list} 而来的任何人"
 #: src/features/activity/ActivityPage.tsx
 msgid "Why it failed"
 msgstr "失败原因"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwell</1>, then <2>sudo rc-service dockwell restart</2>."
+msgstr "使用 OpenRC 时，在 <1>/etc/conf.d/dockwell</1> 中写入 <0>export DOCKWELL_DOMAIN=…</0>，然后运行 <2>sudo rc-service dockwell restart</2>。"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
+msgstr "使用 systemd 时，用 <0>sudo systemctl edit dockwell</0> 添加 <1>Environment=DOCKWELL_DOMAIN=…</1> 这一行，然后运行 <2>sudo systemctl restart dockwell</2>。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Without a volume, what it writes is lost when its container is replaced."
