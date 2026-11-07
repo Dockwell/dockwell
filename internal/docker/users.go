@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"math"
 	"strconv"
 	"strings"
 )
@@ -16,7 +17,9 @@ const (
 	// RunsAsRoot is root, by number or by name.
 	RunsAsRoot
 	// RunsAsNamed is a user by a name other than root, which only the image's
-	// /etc/passwd says the number of, and it can say 0.
+	// /etc/passwd says the number of, and it can say 0. A number past what a user
+	// can be counts as one, as the image can list it, and Docker takes what it
+	// lists as 32 bits: 4294967296 is 0 there.
 	RunsAsNamed
 	// RunsAsImage is whatever user the image runs as, which is root unless the
 	// image says otherwise.
@@ -36,10 +39,11 @@ func UserRunsAs(user string) (RunsAs, string) {
 	if name == "" || name == "root" {
 		return RunsAsRoot, ""
 	}
-	if id, err := strconv.Atoi(name); err == nil {
-		if id == 0 {
-			return RunsAsRoot, ""
-		}
+	id, err := strconv.Atoi(name)
+	switch {
+	case err == nil && id == 0:
+		return RunsAsRoot, ""
+	case err == nil && id > 0 && id <= math.MaxInt32:
 		return RunsAsOther, ""
 	}
 	return RunsAsNamed, name

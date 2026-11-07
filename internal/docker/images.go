@@ -41,8 +41,13 @@ func (i *Image) Digest(ref string) string {
 }
 
 // Repository is a reference's name, without its tag or digest, or the
-// docker.io/library/ that a name from Docker Hub can be written with.
+// docker.io/library/ that a name from Docker Hub can be written with. An image's
+// ID, sha256: and its digest, is the whole of it, as it names one image and
+// nothing else: read as a name and a tag, every ID would be one repository.
 func Repository(ref string) string {
+	if strings.HasPrefix(ref, "sha256:") {
+		return ref
+	}
 	name, _, _ := strings.Cut(ref, "@")
 	if i := strings.LastIndex(name, ":"); i > strings.LastIndex(name, "/") {
 		name = name[:i]

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -15,15 +16,22 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // A person approves a folder for what runs there. Root writes what anyone owns in
 // it, and leaves files that run as root, so a token that moves a service with a
 // read-write folder to root reaches further than what was approved, however the
 // user is written: Docker reads 00 and +0 as 0. So does one that moves it to a user
-// only its image can say isn't root, or that adds a capability (#247).
+// only its image can say isn't root, or that adds a capability. Any image can hold
+// a program that runs as root, so so does code from another repository, whatever
+// the user (#247).
 func TestWhoWritesAFolderIsOutOfATokensReach(t *testing.T) {
-	f := startFull(t, store.SQLite, nil)
+	storetest.Each(t, testWhoWritesAFolderIsOutOfATokensReach)
+}
+
+func testWhoWritesAFolderIsOutOfATokensReach(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
 	c := changeClient(b, b.origin)
@@ -68,8 +76,17 @@ func TestWhoWritesAFolderIsOutOfATokensReach(t *testing.T) {
 		t.Helper()
 		planned := proposeEdit(t, script, edit)
 		tokenRefused(t, script, planned, edit.GetResource().GetName())
-		if says != "" && !reaches(planned.GetPlan(), says) {
+		// says is who writes there, or "-" for what adds no one, as a capability.
+		if says != "" && says != "-" && !reaches(planned.GetPlan(), says) {
 			t.Errorf("%s: the plan doesn't say who writes there: %v", what, planned.GetPlan().GetResources())
+		}
+		image := edit.GetSpec().GetService().GetApp().GetImage()
+		if !slices.ContainsFunc(planned.GetPlan().GetResources(), func(r *dockwellv1.PlannedResource) bool {
+			return slices.ContainsFunc(r.GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
+				return a.GetWrittenBy() != "" && strings.HasPrefix(image, a.GetWrittenBy())
+			})
+		}) && says != "-" {
+			t.Errorf("%s: the plan doesn't say whose code writes there: %v", what, planned.GetPlan().GetResources())
 		}
 		if slices.ContainsFunc(planned.GetPlan().GetResources(), func(r *dockwellv1.PlannedResource) bool {
 			return slices.ContainsFunc(r.GetHostAccess(), (*dockwellv1.HostAccess).GetSameAsRoot)
@@ -89,8 +106,12 @@ func TestWhoWritesAFolderIsOutOfATokensReach(t *testing.T) {
 	refused("another image, as its user", imageUser(func(a *resourcev1.Container) { a.Image = "ghcr.io/stranger/ops:1.0" }), resource.WrittenAsImage)
 	refused("image-user as root", imageUser(func(a *resourcev1.Container) { a.User = "0" }), resource.WrittenAsRoot)
 	for _, capability := range []string{"CAP_DAC_OVERRIDE", "CAP_CHOWN", "CAP_FOWNER", "CAP_SETUID"} {
-		refused("web with "+capability, web(func(a *resourcev1.Container) { a.CapAdd = []string{capability} }), "")
+		refused("web with "+capability, web(func(a *resourcev1.Container) { a.CapAdd = []string{capability} }), "-")
 	}
+	// A set-uid program in another repository's image runs as root, whatever the user.
+	refused("another repository, still a number", web(func(a *resourcev1.Container) { a.Image = "ghcr.io/stranger/ops:1.0" }), "")
+	refused("root approved, then another repository", asRoot(func(a *resourcev1.Container) { a.Image = "ghcr.io/stranger/ops:1.0" }), resource.WrittenAsRoot)
+	refused("another repository, through a bind volume", byVolume(func(a *resourcev1.Container) { a.Image = "ghcr.io/stranger/ops:1.0" }), "")
 
 	// What reaches no further goes on as a token's: another user that isn't root, a
 	// tag of the same image, root that was approved, root taken away, and root over a

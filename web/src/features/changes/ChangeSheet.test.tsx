@@ -232,6 +232,7 @@ describe("the plan sheet", () => {
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/a", leadsTo: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/b", leadsTo: spoof, sameAsRoot: true }),
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/d", detail: spoof }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/e", detail: "root", writtenBy: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/srv/c", leadsTo: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: spoof, sameAsRoot: true }),
       create(HostAccessSchema, { kind: HostAccessKind.GROUP, path: spoof, sameAsRoot: true }),
@@ -352,8 +353,23 @@ describe("the plan sheet", () => {
     step.hidesLogs = true;
     step.hostAccess = [
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/config", readOnly: true }),
-      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/data", detail: "root" }),
-      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/uploads", detail: "image" }),
+      create(HostAccessSchema, {
+        kind: HostAccessKind.SERVER_PATH,
+        path: "/srv/app/data",
+        detail: "root",
+        writtenBy: "ghcr.io/acme/web",
+      }),
+      create(HostAccessSchema, {
+        kind: HostAccessKind.SERVER_PATH,
+        path: "/srv/app/uploads",
+        detail: "image",
+        writtenBy: "ghcr.io/acme/web",
+      }),
+      create(HostAccessSchema, {
+        kind: HostAccessKind.EXTERNAL_VOLUME,
+        path: "media",
+        writtenBy: "ghcr.io/stranger/ops",
+      }),
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" }),
       create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: "edge", detail: "db" }),
       create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: "SYS_ADMIN", sameAsRoot: true }),
@@ -401,10 +417,14 @@ describe("the plan sheet", () => {
     expect(effects).toHaveTextContent("It can read that path on the server.");
     // Who writes a folder, where that's root or may be, as that's more than the folder (#247).
     expect(effects).toHaveTextContent(
-      "web reaches /srv/app/data on hz-1It can read and write that path on the server. It writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.",
+      "web reaches /srv/app/data on hz-1It can read and write that path on the server. ghcr.io/acme/web writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.",
     );
     expect(effects).toHaveTextContent(
-      "It writes there as whichever user its image runs as, who is root unless the image says otherwise.",
+      "ghcr.io/acme/web writes there as its own user, who is root unless the image says otherwise.",
+    );
+    // Any image's code can run as root, so whose writes a folder is what was approved.
+    expect(effects).toHaveTextContent(
+      "ghcr.io/stranger/ops writes there. Code from another image asks again, as a program in any image can run as root.",
     );
     expect(risk).toHaveTextContent(
       "web loses what its image keeps at /var/lib/postgresql/data. The server keeps that data for 7 days",

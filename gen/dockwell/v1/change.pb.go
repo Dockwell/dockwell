@@ -3772,12 +3772,12 @@ type HostAccess struct {
 	// A network's options beyond the few that keep it to its own bridge, as
 	// "name=value" with commas between, sorted. For a network the server has,
 	// the other names a service answers to on it, with commas between, sorted.
-	// For a server path mounted read-write, who writes there where that's root
-	// or may be: "root", however the user is written; "named", a user by a
-	// name the image may say is root; or "image", whichever user the image
-	// runs as. Empty for a user other than root, by number. A path written by
-	// root, or by another who may be root, reaches more than the same path
-	// written by someone else.
+	// For a server path, an external volume or a mount, read-write, who writes
+	// there where that's root or may be: "root", however the user is written;
+	// "named", a user by name, which only the image can say is root or not; or
+	// "image", whichever user the image runs as. Empty for a user other than
+	// root, by number. Written by root, or by another who may be root, reaches
+	// more than the same written by someone else.
 	Detail string `protobuf:"bytes,8,opt,name=detail,proto3" json:"detail,omitempty"`
 	// True for what is as good as root on the server, whatever else it says:
 	// Docker's socket, the server's own network, a system path such as /etc,
@@ -3802,8 +3802,14 @@ type HostAccess struct {
 	// The other side of holds: a read-write server path that holds path, and what can
 	// write it, by name, which can make path lead anywhere. A change to that asks for a
 	// passkey from now on.
-	HeldIn        string `protobuf:"bytes,14,opt,name=held_in,json=heldIn,proto3" json:"held_in,omitempty"`
-	HeldBy        string `protobuf:"bytes,15,opt,name=held_by,json=heldBy,proto3" json:"held_by,omitempty"`
+	HeldIn string `protobuf:"bytes,14,opt,name=held_in,json=heldIn,proto3" json:"held_in,omitempty"`
+	HeldBy string `protobuf:"bytes,15,opt,name=held_by,json=heldBy,proto3" json:"held_by,omitempty"`
+	// For a server path, an external volume or a mount, read-write, the image
+	// repository whose code writes there, such as "ghcr.io/acme/web". A person
+	// approves one for what runs there, and any image can hold a program that
+	// runs as root, so another repository reaches more, whatever the user.
+	// Another tag of the same one doesn't.
+	WrittenBy     string `protobuf:"bytes,16,opt,name=written_by,json=writtenBy,proto3" json:"written_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3939,6 +3945,13 @@ func (x *HostAccess) GetHeldIn() string {
 func (x *HostAccess) GetHeldBy() string {
 	if x != nil {
 		return x.HeldBy
+	}
+	return ""
+}
+
+func (x *HostAccess) GetWrittenBy() string {
+	if x != nil {
+		return x.WrittenBy
 	}
 	return ""
 }
@@ -5974,7 +5987,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12)\n" +
 	"\x10previous_servers\x18\a \x03(\tR\x0fpreviousServers\x128\n" +
 	"\vhost_access\x18\b \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\"\xa9\x03\n" +
+	"hostAccess\"\xc8\x03\n" +
 	"\n" +
 	"HostAccess\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.dockwell.v1.HostAccessKindR\x04kind\x12\x12\n" +
@@ -5994,7 +6007,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x05holds\x18\f \x01(\tR\x05holds\x12\x1b\n" +
 	"\tholds_for\x18\r \x01(\tR\bholdsFor\x12\x17\n" +
 	"\aheld_in\x18\x0e \x01(\tR\x06heldIn\x12\x17\n" +
-	"\aheld_by\x18\x0f \x01(\tR\x06heldBy\"\xa2\x02\n" +
+	"\aheld_by\x18\x0f \x01(\tR\x06heldBy\x12\x1d\n" +
+	"\n" +
+	"written_by\x18\x10 \x01(\tR\twrittenBy\"\xa2\x02\n" +
 	"\n" +
 	"ServerPlan\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +

@@ -2158,11 +2158,14 @@ func (e *Engine) reach(ref resource.Ref, spec proto.Message, named map[resource.
 	return out
 }
 
-// writtenAs says who writes to each read-write server path in list, where that's
-// root or may be. A person approves a path for what runs there, and root writes
-// what anyone owns there, and files that run as root, so a token that moves it to
-// root reaches further than what was approved (#247). What's as good as root
-// already asks for anything new that runs (runsSomethingElse).
+// writtenAs says who writes to what's read-write in list: a server path, an
+// external volume or a mount. A person approves one for what runs there. Any image
+// can hold a program that runs as root, as Docker leaves set-uid programs working,
+// so code from another repository counts as new whatever the user; another tag of the
+// same repository is how CI deploys, and doesn't (#247). Root writes what anyone
+// owns there, so a move to root, or to a user that only the image can say isn't
+// root, counts too. What's as good as root already asks for anything new that runs
+// (runsSomethingElse).
 func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resource.Access) {
 	t, err := e.kinds.Type(kind)
 	if err != nil || spec == nil {
@@ -2173,23 +2176,22 @@ func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resour
 	if !ok || !named {
 		return
 	}
-	var detail, writer string
+	writer, detail, user := docker.Repository(images.ImageOf(spec)), "", ""
 	switch as, name := docker.UserRunsAs(users.UserOf(spec)); as {
 	case docker.RunsAsOther:
-		return
 	case docker.RunsAsRoot:
 		detail = resource.WrittenAsRoot
 	case docker.RunsAsNamed:
-		// A tag of the same repository is the same code by the same hand, as a
-		// deploy from CI is, so it keeps its writer.
-		detail, writer = resource.WrittenAsNamed, name+" in "+docker.Repository(images.ImageOf(spec))
+		detail, user = resource.WrittenAsNamed, name
 	case docker.RunsAsImage:
-		detail, writer = resource.WrittenAsImage, docker.Repository(images.ImageOf(spec))
+		detail = resource.WrittenAsImage
 	}
 	for i := range list {
-		if a := &list[i]; a.Kind == resource.AccessPath && !a.ReadOnly && !a.SameAsRoot {
-			a.Detail, a.Writer = detail, writer
+		a := &list[i]
+		if !resource.Written(a.Kind) || a.ReadOnly || a.SameAsRoot || a.Kind == resource.AccessMount && a.Type == "tmpfs" {
+			continue
 		}
+		a.Writer, a.Detail, a.User = writer, detail, user
 	}
 }
 

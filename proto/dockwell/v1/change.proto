@@ -813,12 +813,12 @@ message HostAccess {
   // A network's options beyond the few that keep it to its own bridge, as
   // "name=value" with commas between, sorted. For a network the server has,
   // the other names a service answers to on it, with commas between, sorted.
-  // For a server path mounted read-write, who writes there where that's root
-  // or may be: "root", however the user is written; "named", a user by a
-  // name the image may say is root; or "image", whichever user the image
-  // runs as. Empty for a user other than root, by number. A path written by
-  // root, or by another who may be root, reaches more than the same path
-  // written by someone else.
+  // For a server path, an external volume or a mount, read-write, who writes
+  // there where that's root or may be: "root", however the user is written;
+  // "named", a user by name, which only the image can say is root or not; or
+  // "image", whichever user the image runs as. Empty for a user other than
+  // root, by number. Written by root, or by another who may be root, reaches
+  // more than the same written by someone else.
   string detail = 8;
   // True for what is as good as root on the server, whatever else it says:
   // Docker's socket, the server's own network, a system path such as /etc,
@@ -845,6 +845,12 @@ message HostAccess {
   // passkey from now on.
   string held_in = 14;
   string held_by = 15;
+  // For a server path, an external volume or a mount, read-write, the image
+  // repository whose code writes there, such as "ghcr.io/acme/web". A person
+  // approves one for what runs there, and any image can hold a program that
+  // runs as root, so another repository reaches more, whatever the user.
+  // Another tag of the same one doesn't.
+  string written_by = 16;
 }
 
 // HostAccessKind is what a resource reaches on its server.

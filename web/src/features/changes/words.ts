@@ -300,6 +300,22 @@ export function useChangeWords(): ChangeWords {
           access.leadsTo,
         ].map(plain);
         const reads = access.readOnly ? t`read-only` : t`read-write`;
+        // Whose code writes what's read-write, and as whom where that's root or may be,
+        // in the control plane's own words for it (#247). The repository is quoted
+        // where it could read as more of the line, as a path is.
+        const withWriter = (base: string): string => {
+          const by = plain(access.writtenBy);
+          if (by === "" || access.readOnly || access.sameAsRoot) return base;
+          switch (access.detail) {
+            case "root":
+              return t`${base}, written by ${by} as root`;
+            case "named":
+              return t`${base}, written by ${by} as a user by name, which only its image can say is root or not`;
+            case "image":
+              return t`${base}, written by ${by} as its own user, who may be root`;
+          }
+          return t`${base}, written by ${by}`;
+        };
         switch (access.kind) {
           case HostAccessKind.SERVER_PATH: {
             const [held, holdsFor, heldIn, heldBy] = [access.holds, access.holdsFor, access.heldIn, access.heldBy].map(
@@ -319,18 +335,7 @@ export function useChangeWords(): ChangeWords {
             const at = leadsTo
               ? t`the server path ${path}, which leads to ${leadsTo} (${how})`
               : t`the server path ${path} (${how})`;
-            // Who writes there, where that's root or may be, as the control plane says
-            // in words of its own (#247). What's as good as root says so already.
-            if (access.sameAsRoot) return at;
-            switch (access.detail) {
-              case "root":
-                return t`${at}, which it writes as root`;
-              case "named":
-                return t`${at}, which it writes as a user its image names, who may be root`;
-              case "image":
-                return t`${at}, which it writes as its image's user, who may be root`;
-            }
-            return at;
+            return withWriter(at);
           }
           case HostAccessKind.DOCKER_SOCKET:
             return leadsTo
@@ -340,11 +345,15 @@ export function useChangeWords(): ChangeWords {
             return t`the server's own network`;
           case HostAccessKind.VOLUME_MOUNT: {
             if (driver !== "" && path !== "") {
-              return t`the volume driver ${driver} at ${path}, which reaches what the plugin does (${reads})`;
+              return withWriter(
+                t`the volume driver ${driver} at ${path}, which reaches what the plugin does (${reads})`,
+              );
             }
-            if (driver !== "") return t`the volume driver ${driver}, which reaches what the plugin does (${reads})`;
+            if (driver !== "") {
+              return withWriter(t`the volume driver ${driver}, which reaches what the plugin does (${reads})`);
+            }
             const at = plain(access.address + access.path);
-            return at === "" ? t`a ${type} mount (${reads})` : t`the ${type} mount ${at} (${reads})`;
+            return withWriter(at === "" ? t`a ${type} mount (${reads})` : t`the ${type} mount ${at} (${reads})`);
           }
           case HostAccessKind.NETWORK_DRIVER: {
             let out = path === "" ? t`a ${driver} network` : t`a ${driver} network on ${path}`;
@@ -366,7 +375,9 @@ export function useChangeWords(): ChangeWords {
               ? t`the network ${path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them`
               : t`the network ${path}, which is on the server already, where it answers to its name and to ${detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them`;
           case HostAccessKind.EXTERNAL_VOLUME:
-            return t`the volume ${path}, which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds`;
+            return withWriter(
+              t`the volume ${path}, which is on the server already and which Dockwell didn't make: whatever else mounts it shares what it holds`,
+            );
           case HostAccessKind.BACKUP_OF:
             return t`a backup of a volume that reached ${path}, which can hold what's there, as good as root`;
           case HostAccessKind.TAKES_ON:

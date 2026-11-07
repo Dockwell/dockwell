@@ -240,20 +240,40 @@ msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
 
 #: src/features/changes/words.ts
-msgid "{at}, which it writes as a user its image names, who may be root"
-msgstr "{at}，它以镜像中指定名称的用户写入，该用户可能是 root"
+msgid "{base}, written by {by}"
+msgstr "{base}，由 {by} 写入"
 
 #: src/features/changes/words.ts
-msgid "{at}, which it writes as its image's user, who may be root"
-msgstr "{at}，它以镜像自身的用户写入，该用户可能是 root"
+msgid "{base}, written by {by} as a user by name, which only its image can say is root or not"
+msgstr "{base}，由 {by} 以按名称指定的用户写入，只有它的镜像能确定该用户是不是 root"
 
 #: src/features/changes/words.ts
-msgid "{at}, which it writes as root"
-msgstr "{at}，它以 root 写入"
+msgid "{base}, written by {by} as its own user, who may be root"
+msgstr "{base}，由 {by} 以镜像自身的用户写入，该用户可能是 root"
+
+#: src/features/changes/words.ts
+msgid "{base}, written by {by} as root"
+msgstr "{base}，由 {by} 以 root 写入"
 
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
+
+#: src/features/changes/notices.tsx
+msgid "{by} writes there as a user by name, which only its image can say is root or not."
+msgstr "{by} 以按名称指定的用户在那里写入，只有它的镜像能确定该用户是不是 root。"
+
+#: src/features/changes/notices.tsx
+msgid "{by} writes there as its own user, who is root unless the image says otherwise."
+msgstr "{by} 以镜像自身的用户在那里写入，除非镜像另有指定，否则就是 root。"
+
+#: src/features/changes/notices.tsx
+msgid "{by} writes there as root, so it can change any file there, whoever owns it, and leave files that run as root."
+msgstr "{by} 以 root 在那里写入，所以无论文件属于谁都能修改，还能留下以 root 运行的文件。"
+
+#: src/features/changes/notices.tsx
+msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
+msgstr "{by} 在那里写入。换成其他镜像的代码时需要重新确认，因为任何镜像中的程序都可能以 root 运行。"
 
 #: src/features/files/FileViewer.tsx
 msgid "{changes, plural, one {# line changed} other {# lines changed}}"
@@ -4115,18 +4135,6 @@ msgstr "它创建时没有设置日志轮转，日志可能占满磁盘。Dockwe
 #: src/features/backups/BackupsPage.tsx
 msgid "It wasn't deleted"
 msgstr "未能删除"
-
-#: src/features/changes/notices.tsx
-msgid "It writes there as a user its image names, who may be root."
-msgstr "它以镜像中指定名称的用户在那里写入，该用户可能是 root。"
-
-#: src/features/changes/notices.tsx
-msgid "It writes there as root, so it can change any file there, whoever owns it, and leave files that run as root."
-msgstr "它以 root 在那里写入，所以无论文件属于谁都能修改，还能留下以 root 运行的文件。"
-
-#: src/features/changes/notices.tsx
-msgid "It writes there as whichever user its image runs as, who is root unless the image says otherwise."
-msgstr "它以镜像运行时所用的用户在那里写入，除非镜像另有指定，否则就是 root。"
 
 #: src/features/logs/LogNote.tsx
 msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
