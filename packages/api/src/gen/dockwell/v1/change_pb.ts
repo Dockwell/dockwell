@@ -1301,7 +1301,8 @@ export type PlanNote = Message<"dockwell.v1.PlanNote"> & {
    * one that can't as neither the server nor its registry has that image,
    * "digest_differs" for one that can't as its servers ran different images,
    * "kept_password" for a volume that keeps the
-   * password it was made with, whatever an edit gave, and "kept_options" for one
+   * password it was made with, whatever an edit gave, "kept_passphrase" for a backup
+   * destination that keeps its passphrase the same way, and "kept_options" for one
    * that keeps its options, as an edit gave none, "first_steps" for what a catalog
    * app needs a person to know and do, "no_backup" for a catalog upgrade that runs
    * without a backup first, "upgrade_kept" for what a person changed that the upgrade

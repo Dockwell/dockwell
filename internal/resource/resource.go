@@ -850,6 +850,12 @@ type Keeper interface {
 	Keep(current, desired proto.Message) (Kept, error)
 }
 
+// NewChecker is a kind that asks more of a new resource than Validate can of an edit,
+// where what an edit leaves out comes from what's there (Keeper).
+type NewChecker interface {
+	CheckNew(spec proto.Message) error
+}
+
 // Kept is what a Keeper kept: Reason names it, as a plan note's reason does, and
 // Words say it after the resource's name, such as "keeps the password it was made
 // with". Stays says why that can't go to a server that hasn't got it, and what to do
@@ -1021,6 +1027,13 @@ type Use struct {
 // schedule. It has revisions and plans, and no steps.
 type Unplaced interface {
 	Unplaced()
+}
+
+// Rotates is a Type whose sensitive fields plan as a change whenever an edit sets
+// them, as a secret's value does, and are never compared with what's there, so a
+// plan can't confirm a guess at one (ADR 0022).
+type Rotates interface {
+	RotatesSensitive()
 }
 
 // RunsOnNoServer reports a Type whose resources run on no server, whatever its level.

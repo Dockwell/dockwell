@@ -38,6 +38,7 @@
   font-size: 12.5px;
   line-height: 16px;
   overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .backup-actions {
@@ -150,4 +151,22 @@
     grid-column: 1;
     grid-row: 2;
   }
+}
+
+/* Inline, as a flex item copies with a line break after it. */
+.backup-passphrase {
+  display: block;
+  margin: var(--space-2) 0;
+  user-select: all;
+}
+
+.backup-passphrase span {
+  display: inline-block;
+  margin-inline-end: var(--space-2);
+}
+
+.backup-saved {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
 }

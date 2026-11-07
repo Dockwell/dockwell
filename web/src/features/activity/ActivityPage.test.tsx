@@ -378,6 +378,32 @@ describe("Activity", () => {
     expect(row.querySelector(".dw-tone-warning, [data-tone='warning']")).not.toBeNull();
   });
 
+  it("says what became of a backup's copy in words of its own", async () => {
+    const said = (action: string, id: string, error = "") =>
+      auditEvent({
+        id,
+        kind: EventKind.BACKUP,
+        action,
+        time: timestampFromDate(new Date(Date.now() - HOUR)),
+        subject: { id: "vol_1", name: "orders" },
+        backup: { id: "bkp_1", volume: "orders", serverName: "hz-1", destination: "r2", error },
+      });
+    const watch = feed<WatchEventsResponse>();
+    watch.push(
+      snapshot([
+        said("backup.fetch_failed", "evt_1", "AccessDenied"),
+        said("backup.server_copy_removed", "evt_2"),
+        said("backup.copy_kept", "evt_3", "AccessDenied"),
+      ]),
+    );
+    renderActivity(watch);
+    expect(await screen.findByRole("row", { name: /A backup of orders couldn't be fetched from r2/ })).toBeVisible();
+    expect(
+      screen.getByRole("row", { name: /Removed a backup of orders from its server, and kept it on r2/ }),
+    ).toBeVisible();
+    expect(screen.getByRole("row", { name: /r2 kept a backup of orders that was to go/ })).toBeVisible();
+  });
+
   it("shows a backup that failed as worth a look, and says why", async () => {
     const user = userEvent.setup();
     const failed = auditEvent({

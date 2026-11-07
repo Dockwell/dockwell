@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { BackupMethod, BackupService, BackupPolicy_Every as Every } from "@dockwell/api";
+import { type BackupDestinationInfo, BackupMethod, BackupService, BackupPolicy_Every as Every } from "@dockwell/api";
 import { Button, Callout, SegmentedControl, SelectField, Sheet, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -10,6 +10,7 @@ import { useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { destinationOptions } from "./DestinationsPanel";
 import { useVolumeOptions, type VolumeChoice } from "./useBackups";
 import { policyName, useWeekdays } from "./words";
 import "./Backups.css";
@@ -27,7 +28,15 @@ function browserZone(): string {
  * A schedule of backups of one volume, and how many to keep, then its plan. It says
  * what that will cost on the disk before anyone commits to it (ADR 0033).
  */
-export function PolicySheet({ volumes, onClose }: { volumes: readonly VolumeChoice[]; onClose: () => void }) {
+export function PolicySheet({
+  volumes,
+  destinations,
+  onClose,
+}: {
+  volumes: readonly VolumeChoice[];
+  destinations: readonly BackupDestinationInfo[];
+  onClose: () => void;
+}) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const weekdays = useWeekdays();
@@ -37,6 +46,7 @@ export function PolicySheet({ volumes, onClose }: { volumes: readonly VolumeChoi
   const [weekday, setWeekday] = useState("0");
   const [keep, setKeep] = useState("7");
   const [stop, setStop] = useState(true);
+  const [destination, setDestination] = useState("");
   const volume = volumes.find((v) => v.id === volumeId);
   const options = useVolumeOptions(volumes);
   const preview = useQuery(
@@ -76,6 +86,7 @@ export function PolicySheet({ volumes, onClose }: { volumes: readonly VolumeChoi
                 timeZone: browserZone(),
                 keep: count,
                 stop: risky && stop,
+                destination,
               },
             },
           },
@@ -146,6 +157,14 @@ export function PolicySheet({ volumes, onClose }: { volumes: readonly VolumeChoi
           error={validKeep ? undefined : t`Use a number from 1 to 1000.`}
           onChange={(event) => setKeep(event.target.value)}
         />
+        {destinations.length > 0 ? (
+          <SelectField
+            label={t`Send a copy to`}
+            value={destination}
+            options={destinationOptions(destinations, t`Nowhere else`)}
+            onChange={(event) => setDestination(event.target.value)}
+          />
+        ) : null}
         {preview.error ? (
           <Callout tone="warning" title={t`Dockwell can't say what this costs`}>
             {sentence(preview.error)}

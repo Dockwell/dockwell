@@ -14,10 +14,12 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/backup/s3/s3test"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -571,6 +573,177 @@ func backupsOf(t *testing.T, bc dockwellv1connect.BackupServiceClient) []*dockwe
 		t.Fatal(err)
 	}
 	return res.Msg.GetBackups()
+}
+
+func destinationEdit(bucket *s3test.Server, secret string) *dockwellv1.Edit {
+	return &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.DestinationKind), Name: "r2"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_BackupDestination{BackupDestination: &resourcev1.BackupDestination{
+			Endpoint: bucket.URL(), Bucket: "acme-backups", AccessKey: "AKIAEXAMPLE", SecretKey: secret, Passphrase: "a long passphrase of our own",
+		}}},
+	}
+}
+
+// waitCopy waits for a backup, and for what became of its copy.
+func waitCopy(t *testing.T, bc dockwellv1connect.BackupServiceClient, id string) *dockwellv1.Backup {
+	t.Helper()
+	var last *dockwellv1.Backup
+	eventually(t, "a copy to land or fail", func() bool {
+		res, err := bc.GetBackup(t.Context(), connect.NewRequest(&dockwellv1.GetBackupRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		last = res.Msg.GetBackup()
+		return last.GetState() != dockwellv1.BackupState_BACKUP_STATE_RUNNING && last.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_PENDING
+	})
+	return last
+}
+
+// What signs in to a destination goes to a server for one call, sealed, and is in no
+// plan, no answer and no row. A backup survives its server through it, and a person
+// gets it back.
+func TestABackupOutlivesItsServerThroughADestination(t *testing.T) {
+	storetest.Each(t, testABackupOutlivesItsServerThroughADestination)
+}
+
+func testABackupOutlivesItsServerThroughADestination(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+	volumeID, dir := webWithData(t, e, c)
+	writeData(t, dir, "orders.db", "the orders")
+	bucket := s3test.New(t)
+	f.lastDocker.backups.HTTP = bucket.Client()
+	const secret = "wJalrXUtnFEMI-K7MDENG-the-secret"
+
+	planned := propose(t, c, "Send backups to R2", destinationEdit(bucket, secret))
+	if text := protojson.Format(planned); strings.Contains(text, secret) || strings.Contains(text, "AKIAEXAMPLE") || strings.Contains(text, "long passphrase") {
+		t.Errorf("the plan holds what signs in: %s", text)
+	}
+	if len(planned.GetPlan().GetServers()) != 0 {
+		t.Errorf("a destination planned steps on servers: %v", planned.GetPlan().GetServers())
+	}
+	apply(t, c, planned)
+
+	// Setting what signs in always plans as a change, so a plan can't confirm a guess.
+	same := destinationEdit(bucket, secret)
+	same.GetSpec().GetBackupDestination().Passphrase = ""
+	again := propose(t, c, "The same again", same)
+	if len(again.GetPlan().GetResources()) != 1 || again.GetPlan().GetResources()[0].GetAction() != dockwellv1.PlanAction_PLAN_ACTION_UPDATE {
+		t.Errorf("the same secret planned %v, so a plan confirms a guess", again.GetPlan().GetResources())
+	}
+	if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: again.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+
+	made, err := bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: volumeID, Stop: true, Destination: "r2"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup := waitCopy(t, bc, made.Msg.GetBackup().GetId())
+	if backup.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_STORED || backup.GetDestination() != "r2" || !backup.GetOnServer() {
+		t.Fatalf("backup = %v", backup)
+	}
+	listed, err := bc.ListBackupDestinations(t.Context(), connect.NewRequest(&dockwellv1.ListBackupDestinationsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := listed.Msg.GetDestinations()
+	if len(got) != 1 || got[0].GetBackups() != 1 || got[0].GetUsedBytes() == 0 || got[0].GetLastUpload() == nil || got[0].GetBucket() != "acme-backups" {
+		t.Errorf("destinations = %v", got)
+	}
+	if strings.Contains(protojson.Format(listed.Msg), secret) {
+		t.Error("the list holds what signs in")
+	}
+	for _, auth := range bucket.Authorizations {
+		if strings.Contains(auth, secret) {
+			t.Error("a request carried the secret")
+		}
+	}
+
+	// The server's copy goes, and it's fetched back, and restored.
+	if _, err := f.lastDocker.backups.Delete(t.Context(), resource.Ref{Kind: volume.Kind, Scope: backup.GetEnvironmentId(), Name: "data"}, backup.GetId(), "", nil); err != nil {
+		t.Fatal(err)
+	}
+	writeData(t, dir, "orders.db", "a bad migration ate these")
+	if _, err := bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: backup.GetId()})); err == nil || !strings.Contains(err.Error(), "no longer has") {
+		t.Fatalf("restoring what the server lost = %v", err)
+	}
+	if _, err := bc.FetchBackup(t.Context(), connect.NewRequest(&dockwellv1.FetchBackupRequest{Id: backup.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		events, err := eventClient(b, b.origin).ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_BACKUP}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events.Msg.GetEvents()) > 0 && events.Msg.GetEvents()[0].GetAction() == "backup.fetched" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("it wasn't fetched: %v", events.Msg.GetEvents())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	restore, err := bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: backup.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := restore.Msg.GetChange()
+	w := watch(t, c, ch.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()})); err != nil {
+		t.Fatal(err)
+	}
+	if end := waitWatch(t, w).last(); end.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the restore ended %v: %v", end.GetState(), end.GetError())
+	}
+	if got := readData(t, dir, "orders.db"); got != "the orders" {
+		t.Errorf("orders.db = %q", got)
+	}
+
+	// Deleting it takes it off the bucket too.
+	if _, err := bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: backup.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	if objects := bucket.Objects(); len(objects) != 0 {
+		t.Errorf("left in the bucket: %d objects", len(objects))
+	}
+}
+
+// A copy that fails leaves the backup, and says so where someone looks.
+func TestACopyThatFailsShowsOnTheTimeline(t *testing.T) {
+	storetest.Each(t, testACopyThatFailsShowsOnTheTimeline)
+}
+
+func testACopyThatFailsShowsOnTheTimeline(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+	volumeID, _ := webWithData(t, e, c)
+	bucket := s3test.New(t)
+	f.lastDocker.backups.HTTP = bucket.Client()
+	bucket.Refuse = "AccessDenied"
+	apply(t, c, propose(t, c, "Send backups to R2", destinationEdit(bucket, "a-secret-that-is-wrong")))
+	made, err := bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: volumeID, Destination: "r2"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup := waitCopy(t, bc, made.Msg.GetBackup().GetId())
+	if backup.GetState() != dockwellv1.BackupState_BACKUP_STATE_DONE || backup.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_FAILED || !strings.Contains(backup.GetCopyError(), "AccessDenied") {
+		t.Fatalf("backup = %v", backup)
+	}
+	events, err := eventClient(b, b.origin).ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_BACKUP}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(events.Msg.GetEvents(), func(e *dockwellv1.Event) bool {
+		return e.GetAction() == "backup.copy_failed" && e.GetBackup().GetDestination() == "r2" && strings.Contains(e.GetBackup().GetError(), "AccessDenied")
+	}) {
+		t.Errorf("the timeline says %v", events.Msg.GetEvents())
+	}
 }
 
 // fakePostgres keeps its data as one file of SQL, and answers as the official

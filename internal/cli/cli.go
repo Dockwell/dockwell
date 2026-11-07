@@ -255,6 +255,7 @@ func agentCommands(stdio IO, g *globalFlags) []*cobra.Command {
 		newRunCmd(stdio, g),
 		newJoinCmd(stdio, g),
 		newRoleCmd(stdio, g),
+		newOpenBackupCmd(stdio),
 		{
 			// What the agent runs in a throwaway container to read or write a
 			// volume's bytes (ADR 0033).

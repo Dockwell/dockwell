@@ -9,8 +9,11 @@ package backuppolicy
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	_ "time/tzdata" // a server's own zone files aren't always there
 
@@ -136,4 +139,98 @@ func Next(p *resourcev1.BackupPolicy, after time.Time) time.Time {
 		next = time.Date(t.Year(), t.Month(), t.Day()+1, hour, minute, 0, 0, zone)
 	}
 	return next
+}
+
+// DestinationKind is the backup destination kind.
+const DestinationKind resource.Kind = "backup.destination"
+
+// Destination is the kind of S3-compatible storage backups go to. It lives in the
+// organization, on the control plane alone, as what signs in to it goes to a server
+// only for the call that needs it.
+type Destination struct{}
+
+var (
+	_ resource.Type    = Destination{}
+	_ resource.Rotates = Destination{}
+	_ resource.Keeper  = Destination{}
+)
+
+// Kind returns "backup.destination".
+func (Destination) Kind() resource.Kind { return DestinationKind }
+
+// Level is the organization: any environment's backups can use one.
+func (Destination) Level() resource.Level { return resource.LevelOrganization }
+
+// IDPrefix is "bds".
+func (Destination) IDPrefix() string { return "bds" }
+
+// New returns an empty BackupDestination.
+func (Destination) New() proto.Message { return &resourcev1.BackupDestination{} }
+
+// RotatesSensitive says setting what signs in always plans as a change, and is never
+// compared with what's there, so a plan can't confirm a guess at it (ADR 0022).
+func (Destination) RotatesSensitive() {}
+
+// Keep holds on to a destination's passphrase, as every copy there was sealed with it,
+// and a new one would leave them all unopenable. An edit that leaves it out keeps it. One
+// that gives one is refused, whatever it gives, so a refusal never says whether a guess
+// at it is right (ADR 0022).
+func (Destination) Keep(current, desired proto.Message) (resource.Kept, error) {
+	was, ok := current.(*resourcev1.BackupDestination)
+	is, same := desired.(*resourcev1.BackupDestination)
+	if !ok || !same {
+		return resource.Kept{}, nil
+	}
+	if is.GetPassphrase() != "" {
+		return resource.Kept{}, errors.New("a destination keeps the passphrase it was made with, as every copy there is sealed with it, so an update can't set one. Leave it out to keep it. To change it, remove the destination and add it again: copies already there then open only with the old passphrase, through dockwell open-backup or by adding it back with that one")
+	}
+	is.Passphrase = was.GetPassphrase()
+	return resource.Kept{Reason: "kept_passphrase", Words: "keeps the passphrase it was made with, as every copy there is sealed with it"}, nil
+}
+
+// CheckNew asks for a passphrase. An update can leave it out, which Keep fills in, so
+// Validate can't.
+func (Destination) CheckNew(spec proto.Message) error {
+	d := spec.(*resourcev1.BackupDestination) //nolint:forcetypeassert // Validate saw it
+	if len(d.GetPassphrase()) < minPassphrase {
+		return fmt.Errorf("a destination's passphrase needs at least %d characters, as it's all that keeps a backup from whoever holds the bucket. Let the panel make one, or use a long one of your own", minPassphrase)
+	}
+	return nil
+}
+
+// CheckName takes what fits in a URL.
+func (Destination) CheckName(name string) error {
+	return resource.CheckLabel("backup destination", name, "r2")
+}
+
+// Validate refuses what can't work, in words that hold nothing of what signs in.
+func (Destination) Validate(spec proto.Message) error {
+	d := spec.(*resourcev1.BackupDestination)
+	u, err := url.Parse(d.GetEndpoint())
+	switch {
+	case err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http"):
+		return errors.New("a destination's endpoint is the storage's address, such as https://<account>.r2.cloudflarestorage.com")
+	case u.Scheme == "http" && !loopback(u.Hostname()):
+		return errors.New("a destination's endpoint has to use HTTPS, as what signs in goes with each request. Only an address on this server may use plain HTTP")
+	case d.GetBucket() == "":
+		return errors.New("a destination needs a bucket")
+	case d.GetAccessKey() == "" || d.GetSecretKey() == "":
+		return errors.New("a destination needs an access key and its secret")
+	}
+	d.Prefix = strings.Trim(d.GetPrefix(), "/")
+	if d.GetRegion() == "" {
+		d.Region = "auto"
+	}
+	return nil
+}
+
+// minPassphrase is the shortest passphrase a destination takes.
+const minPassphrase = 16
+
+func loopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

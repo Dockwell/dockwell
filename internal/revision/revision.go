@@ -1073,10 +1073,17 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
 					}
 				}
+				if t, err := e.kinds.Type(ed.Ref.Kind); it.current == nil && err == nil {
+					if c, ok := t.(resource.NewChecker); ok {
+						if err := c.CheckNew(it.spec); err != nil {
+							return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
+						}
+					}
+				}
 				if it.encoded, err = resource.Encode(it.spec); err != nil {
 					return err
 				}
-				it.rotates = rotate && e.valuer(ed.Ref.Kind) && resource.SetsSensitive(it.spec)
+				it.rotates = rotate && e.rotating(ed.Ref.Kind) && resource.SetsSensitive(it.spec)
 			} else if it.current == nil {
 				return fault.New(ErrInvalid, "there's no %s to delete. Check its kind, name and scope", ed.Ref)
 			}

@@ -393,6 +393,10 @@ message Call {
     BackupCall backup = 21;
     // Remove a backup from the disk.
     DeleteBackupCall delete_backup = 22;
+    // Bring a backup back from where it was sent.
+    FetchBackupCall fetch_backup = 23;
+    // Send a backup that's on the server to its destination.
+    SendBackupCall send_backup = 24;
   }
 }
 
@@ -421,12 +425,43 @@ message BackupCall {
   bool stop = 3;
 }
 
+// SendBackupCall asks to send a backup that's on the server to its destination, as a
+// step of its own once it's whole, so an upload holds nothing up.
+message SendBackupCall {
+  // The backup's ID.
+  string id = 1;
+  // The volume it's of.
+  dockwell.v1.ResourceRef volume = 2;
+  // Where it goes, sealed to this stream's delivery key as a backup destination's
+  // values are (ADR 0022).
+  bytes destination = 3;
+}
+
+// FetchBackupCall asks to bring a backup back from where it was sent.
+message FetchBackupCall {
+  // The backup's ID.
+  string id = 1;
+  // The volume it's of, as it's named on the server it came from.
+  dockwell.v1.ResourceRef volume = 2;
+  // Where it is, sealed as in BackupCall.
+  bytes destination = 3;
+  // Its name there.
+  string key = 4;
+  // What the control plane has on record that it hashes to, in hex. What came back
+  // is checked against this, and against nothing the storage says.
+  string sha256 = 5;
+}
+
 // DeleteBackupCall asks to remove a backup from the disk.
 message DeleteBackupCall {
   // The backup's ID.
   string id = 1;
   // The volume it's of.
   dockwell.v1.ResourceRef volume = 2;
+  // Where it was sent, sealed as in BackupCall, to remove it from there too.
+  bytes destination = 3;
+  // Its name there.
+  string key = 4;
 }
 
 // RestoreSource is what a step restores. Exactly one of backup_id and undoes is
@@ -809,6 +844,10 @@ message CallResult {
     BackupResult backup = 21;
     // Answers delete_backup.
     DeleteBackupResult delete_backup = 22;
+    // What fetch_backup brought back.
+    BackupResult fetch_backup = 23;
+    // What send_backup sent.
+    SendBackupResult send_backup = 24;
   }
 }
 
@@ -868,8 +907,19 @@ message BackupResult {
   int64 files_changed = 5;
 }
 
-// DeleteBackupResult says the backup is gone.
-message DeleteBackupResult {}
+// SendBackupResult says a backup reached its destination.
+message SendBackupResult {
+  // Its name there.
+  string key = 1;
+  // How much it takes there, in bytes, sealed.
+  int64 stored_bytes = 2;
+}
+
+// DeleteBackupResult says the backup is gone from the disk.
+message DeleteBackupResult {
+  // Why it's still where it was sent, when the call asked for it to go from there too.
+  string copy_error = 1;
+}
 
 // ContainersResult lists the containers Docker has.
 message ContainersResult {

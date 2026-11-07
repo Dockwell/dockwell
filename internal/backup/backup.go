@@ -18,6 +18,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,6 +85,11 @@ type Runner struct {
 	CleanupWait time.Duration
 	// Disk stands in for the disk that holds backups, for a test.
 	Disk func() disk
+	// HTTP reaches a destination; http.DefaultClient unless set.
+	HTTP *http.Client
+	// Work is what a key takes for what this seals, for a test: a key takes over a
+	// second under the race detector. Zero, as an agent has it, means seal.Iterations.
+	Work int
 
 	mu      sync.Mutex
 	working map[string]bool // volumes in Docker with a backup or restore under way
@@ -267,7 +273,12 @@ type verifier func(io.Reader) error
 
 // write takes a backup into a file beside where it belongs, reads it back, and
 // only then gives it its name. A backup that fails leaves nothing.
-func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int64, error), verify verifier) (err error) {
+func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int64, error), verify verifier) error {
+	return r.writeChecked(ref, m, take, verify, "")
+}
+
+// writeChecked is write, for what has to hash to want before it takes a name.
+func (r *Runner) writeChecked(ref resource.Ref, m *Manifest, take func(io.Writer) (int64, error), verify verifier, want string) (err error) {
 	dir := r.dir(ref)
 	partial := filepath.Join(dir, m.ID+".partial")
 	f, err := os.OpenFile(partial, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // under the agent's own directory, named by an ID
@@ -292,6 +303,9 @@ func (r *Runner) write(ref resource.Ref, m *Manifest, take func(io.Writer) (int6
 		return fmt.Errorf("can't write the backup to the disk: %w", err)
 	}
 	m.Size, m.SHA256 = counted.n, hex.EncodeToString(sum.Sum(nil))
+	if want != "" && m.SHA256 != want {
+		return fmt.Errorf("what came back hashes to %s, and %s was taken, so it isn't kept. Check what's in the storage", m.SHA256, want)
+	}
 	if err = check(partial, m, verify); err != nil {
 		return fmt.Errorf("the backup didn't read back whole, so it isn't kept: %w. Try again, and check the server's disk if it happens again", err)
 	}
@@ -380,18 +394,25 @@ func readManifest(path string) (*Manifest, error) {
 	return &m, nil
 }
 
-// Delete removes a backup from the disk. One that's gone already is no error.
-func (r *Runner) Delete(_ context.Context, ref resource.Ref, id string) error {
+// Delete removes a backup from the disk, and with a key and a destination, from where
+// it was sent. Going from one doesn't wait on the other: storage that refuses leaves
+// the disk's copy gone, and says why in what it returns.
+func (r *Runner) Delete(ctx context.Context, ref resource.Ref, id, key string, d *Destination) (copyError string, err error) {
 	if strings.ContainsAny(id, "/\\") || id == "" || strings.HasPrefix(id, ".") {
-		return fmt.Errorf("%q isn't a backup's ID", id)
+		return "", fmt.Errorf("%q isn't a backup's ID", id)
 	}
 	dir := r.dir(ref)
 	for _, name := range []string{id + "." + formatArchive, id + "." + formatDump, id + ".json", id + ".partial"} {
 		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("can't remove the backup: %w", err)
+			return "", fmt.Errorf("can't remove the backup: %w", err)
 		}
 	}
-	return nil
+	if d != nil && key != "" {
+		if err := r.deleteRemote(ctx, key, d); err != nil {
+			return err.Error(), nil //nolint:nilerr // the server's copy is gone, and what kept the other is said, not failed on
+		}
+	}
+	return "", nil
 }
 
 // stoppedFile is what's stopped for a backup or restore under way, written down

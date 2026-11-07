@@ -5,6 +5,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type Backup,
+  BackupCopy,
   BackupMethod,
   BackupPolicy_Every,
   BackupSchema,
@@ -12,6 +13,8 @@ import {
   ChangeSchema,
   ChangeState,
   type CreateBackupRequest,
+  type DeleteBackupRequest,
+  type FetchBackupRequest,
   PlanAction,
   PreviewBackupResponseSchema,
   type ProposeChangeRequest,
@@ -36,6 +39,7 @@ function aBackup(init: MessageInitShape<typeof BackupSchema> = {}): Backup {
     serverId: SERVER,
     serverName: "hz-1",
     state: BackupState.DONE,
+    onServer: true,
     method: BackupMethod.COPY,
     sizeBytes: 312n << 20n,
     startedAt: timestampFromDate(new Date("2026-11-06T03:00:00Z")),
@@ -55,6 +59,19 @@ function api(backups: Backup[], more: Api = {}): Api {
     },
     ...more,
   };
+}
+
+/** The page with storage set up, and what a test adds to its calls. */
+function copies(backups: Backup[], calls: Api["backups"] = {}, changes: Api["changes"] = {}): Api {
+  return api(backups, {
+    backups: {
+      listBackups: () => ({ backups }),
+      listBackupPolicies: () => ({}),
+      listBackupDestinations: () => ({}),
+      ...calls,
+    },
+    changes,
+  });
 }
 
 describe("the backups page", () => {
@@ -83,6 +100,7 @@ describe("the backups page", () => {
         aBackup({
           id: "bkp_4",
           state: BackupState.FAILED,
+          onServer: false,
           method: BackupMethod.UNSPECIFIED,
           sizeBytes: 0n,
           error: "The disk is full.",
@@ -320,7 +338,9 @@ describe("the backups page", () => {
         changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Add" }));
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", { name: "Add" }),
+    );
     expect(
       await screen.findByText(/keeping 7 takes about 960 MB while the next is taken, and the disk has 9 GB to give/),
     ).toBeVisible();
@@ -356,7 +376,9 @@ describe("the backups page", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Add" }));
+    await user.click(
+      await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", { name: "Add" }),
+    );
     expect(await screen.findByText(/can't say yet what each backup takes.*the disk has 9 GB to give/i)).toBeVisible();
   });
 
@@ -466,5 +488,265 @@ describe("the backups page", () => {
     expect(within(panel).getByText("Keeps 7, holding 3 now (936 MB)")).toBeVisible();
     expect(within(panel).getByText("Last run failed")).toBeVisible();
     expect(within(panel).getByText("The disk is full.")).toBeVisible();
+  });
+
+  it("adds storage only once the passphrase is kept, and never shows what signs in again", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_: ProposeChangeRequest) => ({
+      change: create(ChangeSchema, {
+        id: "chg_d",
+        summary: "Send backups to r2",
+        state: ChangeState.PLANNED,
+        plan: { fingerprint: "abc" },
+      }),
+    }));
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Destinations" });
+    await user.click(within(panel).getByRole("button", { name: "Add" }));
+    await user.type(await screen.findByLabelText("Name"), "r2");
+    await user.type(screen.getByLabelText("Endpoint"), "https://storage.example.com");
+    await user.type(screen.getByLabelText("Bucket"), "acme-backups");
+    await user.type(screen.getByLabelText("Access key"), "AKIA");
+    await user.type(screen.getByLabelText("Secret key"), "the-secret");
+    const review = screen.getByRole("button", { name: "Review plan" });
+    expect(review).toBeDisabled();
+    await user.click(screen.getByLabelText("I've kept a copy of the passphrase"));
+    await user.click(review);
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const value = proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { passphrase: string; secretKey: string };
+    expect(value.secretKey).toBe("the-secret");
+    expect(value.passphrase.length).toBeGreaterThan(32);
+  });
+
+  it("fetches a backup its server lost, and offers no restore until then", async () => {
+    const user = userEvent.setup();
+    const fetched = vi.fn((_: FetchBackupRequest) => ({ backup: aBackup() }));
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({
+            backups: [aBackup({ onServer: false, destination: "r2", copy: BackupCopy.STORED, fetchOnto: ["hz-2"] })],
+          }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          fetchBackup: fetched,
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Fetch" }));
+    await waitFor(() => expect(fetched).toHaveBeenCalled());
+    expect(fetched.mock.calls[0]?.[0]).toMatchObject({ id: "bkp_1", server: "hz-2" });
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    expect(screen.getByText("On r2")).toBeVisible();
+  });
+
+  it("asks which server to fetch onto, where its volume is on several", async () => {
+    const user = userEvent.setup();
+    const fetched = vi.fn((_: FetchBackupRequest) => ({ backup: aBackup() }));
+    const b = aBackup({ onServer: false, destination: "r2", copy: BackupCopy.STORED, fetchOnto: ["hz-2", "hz-3"] });
+    renderAt("/backups", copies([b], { fetchBackup: fetched }));
+    await user.click(await screen.findByRole("button", { name: "Fetch" }));
+    const sheet = await screen.findByRole("dialog", { name: /Fetch this backup/ });
+    expect(fetched).not.toHaveBeenCalled();
+    await user.selectOptions(within(sheet).getByLabelText("Onto"), "hz-3");
+    await user.click(within(sheet).getByRole("button", { name: "Fetch" }));
+    await waitFor(() => expect(fetched).toHaveBeenCalled());
+    expect(fetched.mock.calls[0]?.[0]).toMatchObject({ id: "bkp_1", server: "hz-3" });
+  });
+
+  it("says what's needed when no server can take it", async () => {
+    renderAt("/backups", copies([aBackup({ onServer: false, destination: "r2", copy: BackupCopy.STORED })]));
+    expect(await screen.findByText("To fetch it, put orders on a connected server first")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Fetch" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+  });
+
+  it("says when only a server that can't be reached has it", async () => {
+    renderAt("/backups", copies([aBackup({ onServer: false })]));
+    expect(await screen.findByText(/Its server can't restore this now/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+  });
+
+  it("marks a copy only an earlier passphrase opens, and keeps the server's", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      copies([aBackup({ destination: "r2", copy: BackupCopy.STORED, sealedEarlier: true })], {
+        deleteBackup: () => ({}),
+      }),
+    );
+    expect(await screen.findByText("Sealed with an earlier passphrase")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Delete this backup" }));
+    const sheet = await screen.findByRole("dialog", { name: /Delete this backup/ });
+    expect(within(sheet).getByText(/where it was sealed with an earlier passphrase/)).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: "Remove from the server only" })).toBeNull();
+  });
+
+  it("offers a restore while its server has it, and no fetch", async () => {
+    renderAt("/backups", copies([aBackup({ destination: "r2", copy: BackupCopy.STORED })]));
+    expect(await screen.findByRole("button", { name: "Restore" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Fetch" })).toBeNull();
+    expect(screen.getByText("Also on r2")).toBeVisible();
+  });
+
+  it("shows how a send is going, and why a fetch or a copy failed, on the backup's row", async () => {
+    renderAt(
+      "/backups",
+      copies([
+        aBackup({ destination: "r2", copy: BackupCopy.PENDING, progress: "Sending orders: 12 MB of 40 MB" }),
+        aBackup({
+          id: "bkp_2",
+          destination: "r2",
+          copy: BackupCopy.STORED,
+          onServer: false,
+          fetchError: "AccessDenied. Check the destination's keys and bucket",
+        }),
+        aBackup({
+          id: "bkp_3",
+          destination: "r2",
+          copy: BackupCopy.FAILED,
+          copyError: "the storage refused it. Check the destination's keys and bucket",
+        }),
+      ]),
+    );
+    expect(await screen.findByText("Sending orders: 12 MB of 40 MB")).toBeVisible();
+    expect(screen.getByText(/It couldn't be fetched: AccessDenied/)).toBeVisible();
+    expect(screen.getByText(/It didn't reach r2: the storage refused it/)).toBeVisible();
+  });
+
+  it("watches a backup until its copy lands, and a fetch until it's back", async () => {
+    const sending = aBackup({ destination: "r2", copy: BackupCopy.PENDING });
+    const stored = aBackup({ destination: "r2", copy: BackupCopy.STORED });
+    const fetching = aBackup({
+      destination: "r2",
+      copy: BackupCopy.STORED,
+      onServer: false,
+      progress: "Fetching orders",
+    });
+    const answers = [sending, fetching, stored];
+    renderAt("/backups", copies([], { listBackups: () => ({ backups: [answers.shift() ?? stored] }) }));
+    expect(await screen.findByText("Sending to r2")).toBeVisible();
+    expect(await screen.findByText("Fetching orders", undefined, { timeout: 8000 })).toBeVisible();
+    expect(await screen.findByText("Also on r2", undefined, { timeout: 8000 })).toBeVisible();
+  }, 20_000);
+
+  it("says deleting takes it from both places, and can take it from the server alone", async () => {
+    const user = userEvent.setup();
+    const deleted = vi.fn((_: DeleteBackupRequest) => ({}));
+    renderAt("/backups", copies([aBackup({ destination: "r2", copy: BackupCopy.STORED })], { deleteBackup: deleted }));
+    await user.click(await screen.findByRole("button", { name: "Delete this backup" }));
+    const sheet = await screen.findByRole("dialog", { name: /Delete this backup/ });
+    expect(within(sheet).getByText(/from the server's disk and from r2/)).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Remove from the server only" }));
+    await waitFor(() => expect(deleted).toHaveBeenCalledTimes(1));
+    expect(deleted.mock.calls[0]?.[0]).toMatchObject({ id: "bkp_1", serverOnly: true });
+    await waitFor(() => expect(sheet).not.toBeInTheDocument());
+
+    await user.click(await screen.findByRole("button", { name: "Delete this backup" }));
+    const again = await screen.findByRole("dialog", { name: /Delete this backup/ });
+    await user.click(within(again).getByRole("button", { name: "Delete from both" }));
+    await waitFor(() => expect(deleted).toHaveBeenCalledTimes(2));
+    expect(deleted.mock.calls[1]?.[0]).toMatchObject({ id: "bkp_1", serverOnly: false });
+  });
+
+  it("says the destination has the last of it, with nothing to keep it by", async () => {
+    const user = userEvent.setup();
+    renderAt("/backups", copies([aBackup({ destination: "r2", copy: BackupCopy.STORED, onServer: false })]));
+    await user.click(await screen.findByRole("button", { name: "Delete this backup" }));
+    const sheet = await screen.findByRole("dialog", { name: /Delete this backup/ });
+    expect(within(sheet).getByText(/from r2, the last place that has it/)).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: "Remove from the server only" })).toBeNull();
+  });
+
+  it("shows a failed copy on its schedule, though the run was good", async () => {
+    renderAt(
+      "/backups",
+      copies([aBackup()], {
+        listBackupPolicies: () => ({
+          policies: [
+            {
+              id: "bpl_1",
+              name: "orders-daily",
+              environmentId: "env_1",
+              spec: { volume: "orders", every: BackupPolicy_Every.DAY, at: "03:00", keep: 7, destination: "r2" },
+              last: aBackup({
+                destination: "r2",
+                copy: BackupCopy.FAILED,
+                copyError: "the storage refused it. Check the destination's keys and bucket",
+              }),
+              kept: 1,
+              nextRun: timestampFromDate(new Date("2026-11-07T03:00:00Z")),
+            },
+          ],
+        }),
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Schedules" });
+    expect(await within(panel).findByText("Last copy failed")).toBeVisible();
+    expect(within(panel).getByText(/the storage refused it/)).toBeVisible();
+  });
+
+  async function addDestination(user: ReturnType<typeof userEvent.setup>, add: string) {
+    const panel = await screen.findByRole("region", { name: /Destinations|目的地/ });
+    await user.click(within(panel).getByRole("button", { name: add }));
+  }
+
+  it("takes a passphrase you already have, and holds it to the length the API does", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_: ProposeChangeRequest) => ({
+      change: create(ChangeSchema, { id: "chg_d", state: ChangeState.PLANNED, plan: { fingerprint: "abc" } }),
+    }));
+    renderAt(
+      "/backups",
+      copies([aBackup()], {}, { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream }),
+    );
+    await addDestination(user, "Add");
+    await user.type(await screen.findByLabelText("Name"), "r2");
+    await user.type(screen.getByLabelText("Endpoint"), "https://storage.example.com");
+    await user.type(screen.getByLabelText("Bucket"), "acme-backups");
+    await user.type(screen.getByLabelText("Access key"), "AKIA");
+    await user.type(screen.getByLabelText("Secret key"), "the-secret");
+    await user.click(screen.getByRole("switch", { name: /Use a passphrase I already have/ }));
+    expect(screen.queryByText("Keep this passphrase somewhere else")).toBeNull();
+    const review = screen.getByRole("button", { name: "Review plan" });
+    await user.type(screen.getByLabelText("Passphrase"), "too short");
+    expect(review).toBeDisabled();
+    await user.type(screen.getByLabelText("Passphrase"), " but now it's long enough");
+    await user.click(review);
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const value = proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { passphrase: string };
+    expect(value.passphrase).toBe("too short but now it's long enough");
+  });
+
+  it("keeps the destination sheet on a phone's screen, with a passphrase you can copy", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    const { container } = renderAt("/backups", copies([aBackup()]));
+    await addDestination(user, "Add");
+    expect(await screen.findByRole("dialog", { name: "Add a destination" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Copy the passphrase" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeVisible();
+    await expectAccessible(container);
+  });
+
+  it("reads the destination sheet in Chinese", async () => {
+    await activateLocale("zh-CN");
+    const user = userEvent.setup();
+    renderAt("/backups", copies([aBackup()]));
+    await addDestination(user, "添加");
+    expect(await screen.findByRole("dialog", { name: "添加目的地" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "复制密码短语" })).toBeVisible();
+    await activateLocale("en");
   });
 });

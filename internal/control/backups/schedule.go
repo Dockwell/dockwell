@@ -5,6 +5,7 @@ package backups
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -13,14 +14,12 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
-	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -159,7 +158,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 	}
 	b := store.Backup{
 		ID: id.New(id.Backup), EnvironmentID: run.volume.Scope, Volume: run.volume.Name, VolumeID: run.volume.ID, ServerID: run.server.ID,
-		State: store.BackupRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id,
+		State: store.BackupRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id, Destination: run.policy.spec.GetDestination(),
 	}
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		h.logger.ErrorContext(ctx, "can't record a backup", slog.String("error", err.Error()))
@@ -167,6 +166,17 @@ func (h *Handler) start(ctx context.Context, run due) {
 	}
 	if !ok {
 		h.finish(ctx, b, nil, fmt.Errorf("%s wasn't connected when %s fell due, so this backup didn't run. It runs again on schedule", run.server.Name, run.policy.name), store.SurfaceAutomatic)
+		return
+	}
+	destination, err := h.destination(ctx, b.Destination)
+	var gone *connect.Error
+	if errors.As(err, &gone) && gone.Code() == connect.CodeNotFound {
+		// The backup is what counts: it stays on its server, and the row says why.
+		b.CopyError = fmt.Sprintf("the destination %s is gone, so this stayed on its server. Point %s at another destination", b.Destination, run.policy.name)
+		destination, err = nil, nil
+	}
+	if err != nil {
+		h.finish(ctx, b, nil, fmt.Errorf("%s names the destination %s, and it can't be read: %w. Choose another", run.policy.name, b.Destination, err), store.SurfaceAutomatic)
 		return
 	}
 	ref := resource.Ref{Kind: volume.Kind, Scope: run.volume.Scope, Name: run.volume.Name}
@@ -177,7 +187,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 		select {
 		case turn <- struct{}{}:
 			defer func() { <-turn }()
-			h.run(s, b, ref, stop, store.SurfaceAutomatic, keep)
+			h.run(s, b, ref, stop, store.SurfaceAutomatic, keep, destination)
 		case <-h.base.Done():
 			h.finish(context.WithoutCancel(h.base), b, nil, h.base.Err(), store.SurfaceAutomatic)
 		}
@@ -185,7 +195,8 @@ func (h *Handler) start(ctx context.Context, run due) {
 }
 
 // turnOn is held by the scheduled run under way on a server. Runs that fall due
-// together go one at a time, or each would look for room in the same free space.
+// together go one at a time, or each would look for room in the same free space. It's
+// held until the run's copy has landed too, so retention never meets one on its way.
 func (h *Handler) turnOn(serverID string) chan struct{} {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -212,23 +223,27 @@ func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup
 		return
 	}
 	var all []store.Backup
+	var f *rowFacts
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
-		all, err = tx.ListBackups(ctx, store.BackupFilter{PolicyID: b.PolicyID, ServerID: b.ServerID})
+		if all, err = tx.ListBackups(ctx, store.BackupFilter{PolicyID: b.PolicyID, ServerID: b.ServerID}); err != nil {
+			return err
+		}
+		f, err = h.facts(ctx, tx)
 		return err
 	})
 	if err != nil {
 		h.logger.ErrorContext(ctx, "can't read what a policy keeps", slog.String("error", err.Error()))
 		return
 	}
-	kept := 0
+	// Newest first. Its server keeps the newest it keeps, and so does its destination,
+	// which can be older ones: a copy goes only once that many newer ones are stored,
+	// so copies that stop arriving don't empty the bucket while the server moves on.
+	kept, stored := 0, 0
 	for i := range all {
 		old := &all[i]
 		switch {
 		case old.State == store.BackupRunning:
-			continue
-		case old.State == store.BackupDone && kept < keep:
-			kept++
 			continue
 		case old.State == store.BackupFailed && kept < keep:
 			continue
@@ -236,15 +251,53 @@ func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup
 			continue
 		}
 		if old.State == store.BackupDone {
-			ref := resource.Ref{Kind: volume.Kind, Scope: old.EnvironmentID, Name: old.Volume}
-			if err := s.DeleteBackup(ctx, &agentv1.DeleteBackupCall{Id: old.ID, Volume: resourcepb.Ref(ref)}); err != nil {
+			here, there, opens := !old.OffServer, old.CopyKey != "", f.opens(old)
+			if here && kept < keep {
+				kept++
+				if opens {
+					stored++
+				}
+				continue
+			}
+			// A copy sealed with an earlier passphrase counts for nothing, and is no
+			// reason to give up the server's.
+			if there && stored < keep {
+				if opens {
+					stored++
+					if here {
+						h.offServer(ctx, s, old)
+					}
+				}
+				continue
+			}
+			said, err := h.deleteOn(ctx, s, old, false)
+			if err != nil {
 				h.logger.WarnContext(ctx, "can't remove a backup past what its policy keeps; the next run tries again", slog.String("backup", old.ID), slog.String("error", err.Error()))
+				continue
+			}
+			if said != "" {
+				// Off its server all the same, and Activity says what its destination
+				// kept. The next run tries that again.
+				if err := h.keptOnDestination(ctx, old, ActionCopyKept, said, revision.SystemActor, store.SurfaceAutomatic); err != nil {
+					h.logger.ErrorContext(ctx, "can't record that a destination kept a backup", slog.String("backup", old.ID), slog.String("error", err.Error()))
+				}
 				continue
 			}
 		}
 		if err := h.forget(ctx, old, revision.SystemActor, store.SurfaceAutomatic); err != nil {
 			h.logger.ErrorContext(ctx, "can't record that a backup went", slog.String("backup", old.ID), slog.String("error", err.Error()))
 		}
+	}
+}
+
+// offServer removes a backup from its server, and leaves it on its destination.
+func (h *Handler) offServer(ctx context.Context, s *agentapi.Session, b *store.Backup) {
+	if _, err := h.deleteOn(ctx, s, b, true); err != nil {
+		h.logger.WarnContext(ctx, "can't remove a backup past what its policy keeps; the next run tries again", slog.String("backup", b.ID), slog.String("error", err.Error()))
+		return
+	}
+	if err := h.keptOnDestination(ctx, b, ActionServerCopyRemoved, "", revision.SystemActor, store.SurfaceAutomatic); err != nil {
+		h.logger.ErrorContext(ctx, "can't record that a backup left its server", slog.String("backup", b.ID), slog.String("error", err.Error()))
 	}
 }
 
@@ -257,7 +310,10 @@ func (h *Handler) ListBackupPolicies(ctx context.Context, _ *connect.Request[doc
 		if err != nil {
 			return err
 		}
-		look := h.names.In(ctx, tx)
+		f, err := h.facts(ctx, tx)
+		if err != nil {
+			return err
+		}
 		for i := range list {
 			p := &list[i]
 			info := &dockwellv1.BackupPolicyInfo{Id: p.id, Name: p.name, EnvironmentId: p.environment, Spec: p.spec}
@@ -269,12 +325,14 @@ func (h *Handler) ListBackupPolicies(ctx context.Context, _ *connect.Request[doc
 			for j := range backups {
 				b := &backups[j]
 				if j == 0 {
-					info.Last = h.protoIn(look, b)
+					if info.Last, err = h.protoIn(ctx, tx, f, b); err != nil {
+						return err
+					}
 					if b.StartedAt.After(since) {
 						since = b.StartedAt
 					}
 				}
-				if b.State == store.BackupDone {
+				if b.State == store.BackupDone && !b.OffServer {
 					info.Kept++
 					info.KeptBytes += b.SizeBytes
 				}

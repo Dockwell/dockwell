@@ -48,6 +48,16 @@ func (e *Engine) valuer(kind resource.Kind) bool {
 	return ok
 }
 
+// rotating reports a kind whose sensitive fields are never compared with what's there.
+func (e *Engine) rotating(kind resource.Kind) bool {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return false
+	}
+	_, ok := t.(resource.Rotates)
+	return ok || e.valuer(kind)
+}
+
 // usesOf lists what an item's spec uses, keyed in its scope.
 func (e *Engine) usesOf(it *item, spec proto.Message) []resource.Use {
 	b, ok := e.binder(it.ref.Kind)

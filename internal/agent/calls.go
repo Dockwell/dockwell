@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -542,7 +543,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Adoption{Adoption: found}}
-	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil:
+	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))
 		}
@@ -610,11 +611,58 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 			return nil, err
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Backup{Backup: out}}, nil
+	case call.GetSendBackup() != nil:
+		send := call.GetSendBackup()
+		destination, err := c.openDestination(send.GetVolume(), send.GetDestination())
+		if err != nil {
+			return nil, err
+		}
+		defer clear(destination)
+		progress := c.progress(call.GetId())
+		defer progress.stop()
+		out, err := c.cfg.Backups.Send(resource.WithProgress(ctx, progress.say), send, destination)
+		if err != nil {
+			return nil, err
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_SendBackup{SendBackup: out}}, nil
+	case call.GetFetchBackup() != nil:
+		f := call.GetFetchBackup()
+		destination, err := c.openDestination(f.GetVolume(), f.GetDestination())
+		if err != nil {
+			return nil, err
+		}
+		defer clear(destination)
+		progress := c.progress(call.GetId())
+		defer progress.stop()
+		out, err := c.cfg.Backups.Fetch(resource.WithProgress(ctx, progress.say), f, destination)
+		if err != nil {
+			return nil, err
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_FetchBackup{FetchBackup: out}}, nil
 	}
-	if err := c.cfg.Backups.Delete(ctx, call.GetDeleteBackup()); err != nil {
+	d := call.GetDeleteBackup()
+	destination, err := c.openDestination(d.GetVolume(), d.GetDestination())
+	if err != nil {
 		return nil, err
 	}
-	return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteBackup{DeleteBackup: &agentv1.DeleteBackupResult{}}}, nil
+	defer clear(destination)
+	out, err := c.cfg.Backups.Delete(ctx, d, destination)
+	if err != nil {
+		return nil, err
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteBackup{DeleteBackup: out}}, nil
+}
+
+// openDestination opens where a backup goes, sealed to this stream for this volume,
+// in memory for one call (ADR 0022).
+func (c *calls) openDestination(volume *dockwellv1.ResourceRef, sealed []byte) (map[string]string, error) {
+	if len(sealed) == 0 {
+		return nil, nil
+	}
+	if c.delivery == nil {
+		return nil, errors.New("this agent has no delivery key to open where a backup goes")
+	}
+	return c.delivery.Open(c.server, resourcepb.FromRef(volume), sealed)
 }
 
 // progressEvery is how often a call says how it is going, at most.

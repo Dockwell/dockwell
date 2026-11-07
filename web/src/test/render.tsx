@@ -99,7 +99,12 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
       service(FileService, api.files ?? {});
-      service(BackupService, { listBackups: () => ({}), ...api.backups });
+      service(BackupService, {
+        listBackups: () => ({}),
+        listBackupPolicies: () => ({}),
+        listBackupDestinations: () => ({}),
+        ...api.backups,
+      });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );
