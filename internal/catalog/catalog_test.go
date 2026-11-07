@@ -75,21 +75,39 @@ func TestTheBuiltInEntries(t *testing.T) {
 	}
 }
 
-// The catalog's page says its apps are open source, which each has to be. A licence
-// new to this list needs a look before it goes on it, and an app that isn't open
-// source needs the page's words changed.
-func TestEveryAppIsOpenSource(t *testing.T) {
+// Each app's licence is one that's had a look: open source, or allowed by name, with
+// why. Coder's image is built with its Enterprise code, under Coder's own licence, so
+// the catalog's page calls its apps self-hosted rather than open source, and the
+// install sheet names the licence. A licence new to these needs a look first.
+func TestEveryAppsLicenceHasHadALook(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	open := []string{"AGPL-3.0-only", "Apache-2.0", "GPL-2.0-only", "MIT", "PostgreSQL"}
+	open := []string{"AGPL-3.0-only", "AGPL-3.0-or-later", "Apache-2.0", "GPL-2.0-only", "GPL-2.0-or-later", "MIT", "PostgreSQL"}
+	allowed := map[string]string{
+		// The official image is built from ./enterprise/cmd/coder.
+		"coder": "AGPL-3.0-only, with Enterprise code under Coder's own",
+	}
 	for _, e := range c.All() {
-		if !slices.Contains(open, e.GetAppLicense()) {
-			t.Errorf("%s is under %s, and the catalog's page says it's open source", e.GetId(), e.GetAppLicense())
+		l := e.GetAppLicense()
+		if !slices.Contains(open, l) && allowed[e.GetId()] != l {
+			t.Errorf("%s is under %s, which hasn't had a look", e.GetId(), l)
 		}
 	}
+	page, err := os.ReadFile("../../web/src/features/catalog/CatalogPage.tsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(page), "Open-source apps") {
+		t.Error("the catalog's page says every app is open source, and Coder's image carries code that isn't")
+	}
 }
+
+// publishedBefore are the first set's entries whose admin tool answers on every
+// address. Moving them to loopback would cut off people who use them now, so that
+// waits for a migration of its own (#244).
+var publishedBefore = []string{"postgres", "mysql", "nginx-proxy-manager"}
 
 // An admin tool on a published port answers over plain HTTP, so a password typed into
 // it crosses the network in clear. A person hears that before they apply, with what to
@@ -99,7 +117,7 @@ func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"postgres", "mysql", "mariadb", "nginx-proxy-manager", "pgadmin", "coder"} {
+	for _, id := range publishedBefore {
 		e, _ := c.Entry(id)
 		steps := e.GetFirstSteps()
 		at := strings.Index(steps, "plain HTTP")
@@ -109,6 +127,47 @@ func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
 		if signIn := strings.Index(steps, "sign in"); signIn >= 0 && signIn < at && !strings.HasPrefix(steps[signIn:], "signing") {
 			t.Errorf("%s tells a person to sign in before it says that: %q", id, steps)
 		}
+	}
+}
+
+// Every other app a person opens answers only on this server until they add a domain:
+// an admin tool signs in over plain HTTP, and an app with a setup page makes its owner
+// of whoever opens it first, so neither may answer on every address, where Docker's
+// published ports pass a firewall such as ufw by. Its first steps say so first, then how
+// to reach it: a domain on its page, or an SSH tunnel, with the command.
+func TestAnAppAnswersOnlyOnThisServerUntilItHasADomain(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range c.All() {
+		if e.GetWeb().GetService() == "" || slices.Contains(publishedBefore, e.GetId()) {
+			continue
+		}
+		t.Run(e.GetId(), func(t *testing.T) {
+			stack, _ := read(t, e)
+			i := slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == e.GetWeb().GetService() })
+			if i < 0 {
+				t.Fatalf("it opens %s, which it doesn't run", e.GetWeb().GetService())
+			}
+			ports := stack.Services[i].Spec.GetApp().GetPorts()
+			if len(ports) == 0 {
+				t.Error("what a person opens publishes no port")
+			}
+			for _, p := range ports {
+				if p.GetHostIp() != "127.0.0.1" {
+					t.Errorf("it publishes %d on %q, where anyone who reaches the server could take it first", p.GetHostPort(), p.GetHostIp())
+				}
+			}
+			steps := e.GetFirstSteps()
+			if !strings.Contains(steps, "answers only on this server until you add a domain") || strings.Index(steps, "only on this server") > 80 {
+				t.Errorf("its first steps don't start by saying it answers only on this server: %q", steps)
+			}
+			// T3 Code is the first set's, and says to reach it through a domain alone.
+			if e.GetId() != "t3code" && (!strings.Contains(steps, "Add a domain on its page") || !strings.Contains(steps, "ssh -N -L ")) {
+				t.Errorf("its first steps don't say how to reach it, by a domain or an SSH tunnel with the command: %q", steps)
+			}
+		})
 	}
 }
 
@@ -248,10 +307,12 @@ func TestHostAccessIsSaid(t *testing.T) {
 	}
 }
 
-// Coder starts workspaces through Docker's socket, as root in its container, and keeps
-// its database's password a whole value, which lib/pq reads as PGPASSWORD, so a
-// rotation reaches it.
-func TestCoderReachesDockerAndItsDatabase(t *testing.T) {
+// Whoever owns Coder controls the server, through Docker's socket, which it reaches as
+// root in its container. So, as T3 Code is, it answers only on this server until it has
+// a domain, which its first steps say, and its access URL follows the port it's given.
+// Its database's password is a whole value, which lib/pq reads as PGPASSWORD, and never
+// in a URL.
+func TestCoderStaysOnThisServer(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
@@ -260,17 +321,36 @@ func TestCoderReachesDockerAndItsDatabase(t *testing.T) {
 	if !ok {
 		t.Fatal("the catalog has no coder")
 	}
-	stack, filled := read(t, e)
+	given := map[string]string{"PORT": "7444"}
+	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
+	if err != nil {
+		t.Fatal(err)
+	}
 	i := slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == "coder" })
 	if i < 0 {
 		t.Fatal("it runs no coder service")
 	}
 	app := stack.Services[i].Spec.GetApp()
+	if ports := app.GetPorts(); len(ports) != 1 || ports[0].GetHostIp() != "127.0.0.1" || ports[0].GetHostPort() != 7444 {
+		t.Errorf("it publishes %v, want port 7444 on loopback alone", ports)
+	}
+	if got := app.GetEnv()["CODER_ACCESS_URL"]; got != "http://localhost:7444" {
+		t.Errorf("its access URL is %q, which doesn't follow its port", got)
+	}
 	if !slices.ContainsFunc(container.ServiceAccess(app), func(a resource.Access) bool { return a.Kind == resource.AccessDocker }) {
 		t.Error("Coder doesn't reach Docker's socket")
 	}
 	if app.GetUser() != "root" {
 		t.Errorf("Coder runs as %q, which can't reach a socket whose group differs on each server", app.GetUser())
+	}
+	for _, words := range []string{"whoever owns Coder controls this server", "leaves the workspace containers it started"} {
+		if !strings.Contains(e.GetFirstSteps(), words) {
+			t.Errorf("its first steps don't say %q: %q", words, e.GetFirstSteps())
+		}
 	}
 	if url := app.GetEnv()["CODER_PG_CONNECTION_URL"]; strings.Contains(url, ":@") || strings.Count(url, ":") > 2 {
 		t.Errorf("its database's URL holds a password: %q", url)
@@ -280,9 +360,31 @@ func TestCoderReachesDockerAndItsDatabase(t *testing.T) {
 	}
 }
 
+// pgAdmin reaches this server as host.docker.internal, for a database it runs outside
+// any project, and publishes nothing past loopback. Its first steps never tell a person
+// to publish a database's port.
+func TestPgAdminReachesThisServerByName(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := c.Entry("pgadmin")
+	if !ok {
+		t.Fatal("the catalog has no pgadmin")
+	}
+	stack, _ := read(t, e)
+	if got := stack.Services[0].Spec.GetApp().GetExtraHosts(); !slices.Equal(got, []string{"host.docker.internal:host-gateway"}) {
+		t.Errorf("pgAdmin adds the hosts %v", got)
+	}
+	if steps := e.GetFirstSteps(); !strings.Contains(steps, "host.docker.internal") || strings.Contains(steps, "add a port to its db") {
+		t.Errorf("its first steps say %q", steps)
+	}
+}
+
 // Redis is published on loopback alone, as it has no admin tool of its own to stand in
-// front of it, and takes its password on its command line by reference, so a rotation
-// reaches it on its next start.
+// front of it, and takes its password on its command line by reference, which it reads
+// each time it starts and keeps nowhere. Its first steps say what reaches it, as a
+// container can't reach this server's loopback.
 func TestRedisStaysOnThisServer(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
@@ -300,13 +402,17 @@ func TestRedisStaysOnThisServer(t *testing.T) {
 	if !slices.Contains(app.GetReferences(), "command") || !slices.Contains(app.GetCommand(), "${REDIS_PASSWORD}") {
 		t.Errorf("its command %v doesn't use the password by reference", app.GetCommand())
 	}
+	if steps := e.GetFirstSteps(); !strings.Contains(steps, "redis:6379") || !strings.Contains(steps, "add a port on its page") {
+		t.Errorf("its first steps don't say what reaches it: %q", steps)
+	}
 }
 
 // Every entry is tried on real Docker in CI: by scripts/docker-e2e.sh, as the first
 // five are, or by scripts/catalog-e2e.sh in one of the Catalog on Docker jobs, which
-// installs it, checks it answers, upgrades it and removes it. An entry no job tries
-// would reach people untried.
-func TestEveryEntryIsTriedOnRealDocker(t *testing.T) {
+// installs the version before it, checks it answers, upgrades it and removes it. An
+// entry no job tries would reach people untried. Its name stays clear of OnRealDocker,
+// which the Go on Docker job runs, as this reads files and needs no Docker.
+func TestEveryEntryHasACatalogJob(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
@@ -343,20 +449,32 @@ func TestEveryEntryIsTriedOnRealDocker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range regexp.MustCompile(`(?m)^[^#\n]*catalog[_ ]install ([a-z0-9-]+)`).FindAllSubmatch(script, -1) {
-		tried[string(m[1])] = "scripts/docker-e2e.sh"
+	// An install it runs, by its helper or the CLI, and not words in a message.
+	for _, m := range regexp.MustCompile(`(?m)^\s*catalog_install ([a-z0-9-]+)|"\$bin" catalog install ([a-z0-9-]+)`).FindAllSubmatch(script, -1) {
+		tried[string(m[1])+string(m[2])] = "scripts/docker-e2e.sh"
 	}
 	checks, err := os.ReadFile("../../scripts/catalog-e2e.sh")
 	if err != nil {
 		t.Fatal(err)
+	}
+	block := regexp.MustCompile(`(?s)declare -A previous=\((.*?)\n\)`).FindSubmatch(checks)
+	if block == nil {
+		t.Fatal("scripts/catalog-e2e.sh has no table of the version before each app")
+	}
+	before := map[string]bool{}
+	for _, m := range regexp.MustCompile(`(?m)^\s*\[([a-z0-9-]+)\]="\S+ \S+@sha256:[0-9a-f]{64}`).FindAllSubmatch(block[1], -1) {
+		before[string(m[1])] = true
 	}
 	for _, e := range c.All() {
 		at, ok := tried[e.GetId()]
 		switch {
 		case !ok:
 			t.Errorf("no CI job tries %s on real Docker. Add it to a Catalog on Docker job's apps in .github/workflows/ci.yml", e.GetId())
-		case at != "scripts/docker-e2e.sh" && !strings.Contains(string(checks), "\ncheck_"+e.GetId()+"() {"):
+		case at == "scripts/docker-e2e.sh":
+		case !strings.Contains(string(checks), "\ncheck_"+e.GetId()+"() {"):
 			t.Errorf("scripts/catalog-e2e.sh has no check_%s, which says what answering means for it", e.GetId())
+		case !before[e.GetId()]:
+			t.Errorf("scripts/catalog-e2e.sh has no version before %s to upgrade from, pinned by digest", e.GetId())
 		}
 		delete(tried, e.GetId())
 	}

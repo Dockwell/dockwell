@@ -219,6 +219,22 @@ jobs:
       - name: The apps end to end
         run: make catalog-e2e APPS="${{ matrix.apps }}"
 
+  # One check of a fixed name for every group above, which a branch rule can require:
+  # a matrix's own checks are named by their groups, which change as the catalog grows.
+  catalog-docker-all:
+    name: Catalog on Docker, every group
+    needs: catalog-docker
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every group passed
+        env:
+          RESULT: ${{ needs.catalog-docker.result }}
+        run: |
+          echo "The Catalog on Docker groups ended: $RESULT"
+          test "$RESULT" = success
+
   docker-panel:
     name: Panel end to end on Docker
     runs-on: ubuntu-24.04

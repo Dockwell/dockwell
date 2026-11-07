@@ -83,6 +83,8 @@ func fieldRows() []fieldRow {
 		serviceRow("cap_add", "    cap_add: [\"${V}\"]\n", "NET_ADMIN", "NET_ADMIN"),
 		serviceRow("cap_drop", "    cap_drop: [\"${V}\"]\n", "MKNOD", "MKNOD"),
 		serviceRow("group_add", "    group_add: [\"${V}\"]\n", "12345", "12345"),
+		// A name and an address, which reach nothing an address alone couldn't.
+		serviceRow("extra_hosts", "    extra_hosts: [\"db.example.com:${V}\"]\n", "10.0.0.5", "10.0.0.5"),
 		serviceRow("ports", "    ports: [\"${V}:80\"]\n", "18080", "18080"),
 		serviceRow("restart", "    restart: ${V}\n", "always", "always"),
 		serviceRow("cpus", "    cpus: ${V}\n", "1.5", "1.5"),

@@ -55,6 +55,7 @@ type (
 		CapAdd      []string          `yaml:"cap_add,omitempty"`
 		CapDrop     []string          `yaml:"cap_drop,omitempty"`
 		GroupAdd    []string          `yaml:"group_add,omitempty"`
+		ExtraHosts  []string          `yaml:"extra_hosts,omitempty"`
 		Privileged  bool              `yaml:"privileged,omitempty"`
 		// Logging keeps the rotation Dockwell sets on what docker compose makes
 		// from the file, which it would otherwise leave without a limit, except on
@@ -163,7 +164,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		entry := serviceEntry{
 			Image: escape(c.GetImage()), Command: exportWords(c, binding.FieldCommand),
 			User: escape(c.GetUser()), WorkingDir: escape(c.GetWorkingDir()),
-			CapAdd: c.GetCapAdd(), CapDrop: c.GetCapDrop(), GroupAdd: c.GetGroupAdd(), Privileged: c.GetPrivileged(),
+			CapAdd: c.GetCapAdd(), CapDrop: c.GetCapDrop(), GroupAdd: c.GetGroupAdd(), ExtraHosts: c.GetExtraHosts(), Privileged: c.GetPrivileged(),
 			Networks: exportNetworks(c), Deploy: exportResources(c.GetResources()),
 		}
 		if stack.LogDrivers[s.Name] == "" {

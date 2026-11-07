@@ -14,17 +14,19 @@ source:
 web:
   service: phpmyadmin
 firstSteps: >-
-  phpMyAdmin answers over plain HTTP, so signing in from outside this server sends
-  MariaDB's root password in clear. Add a domain first, or reach it another way, such
-  as a VPN or an SSH tunnel. Then open phpMyAdmin and sign in as user root, with the
-  password in the MARIADB_ROOT_PASSWORD secret. That secret sets the password on first
+  phpMyAdmin answers only on this server until you add a domain, as it signs in over
+  plain HTTP with MariaDB's root password. Add a domain on its page, over HTTPS or
+  behind your tunnel, and open it there. To open it before that, use an SSH tunnel from
+  your computer: ssh -N -L 8083:127.0.0.1:8083 you@your-server, using the port you gave
+  it, then open http://localhost:8083. Sign in as user root, with the password in the
+  MARIADB_ROOT_PASSWORD secret. That secret sets the password on first
   start only, so changing it doesn't change what signs in. To change the password, run
   ALTER USER for both 'root'@'%' and 'root'@'localhost' in phpMyAdmin, then set the
   secret to match.
 inputs:
   - name: ADMIN_PORT
-    label: phpMyAdmin port
-    hint: You open phpMyAdmin on this port of the server. It asks for the database's password.
+    label: phpMyAdmin port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8083"
   - name: MARIADB_ROOT_PASSWORD
@@ -56,7 +58,7 @@ compose: |
       environment:
         PMA_HOST: db
       ports:
-        - "${ADMIN_PORT}:80"
+        - "127.0.0.1:${ADMIN_PORT}:80"
       healthcheck:
         test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 80) ? 0 : 1);"]
         interval: 5s

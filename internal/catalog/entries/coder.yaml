@@ -1,13 +1,18 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+#
+# 2.38.6 is Coder's Stable release since 3 Nov 2026, ahead of the 14 days the
+# repository holds other dependencies back, as it fixes published advisories that
+# 2.38.2 has: GHSA-jvgx-787p-cfmg, GHSA-hm3r-4cg2-22xx, GHSA-9frj-7f83-x984,
+# GHSA-x3gf-xv6p-56hf and GHSA-64xh-rgcx-gg65.
 id: coder
 name: Coder
 summary: Development environments on your servers, made from templates
 category: developer tools
-version: "2.38.2"
+version: "2.38.6"
 release: 1
 homepage: https://coder.com
 license: AGPL-3.0-only
-appLicense: AGPL-3.0-only
+appLicense: AGPL-3.0-only, with Enterprise code under Coder's own
 source:
   repository: https://github.com/Dockwell/dockwell
   path: internal/catalog/entries/coder.yaml
@@ -15,29 +20,25 @@ web:
   service: coder
 hostAccess: >-
   Docker's socket, so Coder can start your workspaces as containers on this server.
-  Whoever controls Docker controls the server.
+  Whoever owns Coder controls this server through it.
 firstSteps: >-
-  Coder answers over plain HTTP, so signing in from outside this server sends your
-  password in clear, and the first person to open it makes its owner account. Add a
-  domain first, or reach it another way, such as a VPN or an SSH
-  tunnel. Then open it and make your account. Once it has a domain, set
-  CODER_ACCESS_URL on the coder service to that address, so your workspaces reach it
-  there. Leave the POSTGRES_PASSWORD secret as it is: its database keeps the password
-  it started with, and Coder would then use one it doesn't take.
+  Coder answers only on this server until you add a domain, as the first person to
+  open it makes its owner account, and whoever owns Coder controls this server through
+  Docker's socket. Add a domain on its page, over HTTPS or behind your tunnel, set
+  CODER_ACCESS_URL on the coder service to that address, then open it there and make
+  your account. To open it before that, use an SSH tunnel from your computer:
+  ssh -N -L 7080:127.0.0.1:7080 you@your-server, using the port you gave it, then open
+  http://localhost:7080. Your workspaces reach Coder at its access URL, so they connect
+  once it has a domain. Leave the POSTGRES_PASSWORD secret as it is: its database keeps
+  the password it started with, and Coder would then use one it doesn't take. Removing
+  Coder leaves the workspace containers it started, so delete your workspaces in Coder
+  first.
 inputs:
   - name: PORT
-    label: Coder port
-    hint: You open Coder on this port of the server.
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "7080"
-  - name: ACCESS_URL
-    label: Access URL
-    hint: >-
-      Where you and your workspaces reach Coder. Workspaces on this server reach
-      localhost through Docker's host gateway. Once you add a domain, use that, such as
-      https://coder.example.com.
-    type: INPUT_TYPE_TEXT
-    defaultValue: http://localhost:7080
   - name: POSTGRES_PASSWORD
     label: Database password
     type: INPUT_TYPE_SECRET
@@ -45,7 +46,7 @@ inputs:
 compose: |
   services:
     coder:
-      image: ghcr.io/coder/coder:v2.38.2@sha256:ab17fc8e172e0f489cc1a67f513a506a49583ff692835601a614e20bb83ad34a
+      image: ghcr.io/coder/coder:v2.38.6@sha256:c9245405c482ede17699d65deb8c21488a17feff5497fc84d6a350c395da2bdd
       restart: unless-stopped
       # Docker's socket belongs to a group whose number differs on each server, which no
       # form can know. Root in the container reaches it anywhere, and is no more than
@@ -56,11 +57,11 @@ compose: |
           condition: service_healthy
       environment:
         CODER_HTTP_ADDRESS: 0.0.0.0:7080
-        CODER_ACCESS_URL: ${ACCESS_URL}
+        CODER_ACCESS_URL: http://localhost:${PORT}
         CODER_PG_CONNECTION_URL: postgresql://coder@db:5432/coder?sslmode=disable
         PGPASSWORD: ${POSTGRES_PASSWORD}
       ports:
-        - "${PORT}:7080"
+        - "127.0.0.1:${PORT}:7080"
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
         - home:/home/coder

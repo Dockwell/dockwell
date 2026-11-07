@@ -384,3 +384,23 @@ func TestAnExportKeepsANetworksOwnLabel(t *testing.T) {
 		t.Errorf("the export doesn't say what the label is for:\n%s", text)
 	}
 }
+
+// extra_hosts reads from a list or a mapping into one form. What /etc/hosts couldn't
+// hold, the plan refuses, as it does any field of a container.
+func TestExtraHosts(t *testing.T) {
+	for name, file := range map[string]string{
+		"a list":    "services:\n  web:\n    image: nginx:1.27\n    extra_hosts: [\"host.docker.internal:host-gateway\", \"db.example.com:10.0.0.5\"]\n",
+		"a mapping": "services:\n  web:\n    image: nginx:1.27\n    extra_hosts:\n      host.docker.internal: host-gateway\n      db.example.com: 10.0.0.5\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			stack, err := compose.Read(t.Context(), compose.Input{File: []byte(file)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := stack.Services[0].Spec.GetApp().GetExtraHosts()
+			if want := []string{"db.example.com:10.0.0.5", "host.docker.internal:host-gateway"}; !slices.Equal(got, want) {
+				t.Errorf("extra_hosts reads as %v, want %v", got, want)
+			}
+		})
+	}
+}

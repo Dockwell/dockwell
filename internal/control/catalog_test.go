@@ -301,6 +301,84 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 	}
 }
 
+// asRoot says, for each entry that reaches its server beyond its own containers,
+// whether that's as good as root, which takes a passkey to apply. One new to the
+// catalog needs a row here, so someone decides which it is.
+var asRoot = map[string]bool{
+	"cloudflared": true, // the server's own network
+	"coder":       true, // Docker's socket
+}
+
+// An entry that reaches its server beyond its containers waits for a person, on every
+// store: a token can plan its install, and is refused applying it with needs_session,
+// and a person with no passkey is asked for one when what it reaches is as good as root.
+func TestAnEntryThatReachesItsServerWaitsForAPerson(t *testing.T) {
+	storetest.Each(t, testAnEntryThatReachesItsServerWaitsForAPerson)
+}
+
+func testAnEntryThatReachesItsServerWaitsForAPerson(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	token := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	byToken := dockwellv1connect.NewCatalogServiceClient(token, b.origin, connect.WithProtoJSON())
+	tokenChanges, person := changeClient(token, b.origin), changeClient(b, b.origin)
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reaching := 0
+	for _, entry := range c.All() {
+		if entry.GetHostAccess() == "" {
+			continue
+		}
+		reaching++
+		t.Run(entry.GetId(), func(t *testing.T) {
+			root, known := asRoot[entry.GetId()]
+			if !known {
+				t.Fatalf("%s reaches its server, and asRoot doesn't say whether that's as good as root. Add it", entry.GetId())
+			}
+			values := map[string]string{}
+			for _, in := range entry.GetInputs() {
+				if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {
+					values[in.GetName()] = "someone@example.com"
+					if catalog.Secret(in) {
+						values[in.GetName()] = "typed-by-a-person-xyz"
+					}
+				}
+			}
+			res, err := byToken.InstallCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.InstallCatalogEntryRequest{Id: entry.GetId(), Values: values}))
+			if err != nil {
+				t.Fatalf("a token can't plan it: %v", err)
+			}
+			ch := res.Msg.GetChange()
+			if !ch.GetPlan().GetHostAccess() {
+				t.Errorf("its plan doesn't say it reaches the server: %v", ch.GetPlan())
+			}
+			fingerprint := ch.GetPlan().GetFingerprint()
+			if err := askedBy(t, tokenChanges, ch, fingerprint); reasonOf(err) != "needs_session" {
+				t.Errorf("a token applying it = %v, want needs_session", err)
+			}
+			err = askedBy(t, person, ch, fingerprint)
+			switch {
+			case root && reasonOf(err) != "needs_step_up":
+				t.Errorf("a person with no passkey applying it = %v, want needs_step_up", err)
+			case !root && err != nil:
+				t.Errorf("a person applying it = %v, want it applied, as it isn't as good as root", err)
+			}
+			if root {
+				if _, err := person.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: ch.GetId()})); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+	if reaching < len(asRoot) {
+		t.Errorf("%d entries reach their server, and asRoot names %d", reaching, len(asRoot))
+	}
+}
+
 // testEntry is an entry a test can move on, as a newer release of the catalog would.
 func testEntry(release int, version, image, extra string) string {
 	return fmt.Sprintf(`id: thing

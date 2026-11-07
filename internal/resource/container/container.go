@@ -268,6 +268,7 @@ func Normalize(c *resourcev1.Container) {
 	slices.Sort(c.CapDrop)
 	slices.Sort(c.GroupAdd)
 	slices.Sort(c.Expose)
+	slices.Sort(c.ExtraHosts)
 }
 
 // checkOwnNames keeps a container on its own out of what isn't its own.
@@ -376,6 +377,9 @@ func Validate(c *resourcev1.Container) error {
 		return err
 	}
 	if err := validatePrivileges(c); err != nil {
+		return err
+	}
+	if err := validateExtraHosts(c); err != nil {
 		return err
 	}
 	if err := validateStopGrace(c); err != nil {

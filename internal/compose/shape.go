@@ -119,6 +119,7 @@ var fileShape = sync.OnceValue(func() *shape {
 		"cap_add":         {kinds: aList, item: str("cap_add: [NET_ADMIN]"), example: "cap_add: [NET_ADMIN]"},
 		"cap_drop":        {kinds: aList, item: str("cap_drop: [ALL]"), example: "cap_drop: [ALL]"},
 		"group_add":       {kinds: aList, item: shaped(aString|aNumber, `group_add: ["999"]`), example: `group_add: ["999"]`},
+		"extra_hosts":     listOrMapping(`extra_hosts: ["host.docker.internal:host-gateway"]`),
 		"privileged":      boolean("privileged: true"),
 		"deploy": {kinds: aMapping | nothing, example: deployExample, fields: map[string]*shape{
 			"resources": {kinds: aMapping | nothing, example: deployExample, fields: map[string]*shape{

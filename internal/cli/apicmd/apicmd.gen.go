@@ -1376,6 +1376,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "app.shm_size", Help: "The size of its /dev/shm, such as \"1G\", in units of 1024, as Compose's shm_size. What it holds counts against resources.memory. Empty takes Docker's default of 64M, which is too little for Chromium on a heavy page."},
 				{Path: "app.tmpfs", Help: "Filesystems held in memory at paths in the container. What is in one goes when the container does, so a deploy starts it empty."},
 				{Path: "app.expose", Help: "Ports it exposes to what shares a network with it, beyond what its image exposes and what it publishes, such as \"3000/tcp\". It opens nothing on the server. What finds containers through Docker reads it, as Traefik does for the port to reach."},
+				{Path: "app.extra_hosts", Help: "Names it reaches at an address of its own choosing, as hostname:address, such as \"host.docker.internal:host-gateway\", where host-gateway is the server as its containers reach it. It adds to the container's /etc/hosts, and reaches nothing a container couldn't without it. Numbered in the catalog's block, 80 to 89, apart from fields other work adds."},
 				{Path: "variables", Help: "The environment's variables the service uses, each under the name the service sees it as: DATABASE_HOST=DB_HOST gives the service the variable DB_HOST as DATABASE_HOST. An empty value means the variable of the same name."},
 				{Path: "secrets", Help: "The environment's secrets the service uses, named as for variables. Using a secret doesn't let anyone read it: its value goes only to the servers the service runs on, and only their agents decrypt it."},
 			},
@@ -1425,6 +1426,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "shm_size", Help: "The size of its /dev/shm, such as \"1G\", in units of 1024, as Compose's shm_size. What it holds counts against resources.memory. Empty takes Docker's default of 64M, which is too little for Chromium on a heavy page."},
 				{Path: "tmpfs", Help: "Filesystems held in memory at paths in the container. What is in one goes when the container does, so a deploy starts it empty."},
 				{Path: "expose", Help: "Ports it exposes to what shares a network with it, beyond what its image exposes and what it publishes, such as \"3000/tcp\". It opens nothing on the server. What finds containers through Docker reads it, as Traefik does for the port to reach."},
+				{Path: "extra_hosts", Help: "Names it reaches at an address of its own choosing, as hostname:address, such as \"host.docker.internal:host-gateway\", where host-gateway is the server as its containers reach it. It adds to the container's /etc/hosts, and reaches nothing a container couldn't without it. Numbered in the catalog's block, 80 to 89, apart from fields other work adds."},
 			},
 		},
 		{

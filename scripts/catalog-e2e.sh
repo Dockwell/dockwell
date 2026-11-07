@@ -50,6 +50,7 @@ stepup=$(mktemp)
 catalog_dir=$(mktemp -d)
 chmod 755 "$catalog_dir"
 projects=()
+plans=()
 pid=""
 
 as_dockwell=()
@@ -218,9 +219,14 @@ check_pgadmin() {
   port=$(value PORT)
   password=$(generated pgadmin PGADMIN_DEFAULT_PASSWORD)
   [[ "$(curl -fsS --max-time 10 "http://127.0.0.1:$port/misc/ping")" == PING ]] || fail "pgAdmin doesn't answer its ping on port $port"
+  local landed
   # The right one first: pgAdmin locks an account after three wrong ones in a row.
-  [[ "$(pgadmin_sign_in "$port" "$password")" == */browser/ ]] || fail "pgAdmin doesn't sign in with the password Dockwell generated"
-  [[ "$(pgadmin_sign_in "$port" not-the-password)" != */browser/ ]] || fail "pgAdmin signed in with a wrong password"
+  landed=$(pgadmin_sign_in "$port" "$password") || fail "signing in to pgAdmin failed"
+  [[ "$landed" == */browser/ ]] || fail "pgAdmin doesn't sign in with the password Dockwell generated: it lands on $landed"
+  landed=$(pgadmin_sign_in "$port" not-the-password) || fail "signing in to pgAdmin failed"
+  [[ "$landed" == */login* ]] || fail "pgAdmin didn't send a wrong password back to its login page: it lands on $landed"
+  # This server, as pgAdmin reaches it, for a database it runs outside any project.
+  docker exec "$(container pgadmin)" getent hosts host.docker.internal >/dev/null || fail "pgAdmin doesn't reach host.docker.internal"
 }
 
 check_redis() {
@@ -233,8 +239,9 @@ check_redis() {
   # On its port, as an app on this server reaches it, in Redis's own protocol.
   said=$(exec 3<>"/dev/tcp/127.0.0.1/$port" && printf 'AUTH %s\r\nPING\r\n' "$password" >&3 && timeout 5 head -c 12 <&3) || fail "Redis doesn't answer on port $port"
   [[ "$said" == *"+OK"*"+PONG"* ]] || fail "Redis answered '${said//$'\r'/}' to its password"
+  # redis-cli exits 0 or not as it likes on a refusal, so what it says decides.
   said=$(docker exec -e REDISCLI_AUTH=not-the-password "$redis" redis-cli ping 2>&1) || true
-  [[ "$said" != *PONG* ]] || fail "Redis answered a wrong password"
+  [[ "$said" == *WRONGPASS* || "$said" == *NOAUTH* ]] || fail "Redis didn't refuse a wrong password: ${said:0:200}"
   if [[ "$1" == first ]]; then
     [[ "$(docker exec "$redis" redis-cli set e2e kept)" == OK ]] || fail "Redis doesn't keep a value"
   else
@@ -242,8 +249,10 @@ check_redis() {
   fi
 }
 
-# phpmyadmin_signs_in signs in to phpMyAdmin as root, as scripts/docker-e2e.sh does.
-phpmyadmin_signs_in() {
+# phpmyadmin_sign_in signs in to phpMyAdmin as root, as scripts/docker-e2e.sh does, and
+# says how it went: in, or refused, which phpMyAdmin says as the database's own 1045.
+# Anything else fails, so an error page can't pass for a refusal.
+phpmyadmin_sign_in() {
   local jar form token page
   jar=$(mktemp)
   form=$(curl -fsS --max-time 15 -c "$jar" -b "$jar" "http://127.0.0.1:$1/") || fail "phpMyAdmin doesn't answer on port $1"
@@ -252,11 +261,15 @@ phpmyadmin_signs_in() {
   page=$(curl -sS -L --max-time 30 -c "$jar" -b "$jar" --data-urlencode "token=$token" --data-urlencode 'pma_username=root' --data-urlencode "pma_password=$2" \
     --data-urlencode 'server=1' --data-urlencode 'route=/' "http://127.0.0.1:$1/index.php?route=/") || fail "signing in to phpMyAdmin got no answer"
   rm -f "$jar"
-  [[ "$page" == *route=/logout* ]]
+  case "$page" in
+  *route=/logout*) echo in ;;
+  *1045*) echo refused ;;
+  *) fail "phpMyAdmin neither signed in nor said why not: ${page:0:400}" ;;
+  esac
 }
 
 check_mariadb() {
-  local db port password answer
+  local db port password answer said
   db=$(container db)
   port=$(value ADMIN_PORT)
   password=$(generated db MARIADB_ROOT_PASSWORD)
@@ -264,8 +277,10 @@ check_mariadb() {
   maria() { docker exec "$db" sh -c 'MYSQL_PWD=$MARIADB_ROOT_PASSWORD exec mariadb -uroot -h127.0.0.1 -N -e "$1"' sh "$1"; }
   answer=$(maria 'SELECT 41 + 1') || fail "MariaDB doesn't take the password it was given"
   [[ "$answer" == 42 ]] || fail "MariaDB answered '$answer'"
-  phpmyadmin_signs_in "$port" "$password" || fail "phpMyAdmin can't sign in to MariaDB with its password"
-  if phpmyadmin_signs_in "$port" not-the-password; then fail "phpMyAdmin signed in with a wrong password"; fi
+  said=$(phpmyadmin_sign_in "$port" "$password") || fail "signing in to phpMyAdmin failed"
+  [[ "$said" == in ]] || fail "phpMyAdmin can't sign in to MariaDB with its password"
+  said=$(phpmyadmin_sign_in "$port" not-the-password) || fail "signing in to phpMyAdmin failed"
+  [[ "$said" == refused ]] || fail "phpMyAdmin signed in with a wrong password"
   if [[ "$1" == first ]]; then
     maria 'CREATE DATABASE e2e_kept' || fail "MariaDB can't make a database"
   else
@@ -292,6 +307,9 @@ check_coder() {
   said=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' -d "$owner" "http://127.0.0.1:$port/api/v2/users/login") || fail "Coder's owner can't sign in"
   token=$(jq -r '.session_token // empty' <<<"$said")
   [[ -n "$token" ]] || fail "Coder's owner signed in with no session: $said"
+  said=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+    -d '{"email":"owner@example.com","password":"not-the-password-at-all"}' "http://127.0.0.1:$port/api/v2/users/login") || fail "Coder's sign-in got no answer"
+  [[ "$said" == 401 ]] || fail "Coder answered $said to a wrong password, want 401"
 }
 
 # The version before the one each entry pins, which it upgrades from, and the images
@@ -300,7 +318,7 @@ declare -A previous=(
   [pgadmin]="9.16 dpage/pgadmin4:9.16@sha256:40fa840c5bb7c8463957f1255b01283732c2d8c9396a956d180f8e6c296753b3"
   [redis]="8.10.1 redis:8.10.1@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2"
   [mariadb]="12.3.2 mariadb:12.3.2@sha256:a02fe89cb597d4375812b2eac90cf9d0775d4686daa7f7cc750ebbcad7525bbc"
-  [coder]="2.38.1 ghcr.io/coder/coder:v2.38.1@sha256:fcddd64d5f08d6aa8806508d1459d36f3e9e9098554440acd6dc2526a95252cc"
+  [coder]="2.38.2 ghcr.io/coder/coder:v2.38.2@sha256:ab17fc8e172e0f489cc1a67f513a506a49583ff692835601a614e20bb83ad34a"
 )
 # What a person types for an entry, as dockwell catalog install takes it.
 declare -A given=(
@@ -338,6 +356,13 @@ settled() {
     health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$c") || fail "docker inspect $c failed"
     [[ "$health" == healthy ]] || fail "$c reads $health once the change has applied, want healthy: its entry needs a health check that proves it answers"
   done
+  # What a person opens answers only on this server until it has a domain.
+  local web bound
+  web=$(jq -r '.web.service // empty' <<<"$entry")
+  if [[ -n "$web" ]]; then
+    bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$(container "$web")") || fail "docker inspect $web failed"
+    jq -e '[.[][] | .HostIp] | length > 0 and all(. == "127.0.0.1")' <<<"$bound" >/dev/null || fail "$web is published past this server: $bound"
+  fi
 }
 
 # secrets_of prints each secret a container uses, as the variable it sees it as and
@@ -363,16 +388,24 @@ held() {
 # has: what the API says of the install, and each container's log, but for a secret
 # its entry says the app writes there.
 sealed() {
-  local seen service name value logged
-  seen=$(dw changes list --json; dw catalog installs --json; dw compose export --project "$id") || fail "reading the install back failed"
+  local seen service name value logged c logs plan holds
+  # Each read joined with &&, as $(a; b) would pass on a failing a.
+  seen=$(dw changes list --json && dw catalog installs --json && dw compose export --project "$id" && dw resources list --json &&
+    dw services list --project "$id" --environment production --json && dw events list --json) || fail "reading the install back failed"
+  for plan in "${plans[@]}"; do
+    seen+=$(dw changes get "$plan" --json) || fail "reading the plan $plan back failed"
+  done
+  holds=$(held) || fail "reading what $id's containers hold failed"
   while read -r service name value; do
+    [[ -n "$service" ]] || continue
     [[ -n "$value" ]] || fail "$service uses the secret $name, and has no value for it"
     [[ "$seen" != *"$value"* ]] || fail "what anyone can read of $id holds its secret $name"
     logged=$(jq -r --arg s "$name" '[.inputs[]? | select(.name == $s) | .logged // false] | any' <<<"$entry")
-    [[ "$logged" == true || "$(docker logs "$(container "$service")" 2>&1)" != *"$value"* ]] ||
-      fail "$service writes the secret $name in its log, which takes no passkey to read"
-  done < <(held)
-  [[ -n "$(held)" ]] || [[ "$(jq '[.inputs[]? | select(.type == "INPUT_TYPE_SECRET")] | length' <<<"$entry")" == 0 ]] || fail "$id uses none of its secrets"
+    c=$(container "$service")
+    logs=$(docker logs "$c" 2>&1) || fail "docker logs $c failed"
+    [[ "$logged" == true || "$logs" != *"$value"* ]] || fail "$service writes the secret $name in its log, which takes no passkey to read"
+  done <<<"$holds"
+  [[ -n "$holds" ]] || [[ "$(jq '[.inputs[]? | select(.type == "INPUT_TYPE_SECRET")] | length' <<<"$entry")" == 0 ]] || fail "$id uses none of its secrets"
 }
 
 for id in "$@"; do
@@ -396,6 +429,7 @@ for id in "$@"; do
   planned=$(dw catalog install "$id" "${flags[@]}" --plan-only --json) || fail "planning to install $id failed"
   change=$(jq -r '.change.id // empty' <<<"$planned")
   [[ "$change" == chg_* ]] || fail "installing $id planned no change: $planned"
+  plans=("$change")
   environment=$(jq -r '[.change.plan.resources[] | select(.resource.kind == "service")][0].resource.scope' <<<"$planned")
   project=${environment,,}
   projects+=("$project")
@@ -414,7 +448,8 @@ for id in "$@"; do
       jq -e '(.change.plan.notes | any(.reason == "backup_first")) and (.change.plan.servers[0].steps | any(.backupFirst != null))' <<<"$planned" >/dev/null ||
         fail "the upgrade of $id doesn't back its volumes up first: $planned"
     fi
-    apply "$(jq -r .change.id <<<"$planned")"
+    plans+=("$(jq -r .change.id <<<"$planned")")
+    apply "${plans[-1]}"
     rm -f "$catalog_dir/$id.yaml"
     secrets_after=$(held)
     [[ "$secrets_after" == "$secrets_before" ]] || fail "an upgrade of $id changed its secrets"
@@ -436,7 +471,11 @@ for id in "$@"; do
   left=$(docker ps --all --quiet --filter "label=com.docker.compose.project=$project") || fail "docker ps failed"
   [[ -z "$left" ]] || fail "removing $id left containers: $(docker ps --all --filter "label=com.docker.compose.project=$project" --format '{{.Names}} {{.Status}}')"
   dw catalog installs --json | jq -e --arg p "$id" '.installs // [] | any(.project == $p) | not' >/dev/null || fail "$id still reads as installed"
-  for volume in $(jq -r '.compose' <<<"$entry" | sed -n '/^volumes:/,$s/^  \([a-z0-9_-]*\):.*/\1/p'); do
+  mapfile -t volumes < <(jq -r '.compose' <<<"$entry" | sed -n '/^volumes:/,$s/^  \([a-z0-9_-]*\):.*/\1/p')
+  if jq -r '.compose' <<<"$entry" | grep -q '^volumes:'; then
+    ((${#volumes[@]} > 0)) || fail "the entry $id has volumes:, and this found none in it to check"
+  fi
+  for volume in "${volumes[@]}"; do
     docker volume inspect "${project}_$volume" >/dev/null 2>&1 || fail "removing $id took its volume $volume at once, which an undo needs for 7 days"
   done
   echo "$id took $((SECONDS - started)) s"
