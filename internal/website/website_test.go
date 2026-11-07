@@ -3,6 +3,7 @@
 package website
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -106,8 +107,12 @@ func TestWhatServesEachKind(t *testing.T) {
 	if web.GetImage() != Image || !strings.Contains(web.GetImage(), "@sha256:") {
 		t.Errorf("the web server runs %s, want the pinned %s", web.GetImage(), Image)
 	}
-	if web.GetUser() != "65532" || len(web.GetCapDrop()) != 1 || web.GetCapDrop()[0] != "ALL" {
+	if web.GetUser() != "65532" || !slices.Contains(web.GetCapDrop(), "NET_RAW") || !slices.Contains(web.GetCapDrop(), "SETUID") {
 		t.Errorf("the web server runs as %q, dropping %v", web.GetUser(), web.GetCapDrop())
+	}
+	// Caddy's binary carries this one as a file capability, and won't start without it.
+	if slices.Contains(web.GetCapDrop(), "NET_BIND_SERVICE") || slices.Contains(web.GetCapDrop(), "ALL") || len(web.GetCapAdd()) != 0 {
+		t.Errorf("the web server drops %v and adds %v, and Caddy's file capability needs NET_BIND_SERVICE kept, which adding would make host access", web.GetCapDrop(), web.GetCapAdd())
 	}
 	if web.GetHealthcheck().GetTcp().GetPort() != Port {
 		t.Errorf("the web server's check is %v, want a connection to %d", web.GetHealthcheck(), Port)
