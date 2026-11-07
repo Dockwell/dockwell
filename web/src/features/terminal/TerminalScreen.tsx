@@ -7,13 +7,35 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
+import { type Ref, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 
 import { type TerminalClient, TerminalSession, type TerminalStatus } from "./session";
 import { adoptStyles } from "./styles";
 import { lineHeightFor, TERMINAL_FONT, terminalTheme } from "./theme";
 
 /** What the toolbar does to the terminal on screen. */
+/** A key on the phone's bar that isn't a character. */
+export type BarKey = "escape" | "tab" | "left" | "up" | "down" | "right";
+
+/** What a key types, as a terminal sends it: cursor keys as the program in front asked for them. */
+export function keySequence(key: BarKey, applicationCursor: boolean, ctrl: boolean): string {
+  const arrows: Record<string, string> = { left: "D", up: "A", down: "B", right: "C" };
+  const arrow = arrows[key];
+  if (arrow) {
+    if (ctrl) return `\x1b[1;5${arrow}`;
+    return applicationCursor ? `\x1bO${arrow}` : `\x1b[${arrow}`;
+  }
+  return key === "escape" ? "\x1b" : "\t";
+}
+
+/** A character typed with Ctrl held, as a terminal sends it: Ctrl+C is ETX. What has no control form goes as it is. */
+export function withCtrl(text: string): string {
+  if (text.length !== 1) return text;
+  if (text === " ") return "\x00";
+  const code = text.toUpperCase().charCodeAt(0);
+  return code >= 0x40 && code <= 0x7f ? String.fromCharCode(code & 0x1f) : text;
+}
+
 export interface ScreenHandle {
   find(text: string, backwards?: boolean): boolean;
   clearFind(): void;
@@ -24,6 +46,10 @@ export interface ScreenHandle {
   bringBack(): void;
   /** Types text as the person would, as a key on the phone's bar does. */
   type(text: string): void;
+  /** Presses a key that isn't a character. */
+  press(key: BarKey): void;
+  /** Holds Ctrl for the next key, from the bar or the keyboard, or lets it go. */
+  holdCtrl(on: boolean): void;
 }
 
 export interface ScreenProps {
@@ -38,6 +64,8 @@ export interface ScreenProps {
   onSelection: (has: boolean) => void;
   /** Some of what it printed while nobody was attached is gone. */
   onLost: (bytes: bigint) => void;
+  /** Ctrl, held from the phone's bar, went with a key, and is let go. */
+  onCtrlUsed?: () => void;
   label: string;
   ref?: Ref<ScreenHandle>;
 }
@@ -79,6 +107,7 @@ export function TerminalScreen({
   onSize,
   onSelection,
   onLost,
+  onCtrlUsed,
   label,
   ref,
 }: ScreenProps) {
@@ -86,8 +115,15 @@ export function TerminalScreen({
   const parts = useRef<{ term: XTerm; fit: FitAddon; search: SearchAddon; session: TerminalSession } | undefined>(
     undefined,
   );
-  const handlers = useRef({ onStatus, onSize, onSelection, onLost });
-  handlers.current = { onStatus, onSize, onSelection, onLost };
+  const handlers = useRef({ onStatus, onSize, onSelection, onLost, onCtrlUsed });
+  handlers.current = { onStatus, onSize, onSelection, onLost, onCtrlUsed };
+  // Ctrl held from the phone's bar, for the next key, which a phone's keyboard has no Ctrl for.
+  const ctrl = useRef(false);
+  const letCtrlGo = useCallback(() => {
+    if (!ctrl.current) return;
+    ctrl.current = false;
+    handlers.current.onCtrlUsed?.();
+  }, []);
   const first = useRef({ theme, fontSize });
 
   useEffect(() => {
@@ -132,7 +168,14 @@ export function TerminalScreen({
         // Not laid out yet; the next resize fits it.
       }
     };
-    term.onData((data) => session.type(data));
+    term.onData((data) => {
+      if (ctrl.current) {
+        letCtrlGo();
+        session.type(withCtrl(data));
+        return;
+      }
+      session.type(data);
+    });
     term.onBinary((data) => session.type(binaryBytes(data)));
     term.onResize(({ cols, rows }) => {
       session.resize(cols, rows);
@@ -174,7 +217,7 @@ export function TerminalScreen({
       unadopt();
       parts.current = undefined;
     };
-  }, [terminal.id, terminal.columns, terminal.rows, transport]);
+  }, [terminal.id, terminal.columns, terminal.rows, transport, letCtrlGo]);
 
   useEffect(() => {
     const p = parts.current;
@@ -246,11 +289,25 @@ export function TerminalScreen({
       focus: () => parts.current?.term.focus(),
       bringBack: () => parts.current?.session.bringBack(),
       type: (text) => {
-        parts.current?.session.type(text);
+        const held = ctrl.current;
+        letCtrlGo();
+        parts.current?.session.type(held ? withCtrl(text) : text);
+        parts.current?.term.focus();
+      },
+      press: (key) => {
+        const p = parts.current;
+        if (!p) return;
+        const held = ctrl.current;
+        letCtrlGo();
+        p.session.type(keySequence(key, p.term.modes.applicationCursorKeysMode, held));
+        p.term.focus();
+      },
+      holdCtrl: (on) => {
+        ctrl.current = on;
         parts.current?.term.focus();
       },
     }),
-    [theme],
+    [theme, letCtrlGo],
   );
 
   return <section ref={host} className="terminal-screen" aria-label={label} hidden={!active} />;

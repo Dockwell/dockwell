@@ -28,6 +28,7 @@ vi.mock("@xterm/xterm", () => {
   class Terminal {
     cols = 100;
     rows = 30;
+    modes = { applicationCursorKeysMode: false };
     options: Record<string, unknown>;
     private onDataFn: (d: string) => void = () => {};
     private selection = "";
@@ -306,6 +307,44 @@ describe("TerminalPage", () => {
       ["admin-1", ""],
       ["admin-1", "proof_1"],
     ]);
+  });
+
+  it("has the keys a phone's keyboard hasn't, and Ctrl held goes with the next key", async () => {
+    onPhone();
+    const sh = shell();
+    renderTerminal({
+      listTerminals: () => ({ terminals: [term()] }),
+      attachTerminal: sh.attachTerminal,
+      writeTerminal: sh.writeTerminal,
+    });
+    const keys = within(await screen.findByRole("toolbar", { name: "Terminal keys, scroll for more" }));
+    await screen.findByText("root@hz-1 · through the agent");
+    await waitFor(() => expect(screens.all[0]?.written.join("")).toBe("root@hz-1:~# "));
+    expect(keys.getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Escape",
+      "Tab",
+      "Control",
+      "Left arrow",
+      "Up arrow",
+      "Down arrow",
+      "Right arrow",
+      "Pipe",
+      "Tilde",
+    ]);
+    const typed = () => sh.writes.map((w) => new TextDecoder().decode(w.data)).join("");
+    await userEvent.click(keys.getByRole("button", { name: "Up arrow" }));
+    await waitFor(() => expect(typed()).toBe("\x1b[A"));
+    const control = keys.getByRole("button", { name: "Control" });
+    await userEvent.click(control);
+    expect(control).toHaveAttribute("aria-pressed", "true");
+    screens.all[0]?.type("c");
+    await waitFor(() => expect(typed()).toBe("\x1b[A\x03"));
+    expect(control).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(keys.getByRole("button", { name: "Tilde" }));
+    await waitFor(() => expect(typed()).toBe("\x1b[A\x03~"));
+    expect(screen.getByRole("button", { name: "Text size" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Paste" })).toBeInTheDocument();
+    await expectAccessible(document.body);
   });
 
   it("takes the phone's screen under a header of its own", async () => {
