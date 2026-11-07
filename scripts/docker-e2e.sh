@@ -2537,6 +2537,53 @@ done
 [[ "$(drifted)" == "$drift_before" ]] || fail "drift after a website: $(dw drift list --json), and before it was $drift_before"
 docker rm --force e2e-site-url e2e-site-port >/dev/null || fail "can't remove what the website sent to"
 
+step "Websites: one serves a folder a person approves, and an edit through Files shows with nothing to deploy"
+# Its web server reads the folder as nobody's user, so the folder and its files are open to everyone.
+site_root=$(mktemp -d) || fail "can't make a folder for the website"
+if ! { chmod 755 "$site_root" && printf 'from-the-folder\n' >"$site_root/index.html" && chmod 644 "$site_root/index.html"; }; then
+  fail "can't write the website's folder"
+fi
+folder_site=folder.e2e-dockwell.example.net
+folder_says() {
+  local body=""
+  for _ in $(seq 150); do
+    body=$(curl -sS --max-time 5 --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/" 2>/dev/null) && [[ "$body" == *"$1"* ]] && return 0
+    sleep 0.2
+  done
+  fail "http://$folder_site/ says '$body', want $1"
+}
+set +e
+planned=$(dw websites create --domain "$folder_site" --website "{\"folder\":{\"root\":\"$site_root\"}}" --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a website that serves a folder exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"$site_root"* ]] || fail "the plan doesn't name the folder: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+serving=$(jq -r '.changes[0].id' <<<"$changes")
+token_refused "$serving"
+person_apply "$serving"
+folder_says from-the-folder
+missing=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/nothing-here") ||
+  fail "http://$folder_site/nothing-here didn't answer"
+[[ "$missing" == 404 ]] || fail "a path the folder hasn't got answers $missing, want 404"
+folder_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^caddy:/ { print $1 }')
+[[ -n "$folder_web" && "$folder_web" != *$'\n'* ]] || fail "Docker runs '$folder_web' for the folder's web server, want one"
+mounted=$(docker inspect --format '{{range .Mounts}}{{.Source}}:{{.Destination}}:{{.RW}} {{end}}' "$folder_web") || fail "docker inspect $folder_web failed"
+[[ "$mounted" == *"$site_root:/srv:false"* ]] || fail "the folder's web server mounts $mounted, want $site_root at /srv, read-only"
+# A person edits the file in Files, and the next request has it, with nothing deployed.
+server_id=$(dw servers list --json | jq -r '.servers[0].id') || fail "servers list failed"
+opened=$(person_call FileService/ReadFile "$(jq -nc --arg s "$server_id" --arg p "$site_root/index.html" '{serverId: $s, path: $p}')") ||
+  fail "a person can't read the website's index"
+version=$(jq -r '.version' <<<"$opened")
+person_call FileService/SaveFile "$(jq -nc --arg s "$server_id" --arg p "$site_root/index.html" --arg v "$version" '{serverId: $s, path: $p, content: "edited-in-files\n", version: $v}')" >/dev/null ||
+  fail "a person can't save the website's index"
+folder_says edited-in-files
+# Deleting the website leaves its folder as it was.
+gone=$(dw websites delete "$folder_site" --yes 2>&1) || fail "websites delete failed: $gone"
+[[ "$(cat "$site_root/index.html")" == edited-in-files ]] || fail "deleting the website touched its folder: $(ls -la "$site_root")"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a folder's website: $(dw drift list --json), and before it was $drift_before"
+rm -rf "$site_root"
+
 step "Ingress: a route with a certificate takes port 443 beside them, and frees it as it goes"
 took=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www failed: $took"
 [[ "$took" == *"takes ports 443/tcp and 443/udp too"* ]] || fail "the plan doesn't say Caddy takes port 443: $took"

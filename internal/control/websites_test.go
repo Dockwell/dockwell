@@ -320,3 +320,67 @@ func testWhatAWebsiteRefuses(t *testing.T, backend store.Backend) {
 		t.Errorf("the second website's plan is %v, want project shop-example-com-2", order)
 	}
 }
+
+// A website that serves a folder mounts it into its web server read-only, which a
+// person approves, as any server path is, and a token can't.
+func TestAFolderWebsiteNeedsAPerson(t *testing.T) { storetest.Each(t, testAFolderWebsite) }
+
+func testAFolderWebsite(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	token := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
+	script := websiteClient(bearer{token: token, rt: b.client.Transport}, b.origin)
+	scriptChanges := changeClient(bearer{token: token, rt: b.client.Transport}, b.origin)
+	root := t.TempDir()
+
+	res, err := script.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{
+		Domain:  "docs.example.com",
+		Website: &resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: root + "/"}}},
+	}))
+	if err != nil {
+		t.Fatalf("CreateWebsite: %v", err)
+	}
+	ch := res.Msg.GetChange()
+	if !ch.GetPlan().GetHostAccess() {
+		t.Fatalf("a folder plans no host access: %v", planned(ch))
+	}
+	var named bool
+	for _, r := range ch.GetPlan().GetResources() {
+		for _, a := range r.GetHostAccess() {
+			named = named || (a.GetPath() == root && a.GetReadOnly())
+		}
+	}
+	if !named {
+		t.Errorf("the plan doesn't name %s, read-only: %v", root, ch.GetPlan().GetResources())
+	}
+	_, err = scriptChanges.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()}))
+	if reasonOf(err) != authapi.ReasonNeedsSession {
+		t.Errorf("a token applying a folder = %v, want needs_session", err)
+	}
+	applyReviewed(t, c, ch)
+
+	var web *docker.Container
+	for _, name := range e.Containers() {
+		if ctr := e.Container(name); ctr != nil && ctr.Config.Image == website.Image {
+			web = ctr
+		}
+	}
+	if web == nil {
+		t.Fatalf("no web server runs: %v", e.Containers())
+	}
+	if want := root + ":" + website.FolderTarget + ":ro"; !slices.Contains(web.HostConfig.Binds, want) {
+		t.Errorf("the web server binds %v, want %s", web.HostConfig.Binds, want)
+	}
+	if config := strings.Join(web.Config.Cmd, " "); !strings.Contains(config, "file_server") {
+		t.Errorf("the web server's config is %q", config)
+	}
+	list := listWebsites(t, websiteClient(b, b.origin))
+	if len(list) != 1 || list[0].GetSpec().GetFolder().GetRoot() != root {
+		t.Errorf("ListWebsites = %v, want the folder as it was kept", list)
+	}
+}

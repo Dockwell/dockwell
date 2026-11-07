@@ -156,3 +156,71 @@ func TestAWebsitesProjectName(t *testing.T) {
 		}
 	}
 }
+
+func folder(root string, index ...string) *resourcev1.Website {
+	return &resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: root, Index: index}}}
+}
+
+// A folder is an absolute path, written back clean, with index names that can't
+// leave the folder or their place in a config.
+func TestAFolderToServe(t *testing.T) {
+	w := folder(" /var/www/blog/ ", "index.html", " index.html", "", "home.htm")
+	if err := Check(w); err != nil {
+		t.Fatalf("Check = %v", err)
+	}
+	if got := w.GetFolder(); got.GetRoot() != "/var/www/blog" || !slices.Equal(got.GetIndex(), []string{"index.html", "home.htm"}) {
+		t.Errorf("Check wrote %v", got)
+	}
+	for _, tc := range []struct {
+		w    *resourcev1.Website
+		says string
+	}{
+		{folder(""), "needs the folder"},
+		{folder("var/www/blog"), "isn't an absolute path"},
+		{folder("/"), "the whole server"},
+		{folder("/var/www/../etc"), "Give the folder it leads to"},
+		{folder("/var/www/my site"), "a character a folder's path can't hold"},
+		{folder("/var/www/{blog}"), "a character a folder's path can't hold"},
+		{folder("/var/www/blog", "../secret"), "isn't a file name an index can have"},
+		{folder("/var/www/blog", "a b"), "isn't a file name an index can have"},
+	} {
+		err := Check(tc.w)
+		if err == nil || !strings.Contains(err.Error(), tc.says) {
+			t.Errorf("Check(%v) = %v, want it to say %q", tc.w, err, tc.says)
+		}
+	}
+}
+
+// A folder's website is its web server, which mounts the folder read-only, and a
+// route to it.
+func TestWhatServesAFolder(t *testing.T) {
+	w := folder("/var/www/blog")
+	if err := Check(w); err != nil {
+		t.Fatal(err)
+	}
+	got := Resources(w, "blog.example.com", Front{})
+	if r := got.Route; r.GetService() != WebService || r.GetPort() != Port {
+		t.Errorf("a folder's route is %v", r)
+	}
+	web := got.Services[WebService].GetApp()
+	if len(web.GetMounts()) != 1 {
+		t.Fatalf("the web server mounts %v", web.GetMounts())
+	}
+	m := web.GetMounts()[0]
+	if m.GetHostPath() != "/var/www/blog" || m.GetTarget() != FolderTarget || !m.GetReadOnly() {
+		t.Errorf("the web server mounts %v, want the folder at %s, read-only", m, FolderTarget)
+	}
+	config := Config(w)
+	for _, want := range []string{"root * /srv", "file_server {\n\t\tindex index.html index.htm\n\t}"} {
+		if !strings.Contains(config, want) {
+			t.Errorf("the config has no %q:\n%s", want, config)
+		}
+	}
+	if strings.Contains(config, "try_files") {
+		t.Errorf("a folder that isn't a single-page app sends what isn't there somewhere:\n%s", config)
+	}
+	app := &resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/app", Index: []string{"app.html"}, SinglePageApp: true}}}
+	if config := Config(app); !strings.Contains(config, "try_files {path} {path}/ /app.html") {
+		t.Errorf("a single-page app's config:\n%s", config)
+	}
+}

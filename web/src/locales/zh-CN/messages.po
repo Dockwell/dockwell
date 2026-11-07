@@ -788,6 +788,10 @@ msgstr "当前 {now}"
 msgid "{number} of {count}"
 msgstr "第 {number} 个，共 {count} 个"
 
+#: src/features/websites/WebsiteFields.tsx
+msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
+msgstr "{others, plural, other {包含 {found} 以及另外 # 项。}}"
+
 #: src/features/changes/words.ts
 msgid "{out}, which reaches past the server's firewall"
 msgstr "{out}，可绕过服务器的防火墙"
@@ -1053,6 +1057,12 @@ msgstr "+{left}"
 msgid "<0>{0}</0> · the panel for {name}"
 msgstr "<0>{0}</0> · {name} 的面板"
 
+#. placeholder {0}: shut.name
+#. placeholder {1}: shut.mode
+#: src/features/websites/WebsiteFields.tsx
+msgid "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
+msgstr "<0>{0}</0> 的权限是 <1>{1}</1>，只有所有者可读，所以 Web 服务器读不到它。请对它以及该文件夹中的其他文件运行 <2>chmod o+r</2>。"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
 msgstr "<0>{current}</0> 仍在部署中。部署结束后即可审阅这个计划。"
@@ -1124,6 +1134,10 @@ msgstr "<0>{name}</0> 将停止。<1>{stays}</1> 会保留，你可以在 {deadl
 #: src/features/changes/notices.tsx
 msgid "<0>{path}</0> gives it control of Docker on the server, the same as root."
 msgstr "<0>{path}</0> 让它能控制服务器上的 Docker，相当于 root。"
+
+#: src/features/websites/WebsiteFields.tsx
+msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
+msgstr "<0>{path}</0> 是文件，不是文件夹。请填写存放网站文件的文件夹。"
 
 #: src/features/changes/notices.tsx
 msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
@@ -1290,8 +1304,7 @@ msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容�
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果它在 {healthyWithin} 内未变为健康，新容器会被移除，正在运行的容器保留"
 
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "A port on this server"
 msgstr "此服务器上的端口"
 
@@ -1331,6 +1344,10 @@ msgstr "某个服务"
 msgid "A small web server of its own sends each request on"
 msgstr "由它自己的小型 Web 服务器转发每个请求"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "A static site: the files in a folder on this server, as they are. You approve the folder in the plan."
+msgstr "静态网站：原样提供此服务器上某个文件夹中的文件。你需要在计划中批准该文件夹。"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "A step failed, so the change stopped there."
 msgstr "有一个步骤失败，更改就此停止。"
@@ -1343,8 +1360,7 @@ msgstr "此服务器上的隧道"
 msgid "A tunnel or a proxy in front handles HTTPS"
 msgstr "前面的隧道或代理负责 HTTPS"
 
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "A URL"
 msgstr "URL"
 
@@ -1675,6 +1691,10 @@ msgstr "其他代理"
 #: src/features/websites/NewWebsiteSheet.tsx
 msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
 msgstr "另一个站点，或你网络中的某个地址，例如 http://10.0.0.5:8080。由它自己的小型 Web 服务器转发每个请求。"
+
+#: src/features/websites/WebsiteFields.tsx
+msgid "Answers a path with no file of its own with the index, as an app that routes in the browser needs. Off, it gets a 404."
+msgstr "没有对应文件的路径用首页文件响应，在浏览器中处理路由的应用需要这样。关闭时返回 404。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Any image your server can pull, such as nginx:1.27."
@@ -3357,6 +3377,10 @@ msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无�
 msgid "Edit and try again"
 msgstr "修改后重试"
 
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Edit files"
+msgstr "编辑文件"
+
 #: src/features/files/FileViewer.tsx
 msgid "Edited"
 msgstr "已编辑"
@@ -3577,6 +3601,10 @@ msgstr "文件在读取时发生了变化，因此可能包含写到一半的内
 msgid "Files in {shown}"
 msgstr "{shown} 中的文件"
 
+#: src/features/websites/WebsiteFields.tsx
+msgid "Files in a folder"
+msgstr "文件夹中的文件"
+
 #: src/features/apps/AppsPage.tsx
 msgid "Filter apps"
 msgstr "筛选应用"
@@ -3645,6 +3673,10 @@ msgstr "集群操作"
 msgid "Fold {title}"
 msgstr "折叠 {title}"
 
+#: src/features/websites/WebsiteFields.tsx
+msgid "Folder"
+msgstr "文件夹"
+
 #: src/app/Providers.tsx
 msgid "Follow"
 msgstr "跟随"
@@ -3673,8 +3705,7 @@ msgstr "用于前面没有任何代理的私有网络。否则，发往服务器
 msgid "For a script, the CLI or an integration"
 msgstr "用于脚本、CLI 或集成"
 
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
 msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"
 
@@ -3736,8 +3767,15 @@ msgstr "请填写{missingLabel}，然后审阅计划"
 msgid "Give each variable a value to review the plan"
 msgstr "为每个变量填写值后即可查看计划"
 
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
+msgid "Give the folder from the top, starting with /, such as /var/www/blog."
+msgstr "请从根目录写起，以 / 开头，例如 /var/www/blog。"
+
+#: src/features/websites/WebsiteFields.tsx
+msgid "Give the folder that holds its files, such as /var/www/blog."
+msgstr "请填写存放网站文件的文件夹，例如 /var/www/blog。"
+
+#: src/features/websites/WebsiteFields.tsx
 msgid "Give the URL to send to, such as https://backend.example.com."
 msgstr "请填写要转发到的 URL，例如 https://backend.example.com。"
 
@@ -3830,6 +3868,10 @@ msgstr "隐藏 {name}"
 #: src/features/apps/NewAppSheet.tsx
 msgid "Hide the value"
 msgstr "隐藏值"
+
+#: src/features/websites/WebsiteFields.tsx
+msgid "Holds {found}."
+msgstr "包含 {found}。"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Hostname"
@@ -3961,6 +4003,10 @@ msgstr "应用内"
 #: src/features/auth/ClaimPage.tsx
 msgid "in under a minute"
 msgstr "不到一分钟后"
+
+#: src/features/websites/WebsiteFields.tsx
+msgid "Index files"
+msgstr "首页文件"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Info"
@@ -4314,6 +4360,10 @@ msgid "Its rollout order says to stop first, so there are never two"
 msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器"
 
 #: src/features/websites/WebsiteConfiguration.tsx
+msgid "Its route and its web server go, and the folder stays on the server as it is. Undo from Activity brings them back."
+msgstr "它的路由和 Web 服务器会被删除，文件夹原样保留在服务器上。在“动态”中撤销即可恢复。"
+
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Its route and its web server go. Undo from Activity brings them back."
 msgstr "它的路由和 Web 服务器会被删除。在“动态”中撤销即可恢复。"
 
@@ -4345,6 +4395,10 @@ msgstr "它的卷会先备份"
 #: src/features/websites/WebsiteConfiguration.tsx
 msgid "Its web server"
 msgstr "它的 Web 服务器"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Its web server serves the files as they are, and an edit shows at once"
+msgstr "它的 Web 服务器原样提供这些文件，修改会立即生效"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
@@ -5226,6 +5280,10 @@ msgstr "规格没有变化。它只是被移动，或恢复原样。"
 msgid "Nothing in the {total} lines loaded has \"{query}\"."
 msgstr "已加载的 {total} 行中没有“{query}”。"
 
+#: src/features/websites/WebsiteFields.tsx
+msgid "Nothing is at <0>{path}</0> yet. Docker makes the folder, empty and owned by root, as the plan applies. Put the site's files in it with scp or rsync, as Files edits files that are there."
+msgstr "<0>{path}</0> 目前不存在。应用计划时 Docker 会创建这个文件夹，内容为空，归 root 所有。请用 scp 或 rsync 把网站文件放进去，因为“文件”只能编辑已有的文件。"
+
 #: src/features/changes/words.ts
 msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
 msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
@@ -5372,6 +5430,10 @@ msgstr "直接连接互联网"
 msgid "On the server"
 msgstr "在服务器上"
 
+#: src/features/websites/WebsiteFields.tsx
+msgid "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
+msgstr "位于服务器上。它的 Web 服务器以 nobody 用户读取，所以其中的内容必须所有人可读。"
+
 #: src/features/changes/RollbackLine.tsx
 msgid "Once <0>{servers}</0> reconnect, Dockwell puts things back as they were"
 msgstr "<0>{servers}</0> 重新连接后，Dockwell 会恢复原样"
@@ -5450,6 +5512,10 @@ msgstr "打开 {where}"
 #: src/features/websites/WebsiteConfiguration.tsx
 msgid "Open in Domains"
 msgstr "在“域名”中打开"
+
+#: src/features/websites/WebsiteFields.tsx
+msgid "Open in Files"
+msgstr "在“文件”中打开"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
@@ -5873,8 +5939,7 @@ msgid "port on the server"
 msgstr "服务器端口"
 
 #: src/features/apps/AddDomainSheet.tsx
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "Port on the server"
 msgstr "服务器上的端口"
 
@@ -6433,10 +6498,9 @@ msgstr "显示了密钥 {name}"
 msgid "Reverse proxy"
 msgstr "反向代理"
 
-#. placeholder {0}: targetOf(site.spec)
 #: src/features/websites/WebsiteLayout.tsx
-msgid "Reverse proxy to {0}"
-msgstr "反向代理到 {0}"
+msgid "Reverse proxy to {root}"
+msgstr "反向代理到 {root}"
 
 #: src/features/websites/WebsiteLayout.tsx
 msgid "Reverse proxy to port {port} on the server"
@@ -6878,8 +6942,7 @@ msgstr "把域名指向你的某个应用。任何改动生效前，你都会先
 msgid "Send backups to {name}"
 msgstr "将备份发送到 {name}"
 
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "Send the URL's own name as Host"
 msgstr "将 URL 自己的主机名作为 Host 发送"
 
@@ -6891,11 +6954,6 @@ msgstr "发送"
 #: src/features/backups/BackupsPage.tsx
 msgid "Sending to {0}"
 msgstr "正在发送到 {0}"
-
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
-msgid "Sends its requests to"
-msgstr "将请求转发到"
 
 #: src/features/websites/WebsiteConfiguration.tsx
 msgid "Sends to"
@@ -6945,6 +7003,10 @@ msgstr "服务器根目录"
 #: src/features/shell/TabBar.tsx
 msgid "Servers"
 msgstr "服务器"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Serves"
+msgstr "提供内容"
 
 #: src/app/Providers.tsx
 msgid "service"
@@ -7178,6 +7240,10 @@ msgstr "在其他所有地方退出登录后，这个浏览器仍保持登录。
 msgid "Signing you in with a one-time link"
 msgstr "正在用一次性链接为你登录"
 
+#: src/features/websites/WebsiteFields.tsx
+msgid "Single-page app"
+msgstr "单页应用"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/auth/ClaimPage.tsx
 #: src/features/backups/BackupsPage.tsx
@@ -7246,7 +7312,7 @@ msgstr "来源"
 msgid "sources"
 msgstr "来源"
 
-#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "Start it with http:// or https://, such as https://backend.example.com."
 msgstr "请以 http:// 或 https:// 开头，例如 https://backend.example.com。"
 
@@ -7272,6 +7338,14 @@ msgstr "正在启动"
 #: src/features/servers/ContainersPanel.tsx
 msgid "State"
 msgstr "状态"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "Static files"
+msgstr "静态文件"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Static files from {root}"
+msgstr "来自 {root} 的静态文件"
 
 #: src/features/apps/AppDeployments.tsx
 #: src/features/apps/AppsPage.tsx
@@ -7642,6 +7716,10 @@ msgstr "文件使用这些变量。有默认值的留空即使用默认值。"
 msgid "The file writes more variables in plain sight than these"
 msgstr "该文件以明文写出的变量比这里列出的更多"
 
+#: src/features/websites/WebsiteFields.tsx
+msgid "The first of these in a folder answers for it."
+msgstr "文件夹中按顺序找到的第一个文件用来响应该文件夹。"
+
 #: src/features/changes/notices.tsx
 msgid "the folder it runs from"
 msgstr "它运行所在的目录"
@@ -7899,6 +7977,10 @@ msgstr "位于 {path} 的卷驱动 {driver}，可访问该插件能访问的内�
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
 msgstr "卷驱动 {driver}，可访问该插件能访问的内容（{reads}）"
 
+#: src/features/websites/WebsiteFields.tsx
+msgid "The web server reads the folder as nobody's user, and <0>{path}</0> is <1>{mode}</1>, closed to everyone else, so it answers 403. Run <2>chmod o+rx {path}</2>, and <3>o+r</3> on its files."
+msgstr "Web 服务器以 nobody 用户读取该文件夹，而 <0>{path}</0> 的权限是 <1>{mode}</1>，其他人无法访问，所以会返回 403。请运行 <2>chmod o+rx {path}</2>，并对其中的文件设置 <3>o+r</3>。"
+
 #: src/features/websites/WebsiteConfiguration.tsx
 msgid "The web server's config"
 msgstr "Web 服务器的配置"
@@ -7919,6 +8001,10 @@ msgstr "没有可复制的日志"
 #: src/features/logs/LogsPage.tsx
 msgid "There are no lines to download"
 msgstr "没有可下载的日志"
+
+#: src/features/websites/WebsiteFields.tsx
+msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
+msgstr "<1>{path}</1> 中没有 <0>{first}</0>，所以在添加之前访问它会返回 404。请添加一个，或填写网站已有的首页文件。"
 
 #: src/features/system/NotFound.tsx
 msgid "There's nothing at <0>{pathname}</0>. <1>Go to the overview</1>"
@@ -8606,8 +8692,7 @@ msgstr "升级到 {latest}"
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
 
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "URL"
 msgstr "URL"
 
@@ -8634,8 +8719,7 @@ msgstr "使用我已有的密码短语"
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "Use a port from 1 to 65535."
 msgstr "请使用 1 到 65535 之间的端口。"
 
@@ -8832,23 +8916,22 @@ msgstr "警告"
 msgid "Warnings"
 msgstr "警告"
 
-#. placeholder {0}: was.url
+#. placeholder {0}: servesWords[was.serves]
+#. placeholder {0}: was.index
+#. placeholder {0}: was.root
 #: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "Was {0}"
 msgstr "原为 {0}"
 
 #. placeholder {0}: was.port
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "Was {0} · whatever listens there sees every visitor as local"
 msgstr "原为 {0} · 在那里监听的程序会把每个访问者都视为本机"
 
-#: src/features/websites/WebsiteConfiguration.tsx
-msgid "Was a port on this server"
-msgstr "原为此服务器上的端口"
-
-#: src/features/websites/WebsiteConfiguration.tsx
-msgid "Was a URL"
-msgstr "原为 URL"
+#: src/features/websites/WebsiteFields.tsx
+msgid "Was index.html index.htm"
+msgstr "原为 index.html index.htm"
 
 #: src/features/websites/WebsiteLayout.tsx
 #: src/features/websites/WebsitesPage.tsx
@@ -8905,6 +8988,11 @@ msgstr "接下来"
 msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
 msgstr "正在处理的请求最多有 {drain} 的时间完成。超过此时间的连接（如长连接）会随旧容器一起结束"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "What it serves"
+msgstr "提供的内容"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "What it set out to do"
 msgstr "原定计划"
@@ -8913,9 +9001,9 @@ msgstr "原定计划"
 msgid "What it would have done"
 msgstr "计划内容"
 
-#: src/features/websites/NewWebsiteSheet.tsx
-msgid "What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's."
-msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。端口 80 归代理使用。"
+#: src/features/websites/WebsiteFields.tsx
+msgid "What listens on the server itself, on 127.0.0.1 or every address. It sees every visitor as local, so you approve it in the plan."
+msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。它会把每个访问者都视为本机，所以需要你在计划中批准。"
 
 #: src/features/apps/AddPortSheet.tsx
 msgid "What people connect to, such as 8080."
@@ -9048,10 +9136,6 @@ msgstr "前面的代理无法再连接 {where}，因此访问者会看到它对�
 msgid "What's in front gets a 404 for {where}, so visitors see whatever it shows for one."
 msgstr "前面的代理访问 {where} 会得到 404，因此访问者会看到它对 404 的显示内容。"
 
-#: src/features/websites/WebsiteConfiguration.tsx
-msgid "Whatever listens there sees every visitor as local, so you approve it in the plan."
-msgstr "在那里监听的程序会把每个访问者都视为本机，所以需要你在计划中批准。"
-
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 msgid "When"
@@ -9060,10 +9144,6 @@ msgstr "时间"
 #: src/features/apps/words.ts
 msgid "When it exits with an error"
 msgstr "出错退出时"
-
-#: src/features/websites/WebsiteConfiguration.tsx
-msgid "Where it sends"
-msgstr "转发目标"
 
 #: src/features/changes/notices.tsx
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
@@ -9098,8 +9178,7 @@ msgstr "经由 {list} 而来的任何人"
 msgid "Why it failed"
 msgstr "失败原因"
 
-#: src/features/websites/NewWebsiteSheet.tsx
-#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteFields.tsx
 msgid "With a path, such as /app, each request goes under it."
 msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
 

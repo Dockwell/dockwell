@@ -5,6 +5,7 @@ package website
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -151,5 +152,80 @@ func TestAProxyToAURLOnRealCaddy(t *testing.T) {
 	h = <-got
 	if want := strings.TrimPrefix(srv.URL, "http://"); h.host != want || h.path != "/" {
 		t.Errorf("the upstream was sent Host %q for %s, want its own, %s, for /", h.host, h.path, want)
+	}
+}
+
+// get asks for a path, as the ingress would, and says what came back.
+func get(t *testing.T, addr, path string) (int, string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+path, http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "blog.example.com"
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.StatusCode, string(body)
+}
+
+// The config a folder's website runs is real Caddy's: a folder answers with its
+// index, a file as it is, and what isn't there with a 404, or for a single-page app
+// with its index. An edit to a file shows at once, with nothing to deploy.
+func TestAFolderOnRealCaddy(t *testing.T) {
+	bin := needCaddy(t)
+	root := t.TempDir()
+	write := func(name, text string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("index.html", "the blog")
+	write("post/index.html", "a post")
+	write("style.css", "body{}")
+	// The container sees the folder at /srv, which the test can't make, so its root moves.
+	moved := func(w *resourcev1.Website) string {
+		return strings.Replace(Config(w), "root * "+FolderTarget, "root * "+root, 1)
+	}
+
+	addr := runs(t, bin, moved(&resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/blog"}}}))
+	for _, tc := range []struct {
+		path   string
+		status int
+		body   string
+	}{
+		{"/", 200, "the blog"},
+		{"/post/", 200, "a post"},
+		{"/style.css", 200, "body{}"},
+		{"/missing", 404, ""},
+	} {
+		status, body := get(t, addr, tc.path)
+		if status != tc.status || (tc.body != "" && body != tc.body) {
+			t.Errorf("GET %s = %d %q, want %d %q", tc.path, status, body, tc.status, tc.body)
+		}
+	}
+	write("index.html", "the blog, edited")
+	if _, body := get(t, addr, "/"); body != "the blog, edited" {
+		t.Errorf("after an edit, / says %q", body)
+	}
+
+	app := runs(t, bin, moved(&resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/app", SinglePageApp: true}}}))
+	if status, body := get(t, app, "/settings/profile"); status != 200 || body != "the blog, edited" {
+		t.Errorf("a single-page app's GET /settings/profile = %d %q, want its index", status, body)
+	}
+	if status, body := get(t, app, "/style.css"); status != 200 || body != "body{}" {
+		t.Errorf("a single-page app's GET /style.css = %d %q, want the file", status, body)
 	}
 }
