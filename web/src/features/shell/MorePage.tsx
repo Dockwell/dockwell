@@ -51,6 +51,10 @@ export function MorePage() {
         <Link to="/variables" className="more-row">
           <RowBody icon="key" label={t`Variables and secrets`} />
         </Link>
+        {section("websites")}
+        <Link to="/databases" className="more-row">
+          <RowBody icon="database" label={t`Databases`} />
+        </Link>
         {BEFORE_DOMAINS.map(section)}
         <Link to="/domains" className="more-row">
           <RowBody icon="link" label={t`Domains`} />
