@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -217,6 +218,7 @@ func TestDNSSaysWhatItSees(t *testing.T) {
 		{"elsewhere", addrs("198.51.100.1"), nil, addrs("203.0.113.9"), resource.DomainElsewhere},
 		{"behind NAT", addrs("198.51.100.1"), nil, addrs("10.0.0.5"), resource.DomainCantTell},
 		{"behind carrier-grade NAT", addrs("198.51.100.1"), nil, addrs("100.64.0.5"), resource.DomainCantTell},
+		{"behind NAT, with mihomo's TUN up", addrs("203.0.113.51"), nil, addrs("172.16.0.5", "198.18.0.1"), resource.DomainCantTell},
 		{"a shared record is no public address", addrs("100.64.0.9"), nil, addrs("10.0.0.5"), resource.DomainElsewhere},
 		{"a private record elsewhere", addrs("10.0.0.9"), nil, addrs("10.0.0.5"), resource.DomainElsewhere},
 		{"DNS failing", nil, context.DeadlineExceeded, addrs("203.0.113.9"), resource.DomainUnknown},
@@ -231,6 +233,68 @@ func TestDNSSaysWhatItSees(t *testing.T) {
 				t.Errorf("State = %d, want %d: %+v", got.State, tc.want, got)
 			}
 		})
+	}
+}
+
+// Aliyun behind 1:1 NAT with mihomo's TUN up on its default, 198.18.0.1: DNS is
+// right, and neither address here is one to point it at.
+func TestATunsAddressIsNowhereToPointDNS(t *testing.T) {
+	d := &DNS{
+		Lookup: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("203.0.113.51")}, nil
+		},
+		Addrs: func() ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("172.16.0.5"), netip.MustParseAddr("198.18.0.1")}, nil
+		},
+	}
+	check := d.Check(t.Context(), "app.example.com")
+	if check.State != resource.DomainCantTell {
+		t.Errorf("state = %d, want it can't tell, as no address here is public", check.State)
+	}
+	msg := certMessage("app.example.com", CertState{Phase: CertFailed, Problem: ProblemDNS}, check)
+	if strings.Contains(msg, "server, 198.18.0.1") {
+		t.Errorf("it says to point DNS at the TUN's address: %q", msg)
+	}
+}
+
+// A TUN device is a program's, by kind, whatever address it took, which the kernel
+// tells from a file only such a device has. A PPPoE link is point-to-point too,
+// and holds a server's real address, so that isn't how to tell.
+func TestATunIsToldByKindNotByItsAddress(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"eth0", "ppp0", "wg0", "Meta"} {
+		if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "Meta", "tun_flags"), []byte("0x1001\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	was := sysClassNet
+	sysClassNet = root
+	t.Cleanup(func() { sysClassNet = was })
+	all := []ownInterface{
+		{name: "eth0", addrs: []netip.Addr{netip.MustParseAddr("172.16.0.5")}},
+		{name: "docker0", addrs: []netip.Addr{netip.MustParseAddr("172.17.0.1")}},
+		{name: "Meta", addrs: []netip.Addr{netip.MustParseAddr("11.0.0.1")}},
+		{name: "ppp0", addrs: []netip.Addr{netip.MustParseAddr("198.51.100.20")}},
+	}
+	if got, want := addrWords(serving(all)), []string{"172.16.0.5", "198.51.100.20"}; !slices.Equal(got, want) {
+		t.Errorf("a domain could point at %v, want %v", got, want)
+	}
+	for _, tc := range []struct{ name, outbound, want string }{
+		{"the route goes through the TUN", "11.0.0.1", "172.16.0.5"},
+		{"the route goes through eth0", "172.16.0.5", "172.16.0.5"},
+		{"the route goes through a bridge, which isn't a TUN", "172.17.0.1", "172.17.0.1"},
+		{"the address is on no interface", "192.168.9.9", "192.168.9.9"},
+		{"not an address", "127.0.0.1", "127.0.0.1"},
+	} {
+		if got := ownAddress(tc.outbound, all); got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	if got := ownAddress("11.0.0.1", all[2:3]); got != "11.0.0.1" {
+		t.Errorf("with nothing else there, it went with %q", got)
 	}
 }
 
@@ -280,7 +344,10 @@ func TestEachCertificateStateSaysWhatToDo(t *testing.T) {
 		{"no record, behind NAT", CertState{Phase: CertPending}, &resource.DomainCheck{State: resource.DomainNoRecord, Here: []string{"10.0.0.25"}}, []string{"no DNS record", "this server's public address", "only sees 10.0.0.25 here, which is private"}},
 		{"elsewhere, behind NAT", CertState{Phase: CertPending}, &resource.DomainCheck{State: resource.DomainElsewhere, Found: []string{"10.9.9.9"}, Here: []string{"10.0.0.25"}}, []string{"this server's public address", "only sees 10.0.0.25 here, which is private"}},
 		{"a firewall", CertState{Phase: CertFailed, Problem: ProblemConnection}, nil, []string{"port 80 or 443", "firewall", "Open both", "tries again"}},
-		{"a firewall, behind NAT", CertState{Phase: CertFailed, Problem: ProblemConnection}, &resource.DomainCheck{State: resource.DomainCantTell, Found: []string{"203.0.113.50"}, Here: []string{"10.0.0.25"}}, []string{"behind NAT", "the cloud provider's", "the machine's own", "ufw or iptables", "tries again"}},
+		{"a firewall, behind NAT", CertState{Phase: CertFailed, Problem: ProblemConnection}, &resource.DomainCheck{State: resource.DomainCantTell, Found: []string{"203.0.113.50"}, Here: []string{"10.0.0.25"}}, []string{"behind NAT", "the cloud provider's", "the machine's own", "ufw or iptables", "Open both ports in each", "Behind a home or office router, forward both to this machine's private address, 10.0.0.25", "tries again"}},
+		{"behind a router, with a VPN beside it", CertState{Phase: CertFailed, Problem: ProblemConnection}, &resource.DomainCheck{State: resource.DomainCantTell, Here: []string{"192.168.1.20", "100.72.1.2"}}, []string{"forward both to this machine's private address, 192.168.1.20."}},
+		{"a firewall, under carrier-grade NAT", CertState{Phase: CertFailed, Problem: ProblemConnection}, &resource.DomainCheck{State: resource.DomainCantTell, Here: []string{"100.72.1.2"}}, []string{"carrier-grade NAT", "no forwarded port can reach it", "a tunnel is the way"}},
+		{"DNS on three addresses", CertState{Phase: CertPending}, &resource.DomainCheck{State: resource.DomainElsewhere, Found: []string{"198.51.100.1", "198.51.100.2", "198.51.100.3"}, Here: []string{"203.0.113.9"}}, []string{"points at 198.51.100.1, 198.51.100.2 and 198.51.100.3, not this server"}},
 		{"another server", CertState{Phase: CertFailed, Problem: ProblemWrongServer}, here, []string{"something other than this server", "CDN"}},
 		{"a rate limit", CertState{Phase: CertFailed, Problem: ProblemRateLimited, Detail: "retry after 2026-11-05"}, nil, []string{"rate limit", "retry after 2026-11-05", "Wait"}},
 		{"CAA", CertState{Phase: CertFailed, Problem: ProblemCAA}, nil, []string{"CAA record", "letsencrypt.org"}},
