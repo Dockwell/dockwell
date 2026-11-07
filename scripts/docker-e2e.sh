@@ -2604,6 +2604,73 @@ set -e
 [[ "$status" != 0 ]] || fail "a route went through to Docker's API"
 [[ "$own" == *"Docker's API"* ]] || fail "the refusal of Docker's API says: $own"
 
+step "Websites: one sends to a URL through a web server of its own, moves to a port a person approves, and goes"
+# What a website sends to: something elsewhere, which a container on Docker's default
+# bridge stands for, reached by its address, and something on the server's own port.
+docker run -d --name e2e-site-url nginx:1.27-alpine sh -c 'echo from-the-url >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
+  fail "can't run what the website sends to"
+upstream=$(docker inspect --format '{{.NetworkSettings.IPAddress}}' e2e-site-url) || fail "docker inspect e2e-site-url failed"
+[[ -n "$upstream" ]] || fail "e2e-site-url has no address on Docker's default bridge"
+site_port=$((web_port + 4))
+docker run -d --name e2e-site-port -p "127.0.0.1:$site_port:80" nginx:1.27-alpine sh -c 'echo from-the-port >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
+  fail "can't run something on port $site_port"
+site=site.e2e-dockwell.example.net
+site_says() {
+  local body=""
+  for _ in $(seq 150); do
+    body=$(curl -sS --max-time 5 --resolve "$site:80:127.0.0.1" "http://$site/" 2>/dev/null) && [[ "$body" == *"$1"* ]] && return 0
+    sleep 0.2
+  done
+  fail "http://$site/ says '$body', want $1"
+}
+# A URL reaches what any container reaches, so a token's plan is a token's to apply.
+made=$(dw websites create --domain "$site" --website "{\"proxy\":{\"url\":\"http://$upstream/\"}}" --tls off --yes 2>&1) ||
+  fail "websites create failed: $made"
+listed=$(dw websites list --json) || fail "websites list failed"
+[[ "$(jq -r --arg d "$site" '.websites[] | select(.domain == $d) | .serviceId' <<<"$listed")" == svc_* ]] ||
+  fail "the website has no web server: $listed"
+site_says from-the-url
+site_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^caddy:/ { print $1 }')
+[[ -n "$site_web" && "$site_web" != *$'\n'* ]] || fail "Docker runs '$site_web' for the website's web server, want one: $(docker ps --format '{{.Names}} {{.Image}}')"
+# Caddy's binary carries NET_BIND_SERVICE as a file capability, which it can't start
+# without, so that one stays, and it runs as nobody's user.
+runs_as=$(docker inspect --format '{{.Config.User}} {{json .HostConfig.CapDrop}}' "$site_web") || fail "docker inspect $site_web failed"
+[[ "$runs_as" == "65532 "*NET_RAW* && "$runs_as" == *SETUID* && "$runs_as" != *NET_BIND_SERVICE* ]] ||
+  fail "the website's web server runs as $runs_as"
+# The visitor's address goes on to what it sends to, past the ingress and the web server.
+curl -sS --max-time 5 -o /dev/null --resolve "$site:80:127.0.0.1" "http://$site/" || fail "http://$site/ didn't answer"
+sleep 0.5
+seen=$(docker logs --tail 1 e2e-site-url 2>&1) || fail "docker logs e2e-site-url failed"
+[[ "$seen" == *'"127.0.0.1, '* ]] || fail "what the website sends to doesn't read the visitor in X-Forwarded-For: $seen"
+# A port on the server sees every visitor as local, so only a person applies it.
+set +e
+planned=$(dw websites update "$site" --website "{\"proxy\":{\"port\":$site_port}}" --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a website to a port on the server exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"127.0.0.1:$site_port"* ]] || fail "the plan doesn't name the port: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+moving=$(jq -r '.changes[0].id' <<<"$changes")
+token_refused "$moving"
+person_apply "$moving"
+site_says from-the-port
+for _ in $(seq 100); do
+  docker inspect "$site_web" >/dev/null 2>&1 || break
+  sleep 0.1
+done
+if docker inspect "$site_web" >/dev/null 2>&1; then fail "the web server stayed once the website sent to a port"; fi
+# Deleting it takes its route, and the name answers as one with no route.
+gone=$(dw websites delete "$site" --yes 2>&1) || fail "websites delete failed: $gone"
+answer=""
+for _ in $(seq 100); do
+  answer=$(curl -sS --max-time 5 --resolve "$site:80:127.0.0.1" "http://$site/" 2>/dev/null) && [[ "$answer" == *"no site at this address"* ]] && break
+  sleep 0.1
+done
+[[ "$answer" == *"no site at this address"* ]] || fail "a deleted website still answers: $answer"
+[[ "$(dw websites list --json | jq '.websites // [] | length')" == 0 ]] || fail "websites list still has it: $(dw websites list --json)"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a website: $(dw drift list --json), and before it was $drift_before"
+docker rm --force e2e-site-url e2e-site-port >/dev/null || fail "can't remove what the website sent to"
+
 step "Ingress: a route with a certificate takes port 443 beside them, and frees it as it goes"
 took=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www failed: $took"
 [[ "$took" == *"takes ports 443/tcp and 443/udp too"* ]] || fail "the plan doesn't say Caddy takes port 443: $took"

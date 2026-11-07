@@ -131,7 +131,7 @@ func testAWebsite(t *testing.T, backend store.Backend) {
 	if web == nil {
 		t.Fatalf("no web server runs: %v", e.Containers())
 	}
-	if web.Config.User != "65532" || !slices.Contains(web.HostConfig.CapDrop, "ALL") {
+	if web.Config.User != "65532" || !slices.Contains(web.HostConfig.CapDrop, "NET_RAW") || slices.Contains(web.HostConfig.CapDrop, "NET_BIND_SERVICE") {
 		t.Errorf("the web server runs as %q, dropping %v", web.Config.User, web.HostConfig.CapDrop)
 	}
 	if config := strings.Join(web.Config.Cmd, " "); !strings.Contains(config, "reverse_proxy https://backend.example.com") || !strings.Contains(config, "rewrite * /blog{uri}") {

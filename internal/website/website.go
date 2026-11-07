@@ -35,6 +35,15 @@ const (
 	user = "65532"
 )
 
+// dropped is every capability Docker gives a container but NET_BIND_SERVICE, which
+// the image's Caddy carries as a file capability: the kernel refuses to start a
+// binary whose file capabilities its bounding set can't grant, so dropping ALL
+// would stop it starting. Adding one back would be host access.
+var dropped = []string{
+	"AUDIT_WRITE", "CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "MKNOD",
+	"NET_RAW", "SETFCAP", "SETGID", "SETPCAP", "SETUID", "SYS_CHROOT",
+}
+
 // Kind is what a website does, in a word the API and the panel share.
 type Kind string
 
@@ -219,7 +228,7 @@ func webService(config string) *resourcev1.Service {
 		Entrypoint: []string{"/bin/sh", "-c", script, "web"},
 		Command:    []string{config},
 		User:       user,
-		CapDrop:    []string{"ALL"},
+		CapDrop:    dropped,
 		// What Caddy writes as it runs, in memory, as nothing of it needs to last.
 		Tmpfs: []*resourcev1.Tmpfs{
 			{Target: "/tmp", Size: "1M"},
