@@ -255,10 +255,10 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 	}
 	if r := out.GetRefusal(); r != nil {
 		where := cmp.Or(r.GetPath(), path)
-		switch r.GetKind() {
-		case agentv1.FileRefusal_KIND_MAY_LAND:
+		if r.GetKind() == agentv1.FileRefusal_KIND_MAY_LAND {
 			return nil, unknown(where, refusal(r))
-		case agentv1.FileRefusal_KIND_NEEDS_STEP_UP:
+		}
+		if r.GetKind() == agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
 			// Not a failure, as every such save starts here. What matters is whether
 			// a passkey follows.
 			giveBack()

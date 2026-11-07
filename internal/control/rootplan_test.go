@@ -147,8 +147,8 @@ func registerImages(e *dockertest.Engine) {
 }
 
 // socketEdit is a service with Docker's socket, which is root.
-func socketEdit(name string, change func(*resourcev1.Container)) *dockwellv1.Edit {
-	edit := serviceEdit(name, "ghcr.io/acme/ops:1.0", nil)
+func socketEdit(change func(*resourcev1.Container)) *dockwellv1.Edit {
+	edit := serviceEdit("ops", "ghcr.io/acme/ops:1.0", nil)
 	app := edit.GetSpec().GetService().GetApp()
 	app.Mounts = []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/var/run/docker.sock"}, Target: "/var/run/docker.sock"}}
 	if change != nil {
@@ -185,7 +185,7 @@ func testWhatKeepsRootAsksAgainForAnythingElseThatRuns(t *testing.T, backend sto
 	registerImages(f.addDockerServer(t))
 	c := changeClient(b, b.origin)
 	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
-	applyAsRoot(t, b, proposeEdit(t, c, socketEdit("ops", nil)))
+	applyAsRoot(t, b, proposeEdit(t, c, socketEdit(nil)))
 
 	for what, change := range map[string]func(*resourcev1.Container){
 		"another image":                    func(a *resourcev1.Container) { a.Image = "ghcr.io/stranger/ops:1.0" },
@@ -202,7 +202,7 @@ func testWhatKeepsRootAsksAgainForAnythingElseThatRuns(t *testing.T, backend sto
 		},
 	} {
 		t.Run(what, func(t *testing.T) {
-			planned := proposeEdit(t, c, socketEdit("ops", change))
+			planned := proposeEdit(t, c, socketEdit(change))
 			if !planned.GetPlan().GetHostAccess() {
 				t.Fatalf("it plans no host access: %v", planned.GetPlan())
 			}
@@ -238,9 +238,9 @@ func TestANewTagOfTheSameImageKeepsDeployingWithRoot(t *testing.T) {
 	registerImages(f.addDockerServer(t))
 	c := changeClient(b, b.origin)
 	script := changeClient(bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}, b.origin)
-	applyAsRoot(t, b, proposeEdit(t, c, socketEdit("ops", nil)))
+	applyAsRoot(t, b, proposeEdit(t, c, socketEdit(nil)))
 	for _, image := range []string{"ghcr.io/acme/ops:1.1", "ghcr.io/acme/ops:1.1@sha256:" + strings.Repeat("a", 64)} {
-		planned := proposeEdit(t, script, socketEdit("ops", func(a *resourcev1.Container) { a.Image = image }))
+		planned := proposeEdit(t, script, socketEdit(func(a *resourcev1.Container) { a.Image = image }))
 		if planned.GetPlan().GetHostAccess() {
 			t.Errorf("%s plans host access: %v", image, planned.GetPlan())
 		}
@@ -256,8 +256,8 @@ func TestAnUndoThatBringsRootBackTakesAPasskey(t *testing.T) {
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
 	c := changeClient(b, b.origin)
-	applyAsRoot(t, b, proposeEdit(t, c, socketEdit("ops", nil)))
-	plain := proto.Clone(socketEdit("ops", func(a *resourcev1.Container) { a.Mounts = nil })).(*dockwellv1.Edit)
+	applyAsRoot(t, b, proposeEdit(t, c, socketEdit(nil)))
+	plain := proto.Clone(socketEdit(func(a *resourcev1.Container) { a.Mounts = nil })).(*dockwellv1.Edit)
 	dropped := proposeEdit(t, c, plain)
 	if got := applied(t, c, dropped); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("dropping it: %v", got)
@@ -359,7 +359,7 @@ func TestARefusedApplyLeavesItsProofToUse(t *testing.T) {
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
 	c := changeClient(b, b.origin)
-	planned := proposeEdit(t, c, socketEdit("ops", nil))
+	planned := proposeEdit(t, c, socketEdit(nil))
 	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, planned.GetId())
 	server := f.lastDocker
 	server.stop()
@@ -385,7 +385,7 @@ func TestAPlanNobodyConfirmsIsOnActivity(t *testing.T) {
 	b := signedIn(t, f)
 	registerImages(f.addDockerServer(t))
 	c := changeClient(b, b.origin)
-	planned := proposeEdit(t, c, socketEdit("ops", nil))
+	planned := proposeEdit(t, c, socketEdit(nil))
 	if err := askedBy(t, c, planned, planned.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
 		t.Fatal(err)
 	}
@@ -411,7 +411,7 @@ func TestAPlanNobodyConfirmsIsOnActivity(t *testing.T) {
 	if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: planned.GetId()})); err != nil {
 		t.Fatal(err)
 	}
-	confirmed := proposeEdit(t, c, socketEdit("ops", nil))
+	confirmed := proposeEdit(t, c, socketEdit(nil))
 	if err := askedBy(t, c, confirmed, confirmed.GetPlan().GetFingerprint()); reasonOf(err) != "needs_step_up" {
 		t.Fatal(err)
 	}
